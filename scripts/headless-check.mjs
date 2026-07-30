@@ -357,9 +357,9 @@ async function main() {
       moteColors: !!g.world.motes.geometry.attributes.color,
     };
   `);
-  eq(boot.challenges, 26, '26 個關卡載入');
+  eq(boot.challenges, 27, '27 個關卡載入');
   eq(boot.techniques, 68, '68 條技巧載入');
-  eq(boot.markers, 26, '26 座石座在世界裡');
+  eq(boot.markers, 27, '27 座石座在世界裡');
   eq(boot.gates, 4, '4 道閘門在世界裡');
   eq(boot.titleOpen, true, '開機先看到標題卡');
   eq(boot.introOpen, false, '標題卡期間教學還沒跳');
@@ -2661,7 +2661,7 @@ async function main() {
       const g = window.__promptarcade;
       g.promptConsole.close();
       await new Promise((r) => setTimeout(r, 160));
-      g.promptConsole.open(g.content.challenge('long-scroll-tower-23'));
+      g.promptConsole.open(g.content.challenge('archive-seal-25'));
       await new Promise((r) => setTimeout(r, 240));
       g.promptConsole.goAct(3, { force: true });
       await new Promise((r) => setTimeout(r, 300));
@@ -6618,6 +6618,748 @@ async function main() {
   await sleep(200);
 
   /* ================================================================ */
+  console.log('\n▸ 排序刻印與神諭工坊（Phase 27）');
+
+  /** 送一連串滑鼠事件（拖曳用）。 */
+  async function mouse(type, x, y, extra = {}) {
+    await cdp.send(
+      'Input.dispatchMouseEvent',
+      { type, x: Math.round(x), y: Math.round(y), button: 'left', buttons: type === 'mouseReleased' ? 0 : 1, clickCount: 1, ...extra },
+      sessionId
+    );
+  }
+  /** 某個元素現在的中心點（先捲到畫面中央）。 */
+  async function centerOf(selector) {
+    return evaluate(`
+      const el = document.querySelector('${selector}');
+      if (!el) return null;
+      el.scrollIntoView({ block: 'center' });
+      await new Promise((r) => setTimeout(r, 200));
+      const r = el.getBoundingClientRect();
+      return { x: Math.round(r.x + r.width / 2), y: Math.round(r.y + r.height / 2) };
+    `);
+  }
+
+  await evaluate(`
+    const g = window.__promptarcade;
+    g.promptConsole.close(); g.codex.close(); g.settings.close();
+    g.promptConsole.setMode('guided');
+    return 1;
+  `);
+  await sleep(200);
+
+  /* --- 資料層：三種題型都在，其他 24 關一個位元組都沒變 --- */
+  const kinds = await evaluate(`
+    const g = window.__promptarcade;
+    const flows = g.content.flowFile.flows;
+    const out = { total: g.content.challenges.length, byKind: { choice: 0, order: 0, workshop: 0 }, missing: [] };
+    for (const c of g.content.challenges) {
+      const f = flows[c.id];
+      if (!f) { out.missing.push(c.id); continue; }
+      const k = f.kind === 'order' && f.orderFlow ? 'order' : f.kind === 'workshop' && f.workshop ? 'workshop' : 'choice';
+      out.byKind[k] += 1;
+      // 三種題型都還留著選擇題的資料當後備
+      if (!Array.isArray(f.slots) || !f.slots.length) out.missing.push(c.id + ':noslots');
+    }
+    out.orderIds = Object.entries(flows).filter(([, f]) => f.kind === 'order').map(([id]) => id).sort();
+    out.workshopIds = Object.entries(flows).filter(([, f]) => f.kind === 'workshop').map(([id]) => id).sort();
+    return out;
+  `);
+  eq(kinds.total, 27, '世界上有 27 關（新增了神諭工坊）');
+  eq(kinds.missing.length, 0, '每一關都有流程資料，而且都留著選擇題後備', kinds.missing.join(','));
+  eq(kinds.byKind.choice, 24, '24 關維持原本的石碑刻印（零行為變化）');
+  eq(kinds.byKind.order, 2, '2 關改成排序刻印');
+  eq(kinds.byKind.workshop, 1, '1 關是神諭工坊');
+  eq(kinds.orderIds.join(','), 'long-scroll-tower-23,priority-stair-42', '改成排序的就是那兩關（次序本身就是課程）');
+  eq(kinds.workshopIds.join(','), 'oracle-workshop-36', '神諭工坊是新的第 27 關');
+
+  /* ---------------------------------------------------------------- *
+   * 一、排序刻印：純鍵盤走完（拿起 → 搬 → 放下 → 亮燈 → 手印 → S）
+   * ---------------------------------------------------------------- */
+  const orderOpen = await evaluate(`
+    const g = window.__promptarcade;
+    g.promptConsole.open(g.content.challenge('long-scroll-tower-23'));
+    await new Promise((r) => setTimeout(r, 260));
+    const actAtOpen = g.promptConsole.act;
+    g.promptConsole.goAct(3, { force: true });
+    await new Promise((r) => setTimeout(r, 320));
+    const b = g.promptConsole.orderBoard;
+    return {
+      actAtOpen,
+      act: g.promptConsole.act,
+      kind: g.promptConsole.kind,
+      steleHidden: document.querySelector('#prompt-console .stele-stage').hidden,
+      boardShown: !document.querySelector('#prompt-console .orderboard').hidden,
+      workshopHidden: document.querySelector('#prompt-console .workshop').hidden,
+      slips: document.querySelectorAll('#prompt-console .slip').length,
+      arrangement: b.arrangement,
+      correct: b.correctOrder,
+      right: b.progress.right,
+      ask: document.querySelector('#prompt-console .orderboard .carve__ask').textContent.trim(),
+      progress: document.querySelector('#prompt-console .orderboard .carve__progress').textContent.trim(),
+      label: document.querySelector('#prompt-console [data-guided-label] .zh').textContent.trim(),
+      focused: document.activeElement?.getAttribute('data-slip'),
+      palmHidden: document.querySelector('#prompt-console .orderboard .palmwrap').hidden,
+      marks: [...document.querySelectorAll('#prompt-console .slip')].map((li) => li.classList.contains('is-right')),
+    };
+  `);
+  eq(orderOpen.actAtOpen, 1, '排序刻印一樣從第一幕開始（四幕分鏡沒有變）');
+  eq(orderOpen.act, 3, '排序住在第三幕');
+  eq(orderOpen.kind, 'order', '這一關的題型是排序刻印');
+  eq(orderOpen.steleHidden, true, '選擇題的石碑收起來了');
+  eq(orderOpen.workshopHidden, true, '工坊也收起來了（一次只有一種在台上）');
+  eq(orderOpen.boardShown, true, '台上是一排可以搬的石版');
+  eq(orderOpen.slips, 3, '這一關有 3 片石版');
+  eq(orderOpen.label, '排序刻印', '版面上寫的是「排序刻印」');
+  ok(orderOpen.ask.length >= 6, '這一步的問題看得到', orderOpen.ask);
+  ok(/位置對了 0 \/ 3 片/.test(orderOpen.progress), '一開始一片都沒排對', orderOpen.progress);
+  eq(orderOpen.right, 0, '初始排法沒有任何一片剛好站對（不是送分題）');
+  eq(orderOpen.marks.filter(Boolean).length, 0, '沒有任何一片標成「位置對了」');
+  eq(orderOpen.palmHidden, true, '還沒排順，手掌印不會出現（沒有「送出才發現排錯」這種事）');
+  ok(orderOpen.focused, '焦點落在第一片石版上', String(orderOpen.focused));
+  eq(
+    JSON.stringify(orderOpen.arrangement) === JSON.stringify(orderOpen.correct),
+    false,
+    '初始排法不等於正解'
+  );
+
+  // 純鍵盤：Enter 拿起 → ↓ 搬 → Enter 放下
+  const lift = await evaluate(`
+    const b = window.__promptarcade.orderBoardProbe = window.__promptarcade.promptConsole.orderBoard;
+    document.querySelector('#prompt-console [data-slip="question"]').focus();
+    return 1;
+  `);
+  ok(lift === 1, '把焦點停在「問題」那一片上');
+  await key('Enter', 'Enter', { vk: 13 });
+  await sleep(200);
+  const held = await evaluate(`
+    const b = window.__promptarcade.promptConsole.orderBoard;
+    return {
+      held: b.held,
+      pressed: document.querySelector('#prompt-console [data-slip="question"]').getAttribute('aria-pressed'),
+      cls: document.querySelector('#prompt-console .slip[data-slip-id="question"]').classList.contains('is-held'),
+      live: b.announcement,
+      arrangement: b.arrangement,
+    };
+  `);
+  eq(held.held, 'question', 'Enter 把那一片石版拿起來了');
+  eq(held.pressed, 'true', '拿起來的石版 aria-pressed = true');
+  eq(held.cls, true, '拿起來的石版看得出來被抓著（is-held）');
+  ok(/拿起/.test(held.live) && /共 3 片/.test(held.live), 'aria-live 講出「拿起哪一片、第幾片」', held.live);
+  eq(held.arrangement.join(','), 'question,docs,ground', '只是拿起來，還沒搬');
+
+  await key('ArrowDown', 'ArrowDown', { vk: 40 });
+  await sleep(160);
+  await key('ArrowDown', 'ArrowDown', { vk: 40 });
+  await sleep(160);
+  const moved = await evaluate(`
+    const b = window.__promptarcade.promptConsole.orderBoard;
+    return { arrangement: b.arrangement, live: b.announcement, held: b.held,
+      focused: document.activeElement?.getAttribute('data-slip'),
+      ranks: [...document.querySelectorAll('#prompt-console .slip__rank')].map((n) => n.textContent) };
+  `);
+  eq(moved.arrangement.join(','), 'docs,ground,question', '↑ ↓ 真的把石版搬到別的位置');
+  eq(moved.held, 'question', '搬動的時候還握在手上');
+  eq(moved.focused, 'question', '焦點跟著那一片走（不會掉回頁首）');
+  ok(/移到第 3 片/.test(moved.live), 'aria-live 講出搬到第幾片', moved.live);
+  eq(moved.ranks.join(''), '123', '位次跟著重新編號');
+
+  await key('Enter', 'Enter', { vk: 13 });
+  await sleep(320);
+  const dropped = await evaluate(`
+    const g = window.__promptarcade;
+    const b = g.promptConsole.orderBoard;
+    return {
+      held: b.held,
+      done: b.done,
+      right: b.progress.right,
+      live: b.announcement,
+      marks: [...document.querySelectorAll('#prompt-console .slip')].map((li) => li.classList.contains('is-right')),
+      lit: document.querySelectorAll('#prompt-console .checklist li.is-pass').length,
+      lampText: document.querySelector('#prompt-console [data-lamp-text]').textContent.trim(),
+      palmHidden: document.querySelector('#prompt-console .orderboard .palmwrap').hidden,
+      act: g.promptConsole.act,
+      focused: document.activeElement?.className,
+      text: b.text,
+      xp: g.progression.state.xp,
+    };
+  `);
+  eq(dropped.held, null, 'Enter 把石版放下了');
+  eq(dropped.done, true, '三片都站對位置了');
+  eq(dropped.right, 3, '「位置對了」3 / 3');
+  eq(dropped.marks.filter(Boolean).length, 3, '每一片都標上了「位置對了」的刻記');
+  ok(/位置對了/.test(dropped.live), 'aria-live 講出放下的結果', dropped.live);
+  ok(dropped.lit >= 3, '旁邊的刻痕對照跟著亮燈', String(dropped.lit));
+  ok(/把手掌按上石碑/.test(dropped.lampText), '進度燈改口成「把手掌按上石碑就過關了」', dropped.lampText);
+  eq(dropped.palmHidden, false, '排順之後手掌印才浮出來');
+  eq(dropped.act, 4, '排滿自動切到第四幕（跟石碑刻印同一個節拍）');
+  ok(/palm/.test(String(dropped.focused)), '焦點自動落到手掌印上', String(dropped.focused));
+  ok(
+    dropped.text.indexOf('<documents>') === 0 && /問題：/.test(dropped.text.split('\n').pop()),
+    '排好的文字＝資料在前、問題在最後一行',
+    dropped.text.slice(0, 40)
+  );
+
+  // 真的按住手掌 900ms（> PALM_HOLD_MS）
+  const palmBox = await centerOf('#prompt-console .orderboard .palm');
+  await mouse('mousePressed', palmBox.x, palmBox.y);
+  await sleep(900);
+  await mouse('mouseReleased', palmBox.x, palmBox.y);
+  await sleep(700);
+  const orderResult = await evaluate(`
+    const g = window.__promptarcade;
+    return {
+      fired: g.promptConsole.orderBoard.fired,
+      grade: document.querySelector('#prompt-console .grade__mark')?.textContent.trim(),
+      resultHidden: document.querySelector('#prompt-console [data-result]').hidden,
+      best: g.progression.bestGrade('long-scroll-tower-23'),
+      xpGain: g.progression.state.xp - ${dropped.xp},
+      sources: [...document.querySelectorAll('#prompt-console [data-result] a.src')].length,
+    };
+  `);
+  eq(orderResult.fired, true, '按住手掌 900ms 真的發動了');
+  eq(orderResult.resultHidden, false, '結果面板照舊出現');
+  eq(orderResult.grade, 'S', '排對的順序走同一支離線引擎 → 拿到 S');
+  eq(orderResult.best, 'S', '評價寫進進度');
+  ok(orderResult.xpGain > 0, '排序刻印一樣給 XP', String(orderResult.xpGain));
+  ok(orderResult.sources >= 4, '結果面板每一條都掛著官方出處', String(orderResult.sources));
+
+  /* --- 指標拖曳：用真的滑鼠事件把石版拖到別的位置 --- */
+  await evaluate(`
+    const g = window.__promptarcade;
+    g.promptConsole.open(g.content.challenge('priority-stair-42'));
+    await new Promise((r) => setTimeout(r, 260));
+    g.promptConsole.goAct(3, { force: true });
+    await new Promise((r) => setTimeout(r, 320));
+    return 1;
+  `);
+  const stairBefore = await evaluate(`
+    const b = window.__promptarcade.promptConsole.orderBoard;
+    return { arrangement: b.arrangement, correct: b.correctOrder, slips: document.querySelectorAll('#prompt-console .slip').length };
+  `);
+  eq(stairBefore.slips, 4, '優先序階梯有 4 片石版');
+  eq(stairBefore.correct.join(','), 'role,task,format,context', '正解是「規則區在最上面」');
+  const drag = await evaluate(`
+    const grip = (id) => document.querySelector('#prompt-console [data-slip="' + id + '"]');
+    grip('role').scrollIntoView({ block: 'center' });
+    await new Promise((r) => setTimeout(r, 240));
+    const a = grip('role').getBoundingClientRect();
+    const b = grip('context').getBoundingClientRect();
+    return {
+      fromX: Math.round(a.x + 30), fromY: Math.round(a.y + a.height / 2),
+      toX: Math.round(b.x + 30), toY: Math.round(b.y + 4),
+    };
+  `);
+  await mouse('mouseMoved', drag.fromX, drag.fromY, { buttons: 0 });
+  await mouse('mousePressed', drag.fromX, drag.fromY);
+  await sleep(140);
+  for (const t of [0.25, 0.5, 0.75, 1]) {
+    await mouse('mouseMoved', drag.fromX, Math.round(drag.fromY + (drag.toY - drag.fromY) * t));
+    await sleep(90);
+  }
+  await mouse('mouseReleased', drag.toX, drag.toY);
+  await sleep(360);
+  const dragged = await evaluate(`
+    const b = window.__promptarcade.promptConsole.orderBoard;
+    return { arrangement: b.arrangement, right: b.progress.right,
+      rightMark: document.querySelector('#prompt-console .slip[data-slip-id="role"]').classList.contains('is-right') };
+  `);
+  eq(dragged.arrangement[0], 'role', '滑鼠拖曳真的把「角色與目標」搬到最上面');
+  eq(dragged.rightMark, true, '搬對的那一片立刻標成「位置對了」');
+  ok(dragged.right >= 1, '拖曳之後至少一片站對了', String(dragged.right));
+
+  // 排錯不會失敗：手掌印不出現、不扣分、也不會跳結果面板
+  const stillSafe = await evaluate(`
+    const g = window.__promptarcade;
+    const b = g.promptConsole.orderBoard;
+    b.arrange(['role', 'context', 'format', 'task']);
+    await new Promise((r) => setTimeout(r, 160));
+    return {
+      done: b.done,
+      palmHidden: document.querySelector('#prompt-console .orderboard .palmwrap').hidden,
+      resultHidden: document.querySelector('#prompt-console [data-result]').hidden,
+      canGo4: g.promptConsole.canGoAct(4),
+      xp: g.progression.state.xp,
+    };
+  `);
+  eq(stillSafe.done, false, '排錯就是還沒排好');
+  eq(stillSafe.palmHidden, true, '排錯時手掌印不出現 —— 你不可能「送出一個排錯的答案」');
+  eq(stillSafe.resultHidden, true, '排錯不會跳失敗面板');
+  eq(stillSafe.canGo4, false, '排錯時第四幕按不下去');
+
+  const stairDone = await evaluate(`
+    const g = window.__promptarcade;
+    const b = g.promptConsole.orderBoard;
+    const xpBefore = g.progression.state.xp;
+    b.arrange(b.correctOrder);
+    await new Promise((r) => setTimeout(r, 200));
+    b.press();
+    await new Promise((r) => setTimeout(r, 420));
+    return {
+      grade: document.querySelector('#prompt-console .grade__mark')?.textContent.trim(),
+      text: b.text,
+      xpGain: g.progression.state.xp - xpBefore,
+      noPenalty: g.progression.state.xp >= xpBefore,
+    };
+  `);
+  eq(stairDone.grade, 'S', '優先序階梯排對也是 S（同一支引擎）');
+  ok(stairDone.text.indexOf('# 角色與目標') === 0, '規則區真的排在最上面', stairDone.text.slice(0, 20));
+  ok(stairDone.xpGain > 0, '排錯過幾次不影響拿到的 XP（不會失敗、也不扣分）', String(stairDone.xpGain));
+
+  /* ---------------------------------------------------------------- *
+   * 二、神諭工坊：純鍵盤走完整條派工流程
+   * ---------------------------------------------------------------- */
+  const wsOpen = await evaluate(`
+    const g = window.__promptarcade;
+    g.promptConsole.close();
+    await new Promise((r) => setTimeout(r, 200));
+    const c = g.content.challenge('oracle-workshop-36');
+    g.promptConsole.open(c);
+    await new Promise((r) => setTimeout(r, 260));
+    const act1 = {
+      links: document.querySelectorAll('#prompt-console .act--brief a[href^="https"]').length,
+      mission: document.querySelector('#prompt-console [data-mission]').textContent.trim(),
+      material: document.querySelector('#prompt-console [data-material]').textContent.trim(),
+    };
+    g.promptConsole.goAct(2, { force: true });
+    await new Promise((r) => setTimeout(r, 240));
+    const act2 = {
+      glyphs: document.querySelectorAll('#prompt-console .glyphs .glyph').length,
+      sources: [...document.querySelectorAll('#prompt-console .glyphs a.src')]
+        .filter((a) => a.textContent.trim().startsWith('神諭原典'))
+        .map((a) => a.href),
+      labels: [...document.querySelectorAll('#prompt-console .glyphs a.src')]
+        .filter((a) => a.textContent.trim().startsWith('神諭原典'))
+        .map((a) => a.textContent.trim()),
+    };
+    g.promptConsole.goAct(3, { force: true });
+    await new Promise((r) => setTimeout(r, 320));
+    const w = g.promptConsole.workshop;
+    return {
+      act1, act2,
+      kind: g.promptConsole.kind,
+      teaches: c.teaches,
+      stage: w.stage,
+      label: document.querySelector('#prompt-console [data-guided-label] .zh').textContent.trim(),
+      cards: [...document.querySelectorAll('#prompt-console .toolcard .toolcard__name')].map((n) => n.textContent.trim()),
+      params: [...document.querySelectorAll('#prompt-console .toolcard .toolcard__params')].map((n) => n.textContent.trim()),
+      progress: document.querySelector('#prompt-console .workshop .carve__progress').textContent.trim(),
+      ask: document.querySelector('#prompt-console .workshop .carve__ask').textContent.trim(),
+      focused: document.activeElement?.getAttribute('data-tool'),
+      palmHidden: document.querySelector('#prompt-console .workshop .palmwrap').hidden,
+      steleHidden: document.querySelector('#prompt-console .stele-stage').hidden,
+      orderHidden: document.querySelector('#prompt-console .orderboard').hidden,
+    };
+  `);
+  eq(wsOpen.kind, 'workshop', '神諭工坊是第三種題型');
+  eq(wsOpen.act1.links, 0, '第一幕仍然零官方連結（委託只有題目）');
+  ok(/派工單/.test(wsOpen.act1.mission), '委託講的是「把委託變成一張派工單」', wsOpen.act1.mission);
+  ok(/燈塔守/.test(wsOpen.act1.material), '素材就是旅人那句話', wsOpen.act1.material);
+  eq(wsOpen.act2.glyphs, 4, '第二幕的神諭刻文＝這一關的四條檢查');
+  ok(
+    wsOpen.act2.sources.every((u) => /^https:/.test(u)) && wsOpen.act2.sources.length === 4,
+    '每一條刻文都掛著可點的官方出處',
+    wsOpen.act2.sources.join(' ')
+  );
+  ok(
+    wsOpen.act2.labels.every((t) => t.startsWith('神諭原典：')),
+    '出處標成「神諭原典：<文件名>」（換皮但不說謊）',
+    wsOpen.act2.labels.join(' / ')
+  );
+  eq(
+    wsOpen.teaches.join(','),
+    'agentic-01,agentic-02,decompose-02,grounding-03',
+    '教的是課程裡真實存在的工具使用 / 拆解技巧'
+  );
+  eq(wsOpen.label, '神諭工坊', '版面上寫的是「神諭工坊」');
+  eq(wsOpen.steleHidden, true, '選擇題的石碑收起來了');
+  eq(wsOpen.orderHidden, true, '排序刻印也收起來了');
+  eq(wsOpen.stage, 'tools', '第一步是挑工具');
+  eq(wsOpen.cards.length, 3, '檯上有三把工具牌');
+  ok(
+    wsOpen.params.every((p) => p.startsWith('參數：')),
+    '每張工具牌都寫著它的參數（名字 ＋ 說明 ＋ 參數）',
+    wsOpen.params.join(' / ')
+  );
+  ok(/第 1 \/ 4 步/.test(wsOpen.progress), '進度寫著「第 1 / 4 步」', wsOpen.progress);
+  ok(wsOpen.focused, '焦點落在第一張工具牌上', String(wsOpen.focused));
+  eq(wsOpen.palmHidden, true, '還沒派完工，手掌印不出現');
+
+  // 挑錯工具 → 就地教學、不扣分、不前進
+  const badTool = await evaluate(`
+    const g = window.__promptarcade;
+    document.querySelector('#prompt-console [data-tool="ledger"]').focus();
+    return 1;
+  `);
+  ok(badTool === 1, '把焦點停在用不到的那把工具上');
+  await enterNative();
+  await sleep(320);
+  const badToolOut = await evaluate(`
+    const g = window.__promptarcade;
+    const btn = document.querySelector('#prompt-console [data-tool="ledger"]');
+    const fb = btn.querySelector('[data-tool-fb]');
+    return {
+      wrong: btn.classList.contains('is-wrong'),
+      shown: !fb.hidden,
+      text: fb.textContent.trim(),
+      data: g.content.flow('oracle-workshop-36').workshop.tools.find((t) => t.id === 'ledger').feedback,
+      stage: g.promptConsole.workshop.stage,
+      chosen: g.promptConsole.workshop.dispatch.chosen.length,
+      resultHidden: document.querySelector('#prompt-console [data-result]').hidden,
+      stillHere: !!document.querySelector('#prompt-console [data-tool="ledger"]'),
+    };
+  `);
+  eq(badToolOut.wrong, true, '挑錯的工具牌留在原地並標成「工坊不收」');
+  eq(badToolOut.shown, true, '挑錯就地長出一句白話教學');
+  eq(badToolOut.text, badToolOut.data, '教學回饋就是資料裡寫的那一句');
+  ok(badToolOut.text.length >= 12, '回饋講得出「為什麼這一把用不到」', badToolOut.text);
+  eq(badToolOut.stage, 'tools', '挑錯不會前進到下一步');
+  eq(badToolOut.chosen, 0, '挑錯的工具不會被收進派工單');
+  eq(badToolOut.resultHidden, true, '挑錯不會跳失敗面板');
+  eq(badToolOut.stillHere, true, '挑錯的牌子還在，可以再挑別的');
+
+  // 純鍵盤挑對兩把工具（方向鍵在牌之間走、Enter 收下）
+  await evaluate(`document.querySelector('#prompt-console [data-tool="weather"]').focus(); return 1;`);
+  await enterNative();
+  await sleep(260);
+  const afterFirstTool = await evaluate(`
+    const w = window.__promptarcade.promptConsole.workshop;
+    return { chosen: w.dispatch.chosen, stage: w.stage,
+      taken: document.querySelector('#prompt-console [data-tool="weather"]').classList.contains('is-taken'),
+      slip: [...document.querySelectorAll('#prompt-console .workshop .carved')].map((li) => li.textContent).join('|'),
+      focused: document.activeElement?.getAttribute('data-tool') };
+  `);
+  eq(afterFirstTool.chosen.join(','), 'weather', '收下第一把工具');
+  eq(afterFirstTool.taken, true, '收下的牌子標成已收');
+  eq(afterFirstTool.stage, 'tools', '還缺一把，留在同一步');
+  ok(/工具名：查天氣/.test(afterFirstTool.slip), '派工單上開始長出工具規格', afterFirstTool.slip.slice(0, 40));
+  ok(afterFirstTool.focused, '焦點還在工具牌那一組上', String(afterFirstTool.focused));
+
+  await evaluate(`document.querySelector('#prompt-console [data-tool="letter"]').focus(); return 1;`);
+  await enterNative();
+  await sleep(360);
+  const paramStage = await evaluate(`
+    const w = window.__promptarcade.promptConsole.workshop;
+    return {
+      stage: w.stage,
+      progress: document.querySelector('#prompt-console .workshop .carve__progress').textContent.trim(),
+      slots: [...document.querySelectorAll('#prompt-console .pslot__label')].map((n) => n.textContent.trim()),
+      hints: [...document.querySelectorAll('#prompt-console .pslot__hint')].map((n) => n.textContent.trim()),
+      stones: [...document.querySelectorAll('#prompt-console .stone')].map((n) => n.textContent.trim()),
+      filled: document.querySelectorAll('#prompt-console .pslot.is-filled').length,
+      focused: document.activeElement?.tagName,
+      lit: document.querySelectorAll('#prompt-console .checklist li.is-pass').length,
+    };
+  `);
+  eq(paramStage.stage, 'params', '兩把工具都收下 → 自動進到「填參數」');
+  ok(/第 2 \/ 4 步/.test(paramStage.progress), '進度走到第 2 步', paramStage.progress);
+  eq(paramStage.slots.join(','), '地點,日期,收件人,內容', '四個參數格照工具的順序排開');
+  ok(paramStage.hints.every((h) => /字串/.test(h)), '每一格都寫著型別與用途', paramStage.hints.join(' / '));
+  eq(paramStage.stones.length, 6, '托盤裡有 6 顆值石（4 顆用得到）');
+  eq(paramStage.filled, 0, '參數格一開始都是空的');
+  ok(paramStage.lit >= 1, '第一步就把「工具規格」那一盞燈點亮了', String(paramStage.lit));
+
+  // 放錯值石 → 就地教學、值石回托盤、不扣分
+  await evaluate(`document.querySelector('#prompt-console [data-stone="yesterday"]').focus(); return 1;`);
+  await enterNative();
+  await sleep(240);
+  const stoneHeld = await evaluate(`
+    const w = window.__promptarcade.promptConsole.workshop;
+    return { held: w.held, live: w.announcement,
+      pressed: document.querySelector('#prompt-console [data-stone="yesterday"]')?.getAttribute('aria-pressed'),
+      focused: document.activeElement?.getAttribute('data-pslot') };
+  `);
+  eq(stoneHeld.held, 'yesterday', 'Enter 把值石拿起來了');
+  eq(stoneHeld.pressed, 'true', '拿起來的值石 aria-pressed = true');
+  ok(/拿起值石/.test(stoneHeld.live), 'aria-live 講出拿起了哪一顆', stoneHeld.live);
+  eq(stoneHeld.focused, 'weather.place', '焦點自動跳到第一個空格（鍵盤不用自己找）');
+
+  await enterNative();
+  await sleep(320);
+  const badDrop = await evaluate(`
+    const w = window.__promptarcade.promptConsole.workshop;
+    const slot = document.querySelector('#prompt-console [data-pslot="weather.place"]');
+    return {
+      fbShown: !slot.querySelector('[data-pslot-fb]').hidden,
+      fb: slot.querySelector('[data-pslot-fb]').textContent.trim(),
+      filled: document.querySelectorAll('#prompt-console .pslot.is-filled').length,
+      held: w.held,
+      stoneBack: !document.querySelector('#prompt-console [data-stone="yesterday"]').disabled,
+      stage: w.stage,
+      resultHidden: document.querySelector('#prompt-console [data-result]').hidden,
+    };
+  `);
+  eq(badDrop.fbShown, true, '放錯值石就地長出一句白話教學');
+  ok(/地點/.test(badDrop.fb) && badDrop.fb.length >= 12, '教學說得出這一格要的是什麼', badDrop.fb);
+  eq(badDrop.filled, 0, '放錯不會被填進去');
+  eq(badDrop.held, null, '放錯之後手上就空了');
+  eq(badDrop.stoneBack, true, '放錯的值石回到托盤，還可以再用');
+  eq(badDrop.stage, 'params', '放錯不會前進');
+  eq(badDrop.resultHidden, true, '放錯不會跳失敗面板');
+
+  // 純鍵盤把四格填滿
+  for (const [stone, slot] of [
+    ['lake', 'weather.place'],
+    ['tomorrow', 'weather.date'],
+    ['keeper', 'letter.to'],
+    ['result', 'letter.body'],
+  ]) {
+    await evaluate(`document.querySelector('#prompt-console [data-stone="${stone}"]').focus(); return 1;`);
+    await enterNative();
+    await sleep(200);
+    await evaluate(`document.querySelector('#prompt-console [data-pslot="${slot}"]')?.focus(); return 1;`);
+    await enterNative();
+    await sleep(260);
+  }
+  const orderStage = await evaluate(`
+    const w = window.__promptarcade.promptConsole.workshop;
+    return {
+      stage: w.stage,
+      values: w.dispatch.values,
+      progress: document.querySelector('#prompt-console .workshop .carve__progress').textContent.trim(),
+      slips: [...document.querySelectorAll('#prompt-console .workshop .slip__text')].map((n) => n.textContent.trim()),
+      arrangement: w.board.arrangement,
+      correct: w.board.correctOrder,
+      slip: [...document.querySelectorAll('#prompt-console .workshop .carved')].map((li) => li.textContent).join('\\n'),
+      lit: document.querySelectorAll('#prompt-console .checklist li.is-pass').length,
+    };
+  `);
+  eq(orderStage.stage, 'order', '四個參數都填好 → 自動進到「排順序」');
+  ok(/第 3 \/ 4 步/.test(orderStage.progress), '進度走到第 3 步', orderStage.progress);
+  eq(orderStage.values['weather.place'], '湖邊', '「湖邊」填進了地點格');
+  eq(orderStage.values['letter.body'], '第 1 步查到的天氣', '信的內容指回前一步的結果（相依關係）');
+  eq(orderStage.slips.length, 2, '要排的是兩通呼叫');
+  eq(orderStage.correct.join(','), 'weather,letter', '正解是先查天氣、再寄信');
+  eq(
+    JSON.stringify(orderStage.arrangement) === JSON.stringify(orderStage.correct),
+    false,
+    '一開始故意排反（要玩家自己想相依順序）'
+  );
+  ok(/呼叫「查天氣」/.test(orderStage.slip), '派工單上出現填好參數的呼叫', orderStage.slip.slice(0, 60));
+
+  // 排順序也走同一套鍵盤文法
+  await evaluate(`document.querySelector('#prompt-console .workshop [data-slip="weather"]').focus(); return 1;`);
+  await key('Enter', 'Enter', { vk: 13 });
+  await sleep(180);
+  await key('ArrowUp', 'ArrowUp', { vk: 38 });
+  await sleep(180);
+  await key('Enter', 'Enter', { vk: 13 });
+  await sleep(400);
+  const ruleStage = await evaluate(`
+    const w = window.__promptarcade.promptConsole.workshop;
+    return {
+      stage: w.stage,
+      ordered: w.dispatch.ordered,
+      progress: document.querySelector('#prompt-console .workshop .carve__progress').textContent.trim(),
+      rules: [...document.querySelectorAll('#prompt-console .workshop .opt__line')].map((n) => n.textContent.trim()),
+      slip: [...document.querySelectorAll('#prompt-console .workshop .carved')].map((li) => li.textContent),
+      focused: document.activeElement?.getAttribute('data-rule'),
+    };
+  `);
+  eq(ruleStage.stage, 'rule', '排好順序 → 自動進到「立規矩」');
+  eq(ruleStage.ordered, true, '呼叫順序記下來了');
+  ok(/第 4 \/ 4 步/.test(ruleStage.progress), '進度走到第 4 步', ruleStage.progress);
+  eq(ruleStage.rules.length, 3, '有三條規矩可以立');
+  ok(ruleStage.slip[0].startsWith('請你當工坊的派工人'), '派工單長出了開頭那句任務', ruleStage.slip[0]);
+  ok(
+    ruleStage.slip.some((l) => l.startsWith('1. 呼叫「查天氣」')) &&
+      ruleStage.slip.some((l) => l.startsWith('2. 呼叫「寄信」')),
+    '兩通呼叫照相依順序編號',
+    ruleStage.slip.join(' / ')
+  );
+  ok(ruleStage.focused !== null && ruleStage.focused !== undefined, '焦點落在第一條規矩上', String(ruleStage.focused));
+
+  // 立錯規矩 → 就地教學、不失敗
+  await evaluate(`document.querySelector('#prompt-console .workshop [data-rule="0"]').focus(); return 1;`);
+  await enterNative();
+  await sleep(300);
+  const badRule = await evaluate(`
+    const w = window.__promptarcade.promptConsole.workshop;
+    const btn = document.querySelector('#prompt-console .workshop [data-rule="0"]');
+    return {
+      wrong: btn.classList.contains('is-wrong'),
+      fb: btn.querySelector('[data-rule-fb]').textContent.trim(),
+      shown: !btn.querySelector('[data-rule-fb]').hidden,
+      stage: w.stage,
+      done: w.done,
+      resultHidden: document.querySelector('#prompt-console [data-result]').hidden,
+    };
+  `);
+  eq(badRule.wrong, true, '立錯的規矩標成「工坊不收」');
+  eq(badRule.shown, true, '立錯就地長出教學');
+  ok(/亂編|猜/.test(badRule.fb), '教學講出「參數不是用猜的」', badRule.fb);
+  eq(badRule.stage, 'rule', '立錯不會前進');
+  eq(badRule.done, false, '立錯不算完成');
+  eq(badRule.resultHidden, true, '立錯不會跳失敗面板');
+
+  // 立對規矩（按 2 這個數字快捷）→ 手掌印
+  await evaluate(`document.querySelector('#prompt-console .workshop [data-rule="1"]').focus(); return 1;`);
+  await typeChar('2', 'Digit2', 50);
+  await sleep(420);
+  const wsDone = await evaluate(`
+    const g = window.__promptarcade;
+    const w = g.promptConsole.workshop;
+    return {
+      done: w.done,
+      act: g.promptConsole.act,
+      palmHidden: document.querySelector('#prompt-console .workshop .palmwrap').hidden,
+      focused: document.activeElement?.className,
+      text: w.text,
+      sample: g.content.challenge('oracle-workshop-36').sample,
+      lit: document.querySelectorAll('#prompt-console .checklist li.is-pass').length,
+      lampText: document.querySelector('#prompt-console [data-lamp-text]').textContent.trim(),
+      xp: g.progression.state.xp,
+    };
+  `);
+  eq(wsDone.done, true, '四步走完＝派工單寫好了');
+  eq(wsDone.act, 4, '派工單寫好自動切到第四幕（跟另外兩種題型同一個節拍）');
+  eq(wsDone.palmHidden, false, '手掌印浮出來了');
+  ok(/palm/.test(String(wsDone.focused)), '焦點落到手掌印上', String(wsDone.focused));
+  eq(wsDone.text, wsDone.sample, '派工單組出來的字＝資料層的示範解答（同一段文字）');
+  eq(wsDone.lit, 4, '四盞燈全亮');
+  ok(/把手掌按上石碑/.test(wsDone.lampText), '進度燈說「把手掌按上石碑就過關了」', wsDone.lampText);
+
+  const wsPalm = await centerOf('#prompt-console .workshop .palm');
+  await mouse('mousePressed', wsPalm.x, wsPalm.y);
+  await sleep(900);
+  await mouse('mouseReleased', wsPalm.x, wsPalm.y);
+  await sleep(700);
+  const wsResult = await evaluate(`
+    const g = window.__promptarcade;
+    return {
+      fired: g.promptConsole.workshop.fired,
+      grade: document.querySelector('#prompt-console .grade__mark')?.textContent.trim(),
+      best: g.progression.bestGrade('oracle-workshop-36'),
+      xpGain: g.progression.state.xp - ${wsDone.xp},
+      collected: ['agentic-01', 'agentic-02', 'decompose-02', 'grounding-03'].map((id) => g.progression.isCollected(id)),
+      source: document.querySelector('#prompt-console .result__source a.src')?.href,
+    };
+  `);
+  eq(wsResult.fired, true, '按住手掌 900ms 真的發動了');
+  eq(wsResult.grade, 'S', '派工完成走同一支離線引擎 → 拿到 S');
+  eq(wsResult.best, 'S', '評價寫進進度');
+  ok(wsResult.xpGain > 0, '神諭工坊一樣給 XP', String(wsResult.xpGain));
+  eq(wsResult.collected.filter(Boolean).length, 4, '四條技巧收進圖鑑');
+  ok(/^https:/.test(String(wsResult.source)), '結果面板掛著本關技巧的官方出處', String(wsResult.source));
+
+  /* --- 新石座：世界上真的有一座、走近互動得到 --- */
+  const pedestal = await evaluate(`
+    const g = window.__promptarcade;
+    g.promptConsole.close();
+    await new Promise((r) => setTimeout(r, 220));
+    const c = g.content.challenge('oracle-workshop-36');
+    const marker = g.world.markers.find((m) => m.challenge.id === c.id);
+    let node = null;
+    g.world.root ? null : null;
+    g.engine.scene.traverse((o) => { if (o.name === 'marker:' + c.id) node = o; });
+    return {
+      inData: !!c,
+      region: c.region,
+      position: c.position,
+      hasMarker: !!marker,
+      inScene: !!node,
+      cleared: marker ? marker.cleared || g.progression.isCleared(c.id) : false,
+      solidThere: !!g.world.solidAt(c.position[0], c.position[1]),
+      reachable: [0, 6, 12, 18].every((a) => {
+        const r = (a / 24) * Math.PI * 2;
+        return !g.world.solidAt(c.position[0] + Math.cos(r) * 3, c.position[1] + Math.sin(r) * 3);
+      }),
+      inRegion: g.content.challengesOf('orchestration').length,
+    };
+  `);
+  eq(pedestal.hasMarker, true, '新關卡在世界上真的有一座石座');
+  eq(pedestal.inScene, true, '石座長在場景圖上（marker:oracle-workshop-36）');
+  eq(pedestal.region, 'orchestration', '石座擺在齒輪工坊（流程與代理）');
+  eq(pedestal.solidThere, true, '石座本體擋得住人（走不進石頭裡）');
+  eq(pedestal.reachable, true, '石座四周走得到互動距離');
+  eq(pedestal.inRegion, 6, '齒輪工坊現在有 6 關');
+
+  /* --- 換一種答題方式：自由書寫仍然照舊 --- */
+  const wsFree = await evaluate(`
+    const g = window.__promptarcade;
+    g.promptConsole.open(g.content.challenge('oracle-workshop-36'));
+    await new Promise((r) => setTimeout(r, 240));
+    g.promptConsole.goAct(3, { force: true });
+    await new Promise((r) => setTimeout(r, 240));
+    g.promptConsole.setMode('free');
+    await new Promise((r) => setTimeout(r, 260));
+    const out = {
+      workshopHidden: document.querySelector('#prompt-console .workshop').hidden,
+      textarea: !!document.querySelector('#prompt-console .prompt-input'),
+      fills: document.querySelectorAll('#prompt-console .fill').length,
+      submitVisible: !!document.querySelector('#prompt-console [data-submit]'),
+      modeLabel: document.querySelector('#prompt-console [data-mode]').textContent.trim(),
+    };
+    g.promptConsole.setMode('guided');
+    await new Promise((r) => setTimeout(r, 240));
+    out.backKind = g.promptConsole.kind;
+    out.backShown = !document.querySelector('#prompt-console .workshop').hidden;
+    out.backLabel = document.querySelector('#prompt-console [data-mode]').textContent.trim();
+    g.promptConsole.close();
+    return out;
+  `);
+  eq(wsFree.workshopHidden, true, '切到自由書寫時工坊收起來');
+  eq(wsFree.textarea, true, '自由書寫的輸入框照舊在');
+  ok(wsFree.fills >= 2, '快速填入照舊在', String(wsFree.fills));
+  ok(/回到神諭工坊/.test(wsFree.modeLabel), '切換鍵說得出要回到哪一種題型', wsFree.modeLabel);
+  eq(wsFree.backKind, 'workshop', '切回來還是神諭工坊');
+  eq(wsFree.backShown, true, '切回來工坊重新上台');
+  ok(/自由書寫模式/.test(wsFree.backLabel), '切回來之後鍵面改回「自由書寫模式」', wsFree.backLabel);
+
+  /* --- 24 關的石碑刻印一個位元組都沒變 --- */
+  const untouched = await evaluate(`
+    const g = window.__promptarcade;
+    g.promptConsole.open(g.content.challenge('gate-of-clarity-01'));
+    await new Promise((r) => setTimeout(r, 240));
+    g.promptConsole.goAct(3, { force: true });
+    await new Promise((r) => setTimeout(r, 260));
+    const out = {
+      kind: g.promptConsole.kind,
+      steleShown: !document.querySelector('#prompt-console .stele-stage').hidden,
+      orderHidden: document.querySelector('#prompt-console .orderboard').hidden,
+      workshopHidden: document.querySelector('#prompt-console .workshop').hidden,
+      options: document.querySelectorAll('#prompt-console .opt').length,
+      label: document.querySelector('#prompt-console [data-guided-label] .zh').textContent.trim(),
+    };
+    g.promptConsole.close();
+    return out;
+  `);
+  eq(untouched.kind, 'choice', '沒宣告 kind 的關卡就是石碑刻印（預設值）');
+  eq(untouched.steleShown, true, '石碑照舊上台');
+  eq(untouched.orderHidden, true, '排序刻印不會亂入');
+  eq(untouched.workshopHidden, true, '工坊不會亂入');
+  eq(untouched.options, 3, '選項照舊三個');
+  eq(untouched.label, '石碑刻印', '版面照舊寫「石碑刻印」');
+
+  /* --- 窄畫面不溢位 --- */
+  await cdp.send('Emulation.setDeviceMetricsOverride', { width: 820, height: 760, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await sleep(320);
+  const narrow27 = await evaluate(`
+    const g = window.__promptarcade;
+    const out = {};
+    g.promptConsole.open(g.content.challenge('long-scroll-tower-23'));
+    await new Promise((r) => setTimeout(r, 240));
+    g.promptConsole.goAct(3, { force: true });
+    await new Promise((r) => setTimeout(r, 300));
+    const body = document.querySelector('#prompt-console .panel__body');
+    out.orderOverflow = Math.max(0, body.scrollWidth - body.clientWidth);
+    g.promptConsole.close();
+    await new Promise((r) => setTimeout(r, 200));
+    g.promptConsole.open(g.content.challenge('oracle-workshop-36'));
+    await new Promise((r) => setTimeout(r, 240));
+    g.promptConsole.goAct(3, { force: true });
+    await new Promise((r) => setTimeout(r, 300));
+    const body2 = document.querySelector('#prompt-console .panel__body');
+    out.workshopOverflow = Math.max(0, body2.scrollWidth - body2.clientWidth);
+    g.promptConsole.close();
+    return out;
+  `);
+  eq(narrow27.orderOverflow, 0, '820px 下排序刻印沒有水平溢位');
+  eq(narrow27.workshopOverflow, 0, '820px 下神諭工坊沒有水平溢位');
+  await cdp.send('Emulation.clearDeviceMetricsOverride', {}, sessionId);
+  await sleep(300);
+
+  /* ================================================================ */
   console.log('\n▸ 重置');
   const reset = await evaluate(`
     const g = window.__promptarcade;
@@ -6660,6 +7402,11 @@ async function main() {
 main()
   .catch((err) => {
     console.error('\n✗ headless 驗證中斷：', err.message);
+    // 中斷時也要把已經收集到的失敗印出來 —— 不然一個例外會把前面所有線索吃掉
+    if (failures.length) {
+      console.error(`  （中斷前已有 ${failures.length} 項失敗，通過 ${passCount}）：`);
+      for (const f of failures) console.error(`  • ${f}`);
+    }
     process.exitCode = 1;
   })
   .finally(() => {

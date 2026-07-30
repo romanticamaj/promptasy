@@ -18,6 +18,7 @@ import ranksFile from './data/ranks.json';
 import inscriptionFile from './data/inscriptions.json';
 import secretFile from './data/secrets.json';
 import handleFile from './data/handles.json';
+import datedFile from './data/dated-notes.json';
 import './styles.css';
 
 import { createEngine } from './engine/engine.js';
@@ -55,7 +56,15 @@ function boot() {
   if (!app) throw new Error('#app not found');
   app.innerHTML = '';
 
-  const content = createContent(curriculum, challengeFile, builderZh, coachFile, flowFile, curriculumZh);
+  const content = createContent(
+    curriculum,
+    challengeFile,
+    builderZh,
+    coachFile,
+    flowFile,
+    curriculumZh,
+    datedFile
+  );
   // 序章的教學內容：只引用 curriculum 既有的技巧與弱→強對照（逐字，附官方出處）
   const prologueContent = createPrologueContent(prologueFile, curriculum, curriculumZh);
   const progression = createProgression({ curriculum, challenges: content.challenges });

@@ -9,6 +9,12 @@
  * Phase 14：官方範例的中文譯寫層（curriculum-zh.json）也是同一種東西 ——
  * 畫面上「中文在前、官方英文原文收在可展開的『原文 ↗』並附可點的出處」。
  * 兩者一定分開存放，結構上不可能把譯寫當成官方引文。
+ *
+ * Phase 26：時代註記層（dated-notes.json）—— 第三種同性質的東西。
+ * 官方建議會隨模型世代改變（例如取樣參數在新模型上會直接報錯），
+ * 但 curriculum.json 的引文在它們的年代是正確的引用，所以一個字都不動；
+ * 改成在畫面上安靜地補一句**有日期**的查核備註 ＋ 可點的新官方連結。
+ * 引用的文件被下架時同理：原網址留著，顯示層另外標一句「已下架」與後繼參考。
  */
 export function createContent(
   curriculum,
@@ -16,7 +22,8 @@ export function createContent(
   builderZh = null,
   coachFile = null,
   flowFile = null,
-  curriculumZh = null
+  curriculumZh = null,
+  datedFile = null
 ) {
   const challenges = (challengeFile.challenges || []).slice().sort((a, b) => (a.order || 0) - (b.order || 0));
   const techniques = new Map((curriculum.techniques || []).map((t) => [t.id, t]));
@@ -52,6 +59,14 @@ export function createContent(
   const zhTech = new Map(Object.entries((curriculumZh && curriculumZh.techniques) || {}));
 
   /**
+   * 時代註記（dated-notes.json，遊戲自撰）。
+   * key = 技巧 id → 一段有日期的查核備註 ＋ 新的官方連結。
+   */
+  const datedByTech = new Map(((datedFile && datedFile.notes) || []).map((n) => [n.techniqueId, n]));
+  /** 出處狀態註記：網址 → 已下架 / 已標示即將移除 ＋ 後繼參考。 */
+  const datedBySource = new Map(((datedFile && datedFile.sourceNotes) || []).map((s) => [s.url, s]));
+
+  /**
    * 顯示用的一條技巧：中文在前，被中文取代掉的官方原文另外收在 `origin`
    * （UI 一律把 origin 放進可展開的「原文 ↗」並附出處連結）。
    */
@@ -74,6 +89,8 @@ export function createContent(
       origin,
       vendors: tech.vendors || [],
       sources: tech.sources || [],
+      /** 時代註記：官方建議在新一代模型上變了（沒有就是 null）。 */
+      dated: datedByTech.get(tech.id) || null,
     };
   }
 
@@ -95,6 +112,11 @@ export function createContent(
     /** 顯示用的一條技巧：中文在前、官方原文收在 origin。 */
     displayTechnique,
     curriculumZh: curriculumZh || null,
+    /** 這條技巧的時代註記（沒有就是 null）。 */
+    datedNote: (id) => datedByTech.get(id) || null,
+    /** 這個官方網址的狀態註記：已下架 / 已標示即將移除（沒有就是 null）。 */
+    sourceNote: (url) => datedBySource.get(url) || null,
+    datedFile: datedFile || null,
     /** 官方文件網址 → 文件名（找不到就回傳網址本身）。 */
     sourceName: (url) => sourceNameByUrl.get(url) || url,
     topic: (id) => topics.get(id) || null,

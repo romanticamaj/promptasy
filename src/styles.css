@@ -432,6 +432,46 @@ a.src:hover {
   border-bottom-color: var(--paper);
 }
 
+/* ── 時代註記（Phase 26）─────────────────────────────────────────
+   官方建議會隨模型世代改變，但 curriculum.json 的引文一個字都不動；
+   改成在原地補一句**有日期**的查核備註 ＋ 可點的新官方連結。
+   刻意做成註腳的樣子：小、冷色、一條細線，不搶原文的戲。 */
+.datednote {
+  display: flex;
+  gap: var(--s2);
+  margin: 0 0 var(--s3);
+  padding: var(--s2) var(--s3);
+  border-left: 1px solid var(--rule-2);
+  background: rgba(120, 150, 180, 0.05);
+  font-size: var(--t-micro);
+  line-height: 1.75;
+  color: rgba(200, 214, 228, 0.82);
+}
+.datednote__mark {
+  flex: none;
+  color: rgba(169, 201, 216, 0.6);
+}
+.datednote__body {
+  min-width: 0;
+}
+.datednote__srcs {
+  display: block;
+  margin-top: var(--s2);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2) var(--s4);
+}
+/* 出處旁邊的一句實話：這份文件已經下架 / 官方標了即將移除。
+   原網址永遠留著（護欄 2），只是誠實標註現況與後繼參考。 */
+.srcnote {
+  display: block;
+  margin-top: 2px;
+  font-family: var(--font-meta);
+  font-size: var(--t-micro);
+  line-height: 1.6;
+  color: rgba(198, 176, 138, 0.86);
+}
+
 /* ================================================================
    刻印牌元件系統（Phase 15）
    ================================================================
@@ -4691,6 +4731,352 @@ select option:disabled {
   line-height: 1.75;
   color: #f0e3cd;
   animation: reveal-in var(--d-mid) var(--e-out) both;
+}
+
+/* ================================================================
+   排序刻印（Phase 27）—— 石版已經刻好了，要把它們排順
+
+   石版＝一片可以抓起來搬的石籤：左邊一個位次、右邊一個「位置對了」的刻記。
+   排對的那一片會亮起暖金（成就熱點），沒排對的安靜留著（不是紅字警告）。
+   ================================================================ */
+.orderboard[hidden] {
+  display: none;
+}
+.slips {
+  position: relative;
+  display: grid;
+  gap: var(--s2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.slips--bare {
+  margin: var(--s3) 0 0;
+}
+.slip {
+  position: relative;
+  transition: transform 220ms var(--e-out);
+  transform: translate3d(0, var(--lift, 0), 0);
+}
+.slip.is-dragging {
+  z-index: 3;
+  transition: none;
+}
+.slip__grip {
+  --cut: 10px;
+  display: grid;
+  grid-template-columns: 26px minmax(0, 1fr) 20px;
+  align-items: start;
+  gap: var(--s3);
+  width: 100%;
+  padding: var(--s3) var(--s4);
+  border: 0;
+  color: var(--paper-2);
+  font-family: var(--font-ui);
+  font-size: var(--t-small);
+  line-height: 1.8;
+  letter-spacing: var(--tr-cjk);
+  text-align: left;
+  cursor: grab;
+  background: linear-gradient(180deg, rgba(19, 27, 38, 0.94), rgba(8, 11, 17, 0.96));
+  box-shadow: inset 0 1px 0 rgba(214, 232, 244, 0.08), inset 0 0 0 1px var(--rule);
+  clip-path: polygon(
+    var(--cut) 0,
+    100% 0,
+    100% calc(100% - var(--cut)),
+    calc(100% - var(--cut)) 100%,
+    0 100%,
+    0 var(--cut)
+  );
+  animation: opt-in var(--d-mid) var(--e-out) both;
+  animation-delay: calc(var(--i, 0) * 42ms);
+}
+.slip__grip:hover {
+  color: #eef4fa;
+  box-shadow: inset 0 1px 0 rgba(214, 232, 244, 0.14), inset 0 0 0 1px rgba(196, 220, 236, 0.3);
+}
+.slip__grip:focus-visible {
+  outline: 2px solid rgba(230, 199, 155, 0.9);
+  outline-offset: 2px;
+}
+.slip__rank {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border: 1px solid var(--rule);
+  border-radius: 50%;
+  font-family: var(--font-mono);
+  font-size: var(--t-micro);
+  color: var(--paper-3);
+}
+.slip__body {
+  min-width: 0;
+}
+.slip__label {
+  display: block;
+  font-size: var(--t-micro);
+  letter-spacing: var(--tr-cjk);
+  color: var(--paper-4);
+}
+.slip__text {
+  display: block;
+  margin-top: 2px;
+  font-family: var(--font-input);
+  font-size: var(--t-micro);
+  color: var(--paper-3);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.slip__line {
+  display: block;
+}
+.slip__mark {
+  justify-self: end;
+  font-size: var(--t-micro);
+  color: var(--paper-4);
+}
+/* 位置對了：暖金只給成就熱點 */
+.slip.is-right .slip__grip {
+  color: #f2ead9;
+  box-shadow: inset 0 1px 0 rgba(230, 199, 155, 0.22), inset 0 0 0 1px var(--rule-gold);
+}
+.slip.is-right .slip__rank,
+.slip.is-right .slip__mark {
+  border-color: var(--rule-gold);
+  color: var(--gold);
+}
+/* 拿在手上：石版浮起來一點，位次換成一個「正在搬」的記號 */
+.slip.is-held .slip__grip {
+  cursor: grabbing;
+  box-shadow: inset 0 1px 0 rgba(230, 199, 155, 0.3), inset 0 0 0 1px rgba(230, 199, 155, 0.55),
+    0 10px 26px -14px rgba(0, 0, 0, 0.9);
+}
+.slip.is-held .slip__grip,
+.slip.is-dragging .slip__grip {
+  transform: scale(1.012);
+}
+
+/* ================================================================
+   神諭工坊（Phase 27）—— 工具牌 / 參數格 / 值石
+
+   一次只有一步擁有畫面（WORLD.md §3.3）；挑錯放錯只會就地長出一句
+   金線的白話教學，跟石碑「不收」是同一個回饋語言。
+   ================================================================ */
+.workshop[hidden] {
+  display: none;
+}
+.toolrack {
+  display: grid;
+  gap: var(--s2);
+}
+.toolcard {
+  --cut: 11px;
+  display: grid;
+  gap: 2px;
+  width: 100%;
+  padding: var(--s3) var(--s4);
+  border: 0;
+  color: var(--paper-2);
+  font-family: var(--font-ui);
+  font-size: var(--t-small);
+  line-height: 1.7;
+  letter-spacing: var(--tr-cjk);
+  text-align: left;
+  background: linear-gradient(180deg, rgba(19, 27, 38, 0.94), rgba(8, 11, 17, 0.96));
+  box-shadow: inset 0 1px 0 rgba(214, 232, 244, 0.08), inset 0 0 0 1px var(--rule);
+  clip-path: polygon(
+    var(--cut) 0,
+    100% 0,
+    100% calc(100% - var(--cut)),
+    calc(100% - var(--cut)) 100%,
+    0 100%,
+    0 var(--cut)
+  );
+  animation: opt-in var(--d-mid) var(--e-out) both;
+  animation-delay: calc(var(--i, 0) * 46ms);
+}
+.toolcard:hover:not(.is-taken) {
+  color: #eef4fa;
+  box-shadow: inset 0 1px 0 rgba(214, 232, 244, 0.14), inset 0 0 0 1px rgba(196, 220, 236, 0.3);
+}
+.toolcard:focus-visible {
+  outline: 2px solid rgba(230, 199, 155, 0.9);
+  outline-offset: 2px;
+}
+.toolcard__name {
+  font-family: var(--font-display);
+  font-size: var(--t-body);
+  color: #eef4fa;
+}
+.toolcard__desc,
+.toolcard__params {
+  font-size: var(--t-micro);
+  color: var(--paper-4);
+}
+.toolcard.is-taken {
+  color: #f2ead9;
+  box-shadow: inset 0 1px 0 rgba(230, 199, 155, 0.22), inset 0 0 0 1px var(--rule-gold);
+}
+.toolcard.is-taken .toolcard__name::after {
+  content: ' ✓';
+  color: var(--gold);
+}
+.toolcard.is-wrong,
+.pslot.is-wrong {
+  opacity: 0.72;
+}
+.toolcard__fb,
+.pslot__fb {
+  margin-top: var(--s2);
+  padding-left: var(--s3);
+  border-left: 3px solid var(--gold);
+  font-size: var(--t-micro);
+  line-height: 1.75;
+  color: #f0e3cd;
+  animation: reveal-in var(--d-mid) var(--e-out) both;
+}
+.toolcard__fb {
+  grid-column: 1;
+}
+
+/* --- 參數格 ＋ 值石托盤 --- */
+.paramwork {
+  display: grid;
+  gap: var(--s4);
+}
+.pslots {
+  display: grid;
+  gap: var(--s2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.pslot__btn {
+  --cut: 9px;
+  display: grid;
+  grid-template-columns: minmax(0, auto) minmax(0, auto) minmax(0, 1fr);
+  align-items: baseline;
+  gap: var(--s2) var(--s3);
+  width: 100%;
+  padding: var(--s3) var(--s4);
+  border: 0;
+  color: var(--paper-2);
+  font-family: var(--font-ui);
+  font-size: var(--t-small);
+  letter-spacing: var(--tr-cjk);
+  text-align: left;
+  background: linear-gradient(180deg, rgba(15, 21, 30, 0.9), rgba(8, 11, 17, 0.94));
+  box-shadow: inset 0 0 0 1px var(--rule);
+  clip-path: polygon(
+    var(--cut) 0,
+    100% 0,
+    100% calc(100% - var(--cut)),
+    calc(100% - var(--cut)) 100%,
+    0 100%,
+    0 var(--cut)
+  );
+  animation: opt-in var(--d-mid) var(--e-out) both;
+  animation-delay: calc(var(--i, 0) * 42ms);
+}
+.pslot__btn:focus-visible {
+  outline: 2px solid rgba(230, 199, 155, 0.9);
+  outline-offset: 2px;
+}
+.pslot__tool,
+.pslot__hint {
+  font-size: var(--t-micro);
+  color: var(--paper-4);
+}
+.pslot__label {
+  font-size: var(--t-small);
+  color: #eef4fa;
+}
+.pslot__value {
+  grid-column: 1 / -1;
+  font-family: var(--font-input);
+  font-size: var(--t-small);
+  color: var(--paper-4);
+  letter-spacing: 0.04em;
+}
+.pslot.is-filled .pslot__btn {
+  box-shadow: inset 0 0 0 1px var(--rule-gold);
+}
+.pslot.is-filled .pslot__value {
+  color: var(--gold);
+}
+.pslot__fb {
+  grid-column: 1 / -1;
+}
+.stonetray {
+  display: grid;
+  gap: var(--s2);
+  padding: var(--s3) var(--s4);
+  border: 1px dashed var(--rule);
+}
+.stonetray__label {
+  font-family: var(--font-meta);
+  font-size: var(--t-meta);
+  letter-spacing: var(--tr-meta);
+  text-transform: uppercase;
+  color: var(--paper-4);
+}
+.stonetray__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+}
+.stone {
+  padding: 4px var(--s3);
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  color: var(--paper-2);
+  font-family: var(--font-input);
+  font-size: var(--t-micro);
+  letter-spacing: var(--tr-cjk);
+  background: linear-gradient(180deg, rgba(24, 33, 45, 0.95), rgba(11, 15, 22, 0.96));
+  cursor: grab;
+  transform: translate3d(var(--dx, 0), var(--dy, 0), 0);
+  animation: opt-in var(--d-mid) var(--e-out) both;
+  animation-delay: calc(var(--i, 0) * 34ms);
+}
+.stone:hover:not([disabled]) {
+  border-color: rgba(196, 220, 236, 0.4);
+  color: #eef4fa;
+}
+.stone:focus-visible {
+  outline: 2px solid rgba(230, 199, 155, 0.9);
+  outline-offset: 2px;
+}
+.stone.is-held {
+  border-color: var(--rule-gold);
+  color: #f2ead9;
+  box-shadow: 0 0 0 1px rgba(230, 199, 155, 0.4), 0 8px 20px -12px rgba(0, 0, 0, 0.9);
+  cursor: grabbing;
+}
+.stone.is-dragging {
+  z-index: 4;
+  position: relative;
+  animation: none;
+}
+.stone[disabled] {
+  opacity: 0.28;
+  cursor: default;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .slip,
+  .slip__grip,
+  .stone,
+  .toolcard,
+  .pslot__btn {
+    transition: none !important;
+    animation: none !important;
+  }
+  .slip.is-held .slip__grip,
+  .slip.is-dragging .slip__grip {
+    transform: none;
+  }
 }
 
 /* ------------------------------------------------------------ 手掌印 */

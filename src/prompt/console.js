@@ -21,10 +21,21 @@
  * Phase 11 的兩種答題方式都還在：石碑刻印（預設）與自由書寫。兩種送出的都是
  * **同一段文字**、走**同一支離線評分引擎**，評價 / XP / 圖鑑完全一致（護欄 3）。
  */
-import { bindInfoTips, createOverlay, esc, infoTip, on, rovingList } from '../ui/dom.js';
+import {
+  bindInfoTips,
+  createOverlay,
+  datedNoteHtml,
+  esc,
+  infoTip,
+  on,
+  rovingList,
+  sourceNoteHtml,
+} from '../ui/dom.js';
 import { evaluate, nextGradeTarget } from '../challenges/rubric.js';
 import { CHECKS } from '../challenges/checks.js';
 import { createStele } from './stele.js';
+import { createOrderBoard } from './order.js';
+import { createWorkshop } from './workshop.js';
 
 const GRADE_LABEL = { S: '完美', A: '優秀', B: '良好', C: '通過' };
 
@@ -84,8 +95,45 @@ export const SAMPLE_AFTER_FAILS = 2;
 /** 停手多久之後，漂浮提示球會自己「呼吸」一下提醒你它在那裡（毫秒）。 */
 export const ORB_IDLE_MS = 20000;
 
-/** 兩種答題方式。'guided' = 石碑刻印（預設），'free' = 自由書寫。 */
+/** 兩種答題方式。'guided' = 跟著石碑走（預設），'free' = 自由書寫。 */
 export const PROMPT_MODES = Object.freeze(['guided', 'free']);
+
+/**
+ * 引導式作答的三種題型（Phase 27）。
+ *
+ * 資料層（flows.json）用 `kind` 宣告，沒寫就是 `choice` —— 也就是 Phase 11
+ * 就在跑的石碑刻印，其他 24 關一個位元組都不會變。
+ *
+ *   choice    石碑刻印：一段一段從 2–3 個選項裡挑（教「這一段該寫什麼」）
+ *   order     排序刻印：石版已經刻好了，要把它們排順（教「這幾段該照什麼次序」）
+ *   workshop  神諭工坊：挑工具 → 填參數 → 排呼叫 → 立規矩（教工具使用 / function calling）
+ *
+ * 三種都住在第三幕，結尾都是同一隻手掌印，送出的都是同一段文字、
+ * 走同一支離線評分引擎（護欄 3）。
+ */
+export const FLOW_KINDS = Object.freeze(['choice', 'order', 'workshop']);
+
+/** 一份流程資料是哪一種題型（未知值一律回到石碑刻印）。 */
+export function flowKind(flow) {
+  const k = flow && flow.kind;
+  if (k === 'order' && flow.orderFlow) return 'order';
+  if (k === 'workshop' && flow.workshop) return 'workshop';
+  return 'choice';
+}
+
+/** 每一種題型在畫面上的說法（世界的語言，不是系統術語）。 */
+export const KIND_LABEL = Object.freeze({
+  choice: '石碑刻印',
+  order: '排序刻印',
+  workshop: '神諭工坊',
+});
+
+/** 對應的 Latin meta label（版面上那一行小字）。 */
+export const KIND_EN = Object.freeze({
+  choice: 'Carve',
+  order: 'Order',
+  workshop: 'Dispatch',
+});
 
 /** 正規化模式字串（未知值一律回到預設的石碑刻印）。 */
 export function normalizeMode(value) {
@@ -314,8 +362,62 @@ export function createPromptConsole({
   });
   steleSlot.appendChild(stele.root);
 
+  /* ---------------------------------------------------------------- *
+   * 排序刻印（Phase 27）
+   *
+   * 石版已經刻好了，玩家要做的是把它們**排順**。排錯不會失敗、不會扣分 ——
+   * 排到對了手掌印才浮出來，所以「送出後才發現排錯」這件事不存在。
+   * ---------------------------------------------------------------- */
+  const orderBoard = createOrderBoard({
+    onLift: () => onChime?.(1),
+    onSettle: ({ right, total }) => {
+      runPreflight();
+      onCarve?.({ index: right, total });
+    },
+    onComplete: () => {
+      onSeal?.();
+      goAct(4, { force: true });
+    },
+    onPress: ({ text }) => submit(text),
+  });
+  steleSlot.appendChild(orderBoard.root);
+
+  /* ---------------------------------------------------------------- *
+   * 神諭工坊（Phase 27）
+   *
+   * 挑工具 → 填參數 → 排呼叫 → 立規矩。挑錯 / 放錯只會就地長出一句白話教學，
+   * 不扣分、不前進（WORLD.md §3.5）。組出來的派工單就是要呈給神諭的那段字。
+   * ---------------------------------------------------------------- */
+  const workshop = createWorkshop({
+    onTake: () => {
+      runPreflight();
+      onCarve?.({ index: 1, total: 1 });
+    },
+    onReject: ({ feedback }) => onReject?.({ feedback }),
+    onStage: () => runPreflight({ silent: true }),
+    onComplete: () => {
+      onSeal?.();
+      goAct(4, { force: true });
+    },
+    onPress: ({ text }) => submit(text),
+  });
+  steleSlot.appendChild(workshop.root);
+
+  /** 這一關的引導式題型（choice / order / workshop）。 */
+  function kind() {
+    return flowKind(currentFlow);
+  }
+
+  /** 現在在台上的那一塊石碑（三種題型共用同一組介面）。 */
+  function board() {
+    const k = kind();
+    if (k === 'order') return orderBoard;
+    if (k === 'workshop') return workshop;
+    return stele;
+  }
+
   /**
-   * 現在是不是石碑刻印。
+   * 現在是不是引導式作答（石碑刻印 / 排序刻印 / 神諭工坊）。
    * 沒有流程資料的關卡（未來新增關卡時）一律當成自由書寫 —— 只有一個判斷式，
    * 版面、評分取哪一段文字、預檢開不開全部看它，不會互相矛盾。
    */
@@ -323,9 +425,9 @@ export function createPromptConsole({
     return mode === 'guided' && Boolean(currentFlow);
   }
 
-  /** 現在要被評分的那一段文字（石碑刻印 → 刻好的內容；自由書寫 → 輸入框）。 */
+  /** 現在要被評分的那一段文字（引導式 → 石碑上的內容；自由書寫 → 輸入框）。 */
   function currentText() {
-    return isGuided() ? stele.text : textarea.value;
+    return isGuided() ? board().text : textarea.value;
   }
 
   /** 石碑刻印一律開著預檢（刻一段亮一盞燈就是它的回饋節奏）。 */
@@ -339,12 +441,21 @@ export function createPromptConsole({
    */
   function applyMode() {
     const guided = isGuided();
+    const k = kind();
     root().classList.toggle('is-guided', guided);
     root().classList.toggle('is-free', !guided);
+    root().setAttribute('data-kind', guided ? k : 'free');
     freeWrap.hidden = guided;
     freeLabel.hidden = guided;
     guidedLabel.hidden = !guided;
-    stele.root.hidden = !guided;
+    // 三種題型共用一個舞台，一次只有一種在上面
+    stele.root.hidden = !guided || k !== 'choice';
+    orderBoard.root.hidden = !guided || k !== 'order';
+    workshop.root.hidden = !guided || k !== 'workshop';
+    const zhLabel = guidedLabel.querySelector('.zh');
+    if (zhLabel) zhLabel.textContent = KIND_LABEL[k];
+    const enLabel = guidedLabel.querySelector('.en');
+    if (enLabel) enLabel.textContent = KIND_EN[k];
     // 石碑刻印時：提示球用不到（回饋就在選項旁邊），積木與預檢開關也不需要
     orbEl.hidden = guided;
     if (guided) {
@@ -354,10 +465,10 @@ export function createPromptConsole({
     if (preflightToggle) preflightToggle.hidden = guided;
     if (guided) blocksWrap.hidden = true;
     // 有快捷鍵的東西就把鍵帽戴在身上（不用去翻操作一覽才知道）
-    modeBtn.innerHTML = `${guided ? '自由書寫模式' : '回到石碑刻印'}<kbd>M</kbd>`;
+    modeBtn.innerHTML = `${guided ? '自由書寫模式' : `回到${KIND_LABEL[k]}`}<kbd>M</kbd>`;
     modeBtn.title = guided
       ? '改成自己打字：起手寫法、快速填入、技巧積木、提示球都在那邊'
-      : '回到一段一段選的石碑刻印';
+      : `回到${KIND_LABEL[k]}`;
     modeBtn.hidden = !currentFlow;
     // 換模式會換掉「第四幕是什麼」（手印 / 呈遞），指示器要跟著改口
     if (current) renderActNav();
@@ -389,7 +500,7 @@ export function createPromptConsole({
     if (!current) return false;
     if (!Number.isInteger(n) || n < 1 || n > ACTS.length) return false;
     if (n === 4) {
-      if (isGuided() ? !stele.done : resultEl.hidden) return false;
+      if (isGuided() ? !board().done : resultEl.hidden) return false;
     }
     return visited.has(n) || n === act + 1;
   }
@@ -423,9 +534,9 @@ export function createPromptConsole({
 
   /** 這一幕結束後，焦點該落在哪裡（鍵盤玩家也要被導演帶著走）。 */
   function actFocusTarget(n) {
-    if (n === 3) return isGuided() ? stele.focusTarget : textarea;
+    if (n === 3) return isGuided() ? board().focusTarget : textarea;
     if (n === 4) {
-      if (isGuided() && !stele.fired) return stele.palmTarget;
+      if (isGuided() && !board().fired) return board().palmTarget;
       if (!resultEl.hidden) return resultEl;
     }
     return actSections.find((s) => s.getAttribute('data-in-acts').split(' ').includes(String(n))) || null;
@@ -489,6 +600,10 @@ export function createPromptConsole({
         what: (entry && entry.what) || (view && view.tip) || '',
         how: (entry && entry.how) || row.hint || (def && def.hint) || '',
         src,
+        /** Phase 26：官方建議在新一代模型上變了 → 補一句有日期的查核備註。 */
+        dated: (view && view.dated) || null,
+        /** 這個出處本身的狀態（已下架 / 官方已標示即將移除）。 */
+        srcNote: src && content.sourceNote ? content.sourceNote(src.url) : null,
       };
     });
   }
@@ -505,11 +620,12 @@ export function createPromptConsole({
             <h5 class="glyph__title">${esc(r.title)}${r.tech ? `<i>${esc(r.tech)}</i>` : ''}</h5>
             ${r.what ? `<p class="glyph__what">${esc(r.what)}</p>` : ''}
             ${r.how ? `<p class="glyph__how">${esc(r.how)}</p>` : ''}
+            ${datedNoteHtml(r.dated)}
             ${
               r.src
                 ? `<a class="src" href="${esc(r.src.url)}" target="_blank" rel="noopener">${esc(
                     SOURCE_LABEL
-                  )}：${esc(r.src.name)} ↗</a>`
+                  )}：${esc(r.src.name)} ↗</a>${sourceNoteHtml(r.srcNote)}`
                 : ''
             }
           </div>
@@ -838,10 +954,17 @@ export function createPromptConsole({
     submitBtn.textContent = ready ? `可以呈上了！${SUBMIT_LABEL}` : SUBMIT_LABEL;
     const done = evaluation.results.filter((r) => r.passed).length;
     if (isGuided()) {
-      // 刻碑時的說法要對得上畫面：玩家看到的是石碑，不是按鈕
+      // 說法要對得上畫面：玩家看到的是石碑，不是按鈕；而且三種題型在做的事不一樣
+      const k = kind();
+      const todo =
+        k === 'order'
+          ? '把石版排順就好了'
+          : k === 'workshop'
+            ? '派工單再補幾樣就夠了'
+            : '再刻幾段就夠了';
       lampTextEl.textContent = ready
         ? `已達通過門檻 —— 把手掌按上石碑就過關了（做到 ${done} / ${evaluation.results.length} 項）`
-        : `再刻幾段就夠了（目前 ${evaluation.earned} / 需要 ${evaluation.pass} 分）`;
+        : `${todo}（目前 ${evaluation.earned} / 需要 ${evaluation.pass} 分）`;
       return;
     }
     lampTextEl.textContent = ready
@@ -1243,6 +1366,22 @@ export function createPromptConsole({
     get stele() {
       return stele;
     },
+    /** 排序刻印的把手（測試與除錯用）。 */
+    get orderBoard() {
+      return orderBoard;
+    },
+    /** 神諭工坊的把手（測試與除錯用）。 */
+    get workshop() {
+      return workshop;
+    },
+    /** 現在台上是哪一種題型（choice / order / workshop）。 */
+    get kind() {
+      return kind();
+    },
+    /** 現在台上的那一塊石碑（三種題型共用同一組介面）。 */
+    get board() {
+      return board();
+    },
     /** 目前在第幾幕（1 委託 / 2 指引 / 3 刻印 / 4 手印）。 */
     get act() {
       return act;
@@ -1314,8 +1453,11 @@ export function createPromptConsole({
       coachIndex = 0;
       coachOpen = false;
       lastPreflight = null;
-      // 石碑：這一關的刻印流程（沒有流程資料的關卡自動退回自由書寫）
-      stele.load(currentFlow);
+      // 石碑：這一關的作答流程（沒有流程資料的關卡自動退回自由書寫）
+      const k = flowKind(currentFlow);
+      stele.load(k === 'choice' ? currentFlow : null);
+      orderBoard.load(k === 'order' ? currentFlow.orderFlow : null);
+      workshop.load(k === 'workshop' ? currentFlow.workshop : null);
       mode = normalizeMode(progression.state.settings.promptMode);
       if (!currentFlow) mode = 'free';
       applyMode();

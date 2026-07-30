@@ -7,6 +7,7 @@
     "src/data/coach.json",
     "src/data/curriculum-zh.json",
     "src/data/curriculum.json",
+    "src/data/dated-notes.json",
     "src/data/flows.json",
     "src/data/handles.json",
     "src/data/inscriptions.json",
@@ -25,8 +26,11 @@
     "src/progression/progression.js",
     "src/progression/ranks.js",
     "src/prompt/console.js",
+    "src/prompt/order.js",
+    "src/prompt/palm.js",
     "src/prompt/practice.js",
     "src/prompt/stele.js",
+    "src/prompt/workshop.js",
     "src/save/save.js",
     "src/styles.css",
     "src/ui/achievement.js",
@@ -51,7 +55,7 @@
     "src/world/reactive.js",
     "src/world/world.js"
   ],
-  "corpusHash": "a273d6ef9039fbad",
+  "corpusHash": "cad4591c65fda367",
   "coverage": {
     "latin": [
       32,
@@ -241,6 +245,7 @@
       8231,
       8249,
       8250,
+      8251,
       8260,
       8470,
       8482,
@@ -867,6 +872,7 @@
       25163,
       25165,
       25171,
+      25176,
       25187,
       25197,
       25198,
@@ -942,6 +948,7 @@
       25736,
       25744,
       25758,
+      25764,
       25765,
       25773,
       25776,
@@ -1170,6 +1177,7 @@
       28207,
       28210,
       28216,
+      28246,
       28263,
       28304,
       28310,
@@ -1653,6 +1661,7 @@
       36234,
       36245,
       36255,
+      36264,
       36275,
       36305,
       36317,
@@ -2047,6 +2056,7 @@
       960,
       8213,
       8231,
+      8251,
       8592,
       8593,
       8594,
@@ -2100,6 +2110,7 @@
     "mono": [
       8213,
       8231,
+      8251,
       8629,
       8658,
       9312,
@@ -2162,7 +2173,7 @@
       "id": "inter",
       "family": "Inter UI",
       "file": "inter-ui.woff2",
-      "bytes": 84300,
+      "bytes": 85032,
       "role": "latin",
       "variable": true,
       "weight": null,
@@ -2178,7 +2189,7 @@
           "default": 14
         }
       },
-      "requested": 245,
+      "requested": 246,
       "missing": 17,
       "source": "Inter.ttf",
       "author": "Rasmus Andersson",
@@ -2206,8 +2217,8 @@
           "default": 16
         }
       },
-      "requested": 245,
-      "missing": 52,
+      "requested": 246,
+      "missing": 53,
       "source": "Newsreader.ttf",
       "author": "Production Type (Jean-Baptiste Morizot, Lucas Descroix)",
       "license": "SIL Open Font License 1.1",
@@ -2229,8 +2240,8 @@
           "default": 400
         }
       },
-      "requested": 245,
-      "missing": 25,
+      "requested": 246,
+      "missing": 26,
       "source": "JetBrainsMono.ttf",
       "author": "JetBrains (Philipp Nurullin, Konstantin Bulenkov)",
       "license": "SIL Open Font License 1.1",
@@ -2241,7 +2252,7 @@
       "id": "serif-tc",
       "family": "Arcade Serif TC",
       "file": "arcade-serif-tc.woff2",
-      "bytes": 582768,
+      "bytes": 584344,
       "role": "cjk",
       "variable": true,
       "weight": null,
@@ -2252,7 +2263,7 @@
           "default": 400
         }
       },
-      "requested": 1611,
+      "requested": 1615,
       "missing": 0,
       "source": "NotoSerifTC.ttf",
       "author": "Google (Noto Project)",
@@ -2264,7 +2275,7 @@
       "id": "sans-tc",
       "family": "Arcade Sans TC",
       "file": "arcade-sans-tc.woff2",
-      "bytes": 442992,
+      "bytes": 444528,
       "role": "cjk",
       "variable": true,
       "weight": null,
@@ -2275,7 +2286,7 @@
           "default": 400
         }
       },
-      "requested": 1611,
+      "requested": 1615,
       "missing": 0,
       "source": "NotoSansTC.ttf",
       "author": "Google (Noto Project)",
@@ -2284,5 +2295,5 @@
       "url": "https://github.com/google/fonts/tree/main/ofl/notosanstc"
     }
   ],
-  "totalBytes": 1347608
+  "totalBytes": 1351452
 }

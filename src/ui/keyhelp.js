@@ -51,7 +51,9 @@ export const KEY_GROUPS = Object.freeze([
     rows: [
       { keys: ['Enter'], what: '讀完了 —— 往下一幕' },
       { keys: ['1', '2', '3'], what: '挑一段刻上石碑' },
+      { keys: ['Enter'], what: '拿起一片石版或值石，再按一次放下' },
       { keys: ['↑', '↓'], what: '在選項、石籤、圖鑑條目之間移動' },
+      { keys: ['↑', '↓'], what: '拿著東西時：把它搬到別的位置' },
       { keys: ['Tab'], what: '移到下一個地方（Shift 加 Tab 往回）' },
       { keys: ['Alt', '1'], what: '直接回到某一幕（Alt 加 1 到 4）' },
       { keys: ['L'], what: '翻開線索 / 神諭刻文' },

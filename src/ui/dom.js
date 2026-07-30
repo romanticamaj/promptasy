@@ -63,6 +63,44 @@ export function infoTip(text, { label = '說明' } = {}) {
 }
 
 /**
+ * 時代註記（dated-notes.json）的一小塊 HTML。
+ *
+ * 官方建議會隨模型世代改變，但 curriculum.json 的引文一個字都不動 ——
+ * 改成在畫面上安靜地補一句**有日期**的查核備註 ＋ 可點的新官方連結。
+ * 刻意做得小、灰、不搶戲：它是註腳，不是新的教學內容。
+ *
+ * @param {object|null} note dated-notes 的一條（content.datedNote(id) 的回傳值）
+ */
+export function datedNoteHtml(note) {
+  if (!note || !note.text) return '';
+  const links = (note.sources || [])
+    .map(
+      (s) =>
+        `<a class="src" href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.name)} ↗</a>`
+    )
+    .join('');
+  return `<p class="datednote"><span class="datednote__mark" aria-hidden="true">※</span><span class="datednote__body">${esc(
+    note.text
+  )}${links ? `<span class="datednote__srcs">${links}</span>` : ''}</span></p>`;
+}
+
+/**
+ * 出處狀態註記（已下架 / 官方已標示即將移除）。
+ * 原網址永遠留在畫面上（護欄 2：引文與出處不改），只是旁邊多一句實話與後繼參考。
+ */
+export function sourceNoteHtml(note) {
+  if (!note || !note.text) return '';
+  const rep = note.replacement;
+  return `<span class="srcnote">${esc(note.text)}${
+    rep
+      ? ` 後繼參考：<a class="src" href="${esc(rep.url)}" target="_blank" rel="noopener">${esc(
+          rep.name
+        )} ↗</a>`
+      : ''
+  }</span>`;
+}
+
+/**
  * 幫一個容器裡所有的 ⓘ 接上互動（事件委派，之後重繪的 ⓘ 也有效）。
  * 呼叫一次就好。
  */

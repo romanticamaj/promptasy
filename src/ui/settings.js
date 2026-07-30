@@ -62,10 +62,10 @@ export function createSettings({
         <section class="settings__row">
           <label for="set-mode">答題方式</label>
           <select id="set-mode">
-            <option value="guided" ${s.promptMode !== 'free' ? 'selected' : ''}>石碑刻印（一段一段選，推薦）</option>
+            <option value="guided" ${s.promptMode !== 'free' ? 'selected' : ''}>石碑刻印（動手做，推薦）</option>
             <option value="free" ${s.promptMode === 'free' ? 'selected' : ''}>自由書寫（自己打字）</option>
           </select>
-          <span class="muted">石碑刻印會一段一段問你「這一段要填什麼」，選對就刻上去；自由書寫是自己打整段 prompt。</span>
+          <span class="muted">石碑刻印大多是一段一段問你「這一段要填什麼」，選對就刻上去；有幾關改成把石版排順、或到工坊挑工具填參數。自由書寫則是自己打整段 prompt。</span>
         </section>
 
         <section class="settings__row">

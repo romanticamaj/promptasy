@@ -644,6 +644,17 @@ const LEGACY_EN_SOLUTIONS = {
     'Break the work into sub-tasks and note which tool calls are independent so they can run in parallel.\n' +
     'Keep going until the whole job is completely resolved, and only stop when you are sure it works.\n' +
     'Ask me for confirmation before you delete any gate log, because that cannot be undone.',
+  'oracle-workshop-36':
+    'You are the workshop dispatcher. Break this request into two steps and run them in order.\n' +
+    'name: get_weather\n' +
+    'description: Looks up the weather for a place on a given day.\n' +
+    'parameters: place (string, which place to look up), day (string, which day to look up)\n' +
+    'name: send_letter\n' +
+    'description: Sends a piece of text to a named recipient.\n' +
+    'parameters: recipient (string, who receives it), body (string, what the letter says)\n' +
+    '1. Call get_weather with place = the lake and day = tomorrow.\n' +
+    '2. Call send_letter with recipient = the lighthouse keeper and body = the result of step 1.\n' +
+    'If an argument is not stated in the request, ask me for it rather than guessing.',
   'echo-workshop-35':
     '## Fixed context\n' +
     'The workshop rebuilds the same notice every week, so keep this block unchanged at the top.\n' +
@@ -1059,6 +1070,100 @@ eq(
 for (const c of challenges) {
   const name = zhContent.sourceName(c.source);
   ok(name && name !== c.source, `[${c.id}] 結果面板顯示的是官方文件名而不是網址`, name);
+}
+
+/* ------------------------------------------------------------------ */
+/* 2e. Phase 26：時代註記層（dated-notes.json）                         */
+/*                                                                     */
+/*   規則（護欄 2）：                                                   */
+/*     · curriculum.json 逐字未改 —— 查核備註一律另存 dated-notes.json  */
+/*     · 每一條都要掛在真實存在的技巧 id 上                             */
+/*     · 每一條都要附**可點的 https 官方連結**（不然就只是傳言）        */
+/*     · 檔案自己要標 authored: "game"，並講清楚它不是官方文字          */
+/* ------------------------------------------------------------------ */
+console.log('▸ 時代註記（Phase 26）');
+
+const datedNotes = readJson('src/data/dated-notes.json');
+
+eq(datedNotes.authored, 'game', 'dated-notes 明講自己是遊戲自撰的（不是官方文字）');
+ok(
+  /不是任何廠商的官方文字|不當作引文|遊戲/.test(datedNotes.note),
+  'dated-notes 的說明講清楚它不是官方引文',
+  datedNotes.note
+);
+ok(/curriculum\.json/.test(datedNotes.note), 'dated-notes 把官方說法指回 curriculum.json');
+ok(/^\d{4}-\d{2}$/.test(String(datedNotes.checked || '')), 'dated-notes 標了查核年月', datedNotes.checked);
+
+const datedList = datedNotes.notes || [];
+ok(datedList.length > 0, 'dated-notes 至少有一條時代註記');
+{
+  const seen = new Set();
+  for (const n of datedList) {
+    const tech = curriculum.techniques.find((t) => t.id === n.techniqueId);
+    ok(Boolean(tech), `[dated:${n.techniqueId}] 掛在 curriculum 裡真實存在的技巧上`);
+    ok(!seen.has(n.techniqueId), `[dated:${n.techniqueId}] 沒有重複註記同一條技巧`);
+    seen.add(n.techniqueId);
+    ok(/^\d{4}-\d{2}$/.test(String(n.date || '')), `[dated:${n.techniqueId}] 有年月`, n.date);
+    ok(nonEmptyStr(n.text), `[dated:${n.techniqueId}] 有備註文字`);
+    ok(CJK_ANY.test(n.text), `[dated:${n.techniqueId}] 備註是中文`);
+    ok(String(n.text).includes(n.date), `[dated:${n.techniqueId}] 畫面上看得到日期`, n.text.slice(0, 24));
+    ok(!ENGLISH(n.text), `[dated:${n.techniqueId}] 備註沒有整句英文`, ENGLISH(n.text) || '');
+    ok(!/https?:\/\//.test(n.text), `[dated:${n.techniqueId}] 連結另外放在 sources，不埋在文字裡`);
+    ok((n.sources || []).length > 0, `[dated:${n.techniqueId}] 至少附一個官方出處`);
+    for (const s of n.sources || []) {
+      ok(nonEmptyStr(s.name), `[dated:${n.techniqueId}] 出處有文件名`);
+      ok(/^https:\/\//.test(String(s.url || '')), `[dated:${n.techniqueId}] 出處是 https 連結`, s.url);
+    }
+  }
+}
+
+const srcNotes = datedNotes.sourceNotes || [];
+ok(srcNotes.length > 0, 'dated-notes 至少標了一個已下架 / 即將移除的出處');
+{
+  /** curriculum 裡真的被引用到的每一個網址。 */
+  const citedUrls = new Set();
+  for (const t of curriculum.techniques || []) for (const s of t.sources || []) citedUrls.add(s.url);
+  for (const list of Object.values(curriculum.sources || {})) for (const s of list || []) citedUrls.add(s.url);
+  for (const s of srcNotes) {
+    ok(citedUrls.has(s.url), `[deadsrc] 標註的網址真的被 curriculum 引用到`, s.url);
+    ok(['gone', 'deprecated'].includes(s.status), `[deadsrc] 狀態是 gone / deprecated`, s.status);
+    ok(/^\d{4}-\d{2}$/.test(String(s.date || '')), `[deadsrc] 有查核年月`, s.date);
+    ok(CJK_ANY.test(s.text || ''), `[deadsrc] 說明是中文`, s.text);
+    ok(String(s.text).includes(s.date), `[deadsrc] 畫面上看得到查核日期`, s.text);
+    ok(Boolean(s.replacement && /^https:\/\//.test(s.replacement.url)), `[deadsrc] 給得出後繼參考的 https 連結`, s.url);
+    ok(s.replacement.url !== s.url, `[deadsrc] 後繼參考不是原本那個網址`, s.url);
+    ok(nonEmptyStr(s.replacement.name), `[deadsrc] 後繼參考有文件名`);
+  }
+  // 原網址**留在 curriculum 裡不動**（護欄 2：引文與出處逐字保留）
+  const xai = curriculum.techniques.find((t) => t.id === 'role-04');
+  ok(
+    (xai.sources || []).some((s) => s.url === 'https://docs.x.ai/docs/guides/grok-code-prompt-engineering'),
+    'curriculum 的原始出處網址沒有被改掉（只在顯示層加註）'
+  );
+}
+
+// 顯示層：createContent 真的把註記接出來了
+{
+  const datedContent = createContent(
+    curriculum,
+    challengeData,
+    builderZh,
+    null,
+    null,
+    curriculumZh,
+    datedNotes
+  );
+  for (const n of datedList) {
+    const view = datedContent.displayTechnique(n.techniqueId);
+    eq(view.dated, n, `[dated:${n.techniqueId}] displayTechnique 帶得出時代註記`);
+    eq(datedContent.datedNote(n.techniqueId), n, `[dated:${n.techniqueId}] datedNote() 查得到`);
+  }
+  eq(datedContent.displayTechnique('clarity-01').dated, null, '沒有註記的技巧不會憑空多出一段');
+  for (const s of srcNotes) eq(datedContent.sourceNote(s.url), s, `[deadsrc] sourceNote() 查得到`, s.url);
+  eq(datedContent.sourceNote('https://ai.google.dev/gemini-api/docs/prompting-strategies'), null, '還活著的出處不會被誤標');
+  // 沒有這一層時要安靜降級（不會壞掉）
+  eq(createContent(curriculum, challengeData).displayTechnique('params-01').dated, null, '沒有時代註記層時安靜降級');
+  eq(createContent(curriculum, challengeData).datedNote('params-01'), null, '沒有時代註記層時 datedNote() 回 null');
 }
 
 /*
@@ -3471,6 +3576,258 @@ ok(
   variedSlots / totalSlots > 0.4,
   `正確答案的位置有打散（不是永遠第一個：${variedSlots} / ${totalSlots} 段不在第一個）`
 );
+
+/* ================================================================== */
+/* Phase 27：兩種新題型（排序刻印 / 神諭工坊）                          */
+/*                                                                    */
+/*   核心保證：                                                         */
+/*     1. `kind` 沒寫就是 choice —— 其他 24 關零行為變化                 */
+/*     2. 排序刻印：正解排法用**真的離線引擎**跑一定拿 S，而且一開始      */
+/*        沒有任何一片剛好站對（不是送分題）                             */
+/*     3. 神諭工坊：把四步的正確操作組起來 ＝ 資料層的示範解答，          */
+/*        丟進真的引擎每一條檢查都滿分                                   */
+/*     4. 錯的選項（工具 / 值石 / 規矩）都有白話中文教學，不自帶連結      */
+/* ================================================================== */
+console.log('\n▸ 排序刻印與神諭工坊（Phase 27）');
+
+const { flowKind, FLOW_KINDS, KIND_LABEL } = await import('../src/prompt/console.js');
+
+eq(flowKind(undefined), 'choice', '沒有流程資料 → 石碑刻印');
+eq(flowKind({}), 'choice', '沒寫 kind → 石碑刻印（預設值，24 關零變化）');
+eq(flowKind({ kind: 'nonsense' }), 'choice', '亂填的 kind → 石碑刻印');
+eq(flowKind({ kind: 'order' }), 'choice', '宣告了 order 卻沒有 orderFlow → 退回石碑刻印');
+eq(flowKind({ kind: 'order', orderFlow: {} }), 'order', 'order ＋ orderFlow → 排序刻印');
+eq(flowKind({ kind: 'workshop' }), 'choice', '宣告了 workshop 卻沒有 workshop 資料 → 退回石碑刻印');
+eq(flowKind({ kind: 'workshop', workshop: {} }), 'workshop', 'workshop ＋ 資料 → 神諭工坊');
+eq(FLOW_KINDS.length, 3, '一共三種題型');
+for (const k of FLOW_KINDS) {
+  ok(CJK.test(KIND_LABEL[k]), `題型 ${k} 在畫面上有中文說法`, KIND_LABEL[k]);
+}
+
+const kindOf = (id) => flowKind(flowData.flows[id]);
+const byKind = { choice: [], order: [], workshop: [] };
+for (const c of challenges) byKind[kindOf(c.id)].push(c.id);
+eq(byKind.order.length, 2, '兩關改成排序刻印（次序本身就是那一關的課程）');
+eq(byKind.workshop.length, 1, '一關是神諭工坊');
+eq(byKind.choice.length, challenges.length - 3, `其餘 ${challenges.length - 3} 關維持石碑刻印`);
+eq(byKind.order.sort().join(','), 'long-scroll-tower-23,priority-stair-42', '改成排序的是那兩關');
+eq(byKind.workshop.join(','), 'oracle-workshop-36', '神諭工坊是新的第 27 關');
+for (const [id, f] of Object.entries(flowData.flows)) {
+  if (!('kind' in f)) continue;
+  ok(FLOW_KINDS.includes(f.kind), `[${id}] kind 是合法的題型`, String(f.kind));
+}
+// 換題型不等於把舊資料丟掉：選擇題的流程一律留著當後備
+for (const id of [...byKind.order, ...byKind.workshop]) {
+  ok(
+    Array.isArray(flowData.flows[id].slots) && flowData.flows[id].slots.length >= 3,
+    `[${id}] 仍然留著原本的選擇題流程當後備資料`
+  );
+}
+
+/* --- 排序刻印 ------------------------------------------------------ */
+for (const id of byKind.order) {
+  const tag = `[${id}]`;
+  const c = challenges.find((x) => x.id === id);
+  const of = flowData.flows[id].orderFlow;
+  ok(of && typeof of === 'object', `${tag} 有 orderFlow`);
+  if (!of) continue;
+
+  ok(nonEmptyStr(of.ask) && of.ask.length <= 44, `${tag} 排序的問題一眼讀得完`, of.ask);
+  ok(CJK.test(of.ask), `${tag} 排序的問題是中文`, of.ask);
+  ok(!ENGLISH(of.ask), `${tag} 排序的問題沒有英文句子`, ENGLISH(of.ask) || '');
+
+  ok(
+    Array.isArray(of.pieces) && of.pieces.length >= 2 && of.pieces.length <= 6,
+    `${tag} 有 2–6 片石版`,
+    `n=${of.pieces ? of.pieces.length : 0}`
+  );
+  const pieceIds = of.pieces.map((p) => p.id);
+  eq(new Set(pieceIds).size, pieceIds.length, `${tag} 石版 id 沒有重複`);
+  for (const p of of.pieces) {
+    ok(nonEmptyStr(p.id), `${tag} 每片石版都有 id`);
+    ok(nonEmptyStr(p.label) && p.label.length <= 16, `${tag} 石版「${p.id}」有短標籤`, p.label);
+    ok(CJK.test(p.label), `${tag} 石版「${p.id}」的標籤是中文`, p.label);
+    ok(!ENGLISH(p.label), `${tag} 石版「${p.id}」的標籤沒有英文句子`, ENGLISH(p.label) || '');
+    ok(nonEmptyStr(p.text), `${tag} 石版「${p.id}」有內容`);
+    ok(!/https?:\/\//.test(p.text), `${tag} 石版「${p.id}」不自帶連結（出處只在 rubric 與圖鑑）`);
+  }
+  ok(
+    Array.isArray(of.order) && of.order.length === of.pieces.length,
+    `${tag} 正解的長度＝石版數`
+  );
+  eq(
+    [...of.order].sort().join(','),
+    [...pieceIds].sort().join(','),
+    `${tag} 正解是那幾片石版的排列（沒有多也沒有少）`
+  );
+  // 一開始不能已經是正解，而且不能有任何一片剛好站對（那就變成送分題）
+  ok(
+    JSON.stringify(pieceIds) !== JSON.stringify(of.order),
+    `${tag} 初始排法不等於正解`,
+    pieceIds.join(',')
+  );
+  const preRight = pieceIds.filter((pid, i) => of.order.indexOf(pid) === i);
+  eq(preRight.length, 0, `${tag} 一開始沒有任何一片剛好站對`, preRight.join(','));
+
+  // 地基：排對＝送去同一支離線引擎 → 一定拿 S
+  const byId = new Map(of.pieces.map((p) => [p.id, p.text]));
+  const assembled = of.order.map((pid) => byId.get(pid)).join('\n');
+  const ev = evaluate(c, assembled);
+  ok(ev.passed, `${tag} 排對就過關`, `earned=${ev.earned}/${ev.total} pass=${c.pass}`);
+  eq(ev.grade, 'S', `${tag} 排對拿到 S（排序刻印的地基）`);
+  ok(
+    ev.results.every((r) => r.passed),
+    `${tag} 排對時每一條檢查都滿分`,
+    ev.results.filter((r) => !r.passed).map((r) => r.check).join('、')
+  );
+  // 排好的字就是這一關的示範解答（玩家在兩種模式看到的是同一段文字）
+  eq(assembled, c.sample, `${tag} 排好的整段文字＝資料層的示範解答`);
+}
+
+/* --- 神諭工坊 ------------------------------------------------------ */
+{
+  const id = 'oracle-workshop-36';
+  const tag = `[${id}]`;
+  const c = challenges.find((x) => x.id === id);
+  const ws = flowData.flows[id].workshop;
+  ok(!!c, `${tag} 關卡存在`);
+  ok(ws && typeof ws === 'object', `${tag} 有 workshop 資料`);
+
+  eq(c.region, 'orchestration', `${tag} 擺在流程與代理那片土地（工具使用的主題就在那裡）`);
+  ok(
+    c.teaches.every((t) => techById.has(t)),
+    `${tag} teaches 全部對應 curriculum 的真實技巧`,
+    c.teaches.join(',')
+  );
+  ok(
+    c.teaches.includes('agentic-01') && c.teaches.includes('agentic-02'),
+    `${tag} 教的是官方文件裡真的有的工具定義技巧`
+  );
+
+  ok(Array.isArray(ws.stages) && ws.stages.length === 4, `${tag} 有四步（挑工具 / 填參數 / 排順序 / 立規矩）`);
+  for (const [i, s] of (ws.stages || []).entries()) {
+    ok(nonEmptyStr(s.ask) && s.ask.length <= 44, `${tag} 第 ${i + 1} 步的問題一眼讀得完`, s.ask);
+    ok(CJK.test(s.ask), `${tag} 第 ${i + 1} 步的問題是中文`, s.ask);
+    ok(!ENGLISH(s.ask), `${tag} 第 ${i + 1} 步的問題沒有英文句子`, ENGLISH(s.ask) || '');
+  }
+
+  const needed = ws.tools.filter((t) => t.needed);
+  ok(ws.tools.length >= 3, `${tag} 檯上至少三把工具（要挑得出來才叫挑）`, `n=${ws.tools.length}`);
+  ok(needed.length >= 2, `${tag} 至少兩把真的用得到（才有相依順序可排）`, `n=${needed.length}`);
+  ok(needed.length < ws.tools.length, `${tag} 一定有用不到的工具（不然不是選擇）`);
+  const stoneIds = new Set(ws.stones.map((s) => s.id));
+  for (const t of ws.tools) {
+    ok(nonEmptyStr(t.id) && nonEmptyStr(t.name), `${tag} 工具「${t.id}」有 id 與名字`);
+    ok(CJK.test(t.name), `${tag} 工具「${t.id}」的名字是中文`, t.name);
+    ok(nonEmptyStr(t.desc) && CJK.test(t.desc), `${tag} 工具「${t.id}」有中文說明`, t.desc);
+    ok(Array.isArray(t.params) && t.params.length >= 1, `${tag} 工具「${t.id}」至少一個參數`);
+    // 工具規格三件事一樣都不能少（這一關教的就是這個）
+    ok(/工具名[:：]/.test(t.spec), `${tag} 工具「${t.id}」的規格寫了工具名`);
+    ok(/說明[:：]/.test(t.spec), `${tag} 工具「${t.id}」的規格寫了說明`);
+    ok(/參數[:：]/.test(t.spec), `${tag} 工具「${t.id}」的規格寫了參數`);
+    ok(!/https?:\/\//.test(t.spec), `${tag} 工具「${t.id}」的規格不自帶連結`);
+    if (!t.needed) {
+      ok(
+        nonEmptyStr(t.feedback) && t.feedback.trim().length >= 12,
+        `${tag} 用不到的工具「${t.id}」有白話教學回饋`,
+        t.feedback
+      );
+      ok(CJK.test(t.feedback), `${tag} 工具「${t.id}」的回饋是中文`, t.feedback);
+      ok(!ENGLISH(t.feedback), `${tag} 工具「${t.id}」的回饋沒有英文句子`, ENGLISH(t.feedback) || '');
+      ok(!/https?:\/\//.test(t.feedback), `${tag} 工具「${t.id}」的回饋不自帶連結`);
+      continue;
+    }
+    for (const p of t.params) {
+      ok(nonEmptyStr(p.label) && CJK.test(p.label), `${tag} 參數「${t.id}.${p.id}」有中文名稱`, p.label);
+      ok(nonEmptyStr(p.hint) && /字串|整數|數字/.test(p.hint), `${tag} 參數「${t.id}.${p.id}」寫了型別與用途`, p.hint);
+      ok(stoneIds.has(p.stone), `${tag} 參數「${t.id}.${p.id}」的正解值石真的存在`, p.stone);
+      ok(
+        nonEmptyStr(p.miss) && p.miss.trim().length >= 12,
+        `${tag} 參數「${t.id}.${p.id}」放錯時有白話教學`,
+        p.miss
+      );
+      ok(CJK.test(p.miss), `${tag} 參數「${t.id}.${p.id}」的教學是中文`, p.miss);
+      ok(!ENGLISH(p.miss), `${tag} 參數「${t.id}.${p.id}」的教學沒有英文句子`, ENGLISH(p.miss) || '');
+      ok(!/https?:\/\//.test(p.miss), `${tag} 參數「${t.id}.${p.id}」的教學不自帶連結`);
+    }
+  }
+  const wantedStones = new Set(needed.flatMap((t) => t.params.map((p) => p.stone)));
+  eq(new Set(ws.stones.map((s) => s.id)).size, ws.stones.length, `${tag} 值石 id 沒有重複`);
+  ok(
+    ws.stones.length > wantedStones.size,
+    `${tag} 托盤裡有多餘的值石（不然放哪一顆都對）`,
+    `${ws.stones.length} vs ${wantedStones.size}`
+  );
+  for (const s of ws.stones) {
+    ok(nonEmptyStr(s.text), `${tag} 值石「${s.id}」有內容`);
+    ok(!ENGLISH(s.text), `${tag} 值石「${s.id}」沒有英文句子`, ENGLISH(s.text) || '');
+  }
+
+  ok(Array.isArray(ws.order.sequence) && ws.order.sequence.length === needed.length, `${tag} 呼叫順序涵蓋每一把用得到的工具`);
+  ok(
+    ws.order.sequence.every((tid) => needed.some((t) => t.id === tid)),
+    `${tag} 呼叫順序裡只有真的用得到的工具`,
+    ws.order.sequence.join(',')
+  );
+  ok(
+    JSON.stringify(ws.order.start) !== JSON.stringify(ws.order.sequence),
+    `${tag} 一開始故意排反（相依順序要玩家自己想）`,
+    (ws.order.start || []).join(',')
+  );
+  eq(
+    [...(ws.order.start || [])].sort().join(','),
+    [...ws.order.sequence].sort().join(','),
+    `${tag} 初始排法與正解是同一組呼叫`
+  );
+
+  const rights = ws.rules.filter((r) => r.correct);
+  eq(rights.length, 1, `${tag} 規矩剛好一條是對的`);
+  ok(ws.rules.length >= 2 && ws.rules.length <= 3, `${tag} 規矩有 2–3 條`, `n=${ws.rules.length}`);
+  for (const r of ws.rules) {
+    ok(nonEmptyStr(r.text) && CJK.test(r.text), `${tag} 規矩「${r.text.slice(0, 10)}」是中文`);
+    ok(!/https?:\/\//.test(r.text), `${tag} 規矩不自帶連結`);
+    if (r.correct) continue;
+    ok(nonEmptyStr(r.feedback) && r.feedback.trim().length >= 12, `${tag} 立錯的規矩有白話教學`, r.feedback);
+    ok(CJK.test(r.feedback), `${tag} 立錯的教學是中文`, r.feedback);
+    ok(!ENGLISH(r.feedback), `${tag} 立錯的教學沒有英文句子`, ENGLISH(r.feedback) || '');
+    ok(r.text.trim() !== rights[0].text.trim(), `${tag} 錯的規矩不是正解的複製`);
+  }
+  ok(nonEmptyStr(ws.head) && CJK.test(ws.head), `${tag} 派工單有中文開頭`, ws.head);
+  ok(!ENGLISH(ws.head), `${tag} 派工單開頭沒有英文句子`, ENGLISH(ws.head) || '');
+
+  /* 地基：把四步的正確操作組起來 → 一定是資料層的示範解答，而且每條檢查滿分 */
+  const stoneText = new Map(ws.stones.map((s) => [s.id, s.text]));
+  const toolById = new Map(ws.tools.map((t) => [t.id, t]));
+  const seq = ws.order.sequence.map((tid) => toolById.get(tid));
+  const dispatch = [
+    ws.head,
+    ...seq.map((t) => t.spec),
+    ...seq.map(
+      (t, i) =>
+        `${i + 1}. 呼叫「${t.name}」，${t.params
+          .map((p) => `${p.label}＝${stoneText.get(p.stone)}`)
+          .join('、')}。`
+    ),
+    rights[0].text,
+  ].join('\n');
+  eq(dispatch, c.sample, `${tag} 派工完成組出來的字＝資料層的示範解答（同一段文字）`);
+  const wev = evaluate(c, dispatch);
+  ok(wev.passed, `${tag} 派工完成就過關`, `earned=${wev.earned}/${wev.total}`);
+  eq(wev.grade, 'S', `${tag} 派工完成拿到 S（神諭工坊的地基）`);
+  ok(
+    wev.results.every((r) => r.passed),
+    `${tag} 派工完成時每一條檢查都滿分`,
+    wev.results.filter((r) => !r.passed).map((r) => r.check).join('、')
+  );
+  // 只挑完工具還不夠：後面每一步都還在加分
+  const onlyTools = seq.map((t) => t.spec).join('\n');
+  const partial = evaluate(c, onlyTools);
+  ok(
+    partial.grade !== 'S' && partial.earned < wev.earned,
+    `${tag} 只挑完工具還不會滿分（後面每一步都還在加分）`,
+    `earned=${partial.earned}/${partial.total}`
+  );
+}
 
 // 模式字串的正規化（與存檔那一層同一個規則）
 if (normalizeMode) {

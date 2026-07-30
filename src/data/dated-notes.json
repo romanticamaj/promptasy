@@ -1,0 +1,86 @@
+{
+  "version": 1,
+  "authored": "game",
+  "checked": "2026-07",
+  "note": "時代註記層。這一份是 PromptArcade 自己寫的查核備註，不是任何廠商的官方文字，也不當作引文使用。用途只有一個：當某條技巧的官方建議在新一代模型上變了（或引用的文件被下架），在畫面上安靜地補一句有日期的提醒，並附上可點的新官方連結。curriculum.json 逐字未改 —— 那些引文在它們的年代是正確的引用；官方說法一律以 curriculum.json 的 techniques[].tip / example / note / sources 為準。稽核過程與完整落差清單見 docs/promptbooks/gap-analysis.md。",
+  "notes": [
+    {
+      "techniqueId": "params-01",
+      "date": "2026-07",
+      "text": "2026-07 查核：新一代模型已經不建議自己轉這個旋鈕。Gemini 3.x 官方建議取樣參數一律維持預設，調低反而可能讓它繞圈或變差；Claude Sonnet 5 只要把 temperature 設成非預設值就直接回 400 錯誤。另外，就算設成 0 也只是趨近確定 —— Mistral 官方說明硬體差異與進位誤差仍可能讓同一句話跑出不同結果。要每次都一樣，改用文字規則寫進指令裡（例如「照這個模板輸出，不要自由發揮」）。",
+      "sources": [
+        {
+          "name": "Google · Gemini 3 guide",
+          "url": "https://ai.google.dev/gemini-api/docs/gemini-3"
+        },
+        {
+          "name": "Anthropic · Prompting Claude Sonnet 5",
+          "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5"
+        },
+        {
+          "name": "Mistral · Sampling best practices",
+          "url": "https://docs.mistral.ai/models/best-practices/sampling"
+        }
+      ]
+    },
+    {
+      "techniqueId": "params-02",
+      "date": "2026-07",
+      "text": "2026-07 查核：把 top_k 設成 1（貪婪解碼）不再是通用做法。Claude Sonnet 5 設定這幾個取樣參數會回 400 錯誤；Qwen 的思考模式官方明講不要用貪婪解碼，會讓它一直重複、表現變差。三家講法不同，用哪個模型就照那一家的文件。",
+      "sources": [
+        {
+          "name": "Anthropic · Prompting Claude Sonnet 5",
+          "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5"
+        },
+        {
+          "name": "Qwen · Qwen3.5 模型卡",
+          "url": "https://huggingface.co/Qwen/Qwen3.5-397B-A17B"
+        }
+      ]
+    },
+    {
+      "techniqueId": "cot-04",
+      "date": "2026-07",
+      "text": "2026-07 查核：這一招仍然有效，但 Claude Opus 5 是例外 —— 它本來就會自己驗算，再補一句驗證指令反而會查過頭、白花時間。官方建議換到這一代模型時把這種句子刪掉，而不是改寫。",
+      "sources": [
+        {
+          "name": "Anthropic · Prompting Claude Opus 5",
+          "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5"
+        }
+      ]
+    },
+    {
+      "techniqueId": "decompose-02",
+      "date": "2026-07",
+      "text": "2026-07 查核：新一代模型多半在心裡就把多步驟推理走完了，官方已經把「拆成多次呼叫」縮小到兩種情況才用：你需要檢查中間結果，或你要強制一條固定的流程。",
+      "sources": [
+        {
+          "name": "Anthropic · Prompting best practices",
+          "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices"
+        }
+      ]
+    }
+  ],
+  "sourceNotes": [
+    {
+      "url": "https://docs.x.ai/docs/guides/grok-code-prompt-engineering",
+      "status": "gone",
+      "date": "2026-07",
+      "text": "此文件已下架（2026-07 查核）。",
+      "replacement": {
+        "name": "xAI · Grok 4.5 指南",
+        "url": "https://docs.x.ai/developers/grok-4-5"
+      }
+    },
+    {
+      "url": "https://ai.google.dev/gemini-api/docs/gemini-3",
+      "status": "deprecated",
+      "date": "2026-07",
+      "text": "此文件官方已標示即將移除（2026-07 查核）。",
+      "replacement": {
+        "name": "Google · Gemini 3.5 有什麼新的",
+        "url": "https://ai.google.dev/gemini-api/docs/whats-new-gemini-3.5"
+      }
+    }
+  ]
+}

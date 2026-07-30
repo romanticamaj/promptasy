@@ -5,7 +5,16 @@
  * 已收集：展開看說明、範例、模型差異、可點的官方出處。
  * 未收集：只留剪影（???），收集本身就是動力。
  */
-import { bindInfoTips, createOverlay, esc, infoTip, rovingList, safeRich } from './dom.js';
+import {
+  bindInfoTips,
+  createOverlay,
+  datedNoteHtml,
+  esc,
+  infoTip,
+  rovingList,
+  safeRich,
+  sourceNoteHtml,
+} from './dom.js';
 
 export function createCodex({
   content,
@@ -159,6 +168,7 @@ export function createCodex({
           <p class="tech__tip">${esc(view.tip)}</p>
           ${view.example ? `<pre class="tech__ex">${esc(view.example)}</pre>` : ''}
           ${view.note ? `<p class="tech__note">${safeRich(view.note)}</p>` : ''}
+          ${datedNoteHtml(view.dated)}
           ${
             view.translated
               ? `<details class="origin"><summary>原文 ↗（官方英文）</summary>
@@ -180,7 +190,9 @@ export function createCodex({
             ${(view.sources || [])
               .map(
                 (s) =>
-                  `<li><a class="src" href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.name)} ↗</a></li>`
+                  `<li><a class="src" href="${esc(s.url)}" target="_blank" rel="noopener">${esc(
+                    s.name
+                  )} ↗</a>${sourceNoteHtml(content.sourceNote ? content.sourceNote(s.url) : null)}</li>`
               )
               .join('')}
           </ul>

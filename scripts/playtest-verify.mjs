@@ -344,6 +344,68 @@ export function runPlaytestVerify({ ok, eq }) {
     );
   }
 
+  /* --- F：Phase 27 的兩種新題型也要「做對＝完美」 ---
+   *
+   * 排序刻印與神諭工坊送出的是同一段文字、走同一支離線引擎，所以門檻一樣：
+   * 把它們「做對」組出來的那段字，每一條檢查都必須滿分（做對就是完美）。
+   * 這一條守的是「新題型不能悄悄變成比石碑刻印容易或困難的另一套規則」。
+   */
+  const flowsByKind = { order: [], workshop: [] };
+  for (const [id, f] of Object.entries(flowFile.flows)) {
+    if (f.kind === 'order' && f.orderFlow) flowsByKind.order.push(id);
+    if (f.kind === 'workshop' && f.workshop) flowsByKind.workshop.push(id);
+  }
+  ok(flowsByKind.order.length >= 1, 'playtest：至少有一關是排序刻印', flowsByKind.order.join(','));
+  ok(flowsByKind.workshop.length >= 1, 'playtest：至少有一關是神諭工坊', flowsByKind.workshop.join(','));
+
+  const byId = new Map(challenges.map((c) => [c.id, c]));
+  for (const id of flowsByKind.order) {
+    const tag = `[${id}]`;
+    const c = byId.get(id);
+    const of = flowFile.flows[id].orderFlow;
+    const textOf = new Map(of.pieces.map((p) => [p.id, p.text]));
+    const right = evaluate(c, of.order.map((pid) => textOf.get(pid)).join('\n'));
+    ok(
+      right.results.every((r) => r.passed),
+      `${tag} playtest：排對時每一條檢查都滿分（排對就是完美）`,
+      right.results.filter((r) => !r.passed).map((r) => `${r.check}=${r.earned}/${r.weight}`).join('、')
+    );
+    // 初始那個排法不能已經是正解（不然開場就過關了）
+    ok(
+      JSON.stringify(of.pieces.map((p) => p.id)) !== JSON.stringify(of.order),
+      `${tag} playtest：一開始不是正解（真的要動手排）`
+    );
+  }
+  for (const id of flowsByKind.workshop) {
+    const tag = `[${id}]`;
+    const c = byId.get(id);
+    const ws = flowFile.flows[id].workshop;
+    const stone = new Map(ws.stones.map((s) => [s.id, s.text]));
+    const tool = new Map(ws.tools.map((t) => [t.id, t]));
+    const seq = ws.order.sequence.map((tid) => tool.get(tid));
+    const dispatch = [
+      ws.head,
+      ...seq.map((t) => t.spec),
+      ...seq.map(
+        (t, i) =>
+          `${i + 1}. 呼叫「${t.name}」，${t.params.map((p) => `${p.label}＝${stone.get(p.stone)}`).join('、')}。`
+      ),
+      ws.rules.find((r) => r.correct).text,
+    ].join('\n');
+    const full = evaluate(c, dispatch);
+    ok(
+      full.results.every((r) => r.passed),
+      `${tag} playtest：派工完成時每一條檢查都滿分（做對就是完美）`,
+      full.results.filter((r) => !r.passed).map((r) => `${r.check}=${r.earned}/${r.weight}`).join('、')
+    );
+    const toolsOnly = evaluate(c, seq.map((t) => t.spec).join('\n'));
+    ok(
+      toolsOnly.grade !== 'S' && toolsOnly.earned < full.earned,
+      `${tag} playtest：只挑完工具還不會滿分（後面三步都還在加分）`,
+      `earned=${toolsOnly.earned}/${toolsOnly.total}`
+    );
+  }
+
   /* --- D：檢查器回歸案例 --- */
   for (const cse of CHECK_CASES) {
     const out = runCheck(cse.check, cse.text, cse.options || {});
