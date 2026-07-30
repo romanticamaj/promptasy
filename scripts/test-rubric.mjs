@@ -3222,6 +3222,196 @@ ok(APPROACH_DELTA >= 3, `「真的往那邊走」的判定距離合理（${APPRO
 ok(NEAR_ENOUGH >= 10, `已經走到附近就不再提示（${NEAR_ENOUGH} 單位內）`);
 
 /* ================================================================== */
+/* Phase 24：分享到社群                                                */
+/*                                                                    */
+/*   · 零 SDK、零註冊、零外部腳本 —— 全部是玩家按下去才發生的一次動作    */
+/*   · 網址只有一個常數（部署後才改），不得憑空發明網域                   */
+/*   · 各家的入口只帶得走文字與連結；沒有入口的（Instagram）不假裝有      */
+/*   · 圖片本身只能交給系統分享面板 → 支援才露出那個入口（feature detect）*/
+/* ================================================================== */
+console.log('\n▸ 分享到社群（Phase 24）');
+
+const shareMod = await import('../src/ui/sharecard.js');
+const {
+  SHARE_URL,
+  SHARE_TAGLINE,
+  SHARE_TARGETS,
+  shareText,
+  shareTitle,
+  shareBody,
+  platformIntent,
+  isMobileLike,
+  systemShareSupported,
+} = shareMod;
+const shareSrc = readFileSync(resolve(root, 'src/ui/sharecard.js'), 'utf8');
+
+/* --- 網址：一個常數 ＋ 一句 TODO，不發明網域 --- */
+eq(SHARE_URL, 'https://github.com/romanticamaj/promptarcade', '分享網址就是這個 repo（還沒部署）');
+ok(/TODO 部署後改成正式網址/.test(shareSrc), '網址上面留著「部署後要改」的字條');
+ok(/^https:\/\//.test(SHARE_URL), '分享網址是 https');
+ok(
+  (shareSrc.match(/https?:\/\/(?!www\.facebook\.com\/sharer|www\.threads\.net\/intent)/g) || []).length <= 1,
+  '除了各家入口以外，只有一個對外網址（沒有偷偷冒出別的網域）'
+);
+ok(!/promptarcade\.(app|com|io|dev)/.test(shareSrc), '沒有憑空發明的網域');
+eq(SHARE_TAGLINE, 'Learn Prompt Engineering by Playing', '品牌那一句和網站標題一致');
+
+/* --- 零 SDK / 零外部腳本（護欄 3） --- */
+for (const banned of [
+  'connect.facebook.net',
+  'platform.twitter.com',
+  'FB.init',
+  'appId',
+  'app_id',
+  'createElement(\'script\')',
+  'fetch(',
+  'XMLHttpRequest',
+]) {
+  ok(!shareSrc.includes(banned), `分享不引入任何外部東西（沒有 ${banned}）`);
+}
+ok(!/<script/i.test(shareSrc), '分享不塞任何 script 進頁面');
+
+/* --- 那句話：世界的說法 ＋ 帶得走的網址 --- */
+const shareModel = {
+  kind: 'codex',
+  rankTitle: '釋義者',
+  level: 6,
+  collected: 46,
+  total: 68,
+};
+const codexText = shareText(shareModel);
+ok(codexText.includes('釋義者'), '那句話帶著稱號', codexText);
+ok(codexText.includes('46 / 68'), '那句話帶著收集進度', codexText);
+ok(codexText.includes('PromptArcade'), '那句話講得出這是什麼遊戲', codexText);
+ok(/[一-鿿]/.test(codexText), '那句話是中文');
+ok(codexText.length <= 90, `那句話不長（${codexText.length} 字）`);
+const resultText = shareText({ ...shareModel, kind: 'result', headline: '清晰之門', grade: 'S' });
+ok(resultText.includes('清晰之門'), '通關卡的那句話帶著關卡名', resultText);
+ok(resultText.includes('S'), '通關卡的那句話帶著評價', resultText);
+const masteryText = shareText({ ...shareModel, kind: 'mastery', headline: '撰寫基本功 · 精通' });
+ok(masteryText.includes('撰寫基本功'), '土地封印的那句話帶著土地名', masteryText);
+const finaleText = shareText({ ...shareModel, kind: 'finale', headline: '68 / 68 全數收集' });
+ok(finaleText.includes('走完'), '旅程完成的那句話講得出走完了', finaleText);
+eq(shareText({}).includes('旅人'), true, '沒資料時退回「旅人」，不丟例外');
+// WORLD.md §3.6：畫面上（與貼出去的話）不出現系統術語
+for (const banned of ['送出評分', '按鈕', '面板', 'localStorage', 'rubric', 'API key']) {
+  ok(!codexText.includes(banned) && !resultText.includes(banned), `那句話不出現系統術語「${banned}」`);
+}
+const body = shareBody(shareModel);
+ok(body.includes(SHARE_URL), '貼出去的內容帶著網址', body);
+ok(body.includes(SHARE_TAGLINE), '貼出去的內容帶著品牌那一句');
+ok(body.startsWith(codexText), '貼出去的內容就是那句話 ＋ 品牌 ＋ 網址');
+ok(shareTitle(shareModel).includes('PromptArcade') && shareTitle(shareModel).includes('釋義者'), '系統分享的標題是品牌 ＋ 稱號');
+
+/* --- 各家的入口：編碼正確、不假裝有路 --- */
+const fb = platformIntent('facebook', { text: body });
+ok(fb.startsWith('https://www.facebook.com/sharer/sharer.php?u='), 'Facebook 走官方的 sharer 入口', fb);
+ok(fb.includes(`u=${encodeURIComponent(SHARE_URL)}`), '網址有經過編碼');
+ok(fb.includes(`quote=${encodeURIComponent(body)}`), '那句話有經過編碼放在 quote');
+ok(!/[ 「」，]/.test(fb), 'Facebook 入口沒有沒編碼的字元', fb);
+const th = platformIntent('threads', { text: body });
+ok(th.startsWith('https://www.threads.net/intent/post?text='), 'Threads 走官方的 intent 入口', th);
+ok(th.includes(encodeURIComponent(SHARE_URL)), 'Threads 的文字裡帶著網址（那邊沒有分開的網址欄）');
+ok(!/[ 「」，]/.test(th), 'Threads 入口沒有沒編碼的字元', th);
+eq(platformIntent('messenger', { text: body, mobile: false }), null, '桌機沒有 Messenger 的入口 → 老實回 null');
+const mg = platformIntent('messenger', { text: body, mobile: true });
+ok(mg.startsWith('fb-messenger://share?link='), '手機上 Messenger 走 app 連結', mg);
+ok(mg.includes(encodeURIComponent(SHARE_URL)), 'Messenger 的連結有編碼');
+eq(platformIntent('instagram', { text: body }), null, 'Instagram 沒有網頁投稿入口 → 回 null（不假裝有）');
+eq(platformIntent('instagram', { text: body, mobile: true }), null, '手機上也一樣：Instagram 沒有網頁入口');
+eq(platformIntent('nonsense'), null, '沒聽過的名字回 null');
+ok(!/instagram\.com/.test(shareSrc), '程式裡沒有假的 Instagram 入口網址');
+
+/* --- 那一排石籤 --- */
+eq(SHARE_TARGETS.length, 4, '「分享到」有四片石籤');
+eq(SHARE_TARGETS.map((t) => t.id).join(','), 'facebook,threads,messenger,instagram', '四片石籤的順序固定');
+for (const t of SHARE_TARGETS) {
+  ok(nonEmptyStr(t.label), `${t.id} 有名字`);
+  const hasIntent = platformIntent(t.id, { mobile: true }) !== null;
+  ok(hasIntent || t.copyFallback || nonEmptyStr(t.reason), `${t.id} 有入口、能複製、或說得出為什麼沒有路`);
+  if (!hasIntent && !t.copyFallback) {
+    ok(/[一-鿿]/.test(t.reason), `${t.id} 用中文說明為什麼沒有路`, t.reason);
+  }
+  if (t.toast) ok(/[一-鿿]/.test(t.toast), `${t.id} 的提示是中文`, t.toast);
+}
+eq(SHARE_TARGETS.find((t) => t.id === 'instagram').copyFallback, undefined, 'Instagram 不給複製的假路（貼不進去）');
+eq(SHARE_TARGETS.find((t) => t.id === 'messenger').copyFallback, true, '桌機的 Messenger 走複製這條路');
+
+/* --- feature detection：不支援就不要露出那個入口 --- */
+const fakeFile = { name: 'x.png', type: 'image/png' };
+eq(systemShareSupported(fakeFile, null), false, '沒有 navigator 時＝不支援');
+eq(systemShareSupported(null, { share() {}, canShare: () => true }), false, '圖還沒備好＝不支援');
+eq(systemShareSupported(fakeFile, { canShare: () => true }), false, '只有 canShare 沒有 share＝不支援');
+eq(systemShareSupported(fakeFile, { share() {} }), false, '只有 share 沒有 canShare＝不支援（帶不了檔案）');
+eq(systemShareSupported(fakeFile, { share() {}, canShare: () => false }), false, '系統說不能帶檔案＝不支援');
+eq(
+  systemShareSupported(fakeFile, {
+    share() {},
+    canShare: () => {
+      throw new Error('boom');
+    },
+  }),
+  false,
+  'canShare 自己丟例外時安靜回 false'
+);
+eq(systemShareSupported(fakeFile, { share() {}, canShare: (d) => d.files.length === 1 }), true, '帶得動檔案＝支援');
+ok(/canShare\(\{ files: \[file\] \}\)/.test(shareSrc), '真的用 canShare 問「帶不帶得動這個檔案」（不是猜瀏覽器）');
+ok(!/userAgent/.test(shareSrc.slice(shareSrc.indexOf('function systemShareSupported'))), '偵測系統分享時不看 UA');
+ok(/data-sysshare/.test(shareSrc) && /sys\.hidden = !supported/.test(shareSrc), '不支援時那個入口是收起來的');
+// 開卡的第一幀就要知道支不支援（不然焦點會先落在別的地方，一下又被搶走）
+ok(!!shareMod.SHARE_PROBE, '有一個假的 PNG 可以先拿去問「帶不帶得動檔案」');
+eq(shareMod.SHARE_PROBE.type, 'image/png', '拿去問的假檔案型別就是 PNG');
+ok(shareMod.SHARE_PROBE.size <= 64, `拿去問的假檔案很小（${shareMod.SHARE_PROBE.size} bytes）`);
+ok(/lastFile \|\| SHARE_PROBE/.test(shareSrc), '還沒畫完之前用假檔案問，畫完之後用真的');
+ok(/圖還在刻/.test(shareSrc), '真的圖還沒好就按下去 → 說一句話，不做半套的事');
+
+/* --- 手機判定：UA ＋ 觸控兩個都要 --- */
+eq(isMobileLike(null), false, '沒有 navigator 時不當成手機');
+eq(isMobileLike({ userAgent: 'Mozilla/5.0 (X11; Linux x86_64)', maxTouchPoints: 0 }), false, '桌機不是手機');
+eq(isMobileLike({ userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0)', maxTouchPoints: 5 }), true, 'iPhone 是手機');
+eq(isMobileLike({ userAgent: 'Mozilla/5.0 (Linux; Android 14; Pixel 8)', maxTouchPoints: 5 }), true, 'Android 是手機');
+eq(
+  isMobileLike({ userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0)', maxTouchPoints: 0 }),
+  false,
+  '有 iPhone 字樣但沒有觸控 → 不當成手機（不亂開 app 連結）'
+);
+
+/* --- 手勢鏈：navigator.share 前面不准有 await --- */
+const shareCallBlock = shareSrc
+  .slice(shareSrc.indexOf("sysBtn.addEventListener('click'"), shareSrc.indexOf('const targetsEl'))
+  // 註解裡就寫著「前面不准有 await」—— 先把註解拿掉再檢查真正的程式
+  .replace(/\/\/[^\n]*/g, '')
+  .replace(/\/\*[\s\S]*?\*\//g, '');
+ok(shareCallBlock.includes('navigator.share({'), '系統分享真的在按下去的那一下呼叫');
+ok(!/await/.test(shareCallBlock), 'navigator.share 之前沒有任何 await（手勢不會斷）');
+ok(!/async/.test(shareCallBlock), '那個處理函式不是 async（手勢不會斷）');
+ok(/lastFile/.test(shareCallBlock), '交出去的是開卡時就備好的那份 PNG');
+ok(/prepareFile/.test(shareSrc) && /canvas\.toBlob/.test(shareSrc), '開卡時就把 PNG 備好');
+ok(/AbortError/.test(shareSrc), '玩家自己取消不算失敗（不亂跳提示）');
+
+/* --- 剪貼簿：圖 ＋ 文字一起放進同一份 --- */
+ok(/'image\/png': lastBlob/.test(shareSrc), '複製的是備好的那張圖');
+ok(/'text\/plain'/.test(shareSrc), '同時把那句話也放進剪貼簿');
+ok(/ClipboardItem/.test(shareSrc), '走的是瀏覽器內建的剪貼簿（沒有第三方）');
+
+/* --- 鍵盤（Phase 23 的文法） --- */
+ok(/rovingList\(targetsEl, '\[data-chip\]'\)/.test(shareSrc), '那一排石籤可以用方向鍵走');
+ok(/<kbd>Enter<\/kbd>/.test(shareSrc), '畫面上說得出 Enter 可以挑一個');
+ok(/<kbd>←<\/kbd>/.test(shareSrc) && /<kbd>→<\/kbd>/.test(shareSrc), '畫面上戴著方向鍵的鍵帽');
+ok(/target="_blank"/.test(shareSrc) && /rel="noopener noreferrer"/.test(shareSrc), '有入口的石籤是真的連結（Enter 就開得起來）');
+ok(/aria-label/.test(shareSrc), '沒點燈的石籤有給螢幕閱讀器的說明');
+
+/* --- 畫面上的說明：中文、老實、不出現系統術語 --- */
+const shareCopy = (shareSrc.match(/class="sharecard__hint">([^<]*)/g) || []).map((s) => s.replace(/^[^>]*>/, ''));
+ok(shareCopy.length >= 1, '畫面上有說明「這條路帶得走什麼」');
+const hintAll = shareCopy.join(' ');
+ok(hintAll.includes('Instagram'), '說明講得出 Instagram 為什麼要用手機', hintAll);
+ok(hintAll.includes('文字和連結'), '說明老實講「只帶得走文字和連結」', hintAll);
+for (const banned of ['送出評分', '按鈕', '面板', 'localStorage', 'rubric']) {
+  ok(!hintAll.includes(banned), `說明不出現系統術語「${banned}」`);
+}
+
+/* ================================================================== */
 /* Phase 6：自架子集字型                                               */
 /*                                                                    */
 /* 護欄 3（可離線）＋ 護欄 6（授權乾淨）的機器檢查：                    */

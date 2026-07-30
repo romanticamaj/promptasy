@@ -5772,8 +5772,9 @@ select option:disabled {
 .sharecard__frame {
   position: relative;
   /* 卡片是 1200×630（比例 1.905）。把「寬度」綁在可用高度上，
-     整張圖才不會把「下載圖片」那排按鈕擠到摺線下面去。 */
-  width: min(100%, max(240px, calc((94vh - 400px) * 1.905)));
+     整張圖才不會把「下載圖片」那排按鈕擠到摺線下面去。
+     Phase 24 在下面多了「分享到」那一排 → 讓出來的高度跟著加。 */
+  width: min(100%, max(240px, calc((94vh - 520px) * 1.905)));
   margin-inline: auto;
   border: 1px solid var(--rule-2);
   background: var(--ink-0);
@@ -5825,6 +5826,51 @@ select option:disabled {
   align-items: center;
   padding-top: var(--s2);
   border-top: 1px solid var(--rule);
+}
+/* 「下載圖片」是 <a>（要 download 屬性）—— 但它看起來要跟旁邊的石頭一樣，不是連結 */
+.sharecard__acts a.btn {
+  text-decoration: none;
+}
+
+/* 分享到 …（Phase 24）
+   一排 quiet 階的石籤：有入口的是連結（↗），只能複製的帶 ⧉，
+   沒有網頁入口的那一片沒點燈（disabled）—— 不假裝有路。 */
+.sharecard__send {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2) var(--s3);
+  padding-top: var(--s3);
+  border-top: 1px solid var(--rule);
+}
+.sharecard__sendlabel {
+  margin: 0;
+  flex: 0 0 auto;
+  font-family: var(--font-ui);
+  font-size: var(--t-micro);
+  letter-spacing: var(--tr-cjk);
+  color: var(--paper-3);
+}
+.sharecard__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+}
+.sharecard__chip {
+  text-decoration: none;
+}
+.sharecard__chip.is-used {
+  --face: linear-gradient(180deg, #05080c, #0e141d);
+}
+.sharecard__hint {
+  flex: 1 1 100%;
+  margin: 0;
+  font-size: var(--t-micro);
+  line-height: 1.5;
+  color: var(--paper-4);
+}
+.sharecard__hint kbd {
+  margin: 0 2px;
 }
 
 /* 結果面板 / 隱藏成就畫面上的分享入口（刻印牌的 quiet 階） */
@@ -5895,6 +5941,14 @@ select option:disabled {
   }
   .sharecard__acts .btn {
     flex: 1 1 auto;
+  }
+  /* 窄畫面：石籤自己撐開，手指按得到 */
+  .sharecard__chips {
+    flex: 1 1 100%;
+  }
+  .sharecard__chip {
+    flex: 1 1 auto;
+    justify-content: center;
   }
 }
 
