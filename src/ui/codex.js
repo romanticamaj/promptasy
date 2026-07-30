@@ -16,6 +16,8 @@ export function createCodex({
   /** Phase 22：世界裡的小收集 —— 刻文小語與藏起來的地方各有幾個。 */
   inscriptionTotal = 0,
   secretTotal = 0,
+  /** Phase 25：動得了的器物有幾件。 */
+  handleTotal = 0,
 }) {
   const overlay = createOverlay({
     id: 'codex',
@@ -58,9 +60,10 @@ export function createCodex({
    * 刻意放在徽章下面、字級很小 —— 它是「順手撿到的」，不是主線進度。
    */
   function worldFinds() {
-    if (!inscriptionTotal && !secretTotal) return '';
+    if (!inscriptionTotal && !secretTotal && !handleTotal) return '';
     const ins = progression.inscriptionCount ? progression.inscriptionCount() : 0;
     const sec = progression.secretCount ? progression.secretCount() : 0;
+    const hnd = progression.handleCount ? progression.handleCount() : 0;
     const blessed = Boolean(progression.state.flags && progression.state.flags.echoBlessing);
     const rows = [];
     if (inscriptionTotal) {
@@ -72,6 +75,13 @@ export function createCodex({
       rows.push(
         `<li><b>藏起來的地方</b><span>${sec} / ${secretTotal}</span><i>${
           sec >= secretTotal ? '全都找到了' : '不在路上，找到才算'
+        }</i></li>`
+      );
+    }
+    if (handleTotal) {
+      rows.push(
+        `<li><b>動過的器物</b><span>${hnd} / ${handleTotal}</span><i>${
+          hnd >= handleTotal ? '這片土地上動得了的東西都被你動過了' : '罐子、火盆、響石、絞盤…走近按 E'
         }</i></li>`
       );
     }

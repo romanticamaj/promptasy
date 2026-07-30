@@ -1,0 +1,289 @@
+{
+  "version": 1,
+  "authored": "game",
+  "note": "動得了的器物：抄寫人留在原地、你真的碰得到的東西（陶罐 / 火盆 / 響石 / 守望石 / 撈月池 / 指路石 / 絞盤 / 長凳）。走近按 E 就有反應。護欄 2：這一層跟世界觀石碑、藏起來的地方同一種東西 —— 純風味。它們不教任何技巧、不掛 techniqueId、不宣稱任何官方說法、不放連結，也沒有 source / teaches 欄位（測試會強制驗證）。真正的教學一律在關卡、刻文小語與圖鑑。這裡所有文字都是遊戲自撰的世界觀敘述，不是任何廠商的官方文字。",
+  "xp": 4,
+  "kinds": {
+    "urn": {
+      "idle": "蓋子還蓋著",
+      "done": "裡面已經空了",
+      "says": {}
+    },
+    "brazier": {
+      "idle": "灰底下還是溫的",
+      "done": "火還亮著",
+      "says": {
+        "poke": "火星散了一把，又慢慢靜下來。"
+      }
+    },
+    "gong": {
+      "idle": "敲一下會響很久",
+      "done": "餘音還沒散乾淨",
+      "says": {}
+    },
+    "watchstone": {
+      "idle": "它閉著眼睛",
+      "done": "眼睛剛剛才閉上",
+      "says": {
+        "blind": "守望石睜開眼，看了一圈，沒有再看向任何地方。",
+        "aim": "守望石睜開眼，把頭轉向"
+      }
+    },
+    "moonpool": {
+      "idle": "水裡有東西在動",
+      "done": "水面靜下來了",
+      "says": {
+        "again": "水面已經靜下來了，只剩月亮還在裡面。"
+      }
+    },
+    "signpost": {
+      "idle": "四塊牌子還讀得出來",
+      "done": "讀過的指路石",
+      "says": {}
+    },
+    "capstan": {
+      "idle": "推得動，但要推好幾下",
+      "done": "石蓋已經開著",
+      "says": {
+        "turn": "絞盤咬進去一格。還要再推",
+        "done": "石蓋開著，底下那道光很安靜。"
+      }
+    },
+    "bench": {
+      "idle": "坐下來看一會兒",
+      "done": "坐過的長凳",
+      "says": {}
+    }
+  },
+  "entries": [
+    {
+      "id": "hub-moonpool-firstwords",
+      "kind": "moonpool",
+      "region": "foundations",
+      "at": [-40, -2],
+      "rot": 0.6,
+      "title": "撈月的淺池",
+      "line": "杓子撈起一條光，它在半空散成一把碎星，落回水裡。"
+    },
+    {
+      "id": "hub-urn-carveyard",
+      "kind": "urn",
+      "region": "foundations",
+      "at": [-8, -28],
+      "rot": -0.4,
+      "title": "碑林旁的陶罐",
+      "lines": [
+        "罐子裡裝的全是刻壞的碎片，一片都沒丟。",
+        "罐底寫著一行小字：「留著。下次別再這樣寫。」"
+      ]
+    },
+    {
+      "id": "hub-gong-plateau",
+      "kind": "gong",
+      "region": "foundations",
+      "at": [8, -12],
+      "rot": 0.25,
+      "title": "高原上的響石",
+      "line": "石盤震了一下，聲音往四面散開，很久才回來。"
+    },
+    {
+      "id": "hub-signpost-crossroad",
+      "kind": "signpost",
+      "region": "foundations",
+      "at": [22, 4],
+      "rot": 0.9,
+      "title": "高原岔路的指路石",
+      "ways": [
+        { "to": "往北", "text": "回起點的光柱。迷路的時候先回那裡站一會兒。" },
+        { "to": "往西北", "text": "過橋是階梯迴廊。那裡的人喜歡把想法一步一步攤開來。" },
+        { "to": "往東北", "text": "過橋是沉書檔案庫。霧很濃，先讀再說話。" },
+        { "to": "往南", "text": "碑林。刻到一半的碑最多，走慢一點會看到字。" }
+      ]
+    },
+    {
+      "id": "hub-bench-northrim",
+      "kind": "bench",
+      "region": "foundations",
+      "at": [-14, 30],
+      "rot": 1.4,
+      "title": "看天的長凳",
+      "line": "坐下來。這裡什麼都不會發生 —— 抄寫人當初就是為了這個把凳子擺在這。"
+    },
+    {
+      "id": "hub-brazier-westrim",
+      "kind": "brazier",
+      "region": "foundations",
+      "at": [-30, 30],
+      "rot": -0.8,
+      "title": "熄掉的火盆",
+      "line": "火又亮起來了。這是這片高原上第一盞重新被點著的燈。"
+    },
+
+    {
+      "id": "rsn-capstan-stairs",
+      "kind": "capstan",
+      "region": "reasoning",
+      "at": [-97, -129],
+      "rot": 0.5,
+      "title": "階梯下的絞盤",
+      "line": "石蓋滑開，底下是一段還在往下走的階梯，光從縫裡透上來。"
+    },
+    {
+      "id": "rsn-signpost-bridgehead",
+      "kind": "signpost",
+      "region": "reasoning",
+      "at": [-61, -101],
+      "rot": -1.2,
+      "title": "橋頭的指路石",
+      "ways": [
+        { "to": "往東南", "text": "橋的另一頭是中央高原。累了就回去坐一下。" },
+        { "to": "往西", "text": "無盡階梯塔。它從哪裡看都一樣高，所以它不會騙你。" },
+        { "to": "往北", "text": "示範迴廊。牆上掛的是別人做給你看的例子。" },
+        { "to": "往西北", "text": "思考室。裡面很安靜，有人在那裡想了很久。" }
+      ]
+    },
+    {
+      "id": "rsn-bench-corridor",
+      "kind": "bench",
+      "region": "reasoning",
+      "at": [-89, -63],
+      "rot": 2.1,
+      "title": "迴廊邊的長凳",
+      "line": "坐下來。從這裡看得到階梯一階一階往上，數不完也沒關係。"
+    },
+    {
+      "id": "rsn-watchstone-thinker",
+      "kind": "watchstone",
+      "region": "reasoning",
+      "at": [-121, -75],
+      "rot": 1.1,
+      "title": "迴廊的守望石",
+      "line": "石獸睜開眼，肩上的灰掉了一層。"
+    },
+
+    {
+      "id": "gnd-signpost-bridgehead",
+      "kind": "signpost",
+      "region": "grounding",
+      "at": [61, -101],
+      "rot": 1.6,
+      "title": "霧裡的指路石",
+      "ways": [
+        { "to": "往西南", "text": "橋的另一頭是中央高原。那邊的霧薄很多。" },
+        { "to": "往東", "text": "藏書之樹。書都掛在枝上，風一吹就翻頁。" },
+        { "to": "往北", "text": "長卷之塔。想找的東西通常在最底下那一卷。" },
+        { "to": "往東北", "text": "不知之井。往下喊會有回音，但那不是回聲。" }
+      ]
+    },
+    {
+      "id": "gnd-brazier-archive",
+      "kind": "brazier",
+      "region": "grounding",
+      "at": [95, -129],
+      "rot": 0.3,
+      "title": "抄書人的火盆",
+      "line": "火亮起來，霧被推開了一小圈，字忽然變得看得清楚。"
+    },
+    {
+      "id": "gnd-urn-scrolls",
+      "kind": "urn",
+      "region": "grounding",
+      "at": [117, -73],
+      "rot": -0.9,
+      "title": "抄書桌旁的陶罐",
+      "lines": [
+        "罐子裡是一疊沒抄完的卷。每一卷開頭都很整齊，愈往後字愈亂。",
+        "最上面那卷夾著一張紙條：「抄到這裡就天亮了。」"
+      ]
+    },
+    {
+      "id": "gnd-moonpool-well",
+      "kind": "moonpool",
+      "region": "grounding",
+      "at": [79, -83],
+      "rot": 2.4,
+      "title": "井邊的撈月池",
+      "line": "撈起來的光比別處的重一點，像是在水裡泡了很久。"
+    },
+
+    {
+      "id": "orc-urn-workbench",
+      "kind": "urn",
+      "region": "orchestration",
+      "at": [-129, 89],
+      "rot": 1.3,
+      "title": "工作檯下的陶罐",
+      "lines": [
+        "罐子裡全是拆下來的小零件，每一個都用布單獨包好。",
+        "布上寫著號碼，號碼從三十七開始 —— 前面三十六個不知道去哪了。"
+      ]
+    },
+    {
+      "id": "orc-gong-yard",
+      "kind": "gong",
+      "region": "orchestration",
+      "at": [-95, 61],
+      "rot": -0.5,
+      "title": "工坊的響石",
+      "line": "整座工坊的齒輪跟著顫了半拍，然後又照原本的節奏轉下去。"
+    },
+    {
+      "id": "orc-capstan-crane",
+      "kind": "capstan",
+      "region": "orchestration",
+      "at": [-79, 127],
+      "rot": 0.2,
+      "title": "吊車底下的絞盤",
+      "line": "石蓋滑開。底下不是機關，是一個空的凹槽 —— 該放進去的東西還沒做出來。"
+    },
+    {
+      "id": "orc-brazier-forge",
+      "kind": "brazier",
+      "region": "orchestration",
+      "at": [-111, 127],
+      "rot": -1.4,
+      "title": "熔爐邊的火盆",
+      "line": "火起來了。爐邊的工具影子被拉得很長，像是有人剛剛才走開。"
+    },
+
+    {
+      "id": "cfg-watchstone-stage",
+      "kind": "watchstone",
+      "region": "config",
+      "at": [61, 89],
+      "rot": -0.3,
+      "title": "後台的守望石",
+      "line": "石獸睜開眼。它的臉是照著誰刻的，已經沒有人記得了。"
+    },
+    {
+      "id": "cfg-gong-curtain",
+      "kind": "gong",
+      "region": "config",
+      "at": [95, 61],
+      "rot": 1.9,
+      "title": "開場的響石",
+      "line": "一聲響。以前這一聲響完，戲就要開始了。"
+    },
+    {
+      "id": "cfg-urn-masks",
+      "kind": "urn",
+      "region": "config",
+      "at": [109, 127],
+      "rot": 0.7,
+      "title": "面具堆旁的陶罐",
+      "lines": [
+        "罐子裡是一疊沒用過的面具，每一張都還沒有畫上表情。",
+        "罐口壓著一張畫好的，看起來像是照著自己的臉刻的。"
+      ]
+    },
+    {
+      "id": "cfg-bench-house",
+      "kind": "bench",
+      "region": "config",
+      "at": [73, 117],
+      "rot": -2.0,
+      "title": "觀眾席的長凳",
+      "line": "坐下來。台上沒有人，可是這個位子被磨得很亮。"
+    }
+  ]
+}

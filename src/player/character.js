@@ -315,6 +315,20 @@ export function createCharacter({ quality = 'high' } = {}) {
   let celebrateT = 0; // 過關慶祝的剩餘時間
   const CELEBRATE_TIME = 1.25;
 
+  /*
+   * 坐下（Phase 25）：長凳唯一的用途。
+   *
+   * 一樣是 rigless —— 沒有新的動畫檔，只是把既有的關節往「坐姿」推：
+   * 髖屈約 85°、膝屈約 90°、骨盆下沉約 0.42（＝小腿長），軀幹微微往後靠、
+   * 手垂在膝上。走起來的時候權重強制回 0，所以「站起來走」不需要狀態機。
+   * 角度取自一般座椅的坐姿量測（髖 80–90°、膝 85–95°）。
+   */
+  let restTarget = 0;
+  let restAmt = 0;
+  const SEAT_HIP = 1.48; // 85°
+  const SEAT_KNEE = 1.55; // 89°
+  const SEAT_DROP = 0.42;
+
   const joints = {
     body,
     hips,
@@ -356,6 +370,10 @@ export function createCharacter({ quality = 'high' } = {}) {
     if (celebrateT > 0) celebrateT = Math.max(0, celebrateT - dt);
     // 0 → 1 → 0 的鐘形曲線，慶祝動作自己進場又自己收回去
     const cheer = celebrateT > 0 ? Math.sin((1 - celebrateT / CELEBRATE_TIME) * Math.PI) : 0;
+
+    // 坐姿權重：一走起來就自動歸零（＝「走一步就站起來」不需要狀態機）
+    const restWant = restTarget * (1 - Math.min(1, move * 3));
+    restAmt += (restWant - restAmt) * (1 - Math.exp(-5 * dt));
 
     const thighA = mix(GAIT.thigh, run) * move;
     const thighBias = mix(GAIT.thighBias, run) * move;
@@ -428,6 +446,28 @@ export function createCharacter({ quality = 'high' } = {}) {
     lanternPivot.rotation.z = Math.sin(t * 1.1 + p * 0.5) * (0.1 + move * 0.16);
     lanternLight.intensity = 4.8 + Math.sin(t * 3.1) * 0.6 + move * 1.1 + cheer * 2.4;
 
+    /* --- 坐姿：疊在最上面，把既有的姿勢往「坐在凳子上」推 --- */
+    if (restAmt > 0.001) {
+      const k = restAmt;
+      const to = (cur, want) => cur + (want - cur) * k;
+      for (const leg of legs) {
+        leg.hip.rotation.x = to(leg.hip.rotation.x, -SEAT_HIP);
+        leg.hip.rotation.z = to(leg.hip.rotation.z || 0, 0);
+        leg.knee.rotation.x = to(leg.knee.rotation.x, SEAT_KNEE);
+        leg.ankle.rotation.x = to(leg.ankle.rotation.x, 0.06);
+      }
+      for (let i = 0; i < 2; i += 1) {
+        arms[i].shoulder.rotation.x = to(arms[i].shoulder.rotation.x, -0.32);
+        arms[i].elbow.rotation.x = to(arms[i].elbow.rotation.x, -0.86);
+      }
+      body.position.y = to(body.position.y, body.position.y - SEAT_DROP);
+      body.rotation.x = to(body.rotation.x, -0.09);
+      hips.rotation.y = to(hips.rotation.y, 0);
+      torso.rotation.y = to(torso.rotation.y, 0);
+      // 坐著的時候頭抬一點（凳子擺在那裡就是為了看天）
+      neck.rotation.x = to(neck.rotation.x, 0.16);
+    }
+
     return cheer;
   }
 
@@ -443,6 +483,15 @@ export function createCharacter({ quality = 'high' } = {}) {
     },
     get celebrating() {
       return celebrateT > 0;
+    },
+    /** 坐下 / 站起來（長凳用）。走起來的時候會自動歸零。 */
+    rest(v) {
+      restTarget = v ? 1 : 0;
+      return restTarget === 1;
+    },
+    /** 目前的坐姿權重（0 = 站著、1 = 坐滿）。測試會看。 */
+    get restAmount() {
+      return restAmt;
     },
     update,
     dispose() {

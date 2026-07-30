@@ -25,6 +25,7 @@ import {
 } from './props.js';
 import { buildInscription, INSCRIPTION_RADIUS } from './inscriptions.js';
 import { createReactiveField, REACTIVE_SPOTS } from './reactive.js';
+import { createHandleField, HANDLE_RADIUS } from './handles.js';
 
 /** 每片土地：中心、半徑、內圈（完全平坦的核心）。 */
 export const REGION_SITES = Object.freeze([
@@ -968,7 +969,16 @@ function buildRegionProps(site, color, quality, keepClear, pedestals = []) {
     for (let i = 0; i < GEAR_N; i += 1) {
       const { x, z } = place(26, site.radius - 7);
       const scale = 0.7 + rand() * 1.3;
-      const y = terrainHeight(x, z) + 5 + rand() * 6;
+      /*
+       * 飄在半空的東西要**真的**飄在半空。
+       *
+       * 齒輪是躺下來的大圓盤（半徑 3.2 × scale），高度只給「圓心離地 5–11 公尺」
+       * 的話，最大的那幾片在斜坡上的下緣會垂到離地不到 1.6 公尺 ——
+       * 碰撞稽核就會判定它「有份量卻走得過去」（＝一個看得到的穿模點）。
+       * 所以下緣一律再往上推到離地 2.4 公尺以上（> FLOAT_MIN 1.6，留一點餘裕）。
+       */
+      const clearance = 3.2 * scale + 2.4;
+      const y = terrainHeight(x, z) + Math.max(5 + rand() * 6, clearance);
       gearData.push({ x, y, z, scale, spin: (rand() - 0.5) * 0.6, tilt: rand() * Math.PI });
       p.set(x, y, z);
       q.setFromEuler(new THREE.Euler(Math.PI / 2, 0, gearData[i].tilt));
@@ -1711,6 +1721,8 @@ export function createWorld({
   inscriptions = [],
   /** Phase 22：藏起來的地方（secrets.json 的 entries）。 */
   secrets = [],
+  /** Phase 25：動得了的器物（handles.json 的 entries）。沒給就不蓋，世界照樣成立。 */
+  handles = [],
   /** Phase 22：走近會有反應的東西要不要放聲音（面板打開時整組停手）。 */
   onReact = null,
   onSecret = null,
@@ -1746,6 +1758,8 @@ export function createWorld({
     ...inscriptions.map((i) => [i.at[0], i.at[1], 5]),
     ...REACTIVE_SPOTS.map((s) => [s.at[0], s.at[1], 6]),
     ...secrets.map((s) => [s.at[0], s.at[1], 9]),
+    // Phase 25：動得了的器物 —— 走近才看得到細節，旁邊被草叢埋掉就等於沒放
+    ...handles.map((h) => [h.at[0], h.at[1], 5.5]),
     ...(shrineSpec ? [[shrineSpec.at[0], shrineSpec.at[1], 10]] : []),
   ];
 
@@ -1823,6 +1837,20 @@ export function createWorld({
   root.add(reactive.group);
   for (const spec of secrets) {
     if (progression.hasFoundSecret && progression.hasFoundSecret(spec.id)) reactive.markSecretFound(spec.id);
+  }
+
+  /* --- Phase 25：動得了的器物（走近按 E 就有反應的小東西） --- */
+  const handleField = createHandleField({
+    entries: handles,
+    kitOf: (regionId) => kits.get(regionId) || kits.get('foundations'),
+    terrainHeight,
+    reducedMotion,
+  });
+  root.add(handleField.group);
+  // 「夠厚就擋人」的規則由 markSolidParts 統一判定（陶罐另外在 handles.js 明講半徑）
+  markSolidParts(handleField.group);
+  for (const spec of handles) {
+    if (progression.hasUsedHandle && progression.hasUsedHandle(spec.id)) handleField.markUsed(spec.id);
   }
 
   const motes = buildMotes(quality, colorOf, vignetteAnchors);
@@ -2009,6 +2037,8 @@ export function createWorld({
     inscriptions: inscriptionObjs,
     /** Phase 22：反應場（會回應的東西 ＋ 藏起來的地方）。 */
     reactive,
+    /** Phase 25：動得了的器物。 */
+    handles: handleField,
     vignetteAnchors,
     landmarks: LANDMARKS,
     /** 起始祭壇（序章）。世界沒有序章資料時為 null。 */
@@ -2190,6 +2220,23 @@ export function createWorld({
     /** 每幀更新反應場（玩家座標）。面板打開時由 isBusy 自己停手。 */
     updateReactions(dt, t, x, z) {
       reactive.update(dt, t, x, z);
+      handleField.update(dt, t, x, z);
+    },
+
+    /**
+     * 走近的器物（Phase 25）。半徑 3.2，比刻文小語（3.8）再小一階 ——
+     * 搶 E 的順序是「石座 > 石碑 > 刻文小語 > 器物 > 閘門」。
+     * @param {THREE.Vector3} position
+     * @param {number} [maxDistance]
+     * @param {{x:number,z:number}|null} [forward] 鏡頭的水平前方向（兩件同時在範圍內時用來排名）
+     */
+    nearestHandle(position, maxDistance = HANDLE_RADIUS, forward = null) {
+      return handleField.nearest(position, maxDistance, forward);
+    },
+
+    /** 標記某件器物已經動過（世界端的視覺變化）。 */
+    markHandleUsed(id) {
+      return handleField.markUsed(id);
     },
 
     /** 標記某塊石碑已讀（世界端的視覺變化）。 */

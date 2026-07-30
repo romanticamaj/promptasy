@@ -434,10 +434,28 @@ export function createPlayer({ engine, quality = 'high', startPosition = [0, 0],
         velocity.set(0, 0, 0);
       }
     },
-    teleport(x, z) {
+    /**
+     * 直接把人放到某個座標。
+     * @param {number} x
+     * @param {number} z
+     * @param {number} [face] 面向（弧度）。坐長凳時要正對著凳子擺的方向。
+     */
+    teleport(x, z, face) {
       group.position.set(x, terrainHeight(x, z), z);
       velocity.set(0, 0, 0);
       lookNow.set(x, terrainHeight(x, z) + 2.2, z);
+      if (Number.isFinite(face)) {
+        facing = face;
+        group.rotation.y = face;
+      }
+    },
+    /** 坐下 / 站起來（長凳）。走一步就會自己站起來。 */
+    setResting(v) {
+      return character.rest(v);
+    },
+    /** 目前的坐姿權重（0 = 站著、1 = 坐滿）。 */
+    get restAmount() {
+      return character.restAmount;
     },
     dispose() {
       window.removeEventListener('keydown', onKeyDown);

@@ -27,6 +27,8 @@ export function defaultSave() {
     inscriptionsFound: [],
     // Phase 22：已找到的祕密地點 id（純風味的地圖彩蛋）
     secretsFound: [],
+    // Phase 25：已經動過的器物 id（陶罐 / 火盆 / 響石…；純風味，不進圖鑑、不算徽章）
+    handlesUsed: [],
     badges: { openai: 0, anthropic: 0, google: 0, xai: 0 },
     settings: {
       music: 'ambient-01',
@@ -139,6 +141,8 @@ export function normalize(raw) {
     // Phase 22：舊存檔沒有這兩個 → 空陣列（純加法，不影響任何既有欄位）
     inscriptionsFound: [...new Set(strArr(d.inscriptionsFound) || [])],
     secretsFound: [...new Set(strArr(d.secretsFound) || [])],
+    // Phase 25：舊存檔沒有 handlesUsed → 空陣列（純加法，不影響任何既有欄位）
+    handlesUsed: [...new Set(strArr(d.handlesUsed) || [])],
     bestGrades,
     badges,
     settings,

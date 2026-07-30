@@ -166,8 +166,14 @@ CLAUDE.md 的六條開發護欄仍然優先於本文件的任何美學主張。�
 | ② 風味 | 世界觀石碑（12 塊）／祕密（4 處） | 4.6 ／ 5.0（自動） | 一塊石板、兩三行字 | **否**（護欄） | `loreRead` / `secretsFound` |
 | ③ 小語 | 刻文小語（13 則） | 3.8 | 很小的對話窗 | **是**（附出處） | `inscriptionsFound` |
 | ④ 關卡 | 石座（26 座） | 6.5 | 四幕分鏡主控台 | **是**（完整評分） | `bestGrades` |
+| ⑤ 器物 | 動得了的東西（22 件、8 種，見 §4.6） | 3.2 | 多半什麼都不開（只說一句話） | **否**（護欄） | `handlesUsed` |
 
-搶 `E` 的優先序：**石座 > 石碑 > 刻文小語 > 閘門**。互動半徑依這個順序遞減，讓小東西不會蓋掉大東西。
+搶 `E` 的優先序：**石座 > 石碑 > 刻文小語 > 器物 > 閘門**。互動半徑依這個順序遞減，讓小東西不會蓋掉大東西。
+
+**同一層裡有兩件同時在範圍內時，用「面向」排名，不是用距離。**
+器物擺得比其他層密，站在兩件中間是會發生的事；純比距離的話，會由零點幾公尺的差距
+決定按到哪一個，但玩家看的是他**面向哪裡**。作法是把鏡頭的水平前方向丟進排名式
+（`分數 = 距離 × (1 − 0.35 × 面向點積)`），沒有給面向時退回純距離。
 
 ### 3.3 分幕揭示（staged reveal）
 
@@ -249,6 +255,49 @@ CLAUDE.md 的六條開發護欄仍然優先於本文件的任何美學主張。�
 4 處，一律在**地標的背面**或地圖角落——從中央高原看不到的那一側，離主動線 8 公尺以上。
 走進去就算找到（不用按 `E`：好奇心不該還要學一個鍵）。純風味，不教技巧。
 
+### 4.6 動得了的東西（handles，Phase 25）
+
+**這片土地上的東西不能只有「能看」。** 抄寫人留在原地的器物你要真的碰得到：
+掀得開、點得著、敲得響、推得動、坐得下。它們不推進主線 ——
+**密度比獎勵重要**：走過去、按一下、它有反應，這件事本身就是回饋。
+
+八種，各 2–4 件、共 22 件，五片土地都有（每區至少 3 種不同的）：
+
+| 種類 | 世界裡是什麼 | 按 `E` 之後 | 動詞 | 一次性？ |
+|---|---|---|---|---|
+| 陶罐 `urn` | 裝碎刻痕的罐子 | 蓋子掀開、一縷光飄出；開一個小窗看罐底的字 | 掀開 | 是（開過就空了） |
+| 火盆 `brazier` | 熄了很久的火 | 火重新亮起來，**而且一直亮著**（存檔記得） | 點火 | 是（之後可以撥火） |
+| 響石 `gong` | 吊在木架上的石盤 | 盤子震、光環擴散、餘音最長的一支音 | 敲響 | **否**（可以一直敲） |
+| 守望石 `watchstone` | 蹲著的石獸 | 睜眼、把頭轉向**你還沒解開的那座石座** | 觸碰 | 否 |
+| 撈月池 `moonpool` | 淺水裡有幾條光 | 撈起一條，在半空散成碎星 | 撈一把 | 是 |
+| 指路石 `signpost` | 岔路口的四塊牌子 | 開小窗，告訴你四個方向各有什麼 | 閱讀 | 否 |
+| 絞盤 `capstan` | 轉不動的機關輪 | **按三次 `E`**，每次咬一格；轉完腳邊石蓋滑開 | 推動 | 是 |
+| 長凳 `bench` | 坐著看天的地方 | 人真的坐上去、鏡頭往後退、世界安靜一會兒 | 坐下 | 否 |
+
+擺法與規矩：
+
+- **兩件器物之間至少 14 公尺**，離石座 7、刻文小語 8、反應物件 8、石碑 7、地標 14、橋的主動線 8 以上。
+  中間要走得到「什麼都沒有」的地方 —— 密度要有節奏。
+- **`E` 是唯一的鍵。** 絞盤要推三下也是按三次 `E`，不發明「按住」或第二個鍵。
+- **推到一半離開不算失敗**，只是回到原地重來（§3.5）。
+- **多半不開窗**：只有陶罐（罐底的字）與指路石（四個方向）開一個很小的窗，
+  其餘六種只在畫面上說一句話 —— 走在路上的小互動不該把整個世界蓋掉。
+- **純風味（護欄 2）**：不教技巧、不掛 `techniqueId`、不放連結、資料層不准有 `source` / `teaches`。
+- 第一次動它給 4 XP，之後怎麼玩都不再給（可以一直敲鑼，但不能刷分）。
+
+### 4.7 三個高度階（scale tiers）
+
+新增任何東西之前先決定它屬於哪一階，**而且三階之間要留得出空隙**——
+中間尺寸的東西會把剪影糊成一團，讀不出遠近：
+
+| 階 | 高度 | 例子 | 功能 |
+|---|---|---|---|
+| 雜物 | ≤ 2.6 公尺 | 器物、刻文小語、碎石、草叢 | 走到眼前才看得到，提供「這裡有人來過」 |
+| 中景 | 3–8 公尺 | 小景、石碑、立石環、書架、齒輪 | 走過去的路上看得到，提供方向感 |
+| 地標 | 21–27 公尺 | 五座地標 | 從中央高原就看得到，提供慾望 |
+
+（加色混合的光不算剪影：石座的光柱 22 公尺、絞盤的光柱 4.6 公尺，它們是光不是物質。）
+
 ---
 
 ## 五、命名規範
@@ -264,6 +313,7 @@ gate:<regionId>          閘門
 tablet:<loreId>          世界觀石碑
 inscription:<id>         刻文小語
 reactive:<id>            會回應的東西
+handle:<id>              動得了的器物
 secret:<id>              藏起來的地方
 landmark:<id>            地標
 vignette:<id>            故事小景
@@ -289,6 +339,7 @@ traveler*                主角的關節
 | `prologue.json` | 序章 | game |
 | `inscriptions.json` | 刻文小語（掛 `techniqueId`，不自帶教學句子與出處） | game |
 | `secrets.json` | 藏起來的地方（純風味，不准有 source / teaches） | game |
+| `handles.json` | 動得了的器物（純風味，不准有 source / teaches / techniqueId / 連結） | game |
 | `ranks.json` | 稱號 | game |
 
 **遊戲自撰的資料檔一律在檔頭寫明「這不是官方文字，出處以 curriculum.json 為準」。**
@@ -296,7 +347,8 @@ traveler*                主角的關節
 ### 5.4 存檔欄位
 
 `promptarcade.v1.save`。新增欄位一律**純加法**，並在 `normalize()` 裡給預設值（舊存檔不能因此壞掉，也不能被塞回教學）。
-`loreRead` / `inscriptionsFound` / `secretsFound` / `prologueSteps` / `guidanceSeen` **都不寫 `bestGrades`**——它們不佔「已通關 x / 26」，也不算區域解鎖的通關數。
+`loreRead` / `inscriptionsFound` / `secretsFound` / `handlesUsed` / `prologueSteps` / `guidanceSeen`
+**都不寫 `bestGrades`**——它們不佔「已通關 x / 26」，也不算區域解鎖的通關數。
 
 ---
 
@@ -306,11 +358,17 @@ traveler*                主角的關節
 
 | 項目 | 上限 | 目前 |
 |---|---|---|
-| 三角形 | 420,000 | ~140k |
-| 光源 | 56 | ~47 |
-| 碰撞體 | 1,400 | ~600 |
+| 三角形 | 420,000 | ~143k |
+| 光源 | 56 | 44 |
+| 碰撞體 | 1,400 | ~790 |
+| 網格（≒ draw call） | — | ~1,200（器物那一層佔 214） |
 
 **新增場景內容時不新增光源**——用自發光材質（`emissive`）與加色混合的光暈片。
+（Phase 25 加了 22 件器物：三角形 +9.3k、光源 **+0**、碰撞體淨 −21。）
+
+**飄在半空的東西要真的飄在半空。** 下緣離地要 > 1.6 公尺（`FLOAT_MIN`），
+而且要用**它自己的最低點**算，不是用中心點 —— 一片半徑 6 公尺的躺平圓盤，
+圓心離地 5 公尺時下緣其實已經垂到地面了（Phase 25 修掉的一個穿模點就是這個）。
 重複元素一律 InstancedMesh。幾何體與材質全部走模組層的快取（`GEO` / `MAT` Map）。
 
 ### 6.2 每幀迴圈
@@ -357,6 +415,25 @@ traveler*                主角的關節
 - [Creating an Interactive Audio Environment — Game Developer](https://www.gamedeveloper.com/audio/creating-an-interactive-audio-environment) — 環境音用**稀疏的一次性觸發**而不是更大聲的循環；保留「最近放過的 N 個音」並拒絕重複；區域之間用 2–3 秒的重疊帶交叉淡入，不要硬切。
 - [Developing game audio with the Web Audio API — web.dev](https://web.dev/articles/webaudio-games) — 改播放速率（同時改音高）來模擬真實世界的隨機性；最後一級放 `DynamicsCompressorNode`，一秒內連響好幾聲才不會削波。
 - [Three.js Instances — Codrops](https://tympanus.net/codrops/2025/07/10/three-js-instances-rendering-multiple-objects-simultaneously/) — 用 `InstancedBufferAttribute` ＋ 一個 `uPlayerPos` uniform，整片反應元素只要一個 draw call。
+
+Phase 25（動得了的器物）多查的四份：
+
+- [Open world level design: spatial composition and flow in Breath of the Wild — Robert Yang](https://www.blog.radiator.debacle.us/2017/10/open-world-level-design-spatial.html)
+  — **三個明確分開的高度階**，而且「階與階之間的對比要守住，不要做出一堆糊在一起的形狀」；
+  避免 A 到 B 是一條直線的視線（走過去要能**揭露**新東西）；用地形做「重力」，不要畫路線。
+  → 本文件 §4.7 的三階表就是從這裡來的。
+- [Environmental Storytelling — Don Carson（Game Developer）](https://www.gamedeveloper.com/design/environmental-storytelling-creating-immersive-3d-worlds-using-lessons-learned-from-the-theme-park-industry)
+  — 細節是**有限的預算**，要留給你想把人吸過去的地方；「一間大房間裡一道光打在一件道具上」
+  勝過「塞滿細節的房間」；玩家要能在 15 秒內回答「我在哪裡」。
+  → 器物之間硬性 14 公尺、中間留白，就是這一條。
+- [Proximity Prompts — Roblox Creator Documentation](https://create.roblox.com/docs/ui/proximity-prompts)
+  — 提示要拆成**物件名 ＋ 動作動詞**兩格（不是一句「互動」）；同時在範圍內的多個提示
+  **由鏡頭指向決定顯示哪一個**，不是由距離決定；`HoldDuration = 0` 給便宜、可逆的動作，
+  按住只留給需要確認的動作。→ §3.2 的面向排名與「動詞不重複」就是這一條。
+- [GDC 17: Breath of the Wild, science, and clever little lies（Thumbsticks 的整理）](https://www.thumbsticks.com/gdc-17-breath-of-the-wild-science-lies/)
+  — 整個世界只有兩類東西（元素 / 材質）與三條規則，其中「材質彼此不互相影響」是**成本控制**規則，
+  把互動矩陣從「所有東西 × 所有東西」壓成「元素 × 材質」。
+  → 我們的版本：**一個動詞（`E`）× N 種器物**，永遠不寫 N×N 的特例。
 
 三份既有的設計基礎：thibault-introvigne.com（探索／氛圍／發現／配樂的體感）、
 Asher Vollmer 的 GDC「How to Make Great Game Tutorials」（教會 / 安撫 / 引發興趣 / 尊重玩家）、
@@ -409,6 +486,18 @@ Asher Vollmer 的 GDC「How to Make Great Game Tutorials」（教會 / 安撫 / 
 23. 新的收集會不會不小心寫進 `bestGrades`／被算成區域解鎖的通關數？（不該）
 24. 重置清得乾淨嗎？
 
+> **Phase 25 逐條過的結果**（新增的第五層互動「動得了的器物」）：
+> A1–3 抄寫人留在原地的東西、用世界的說法、沒有會說話的角色；
+> B4 第五層／半徑 3.2（排在刻文小語 3.8 底下）、B5 只有 `E`（絞盤要推三下也是按三次 `E`）、
+> B6 開窗的兩種走 `.reveal` 分行揭示、其餘六種只說一句話、B7 推到一半不算失敗；
+> C8 **不教** → 零 `techniqueId` / 零 `source` / 零連結（測試強制驗證）、C9 `npm run fonts` 已重跑、
+> C10 `zh-scan` 掃過每一段玩家看得到的字；
+> D11–14 夜色不變、用該區 `kitFor` 的色階、暖金只給火與成就、`prefers-reduced-motion` 下只關「動」不關「回應」；
+> E15 **新增 0 盞光源**（三角形 +9.3k、網格 +214）、E16 幾何體與材質全部走模組快取
+> （22 件各自獨立、遠低於 InstancedMesh 划算的 50 份門檻）、E17 每幀零配置 ＋ 平方距離 ＋ 45／15 公尺分級；
+> F18–21 碰撞由 `markSolidParts` 統一判定、22 件的四周 20 個方向全部走得到（碰撞體淨 −21）；
+> G22–24 `handlesUsed` 純加法、`normalize()` 補預設、不寫 `bestGrades`、重置清得乾淨。
+
 ### H. 測試
 25. `npm run test:rubric` — 新資料的合法性、落點、淨空、護欄（不放連結／掛得回真技巧）補上了嗎？
 26. `npm run test:e2e` — 至少一條端到端路徑（走過去 → 有反應 → 存進 localStorage → 重整還在）補上了嗎？
@@ -418,4 +507,6 @@ Asher Vollmer 的 GDC「How to Make Great Game Tutorials」（教會 / 安撫 / 
 
 ---
 
-*最後更新：Phase 22。這份文件跟著世界一起長 —— 新增了會影響「以後怎麼做」的規則，就回來補一條。*
+*最後更新：Phase 25（新增第五層互動「動得了的器物」§4.6、三個高度階 §4.7、
+面向排名 §3.2、飄空物件的下緣規則 §6.1）。
+這份文件跟著世界一起長 —— 新增了會影響「以後怎麼做」的規則，就回來補一條。*

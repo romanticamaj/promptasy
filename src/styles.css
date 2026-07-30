@@ -3279,6 +3279,44 @@ select option:disabled {
   color: var(--paper-4);
 }
 
+/* --- Phase 25：指路石的四個方向（一塊牌子一行，方位在左、內容在右） --- */
+.ways {
+  margin: 0 0 var(--s5);
+  padding: 0;
+  list-style: none;
+}
+.ways__row {
+  display: grid;
+  grid-template-columns: 5.5rem 1fr;
+  gap: var(--s4);
+  align-items: baseline;
+  padding: var(--s3) 0;
+  border-top: 1px solid var(--rule);
+}
+.ways__row:last-child {
+  border-bottom: 1px solid var(--rule);
+}
+.ways__row b {
+  font-family: var(--font-ui);
+  font-size: var(--t-small);
+  letter-spacing: var(--tr-cjk);
+  color: var(--gold);
+  white-space: nowrap;
+}
+.ways__row span {
+  font-family: var(--font-prose);
+  font-size: var(--t-body);
+  line-height: var(--lh-prose);
+  color: var(--paper-2);
+  text-wrap: pretty;
+}
+@media (max-width: 30rem) {
+  .ways__row {
+    grid-template-columns: 1fr;
+    gap: var(--s1);
+  }
+}
+
 /* ================================================================ 無障礙 */
 :focus-visible {
   outline: 2px solid var(--star);

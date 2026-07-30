@@ -5600,6 +5600,446 @@ async function main() {
   eq(stillClear.insBlocked.length, 0, '每一則刻文四周都走得到', stillClear.insBlocked.join(','));
   eq(stillClear.reactBlocked.length, 0, '每一件會回應的東西四周都走得過去', stillClear.reactBlocked.join(','));
 
+  /* ================================================================ */
+  /*
+   * 動得了的器物（Phase 25）
+   *
+   * 世界的第五層互動：抄寫人留在原地、你真的碰得到的東西。
+   * 這一段走完整流程 —— 走過去 → 出現提示 → 按 E → 東西真的動了 →
+   * 寫進存檔 → 再互動一次的行為正確 → 重整之後還在。
+   */
+  console.log('\n▸ 動得了的器物（Phase 25）');
+
+  /* --- ① 世界裡真的有這一層，而且沒有多花任何一盞燈 --- */
+  const p25 = await evaluate(`
+    const g = window.__promptarcade;
+    const names = [];
+    g.world.root.traverse((o) => { if (o.name && o.name.startsWith('handle:')) names.push(o.name); });
+    let lights = 0, tris = 0;
+    g.engine.scene.traverse((o) => {
+      if (o.isLight) lights += 1;
+      if (o.isMesh && o.geometry && o.geometry.index) tris += (o.geometry.index.count / 3) * (o.isInstancedMesh ? o.count : 1);
+    });
+    let handleLights = 0;
+    g.world.handles.group.traverse((o) => { if (o.isLight) handleLights += 1; });
+    const kinds = {};
+    for (const o of g.world.handles.objects) kinds[o.kind] = (kinds[o.kind] || 0) + 1;
+    const regions = {};
+    for (const e of g.handleData.entries) regions[e.region] = (regions[e.region] || 0) + 1;
+    return {
+      built: names.length, total: g.handleData.entries.length,
+      unique: new Set(names).size, kinds, regions,
+      lights, tris, handleLights, solids: g.world.solids.length,
+    };
+  `);
+  eq(p25.built, p25.total, '每一件器物都蓋在世界裡');
+  eq(p25.unique, p25.total, '場景圖節點名沒有重複');
+  eq(p25.handleLights, 0, '器物一盞燈都沒加（只用自發光材質）');
+  ok(Object.keys(p25.kinds).length >= 6, '世界上至少有 6 種器物', JSON.stringify(p25.kinds));
+  ok(Object.keys(p25.regions).length === 5, '五片土地上都有器物', JSON.stringify(p25.regions));
+  for (const [rid, n] of Object.entries(p25.regions)) ok(n >= 3, `[${rid}] 至少擺了 3 件`, String(n));
+  ok(p25.lights <= 56, '多了一整層器物之後燈光仍在預算內', `lights=${p25.lights}`);
+  ok(p25.tris < 420000, '多了一整層器物之後三角形仍在預算內', `tris=${p25.tris}`);
+  ok(p25.solids < 1400, '碰撞體仍在預算內', `solids=${p25.solids}`);
+
+  /* --- ② 陶罐的完整流程：走近 → 提示 → E → 小窗 → XP → 存檔 --- */
+  const urnFlow = await evaluate(`
+    const g = window.__promptarcade;
+    const spec = g.handleData.entries.find((e) => e.kind === 'urn');
+    const obj = g.world.handles.object(spec.id);
+    const before = { xp: g.progression.state.xp, n: g.progression.handleCount() };
+    /*
+     * 先站遠一點：這時候不該看到「這件東西」的提示。
+     * 不能直接看 hidden —— 器物擺得密，14 公尺外可能剛好站在另一件旁邊，
+     * 那是正確行為（提示本來就該顯示那一件）。要驗的是「這一件的提示不見了」。
+     */
+    g.player.teleport(spec.at[0] + 14, spec.at[1] + 14);
+    await new Promise((r) => setTimeout(r, 380));
+    const farHint = document.querySelector('[data-interact]');
+    const hintFar = farHint.hidden || !farHint.textContent.includes(spec.title);
+    const lidFar = obj.lidPivot.rotation.x;
+    // 走過去
+    g.player.teleport(spec.at[0] + 1.8, spec.at[1] + 1.8);
+    await new Promise((r) => setTimeout(r, 420));
+    const hint = document.querySelector('[data-interact]');
+    const out = {
+      id: spec.id, title: spec.title, lines: spec.lines,
+      hintFar, lidFar,
+      hintHidden: hint.hidden,
+      hintText: hint.textContent.replace(/\\s+/g, ' ').trim(),
+      nearGlow: obj.near,
+    };
+    window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyE', bubbles: true }));
+    await new Promise((r) => setTimeout(r, 520));
+    const panel = document.querySelector('#handle');
+    out.open = g.handlePanel.isOpen;
+    out.shown = [...panel.querySelectorAll('.inscribe__line')].map((p) => p.textContent.trim());
+    out.delays = [...panel.querySelectorAll('.inscribe__line')].map((p) => getComputedStyle(p).animationDelay);
+    out.note = panel.querySelector('.inscribe__note')?.textContent.trim() || '';
+    // 護欄 2：這一層一個字都不准宣稱技巧、不准放連結
+    out.links = panel.querySelectorAll('a[href]').length;
+    out.claims = /神諭原典|官方|技巧/.test(panel.textContent);
+    out.xpAfter = g.progression.state.xp;
+    out.nAfter = g.progression.handleCount();
+    out.saved = JSON.parse(localStorage.getItem('promptarcade.v1.save')).handlesUsed;
+    out.before = before;
+    // 蓋子真的掀開了
+    await new Promise((r) => setTimeout(r, 500));
+    out.lidNear = obj.lidPivot.rotation.x;
+    return out;
+  `);
+  eq(urnFlow.hintFar, true, '離得遠的時候沒有互動提示');
+  eq(urnFlow.hintHidden, false, '走近陶罐 → 出現互動提示');
+  ok(urnFlow.hintText.includes(urnFlow.title), '提示上有這件東西在世界裡的名字', urnFlow.hintText);
+  ok(/E/.test(urnFlow.hintText) && /掀開/.test(urnFlow.hintText), '提示是「名字 ＋ 狀態 ＋ E ＋ 動詞」', urnFlow.hintText);
+  eq(urnFlow.nearGlow, true, '走近的那一件會亮起來');
+  eq(urnFlow.open, true, '按 E 打開一個很小的窗');
+  eq(urnFlow.shown.length, 2, '罐底寫了兩行字');
+  eq(urnFlow.shown[0], urnFlow.lines[0], '顯示的就是資料裡那兩行');
+  ok(urnFlow.delays[0] !== urnFlow.delays[1], '兩行是分段揭示的', urnFlow.delays.join(' / '));
+  eq(urnFlow.links, 0, '純風味這一層不放任何連結（護欄 2）');
+  eq(urnFlow.claims, false, '也不宣稱任何技巧或官方說法（護欄 2）');
+  ok(/\+\s*\d+\s*XP/.test(urnFlow.note), '第一次動它有 XP 提示', urnFlow.note);
+  ok(urnFlow.xpAfter > urnFlow.before.xp, '第一次動它真的給了 XP', `${urnFlow.before.xp} → ${urnFlow.xpAfter}`);
+  eq(urnFlow.nAfter, urnFlow.before.n + 1, '器物計數 +1');
+  ok(urnFlow.saved.includes(urnFlow.id), '寫進存檔', urnFlow.saved.join(','));
+  ok(Math.abs(urnFlow.lidNear - urnFlow.lidFar) > 0.5, '蓋子真的掀起來了（不是只有旗標）', `${urnFlow.lidFar} → ${urnFlow.lidNear}`);
+
+  // 再掀一次：蓋子還是開著、不再給 XP
+  const urnAgain = await evaluate(`
+    const g = window.__promptarcade;
+    g.handlePanel.close();
+    await new Promise((r) => setTimeout(r, 280));
+    const spec = g.handleData.entries.find((e) => e.kind === 'urn');
+    const xp = g.progression.state.xp;
+    g.player.teleport(spec.at[0] + 1.8, spec.at[1] + 1.8);
+    await new Promise((r) => setTimeout(r, 400));
+    const hintText = document.querySelector('[data-interact]').textContent.replace(/\\s+/g, ' ').trim();
+    window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyE', bubbles: true }));
+    await new Promise((r) => setTimeout(r, 420));
+    const note = document.querySelector('#handle .inscribe__note')?.textContent.trim() || '';
+    const after = g.progression.state.xp;
+    g.handlePanel.close();
+    await new Promise((r) => setTimeout(r, 260));
+    return { xp, after, note, hintText, n: g.progression.handleCount() };
+  `);
+  eq(urnAgain.after, urnAgain.xp, '再掀一次不再給 XP（不能刷分）');
+  ok(/動過/.test(urnAgain.note), '再看一眼時說「這件東西你已經動過了」', urnAgain.note);
+  ok(/再看一眼/.test(urnAgain.hintText), '動過之後提示換成另一個動詞', urnAgain.hintText);
+
+  /* --- ③ 絞盤：按三次 E 才轉得開，而且推到一半不會失敗 --- */
+  const capFlow = await evaluate(`
+    const g = window.__promptarcade;
+    const spec = g.handleData.entries.find((e) => e.kind === 'capstan');
+    const obj = g.world.handles.object(spec.id);
+    const out = { id: spec.id, steps: [], xp0: g.progression.state.xp };
+    g.player.teleport(spec.at[0] + 2.0, spec.at[1] + 2.0);
+    await new Promise((r) => setTimeout(r, 420));
+    out.hint0 = document.querySelector('[data-interact]').textContent.replace(/\\s+/g, ' ').trim();
+    out.spin0 = obj.drum.rotation.y;
+    for (let i = 0; i < 3; i += 1) {
+      window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyE', bubbles: true }));
+      await new Promise((r) => setTimeout(r, 420));
+      out.steps.push({
+        remaining: obj.remaining,
+        used: g.progression.hasUsedHandle(spec.id),
+        xp: g.progression.state.xp,
+        anyPanel: g.handlePanel.isOpen,
+        hint: document.querySelector('[data-interact]').textContent.replace(/\\s+/g, ' ').trim(),
+        toast: [...document.querySelectorAll('.toast')].map((t) => t.textContent.trim()).pop() || '',
+      });
+    }
+    await new Promise((r) => setTimeout(r, 700));
+    out.spin1 = obj.drum.rotation.y;
+    out.opened = obj.opened;
+    out.shaft = obj.shaft.visible;
+    out.saved = JSON.parse(localStorage.getItem('promptarcade.v1.save')).handlesUsed.includes(spec.id);
+    return out;
+  `);
+  ok(/推動/.test(capFlow.hint0), '走近絞盤 → 提示是「推動」', capFlow.hint0);
+  eq(capFlow.steps[0].used, false, '推第一下還沒完成（不是一按就開）');
+  eq(capFlow.steps[1].used, false, '推第二下還沒完成');
+  eq(capFlow.steps[2].used, true, '推第三下才算完成');
+  eq(capFlow.steps[0].remaining, 2, '第一下之後還要推 2 下');
+  eq(capFlow.steps[1].remaining, 1, '第二下之後還要推 1 下');
+  eq(capFlow.steps[2].remaining, 0, '推完就不用再推了');
+  ok(/2 下/.test(capFlow.steps[0].hint), '走近提示直接寫出還要推幾下（不用猜）', capFlow.steps[0].hint);
+  eq(capFlow.steps[0].xp, capFlow.xp0, '推到一半不給 XP');
+  ok(capFlow.steps[2].xp > capFlow.xp0, '推完才給 XP', `${capFlow.xp0} → ${capFlow.steps[2].xp}`);
+  eq(capFlow.steps.every((s) => s.anyPanel === false), true, '推絞盤全程不開任何窗（不打斷走路）');
+  ok(capFlow.steps[0].toast.includes('還要'), '推一下會在畫面上說一句話', capFlow.steps[0].toast);
+  ok(Math.abs(capFlow.spin1 - capFlow.spin0) > 3, '鼓真的轉了一圈', `${capFlow.spin0} → ${capFlow.spin1}`);
+  ok(capFlow.opened > 0.5, '石蓋滑開了', String(capFlow.opened));
+  eq(capFlow.shaft, true, '底下那道光出現了');
+  eq(capFlow.saved, true, '推開的絞盤寫進存檔');
+
+  /* --- ④ 長凳：坐下 → 鏡頭往後退 → 走一步就自己起身 --- */
+  const benchFlow = await evaluate(`
+    const g = window.__promptarcade;
+    const spec = g.handleData.entries.find((e) => e.kind === 'bench');
+    g.player.teleport(spec.at[0] + 2.2, spec.at[1] + 2.2);
+    await new Promise((r) => setTimeout(r, 420));
+    const out = {
+      id: spec.id,
+      hint: document.querySelector('[data-interact]').textContent.replace(/\\s+/g, ' ').trim(),
+      camBefore: g.player.cameraDistance,
+      restBefore: g.player.restAmount,
+    };
+    window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyE', bubbles: true }));
+    await new Promise((r) => setTimeout(r, 1100));
+    out.seated = g.seatedOn();
+    out.rest = g.player.restAmount;
+    out.cam = g.player.cameraDistance;
+    out.knee = g.player.character.joints.kneeL.rotation.x;
+    out.onSeat = Math.hypot(g.player.position.x - spec.at[0], g.player.position.z - spec.at[1]) < 1.4;
+    out.hintSeated = document.querySelector('[data-interact]').textContent.replace(/\\s+/g, ' ').trim();
+    // 再按一次 E → 起身
+    window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyE', bubbles: true }));
+    await new Promise((r) => setTimeout(r, 900));
+    out.seatedAfter = g.seatedOn();
+    out.restAfter = g.player.restAmount;
+    out.camAfter = g.player.cameraDistance;
+    // 再坐一次，然後「走一步」→ 應該自己站起來
+    window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyE', bubbles: true }));
+    await new Promise((r) => setTimeout(r, 700));
+    out.seatedAgain = g.seatedOn();
+    g.player.teleport(spec.at[0] + 6, spec.at[1] + 6);
+    window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyW', bubbles: true }));
+    await new Promise((r) => setTimeout(r, 700));
+    window.dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyW', bubbles: true }));
+    await new Promise((r) => setTimeout(r, 500));
+    out.seatedAfterWalk = g.seatedOn();
+    out.restAfterWalk = g.player.restAmount;
+    return out;
+  `);
+  ok(/坐下/.test(benchFlow.hint), '走近長凳 → 提示是「坐下」', benchFlow.hint);
+  eq(benchFlow.seated, benchFlow.id, '按 E 坐到那張長凳上');
+  ok(benchFlow.rest > 0.7, '角色真的擺出坐姿', benchFlow.rest.toFixed(2));
+  ok(benchFlow.knee > 1.0, '膝蓋真的彎起來了（不是站著不動）', benchFlow.knee.toFixed(2));
+  ok(benchFlow.cam > benchFlow.camBefore + 1, '坐下時鏡頭往後退', `${benchFlow.camBefore} → ${benchFlow.cam}`);
+  eq(benchFlow.onSeat, true, '人是坐在凳子上，不是坐在旁邊的空氣裡');
+  ok(/起身/.test(benchFlow.hintSeated), '坐著的時候提示換成「起身」', benchFlow.hintSeated);
+  eq(benchFlow.seatedAfter, null, '再按一次 E 就起身');
+  ok(benchFlow.restAfter < 0.3, '起身之後坐姿收回去', benchFlow.restAfter.toFixed(2));
+  ok(Math.abs(benchFlow.camAfter - benchFlow.camBefore) < 0.6, '鏡頭距離還回原本的樣子', String(benchFlow.camAfter));
+  eq(benchFlow.seatedAgain, benchFlow.id, '可以再坐一次');
+  eq(benchFlow.seatedAfterWalk, null, '走一步就自己站起來（不用再按一次 E）');
+  ok(benchFlow.restAfterWalk < 0.3, '走起來之後坐姿歸零', benchFlow.restAfterWalk.toFixed(2));
+
+  /* --- ⑤ 響石：可以一直敲，但只有第一次給 XP --- */
+  const gongFlow = await evaluate(`
+    const g = window.__promptarcade;
+    const spec = g.handleData.entries.find((e) => e.kind === 'gong');
+    const obj = g.world.handles.object(spec.id);
+    g.player.teleport(spec.at[0] + 2.0, spec.at[1] + 2.0);
+    await new Promise((r) => setTimeout(r, 420));
+    const out = { hint: document.querySelector('[data-interact]').textContent.replace(/\\s+/g, ' ').trim() };
+    out.hitBefore = obj.hit;
+    out.swingBefore = obj.swingPivot.rotation.x;
+    window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyE', bubbles: true }));
+    await new Promise((r) => setTimeout(r, 300));
+    out.hit = obj.hit;
+    out.swing = obj.swingPivot.rotation.x;
+    out.ring = obj.ring.visible;
+    out.xp1 = g.progression.state.xp;
+    out.panel = g.handlePanel.isOpen;
+    // 再敲：照樣有反應，但不再給 XP
+    await new Promise((r) => setTimeout(r, 900));
+    obj.hit = 0;
+    window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyE', bubbles: true }));
+    await new Promise((r) => setTimeout(r, 300));
+    out.hit2 = obj.hit;
+    out.xp2 = g.progression.state.xp;
+    return out;
+  `);
+  ok(/敲響/.test(gongFlow.hint), '走近響石 → 提示是「敲響」', gongFlow.hint);
+  eq(gongFlow.hitBefore, 0, '沒敲之前是靜止的');
+  ok(gongFlow.hit > 0.5, '敲下去石盤真的在震', gongFlow.hit.toFixed(2));
+  ok(Math.abs(gongFlow.swing - gongFlow.swingBefore) > 0.001, '盤子真的晃起來了');
+  eq(gongFlow.ring, true, '敲下去有一圈光擴散出去');
+  eq(gongFlow.panel, false, '敲鑼不開任何窗');
+  ok(gongFlow.hit2 > 0.5, '第二次敲照樣有反應（東西不會用完）', gongFlow.hit2.toFixed(2));
+  eq(gongFlow.xp2, gongFlow.xp1, '第二次敲不再給 XP');
+
+  /* --- ⑥ 守望石：摸它 → 睜眼 ＋ 轉向你還沒解開的那座石座 --- */
+  const watchFlow = await evaluate(`
+    const g = window.__promptarcade;
+    const spec = g.handleData.entries.find((e) => e.kind === 'watchstone');
+    const obj = g.world.handles.object(spec.id);
+    g.player.teleport(spec.at[0] + 2.0, spec.at[1] + 2.0);
+    await new Promise((r) => setTimeout(r, 420));
+    const out = {
+      hint: document.querySelector('[data-interact]').textContent.replace(/\\s+/g, ' ').trim(),
+      eyeBefore: obj.eyes[0].material.emissiveIntensity,
+      faceBefore: obj.headPivot.rotation.y,
+    };
+    window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyE', bubbles: true }));
+    await new Promise((r) => setTimeout(r, 2400));
+    out.eye = obj.eyes[0].material.emissiveIntensity;
+    out.face = obj.headPivot.rotation.y;
+    out.target = obj.target ? obj.target.name : null;
+    out.beam = obj.beam.visible;
+    out.toast = [...document.querySelectorAll('.toast')].map((t) => t.textContent.trim()).pop() || '';
+    const objective = g.world.objectiveTarget(g.hud.region);
+    out.objective = objective ? objective.name : null;
+    // 頭該轉到的角度（跟世界端算的是同一條式子）
+    if (obj.target) {
+      const want = Math.atan2(obj.target.x - obj.worldX, obj.target.z - obj.worldZ) - obj.baseRot;
+      const d = out.face - want;
+      out.aimError = Math.abs(Math.atan2(Math.sin(d), Math.cos(d)));
+    }
+    return out;
+  `);
+  ok(/觸碰/.test(watchFlow.hint), '走近守望石 → 提示是「觸碰」', watchFlow.hint);
+  ok(watchFlow.eye > watchFlow.eyeBefore + 1, '摸它 → 眼睛亮起來', `${watchFlow.eyeBefore} → ${watchFlow.eye}`);
+  eq(watchFlow.target, watchFlow.objective, '它看的是「你還沒解開的那座石座」');
+  ok(watchFlow.aimError < 0.35, '頭真的轉到那座石座的方向', `誤差 ${(watchFlow.aimError ?? NaN).toFixed(3)} 弧度`);
+  eq(watchFlow.beam, true, '地上有一道很淡的指向');
+  ok(watchFlow.toast.includes(watchFlow.objective), '畫面上說出它看向哪裡', watchFlow.toast);
+
+  /* --- ⑦ 指路石：四個方向，一塊牌子一行 --- */
+  const signFlow = await evaluate(`
+    const g = window.__promptarcade;
+    const spec = g.handleData.entries.find((e) => e.kind === 'signpost');
+    g.player.teleport(spec.at[0] + 2.0, spec.at[1] + 2.0);
+    await new Promise((r) => setTimeout(r, 420));
+    const out = { hint: document.querySelector('[data-interact]').textContent.replace(/\\s+/g, ' ').trim() };
+    window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyE', bubbles: true }));
+    await new Promise((r) => setTimeout(r, 520));
+    const panel = document.querySelector('#handle');
+    out.open = g.handlePanel.isOpen;
+    out.rows = [...panel.querySelectorAll('.ways__row')].map((li) => ({
+      to: li.querySelector('b').textContent.trim(),
+      text: li.querySelector('span').textContent.trim(),
+    }));
+    out.links = panel.querySelectorAll('a[href]').length;
+    // 版面：窄畫面下不會橫向溢位
+    out.overflow = panel.scrollWidth - panel.clientWidth;
+    out.ways = spec.ways;
+    g.handlePanel.close();
+    await new Promise((r) => setTimeout(r, 260));
+    return out;
+  `);
+  ok(/閱讀/.test(signFlow.hint), '走近指路石 → 提示是「閱讀」', signFlow.hint);
+  eq(signFlow.open, true, '按 E 讀得到指路石');
+  eq(signFlow.rows.length, 4, '四塊牌子、四個方向');
+  eq(signFlow.rows[0].to, signFlow.ways[0].to, '方位就是資料裡寫的');
+  ok(signFlow.rows.every((r) => r.text.length >= 8), '每個方向都說得出那邊有什麼');
+  eq(signFlow.links, 0, '指路石不放連結（純風味）');
+  ok(signFlow.overflow <= 1, '指路石的版面沒有橫向溢位', String(signFlow.overflow));
+
+  /* --- ⑧ 火盆：點著之後就一直亮著 --- */
+  const fireFlow = await evaluate(`
+    const g = window.__promptarcade;
+    const spec = g.handleData.entries.find((e) => e.kind === 'brazier');
+    const obj = g.world.handles.object(spec.id);
+    g.player.teleport(spec.at[0] + 2.0, spec.at[1] + 2.0);
+    await new Promise((r) => setTimeout(r, 420));
+    const out = {
+      id: spec.id,
+      hint: document.querySelector('[data-interact]').textContent.replace(/\\s+/g, ' ').trim(),
+      litBefore: obj.lit,
+      flameBefore: obj.flameA.material.emissiveIntensity,
+    };
+    window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyE', bubbles: true }));
+    await new Promise((r) => setTimeout(r, 1400));
+    out.lit = obj.lit;
+    out.flame = obj.flameA.material.emissiveIntensity;
+    out.glow = obj.glow.material.opacity;
+    out.toast = [...document.querySelectorAll('.toast')].map((t) => t.textContent.trim()).pop() || '';
+    out.hintAfter = document.querySelector('[data-interact]').textContent.replace(/\\s+/g, ' ').trim();
+    return out;
+  `);
+  ok(/點火/.test(fireFlow.hint), '走近沒點著的火盆 → 提示是「點火」', fireFlow.hint);
+  eq(fireFlow.litBefore, 0, '一開始火是熄的');
+  ok(fireFlow.lit > 0.8, '點起來之後火一直亮著', fireFlow.lit.toFixed(2));
+  ok(fireFlow.flame > fireFlow.flameBefore + 1, '火焰真的在發光', fireFlow.flame.toFixed(2));
+  ok(fireFlow.glow > 0.02, '地上有一圈暖光', fireFlow.glow.toFixed(3));
+  ok(fireFlow.toast.includes('XP'), '第一次點著會說一句話並給 XP', fireFlow.toast);
+  ok(/撥一下火/.test(fireFlow.hintAfter), '點著之後提示換成「撥一下火」', fireFlow.hintAfter);
+
+  /* --- ⑨ 純鍵盤：不碰滑鼠也動得了（Phase 23 的鐵則） --- */
+  await evaluate(`
+    const g = window.__promptarcade;
+    const spec = g.handleData.entries.find((e) => e.kind === 'moonpool');
+    g.player.teleport(spec.at[0] + 1.8, spec.at[1] + 1.8);
+    return true;
+  `);
+  await sleep(450);
+  await key('KeyE', 'e', { vk: 69 });
+  await sleep(700);
+  const kbHandle = await evaluate(`
+    const g = window.__promptarcade;
+    const spec = g.handleData.entries.find((e) => e.kind === 'moonpool');
+    const obj = g.world.handles.object(spec.id);
+    return {
+      used: g.progression.hasUsedHandle(spec.id),
+      scoop: obj.scoop,
+      saved: JSON.parse(localStorage.getItem('promptarcade.v1.save')).handlesUsed.includes(spec.id),
+    };
+  `);
+  eq(kbHandle.used, true, '真的按下鍵盤的 E 也動得了器物（純鍵盤走得完）');
+  ok(kbHandle.scoop > 0.3, '撈月池的水面真的動了', kbHandle.scoop.toFixed(2));
+  eq(kbHandle.saved, true, '純鍵盤的互動一樣寫進存檔');
+
+  /* --- ⑩ 圖鑑：多了一列「動過的器物」 --- */
+  const handleFinds = await evaluate(`
+    const g = window.__promptarcade;
+    g.codex.open();
+    await new Promise((r) => setTimeout(r, 400));
+    const rows = [...document.querySelectorAll('#codex .finds__list li')].map((li) => ({
+      label: li.querySelector('b').textContent.trim(),
+      n: li.querySelector('span').textContent.trim(),
+    }));
+    g.codex.close();
+    await new Promise((r) => setTimeout(r, 260));
+    return { rows, total: g.handleData.entries.length, used: g.progression.handleCount() };
+  `);
+  {
+    const row = handleFinds.rows.find((r) => r.label.includes('器物'));
+    ok(Boolean(row), '圖鑑有「動過的器物」這一列', JSON.stringify(handleFinds.rows));
+    eq(row && row.n, `${handleFinds.used} / ${handleFinds.total}`, '計數是「動過 / 總數」');
+    ok(handleFinds.used >= 5, '這一輪至少動過 5 件', String(handleFinds.used));
+  }
+
+  /* --- ⑪ 這一層不影響走位：四周每個方向都走得到 --- */
+  const handleClear = await evaluate(`
+    const g = window.__promptarcade;
+    const blocked = [];
+    for (const spec of g.handleData.entries) {
+      let free = 0;
+      for (let a = 0; a < 20; a += 1) {
+        const ang = (a / 20) * Math.PI * 2;
+        if (!g.world.solidAt(spec.at[0] + Math.cos(ang) * 2.4, spec.at[1] + Math.sin(ang) * 2.4)) free += 1;
+      }
+      if (free < 18) blocked.push(spec.id + ':' + free);
+    }
+    return { blocked };
+  `);
+  eq(handleClear.blocked.length, 0, '每一件器物四周都走得到（按得到 E）', handleClear.blocked.join(','));
+
+  /* --- ⑫ 讀題的時候不會被器物打斷（面板開著時不接 E） --- */
+  const handleQuiet = await evaluate(`
+    const g = window.__promptarcade;
+    const spec = g.handleData.entries.find((e) => e.kind === 'gong');
+    const obj = g.world.handles.object(spec.id);
+    g.player.teleport(spec.at[0] + 1.8, spec.at[1] + 1.8);
+    await new Promise((r) => setTimeout(r, 400));
+    obj.hit = 0;
+    g.codex.open();
+    await new Promise((r) => setTimeout(r, 300));
+    const hintDuring = document.querySelector('[data-interact]').hidden;
+    window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyE', bubbles: true }));
+    await new Promise((r) => setTimeout(r, 400));
+    const hitDuring = obj.hit;
+    g.codex.close();
+    await new Promise((r) => setTimeout(r, 400));
+    return { hintDuring, hitDuring, stillThere: !document.querySelector('[data-interact]').hidden };
+  `);
+  eq(handleQuiet.hintDuring, true, '面板開著時互動提示收起來');
+  eq(handleQuiet.hitDuring, 0, '面板開著時按 E 不會去敲鑼（一次只有一件事擁有畫面）');
+  eq(handleQuiet.stillThere, true, '關掉面板之後提示又回來了');
+
   /* --- ⑧ 重整之後兩個新欄位都還在 --- */
   await reloadPage('Phase 22 重整');
   const persisted = await evaluate(`
@@ -5612,8 +6052,30 @@ async function main() {
       worldFound: g.world.inscriptions.find((i) => i.id === spec.id).found,
       secretFound: g.world.reactive.secret(g.secretData.entries.find((s) => s.blessing).id).found,
       blessing: g.progression.state.flags.echoBlessing === true,
+      // Phase 25：動過的器物也要跨重整還在，而且世界端要記得它們的樣子
+      handles: g.progression.handleCount(),
+      urnOpen: (() => {
+        const u = g.handleData.entries.find((e) => e.kind === 'urn');
+        return g.progression.hasUsedHandle(u.id) ? g.world.handles.object(u.id).used : null;
+      })(),
+      fireLit: (() => {
+        const b = g.handleData.entries.find((e) => e.kind === 'brazier');
+        return g.progression.hasUsedHandle(b.id) ? g.world.handles.object(b.id).used : null;
+      })(),
+      capOpen: (() => {
+        const c = g.handleData.entries.find((e) => e.kind === 'capstan');
+        return g.progression.hasUsedHandle(c.id) ? g.world.handles.object(c.id).remaining === 0 : null;
+      })(),
+      seated: g.seatedOn(),
+      rest: g.player.restAmount,
     };
   `);
+  ok(persisted.handles >= 5, '重整之後動過的器物還在', `n=${persisted.handles}`);
+  eq(persisted.urnOpen, true, '重整之後陶罐的蓋子還是開著的');
+  eq(persisted.fireLit, true, '重整之後火盆還亮著（你留下的痕跡不會被清掉）');
+  eq(persisted.capOpen, true, '重整之後絞盤還是轉開的（不用再推三下）');
+  eq(persisted.seated, null, '重整之後不會還坐在凳子上');
+  ok(persisted.rest < 0.05, '重整之後是站著的', String(persisted.rest));
   ok(persisted.ins >= 1, '重整之後讀過的刻文還在', `n=${persisted.ins}`);
   ok(persisted.sec >= 1, '重整之後找到的祕密還在', `n=${persisted.sec}`);
   eq(persisted.worldFound, true, '世界端也記得那則刻文讀過了');

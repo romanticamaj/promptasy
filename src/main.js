@@ -17,6 +17,7 @@ import flowFile from './data/flows.json';
 import ranksFile from './data/ranks.json';
 import inscriptionFile from './data/inscriptions.json';
 import secretFile from './data/secrets.json';
+import handleFile from './data/handles.json';
 import './styles.css';
 
 import { createEngine } from './engine/engine.js';
@@ -39,6 +40,11 @@ import { createSettings } from './ui/settings.js';
 import { createIntro } from './ui/intro.js';
 import { createTablet } from './ui/tablet.js';
 import { createInscription } from './ui/inscription.js';
+import { createHandlePanel } from './ui/handle.js';
+import { HANDLE_VERBS, HANDLE_VERBS_USED, HANDLE_KINDS, CAPSTAN_TURNS } from './world/handles.js';
+
+/** 鏡頭的水平前方向。提到模組層重複使用 —— 每幀迴圈裡不配置記憶體（WORLD.md §6.2）。 */
+const camForward = { x: 0, z: 1 };
 import { createTitle } from './ui/title.js';
 import { createKeyHelp } from './ui/keyhelp.js';
 import { createAchievement } from './ui/achievement.js';
@@ -77,6 +83,7 @@ function boot() {
     shrine: prologueContent.shrine,
     inscriptions: inscriptionFile.entries || [],
     secrets: secretFile.entries || [],
+    handles: handleFile.entries || [],
     reducedMotion,
     onReact: (evt) => audio.cue(evt.sound, { baseScale: evt.baseScale }),
     onSecret: (id) => findSecret(id),
@@ -228,6 +235,7 @@ function boot() {
     getRank: () => rankFor(rankStats(progression, curriculum), ranksFile.ranks),
     inscriptionTotal: (inscriptionFile.entries || []).length,
     secretTotal: (secretFile.entries || []).length,
+    handleTotal: (handleFile.entries || []).length,
   });
   ui.appendChild(codex.root);
 
@@ -318,6 +326,15 @@ function boot() {
     },
   });
   ui.appendChild(inscriptionPanel.root);
+
+  /* --- Phase 25：器物的小窗（只有陶罐與指路石會開它） --- */
+  const handlePanel = createHandlePanel({
+    onClose: () => {
+      audio.cue('close');
+      closePanel();
+    },
+  });
+  ui.appendChild(handlePanel.root);
 
   const intro = createIntro({
     onDismiss: () => {
@@ -413,7 +430,8 @@ function boot() {
     nudge.noteActivity();
     player.setInputEnabled(false);
     if (panel === codex) audio.cue('codex');
-    else if (panel !== promptConsole) audio.cue('open');
+    // 器物的小窗自己會放那件東西的聲音（掀蓋 / 敲木牌），不要再疊一聲通用的開窗音
+    else if (panel !== promptConsole && panel !== handlePanel) audio.cue('open');
     panel.open(...args);
   }
   function closePanel() {
@@ -455,6 +473,7 @@ function boot() {
     finale.isOpen ||
     tabletPanel.isOpen ||
     inscriptionPanel.isOpen ||
+    handlePanel.isOpen ||
     practice.isOpen ||
     title.isOpen;
 
@@ -463,6 +482,12 @@ function boot() {
   let nearGate = null;
   let nearTablet = null;
   let nearInscription = null;
+  /** Phase 25：走近的器物（陶罐 / 火盆 / 響石 / 守望石 / 撈月池 / 指路石 / 絞盤 / 長凳）。 */
+  let nearHandle = null;
+  /** 目前坐在哪一張長凳上（沒坐就是 null）。 */
+  let seatedOn = null;
+  /** 坐下之前的鏡頭距離 —— 起身要還回去。 */
+  let seatCamera = 0;
 
   /** 解鎖 / 升等的共同收尾（讀碑、讀刻文、找到祕密都可能推進度）。 */
   function applyWorldGain(outcome) {
@@ -524,6 +549,86 @@ function boot() {
     }
   }
 
+  /**
+   * 從長凳上起身。走一步也會走到這裡（不用再按一次 E）。
+   * @param {boolean} [quiet] 不放起身的聲音（換一張凳子時用）
+   */
+  function standUp(quiet = false) {
+    if (!seatedOn) return;
+    seatedOn.seated = false;
+    seatedOn = null;
+    player.setResting(false);
+    player.setCameraDistance(seatCamera || player.cameraDistance);
+    if (!quiet) audio.cue('stand');
+  }
+
+  /**
+   * 動一件器物（Phase 25）。
+   *
+   * 純風味（護欄 2）：不進圖鑑、不算徽章、不寫關卡評價 ——
+   * 第一次動它給一點點 XP，之後怎麼玩都不再給（可以一直敲鑼，但不能刷分）。
+   * 大部分器物只在畫面上說一句話；只有陶罐與指路石會開一個很小的窗。
+   */
+  function useHandle(h) {
+    const spec = h.spec;
+    const meta = (handleFile.kinds || {})[h.kind] || {};
+    const says = meta.says || {};
+    const first = !progression.hasUsedHandle(spec.id);
+
+    // 守望石要知道「你還沒解開的那座石座在哪」—— 這是世界裡的實體指南針
+    let aim = null;
+    if (h.kind === 'watchstone') {
+      const target = world.objectiveTarget(hud.region);
+      if (target) aim = target;
+    }
+    const res = h.activate({ aimAt: aim }) || {};
+
+    let outcome = null;
+    if (res.complete) {
+      outcome = progression.useHandle(spec.id, handleFile.xp ?? 4);
+      if (!outcome.alreadyUsed) {
+        world.markHandleUsed(spec.id);
+        applyWorldGain(outcome);
+      }
+    }
+
+    audio.cue(res.sound || 'open');
+    if (res.shake) engine.pulse(res.shake);
+
+    // 坐下 / 起身：鏡頭往後退，讓畫面安靜一會兒
+    if (res.pose === 'sit') {
+      standUp(true);
+      seatedOn = h;
+      h.seated = true;
+      seatCamera = player.cameraDistance;
+      if (h.seat) player.teleport(h.seat.x, h.seat.z, h.seat.face);
+      player.setResting(true);
+      player.setCameraDistance(player.zoomRange.max);
+    } else if (res.pose === 'stand') {
+      seatedOn = null;
+      player.setResting(false);
+      player.setCameraDistance(seatCamera || player.cameraDistance);
+    }
+
+    if (res.panel) {
+      openPanel(handlePanel, spec, {
+        firstUse: first && Boolean(outcome) && !outcome.alreadyUsed,
+        xpGain: outcome ? outcome.xpGain : 0,
+      });
+      return;
+    }
+
+    if (!res.toastKey) return;
+    const tmpl = says[res.toastKey];
+    let line;
+    if (res.toastKey === 'aim') line = `${tmpl || ''}「${res.aim || ''}」。`;
+    else if (res.toastKey === 'turn') line = `${tmpl || ''} ${res.left} 下。`;
+    else line = tmpl || spec.line || '';
+    if (!line) return;
+    const gained = outcome && !outcome.alreadyUsed ? outcome.xpGain : 0;
+    hud.toast(gained ? `${line}　+${gained} XP` : line, gained ? 'good' : 'info');
+  }
+
   /** 讀一塊石碑：第一次讀給少量 XP（風味內容，不進圖鑑）。 */
   function readTablet(tablet) {
     const outcome = progression.readLore(tablet.id);
@@ -576,11 +681,15 @@ function boot() {
     nudge.update(dt);
 
     // 引導課程進行中不接受世界互動 —— 一次只教一件事，不讓石座來搶注意力
+    // 坐在長凳上又走了一步 → 自己站起來（不用再按一次 E）
+    if (seatedOn && player.speed > 0.25) standUp();
+
     if (anyPanelOpen() || prologue.isActive) {
       hud.setInteract(null);
       nearMarker = null;
       nearTablet = null;
       nearInscription = null;
+      nearHandle = null;
       nearGate = null;
       return;
     }
@@ -588,10 +697,20 @@ function boot() {
     // 石碑與刻文一定要問（它們自己會維護「走近發光」的狀態），但石座優先搶 E 鍵
     const hitTablet = world.nearestTablet(player.position);
     const hitInscription = world.nearestInscription(player.position);
-    const hitGate = hitMarker || hitTablet || hitInscription ? null : world.nearestGate(player.position);
+    /*
+     * 器物擺得比其他層密，兩件同時進入 3.2 公尺是會發生的事。
+     * 純比距離的話，「站在中間」就由零點幾公尺的差距決定按到哪一個 ——
+     * 玩家看的是他**面向哪裡**。所以把鏡頭的水平前方向一起交出去排名。
+     */
+    camForward.x = Math.sin(player.cameraYaw);
+    camForward.z = Math.cos(player.cameraYaw);
+    const hitHandle = world.nearestHandle(player.position, undefined, camForward);
+    const blocked = Boolean(hitMarker || hitTablet || hitInscription);
+    const hitGate = blocked || hitHandle ? null : world.nearestGate(player.position);
     nearMarker = hitMarker ? hitMarker.marker : null;
     nearTablet = !hitMarker && hitTablet ? hitTablet.tablet : null;
     nearInscription = !hitMarker && !hitTablet && hitInscription ? hitInscription.inscription : null;
+    nearHandle = !blocked && hitHandle ? hitHandle.handle : null;
     nearGate = hitGate ? hitGate.gate : null;
 
     if (nearMarker) {
@@ -614,6 +733,20 @@ function boot() {
         `<b>${nearInscription.spec.title}</b><span>${
           seen ? '讀過的刻文' : '有人在這裡刻了一句話'
         }</span><kbd>E</kbd> 看一眼`
+      );
+    } else if (nearHandle) {
+      const kindMeta = (handleFile.kinds || {})[nearHandle.kind] || {};
+      const done = progression.hasUsedHandle(nearHandle.spec.id);
+      const sitting = seatedOn === nearHandle;
+      let status = done ? kindMeta.done : kindMeta.idle;
+      // 絞盤：推到一半的時候直接告訴你還差幾下（不用猜）
+      if (nearHandle.kind === 'capstan' && !done && nearHandle.remaining < CAPSTAN_TURNS) {
+        status = `還要再推 ${nearHandle.remaining} 下`;
+      }
+      if (sitting) status = '坐著，看一會兒';
+      const verb = sitting ? '起身' : done ? HANDLE_VERBS_USED[nearHandle.kind] : HANDLE_VERBS[nearHandle.kind];
+      hud.setInteract(
+        `<b>${nearHandle.spec.title}</b><span>${status || HANDLE_KINDS[nearHandle.kind] || ''}</span><kbd>E</kbd> ${verb}`
       );
     } else if (nearGate) {
       const status = progression.gateStatus(nearGate.meta.id);
@@ -644,6 +777,7 @@ function boot() {
       else if (finale.isOpen) finale.close();
       else if (tabletPanel.isOpen) tabletPanel.close();
       else if (inscriptionPanel.isOpen) inscriptionPanel.close();
+      else if (handlePanel.isOpen) handlePanel.close();
       return;
     }
     /*
@@ -678,6 +812,9 @@ function boot() {
       e.preventDefault();
       audio.cue('open');
       readInscription(nearInscription);
+    } else if (e.code === 'KeyE' && nearHandle) {
+      e.preventDefault();
+      useHandle(nearHandle);
     } else if (e.code === 'KeyE' && nearGate) {
       const status = progression.gateStatus(nearGate.meta.id);
       hud.toast(
@@ -729,6 +866,11 @@ function boot() {
     inscriptionPanel,
     inscriptionData: inscriptionFile,
     secretData: secretFile,
+    handlePanel,
+    handleData: handleFile,
+    handleKinds: HANDLE_KINDS,
+    /** 目前坐在哪一張長凳上（測試用）。 */
+    seatedOn: () => (seatedOn ? seatedOn.id : null),
   };
 
   console.info(

@@ -436,6 +436,60 @@ export function createProgression({ curriculum, challenges, io = SaveIO, onChang
       };
     },
 
+    /* ---------------------------------------------------------------- *
+     * Phase 25：動得了的器物（陶罐 / 火盆 / 響石 / 守望石 / 撈月池 /
+     * 指路石 / 絞盤 / 長凳）
+     *
+     * 跟祕密同一層護欄：**純風味**。不進圖鑑、不算徽章、不寫 bestGrades、
+     * 不算區域解鎖的通關數 —— 只是「你在這個世界上動過的東西」的計數，
+     * 外加第一次動它的一點點 XP。
+     * ---------------------------------------------------------------- */
+
+    /** 這件器物動過了嗎。 */
+    hasUsedHandle(id) {
+      return Array.isArray(state.handlesUsed) && state.handlesUsed.includes(id);
+    },
+
+    /** 動過幾件器物。 */
+    handleCount() {
+      return Array.isArray(state.handlesUsed) ? state.handlesUsed.length : 0;
+    },
+
+    /**
+     * 動一件器物。第一次給少量 XP，之後怎麼玩都不再給（可以一直敲鑼，但不能刷分）。
+     * @param {string} id
+     * @param {number} [xp]
+     */
+    useHandle(id, xp = 4) {
+      if (!Array.isArray(state.handlesUsed)) state.handlesUsed = [];
+      const levelBefore = levelFromXp(state.xp).level;
+      if (!id || state.handlesUsed.includes(id)) {
+        return {
+          alreadyUsed: true,
+          xpGain: 0,
+          levelBefore,
+          levelAfter: levelBefore,
+          leveledUp: false,
+          newlyUnlocked: [],
+        };
+      }
+      state.handlesUsed.push(id);
+      const gain = Math.max(0, Math.round(xp));
+      state.xp += gain;
+      const lv = levelFromXp(state.xp);
+      state.level = lv.level;
+      const newlyUnlocked = refreshUnlocks();
+      persist();
+      return {
+        alreadyUsed: false,
+        xpGain: gain,
+        levelBefore,
+        levelAfter: lv.level,
+        leveledUp: lv.level > levelBefore,
+        newlyUnlocked,
+      };
+    },
+
     /** 這塊世界觀石碑讀過了嗎。 */
     hasReadLore(id) {
       return Array.isArray(state.loreRead) && state.loreRead.includes(id);

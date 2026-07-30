@@ -1339,6 +1339,8 @@ const prologueForWorld = readJson('src/data/prologue.json');
 // Phase 22：刻文小語與祕密地點也要蓋進測試世界（走位與穿模稽核都要含它們）
 const inscriptionFile = readJson('src/data/inscriptions.json');
 const secretFile = readJson('src/data/secrets.json');
+// Phase 25：動得了的器物也要蓋進測試世界（碰撞、淨空、穿模稽核都要含它們）
+const handleFile = readJson('src/data/handles.json');
 const stubProgression = {
   bestGrade: () => null,
   gateStatus: () => ({ unlocked: false, text: '' }),
@@ -1346,6 +1348,7 @@ const stubProgression = {
   hasReadLore: () => false,
   hasFoundInscription: () => false,
   hasFoundSecret: () => false,
+  hasUsedHandle: () => false,
 };
 const worldOpts = {
   curriculum,
@@ -1354,6 +1357,7 @@ const worldOpts = {
   shrine: prologueForWorld.shrine,
   inscriptions: inscriptionFile.entries,
   secrets: secretFile.entries,
+  handles: handleFile.entries,
 };
 const testScene = new THREE.Scene();
 const testWorld = World.createWorld({
@@ -1471,10 +1475,18 @@ for (const tab of tabletSpecs) {
 
 /* --- 沿牆滑 ＋ 脫困保險絲 --- */
 {
+  /*
+   * 這一段驗的是「擦到**一顆**石頭時的切線滑動」，所以要挑一顆**孤立**的石頭：
+   * 兩顆疊在一起的碎石本來就會把人夾住（那是另一回事，由脫困保險絲負責），
+   * 拿它來驗切線滑動只會量到別的東西。
+   */
   const solid = testWorld.solids.find(
-    (s) => World.regionAt(s.x, s.z) && World.coverage(s.x, s.z) > 0.9
+    (s) =>
+      World.regionAt(s.x, s.z) &&
+      World.coverage(s.x, s.z) > 0.9 &&
+      !testWorld.solids.some((o) => o !== s && Math.hypot(o.x - s.x, o.z - s.z) < s.r + o.r + 4)
   );
-  ok(Boolean(solid), '找得到一個站在實地上的碰撞體來測試');
+  ok(Boolean(solid), '找得到一顆孤立、站在實地上的碰撞體來測試');
   if (solid) {
     const from = { x: solid.x - (solid.r + 3), z: solid.z };
     // 直直往石頭走 → 被擋下來（不會穿過去）
@@ -2618,6 +2630,385 @@ memory.clear();
   again2.resetAll();
   eq(again2.inscriptionCount(), 0, '重置會清掉已讀刻文');
   eq(again2.secretCount(), 0, '重置會清掉已找到的祕密');
+}
+memory.clear();
+
+/* ================================================================== */
+/* Phase 25：動得了的器物（RPG 那一層「碰得到的小東西」）                 */
+/*                                                                    */
+/*   · 純風味（護欄 2）：不教技巧、不掛 techniqueId、不放連結           */
+/*   · 只用 E（世界唯一的互動鍵），不發明第二個鍵                        */
+/*   · 不新增光源（§6.1），碰撞與淨空照舊（§6.3 / §6.4）                */
+/*   · 是「雜物」那一階（≤ 2.6 公尺），不准長成第二個地標                */
+/* ================================================================== */
+console.log('\n▸ 動得了的器物（Phase 25）');
+
+const Handles = await import('../src/world/handles.js');
+const handles = handleFile.entries;
+
+/* --- 資料合法性 ------------------------------------------------------ */
+eq(handleFile.authored, 'game', 'handles.json 檔頭明講是遊戲自撰的層');
+ok(handleFile.xp > 0 && handleFile.xp <= 8, '動一件器物的 XP 是「很少量」', `xp=${handleFile.xp}`);
+eq(new Set(handles.map((h) => h.id)).size, handles.length, '器物 id 沒有重複');
+ok(handles.length >= 18 && handles.length <= 30, '器物數量在合理範圍', `n=${handles.length}`);
+{
+  const kinds = new Set(handles.map((h) => h.kind));
+  ok(kinds.size >= 6, '至少有 6 種不同的器物', `kinds=${[...kinds].join(',')}`);
+  for (const k of kinds) {
+    ok(k in Handles.HANDLE_KINDS, `[${k}] 是已實作的器物種類`);
+    ok(k in Handles.HANDLE_VERBS, `[${k}] 有走近提示的動詞`);
+    ok(k in Handles.HANDLE_VERBS_USED, `[${k}] 有「動過之後」的動詞`);
+    ok(k in (handleFile.kinds || {}), `[${k}] handles.json 有這一種的狀態說明`);
+    ok((handleFile.kinds[k].idle || '').length >= 4, `[${k}] 有「還沒動過」的狀態句`);
+    ok((handleFile.kinds[k].done || '').length >= 4, `[${k}] 有「動過了」的狀態句`);
+    ok(handles.filter((h) => h.kind === k).length >= 2, `[${k}] 世界上不只一件（不是孤例）`);
+  }
+  // 每一種動詞都不一樣 —— 動詞本身就是「這東西能拿來幹嘛」的說明
+  const verbs = Object.values(Handles.HANDLE_VERBS);
+  eq(new Set(verbs).size, verbs.length, '八種器物的動詞互不相同');
+  const regions = new Set(handles.map((h) => h.region));
+  for (const g of curriculum.groups) {
+    ok(regions.has(g.id), `[${g.id}] 這片土地上有動得了的東西`);
+    const here = new Set(handles.filter((h) => h.region === g.id).map((h) => h.kind));
+    ok(here.size >= 3, `[${g.id}] 至少有 3 種不同的器物（不是同一種擺三個）`, [...here].join(','));
+  }
+}
+
+const HANDLE_TEXT_FIELDS = ['title', 'line'];
+for (const h of handles) {
+  const tag = `[handle:${h.id}]`;
+  ok(/^[a-z0-9-]+$/.test(h.id), `${tag} id 是 kebab-case`);
+  ok(h.kind in Handles.HANDLE_KINDS, `${tag} 種類是實作得出來的`);
+  ok((h.title || '').length >= 2, `${tag} 有世界裡的名字`);
+  // 護欄 2：這一層一個字都不准宣稱技巧
+  for (const banned of ['source', 'sources', 'teaches', 'techniqueId', 'rubric', 'url', 'href']) {
+    eq(banned in h, false, `${tag} 沒有 ${banned} 欄位（純風味，不教技巧）`);
+  }
+  const blob = JSON.stringify(h);
+  eq(/https?:\/\//.test(blob), false, `${tag} 不含任何連結`);
+  // 中文：玩家看得到的每一段話都不能是英文句子
+  for (const f of HANDLE_TEXT_FIELDS) {
+    if (!h[f]) continue;
+    eq(ENGLISH(h[f]), null, `${tag} ${f} 沒有整句英文`, String(ENGLISH(h[f])));
+  }
+  for (const l of h.lines || []) {
+    ok(l.length >= 8 && l.length <= 60, `${tag} 每一行都是一句話（8–60 字）`, `${l.length}`);
+    eq(ENGLISH(l), null, `${tag} 罐底的字沒有整句英文`);
+  }
+  for (const w of h.ways || []) {
+    ok((w.to || '').length >= 2, `${tag} 每塊牌子都有方位`);
+    ok((w.text || '').length >= 8, `${tag} 每塊牌子都說得出那邊有什麼`);
+    eq(ENGLISH(w.text), null, `${tag} 指路的話沒有整句英文`);
+  }
+  // 種類專屬的內容
+  if (h.kind === 'urn') ok((h.lines || []).length === 2, `${tag} 陶罐剛好兩行（罐底的字）`);
+  else if (h.kind === 'signpost') ok((h.ways || []).length === 4, `${tag} 指路石剛好四塊牌子`);
+  else ok((h.line || '').length >= 8, `${tag} 有一句話可以說（不開窗，只在畫面上講一句）`);
+}
+for (const kindMeta of Object.values(handleFile.kinds || {})) {
+  for (const s of Object.values(kindMeta.says || {})) {
+    eq(ENGLISH(s), null, '器物的每一句回應都不是英文句子', s);
+  }
+}
+
+/* --- 擺法：落點、淨空、彼此不打架 ------------------------------------ */
+{
+  const laneDist = (x, z) =>
+    Math.min(
+      ...World.BRIDGE_LANES.map((l) => {
+        const dx = l.bx - l.ax;
+        const dz = l.bz - l.az;
+        const len2 = dx * dx + dz * dz;
+        const t = Math.max(0, Math.min(1, ((x - l.ax) * dx + (z - l.az) * dz) / len2));
+        return Math.hypot(x - (l.ax + dx * t), z - (l.az + dz * t));
+      })
+    );
+  for (const h of handles) {
+    const tag = `[handle:${h.id}]`;
+    const [x, z] = h.at;
+    const here = World.regionAt(x, z);
+    ok(here && here.id === h.region && !here.onBridge, `${tag} 落在標示的區域裡（而且不在橋上）`, JSON.stringify(here));
+    ok(World.coverage(x, z) > 0.85, `${tag} 站得住（沒有掉進虛空）`, World.coverage(x, z).toFixed(2));
+    ok(nearestPedestal(x, z) >= 7, `${tag} 不在石座的淨空圈裡`, nearestPedestal(x, z).toFixed(1));
+    ok(laneDist(x, z) > 8, `${tag} 不擋橋的主動線`, laneDist(x, z).toFixed(1));
+    ok(Math.hypot(x - 0, z - 6) > World.SPAWN_CLEAR + 2, `${tag} 不壓在出生點上`);
+    const toIns = Math.min(...inscriptions.map((i) => Math.hypot(x - i.at[0], z - i.at[1])));
+    ok(toIns >= 8, `${tag} 不壓在刻文小語上（不搶 E）`, toIns.toFixed(1));
+    const toReact = Math.min(...Reactive.REACTIVE_SPOTS.map((s) => Math.hypot(x - s.at[0], z - s.at[1])));
+    ok(toReact >= 8, `${tag} 不壓在會回應的東西上`, toReact.toFixed(1));
+    const toTablet = Math.min(...LORE_TABLETS.map((t) => Math.hypot(x - t.at[0], z - t.at[1])));
+    ok(toTablet >= 7, `${tag} 不壓在世界觀石碑上（不搶 E）`, toTablet.toFixed(1));
+    const toLandmark = Math.min(...LANDMARKS.map((l) => Math.hypot(x - l.at[0], z - l.at[1])));
+    ok(toLandmark >= 14, `${tag} 沒有站進地標的留白圈`, toLandmark.toFixed(1));
+    const toSecret = Math.min(...secrets.map((s) => Math.hypot(x - s.at[0], z - s.at[1])));
+    ok(toSecret >= 9, `${tag} 不壓在藏起來的地方上`, toSecret.toFixed(1));
+  }
+  for (let i = 0; i < handles.length; i += 1) {
+    for (let j = i + 1; j < handles.length; j += 1) {
+      const a = handles[i].at;
+      const b = handles[j].at;
+      // 密度要有節奏：兩件器物之間要走得到「什麼都沒有」的地方
+      ok(
+        Math.hypot(a[0] - b[0], a[1] - b[1]) > 14,
+        `器物 ${handles[i].id} / ${handles[j].id} 離得夠開（中間要有安靜）`
+      );
+    }
+  }
+}
+
+/* --- 互動文法：只有 E、半徑排在刻文小語底下 -------------------------- */
+ok(Handles.HANDLE_RADIUS < Inscriptions.INSCRIPTION_RADIUS, '器物的互動半徑比刻文小語小（不搶 E）');
+ok(Handles.HANDLE_RADIUS >= 2.5, '互動半徑不會小到走過去按不到', String(Handles.HANDLE_RADIUS));
+ok(Handles.CAPSTAN_TURNS >= 2 && Handles.CAPSTAN_TURNS <= 4, '絞盤要推 2–4 下（按 E，不是按住）');
+
+/* --- 蓋出來的東西：不加光源、屬於「雜物」那一階、行為正確 ------------ */
+{
+  const kit = kitFor('#8aa0b4');
+  const field = Handles.createHandleField({
+    entries: handles,
+    kitOf: () => kit,
+    terrainHeight: World.terrainHeight,
+  });
+  eq(field.count, handles.length, '每一件器物都蓋出來了');
+  eq(field.group.children.length, handles.length, '每一件都掛進場景圖');
+
+  let lights = 0;
+  let maxTop = 0;
+  let tallest = '';
+  const boxTop = new THREE.Box3();
+  const one = new THREE.Box3();
+  field.group.updateMatrixWorld(true);
+  for (const o of field.objects) {
+    if (!o) continue;
+    ok(o.root.name === `handle:${o.id}`, `[${o.id}] 場景圖節點名是 handle:<id>`);
+    /*
+     * 量的是**剪影**，所以只算不透明的實體 ——
+     * 加色混合的光（火光、光柱、水紋、地面光環）是光不是物質，
+     * 世界裡本來就有 22 公尺高的石座光柱（見 WORLD.md §2.2）。
+     */
+    boxTop.makeEmpty();
+    o.root.traverse((m) => {
+      if (!m.isMesh) return;
+      const mat = Array.isArray(m.material) ? m.material[0] : m.material;
+      if (!mat || mat.transparent) return;
+      one.setFromObject(m);
+      boxTop.union(one);
+    });
+    if (boxTop.isEmpty()) continue;
+    const top = boxTop.max.y - World.terrainHeight(o.x, o.z);
+    if (top > maxTop) {
+      maxTop = top;
+      tallest = o.id;
+    }
+  }
+  field.group.traverse((obj) => {
+    if (obj.isLight) lights += 1;
+  });
+  eq(lights, 0, '器物一盞燈都沒加（只用自發光材質）');
+  ok(maxTop <= 2.6, '每一件都在「雜物」那一階（≤ 2.6 公尺，不會蓋掉地標）', `${tallest}=${maxTop.toFixed(2)}`);
+
+  // 走近排名：兩件同時在範圍內時，面向哪一件就是哪一件
+  {
+    const a = field.objects[0];
+    // 站在 a 旁邊，面向 a → 就是 a
+    const toward = { x: 0, z: 0 };
+    const px = a.x - 2;
+    const pz = a.z;
+    toward.x = 1;
+    toward.z = 0;
+    const hit = field.nearest({ x: px, z: pz }, Handles.HANDLE_RADIUS, toward);
+    ok(hit && hit.handle === a, '走近就抓得到那一件');
+    ok(a.near === true, '被抓到的那一件會亮起來');
+    const far = field.nearest({ x: a.x + 60, z: a.z + 60 });
+    eq(far, null, '離得遠的時候什麼都抓不到');
+    eq(a.near, false, '離開之後就不亮了');
+  }
+
+  // 陶罐：掀開會開一個小窗，而且只算一次「動過」
+  {
+    const urn = field.objects.find((o) => o.kind === 'urn');
+    ok(Boolean(urn), '世界上有陶罐');
+    const r = urn.activate({});
+    eq(r.panel, 'urn', '掀開陶罐會開一個很小的窗');
+    eq(r.complete, true, '掀開就算動過了');
+    ok(typeof r.sound === 'string' && r.sound.length > 0, '掀蓋有自己的聲音');
+    urn.setUsed(true);
+    urn.update(0.5, 1, 1, 1);
+    ok(urn.open > 0.3, '蓋子真的掀起來了', urn.open.toFixed(2));
+  }
+
+  // 指路石：四塊牌子 → 開窗
+  {
+    const post = field.objects.find((o) => o.kind === 'signpost');
+    const r = post.activate({});
+    eq(r.panel, 'signpost', '指路石會開一個窗把四個方向列出來');
+    eq(r.complete, true, '讀過就算動過了');
+  }
+
+  // 響石：可以一直敲（不會用完），但只有第一次算「動過」
+  {
+    const gong = field.objects.find((o) => o.kind === 'gong');
+    const r1 = gong.activate({});
+    eq(r1.panel, undefined, '敲鑼不開窗（不打斷走路）');
+    eq(r1.complete, true, '敲一下就算動過了');
+    gong.setUsed(true);
+    const r2 = gong.activate({});
+    eq(r2.complete, true, '敲第二下照樣有反應（不會用完）');
+    eq(r2.toastKey, null, '第二下不再多說一句話（不會洗版）');
+    gong.update(0.016, 1, 1, 1);
+    ok(gong.hit > 0.5, '敲下去盤子真的在震', gong.hit.toFixed(2));
+  }
+
+  // 絞盤：按三次 E 才轉得完；推到一半不算失敗
+  {
+    const cap = field.objects.find((o) => o.kind === 'capstan');
+    eq(cap.remaining, Handles.CAPSTAN_TURNS, '一開始要推滿三下');
+    const a1 = cap.activate({});
+    eq(a1.complete, false, '推第一下還不算完成');
+    eq(a1.left, Handles.CAPSTAN_TURNS - 1, '會告訴你還要推幾下');
+    eq(cap.remaining, Handles.CAPSTAN_TURNS - 1, '剩下的次數跟著減');
+    for (let i = 1; i < Handles.CAPSTAN_TURNS - 1; i += 1) cap.activate({});
+    const last = cap.activate({});
+    eq(last.complete, true, '推滿之後石蓋才開');
+    eq(last.toastKey, 'opened', '開了會說一句話');
+    cap.setUsed(true);
+    eq(cap.remaining, 0, '開過的絞盤不用再推');
+    eq(cap.activate({}).toastKey, 'done', '再推一次只是提醒它已經開著了');
+  }
+
+  // 守望石：摸它會轉向你還沒解開的那座石座
+  {
+    const stone = field.objects.find((o) => o.kind === 'watchstone');
+    const blind = stone.activate({ aimAt: null });
+    eq(blind.toastKey, 'blind', '沒有目標時它只是睜眼看一圈');
+    const target = { x: stone.x + 30, z: stone.z, name: '清晰之門' };
+    const aimed = stone.activate({ aimAt: target });
+    eq(aimed.toastKey, 'aim', '有目標時會指出來');
+    eq(aimed.aim, '清晰之門', '指的是那座石座的名字');
+    for (let i = 0; i < 200; i += 1) stone.update(0.05, i * 0.05, 1, 1);
+    const want = Math.atan2(target.x - stone.x, target.z - stone.z) - stone.baseRot;
+    const diff = Math.abs(Math.atan2(Math.sin(stone.headPivot.rotation.y - want), Math.cos(stone.headPivot.rotation.y - want)));
+    ok(diff < 0.2, '頭真的轉到那個方向了', diff.toFixed(3));
+    ok(stone.eyes.every((e) => e.material.emissiveIntensity >= 0.08), '眼睛會亮');
+  }
+
+  // 長凳：坐下 / 起身是同一顆 E
+  {
+    const bench = field.objects.find((o) => o.kind === 'bench');
+    ok(bench.seat && Number.isFinite(bench.seat.x), '長凳算得出座位的世界座標');
+    ok(Math.hypot(bench.seat.x - bench.x, bench.seat.z - bench.z) < 1.2, '座位就在凳子上');
+    const sit = bench.activate({});
+    eq(sit.pose, 'sit', '按 E 坐下');
+    const stand = bench.activate({});
+    eq(stand.pose, 'stand', '再按一次 E 起身');
+  }
+
+  // 撈月池：撈一把 → 水紋盪開
+  {
+    const pool = field.objects.find((o) => o.kind === 'moonpool');
+    const r = pool.activate({});
+    eq(r.complete, true, '撈一把就算動過了');
+    ok(pool.scoop > 0.5, '水面真的動了');
+    ok(pool.fish.length >= 3, '水裡有幾條光魚');
+  }
+
+  // 火盆：點著之後就一直亮著（存檔記得）
+  {
+    const brazier = field.objects.find((o) => o.kind === 'brazier');
+    brazier.update(0.5, 1, 1, 0);
+    const dark = brazier.flameA.material.emissiveIntensity;
+    brazier.activate({});
+    brazier.setUsed(true);
+    for (let i = 0; i < 60; i += 1) brazier.update(0.05, i * 0.05, 1, 0);
+    ok(brazier.flameA.material.emissiveIntensity > dark + 1, '點著之後火真的亮起來', brazier.flameA.material.emissiveIntensity.toFixed(2));
+    ok(brazier.lit > 0.8, '火會一直亮著（不是閃一下）', brazier.lit.toFixed(2));
+  }
+
+  // markUsed：載入存檔時世界端要跟著變
+  {
+    const id = handles[0].id;
+    eq(field.markUsed(id), true, '載入存檔時可以把某一件標成動過了');
+    eq(field.object(id).used, true, '世界端記住了');
+    eq(field.markUsed('沒有這一件'), false, '不存在的 id 不會爆');
+  }
+}
+
+/* --- 世界裡：碰撞、淨空、四周走得到 ---------------------------------- */
+{
+  const built = [];
+  testWorld.root.traverse((o) => {
+    if (o.name && o.name.startsWith('handle:')) built.push(o.name.slice(7));
+  });
+  eq(built.length, handles.length, '每一件器物都蓋進真的世界裡');
+  eq(new Set(built).size, handles.length, '沒有重複掛上去');
+
+  for (const h of handles) {
+    const [x, z] = h.at;
+    let free = 0;
+    for (let a = 0; a < 20; a += 1) {
+      const ang = (a / 20) * Math.PI * 2;
+      // 互動半徑內的一圈：每個方向都要走得到（不然按不到 E）
+      if (!testWorld.solidAt(x + Math.cos(ang) * 2.4, z + Math.sin(ang) * 2.4)) free += 1;
+    }
+    ok(free >= 18, `[handle:${h.id}] 走得到它旁邊（互動半徑內幾乎每個方向都通）`, `${free}/20`);
+    ok(testWorld.isWalkable(x + 3.0, z), `[handle:${h.id}] 東邊 3 公尺是實地`);
+    ok(testWorld.isWalkable(x - 3.0, z), `[handle:${h.id}] 西邊 3 公尺是實地`);
+  }
+  ok(
+    testWorld.solids.length < 1400,
+    '加了一整層器物之後碰撞體仍在預算內',
+    `n=${testWorld.solids.length}`
+  );
+  // 低畫質也要蓋（器物不是「畫質選項」，它是玩法）
+  let lowBuilt = 0;
+  lowWorld.root.traverse((o) => {
+    if (o.name && o.name.startsWith('handle:')) lowBuilt += 1;
+  });
+  eq(lowBuilt, handles.length, '低畫質照樣蓋出每一件器物');
+}
+
+/* --- 存檔：新欄位純加法 ---------------------------------------------- */
+eq(SaveIO.defaultSave().handlesUsed.length, 0, '新存檔的 handlesUsed 是空的');
+{
+  const old = SaveIO.normalize({ version: 1, xp: 300, collected: ['clarity-01'], loreRead: ['a'] });
+  ok(Array.isArray(old.handlesUsed), '舊存檔沒有 handlesUsed → 補成空陣列');
+  eq(old.xp, 300, '補新欄位不會動到舊資料');
+  eq(old.loreRead.length, 1, '舊欄位原封不動');
+  eq(SaveIO.normalize({ handlesUsed: ['a', 'a', 7, 'b'] }).handlesUsed.length, 2, 'handlesUsed 去重並丟掉非字串');
+}
+
+/* --- 進程：動器物給一點 XP，但不進圖鑑、不算徽章、不算通關 ------------ */
+memory.clear();
+{
+  const p = createProgression({ curriculum, challenges });
+  const one = handles[0];
+  eq(p.handleCount(), 0, '一開始一件器物都沒動過');
+  eq(p.hasUsedHandle(one.id), false, 'hasUsedHandle 初始為 false');
+
+  const collectedBefore = p.state.collected.length;
+  const badgeBefore = Object.values(p.state.badges).reduce((a, b) => a + b, 0);
+  const r1 = p.useHandle(one.id, handleFile.xp);
+  eq(r1.alreadyUsed, false, '第一次動這件器物');
+  eq(r1.xpGain, handleFile.xp, '第一次動給少量 XP');
+  eq(p.state.collected.length, collectedBefore, '動器物不會收集技巧（純風味）');
+  eq(Object.values(p.state.badges).reduce((a, b) => a + b, 0), badgeBefore, '動器物不會給徽章');
+  eq(Object.keys(p.state.bestGrades).length, 0, '動器物不算通關（不佔關卡評價）');
+  eq(p.hasUsedHandle(one.id), true, '記住了');
+
+  const r2 = p.useHandle(one.id, handleFile.xp);
+  eq(r2.alreadyUsed, true, '同一件再動一次');
+  eq(r2.xpGain, 0, '不會給第二次 XP（可以一直敲鑼，但不能刷分）');
+
+  // 全部動完仍不足以解鎖第二區（主線還是要靠關卡）
+  for (const h of handles) p.useHandle(h.id, handleFile.xp);
+  eq(p.handleCount(), handles.length, '每一件器物都動得到');
+  eq(p.isRegionUnlocked('reasoning'), false, '只動器物不足以解鎖新區域');
+  eq(Object.keys(p.state.bestGrades).length, 0, '全部動完照樣不算通關');
+
+  const again = createProgression({ curriculum, challenges });
+  eq(again.handleCount(), handles.length, '動過的器物寫進 localStorage');
+  again.resetAll();
+  eq(again.handleCount(), 0, '重置會清掉動過的器物');
 }
 memory.clear();
 
