@@ -1,0 +1,36 @@
+{
+  "name": "promptarcade",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "A browser game to learn prompt engineering by playing — explore a world and solve challenges by writing prompts. Techniques from OpenAI, Anthropic, Google & xAI, each cited.",
+  "keywords": [
+    "prompt-engineering",
+    "learn-prompting",
+    "game",
+    "gamification",
+    "llm",
+    "education",
+    "threejs",
+    "webgl"
+  ],
+  "license": "MIT",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test:rubric": "node scripts/test-rubric.mjs",
+    "test:playtest": "node scripts/playtest-verify.mjs",
+    "test": "node scripts/test-rubric.mjs",
+    "test:e2e": "node scripts/headless-check.mjs",
+    "fonts": "node scripts/subset-fonts.mjs"
+  },
+  "dependencies": {
+    "howler": "^2.2.4",
+    "three": "^0.170.0"
+  },
+  "devDependencies": {
+    "subset-font": "^2.5.0",
+    "vite": "^6.0.0"
+  }
+}

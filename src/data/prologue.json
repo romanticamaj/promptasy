@@ -1,0 +1,469 @@
+{
+  "version": 1,
+  "note": "序章「喚醒神諭」的引導課程資料。teachTechniques / teaches / rubric[].techniqueId / inscription.techniqueId 皆對應 src/data/curriculum.json 的技巧 id；quote 只引用 curriculum 既有的 beforeAfter 對照或技巧 example（逐字，不改寫、不杜撰）。畫面上以中文為主（inscription / flow / zh.* 全是遊戲自撰的白話示範，不是官方文字），官方英文原文收在「原文 ↗」裡並附出處連結，絕不把翻譯當成官方引文。source 必為該步驟所教技巧的官方出處之一。Phase 13：每一課都改成與正式關卡同一套四幕分鏡（委託 → 神諭刻文 → 刻印 → 手印），flow.slots 就是石碑刻印的選擇建構題；正確選項串起來必須通過該課的 rubric（測試強制驗證）。",
+  "title": "序章 · 喚醒神諭",
+  "titleEn": "Prologue — Waking the Oracle",
+  "shrine": {
+    "at": [
+      0,
+      18
+    ],
+    "radius": 6.5,
+    "name": "起始祭壇",
+    "nameEn": "The First Shrine"
+  },
+  "beats": [
+    {
+      "id": "wake",
+      "kind": "say",
+      "step": "01",
+      "lines": [
+        "……你醒了。",
+        "我是回聲。這座高原上沒說清楚的話，都會落到我這裡。"
+      ],
+      "cta": "起身"
+    },
+    {
+      "id": "move",
+      "kind": "gate",
+      "gate": "move",
+      "step": "02",
+      "lines": [
+        "先走幾步。這副身體你還沒用過。"
+      ],
+      "objective": "按 W A S D 走動",
+      "done": "很好。你的腳步在地上留下了痕跡。"
+    },
+    {
+      "id": "camera",
+      "kind": "gate",
+      "gate": "camera",
+      "step": "03",
+      "lines": [
+        "抬頭看看四周。夜色比你以為的還大。"
+      ],
+      "objective": "按 ← → 轉動鏡頭；按 ↑ 或空白鍵抬頭看星空",
+      "done": "遠方那些光柱，都是還沒被解開的問題。"
+    },
+    {
+      "id": "run",
+      "kind": "gate",
+      "gate": "run",
+      "step": "04",
+      "lines": [
+        "夜還長。想快一點的話，跑起來。"
+      ],
+      "objective": "按住 Shift 一邊移動",
+      "done": "會跑了。那就轉過身 —— 我在祭壇等你。"
+    },
+    {
+      "id": "arrive",
+      "kind": "gate",
+      "gate": "arrive",
+      "step": "05",
+      "lines": [
+        "起點另一頭那圈立石，是神諭沉睡的地方。"
+      ],
+      "objective": "走到起始祭壇（發亮的立石圈）",
+      "done": "到了。神諭聽得見你的每一個字 —— 問題是，你講得夠清楚嗎？"
+    },
+    {
+      "id": "practice-clarity",
+      "kind": "practice",
+      "step": "06",
+      "stepId": "prologue-clarity",
+      "lines": [
+        "第一課：把話說清楚。"
+      ],
+      "cta": "走向石碑",
+      "bridge": [
+        "石碑收下了。你說得夠具體，神諭就不必猜。"
+      ]
+    },
+    {
+      "id": "practice-positive",
+      "kind": "practice",
+      "step": "07",
+      "stepId": "prologue-positive",
+      "lines": [
+        "第二課：說你要什麼，不是你不要什麼。"
+      ],
+      "cta": "走向石碑",
+      "bridge": [
+        "你把「不要」翻成了「要」。它終於有事情可以做了。"
+      ]
+    },
+    {
+      "id": "practice-structure",
+      "kind": "practice",
+      "step": "08",
+      "stepId": "prologue-structure",
+      "lines": [
+        "第三課：把指令和資料分開。"
+      ],
+      "cta": "走向石碑",
+      "bridge": [
+        "分開放，它就不會把資料也當成命令。"
+      ]
+    },
+    {
+      "id": "graduation",
+      "kind": "finish",
+      "step": "09",
+      "lines": [
+        "講清楚、正面說、分開放 —— 後面所有技巧都踩在這三件事上。",
+        "南邊那道光柱是清晰之門，守門人在等一段真正的指令。"
+      ],
+      "hint": "按 C 打開圖鑑：剛學會的技巧已經在裡面，每一條都點得回原典。",
+      "cta": "開始探索"
+    }
+  ],
+  "steps": [
+    {
+      "id": "prologue-clarity",
+      "order": 1,
+      "scaffold": "full",
+      "title": "把話說清楚",
+      "titleEn": "Say It Precisely",
+      "echo": "神諭照著你的話做，一字不差。",
+      "brief": "祭壇上浮著一句別人留下的請求。神諭照做了三次，三次都不是他要的。",
+      "ask": "把它刻成一段照做就不會錯的指令。",
+      "teachTechniques": [
+        "clarity-01",
+        "clarity-03"
+      ],
+      "inscription": {
+        "techniqueId": "clarity-03",
+        "title": "把「短一點」換成數得出來的量",
+        "what": "神諭不知道你心裡的「短」是多短。",
+        "how": "給一個數得出來的量，再說出答案要長什麼樣子。"
+      },
+      "quote": {
+        "kind": "beforeAfter",
+        "title": "控制長度",
+        "zh": {
+          "note": "下面的中文是遊戲自己寫的白話示範，不是官方原文；官方原文收在「原文 ↗」。",
+          "weak": "答案簡短一點就好，幾句話就行。",
+          "strong": "請用 3 到 5 句話的一段文字回答，並整理成 3 個條列重點。"
+        }
+      },
+      "starterFrom": "weak",
+      "flow": {
+        "slots": [
+          {
+            "ask": "第一段：要請神諭做哪一件事？",
+            "options": [
+              {
+                "text": "請把祭壇上那張告示摘要成一段說明。",
+                "correct": true
+              },
+              {
+                "text": "這張告示有點難懂。",
+                "feedback": "這只是在描述現況，沒有下指令。用動詞說出你要它做的事。"
+              },
+              {
+                "text": "你看著辦就好。",
+                "feedback": "神諭不會猜。動作要自己講出來：是摘要、改寫，還是翻譯？"
+              }
+            ]
+          },
+          {
+            "ask": "第二段：這段說明是寫給誰看的？",
+            "options": [
+              {
+                "text": "大家看得懂就好。",
+                "feedback": "「大家」等於沒說。講出具體的讀者，它才知道要寫多深。"
+              },
+              {
+                "text": "讀的人是第一次來到高原的旅人。",
+                "correct": true
+              },
+              {
+                "text": "誰讀都無所謂。",
+                "feedback": "沒有指定讀者，它只能用平均值寫。指定讀者是最省力的一招。"
+              }
+            ]
+          },
+          {
+            "ask": "第三段：份量和形狀要怎麼定？",
+            "options": [
+              {
+                "text": "簡短一點，排版好看一點。",
+                "feedback": "「簡短」「好看」量不出來。換成數字：幾句話、幾個重點。"
+              },
+              {
+                "text": "不要寫得太長。",
+                "feedback": "這是在說「不要」，而且沒有數字。直接給量：3 到 5 句話。"
+              },
+              {
+                "text": "請用 3 到 5 句話的一段文字回答，並整理成 3 個條列重點。",
+                "correct": true
+              }
+            ]
+          }
+        ]
+      },
+      "rubric": [
+        {
+          "check": "assignsTask",
+          "weight": 1,
+          "techniqueId": "clarity-02",
+          "hint": "用動詞開頭說明要做的事：「請摘要下面這張告示…」。"
+        },
+        {
+          "check": "hasConstraint",
+          "weight": 2,
+          "techniqueId": "clarity-03",
+          "hint": "把「短一點」換成數字：「用 3 到 5 句話」「3 個重點」。"
+        },
+        {
+          "check": "specifiesFormat",
+          "weight": 1,
+          "techniqueId": "format-01",
+          "hint": "說出答案要長什麼樣子：一段短文、條列、表格，挑一個寫上去。"
+        }
+      ],
+      "pass": 2.5,
+      "xp": 25,
+      "teaches": [
+        "clarity-01",
+        "clarity-02",
+        "clarity-03"
+      ],
+      "source": "https://help.openai.com/en/articles/6654000-best-practices-for-prompt-engineering-with-the-openai-api",
+      "zhCards": {
+        "clarity-01": "弱：幫我把這個弄好一點。\n強：請把下面這張告示改寫成公告，用 3 個條列重點，每點不超過 20 個字。",
+        "clarity-03": "弱：簡短一點就好。\n強：請用 3 到 5 句話的一段文字回答。／請用 3 個條列重點回覆。"
+      }
+    },
+    {
+      "id": "prologue-positive",
+      "order": 2,
+      "scaffold": "partial",
+      "title": "正面表述",
+      "titleEn": "Say What To Do",
+      "echo": "禁止一件事，等於留下無數種做錯的方法。",
+      "brief": "第二句請求全是「不要」。神諭避開了禁忌，給了一個沒人想要的答案。",
+      "ask": "把否定句刻成肯定句：直接說你要的樣子。",
+      "teachTechniques": [
+        "positive-01"
+      ],
+      "inscription": {
+        "techniqueId": "positive-01",
+        "title": "說你要什麼，而不是你不要什麼",
+        "what": "「不要」只圈出禁區，沒有指出路。",
+        "how": "把每一句「不要 X」翻成「請用 Y」。"
+      },
+      "quote": {
+        "kind": "beforeAfter",
+        "title": "正面表述",
+        "zh": {
+          "note": "下面的中文是遊戲自己寫的白話示範，不是官方原文；官方原文收在「原文 ↗」。",
+          "weak": "回覆裡不要用 markdown。",
+          "strong": "請用流暢連貫的散文段落來寫。"
+        }
+      },
+      "starterFrom": "weak",
+      "flow": {
+        "slots": [
+          {
+            "ask": "第一段：要請神諭做什麼？",
+            "options": [
+              {
+                "text": "請把祭壇上那張告示改寫給趕時間的旅人。",
+                "correct": true
+              },
+              {
+                "text": "這段回覆看起來很亂。",
+                "feedback": "只描述現況，沒有指令。用動詞說出來：改寫成什麼、給誰看。"
+              },
+              {
+                "text": "不要寫得亂七八糟。",
+                "feedback": "開頭就用「不要」，等於還沒說要做什麼。先把動作講出來。"
+              }
+            ]
+          },
+          {
+            "ask": "第二段：「不要用條列」要怎麼換句話說？",
+            "options": [
+              {
+                "text": "不要用 markdown，也不要條列。",
+                "feedback": "還是「不要」。把它翻成你要的樣子：請用散文段落來寫。"
+              },
+              {
+                "text": "請用流暢連貫的散文段落來寫。",
+                "correct": true
+              },
+              {
+                "text": "格式隨便，別太醜就好。",
+                "feedback": "「別太醜」不是照做得了的指示。直接說出你要的形狀。"
+              }
+            ]
+          },
+          {
+            "ask": "第三段：長度要怎麼收？",
+            "options": [
+              {
+                "text": "整段不超過 100 個字。",
+                "correct": true
+              },
+              {
+                "text": "別寫得落落長。",
+                "feedback": "這句沒有數字，也還是在說「不要」。給一個數得出來的上限。"
+              },
+              {
+                "text": "愛寫多長都可以。",
+                "feedback": "沒有上限，它就會寫到你不想讀。加一個可以數的限制。"
+              }
+            ]
+          }
+        ]
+      },
+      "rubric": [
+        {
+          "check": "positiveFraming",
+          "weight": 2,
+          "techniqueId": "positive-01",
+          "hint": "把「不要用 X」改寫成「請用 Y」——描述你要的行為，而不是禁區。"
+        },
+        {
+          "check": "assignsTask",
+          "weight": 1,
+          "techniqueId": "clarity-02",
+          "hint": "先用一句「請＋動作」說清楚要它做什麼。"
+        },
+        {
+          "check": "specifiesFormat",
+          "weight": 1,
+          "techniqueId": "format-01",
+          "hint": "順便講明答案的形狀（一段散文 / 條列 / 表格）。"
+        }
+      ],
+      "pass": 2.5,
+      "xp": 25,
+      "teaches": [
+        "positive-01"
+      ],
+      "source": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices",
+      "zhCards": {
+        "positive-01": "弱：不要用條列。\n強：請用流暢連貫的散文段落來寫。"
+      }
+    },
+    {
+      "id": "prologue-structure",
+      "order": 3,
+      "scaffold": "light",
+      "title": "指令與資料要分開",
+      "titleEn": "Separate Instruction From Data",
+      "echo": "指令和資料黏在一起，神諭會把資料也當成命令。",
+      "brief": "最後一句請求，把要做的事和要處理的內容黏成了一團。",
+      "ask": "指令放最前面，資料用標記框起來。",
+      "teachTechniques": [
+        "clarity-04",
+        "structure-01"
+      ],
+      "inscription": {
+        "techniqueId": "clarity-04",
+        "title": "指令與資料要分開放",
+        "what": "黏成一團，它分不清哪一句才是命令。",
+        "how": "指令放最前面，要處理的內容用【資料】…【/資料】框起來。"
+      },
+      "quote": {
+        "kind": "techniqueExample",
+        "techniqueId": "clarity-04",
+        "zh": {
+          "note": "下面的中文是遊戲自己寫的白話示範，不是官方原文；官方原文收在「原文 ↗」。",
+          "example": "請把下面這段文字整理成最重要的重點條列。\n\n【資料】\n（把要處理的內容貼在這裡）\n【/資料】"
+        }
+      },
+      "starter": "請摘要這張告示而且告示內容是東橋今晚因為起霧封閉旅人應該在祭壇紮營直到天亮",
+      "flow": {
+        "slots": [
+          {
+            "ask": "第一段：指令要怎麼開頭？",
+            "options": [
+              {
+                "text": "請把下面這段告示整理成最重要的重點條列。",
+                "correct": true
+              },
+              {
+                "text": "告示如下，你看著辦。",
+                "feedback": "只有資料，沒有指令。第一句要說清楚你要它做什麼。"
+              },
+              {
+                "text": "這張告示很重要。",
+                "feedback": "這是在描述，不是在指派。用動詞開頭：請把…整理成…。"
+              }
+            ]
+          },
+          {
+            "ask": "第二段：要處理的內容要怎麼放？",
+            "options": [
+              {
+                "text": "東橋今晚因為起霧封閉，旅人請在祭壇紮營直到天亮。",
+                "feedback": "直接貼上，它會分不清哪一句是命令。把資料框起來再交出去。"
+              },
+              {
+                "text": "【資料】\n東橋今晚因為起霧封閉，旅人請在祭壇紮營直到天亮。\n【/資料】",
+                "correct": true
+              },
+              {
+                "text": "告示內容你應該記得吧。",
+                "feedback": "它讀不到石碑以外的東西。要處理的內容一定要放進來。"
+              }
+            ]
+          },
+          {
+            "ask": "第三段：輸出要長什麼樣子？",
+            "options": [
+              {
+                "text": "整理得清楚一點就好。",
+                "feedback": "「清楚一點」沒有形狀。指定幾個重點、一點幾行。"
+              },
+              {
+                "text": "輸出格式：3 個條列重點，每點一行。",
+                "correct": true
+              },
+              {
+                "text": "不要寫成一大段。",
+                "feedback": "只說不要，它還是不知道你要什麼。直接說：條列 3 點。"
+              }
+            ]
+          }
+        ]
+      },
+      "rubric": [
+        {
+          "check": "hasDelimiters",
+          "weight": 2,
+          "techniqueId": "clarity-04",
+          "hint": "用【資料】…【/資料】或前後各一行 --- 把要處理的內容包起來。"
+        },
+        {
+          "check": "assignsTask",
+          "weight": 1,
+          "techniqueId": "clarity-02",
+          "hint": "指令放最前面，用一句「請＋動作」開頭。"
+        },
+        {
+          "check": "specifiesFormat",
+          "weight": 1,
+          "techniqueId": "format-01",
+          "hint": "說明答案要裝成什麼形狀（條列、表格、一段短文）。"
+        }
+      ],
+      "pass": 2.5,
+      "xp": 25,
+      "teaches": [
+        "clarity-04",
+        "structure-01",
+        "format-01"
+      ],
+      "source": "https://help.openai.com/en/articles/6654000-best-practices-for-prompt-engineering-with-the-openai-api",
+      "zhCards": {
+        "clarity-04": "請把下面這段文字整理成最重要的重點條列。\n\n【資料】\n（把要處理的內容貼在這裡）\n【/資料】",
+        "structure-01": "把「指令」放最前面，要處理的「資料」用【資料】…【/資料】或前後各一行 --- 包起來。"
+      }
+    }
+  ]
+}

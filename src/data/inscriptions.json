@@ -1,0 +1,182 @@
+{
+  "version": 1,
+  "authored": "game",
+  "note": "刻文小語：世界裡的小刻痕，按 E 打開一個很小的對話窗，教一件很小的事。介於「世界觀石碑」（純風味、不教東西）與「關卡」（完整評分）之間的第三層。每一則都掛在一條真實存在的技巧上（techniqueId），畫面上顯示的教學文字一律取自遊戲既有的中文說法（curriculum-zh / curriculum 的 tip），並附上該技巧的官方出處連結（神諭原典）。lines 與 hint 是遊戲自撰的白話（同 coach.json 的性質），不是任何廠商的官方文字，也不得帶連結。",
+  "xp": 5,
+  "sourceIntro": "這一段刻的是神諭的老話。它指得回自己的原典 —— 也就是各家的官方文件。",
+  "entries": [
+    {
+      "id": "carve-yard-shard",
+      "region": "foundations",
+      "at": [-16, -45],
+      "prop": "plaque",
+      "title": "碑林邊的殘石",
+      "lines": [
+        "抄寫人把要交代的事刻在最上面，再劃一道深溝，溝底下才是要處理的材料。",
+        "「話跟料混在一起，神諭就分不清哪句是吩咐。」"
+      ],
+      "techniqueId": "clarity-04",
+      "hint": "開頭先寫你要它做的事，再用「---」或【資料】把材料隔開。"
+    },
+    {
+      "id": "tea-circle-board",
+      "region": "foundations",
+      "at": [15, 44],
+      "prop": "board",
+      "title": "茶爐邊的木牌",
+      "lines": [
+        "兩個人坐到天亮。走的時候，其中一個在木牌上補了一句。",
+        "「下次記得告訴牠為什麼 —— 牠會自己想到你沒說出口的那些。」"
+      ],
+      "techniqueId": "clarity-05",
+      "hint": "在要求後面補一句「因為＿＿」，說明這樣做的原因。"
+    },
+    {
+      "id": "watch-camp-boundary",
+      "region": "foundations",
+      "at": [44, 1],
+      "prop": "poststone",
+      "title": "守望者的界石",
+      "lines": [
+        "界石的正面列了十七條「不准」。背面只有一行，是後來的人補刻的。",
+        "「與其寫十七條不准，不如寫一條『請這樣做』。」"
+      ],
+      "techniqueId": "positive-01",
+      "hint": "把「不要走左邊」改寫成「請靠右走」。"
+    },
+    {
+      "id": "first-words-pool-stone",
+      "region": "foundations",
+      "at": [-45, 7],
+      "prop": "poolstone",
+      "title": "池邊的量石",
+      "lines": [
+        "石頭上刻著一把尺，尺旁邊有三個小記號：長度、形狀、口氣。",
+        "「先量好要什麼樣子，再開口。」"
+      ],
+      "techniqueId": "format-01",
+      "hint": "說清楚「三點條列」「兩句話」「做成表格」這種可以量的要求。"
+    },
+
+    {
+      "id": "example-pair-back",
+      "region": "reasoning",
+      "at": [-119, -88],
+      "prop": "board",
+      "title": "示範牌的背面",
+      "lines": [
+        "正面掛著兩張示範牌。背面被人刻了一句抱怨。",
+        "「兩張不夠。他們後來都掛到第三張、第四張才罷手。」"
+      ],
+      "techniqueId": "fewshot-01",
+      "hint": "示範放 3–5 組，而且每組的格式要長得一樣。"
+    },
+    {
+      "id": "stair-foot-pillar",
+      "region": "reasoning",
+      "at": [-78, -81],
+      "prop": "poststone",
+      "title": "階梯下的刻柱",
+      "lines": [
+        "柱子上刻著上上下下的腳印，最後一枚腳印是往回走的。",
+        "「爬到頂的人，都會再回頭數一次自己的腳步。」"
+      ],
+      "techniqueId": "cot-04",
+      "hint": "結尾加一句「答完請自己對照上面的條件檢查一次」。"
+    },
+    {
+      "id": "thinker-fragment",
+      "region": "reasoning",
+      "at": [-113, -118],
+      "prop": "plaque",
+      "title": "思考者腳邊的碎片",
+      "lines": [
+        "那尊像的腳邊有一塊被鑿掉一半的碑，像是有人刻到一半才發現弄反了。",
+        "「牠自己會想。你在旁邊一直教牠怎麼想，反而礙事。」"
+      ],
+      "techniqueId": "reasoning-01",
+      "hint": "面對會自己思考的模型，prompt 保持簡短直接就好。"
+    },
+
+    {
+      "id": "well-rim-stone",
+      "region": "grounding",
+      "at": [77, -110],
+      "prop": "poolstone",
+      "title": "井邊的刻石",
+      "lines": [
+        "井口的石頭上有一道很深的凹槽，像被繩子磨了幾百年。",
+        "「打不到水的時候，就說打不到。硬拉上來的都是空桶。」"
+      ],
+      "techniqueId": "grounding-02",
+      "hint": "加一句「資料裡沒有寫的話，就說沒有提到」。"
+    },
+    {
+      "id": "reading-nook-weight",
+      "region": "grounding",
+      "at": [112, -110],
+      "prop": "board",
+      "title": "書桌旁的紙鎮",
+      "lines": [
+        "紙鎮壓著一疊沒收起來的卷宗，最上面那張寫著閱讀的順序。",
+        "「卷宗先攤開，問題留到最後一句再問。」"
+      ],
+      "techniqueId": "longcontext-01",
+      "hint": "長資料放最前面，你的問題放到最後一行。"
+    },
+
+    {
+      "id": "draft-yard-tag",
+      "region": "orchestration",
+      "at": [-95, 121],
+      "prop": "plaque",
+      "title": "草圖桌邊的刻牌",
+      "lines": [
+        "桌上釘著三張紙：一張潦草、一張畫滿紅圈、一張乾乾淨淨。",
+        "「先畫壞的那張，再挑毛病，最後才重畫。三張都要。」"
+      ],
+      "techniqueId": "decompose-03",
+      "hint": "分成三步：先寫草稿 → 請它挑毛病 → 再依意見改寫。"
+    },
+    {
+      "id": "tool-yard-hang",
+      "region": "orchestration",
+      "at": [-73, 105],
+      "prop": "toolplate",
+      "title": "工具架上的吊牌",
+      "lines": [
+        "每把工具上都掛著牌子。多數寫著「隨你用」，只有兩把寫了別的。",
+        "「這兩把拆下去就裝不回來 —— 動手之前先問一聲。」"
+      ],
+      "techniqueId": "agentic-06",
+      "hint": "刪除、覆蓋這類收不回來的動作，先請它問過你再做。"
+    },
+
+    {
+      "id": "dressing-mirror-tag",
+      "region": "config",
+      "at": [73, 106],
+      "prop": "board",
+      "title": "更衣鏡邊的刻牌",
+      "lines": [
+        "鏡子旁邊釘著一排空掛勾，每個掛勾底下都刻了一個名字。",
+        "「上台前先掛上你今晚是誰。哪怕只有一句也算。」"
+      ],
+      "techniqueId": "role-01",
+      "hint": "開頭寫一句「你是一位＿＿」，一句就有差。"
+    },
+    {
+      "id": "mirror-walk-dial",
+      "region": "config",
+      "at": [117, 105],
+      "prop": "poststone",
+      "title": "鏡列末端的刻石",
+      "lines": [
+        "石頭上有一個轉得動的刻度，一端刻著「每次都一樣」，另一端刻著「每次都不同」。",
+        "「戲要準就轉到底，要新鮮就鬆一點。」"
+      ],
+      "techniqueId": "params-01",
+      "hint": "要每次都一樣就把 temperature 調到 0；要有變化就調高一點。"
+    }
+  ]
+}

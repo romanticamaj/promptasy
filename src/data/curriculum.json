@@ -1,0 +1,2135 @@
+{
+  "version": 1,
+  "source": {
+    "file": "prompting-crystal.html",
+    "note": "技巧內容、範例與官方出處自 prompting-crystal.html 原樣抽出，未做任何文字修改。",
+    "extractedAt": "2026-07-25"
+  },
+  "meta": {
+    "groupMapping": "5 大分群直接沿用原檔 GROUPS 常數（第 582-587 行），非自行推測：foundations(撰寫基本功)=[clarity, positive, format, structure]；reasoning(示範與推理)=[fewshot, cot, reasoning]；grounding(脈絡與長文)=[grounding, longcontext]；orchestration(流程與代理)=[decompose, agentic, iterate]；config(角色與參數)=[role, params, framework]",
+    "counts": {
+      "groups": 5,
+      "topics": 15,
+      "techniques": 68
+    }
+  },
+  "vendors": [
+    {
+      "id": "openai",
+      "name": "OpenAI",
+      "color": "#2bb98a"
+    },
+    {
+      "id": "anthropic",
+      "name": "Anthropic",
+      "color": "#e07b45"
+    },
+    {
+      "id": "google",
+      "name": "Google",
+      "color": "#5b8bf0"
+    },
+    {
+      "id": "xai",
+      "name": "xAI",
+      "color": "#9aa6b8"
+    }
+  ],
+  "groups": [
+    {
+      "id": "foundations",
+      "legacyId": "g1",
+      "order": 1,
+      "name": "撰寫基本功",
+      "nameEn": "FOUNDATIONS",
+      "color": "#a9c9d8",
+      "topicIds": [
+        "clarity",
+        "positive",
+        "format",
+        "structure"
+      ]
+    },
+    {
+      "id": "reasoning",
+      "legacyId": "g2",
+      "order": 2,
+      "name": "示範與推理",
+      "nameEn": "REASONING",
+      "color": "#b7b0d8",
+      "topicIds": [
+        "fewshot",
+        "cot",
+        "reasoning"
+      ]
+    },
+    {
+      "id": "grounding",
+      "legacyId": "g3",
+      "order": 3,
+      "name": "脈絡與長文",
+      "nameEn": "GROUNDING",
+      "color": "#9eccbe",
+      "topicIds": [
+        "grounding",
+        "longcontext"
+      ]
+    },
+    {
+      "id": "orchestration",
+      "legacyId": "g4",
+      "order": 4,
+      "name": "流程與代理",
+      "nameEn": "ORCHESTRATION",
+      "color": "#dcc79c",
+      "topicIds": [
+        "decompose",
+        "agentic",
+        "iterate"
+      ]
+    },
+    {
+      "id": "config",
+      "legacyId": "g5",
+      "order": 5,
+      "name": "角色與參數",
+      "nameEn": "CONFIG",
+      "color": "#adb6c6",
+      "topicIds": [
+        "role",
+        "params",
+        "framework"
+      ]
+    }
+  ],
+  "topics": [
+    {
+      "id": "clarity",
+      "num": "01",
+      "code": "CLARITY",
+      "title": "清晰、具體、給足脈絡",
+      "sub": "四廠共識的第一原則：把想要的講清楚、講具體。模糊的 prompt 是最常見的失敗原因。",
+      "groupId": "foundations",
+      "techniqueIds": [
+        "clarity-01",
+        "clarity-02",
+        "clarity-03",
+        "clarity-04",
+        "clarity-05",
+        "clarity-06"
+      ]
+    },
+    {
+      "id": "positive",
+      "num": "02",
+      "code": "POSITIVE",
+      "title": "正面表述：說「要做什麼」",
+      "sub": "三家都明確建議：與其列一堆禁止事項，不如直接說出你要的行為。",
+      "groupId": "foundations",
+      "techniqueIds": [
+        "positive-01"
+      ]
+    },
+    {
+      "id": "format",
+      "num": "03",
+      "code": "FORMAT",
+      "title": "指定輸出格式與長度",
+      "sub": "控制輸出的可靠手段：明講格式、用範例示範、用部分輸入引導。",
+      "groupId": "foundations",
+      "techniqueIds": [
+        "format-01",
+        "format-02",
+        "format-03",
+        "format-04",
+        "format-05",
+        "format-06"
+      ]
+    },
+    {
+      "id": "structure",
+      "num": "04",
+      "code": "STRUCTURE",
+      "title": "分隔符與結構化",
+      "sub": "用清楚的結構切分 prompt 各部位——四家都建議，但偏好的標記法各有不同。",
+      "groupId": "foundations",
+      "techniqueIds": [
+        "structure-01",
+        "structure-02",
+        "structure-03",
+        "structure-04",
+        "structure-05"
+      ]
+    },
+    {
+      "id": "role",
+      "num": "05",
+      "code": "ROLE/SYS",
+      "title": "角色與 System / Developer 訊息",
+      "sub": "在 system 層設定角色、語氣、邊界；不同廠對訊息角色的處理略有差異。",
+      "groupId": "config",
+      "techniqueIds": [
+        "role-01",
+        "role-02",
+        "role-03",
+        "role-04"
+      ]
+    },
+    {
+      "id": "fewshot",
+      "num": "06",
+      "code": "FEW-SHOT",
+      "title": "Few-shot 範例（多範例提示）",
+      "sub": "用少量範例示範格式與風格。OpenAI、Anthropic、Google 都強調；xAI 官方未提供 few-shot 指引。",
+      "groupId": "reasoning",
+      "techniqueIds": [
+        "fewshot-01",
+        "fewshot-02",
+        "fewshot-03",
+        "fewshot-04",
+        "fewshot-05"
+      ]
+    },
+    {
+      "id": "cot",
+      "num": "07",
+      "code": "COT",
+      "title": "讓模型思考（Chain-of-Thought）",
+      "sub": "對「非推理模型」誘導逐步思考能提升準確度；推理模型則另有規則（見下一節）。",
+      "groupId": "reasoning",
+      "techniqueIds": [
+        "cot-01",
+        "cot-02",
+        "cot-03",
+        "cot-04"
+      ]
+    },
+    {
+      "id": "reasoning",
+      "num": "08",
+      "code": "REASONING",
+      "title": "推理模型的特別注意事項 ★",
+      "sub": "這是四廠差異最大的一節。對推理模型，過往「叫它逐步想」的技巧反而多餘甚至有害。",
+      "groupId": "reasoning",
+      "techniqueIds": [
+        "reasoning-01",
+        "reasoning-02",
+        "reasoning-03",
+        "reasoning-04",
+        "reasoning-05"
+      ]
+    },
+    {
+      "id": "grounding",
+      "num": "09",
+      "code": "GROUNDING",
+      "title": "提供參考資料 / Grounding / 防幻覺",
+      "sub": "給模型可依據的資料，並給它一條「不知道就說不知道」的出路。",
+      "groupId": "grounding",
+      "techniqueIds": [
+        "grounding-01",
+        "grounding-02",
+        "grounding-03",
+        "grounding-04",
+        "grounding-05",
+        "grounding-06"
+      ]
+    },
+    {
+      "id": "longcontext",
+      "num": "10",
+      "code": "LONG-CTX",
+      "title": "長文本（Long Context）擺放策略",
+      "sub": "當輸入很長（Anthropic 建議 20k+ token）時，資料與問題的擺放順序會顯著影響品質。",
+      "groupId": "grounding",
+      "techniqueIds": [
+        "longcontext-01",
+        "longcontext-02",
+        "longcontext-03"
+      ]
+    },
+    {
+      "id": "decompose",
+      "num": "11",
+      "code": "CHAINING",
+      "title": "拆解複雜任務 / Prompt Chaining",
+      "sub": "與其一個 prompt 硬吞複雜任務，不如拆步驟、串接、或平行處理後合併。",
+      "groupId": "orchestration",
+      "techniqueIds": [
+        "decompose-01",
+        "decompose-02",
+        "decompose-03",
+        "decompose-04"
+      ]
+    },
+    {
+      "id": "agentic",
+      "num": "12",
+      "code": "AGENTIC",
+      "title": "工具使用 / Agentic Prompting",
+      "sub": "讓模型用工具、跑多步驟時的提示要點——四家都提供了具體建議。",
+      "groupId": "orchestration",
+      "techniqueIds": [
+        "agentic-01",
+        "agentic-02",
+        "agentic-03",
+        "agentic-04",
+        "agentic-05",
+        "agentic-06",
+        "agentic-07"
+      ]
+    },
+    {
+      "id": "iterate",
+      "num": "13",
+      "code": "ITERATE",
+      "title": "迭代、測試與 Metaprompting",
+      "sub": "Prompt 是實證工作——建評測、常迭代，甚至讓模型改進自己的 prompt。",
+      "groupId": "orchestration",
+      "techniqueIds": [
+        "iterate-01",
+        "iterate-02",
+        "iterate-03",
+        "iterate-04",
+        "iterate-05"
+      ]
+    },
+    {
+      "id": "params",
+      "num": "14",
+      "code": "PARAMS",
+      "title": "參數調整（與提示相關）",
+      "sub": "取樣與推理相關參數會直接改變輸出行為，屬於廣義提示工程的一部分。",
+      "groupId": "config",
+      "techniqueIds": [
+        "params-01",
+        "params-02",
+        "params-03",
+        "params-04"
+      ]
+    },
+    {
+      "id": "framework",
+      "num": "15",
+      "code": "FRAMEWORKS",
+      "title": "實用框架與速記",
+      "sub": "幾個好記、可直接套用的結構化模板。",
+      "groupId": "config",
+      "techniqueIds": [
+        "framework-01",
+        "framework-02",
+        "framework-03"
+      ]
+    }
+  ],
+  "techniques": [
+    {
+      "id": "clarity-01",
+      "topicId": "clarity",
+      "groupId": "foundations",
+      "index": 1,
+      "title": "把模型當成聰明但沒 context 的新同事",
+      "tip": "Anthropic 的黃金法則：把 prompt 拿給一個對任務不熟的同事看，如果他會困惑，模型也會。越精確描述，結果越好。",
+      "example": "黃金法則：\"Show your prompt to a colleague with minimal context on the task and ask them to follow it. If they'd be confused, Claude will be too.\"",
+      "vendors": [
+        "anthropic"
+      ],
+      "sources": [
+        {
+          "name": "Anthropic · Prompting best practices",
+          "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices"
+        }
+      ]
+    },
+    {
+      "id": "clarity-02",
+      "topicId": "clarity",
+      "groupId": "foundations",
+      "index": 2,
+      "title": "具體說明情境、結果、長度、格式、風格",
+      "tip": "不要只丟主題，把輸出的情境、目的、長度、格式、風格全部講明。細節越多、結果越貼近需求。",
+      "example": "弱：Write a poem about OpenAI.\n強：Write a short inspiring poem about OpenAI, focusing on the recent product launch, in the style of {famous poet}.",
+      "vendors": [
+        "openai",
+        "google",
+        "anthropic"
+      ],
+      "sources": [
+        {
+          "name": "OpenAI · Best practices",
+          "url": "https://help.openai.com/en/articles/6654000-best-practices-for-prompt-engineering-with-the-openai-api"
+        },
+        {
+          "name": "Google · Prompt design strategies",
+          "url": "https://ai.google.dev/gemini-api/docs/prompting-strategies"
+        }
+      ]
+    },
+    {
+      "id": "clarity-03",
+      "topicId": "clarity",
+      "groupId": "foundations",
+      "index": 3,
+      "title": "消除模糊語言，改用具體參數",
+      "tip": "把「盡量短」換成「用 3 到 5 句話」；把「簡潔」換成「回覆 3 個重點」。用可量化的規格取代形容詞。",
+      "example": "弱：keep it fairly short\n強：Use a 3 to 5 sentence paragraph.  /  Respond in 3 bullet points.",
+      "vendors": [
+        "openai",
+        "google"
+      ],
+      "sources": [
+        {
+          "name": "OpenAI · Best practices",
+          "url": "https://help.openai.com/en/articles/6654000-best-practices-for-prompt-engineering-with-the-openai-api"
+        },
+        {
+          "name": "Google · Clear instructions",
+          "url": "https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/prompts/clear-instructions"
+        }
+      ]
+    },
+    {
+      "id": "clarity-04",
+      "topicId": "clarity",
+      "groupId": "foundations",
+      "index": 4,
+      "title": "指令放最前面，並與內容用分隔符隔開",
+      "tip": "把指令放在 prompt 開頭，用 ### 或三引號之類的分隔符把「指令」和「要處理的內容」清楚切開。",
+      "example": "Summarize the text below as a bullet list of the most important points.\n\nText: \"\"\"\n{text input here}\n\"\"\"",
+      "vendors": [
+        "openai"
+      ],
+      "sources": [
+        {
+          "name": "OpenAI · Best practices",
+          "url": "https://help.openai.com/en/articles/6654000-best-practices-for-prompt-engineering-with-the-openai-api"
+        }
+      ]
+    },
+    {
+      "id": "clarity-05",
+      "topicId": "clarity",
+      "groupId": "foundations",
+      "index": 5,
+      "title": "加上「為什麼」——說明指令背後的動機",
+      "tip": "解釋某個行為或格式為何重要，模型會從你的說明類推到你的真正意圖，泛化得更好。",
+      "example": "不只說「用純文字」，而是：Format as plain text because our downstream parser cannot handle markdown.",
+      "vendors": [
+        "anthropic"
+      ],
+      "sources": [
+        {
+          "name": "Anthropic · Prompting best practices",
+          "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices"
+        }
+      ]
+    },
+    {
+      "id": "clarity-06",
+      "topicId": "clarity",
+      "groupId": "foundations",
+      "index": 6,
+      "title": "對新一代模型要更明確、善用修飾語",
+      "tip": "Claude 4 系列對明確的指示反應特別好。想要「豐富」的結果就要明講，別期待模型自行加碼。",
+      "example": "弱：Create an analytics dashboard.\n強：Create an analytics dashboard. Include as many relevant features and interactions as possible. Go beyond the basics to create a fully-featured implementation.",
+      "vendors": [
+        "anthropic"
+      ],
+      "sources": [
+        {
+          "name": "Anthropic · Prompting best practices",
+          "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices"
+        }
+      ],
+      "note": "<b>Claude 4 系列特有：</b>新模型較主動，過去用來對付「偷懶」的催促式提示可以收斂。"
+    },
+    {
+      "id": "positive-01",
+      "topicId": "positive",
+      "groupId": "foundations",
+      "index": 1,
+      "title": "說要做什麼，而非只說不要做什麼",
+      "tip": "把否定句改寫成肯定句，模型更容易照做。禁止清單容易漏、也容易讓模型鑽漏洞。",
+      "example": "弱：Do not use markdown in your response.\n強：Your response should be composed of smoothly flowing prose paragraphs.",
+      "vendors": [
+        "openai",
+        "anthropic",
+        "google"
+      ],
+      "sources": [
+        {
+          "name": "OpenAI · Best practices",
+          "url": "https://help.openai.com/en/articles/6654000-best-practices-for-prompt-engineering-with-the-openai-api"
+        },
+        {
+          "name": "Anthropic · Prompting best practices",
+          "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices"
+        },
+        {
+          "name": "Google · Clear instructions",
+          "url": "https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/prompts/clear-instructions"
+        }
+      ]
+    },
+    {
+      "id": "format-01",
+      "topicId": "format",
+      "groupId": "foundations",
+      "index": 1,
+      "title": "明確指定格式、長度與結構",
+      "tip": "直接要求表格、條列、一句話、關鍵字、JSON…等；也可用 constraint 限制長度。",
+      "example": "Only output a single word in your response with no additional formatting or commentary.\nSummarize this text in one sentence: {text}",
+      "vendors": [
+        "openai",
+        "google",
+        "anthropic",
+        "xai"
+      ],
+      "sources": [
+        {
+          "name": "OpenAI · Prompt engineering",
+          "url": "https://developers.openai.com/api/docs/guides/prompt-engineering"
+        },
+        {
+          "name": "Google · Prompt design strategies",
+          "url": "https://ai.google.dev/gemini-api/docs/prompting-strategies"
+        }
+      ]
+    },
+    {
+      "id": "format-02",
+      "topicId": "format",
+      "groupId": "foundations",
+      "index": 2,
+      "title": "用範例展示想要的格式（勝過只用文字描述）",
+      "tip": "與其描述格式，不如給一個 input→output 範例，模型會照抄結構。",
+      "example": "Valid fields: cheeseburger, hamburger, fries, drink.\nOrder: Give me a cheeseburger and fries\nOutput: { \"cheeseburger\": 1, \"fries\": 1 }\nOrder: I want two burgers, a drink, and fries.\nOutput:",
+      "vendors": [
+        "openai",
+        "google"
+      ],
+      "sources": [
+        {
+          "name": "OpenAI · Best practices",
+          "url": "https://help.openai.com/en/articles/6654000-best-practices-for-prompt-engineering-with-the-openai-api"
+        },
+        {
+          "name": "Google · Prompt design strategies",
+          "url": "https://ai.google.dev/gemini-api/docs/prompting-strategies"
+        }
+      ]
+    },
+    {
+      "id": "format-03",
+      "topicId": "format",
+      "groupId": "foundations",
+      "index": 3,
+      "title": "用「部分輸入」引導模型完成（partial input）",
+      "tip": "Google 的招牌技巧：把輸出的開頭寫好一部分，模型會沿著這個格式接下去，等於鎖定格式。",
+      "example": "Create an outline for an essay about hummingbirds.\nI. Introduction\n    *",
+      "vendors": [
+        "google"
+      ],
+      "sources": [
+        {
+          "name": "Google · Prompt design strategies",
+          "url": "https://ai.google.dev/gemini-api/docs/prompting-strategies"
+        }
+      ]
+    },
+    {
+      "id": "format-04",
+      "topicId": "format",
+      "groupId": "foundations",
+      "index": 4,
+      "title": "用 XML 標籤指定輸出區塊",
+      "tip": "讓模型把特定內容包在你指定的標籤裡，方便你後續解析。",
+      "example": "Write the prose sections of your response in <smoothly_flowing_prose_paragraphs> tags.",
+      "vendors": [
+        "anthropic"
+      ],
+      "sources": [
+        {
+          "name": "Anthropic · Prompting best practices",
+          "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices"
+        }
+      ]
+    },
+    {
+      "id": "format-05",
+      "topicId": "format",
+      "groupId": "foundations",
+      "index": 5,
+      "title": "讓 prompt 的風格貼近你想要的輸出風格",
+      "tip": "若格式怎麼調都不對，試著讓 prompt 本身的排版接近目標輸出——例如你的 prompt 少用 markdown，輸出也會少用。",
+      "example": null,
+      "vendors": [
+        "anthropic"
+      ],
+      "sources": [
+        {
+          "name": "Anthropic · Prompting best practices",
+          "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices"
+        }
+      ]
+    },
+    {
+      "id": "format-06",
+      "topicId": "format",
+      "groupId": "foundations",
+      "index": 6,
+      "title": "控制冗長度（verbosity）",
+      "tip": "新模型偏簡潔。想要更長就明講、想要更短也明講；部分模型另有專屬參數控制答案長度。",
+      "example": "OpenAI GPT-5：verbosity 參數控制「最終答案長度」（與思考長度分開）。\nGemini 3 預設精簡，需要詳細就要明確要求。",
+      "vendors": [
+        "openai",
+        "google",
+        "anthropic"
+      ],
+      "sources": [
+        {
+          "name": "OpenAI · GPT-5 prompting guide",
+          "url": "https://developers.openai.com/cookbook/examples/gpt-5/gpt-5_prompting_guide"
+        },
+        {
+          "name": "Google · Gemini 3 guide",
+          "url": "https://ai.google.dev/gemini-api/docs/gemini-3"
+        }
+      ],
+      "note": "<b>模型差異：</b>OpenAI GPT-5 有 <code>verbosity</code> 參數；Gemini 3 與 Claude 新模型都偏 terse by default，冗長需明確索取。"
+    },
+    {
+      "id": "structure-01",
+      "topicId": "structure",
+      "groupId": "foundations",
+      "index": 1,
+      "title": "用 Markdown、XML 標籤或章節標題分段",
+      "tip": "混合了指令、脈絡、範例、輸入的複雜 prompt，一定要用分隔標記把各部位切開，降低誤讀。",
+      "example": null,
+      "vendors": [
+        "openai",
+        "anthropic",
+        "google",
+        "xai"
+      ],
+      "sources": [
+        {
+          "name": "OpenAI · Reasoning best practices",
+          "url": "https://developers.openai.com/api/docs/guides/reasoning-best-practices"
+        },
+        {
+          "name": "Anthropic · Prompting best practices",
+          "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices"
+        },
+        {
+          "name": "Google · Gemini 3 guide",
+          "url": "https://ai.google.dev/gemini-api/docs/gemini-3"
+        },
+        {
+          "name": "xAI · Grok Code prompt engineering",
+          "url": "https://docs.x.ai/docs/guides/grok-code-prompt-engineering"
+        }
+      ]
+    },
+    {
+      "id": "structure-02",
+      "topicId": "structure",
+      "groupId": "foundations",
+      "index": 2,
+      "title": "Anthropic 特別重視 XML 標籤",
+      "tip": "用 <instructions>、<context>、<example>、<document> 等一致且具描述性的標籤包裹各類內容；有層級時就巢狀。也可用「功能命名」標籤直接下行為指令。",
+      "example": "<documents>\n  <document index=\"1\">\n    <source>filename.pdf</source>\n    <document_content>{text}</document_content>\n  </document>\n</documents>\n<query>{your question}</query>",
+      "vendors": [
+        "anthropic"
+      ],
+      "sources": [
+        {
+          "name": "Anthropic · Prompting best practices",
+          "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices"
+        }
+      ]
+    },
+    {
+      "id": "structure-03",
+      "topicId": "structure",
+      "groupId": "foundations",
+      "index": 3,
+      "title": "GPT-4.1 建議的 prompt 段落順序",
+      "tip": "官方推薦的骨架，可按需增減章節。",
+      "example": "# Role and Objective\n# Instructions\n## Sub-categories for detailed instructions\n# Reasoning Steps\n# Output Format\n# Examples\n# Context\n# Final instructions and prompt to think step by step",
+      "vendors": [
+        "openai"
+      ],
+      "sources": [
+        {
+          "name": "OpenAI · GPT-4.1 prompting guide",
+          "url": "https://developers.openai.com/cookbook/examples/gpt4-1_prompting_guide"
+        }
+      ],
+      "note": "<b>GPT-4.1 特有：</b>文件密集任務用 <b>XML</b> 或 <b>pipe 格式</b>（ID: 1 | TITLE: … | CONTENT: …）表現最佳；<b>避免用 JSON</b> 塞大量文件。"
+    },
+    {
+      "id": "structure-04",
+      "topicId": "structure",
+      "groupId": "foundations",
+      "index": 4,
+      "title": "Google 的前綴（prefix）技巧",
+      "tip": "用短標籤標示每段內容的角色：input prefix（如 Text:／Name:）、output prefix（如 Type:／Output:）、example prefix。以 output prefix 結尾能提示模型接著產出該欄位。",
+      "example": "Classify as red wine or white wine:\nName: Chardonnay\nType: White wine\nName: Riesling\nType:",
+      "vendors": [
+        "google"
+      ],
+      "sources": [
+        {
+          "name": "Google · Introduction to prompting",
+          "url": "https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/prompts/introduction-prompt-design"
+        }
+      ]
+    },
+    {
+      "id": "structure-05",
+      "topicId": "structure",
+      "groupId": "foundations",
+      "index": 5,
+      "title": "長 context 時，指令放「頭尾各一份」",
+      "tip": "GPT-4.1 在超長輸入時，指令同時放在 context 前後表現最好；若只能放一處，放在 context 之前優於之後。",
+      "example": null,
+      "vendors": [
+        "openai"
+      ],
+      "sources": [
+        {
+          "name": "OpenAI · GPT-4.1 prompting guide",
+          "url": "https://developers.openai.com/cookbook/examples/gpt4-1_prompting_guide"
+        }
+      ],
+      "note": "<b>GPT-4.1 特有：</b>指令衝突時，模型以「最靠近結尾」的為準（recency wins）。"
+    },
+    {
+      "id": "role-01",
+      "topicId": "role",
+      "groupId": "config",
+      "index": 1,
+      "title": "在 system prompt 設定角色，哪怕一句話也有效",
+      "tip": "給模型一個明確身分，能聚焦它的行為與語氣。Anthropic 說即使只有一句也有差別。",
+      "example": "system: You are a helpful coding assistant specializing in Python.\nsystem（Google 範例）: You are Captain Barktholomew … End every message with \"woof!\"",
+      "vendors": [
+        "anthropic",
+        "google",
+        "openai"
+      ],
+      "sources": [
+        {
+          "name": "Anthropic · Prompting best practices",
+          "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices"
+        },
+        {
+          "name": "Google · Introduction to prompting",
+          "url": "https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/prompts/introduction-prompt-design"
+        },
+        {
+          "name": "OpenAI · Prompt engineering",
+          "url": "https://developers.openai.com/api/docs/guides/prompt-engineering"
+        }
+      ]
+    },
+    {
+      "id": "role-02",
+      "topicId": "role",
+      "groupId": "config",
+      "index": 2,
+      "title": "善用訊息角色的優先序（developer > user）",
+      "tip": "OpenAI 用 developer／user／assistant 三種角色；developer（系統）訊息的指令優先度高於 user。也可用 instructions 參數下高優先指令。",
+      "example": "{ \"role\":\"developer\", \"content\":\"Talk like a pirate.\" }\n{ \"role\":\"user\", \"content\":\"Are semicolons optional in JavaScript?\" }",
+      "vendors": [
+        "openai"
+      ],
+      "sources": [
+        {
+          "name": "OpenAI · Prompt engineering",
+          "url": "https://developers.openai.com/api/docs/guides/prompt-engineering"
+        },
+        {
+          "name": "OpenAI · Reasoning best practices",
+          "url": "https://developers.openai.com/api/docs/guides/reasoning-best-practices"
+        }
+      ],
+      "note": "<b>推理模型（o 系列）：</b>自 o1-2024-12-17 起用 <b>developer message</b> 取代傳統 system message。"
+    },
+    {
+      "id": "role-03",
+      "topicId": "role",
+      "groupId": "config",
+      "index": 3,
+      "title": "把關鍵指令放進 system instruction",
+      "tip": "人設、行為約束、輸出格式這類最重要的規則，放在 system instruction（或 prompt 最開頭）遵從度最高。",
+      "example": null,
+      "vendors": [
+        "google"
+      ],
+      "sources": [
+        {
+          "name": "Google · System instructions",
+          "url": "https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/prompts/system-instructions"
+        },
+        {
+          "name": "Google · Gemini 3 guide",
+          "url": "https://ai.google.dev/gemini-api/docs/gemini-3"
+        }
+      ]
+    },
+    {
+      "id": "role-04",
+      "topicId": "role",
+      "groupId": "config",
+      "index": 4,
+      "title": "xAI：詳細的 system prompt 帶來明顯提升",
+      "tip": "為 Grok 寫清楚描述任務、期望與邊界案例的 system prompt，效能會顯著變好。Grok 4.5 允許 system／user／assistant 角色任意順序混用。",
+      "example": null,
+      "vendors": [
+        "xai"
+      ],
+      "sources": [
+        {
+          "name": "xAI · Grok Code prompt engineering",
+          "url": "https://docs.x.ai/docs/guides/grok-code-prompt-engineering"
+        },
+        {
+          "name": "xAI · Grok 4.5",
+          "url": "https://docs.x.ai/developers/models/grok-4.5"
+        }
+      ]
+    },
+    {
+      "id": "fewshot-01",
+      "topicId": "fewshot",
+      "groupId": "reasoning",
+      "index": 1,
+      "title": "放 3–5 個範例，效果最穩",
+      "tip": "Anthropic：範例是引導輸出格式、語氣、結構最可靠的方式；建議放 3–5 個。也可請模型幫你評估或再生更多範例。",
+      "example": "把每個範例包在 <example> 標籤（多個用 <examples>）以便和指令區分。",
+      "vendors": [
+        "anthropic"
+      ],
+      "sources": [
+        {
+          "name": "Anthropic · Prompting best practices",
+          "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices"
+        }
+      ]
+    },
+    {
+      "id": "fewshot-02",
+      "topicId": "fewshot",
+      "groupId": "reasoning",
+      "index": 2,
+      "title": "範例要「相關、多樣、結構化」",
+      "tip": "相關＝貼近真實使用情境；多樣＝涵蓋邊界案例，避免模型抓到你沒打算教的規律；結構化＝用標籤包好。",
+      "example": null,
+      "vendors": [
+        "anthropic"
+      ],
+      "sources": [
+        {
+          "name": "Anthropic · Prompting best practices",
+          "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices"
+        }
+      ]
+    },
+    {
+      "id": "fewshot-03",
+      "topicId": "fewshot",
+      "groupId": "reasoning",
+      "index": 3,
+      "title": "Google：幾乎一定要放範例，且格式要一致",
+      "tip": "官方直言「沒有 few-shot 的 prompt 通常較無效」。所有範例的結構、標籤、空白、換行、分隔符都要一致，否則會誤導輸出格式。",
+      "example": null,
+      "vendors": [
+        "google"
+      ],
+      "sources": [
+        {
+          "name": "Google · Few-shot examples",
+          "url": "https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/prompts/few-shot-examples"
+        },
+        {
+          "name": "Google · Prompt design strategies",
+          "url": "https://ai.google.dev/gemini-api/docs/prompting-strategies"
+        }
+      ]
+    },
+    {
+      "id": "fewshot-04",
+      "topicId": "fewshot",
+      "groupId": "reasoning",
+      "index": 4,
+      "title": "範例數量靠實驗，太多會 overfit",
+      "tip": "模型幾個範例就能抓到規律，但確切數量要試。範例太多會讓模型死板模仿、失去泛化。",
+      "example": null,
+      "vendors": [
+        "google"
+      ],
+      "sources": [
+        {
+          "name": "Google · Prompt design strategies",
+          "url": "https://ai.google.dev/gemini-api/docs/prompting-strategies"
+        }
+      ]
+    },
+    {
+      "id": "fewshot-05",
+      "topicId": "fewshot",
+      "groupId": "reasoning",
+      "index": 5,
+      "title": "漸進策略：先 zero-shot → few-shot → fine-tune",
+      "tip": "先用最簡單的零範例試；不夠再加幾個範例；還不行才考慮微調。",
+      "example": null,
+      "vendors": [
+        "openai"
+      ],
+      "sources": [
+        {
+          "name": "OpenAI · Best practices",
+          "url": "https://help.openai.com/en/articles/6654000-best-practices-for-prompt-engineering-with-the-openai-api"
+        },
+        {
+          "name": "OpenAI · Reasoning best practices",
+          "url": "https://developers.openai.com/api/docs/guides/reasoning-best-practices"
+        }
+      ],
+      "note": "<b>推理模型（o 系列）：</b>常常「不需要 few-shot」就有好結果——先寫無範例的 prompt，複雜輸出需求才補範例。"
+    },
+    {
+      "id": "cot-01",
+      "topicId": "cot",
+      "groupId": "reasoning",
+      "index": 1,
+      "title": "引導逐步思考（針對非推理模型）",
+      "tip": "GPT-4.1 沒有內建思考鏈，但可誘導它「先想再答」；Gemini 用簡單一句 nudge 即可；Claude 關閉思考時也可手動要求逐步推理。",
+      "example": "GPT-4.1：First, think carefully step by step about what documents are needed. Then, print the TITLE and ID of each. Then format the IDs into a list.\nGemini：Think very hard before answering.",
+      "vendors": [
+        "openai",
+        "google",
+        "anthropic"
+      ],
+      "sources": [
+        {
+          "name": "OpenAI · GPT-4.1 prompting guide",
+          "url": "https://developers.openai.com/cookbook/examples/gpt4-1_prompting_guide"
+        },
+        {
+          "name": "Google · Prompt design strategies",
+          "url": "https://ai.google.dev/gemini-api/docs/prompting-strategies"
+        },
+        {
+          "name": "Anthropic · Prompting best practices",
+          "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices"
+        }
+      ],
+      "note": "<b>GPT-4.1：</b>加上結構化「Reasoning Strategy」段落，官方回報複雜任務約 +4%。"
+    },
+    {
+      "id": "cot-02",
+      "topicId": "cot",
+      "groupId": "reasoning",
+      "index": 2,
+      "title": "用 <thinking> / <answer> 分離推理與最終答案",
+      "tip": "讓模型把推理寫在 <thinking>、最終答案寫在 <answer>，輸出乾淨、也方便你檢查推理過程。",
+      "example": null,
+      "vendors": [
+        "anthropic"
+      ],
+      "sources": [
+        {
+          "name": "Anthropic · Prompting best practices",
+          "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices"
+        }
+      ]
+    },
+    {
+      "id": "cot-03",
+      "topicId": "cot",
+      "groupId": "reasoning",
+      "index": 3,
+      "title": "在 few-shot 範例裡放 <thinking> 示範推理",
+      "tip": "在範例中示範推理模式，模型會把這種思路類推到自己的思考中。",
+      "example": null,
+      "vendors": [
+        "anthropic"
+      ],
+      "sources": [
+        {
+          "name": "Anthropic · Prompting best practices",
+          "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices"
+        }
+      ]
+    },
+    {
+      "id": "cot-04",
+      "topicId": "cot",
+      "groupId": "reasoning",
+      "index": 4,
+      "title": "請模型自我檢查",
+      "tip": "在結尾要求模型對照標準驗證答案，能可靠地抓出錯誤（尤其程式與數學）。",
+      "example": "Before you finish, verify your answer against [test criteria].",
+      "vendors": [
+        "anthropic"
+      ],
+      "sources": [
+        {
+          "name": "Anthropic · Prompting best practices",
+          "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices"
+        }
+      ]
+    },
+    {
+      "id": "reasoning-01",
+      "topicId": "reasoning",
+      "groupId": "reasoning",
+      "index": 1,
+      "title": "別叫推理模型「think step by step」",
+      "tip": "o 系列在內部已自行推理，再叫它「逐步思考／解釋推理」是多餘、甚至有害。保持 prompt 簡短直接。",
+      "example": null,
+      "vendors": [
+        "openai"
+      ],
+      "sources": [
+        {
+          "name": "OpenAI · Reasoning best practices",
+          "url": "https://developers.openai.com/api/docs/guides/reasoning-best-practices"
+        },
+        {
+          "name": "OpenAI · o3/o4-mini guide",
+          "url": "https://developers.openai.com/cookbook/examples/o-series/o3o4-mini_prompting_guide"
+        }
+      ],
+      "note": "<b>o 系列：</b>也<b>不要</b>誘導它「大量規劃」（o3／o4-mini）——規劃在內部發生，額外要求可能降低表現。"
+    },
+    {
+      "id": "reasoning-02",
+      "topicId": "reasoning",
+      "groupId": "reasoning",
+      "index": 2,
+      "title": "推理模型：保持簡短、先 zero-shot、給明確成功標準",
+      "tip": "指令簡潔清楚即可；先不放範例；用非常具體的成功條件，鼓勵模型持續推理直到達標。",
+      "example": "給約束範例：propose a solution with a budget under $500.",
+      "vendors": [
+        "openai"
+      ],
+      "sources": [
+        {
+          "name": "OpenAI · Reasoning best practices",
+          "url": "https://developers.openai.com/api/docs/guides/reasoning-best-practices"
+        }
+      ],
+      "note": "<b>o 系列：</b>自 o1-2024-12-17 起預設不輸出 markdown；在 developer message 第一行放字串 <code>Formatting re-enabled</code> 可重新開啟。"
+    },
+    {
+      "id": "reasoning-03",
+      "topicId": "reasoning",
+      "groupId": "reasoning",
+      "index": 3,
+      "title": "Anthropic：用 adaptive thinking + effort，取代 budget_tokens",
+      "tip": "新模型會依複雜度自行決定要不要想、想多久，靠 effort（low／medium／high）調節；官方評測 adaptive thinking 表現優於固定額度的 extended thinking。",
+      "example": "thinking = { \"type\": \"adaptive\" }\noutput_config = { \"effort\": \"high\" }",
+      "vendors": [
+        "anthropic"
+      ],
+      "sources": [
+        {
+          "name": "Anthropic · Prompting best practices",
+          "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices"
+        }
+      ],
+      "note": "<b>模型差異：</b>Opus 4.7 以後、Fable 5、Mythos 5 設定 <code>budget_tokens</code> 會回 400 錯誤；請改用 effort 或以 max_tokens 設硬上限。extended thinking 時「一般性指令」（如 think thoroughly）常優於逐步硬寫的計畫。"
+    },
+    {
+      "id": "reasoning-04",
+      "topicId": "reasoning",
+      "groupId": "reasoning",
+      "index": 4,
+      "title": "Gemini 2.5／3：內建思考，簡單 nudge 即可",
+      "tip": "這些模型會自動產生內部思考文字，通常不需要在輸出裡硬搭 CoT 鷹架；需要更用力時加一句「Think very hard」以換取更多思考 token。",
+      "example": null,
+      "vendors": [
+        "google"
+      ],
+      "sources": [
+        {
+          "name": "Google · Prompt design strategies",
+          "url": "https://ai.google.dev/gemini-api/docs/prompting-strategies"
+        }
+      ]
+    },
+    {
+      "id": "reasoning-05",
+      "topicId": "reasoning",
+      "groupId": "reasoning",
+      "index": 5,
+      "title": "xAI Grok 4.5：用 reasoning_effort 調節，且無法關閉",
+      "tip": "reasoning_effort＝low（快、少思考）／medium／high（預設，深度思考）。Grok 4.5 的推理是核心功能、不能關。",
+      "example": null,
+      "vendors": [
+        "xai"
+      ],
+      "sources": [
+        {
+          "name": "xAI · Reasoning",
+          "url": "https://docs.x.ai/developers/model-capabilities/text/reasoning"
+        }
+      ],
+      "note": "<b>Grok 4.5 特有：</b>推理模型<b>不支援</b> presencePenalty／frequencyPenalty／stop（會報錯）；logprobs 被忽略。<code>grok-4.20-multi-agent</code> 的 reasoning_effort 是控制「幾個 agent 協作」而非思考深度。"
+    },
+    {
+      "id": "grounding-01",
+      "topicId": "grounding",
+      "groupId": "grounding",
+      "index": 1,
+      "title": "提供參考文本，並要求只根據它作答",
+      "tip": "把專有資料／參考文件放進 prompt（用 XML 標籤界定），要求模型只從中取答，能把泛泛回答變成精準回答。",
+      "example": "GPT-4.1（僅用外部脈絡）：Only use the documents in the provided External Context to answer the User Query. If you don't know the answer based on this context, respond \"I don't have the information needed to answer that\", even if a user insists.",
+      "vendors": [
+        "openai",
+        "google"
+      ],
+      "sources": [
+        {
+          "name": "OpenAI · GPT-4.1 prompting guide",
+          "url": "https://developers.openai.com/cookbook/examples/gpt4-1_prompting_guide"
+        },
+        {
+          "name": "Google · Prompt design strategies",
+          "url": "https://ai.google.dev/gemini-api/docs/prompting-strategies"
+        }
+      ]
+    },
+    {
+      "id": "grounding-02",
+      "topicId": "grounding",
+      "groupId": "grounding",
+      "index": 2,
+      "title": "給模型一條「出路」，避免硬掰",
+      "tip": "明講在資訊不足時可回答「不知道」，而不是編造；也別強迫它一定要呼叫工具而不留退路。",
+      "example": null,
+      "vendors": [
+        "openai"
+      ],
+      "sources": [
+        {
+          "name": "OpenAI · GPT-4.1 prompting guide",
+          "url": "https://developers.openai.com/cookbook/examples/gpt4-1_prompting_guide"
+        }
+      ]
+    },
+    {
+      "id": "grounding-03",
+      "topicId": "grounding",
+      "groupId": "grounding",
+      "index": 3,
+      "title": "工具資訊不足時，請模型反問使用者",
+      "tip": "避免模型在缺參數時亂呼叫工具。",
+      "example": "GPT-4.1：if you don't have enough information to call the tool, ask the user for the information you need.\no3/o4-mini：Do NOT promise to call functions later. Emit calls now or respond normally.",
+      "vendors": [
+        "openai"
+      ],
+      "sources": [
+        {
+          "name": "OpenAI · GPT-4.1 prompting guide",
+          "url": "https://developers.openai.com/cookbook/examples/gpt4-1_prompting_guide"
+        },
+        {
+          "name": "OpenAI · o3/o4-mini guide",
+          "url": "https://developers.openai.com/cookbook/examples/o-series/o3o4-mini_prompting_guide"
+        }
+      ]
+    },
+    {
+      "id": "grounding-04",
+      "topicId": "grounding",
+      "groupId": "grounding",
+      "index": 4,
+      "title": "要求「先引用文件再作答」",
+      "tip": "Claude：在回答前先引用文件中支持答案的段落，能聚焦在關鍵內容、降低幻覺。",
+      "example": "Before answering, quote the relevant sections from the provided documents that support your response.",
+      "vendors": [
+        "anthropic"
+      ],
+      "sources": [
+        {
+          "name": "Anthropic · Prompting best practices",
+          "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices"
+        }
+      ]
+    },
+    {
+      "id": "grounding-05",
+      "topicId": "grounding",
+      "groupId": "grounding",
+      "index": 5,
+      "title": "別臆測沒讀過的東西（investigate before answering）",
+      "tip": "在 agentic coding 場景，要求模型先讀檔再下結論，未確認前不要對程式碼下斷言。",
+      "example": null,
+      "vendors": [
+        "anthropic"
+      ],
+      "sources": [
+        {
+          "name": "Anthropic · Prompting best practices",
+          "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices"
+        }
+      ]
+    },
+    {
+      "id": "grounding-06",
+      "topicId": "grounding",
+      "groupId": "grounding",
+      "index": 6,
+      "title": "用 Grounding with Search / 程式執行工具補實",
+      "tip": "需要冷門或即時事實時接上 Google Search grounding；需要算術／計數／計算時開 code execution 工具。",
+      "example": null,
+      "vendors": [
+        "google"
+      ],
+      "sources": [
+        {
+          "name": "Google · Prompt design strategies",
+          "url": "https://ai.google.dev/gemini-api/docs/prompting-strategies"
+        }
+      ]
+    },
+    {
+      "id": "longcontext-01",
+      "topicId": "longcontext",
+      "groupId": "grounding",
+      "index": 1,
+      "title": "長文件放最上面，問題放最後",
+      "tip": "把大量文件／資料放前面、把提問放最後。Anthropic 實測「問題放結尾」在複雜多文件輸入時可提升多達約 30%；Google 同樣建議「資料先、問題後」。",
+      "example": null,
+      "vendors": [
+        "anthropic",
+        "google"
+      ],
+      "sources": [
+        {
+          "name": "Anthropic · Prompting best practices",
+          "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices"
+        },
+        {
+          "name": "Google · Prompt design strategies",
+          "url": "https://ai.google.dev/gemini-api/docs/prompting-strategies"
+        }
+      ]
+    },
+    {
+      "id": "longcontext-02",
+      "topicId": "longcontext",
+      "groupId": "grounding",
+      "index": 2,
+      "title": "用 XML <documents> 包裹多份文件",
+      "tip": "每份文件用 <document index> + <source> + <document_content> 結構包好，模型較好定位。",
+      "example": null,
+      "vendors": [
+        "anthropic"
+      ],
+      "sources": [
+        {
+          "name": "Anthropic · Prompting best practices",
+          "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices"
+        }
+      ]
+    },
+    {
+      "id": "longcontext-03",
+      "topicId": "longcontext",
+      "groupId": "grounding",
+      "index": 3,
+      "title": "大段資料後加一句「承上」錨定",
+      "tip": "Gemini 3：在大量資料區塊之後，用「Based on the information above…」把模型的注意力拉回你的問題。",
+      "example": null,
+      "vendors": [
+        "google"
+      ],
+      "sources": [
+        {
+          "name": "Google · Gemini 3 guide",
+          "url": "https://ai.google.dev/gemini-api/docs/gemini-3"
+        },
+        {
+          "name": "OpenAI · GPT-4.1 prompting guide",
+          "url": "https://developers.openai.com/cookbook/examples/gpt4-1_prompting_guide"
+        }
+      ],
+      "note": "<b>GPT-4.1 對照：</b>長 context 時指令放頭尾各一份最佳。"
+    },
+    {
+      "id": "decompose-01",
+      "topicId": "decompose",
+      "groupId": "orchestration",
+      "index": 1,
+      "title": "把複雜任務拆成子任務",
+      "tip": "將複雜查詢分解成多個子請求，逐一完成並確認。",
+      "example": "Decompose the user's query into all required sub-requests, and confirm that each is completed.",
+      "vendors": [
+        "openai",
+        "google"
+      ],
+      "sources": [
+        {
+          "name": "OpenAI · Prompt engineering",
+          "url": "https://developers.openai.com/api/docs/guides/prompt-engineering"
+        },
+        {
+          "name": "Google · Prompt design strategies",
+          "url": "https://ai.google.dev/gemini-api/docs/prompting-strategies"
+        }
+      ]
+    },
+    {
+      "id": "decompose-02",
+      "topicId": "decompose",
+      "groupId": "orchestration",
+      "index": 2,
+      "title": "Prompt chaining：一步的輸出餵給下一步",
+      "tip": "多步驟任務讓每一步各自成一個 prompt／API 呼叫，前一步輸出當作後一步輸入，方便記錄、評估、分支。",
+      "example": null,
+      "vendors": [
+        "anthropic",
+        "google",
+        "openai"
+      ],
+      "sources": [
+        {
+          "name": "Anthropic · Prompting best practices",
+          "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices"
+        },
+        {
+          "name": "Google · Prompt design strategies",
+          "url": "https://ai.google.dev/gemini-api/docs/prompting-strategies"
+        }
+      ]
+    },
+    {
+      "id": "decompose-03",
+      "topicId": "decompose",
+      "groupId": "orchestration",
+      "index": 3,
+      "title": "最常見的鏈：自我修正（draft → review → refine）",
+      "tip": "先產草稿 → 讓模型對照標準審查 → 依審查結果修訂，每步各一次呼叫。",
+      "example": null,
+      "vendors": [
+        "anthropic"
+      ],
+      "sources": [
+        {
+          "name": "Anthropic · Prompting best practices",
+          "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices"
+        }
+      ]
+    },
+    {
+      "id": "decompose-04",
+      "topicId": "decompose",
+      "groupId": "orchestration",
+      "index": 4,
+      "title": "平行處理再合併（aggregate responses）",
+      "tip": "對資料的不同部分平行做不同操作，最後把結果彙整起來。",
+      "example": null,
+      "vendors": [
+        "google"
+      ],
+      "sources": [
+        {
+          "name": "Google · Prompt design strategies",
+          "url": "https://ai.google.dev/gemini-api/docs/prompting-strategies"
+        }
+      ]
+    },
+    {
+      "id": "agentic-01",
+      "topicId": "agentic",
+      "groupId": "orchestration",
+      "index": 1,
+      "title": "用 API 的 tools 欄位定義工具，別塞在文字裡",
+      "tip": "透過 API 的 tools／function 參數傳工具定義，比在 prompt 裡用文字描述更準（GPT-4.1 約 +2%）；xAI 也建議用原生 tool calling 而非 XML 輸出格式。",
+      "example": null,
+      "vendors": [
+        "openai",
+        "xai"
+      ],
+      "sources": [
+        {
+          "name": "OpenAI · GPT-4.1 prompting guide",
+          "url": "https://developers.openai.com/cookbook/examples/gpt4-1_prompting_guide"
+        },
+        {
+          "name": "xAI · Grok Code prompt engineering",
+          "url": "https://docs.x.ai/docs/guides/grok-code-prompt-engineering"
+        }
+      ]
+    },
+    {
+      "id": "agentic-02",
+      "topicId": "agentic",
+      "groupId": "orchestration",
+      "index": 2,
+      "title": "工具與參數的描述要清楚",
+      "tip": "工具名要有描述性、description 要精確、每個參數都寫清楚。用法範例放在 system prompt 的 # Examples 區，而非塞進 description。",
+      "example": "xAI 範例：把 location 參數描述為 \"Ski resort location name in snake case\" 以引導格式。",
+      "vendors": [
+        "openai",
+        "xai"
+      ],
+      "sources": [
+        {
+          "name": "OpenAI · GPT-4.1 prompting guide",
+          "url": "https://developers.openai.com/cookbook/examples/gpt4-1_prompting_guide"
+        },
+        {
+          "name": "xAI · Function Calling",
+          "url": "https://docs.x.ai/docs/guides/function-calling"
+        }
+      ]
+    },
+    {
+      "id": "agentic-03",
+      "topicId": "agentic",
+      "groupId": "orchestration",
+      "index": 3,
+      "title": "GPT-4.1 的三個 agent 系統提醒",
+      "tip": "Persistence（做到完全解決才交還）、Tool-calling（不確定就讀檔別亂猜）、Planning（每次呼叫前後充分規劃與反思）。",
+      "example": "Persistence：You are an agent - please keep going until the user's query is completely resolved, before ending your turn. Only terminate when you are sure the problem is solved.",
+      "vendors": [
+        "openai"
+      ],
+      "sources": [
+        {
+          "name": "OpenAI · GPT-4.1 prompting guide",
+          "url": "https://developers.openai.com/cookbook/examples/gpt4-1_prompting_guide"
+        }
+      ]
+    },
+    {
+      "id": "agentic-04",
+      "topicId": "agentic",
+      "groupId": "orchestration",
+      "index": 4,
+      "title": "明確區分「動手做」vs「只給建議」",
+      "tip": "Claude：說「can you suggest some changes」它可能只給建議而不動手。想要它實作就直接說 Make the following changes…。",
+      "example": null,
+      "vendors": [
+        "anthropic"
+      ],
+      "sources": [
+        {
+          "name": "Anthropic · Prompting best practices",
+          "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices"
+        }
+      ]
+    },
+    {
+      "id": "agentic-05",
+      "topicId": "agentic",
+      "groupId": "orchestration",
+      "index": 5,
+      "title": "善用平行工具呼叫",
+      "tip": "多個彼此獨立的工具呼叫可平行送出（例如同時讀 3 個檔）；有相依關係的才依序。多數新模型預設可平行，也可用 parallel_tool_calls=false 關閉。",
+      "example": null,
+      "vendors": [
+        "anthropic",
+        "xai",
+        "openai"
+      ],
+      "sources": [
+        {
+          "name": "Anthropic · Prompting best practices",
+          "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices"
+        },
+        {
+          "name": "xAI · Function Calling",
+          "url": "https://docs.x.ai/docs/guides/function-calling"
+        }
+      ]
+    },
+    {
+      "id": "agentic-06",
+      "topicId": "agentic",
+      "groupId": "orchestration",
+      "index": 6,
+      "title": "高風險／不可逆動作先請使用者確認",
+      "tip": "可逆的本地操作（編輯檔、跑測試）放手做；刪除、force push、動到共享系統等難以回復的動作，先取得確認再執行。",
+      "example": null,
+      "vendors": [
+        "anthropic",
+        "openai"
+      ],
+      "sources": [
+        {
+          "name": "Anthropic · Prompting best practices",
+          "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices"
+        },
+        {
+          "name": "OpenAI · GPT-5 prompting guide",
+          "url": "https://developers.openai.com/cookbook/examples/gpt-5/gpt-5_prompting_guide"
+        }
+      ]
+    },
+    {
+      "id": "agentic-07",
+      "topicId": "agentic",
+      "groupId": "orchestration",
+      "index": 7,
+      "title": "Structured Outputs：用 schema 約束輸出",
+      "tip": "用 response_format 的 json_schema 強制輸出結構。xAI：把 system prompt 聚焦在任務本身、schema 另外傳；tool 參數則永遠嚴格符合 schema（strict 隱含為 true）。",
+      "example": null,
+      "vendors": [
+        "xai",
+        "openai"
+      ],
+      "sources": [
+        {
+          "name": "xAI · Structured Outputs",
+          "url": "https://docs.x.ai/developers/model-capabilities/text/structured-outputs"
+        },
+        {
+          "name": "OpenAI · Prompt engineering",
+          "url": "https://developers.openai.com/api/docs/guides/prompt-engineering"
+        }
+      ]
+    },
+    {
+      "id": "iterate-01",
+      "topicId": "iterate",
+      "groupId": "orchestration",
+      "index": 1,
+      "title": "建立 eval、頻繁迭代",
+      "tip": "LLM 本質上不確定，除了照指南做，更要建立能提供資訊的評測並反覆迭代。",
+      "example": null,
+      "vendors": [
+        "openai"
+      ],
+      "sources": [
+        {
+          "name": "OpenAI · GPT-4.1 prompting guide",
+          "url": "https://developers.openai.com/cookbook/examples/gpt4-1_prompting_guide"
+        }
+      ]
+    },
+    {
+      "id": "iterate-02",
+      "topicId": "iterate",
+      "groupId": "orchestration",
+      "index": 2,
+      "title": "換句話說／換類比任務／換內容順序",
+      "tip": "同一需求換不同措辭、把開放題改成選擇題、調整〔範例／脈絡／輸入〕的排列順序，都會影響輸出——多試幾種。",
+      "example": "過度解釋時改成選擇題：Multiple choice: Which category describes The Odyssey? Options: thriller / sci-fi / mythology / biography",
+      "vendors": [
+        "google"
+      ],
+      "sources": [
+        {
+          "name": "Google · Prompt design strategies",
+          "url": "https://ai.google.dev/gemini-api/docs/prompting-strategies"
+        }
+      ]
+    },
+    {
+      "id": "iterate-03",
+      "topicId": "iterate",
+      "groupId": "orchestration",
+      "index": 3,
+      "title": "讓模型改進自己的 prompt（metaprompting）",
+      "tip": "OpenAI GPT-5 可自我改寫 prompt；Google 可用「Make this a power prompt: …」；Anthropic Console 提供 prompt generator／improver 工具。",
+      "example": null,
+      "vendors": [
+        "openai",
+        "google",
+        "anthropic"
+      ],
+      "sources": [
+        {
+          "name": "OpenAI · GPT-5 prompting guide",
+          "url": "https://developers.openai.com/cookbook/examples/gpt-5/gpt-5_prompting_guide"
+        },
+        {
+          "name": "Google · Workspace prompt tips",
+          "url": "https://blog.google/products-and-platforms/products/workspace/google-gemini-workspace-ai-prompt-tips/"
+        },
+        {
+          "name": "Anthropic · Overview",
+          "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/overview"
+        }
+      ]
+    },
+    {
+      "id": "iterate-04",
+      "topicId": "iterate",
+      "groupId": "orchestration",
+      "index": 4,
+      "title": "xAI：持續 refine，並引用上次的失敗",
+      "tip": "快速迭代，補上脈絡或明確指出上一次嘗試的問題，讓模型針對性修正。",
+      "example": "The previous approach didn't consider the IO-heavy process which can block the main thread; run it in its own threadloop instead.",
+      "vendors": [
+        "xai"
+      ],
+      "sources": [
+        {
+          "name": "xAI · Grok Code prompt engineering",
+          "url": "https://docs.x.ai/docs/guides/grok-code-prompt-engineering"
+        }
+      ]
+    },
+    {
+      "id": "iterate-05",
+      "topicId": "iterate",
+      "groupId": "orchestration",
+      "index": 5,
+      "title": "Prompt caching：把穩定內容放前面",
+      "tip": "把可重用／靜態的內容放 prompt 開頭，最大化快取命中，省成本、降延遲。xAI 也建議別改寫先前回合以保快取效率。",
+      "example": null,
+      "vendors": [
+        "openai",
+        "xai"
+      ],
+      "sources": [
+        {
+          "name": "OpenAI · Prompt engineering",
+          "url": "https://developers.openai.com/api/docs/guides/prompt-engineering"
+        },
+        {
+          "name": "xAI · Grok Code prompt engineering",
+          "url": "https://docs.x.ai/docs/guides/grok-code-prompt-engineering"
+        }
+      ]
+    },
+    {
+      "id": "params-01",
+      "topicId": "params",
+      "groupId": "config",
+      "index": 1,
+      "title": "Temperature：控制隨機性",
+      "tip": "低溫＝更確定（結構化任務）、高溫＝更有創意。0＝完全確定。",
+      "example": null,
+      "vendors": [
+        "google",
+        "xai"
+      ],
+      "sources": [
+        {
+          "name": "Google · Prompt design strategies",
+          "url": "https://ai.google.dev/gemini-api/docs/prompting-strategies"
+        }
+      ],
+      "note": "<b>Gemini 3.x：</b>建議維持預設，把溫度降到 1.0 以下可能導致迴圈或表現變差。"
+    },
+    {
+      "id": "params-02",
+      "topicId": "params",
+      "groupId": "config",
+      "index": 2,
+      "title": "top-p / top-k：取樣範圍",
+      "tip": "top-k 從機率最高的 K 個 token 取樣（=1 即貪婪解碼）；top-p 依累積機率做核取樣，預設 0.95。",
+      "example": null,
+      "vendors": [
+        "google"
+      ],
+      "sources": [
+        {
+          "name": "Google · Prompt design strategies",
+          "url": "https://ai.google.dev/gemini-api/docs/prompting-strategies"
+        }
+      ]
+    },
+    {
+      "id": "params-03",
+      "topicId": "params",
+      "groupId": "config",
+      "index": 3,
+      "title": "推理／冗長度參數：effort · reasoning_effort · verbosity",
+      "tip": "OpenAI GPT-5 有 reasoning_effort 與 verbosity；Anthropic 用 effort（low/medium/high）驅動 adaptive thinking；xAI 用 reasoning_effort。用它們調節「想多久」與「答多長」。",
+      "example": null,
+      "vendors": [
+        "openai",
+        "anthropic",
+        "xai"
+      ],
+      "sources": [
+        {
+          "name": "OpenAI · GPT-5 prompting guide",
+          "url": "https://developers.openai.com/cookbook/examples/gpt-5/gpt-5_prompting_guide"
+        },
+        {
+          "name": "Anthropic · Prompting best practices",
+          "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices"
+        },
+        {
+          "name": "xAI · Reasoning",
+          "url": "https://docs.x.ai/developers/model-capabilities/text/reasoning"
+        }
+      ]
+    },
+    {
+      "id": "params-04",
+      "topicId": "params",
+      "groupId": "config",
+      "index": 4,
+      "title": "Max output tokens 與 stop sequences",
+      "tip": "用 max output tokens 限制長度（1 token≈4 字元、100 token≈60–80 英文字）；用 stop sequence 在指定字串處停止，避免選到自然會出現的字串。",
+      "example": null,
+      "vendors": [
+        "google"
+      ],
+      "sources": [
+        {
+          "name": "Google · Prompt design strategies",
+          "url": "https://ai.google.dev/gemini-api/docs/prompting-strategies"
+        }
+      ]
+    },
+    {
+      "id": "framework-01",
+      "topicId": "framework",
+      "groupId": "config",
+      "index": 1,
+      "title": "Google Workspace：Persona · Task · Context · Format",
+      "tip": "一個好 prompt 的四要素：人設、任務（動詞指令）、脈絡、格式。官方統計最有效的 prompt 平均約 21 字（多數人只寫不到 9 字）——請寫得比直覺更詳細。",
+      "example": "I'm a project manager and need to create a detailed project tracker for a website redesign project in a simple table with fields for dates, status and tasks.",
+      "vendors": [
+        "google"
+      ],
+      "sources": [
+        {
+          "name": "Google · Workspace prompt tips",
+          "url": "https://blog.google/products-and-platforms/products/workspace/google-gemini-workspace-ai-prompt-tips/"
+        },
+        {
+          "name": "Google · Workspace 提示指南 (PDF)",
+          "url": "https://services.google.com/fh/files/misc/gemini_for_workspace_prompt_guide_october_2024_digital_final.pdf"
+        }
+      ]
+    },
+    {
+      "id": "framework-02",
+      "topicId": "framework",
+      "groupId": "config",
+      "index": 2,
+      "title": "OpenAI：結構化 prompt 四區塊",
+      "tip": "把 prompt 分成 Identity、Instructions、Examples、Context（脈絡放後段），用 Markdown 標題／清單與 XML 標籤表達層級。",
+      "example": null,
+      "vendors": [
+        "openai"
+      ],
+      "sources": [
+        {
+          "name": "OpenAI · Prompt engineering",
+          "url": "https://developers.openai.com/api/docs/guides/prompt-engineering"
+        }
+      ]
+    },
+    {
+      "id": "framework-03",
+      "topicId": "framework",
+      "groupId": "config",
+      "index": 3,
+      "title": "何時用推理模型 vs 一般模型",
+      "tip": "推理模型：複雜解題、要求準確可靠、資訊模糊不全、多步 agent 規劃、困難視覺推理。一般模型：講求速度、任務明確直接、成本敏感、推理已規劃好只需執行。",
+      "example": null,
+      "vendors": [
+        "openai"
+      ],
+      "sources": [
+        {
+          "name": "OpenAI · Reasoning best practices",
+          "url": "https://developers.openai.com/api/docs/guides/reasoning-best-practices"
+        }
+      ]
+    }
+  ],
+  "sources": {
+    "openai": [
+      {
+        "name": "Prompt engineering（Platform 指南）",
+        "url": "https://developers.openai.com/api/docs/guides/prompt-engineering"
+      },
+      {
+        "name": "Best practices（Help Center）",
+        "url": "https://help.openai.com/en/articles/6654000-best-practices-for-prompt-engineering-with-the-openai-api"
+      },
+      {
+        "name": "Reasoning best practices（o 系列）",
+        "url": "https://developers.openai.com/api/docs/guides/reasoning-best-practices"
+      },
+      {
+        "name": "GPT-4.1 Prompting Guide",
+        "url": "https://developers.openai.com/cookbook/examples/gpt4-1_prompting_guide"
+      },
+      {
+        "name": "GPT-5 Prompting Guide",
+        "url": "https://developers.openai.com/cookbook/examples/gpt-5/gpt-5_prompting_guide"
+      },
+      {
+        "name": "o3 / o4-mini Function Calling Guide",
+        "url": "https://developers.openai.com/cookbook/examples/o-series/o3o4-mini_prompting_guide"
+      }
+    ],
+    "anthropic": [
+      {
+        "name": "Prompting best practices（主要彙整頁）",
+        "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices"
+      },
+      {
+        "name": "Prompt engineering overview",
+        "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/overview"
+      },
+      {
+        "name": "Use examples（multishot）",
+        "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/multishot-prompting"
+      },
+      {
+        "name": "Chain of thought",
+        "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/chain-of-thought"
+      },
+      {
+        "name": "Use XML tags",
+        "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/use-xml-tags"
+      },
+      {
+        "name": "Long context tips",
+        "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/long-context-tips"
+      }
+    ],
+    "google": [
+      {
+        "name": "Prompt design strategies（Gemini API）",
+        "url": "https://ai.google.dev/gemini-api/docs/prompting-strategies"
+      },
+      {
+        "name": "Gemini 3 Developer Guide",
+        "url": "https://ai.google.dev/gemini-api/docs/gemini-3"
+      },
+      {
+        "name": "Introduction to prompting（Vertex）",
+        "url": "https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/prompts/introduction-prompt-design"
+      },
+      {
+        "name": "Give clear and specific instructions",
+        "url": "https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/prompts/clear-instructions"
+      },
+      {
+        "name": "5 ways to write better AI prompts",
+        "url": "https://blog.google/products-and-platforms/products/workspace/google-gemini-workspace-ai-prompt-tips/"
+      },
+      {
+        "name": "Gemini for Workspace 提示指南（PDF）",
+        "url": "https://services.google.com/fh/files/misc/gemini_for_workspace_prompt_guide_october_2024_digital_final.pdf"
+      }
+    ],
+    "xai": [
+      {
+        "name": "Prompt Engineering for Grok Code Fast 1",
+        "url": "https://docs.x.ai/docs/guides/grok-code-prompt-engineering"
+      },
+      {
+        "name": "Reasoning",
+        "url": "https://docs.x.ai/developers/model-capabilities/text/reasoning"
+      },
+      {
+        "name": "Structured Outputs",
+        "url": "https://docs.x.ai/developers/model-capabilities/text/structured-outputs"
+      },
+      {
+        "name": "Function Calling",
+        "url": "https://docs.x.ai/docs/guides/function-calling"
+      },
+      {
+        "name": "Grok 4.5 model card",
+        "url": "https://docs.x.ai/developers/models/grok-4.5"
+      },
+      {
+        "name": "Generate Text",
+        "url": "https://docs.x.ai/developers/model-capabilities/text/generate-text"
+      }
+    ]
+  },
+  "builder": [
+    {
+      "id": "role",
+      "order": 1,
+      "label": "角色設定（Role / System）",
+      "desc": "給模型明確身分，聚焦語氣與專業。",
+      "vendors": [
+        "anthropic",
+        "google",
+        "openai"
+      ],
+      "fragment": "You are a senior financial analyst who explains complex numbers clearly to non-experts."
+    },
+    {
+      "id": "task",
+      "order": 2,
+      "label": "明確任務（Task）",
+      "desc": "動詞開頭，具體說明要它做什麼。",
+      "vendors": [
+        "openai",
+        "anthropic",
+        "google",
+        "xai"
+      ],
+      "fragment": "Task: Summarize the quarterly earnings report below for a general audience."
+    },
+    {
+      "id": "context",
+      "order": 3,
+      "label": "提供參考資料（Grounding）",
+      "desc": "貼上可依據的資料，要求只根據它作答。",
+      "vendors": [
+        "openai",
+        "google"
+      ],
+      "fragment": "Use ONLY the report inside <context> to answer. Do not rely on outside knowledge.\n\n<context>\n{{ 在此貼上財報全文 }}\n</context>"
+    },
+    {
+      "id": "fewshot",
+      "order": 4,
+      "label": "Few-shot 範例",
+      "desc": "示範一個 input→output，鎖定風格格式。",
+      "vendors": [
+        "anthropic",
+        "google"
+      ],
+      "fragment": "<example>\n  Input: Revenue grew from $10M to $12M.\n  Output: Revenue rose 20% to $12M.\n</example>"
+    },
+    {
+      "id": "cot",
+      "order": 5,
+      "label": "逐步思考（非推理模型）",
+      "desc": "要求先想再答；推理模型可略過。",
+      "vendors": [
+        "openai",
+        "google",
+        "anthropic"
+      ],
+      "fragment": "First, think step by step about which figures matter. Then write the final summary."
+    },
+    {
+      "id": "format",
+      "order": 6,
+      "label": "指定輸出格式",
+      "desc": "明講結構與長度，輸出才可控。",
+      "vendors": [
+        "openai",
+        "anthropic",
+        "google",
+        "xai"
+      ],
+      "fragment": "Output format: exactly 3 bullet points, each under 20 words, no preamble."
+    },
+    {
+      "id": "guardrail",
+      "order": 7,
+      "label": "給「不知道」的出路",
+      "desc": "資訊不足時據實以告，避免硬掰。",
+      "vendors": [
+        "openai",
+        "anthropic"
+      ],
+      "fragment": "If a figure is not stated in the report, write \"Not stated in the report\" instead of guessing."
+    },
+    {
+      "id": "verify",
+      "order": 8,
+      "label": "自我檢查",
+      "desc": "結尾要求對照原文驗證，抓出錯誤。",
+      "vendors": [
+        "anthropic"
+      ],
+      "fragment": "Before finishing, verify every number against the source text and correct any mismatch."
+    }
+  ],
+  "beforeAfter": [
+    {
+      "title": "寫一首詩",
+      "weak": "Write a poem about OpenAI.",
+      "strong": "Write a short inspiring poem about OpenAI, focusing on the recent product launch, in the style of a famous poet.",
+      "vendors": [
+        "openai"
+      ],
+      "source": {
+        "name": "OpenAI · Best practices",
+        "url": "https://help.openai.com/en/articles/6654000-best-practices-for-prompt-engineering-with-the-openai-api"
+      }
+    },
+    {
+      "title": "控制長度",
+      "weak": "Keep the answer fairly short, just a few sentences.",
+      "strong": "Use a 3 to 5 sentence paragraph. Respond in 3 bullet points.",
+      "vendors": [
+        "openai",
+        "google"
+      ],
+      "source": {
+        "name": "OpenAI · Best practices",
+        "url": "https://help.openai.com/en/articles/6654000-best-practices-for-prompt-engineering-with-the-openai-api"
+      }
+    },
+    {
+      "title": "正面表述",
+      "weak": "Do not use markdown in your response.",
+      "strong": "Your response should be composed of smoothly flowing prose paragraphs.",
+      "vendors": [
+        "anthropic",
+        "openai",
+        "google"
+      ],
+      "source": {
+        "name": "Anthropic · Prompting best practices",
+        "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices"
+      }
+    },
+    {
+      "title": "打造儀表板",
+      "weak": "Create an analytics dashboard.",
+      "strong": "Create an analytics dashboard. Include as many relevant features and interactions as possible. Go beyond the basics to create a fully-featured implementation.",
+      "vendors": [
+        "anthropic"
+      ],
+      "source": {
+        "name": "Anthropic · Prompting best practices",
+        "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices"
+      }
+    },
+    {
+      "title": "避免過度解釋",
+      "weak": "Which category does The Odyssey belong to?",
+      "strong": "Multiple choice — Which category describes The Odyssey? Options: thriller / sci-fi / mythology / biography.",
+      "vendors": [
+        "google"
+      ],
+      "source": {
+        "name": "Google · Prompt design strategies",
+        "url": "https://ai.google.dev/gemini-api/docs/prompting-strategies"
+      }
+    },
+    {
+      "title": "agentic 寫程式",
+      "weak": "Make error handling better.",
+      "strong": "My error codes are defined in @errors.ts; use that as reference to add proper error handling and error codes to @sql.ts where I am making queries.",
+      "vendors": [
+        "xai"
+      ],
+      "source": {
+        "name": "xAI · Grok Code prompt engineering",
+        "url": "https://docs.x.ai/docs/guides/grok-code-prompt-engineering"
+      }
+    }
+  ],
+  "compare": {
+    "cols": [
+      "面向",
+      "openai",
+      "anthropic",
+      "google",
+      "xai"
+    ],
+    "colNames": [
+      "面向",
+      "OpenAI",
+      "Anthropic",
+      "Google",
+      "xAI"
+    ],
+    "rows": [
+      [
+        "結構標記",
+        "Markdown 為主；文件用 XML／pipe，避免 JSON",
+        "XML 標籤（最強調）",
+        "Markdown 或 XML；善用 prefix",
+        "XML 或 Markdown 皆可"
+      ],
+      [
+        "Few-shot",
+        "先 zero→few→fine-tune",
+        "建議 3–5 個，相關/多樣/結構化",
+        "幾乎必放，格式須一致",
+        "官方無專門指引"
+      ],
+      [
+        "推理模型 CoT",
+        "o 系列：勿叫它逐步思考",
+        "adaptive thinking，一般性指令優先",
+        "2.5/3 自動思考，簡單 nudge",
+        "4.5 內建不可關，用 reasoning_effort"
+      ],
+      [
+        "思考/冗長參數",
+        "reasoning_effort、verbosity",
+        "effort（取代 budget_tokens）",
+        "think hard、temperature",
+        "reasoning_effort（部分參數不支援）"
+      ],
+      [
+        "System 訊息",
+        "developer > user；o 系列用 developer",
+        "system 設角色，一句也有效",
+        "關鍵指令放 systemInstruction",
+        "詳細 system prompt 顯著加分"
+      ],
+      [
+        "長 context",
+        "指令放頭尾各一份",
+        "文件在上、問題在最後（+~30%）",
+        "資料先、問題後；加「承上」",
+        "（未特別著墨）"
+      ],
+      [
+        "專屬招式",
+        "三個 agent 提醒、Formatting re-enabled",
+        "功能命名 XML 標籤、自我檢查",
+        "部分輸入補全、prefix、PTCF",
+        "grok-code 實務提示指南"
+      ]
+    ]
+  },
+  "tools": [
+    {
+      "id": "assembler",
+      "type": "asm",
+      "code": "ASM",
+      "title": "Prompt 組裝器",
+      "sub": "勾選技巧積木，即時組裝出一個結構完整的 prompt。"
+    },
+    {
+      "id": "abtest",
+      "type": "ab",
+      "code": "A/B",
+      "title": "弱 → 強 prompt 對照",
+      "sub": "同一需求，改寫前後差多少？切換感受官方範例的威力。"
+    },
+    {
+      "id": "matrix",
+      "type": "mtx",
+      "code": "MTX",
+      "title": "各廠差異對照矩陣",
+      "sub": "同一件事，四家的立場與偏好一次看懂。點表頭高亮該欄。"
+    },
+    {
+      "id": "sources",
+      "type": "src",
+      "code": "REF",
+      "title": "官方出處總表",
+      "sub": "全部條目皆整理自各廠官方文件，點擊前往原文。"
+    }
+  ],
+  "toolGroup": {
+    "id": "gt",
+    "name": "互動工具",
+    "nameEn": "TOOLS",
+    "color": "#8fc3e6",
+    "memberIds": [
+      "assembler",
+      "abtest",
+      "matrix",
+      "sources"
+    ]
+  },
+  "challenges": []
+}

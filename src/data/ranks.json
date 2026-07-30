@@ -1,0 +1,79 @@
+{
+  "authored": "game",
+  "note": "稱號（rank）是 PromptArcade 自撰的世界觀稱謂，不是任何官方文件裡的分級。它只描述玩家在這個遊戲裡的進度（等級 ＋ 已收集技巧數 ＋ 已精通區域數），不代表任何外部認證。技巧內容與官方出處一律以 curriculum.json 為準。",
+  "rule": "取「三個條件都滿足」的最後一個稱號；三個門檻都不遞減，所以順序一定單調。",
+  "ranks": [
+    {
+      "id": "waking",
+      "title": "初醒的旅人",
+      "titleEn": "Waking Traveller",
+      "level": 1,
+      "collected": 0,
+      "mastered": 0,
+      "line": "你在祭壇邊睜開眼睛，神諭還只是一陣風聲。"
+    },
+    {
+      "id": "apprentice",
+      "title": "刻印學徒",
+      "titleEn": "Carving Apprentice",
+      "level": 2,
+      "collected": 8,
+      "mastered": 0,
+      "line": "你刻下了第一批句子，石碑願意收了。"
+    },
+    {
+      "id": "scribe",
+      "title": "抄寫人",
+      "titleEn": "Scribe of the Archive",
+      "level": 3,
+      "collected": 14,
+      "mastered": 0,
+      "line": "你開始把話寫成別人照著做也不會走錯的樣子。"
+    },
+    {
+      "id": "reader",
+      "title": "讀碑者",
+      "titleEn": "Stele Reader",
+      "level": 4,
+      "collected": 22,
+      "mastered": 0,
+      "line": "你讀得懂別人的刻文，也看得出哪一句被漏掉了。"
+    },
+    {
+      "id": "keeper",
+      "title": "守卷人",
+      "titleEn": "Keeper of Scrolls",
+      "level": 5,
+      "collected": 33,
+      "mastered": 1,
+      "line": "你守下了一整片土地的技法，長卷不再散落。"
+    },
+    {
+      "id": "interpreter",
+      "title": "釋義者",
+      "titleEn": "Interpreter",
+      "level": 6,
+      "collected": 46,
+      "mastered": 2,
+      "line": "你能把神諭的話翻成人聽得懂的樣子，再翻回去。"
+    },
+    {
+      "id": "envoy",
+      "title": "神諭使者",
+      "titleEn": "Oracle Envoy",
+      "level": 7,
+      "collected": 57,
+      "mastered": 3,
+      "line": "三片土地的刻文都由你經手，橋上的閘門認得你。"
+    },
+    {
+      "id": "resonant",
+      "title": "神諭共鳴者",
+      "titleEn": "Oracle Resonant",
+      "level": 8,
+      "collected": 68,
+      "mastered": 5,
+      "line": "六十八條刻文全數入冊，五片土地與你同聲。"
+    }
+  ]
+}

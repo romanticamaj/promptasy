@@ -1,0 +1,39 @@
+{
+  "version": 1,
+  "authored": "game",
+  "note": "技巧積木的中文範例片段。這一份是 PromptArcade 自己寫的中文版本，方便玩家直接用中文組 prompt；它不是任何廠商的官方文字，也不當作引文使用。每條技巧的官方說法與出處一律以 curriculum.json 的 techniques[].sources 為準。",
+  "blocks": [
+    {
+      "id": "role",
+      "fragZh": "你是一位資深的財務分析師，擅長把複雜的數字講給外行人聽。"
+    },
+    {
+      "id": "task",
+      "fragZh": "任務：摘要下面這份季度財報，寫給一般讀者看。"
+    },
+    {
+      "id": "context",
+      "fragZh": "請只根據 <context> 裡的資料作答，不要使用外部知識。\n\n<context>\n{{ 在此貼上財報全文 }}\n</context>"
+    },
+    {
+      "id": "fewshot",
+      "fragZh": "<example>\n輸入：營收從 10 億成長到 12 億。\n輸出：營收成長 20%，達 12 億。\n</example>"
+    },
+    {
+      "id": "cot",
+      "fragZh": "請先一步一步想清楚哪些數字重要，再寫出最後的摘要。"
+    },
+    {
+      "id": "format",
+      "fragZh": "輸出格式：3 個條列重點，每點不超過 20 個字，不要開場白。"
+    },
+    {
+      "id": "guardrail",
+      "fragZh": "如果報告裡沒有提到某個數字，就直接回答「報告中沒有提到」，不要用猜的。"
+    },
+    {
+      "id": "verify",
+      "fragZh": "完成前，請對照原文核對每一個數字，發現不符就修正。"
+    }
+  ]
+}

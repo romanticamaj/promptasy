@@ -1,0 +1,529 @@
+/**
+ * PromptArcade — 進程系統（XP / 等級 / 圖鑑收集 / 廠家徽章 / 區域解鎖）
+ *
+ * 這一層不碰 DOM、不 import JSON，資料由外部注入 → 可在 node 測試腳本直接跑。
+ */
+import { betterGrade, xpForGrade } from '../challenges/rubric.js';
+import * as SaveIO from '../save/save.js';
+
+/** 升到下一級所需 XP：100, 160, 220, 280 … */
+export function xpToNextLevel(level) {
+  return 100 + Math.max(0, level - 1) * 60;
+}
+
+/** 累積 XP → 等級 ＋ 該級進度。 */
+export function levelFromXp(xp) {
+  let level = 1;
+  let remaining = Math.max(0, Math.round(xp));
+  let need = xpToNextLevel(level);
+  while (remaining >= need && level < 99) {
+    remaining -= need;
+    level += 1;
+    need = xpToNextLevel(level);
+  }
+  return { level, into: remaining, need, ratio: need > 0 ? remaining / need : 0 };
+}
+
+/**
+ * 區域解鎖條件（soft gating）。
+ *
+ * 解鎖鏈：foundations → reasoning → grounding → orchestration → config。
+ * 每一關都要同時滿足「等級」與「前一區通關數」——等級是軟下限（可靠重刷評價補），
+ * 前一區通關數才是真正的順序保證。
+ * available=false 代表「這一期還沒鋪內容」，世界裡會顯示屏障與說明。
+ */
+export const REGION_GATES = Object.freeze({
+  foundations: { level: 1, available: true, requires: null },
+  reasoning: { level: 3, available: true, requires: { region: 'foundations', cleared: 4 } },
+  grounding: { level: 4, available: true, requires: { region: 'reasoning', cleared: 4 } },
+  orchestration: { level: 5, available: true, requires: { region: 'grounding', cleared: 4 } },
+  config: { level: 7, available: true, requires: { region: 'orchestration', cleared: 4 } },
+});
+
+/**
+ * @param {object} opts
+ * @param {object} opts.curriculum  curriculum.json
+ * @param {Array}  opts.challenges  challenges.json 的 challenges 陣列
+ * @param {object} [opts.io]        存檔 IO（測試時可注入假的）
+ * @param {Function} [opts.onChange] 狀態變動回呼
+ */
+export function createProgression({ curriculum, challenges, io = SaveIO, onChange = null }) {
+  const techniqueById = new Map((curriculum.techniques || []).map((t) => [t.id, t]));
+  const challengeById = new Map((challenges || []).map((c) => [c.id, c]));
+  const vendorIds = (curriculum.vendors || []).map((v) => v.id);
+
+  let state = io.load();
+
+  const emit = () => {
+    if (typeof onChange === 'function') onChange(state);
+  };
+
+  function persist() {
+    io.save(state);
+    emit();
+  }
+
+  /** 徽章 = 已收集技巧中，標記了該廠的數量（可從 collected 完整重算 → 冪等）。 */
+  function recomputeBadges() {
+    const badges = {};
+    for (const v of vendorIds) badges[v] = 0;
+    for (const id of state.collected) {
+      const tech = techniqueById.get(id);
+      if (!tech) continue;
+      for (const v of tech.vendors || []) {
+        if (v in badges) badges[v] += 1;
+      }
+    }
+    state.badges = badges;
+  }
+
+  /** 某區已通關的關卡數。 */
+  function clearedCount(regionId) {
+    let n = 0;
+    for (const id of Object.keys(state.bestGrades)) {
+      const c = challengeById.get(id);
+      if (c && c.region === regionId) n += 1;
+    }
+    return n;
+  }
+
+  /** 這個區域的解鎖條件目前滿足了嗎（等級 ＋ 前一區通關數）。 */
+  function gateSatisfied(regionId, level) {
+    const gate = REGION_GATES[regionId];
+    if (!gate) return false;
+    if (level < gate.level) return false;
+    if (gate.requires && clearedCount(gate.requires.region) < gate.requires.cleared) return false;
+    return true;
+  }
+
+  /** 依目前等級與通關數更新已解鎖區域，回傳這次新解鎖的區域 id。 */
+  function refreshUnlocks() {
+    const { level } = levelFromXp(state.xp);
+    const newly = [];
+    for (const regionId of Object.keys(REGION_GATES)) {
+      if (gateSatisfied(regionId, level) && !state.unlockedRegions.includes(regionId)) {
+        state.unlockedRegions.push(regionId);
+        newly.push(regionId);
+      }
+    }
+    return newly;
+  }
+
+  const api = {
+    get state() {
+      return state;
+    },
+
+    /** 目前等級與該級進度。 */
+    levelInfo() {
+      return levelFromXp(state.xp);
+    },
+
+    isCollected: (techniqueId) => state.collected.includes(techniqueId),
+    bestGrade: (challengeId) => state.bestGrades[challengeId] || null,
+
+    isRegionUnlocked(regionId) {
+      return state.unlockedRegions.includes(regionId);
+    },
+
+    regionGate(regionId) {
+      return REGION_GATES[regionId] || { level: 1, available: false };
+    },
+
+    /** 這個區域「可進入」= 已解鎖且已鋪內容。 */
+    isRegionPlayable(regionId) {
+      const gate = api.regionGate(regionId);
+      return gate.available && api.isRegionUnlocked(regionId);
+    },
+
+    /** 某區已通關的關卡數。 */
+    clearedCount,
+
+    /**
+     * 解鎖狀態（給世界的屏障與 HUD 用）。
+     * @returns {{unlocked:boolean, level:number, levelOk:boolean, requires:(object|null),
+     *            clearedNeeded:number, clearedHave:number, requiresOk:boolean, text:string}}
+     */
+    gateStatus(regionId) {
+      const gate = api.regionGate(regionId);
+      const level = levelFromXp(state.xp).level;
+      const requires = gate.requires || null;
+      const clearedHave = requires ? clearedCount(requires.region) : 0;
+      const clearedNeeded = requires ? requires.cleared : 0;
+      const levelOk = level >= gate.level;
+      const requiresOk = !requires || clearedHave >= clearedNeeded;
+      const unlocked = api.isRegionUnlocked(regionId);
+
+      let text = '已開啟';
+      if (!unlocked) {
+        const parts = [];
+        if (!levelOk) parts.push(`Lv.${gate.level}（目前 Lv.${level}）`);
+        if (!requiresOk) {
+          const prev = (curriculum.groups || []).find((g) => g.id === requires.region);
+          parts.push(`${prev ? prev.name : requires.region} 通關 ${clearedNeeded} 關（目前 ${clearedHave}）`);
+        }
+        text = parts.length ? `需要 ${parts.join(' ＋ ')}` : '條件已滿足，通過即可開啟';
+      }
+      return { unlocked, level: gate.level, levelOk, requires, clearedNeeded, clearedHave, requiresOk, text };
+    },
+
+    /**
+     * 隱藏成就：68 條技巧全收集 ＋ 四廠徽章都達標。
+     * @param {number} [badgeTarget] 每廠需要的技巧標記數（與圖鑑顯示一致）
+     */
+    hiddenAchievement(badgeTarget = 5) {
+      const all = curriculum.techniques || [];
+      const collected = all.filter((t) => state.collected.includes(t.id)).length;
+      const vendors = (curriculum.vendors || []).map((v) => ({
+        id: v.id,
+        name: v.name,
+        count: state.badges[v.id] || 0,
+        done: (state.badges[v.id] || 0) >= badgeTarget,
+      }));
+      const complete = collected === all.length && all.length > 0 && vendors.every((v) => v.done);
+      return { complete, collected, total: all.length, vendors, badgeTarget };
+    },
+
+    /** 已精通（該區技巧全收集）的區域 id 清單。 */
+    masteredRegions() {
+      return (curriculum.groups || []).map((g) => g.id).filter((id) => api.regionMastery(id).mastered);
+    },
+
+    /** 區域完成度（已收集 / 該區技巧總數）。 */
+    regionMastery(regionId) {
+      const all = (curriculum.techniques || []).filter((t) => t.groupId === regionId);
+      const got = all.filter((t) => state.collected.includes(t.id));
+      return { total: all.length, collected: got.length, mastered: all.length > 0 && got.length === all.length };
+    },
+
+    /** 該關是否已通關。 */
+    isCleared: (challengeId) => Boolean(state.bestGrades[challengeId]),
+
+    /**
+     * 記錄一次評分結果。只有通過才給 XP／收集；重玩拿到更好評價只補差額。
+     * @returns {{xpGain:number, levelBefore:number, levelAfter:number, leveledUp:boolean,
+     *           newlyCollected:string[], newlyUnlocked:string[], previousGrade:(string|null),
+     *           bestGrade:(string|null), improved:boolean}}
+     */
+    recordResult(evaluation) {
+      const challenge = challengeById.get(evaluation.challengeId) || { xp: evaluation.baseXp };
+      const previousGrade = state.bestGrades[evaluation.challengeId] || null;
+      const levelBefore = levelFromXp(state.xp).level;
+
+      const outcome = {
+        xpGain: 0,
+        levelBefore,
+        levelAfter: levelBefore,
+        leveledUp: false,
+        newlyCollected: [],
+        newlyUnlocked: [],
+        previousGrade,
+        bestGrade: previousGrade,
+        improved: false,
+      };
+
+      if (!evaluation.passed) {
+        emit();
+        return outcome;
+      }
+
+      const baseXp = Number.isFinite(challenge.xp) ? challenge.xp : evaluation.baseXp;
+      const best = betterGrade(previousGrade, evaluation.grade);
+      outcome.bestGrade = best;
+      outcome.improved = best !== previousGrade;
+
+      // XP 只補差額 → 重刷同一關不能無限刷分
+      const earnedNow = xpForGrade(best, baseXp);
+      const earnedBefore = xpForGrade(previousGrade, baseXp);
+      outcome.xpGain = Math.max(0, earnedNow - earnedBefore);
+
+      state.bestGrades[evaluation.challengeId] = best;
+      state.xp += outcome.xpGain;
+
+      for (const techId of evaluation.teaches) {
+        if (!techniqueById.has(techId)) continue;
+        if (!state.collected.includes(techId)) {
+          state.collected.push(techId);
+          outcome.newlyCollected.push(techId);
+        }
+      }
+
+      recomputeBadges();
+      const lv = levelFromXp(state.xp);
+      state.level = lv.level;
+      outcome.levelAfter = lv.level;
+      outcome.leveledUp = lv.level > levelBefore;
+      outcome.newlyUnlocked = refreshUnlocks();
+
+      persist();
+      return outcome;
+    },
+
+    /* ---------------- Phase 7：序章引導課程 ---------------- */
+
+    /** 序章走完了嗎（新存檔預設 false；有進度的舊存檔在 normalize 就被認定為已完成）。 */
+    isPrologueDone() {
+      return Boolean(state.flags.prologueDone);
+    },
+
+    /** 序章的某一步練習過了嗎（可續玩、可重看）。 */
+    isPrologueStepDone(stepId) {
+      return Array.isArray(state.prologueSteps) && state.prologueSteps.includes(stepId);
+    },
+
+    /**
+     * 完成序章的一步練習：給少量 XP、把技巧收進圖鑑。
+     *
+     * 刻意**不**寫 bestGrades —— 序章不是關卡，不該佔「已通關 x / 26」，
+     * 也不該被算進區域解鎖的通關數。重做同一步不再給 XP。
+     *
+     * @param {string} stepId
+     * @param {{teaches?:string[], xp?:number}} opts
+     */
+    completePrologueStep(stepId, { teaches = [], xp = 25 } = {}) {
+      if (!Array.isArray(state.prologueSteps)) state.prologueSteps = [];
+      const levelBefore = levelFromXp(state.xp).level;
+      const already = state.prologueSteps.includes(stepId);
+      const outcome = {
+        already,
+        xpGain: 0,
+        newlyCollected: [],
+        levelBefore,
+        levelAfter: levelBefore,
+        leveledUp: false,
+        newlyUnlocked: [],
+      };
+
+      if (!already && typeof stepId === 'string' && stepId) {
+        state.prologueSteps.push(stepId);
+        outcome.xpGain = Math.max(0, Math.round(xp));
+        state.xp += outcome.xpGain;
+      }
+
+      for (const techId of teaches) {
+        if (!techniqueById.has(techId)) continue;
+        if (!state.collected.includes(techId)) {
+          state.collected.push(techId);
+          outcome.newlyCollected.push(techId);
+        }
+      }
+
+      recomputeBadges();
+      const lv = levelFromXp(state.xp);
+      state.level = lv.level;
+      outcome.levelAfter = lv.level;
+      outcome.leveledUp = lv.level > levelBefore;
+      outcome.newlyUnlocked = refreshUnlocks();
+      persist();
+      return outcome;
+    },
+
+    /**
+     * 這一關的「神諭刻文」（第二幕指引）看過了嗎。
+     * 看過了 → 重玩這一關時可以直接跳到刻印（第三幕），不必再被指引擋一次。
+     */
+    hasSeenGuidance(id) {
+      return Array.isArray(state.guidanceSeen) && state.guidanceSeen.includes(id);
+    },
+
+    /** 記下「這一關的指引看過了」（純加法，不給 XP、不影響評價）。 */
+    markGuidanceSeen(id) {
+      if (!id) return false;
+      if (!Array.isArray(state.guidanceSeen)) state.guidanceSeen = [];
+      if (state.guidanceSeen.includes(id)) return false;
+      state.guidanceSeen.push(id);
+      persist();
+      return true;
+    },
+
+    /* ---------------------------------------------------------------- *
+     * Phase 22：刻文小語（教一件小事）與祕密地點（純風味）
+     *
+     * 兩者都跟石碑一樣「不佔關卡評價」——不寫 bestGrades、不算區域解鎖的通關數。
+     * 差別是刻文小語掛在一條真實技巧上，所以它**會**把那條技巧收進圖鑑
+     * （學到了就是學到了），祕密則完全不碰圖鑑與徽章。
+     * ---------------------------------------------------------------- */
+
+    /** 這則刻文小語讀過了嗎。 */
+    hasFoundInscription(id) {
+      return Array.isArray(state.inscriptionsFound) && state.inscriptionsFound.includes(id);
+    },
+
+    /** 讀過幾則刻文小語。 */
+    inscriptionCount() {
+      return Array.isArray(state.inscriptionsFound) ? state.inscriptionsFound.length : 0;
+    },
+
+    /**
+     * 讀一則刻文小語。第一次讀給少量 XP，並把它教的那條技巧收進圖鑑（重讀不再給）。
+     * @param {string} id
+     * @param {string|null} techniqueId 這則刻文教的技巧（會被收進圖鑑）
+     * @param {number} [xp]
+     */
+    readInscription(id, techniqueId = null, xp = 5) {
+      if (!Array.isArray(state.inscriptionsFound)) state.inscriptionsFound = [];
+      const levelBefore = levelFromXp(state.xp).level;
+      if (!id || state.inscriptionsFound.includes(id)) {
+        return {
+          alreadyFound: true,
+          xpGain: 0,
+          newlyCollected: [],
+          levelBefore,
+          levelAfter: levelBefore,
+          leveledUp: false,
+          newlyUnlocked: [],
+        };
+      }
+      state.inscriptionsFound.push(id);
+      const newlyCollected = [];
+      if (techniqueId && techniqueById.has(techniqueId) && !state.collected.includes(techniqueId)) {
+        state.collected.push(techniqueId);
+        newlyCollected.push(techniqueId);
+        recomputeBadges();
+      }
+      const gain = Math.max(0, Math.round(xp));
+      state.xp += gain;
+      const lv = levelFromXp(state.xp);
+      state.level = lv.level;
+      const newlyUnlocked = refreshUnlocks();
+      persist();
+      return {
+        alreadyFound: false,
+        xpGain: gain,
+        newlyCollected,
+        levelBefore,
+        levelAfter: lv.level,
+        leveledUp: lv.level > levelBefore,
+        newlyUnlocked,
+      };
+    },
+
+    /** 這個祕密找到了嗎。 */
+    hasFoundSecret(id) {
+      return Array.isArray(state.secretsFound) && state.secretsFound.includes(id);
+    },
+
+    /** 找到幾個祕密。 */
+    secretCount() {
+      return Array.isArray(state.secretsFound) ? state.secretsFound.length : 0;
+    },
+
+    /**
+     * 找到一個祕密（走進去就算，不用按 E）。純風味 —— 不進圖鑑、不算徽章。
+     * @param {string} id
+     * @param {number} [xp]
+     */
+    findSecret(id, xp = 12) {
+      if (!Array.isArray(state.secretsFound)) state.secretsFound = [];
+      const levelBefore = levelFromXp(state.xp).level;
+      if (!id || state.secretsFound.includes(id)) {
+        return { alreadyFound: true, xpGain: 0, levelBefore, levelAfter: levelBefore, leveledUp: false, newlyUnlocked: [] };
+      }
+      state.secretsFound.push(id);
+      const gain = Math.max(0, Math.round(xp));
+      state.xp += gain;
+      const lv = levelFromXp(state.xp);
+      state.level = lv.level;
+      const newlyUnlocked = refreshUnlocks();
+      persist();
+      return {
+        alreadyFound: false,
+        xpGain: gain,
+        levelBefore,
+        levelAfter: lv.level,
+        leveledUp: lv.level > levelBefore,
+        newlyUnlocked,
+      };
+    },
+
+    /** 這塊世界觀石碑讀過了嗎。 */
+    hasReadLore(id) {
+      return Array.isArray(state.loreRead) && state.loreRead.includes(id);
+    },
+
+    /** 讀過的石碑數量。 */
+    loreReadCount() {
+      return Array.isArray(state.loreRead) ? state.loreRead.length : 0;
+    },
+
+    /**
+     * 讀一塊石碑。第一次讀給少量 XP（可能因此升等 / 解鎖區域），重讀不再給。
+     * 石碑是風味內容，不會進圖鑑、不算徽章 —— 學習內容一律走 challenge。
+     *
+     * @param {string} id
+     * @param {number} [xp]
+     * @returns {{alreadyRead:boolean, xpGain:number, levelBefore:number, levelAfter:number,
+     *            leveledUp:boolean, newlyUnlocked:string[]}}
+     */
+    readLore(id, xp = 8) {
+      if (!Array.isArray(state.loreRead)) state.loreRead = [];
+      const levelBefore = levelFromXp(state.xp).level;
+      if (!id || state.loreRead.includes(id)) {
+        return {
+          alreadyRead: true,
+          xpGain: 0,
+          levelBefore,
+          levelAfter: levelBefore,
+          leveledUp: false,
+          newlyUnlocked: [],
+        };
+      }
+      state.loreRead.push(id);
+      const gain = Math.max(0, Math.round(xp));
+      state.xp += gain;
+      const lv = levelFromXp(state.xp);
+      state.level = lv.level;
+      const newlyUnlocked = refreshUnlocks();
+      persist();
+      return {
+        alreadyRead: false,
+        xpGain: gain,
+        levelBefore,
+        levelAfter: lv.level,
+        leveledUp: lv.level > levelBefore,
+        newlyUnlocked,
+      };
+    },
+
+    /** 已解鎖的 builder 積木 id（學到的技巧立刻變成主控台的工具）。 */
+    unlockedBuilderBlocks() {
+      // builder 積木 ↔ 技巧主題的對應：收集到該主題任一技巧 → 解鎖該積木
+      const map = {
+        role: ['role'],
+        task: ['clarity'],
+        context: ['grounding', 'longcontext'],
+        fewshot: ['fewshot', 'format'],
+        cot: ['cot', 'reasoning'],
+        format: ['format'],
+        guardrail: ['grounding', 'positive'],
+        verify: ['cot', 'iterate'],
+      };
+      const topics = new Set(
+        state.collected.map((id) => techniqueById.get(id)).filter(Boolean).map((t) => t.topicId)
+      );
+      return (curriculum.builder || [])
+        .filter((b) => (map[b.id] || []).some((topic) => topics.has(topic)))
+        .map((b) => b.id);
+    },
+
+    updateSettings(patch) {
+      state.settings = { ...state.settings, ...patch };
+      persist();
+    },
+
+    setFlag(key, value) {
+      state.flags = { ...state.flags, [key]: value };
+      persist();
+    },
+
+    resetAll() {
+      state = io.reset();
+      emit();
+      return state;
+    },
+  };
+
+  return api;
+}
+
+export default createProgression;

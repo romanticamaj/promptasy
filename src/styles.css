@@ -1,0 +1,5974 @@
+/* ================================================================
+   PromptArcade — UI 設計系統 · 「夜間檔案館 / The Night Archive」
+   ================================================================
+
+   一個身分，五個面板都照著走：
+
+   1. 紙與墨    面板不是玻璃，是壓在夜色上的深墨紙。層級用「明度階」表達
+                （--ink-1 → --ink-4），不靠陰影堆疊。每個表面都有極細的顆粒。
+   2. 髮絲線    分隔一律 1px、低透明度的髮絲線（--rule）。金色髮絲線
+                （--rule-gold）只留給「達成 / 收藏 / 完成」這類熱點。
+   3. 兩種聲音  大標是襯線（Fraunces ＋ 思源宋體），字距收緊；
+                小標是全大寫的 Latin meta label，字距放到 0.22em。
+                兩者之間的對比就是「編輯感」的來源。
+   4. 一個熱色  冷星光 --star 是介面主色；暖金 --gold 只給成就與熱點。
+                狀態不只用顏色，一定同時換符號與形狀（遊戲 UI 無障礙）。
+   5. 一條曲線  所有進場走 --e-out（expo-out）；退場短於進場。
+                減少動態偏好一律尊重。
+
+   字型：全部自架子集（public/fonts/），零 CDN、可離線（護欄 3）。
+        使用者自己打的字走 --font-input（系統字型），子集缺字也不會破圖。
+   ================================================================ */
+
+/* ---------------------------------------------------------------- 字型 */
+/* 由 scripts/subset-fonts.mjs 產生；授權見 public/fonts/OFL-*.txt 與 public/LICENSE.md */
+
+/* size-adjust：把 Latin 的 cap-height 對齊思源宋體的 0.729 em。
+   不做這件事，中英混排時英文會小一號 —— 這是中英排版最常見的破綻。 */
+
+@font-face {
+  font-family: 'Fraunces Display';
+  src: url('/fonts/fraunces-display.woff2') format('woff2-variations');
+  font-weight: 300 700;
+  font-style: normal;
+  font-display: swap;
+  size-adjust: 104%;
+}
+@font-face {
+  font-family: 'Newsreader';
+  src: url('/fonts/newsreader.woff2') format('woff2-variations');
+  font-weight: 300 600;
+  font-style: normal;
+  font-display: swap;
+  size-adjust: 109%;
+}
+@font-face {
+  font-family: 'Inter UI';
+  src: url('/fonts/inter-ui.woff2') format('woff2-variations');
+  font-weight: 300 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Arcade Mono';
+  src: url('/fonts/arcade-mono.woff2') format('woff2-variations');
+  font-weight: 400 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* CJK 字型帶 unicode-range：Latin-only 的畫面（例如標題卡）不會去下載這 800 KB。
+   同時保證英數永遠由前面的 Latin 字型供應，不會被中文字型的英文接手。 */
+@font-face {
+  font-family: 'Arcade Serif TC';
+  src: url('/fonts/arcade-serif-tc.woff2') format('woff2-variations');
+  font-weight: 400 600;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+2E80-2FDF, U+3000-303F, U+3100-312F, U+31C0-31EF, U+3400-4DBF, U+4E00-9FFF,
+    U+F900-FAFF, U+FE10-FE4F, U+FF00-FFEF;
+}
+@font-face {
+  font-family: 'Arcade Sans TC';
+  src: url('/fonts/arcade-sans-tc.woff2') format('woff2-variations');
+  font-weight: 400 600;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+2E80-2FDF, U+3000-303F, U+3100-312F, U+31C0-31EF, U+3400-4DBF, U+4E00-9FFF,
+    U+F900-FAFF, U+FE10-FE4F, U+FF00-FFEF;
+}
+
+:root {
+  /* -------------------------------------------------------- 字型堆疊
+     規則：Latin 字型排前面、CJK 排後面 —— 瀏覽器逐字回退，
+     所以英數自動走 Latin 設計、漢字自動走中文設計。 */
+
+  /* 大標：Fraunces（Latin）＋ 思源宋體（CJK）。只有標題級文字用。 */
+  --font-display: 'Fraunces Display', 'Arcade Serif TC', 'Noto Serif TC', 'Songti TC',
+    'PMingLiU', Georgia, serif;
+  /* 長文散文：Newsreader（Latin，報刊襯線）＋ 思源宋體（CJK） */
+  --font-prose: 'Newsreader', 'Arcade Serif TC', 'Noto Serif TC', 'Songti TC', Georgia, serif;
+  /* 介面本體：小字要清楚 —— Inter ＋ 思源黑體 */
+  --font-ui: 'Inter UI', 'Arcade Sans TC', ui-sans-serif, system-ui, -apple-system,
+    'Segoe UI', 'PingFang TC', 'Microsoft JhengHei', sans-serif;
+  /* 全大寫的小標籤：只會有 Latin，不需要 CJK */
+  --font-meta: 'Inter UI', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'Arcade Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  /* 使用者輸入 / 使用者產生的內容：一律系統字型。
+     子集字型不可能涵蓋玩家會打的每一個字，這條界線讓它永遠不會破圖。 */
+  --font-input: ui-monospace, SFMono-Regular, Menlo, Consolas, 'Noto Sans Mono',
+    'PingFang TC', 'Microsoft JhengHei', monospace;
+
+  /* 舊名相容（Phase 1–5 的程式碼還在用） */
+  --font: var(--font-ui);
+  --mono: var(--font-mono);
+
+  /* -------------------------------------------------------- 級數（fluid）
+     Phase 14：說明性文字整體放大約 1.75 倍（玩家回報「字太小」）。
+     閱讀級（lead / body / small / micro）一律 ×1.75–1.76，標題級同步往上
+     以維持層級；只有兩處刻意不跟：
+       · --t-display 只 ×1.09 —— 標題卡本來就滿版，再放大會撐破畫面
+       · --t-meta    只 ×1.55 —— 全大寫 ＋ 0.22em 字距的小標籤，2 倍會換行
+     舊值留在註解裡，之後要再校時看得到基準。 */
+  --t-display: clamp(3rem, 1.2rem + 6vw, 5.9rem); /* 舊：2.7 / 5.4rem */
+  --t-title: clamp(2rem, 1.62rem + 1.5vw, 2.62rem); /* 舊：1.42 / 1.95rem */
+  --t-h2: clamp(1.86rem, 1.68rem + 0.7vw, 2.24rem); /* 舊：1.08 / 1.3rem */
+  --t-h3: 1.76rem; /* 舊：1.0rem */
+  --t-lead: clamp(1.72rem, 1.62rem + 0.5vw, 1.98rem); /* 舊：0.98 / 1.13rem */
+  --t-body: 1.58rem; /* 舊：0.9rem */
+  --t-small: 1.46rem; /* 舊：0.83rem */
+  --t-micro: 1.33rem; /* 舊：0.755rem */
+  --t-meta: 1.06rem; /* 舊：0.685rem */
+
+  /* 字距紀律：襯線大標收緊、全大寫小標放開、CJK 只要一點點 */
+  --tr-display: -0.022em;
+  --tr-title: -0.015em;
+  --tr-cjk: 0.015em;
+  --tr-cjk-display: 0.035em;
+  --tr-meta: 0.22em;
+  --tr-meta-tight: 0.14em;
+
+  /* 行高：CJK 需要比 Latin 更鬆 */
+  --lh-tight: 1.14;
+  --lh-head: 1.28;
+  --lh-body: 1.72;
+  --lh-prose: 1.82;
+
+  /* 原生元件（下拉選單的彈出清單、捲軸、日期選擇器…）一律走深色。
+     這一行是「下拉打開時是白底白字」的唯一根治法 —— 彈出清單由作業系統畫，
+     CSS 只碰得到 option 的底色與文字色，其餘（外框、陰影、捲軸）只認 color-scheme。 */
+  color-scheme: dark;
+
+  /* -------------------------------------------------------- 明度階 */
+  --ink-0: #05070a;
+  --ink-1: #090c12;
+  --ink-2: #0d121a;
+  --ink-3: #121924;
+  --ink-4: #18212e;
+
+  --paper: #eef4fa;
+  --paper-2: #c8d5e3;
+  --paper-3: #9fb0c4;
+  --paper-4: #66768d;
+
+  --rule: rgba(196, 220, 236, 0.1);
+  --rule-2: rgba(196, 220, 236, 0.2);
+  --rule-gold: rgba(230, 199, 155, 0.34);
+
+  --star: #a9c9d8;
+  --star-dim: rgba(169, 201, 216, 0.16);
+  --gold: #e6c79b;
+  --gold-dim: rgba(230, 199, 155, 0.12);
+  --good: #7fd1a8;
+  --warn: #e6b45f;
+  --bad: #e0806e;
+
+  /* 舊名相容 */
+  --bg: var(--ink-0);
+  --bg-2: var(--ink-1);
+  --ink: var(--paper);
+  --mid: var(--paper-3);
+  --dim: var(--paper-4);
+  --line: var(--rule);
+  --accent: var(--star);
+  --accent-soft: var(--star-dim);
+  --warm: var(--gold);
+  --panel: rgba(11, 16, 23, 0.9);
+  --panel-2: rgba(18, 25, 36, 0.62);
+
+  /* -------------------------------------------------------- 節奏（8pt） */
+  --s1: 4px;
+  --s2: 8px;
+  --s3: 12px;
+  --s4: 16px;
+  --s5: 24px;
+  --s6: 32px;
+  --s7: 48px;
+  --s8: 64px;
+
+  --radius: 4px;
+  --radius-lg: 6px;
+  --radius-pill: 999px;
+
+  /* -------------------------------------------------------- 刻印牌（Phase 15）
+     整個介面的「可以按的小東西」都是同一種物件：一塊被切過角的石牌。
+     形狀是八邊形（四角斜切），尺寸靠 --cut 分階；顏色、邊光、鑲金線
+     都由下面這幾個 token 決定，元件本身只覆寫它需要的那幾個。
+     詳細用法見下方「刻印牌元件系統」那一節。 */
+  --cut: 9px; /* 斜切角的大小 —— 換這一個就換整個階級的輪廓 */
+  --seal-shape: polygon(
+    var(--cut) 0,
+    calc(100% - var(--cut)) 0,
+    100% var(--cut),
+    100% calc(100% - var(--cut)),
+    calc(100% - var(--cut)) 100%,
+    var(--cut) 100%,
+    0 calc(100% - var(--cut)),
+    0 var(--cut)
+  );
+  /* 內層（面）要往內縮 b，45° 斜邊的切角只會縮 b×(√2−1) ≈ 0.414b。
+     直接沿用外層的 --cut 會讓斜角那一段的邊看起來比直邊粗 1.41 倍。 */
+  --cut-in: calc(var(--cut) - 0.414px); /* 對應 inset: 1px */
+  --seal-shape-in: polygon(
+    var(--cut-in) 0,
+    calc(100% - var(--cut-in)) 0,
+    100% var(--cut-in),
+    100% calc(100% - var(--cut-in)),
+    calc(100% - var(--cut-in)) 100%,
+    var(--cut-in) 100%,
+    0 calc(100% - var(--cut-in)),
+    0 var(--cut-in)
+  );
+  --seal-lit: rgba(196, 220, 236, 0.3); /* 上緣受光的那一道 */
+  --seal-shade: rgba(0, 0, 0, 0.62); /* 下緣的陰影 */
+  --seal-face-a: #17202d; /* 石面：上 */
+  --seal-face-b: #0a0e15; /* 石面：下 */
+  --inlay: rgba(230, 199, 155, 0.68); /* 鑲進溝槽的金線 */
+  --inlay-pad: 5px; /* 金線離邊多遠 */
+
+  /* -------------------------------------------------------- 動態 */
+  --e-out: cubic-bezier(0.19, 1, 0.22, 1); /* expo-out：招牌曲線 */
+  --e-soft: cubic-bezier(0.165, 0.84, 0.44, 1); /* quart-out */
+  --e-snap: cubic-bezier(0.075, 0.82, 0.165, 1); /* circ-out：hover 用 */
+  --e-inout: cubic-bezier(0.5, 0, 0.5, 1);
+  --d-tap: 120ms;
+  --d-fast: 180ms;
+  --d-mid: 260ms;
+  --d-slow: 440ms;
+  --d-reveal: 720ms;
+  --stagger: 52ms;
+
+  /* -------------------------------------------------------- 顆粒 */
+  --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.82' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='0.55'/%3E%3C/svg%3E");
+}
+
+* {
+  box-sizing: border-box;
+}
+
+/* 我們有不少元素同時被指定 display，[hidden] 必須贏過它們 */
+[hidden] {
+  display: none !important;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  background: var(--ink-0);
+  color: var(--paper);
+  font-family: var(--font-ui);
+  font-size: var(--t-body);
+  line-height: var(--lh-body);
+  letter-spacing: var(--tr-cjk);
+  font-optical-sizing: auto;
+  font-variant-numeric: tabular-nums;
+  /* 刻意不設 -webkit-font-smoothing: antialiased —— 它會把暗底上的宋體橫畫削細。
+     只在純 Latin 的大標局部開啟。 */
+  text-rendering: optimizeLegibility;
+  /* 漢字與英數之間自動補 1/4 字寬（W3C clreq）。舊引擎會忽略，安全。 */
+  text-autospace: ideograph-alpha ideograph-numeric;
+}
+
+#app {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.stage {
+  position: absolute;
+  inset: 0;
+}
+
+.game-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.ui {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.ui > * {
+  pointer-events: auto;
+}
+
+/* ---------------------------------------------------------------- 共用排版 */
+
+/* 全大寫的 Latin 小標籤 —— 這個聲音貫穿整個介面 */
+.meta-label {
+  display: block;
+  margin: 0;
+  font-family: var(--font-meta);
+  font-size: var(--t-meta);
+  font-weight: 500;
+  letter-spacing: var(--tr-meta);
+  text-transform: uppercase;
+  color: var(--paper-4);
+}
+.meta-label--star {
+  color: rgba(169, 201, 216, 0.72);
+}
+.meta-label--gold {
+  color: rgba(230, 199, 155, 0.78);
+}
+
+/* 雙語小標：`<span class="zh">中文</span><span class="en">English</span>`
+   —— 全大寫 0.22em 的字距只能給 Latin；套在漢字上會變成明顯的空格
+   （漢字本身就住在全形字身裡，已自帶留白）。 */
+.meta-rule h4,
+.console__label,
+.collected h4,
+.settings__danger h4 {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s3);
+}
+.meta-rule h4 .zh,
+.console__label .zh,
+.collected h4 .zh,
+.settings__danger h4 .zh {
+  font-family: var(--font-ui);
+  font-size: var(--t-micro);
+  font-weight: 500;
+  letter-spacing: var(--tr-cjk);
+  text-transform: none;
+  color: var(--paper-3);
+  white-space: nowrap;
+}
+.collected h4 .zh {
+  color: rgba(230, 199, 155, 0.92);
+}
+.settings__danger h4 .zh {
+  color: #f0c1b3;
+}
+.meta-rule h4 .en,
+.console__label .en,
+.collected h4 .en,
+.settings__danger h4 .en {
+  font-family: var(--font-meta);
+  font-size: var(--t-meta);
+  font-weight: 500;
+  letter-spacing: var(--tr-meta);
+  text-transform: uppercase;
+  color: var(--paper-4);
+  white-space: nowrap;
+}
+
+/* 標籤旁邊的髮絲線：小標籤 ——————————— 的那條線 */
+.meta-rule {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  margin: 0 0 var(--s3);
+}
+.meta-rule::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, var(--rule-2), transparent);
+}
+
+.muted {
+  color: var(--paper-3);
+  font-weight: 400;
+}
+
+/* 鍵帽＝一顆很小的刻印石（同一族，只是縮到最小） */
+kbd {
+  --cut: 4px;
+  position: relative;
+  isolation: isolate;
+  display: inline-block;
+  min-width: 1.9em;
+  padding: 2px 7px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  font-family: var(--font-mono);
+  font-size: 0.76em;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  text-align: center;
+  color: var(--paper-2);
+}
+kbd::before,
+kbd::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  clip-path: var(--seal-shape);
+  background-image: linear-gradient(180deg, rgba(196, 220, 236, 0.34), rgba(0, 0, 0, 0.55));
+}
+kbd::after {
+  inset: 1px;
+  clip-path: var(--seal-shape-in);
+  background-image: linear-gradient(180deg, #1a2331, #0b1017);
+}
+
+/* 出處連結做成「腳註引註」的樣子：小、上標記號、細下劃線 */
+a.src {
+  color: rgba(169, 201, 216, 0.9);
+  text-decoration: none;
+  font-family: var(--font-meta);
+  font-size: var(--t-micro);
+  letter-spacing: 0.04em;
+  border-bottom: 1px solid rgba(169, 201, 216, 0.28);
+  padding-bottom: 1px;
+  transition: color var(--d-fast) var(--e-snap), border-color var(--d-fast) var(--e-snap);
+}
+a.src:hover {
+  color: var(--paper);
+  border-bottom-color: var(--paper);
+}
+
+/* ================================================================
+   刻印牌元件系統（Phase 15）
+   ================================================================
+   一句話：**介面上每一個可以按的東西，都是同一塊被切過角的石牌。**
+   夜間檔案館的語言（暗墨面、金髮絲、星光冷調、SVG 顆粒、招牌 --e-out）
+   往「被刻出來的器物」再推一步 —— 不用任何圖檔，全部是 clip-path ＋ 漸層。
+
+   ── 怎麼組出來的（重要，之後要改先讀這段）────────────────────
+   clip-path 會把 border / box-shadow / outline 全部剪掉，所以石牌不能
+   直接畫在按鈕本體上。作法是「兩層假邊」：
+
+     .seal            本體：透明、無邊框，只負責文字與命中範圍
+     .seal::before    邊：inset 0，整塊被 --seal-shape 剪成八邊形，
+                      背景是「上緣受光 → 下緣陰影」的漸層 ＝ 立體的邊
+     .seal::after     面：inset 1px，同一個形狀 ＝ 讓 ::before 只露出 1px
+                      的邊；石面漸層 ＋ 兩條會「注入」的金鑲線都畫在這裡
+
+   兩層都是 z-index:-1，本體 isolation:isolate 把它們關在自己的堆疊脈絡裡
+   （不會掉到面板背景後面），文字仍然在最上層。
+
+   ── 三個階級（只有三個，一致性優先於變化）────────────────────
+     hero   .btn--primary / .title__start / .palm
+            主要行動。最華麗：大斜切、金石面、常駐的鑲金溝槽、
+            沿著邊緣跑的微光（idle shimmer）。
+     base   .btn / .opt / .coach__fill
+            一般行動與選項卡。暗石面 ＋ 1px 邊，hover 才注入金線。
+     quiet  .btn--ghost / .fill / .block / .modeswitch / .panel__close / .acts__item
+            次要與碎件。小斜切、幾乎沒有面、只剩一條髮絲邊。
+
+   ── 六種狀態（全系統一致）──────────────────────────────────
+     rest        暗石、邊很淡
+     hover       金線從溝槽兩端注入（--inlay-w 0 → 滿，~260ms）＋ 邊變亮 ＋ 抬 1px
+     active      整塊往下壓 1px ＋ 石面漸層上下顛倒（＝真的被壓進去）
+     disabled    沒點燈的石頭：邊光降到 0.3、不發光、不位移
+     focus-visible  符文環：邊變金、加寬到 2.5px、外圈一圈光暈
+                    （drop-shadow 會沿著剪過的輪廓走，所以斜角也有光）
+     reduced-motion 只留狀態變化，微光與位移全部關掉（見無障礙那一節）
+
+   命中範圍一律 ≥ 40px（--t-* 放大後的字級不縮，是元件長大）。
+   ================================================================ */
+
+.seal,
+.btn,
+.opt,
+.block,
+.fill,
+.acts__item,
+.modeswitch,
+.coach__fill,
+.title__start {
+  appearance: none;
+  position: relative;
+  isolation: isolate;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  cursor: pointer;
+  /* 用 translate 而不是 transform：.opt 的入場動畫佔著 transform，
+     translate 是獨立的屬性，兩者會相乘而不是互相蓋掉。 */
+  transition: color var(--d-fast) var(--e-snap), translate var(--d-tap) var(--e-snap);
+}
+
+.seal::before,
+.btn::before,
+.opt::before,
+.block::before,
+.fill::before,
+.acts__item::before,
+.modeswitch::before,
+.coach__fill::before,
+.title__start::before,
+.seal::after,
+.btn::after,
+.opt::after,
+.block::after,
+.fill::after,
+.acts__item::after,
+.modeswitch::after,
+.coach__fill::after,
+.title__start::after {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  clip-path: var(--seal-shape);
+  pointer-events: none;
+}
+
+/* 邊：一道從上往下由亮轉暗的漸層 —— 這就是「立體」的全部來源 */
+.seal::before,
+.btn::before,
+.opt::before,
+.block::before,
+.fill::before,
+.acts__item::before,
+.modeswitch::before,
+.coach__fill::before,
+.title__start::before {
+  inset: 0;
+  background-image: var(--seal-edge, linear-gradient(180deg, var(--seal-lit), rgba(196, 220, 236, 0.06) 46%, var(--seal-shade)));
+  /* NN/g：focus 指示 100–150ms 內要出現，hover 回饋 150–200ms */
+  transition: background-image 140ms var(--e-snap), filter 140ms var(--e-snap),
+    opacity 140ms var(--e-snap);
+}
+
+/* 面：石面漸層 ＋ 上下兩條金鑲線（hover 時從兩端往中間注入） */
+.seal::after,
+.btn::after,
+.opt::after,
+.block::after,
+.fill::after,
+.acts__item::after,
+.modeswitch::after,
+.coach__fill::after,
+.title__start::after {
+  inset: 1px;
+  clip-path: var(--seal-shape-in);
+  background-image: linear-gradient(90deg, var(--inlay), var(--inlay)),
+    linear-gradient(90deg, var(--inlay), var(--inlay)),
+    var(--face, linear-gradient(180deg, var(--seal-face-a), var(--seal-face-b)));
+  background-repeat: no-repeat;
+  background-size: var(--inlay-w, 0px) 1px, var(--inlay-w, 0px) 1px, 100% 100%;
+  background-position: left var(--inlay-pad) top var(--inlay-pad),
+    right var(--inlay-pad) bottom var(--inlay-pad), 0 0;
+  /* 只補間金線的注入。符文環（inset / clip-path）刻意**不補間** ——
+     NN/g：focus 指示要立刻出現，補間反而讓它「慢半拍才看得到」。 */
+  transition: background-size 165ms var(--e-out);
+}
+
+/* 金線注滿 ＝ 溝槽被墨填滿。長度扣掉兩邊的斜角，才不會撞到切角。 */
+.seal:hover:not(:disabled),
+.btn:hover:not(:disabled),
+.block:hover:not(:disabled),
+.fill:hover:not(:disabled),
+.acts__item:hover:not(:disabled),
+.modeswitch:hover:not(:disabled),
+.coach__fill:hover:not(:disabled),
+.title__start:hover:not(:disabled),
+.opt:hover:not(.is-wrong) {
+  --inlay-w: calc(100% - var(--cut) * 2);
+  color: var(--paper);
+  translate: 0 -1px;
+}
+.seal:hover:not(:disabled)::before,
+.btn:hover:not(:disabled)::before,
+.block:hover:not(:disabled)::before,
+.fill:hover:not(:disabled)::before,
+.acts__item:hover:not(:disabled)::before,
+.modeswitch:hover:not(:disabled)::before,
+.coach__fill:hover:not(:disabled)::before,
+.title__start:hover:not(:disabled)::before,
+.opt:hover:not(.is-wrong)::before {
+  background-image: linear-gradient(180deg, rgba(214, 236, 250, 0.62), rgba(196, 220, 236, 0.16) 48%, var(--seal-shade));
+}
+
+/* 壓下去：石面的受光方向顛倒 ＝ 被壓進去了 */
+.seal:active:not(:disabled),
+.btn:active:not(:disabled),
+.block:active:not(:disabled),
+.fill:active:not(:disabled),
+.acts__item:active:not(:disabled),
+.modeswitch:active:not(:disabled),
+.coach__fill:active:not(:disabled),
+.title__start:active:not(:disabled),
+.opt:active:not(.is-wrong) {
+  --face: linear-gradient(180deg, #04060a, var(--seal-face-a));
+  translate: 0 1px;
+}
+.seal:active:not(:disabled)::before,
+.btn:active:not(:disabled)::before,
+.block:active:not(:disabled)::before,
+.fill:active:not(:disabled)::before,
+.acts__item:active:not(:disabled)::before,
+.modeswitch:active:not(:disabled)::before,
+.coach__fill:active:not(:disabled)::before,
+.title__start:active:not(:disabled)::before,
+.opt:active:not(.is-wrong)::before {
+  background-image: linear-gradient(180deg, var(--seal-shade), rgba(196, 220, 236, 0.28));
+}
+
+/* 符文環：邊變金、加寬、外圈一圈沿著八邊形輪廓的光暈 */
+.seal:focus-visible:not(:disabled),
+.btn:focus-visible:not(:disabled),
+.opt:focus-visible:not(:disabled),
+.block:focus-visible:not(:disabled),
+.fill:focus-visible:not(:disabled),
+.acts__item:focus-visible:not(:disabled),
+.modeswitch:focus-visible:not(:disabled),
+.coach__fill:focus-visible:not(:disabled),
+.title__start:focus-visible:not(:disabled) {
+  outline: none;
+}
+.seal:focus-visible:not(:disabled)::before,
+.btn:focus-visible:not(:disabled)::before,
+.opt:focus-visible:not(:disabled)::before,
+.block:focus-visible:not(:disabled)::before,
+.fill:focus-visible:not(:disabled)::before,
+.acts__item:focus-visible:not(:disabled)::before,
+.modeswitch:focus-visible:not(:disabled)::before,
+.coach__fill:focus-visible:not(:disabled)::before,
+.title__start:focus-visible:not(:disabled)::before {
+  background-image: linear-gradient(180deg, #f6e3c2, rgba(230, 199, 155, 0.72));
+  filter: drop-shadow(0 0 9px rgba(230, 199, 155, 0.55));
+}
+.seal:focus-visible:not(:disabled)::after,
+.btn:focus-visible:not(:disabled)::after,
+.opt:focus-visible:not(:disabled)::after,
+.block:focus-visible:not(:disabled)::after,
+.fill:focus-visible:not(:disabled)::after,
+.acts__item:focus-visible:not(:disabled)::after,
+.modeswitch:focus-visible:not(:disabled)::after,
+.coach__fill:focus-visible:not(:disabled)::after,
+.title__start:focus-visible:not(:disabled)::after {
+  inset: 2.5px;
+  --cut-in: calc(var(--cut) - 1.04px); /* 0.414 × 2.5px */
+}
+
+/* 沒點燈的石頭 */
+.seal:disabled,
+.btn:disabled,
+.block:disabled,
+.fill:disabled,
+.acts__item:disabled,
+.modeswitch:disabled,
+.coach__fill:disabled,
+.title__start:disabled {
+  cursor: default;
+  color: var(--paper-4);
+  --inlay-w: 0px;
+  /* 沒點燈，但仍然是一塊石頭 —— 看得見輪廓，只是沒有光 */
+  --face: linear-gradient(180deg, #141a23, #0a0e14);
+}
+.seal:disabled::before,
+.btn:disabled::before,
+.block:disabled::before,
+.fill:disabled::before,
+.acts__item:disabled::before,
+.modeswitch:disabled::before,
+.coach__fill:disabled::before,
+.title__start:disabled::before {
+  opacity: 0.6;
+  filter: grayscale(1);
+}
+
+/* ---------------------------------------------------------------- 階級 */
+
+/* base ── 一般按鈕 */
+.btn {
+  --cut: 9px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s2);
+  min-height: 42px;
+  padding: 8px 20px;
+  color: var(--paper-2);
+  font-family: var(--font-ui);
+  font-size: var(--t-small);
+  font-weight: 500;
+  letter-spacing: 0.04em;
+}
+
+/* hero ── 主要行動：金石面 ＋ 常駐的鑲金溝槽 ＋ 沿著邊跑的微光 */
+.btn--primary {
+  /* 斜切會真的吃掉可點面積 —— 切角不超過短邊的 1/4（46px → ≤11.5px） */
+  --cut: 11px;
+  --face: linear-gradient(180deg, #f2dab4 0%, #ddba8a 54%, #c8a271 100%);
+  /* 金牌上的鑲線是「刻進去的暗溝」，所以是暖褐色而不是金色，而且常駐 */
+  --inlay: rgba(116, 82, 40, 0.5);
+  --inlay-w: calc(100% - var(--cut) * 2);
+  --seal-edge: linear-gradient(180deg, #fdf3e0, rgba(214, 176, 124, 0.9) 48%, rgba(58, 40, 18, 0.85));
+  color: #17110a;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  min-height: 46px;
+  padding: 10px 26px;
+}
+.btn--primary::before {
+  /* 微光沿著 1px 的金邊跑一圈 —— 像光滑過金屬 */
+  background-image: linear-gradient(104deg, transparent 40%, rgba(255, 252, 244, 0.95) 50%, transparent 60%),
+    var(--seal-edge);
+  background-size: 260% 100%, 100% 100%;
+  background-position: 240% 0, 0 0;
+  background-repeat: no-repeat;
+  animation: seal-sheen 5.4s var(--e-inout) 1.2s infinite;
+}
+@keyframes seal-sheen {
+  0%,
+  76% {
+    background-position: 240% 0, 0 0;
+  }
+  100% {
+    background-position: -80% 0, 0 0;
+  }
+}
+.btn--primary:hover:not(:disabled) {
+  --face: linear-gradient(180deg, #fdeed4 0%, #edd0a4 54%, #d9b382 100%);
+  color: #17110a;
+}
+.btn--primary:hover:not(:disabled)::before {
+  background-image: linear-gradient(104deg, transparent 40%, rgba(255, 252, 244, 0.95) 50%, transparent 60%),
+    linear-gradient(180deg, #fffaf0, rgba(238, 205, 155, 0.95) 48%, rgba(58, 40, 18, 0.85));
+  filter: drop-shadow(0 0 12px rgba(230, 199, 155, 0.4));
+}
+.btn--primary:active:not(:disabled) {
+  --face: linear-gradient(180deg, #b8946a 0%, #d6b489 60%, #eacfa8 100%);
+}
+.btn--primary:active:not(:disabled)::before {
+  background-image: linear-gradient(180deg, rgba(58, 40, 18, 0.9), rgba(240, 214, 172, 0.9));
+}
+/* 只剩一層背景時，微光那一組 size/position 必須跟著收掉 */
+.btn--primary:active:not(:disabled)::before,
+.btn--primary:focus-visible::before {
+  background-size: 100% 100%;
+  background-position: 0 0;
+  animation: none;
+}
+.btn--primary:disabled {
+  --face: linear-gradient(180deg, #34302a, #1b1915);
+  --inlay-w: 0px;
+  color: rgba(230, 199, 155, 0.34);
+}
+.btn--primary:disabled::before {
+  animation: none;
+}
+
+/* danger ── 同一族，只是換一種礦：赤鐵 */
+.btn--danger {
+  --seal-lit: rgba(240, 168, 150, 0.44);
+  --face: linear-gradient(180deg, rgba(88, 38, 30, 0.72), rgba(34, 15, 12, 0.9));
+  --inlay: rgba(240, 168, 150, 0.7);
+  color: #f3bdb0;
+  font-weight: 600;
+}
+.btn--danger:hover:not(:disabled) {
+  color: #ffd9cf;
+}
+.btn--danger:hover:not(:disabled)::before {
+  background-image: linear-gradient(180deg, rgba(255, 190, 172, 0.8), rgba(224, 128, 110, 0.22) 48%, var(--seal-shade));
+}
+
+/* quiet ── 次要：小斜切、幾乎沒有面，只剩一條髮絲邊 */
+.btn--ghost {
+  --cut: 7px;
+  --seal-lit: rgba(196, 220, 236, 0.2);
+  --face: linear-gradient(180deg, rgba(20, 28, 39, 0.66), rgba(6, 9, 14, 0.72));
+  min-height: 40px;
+  padding: 7px 16px;
+}
+
+/* ---------------------------------------------------------------- meters */
+.meter {
+  position: relative;
+  height: 3px;
+  border-radius: var(--radius-pill);
+  background: rgba(255, 255, 255, 0.07);
+  overflow: visible;
+}
+.meter i {
+  display: block;
+  height: 100%;
+  border-radius: var(--radius-pill);
+  background: linear-gradient(90deg, rgba(169, 201, 216, 0.5), var(--star));
+  transition: width var(--d-reveal) var(--e-out);
+}
+.meter u {
+  position: absolute;
+  top: -3px;
+  width: 1px;
+  height: 9px;
+  background: var(--gold);
+  opacity: 0.85;
+}
+.meter--sm {
+  width: 108px;
+  flex: none;
+}
+
+/* ================================================================ HUD
+   安靜、克制。HUD 要在 200–300ms 的一瞥內讀完，其餘資訊都在面板裡。 */
+/*
+ * Phase 14：面板裡的說明文字放大到約 1.75 倍，但 HUD 是「疊在世界上的抬頭顯示」——
+ * 同樣倍率會把畫面吃掉一半。所以 HUD／標題卡這類「介面外殼」在自己的範圍內
+ * 把級數收回到約舊值的 1.4 倍：仍然比 Phase 13 大得多，但不會蓋住世界。
+ */
+.hud,
+.title,
+.toast,
+.hud__toasts {
+  --t-meta: 0.96rem;
+  --t-micro: 1.06rem;
+  --t-small: 1.16rem;
+  --t-body: 1.26rem;
+}
+
+.hud {
+  position: absolute;
+  inset: 0;
+  padding: var(--s5) var(--s6);
+  display: flex;
+  flex-direction: column;
+  pointer-events: none;
+  font-size: var(--t-small);
+}
+.hud > * {
+  pointer-events: auto;
+}
+
+.hud__top {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s6);
+}
+
+/* 等級：沒有面板底、只有一條髮絲線 —— 讓 HUD 退到世界後面 */
+.hud__level {
+  display: flex;
+  align-items: center;
+  gap: var(--s4);
+  padding: 0 0 var(--s3);
+  border-bottom: 1px solid var(--rule);
+  /* 不能被右邊的區域名擠扁 —— 等級徽章是固定尺寸的方章 */
+  flex: none;
+}
+.hud__lvbadge {
+  position: relative;
+  flex: none;
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(169, 201, 216, 0.3);
+  background: rgba(169, 201, 216, 0.05);
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 25px;
+  line-height: 1;
+  color: var(--star);
+  text-shadow: 0 0 22px rgba(169, 201, 216, 0.5);
+}
+/* 角落刻痕：像檔案室的索引標 */
+.hud__lvbadge::before,
+.hud__lvbadge::after {
+  content: '';
+  position: absolute;
+  width: 5px;
+  height: 5px;
+  border: 1px solid rgba(169, 201, 216, 0.55);
+}
+.hud__lvbadge::before {
+  top: -1px;
+  left: -1px;
+  border-right: 0;
+  border-bottom: 0;
+}
+.hud__lvbadge::after {
+  right: -1px;
+  bottom: -1px;
+  border-left: 0;
+  border-top: 0;
+}
+.hud__lvmeta {
+  min-width: 172px;
+}
+.hud__lvcap {
+  margin: 0 0 6px;
+}
+.hud__xpbar {
+  height: 2px;
+  border-radius: var(--radius-pill);
+  background: rgba(255, 255, 255, 0.09);
+  overflow: hidden;
+}
+.hud__xpbar i {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, rgba(169, 201, 216, 0.45), var(--star));
+  transition: width var(--d-reveal) var(--e-out);
+}
+.hud__xptext {
+  margin: 7px 0 0;
+  font-family: var(--font-mono);
+  font-size: var(--t-micro);
+  letter-spacing: 0.05em;
+  color: var(--paper-4);
+}
+
+/* 區域名：小小的「刻印」 —— 換區時整塊會優雅地換掉 */
+.hud__region {
+  flex: 1;
+  min-width: 0;
+  padding-top: 2px;
+}
+.hud__cartouche {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 0 0 0 var(--s4);
+  border-left: 1px solid var(--rule-2);
+}
+.hud__cartouche.is-turning {
+  animation: cartouche-turn var(--d-reveal) var(--e-out);
+}
+@keyframes cartouche-turn {
+  0% {
+    opacity: 0;
+    transform: translateY(6px);
+    filter: blur(4px);
+  }
+  100% {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+}
+.hud__regionname {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.44rem;
+  font-weight: 500;
+  letter-spacing: var(--tr-cjk);
+  line-height: var(--lh-head);
+  color: var(--paper);
+  text-shadow: 0 2px 16px rgba(0, 0, 0, 0.9);
+}
+.hud__regionen {
+  margin: 0;
+  font-family: var(--font-meta);
+  font-size: var(--t-meta);
+  letter-spacing: var(--tr-meta);
+  text-transform: uppercase;
+  color: rgba(169, 201, 216, 0.62);
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.9);
+}
+.hud__objective {
+  margin: var(--s2) 0 0;
+  font-size: var(--t-micro);
+  line-height: 1.6;
+  color: var(--paper-3);
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.95);
+  max-width: 52ch;
+}
+
+.hud__buttons {
+  display: flex;
+  gap: var(--s2);
+}
+
+/* 互動提示：紙片，不是氣泡 */
+.hud__interact {
+  position: absolute;
+  left: 50%;
+  bottom: 96px;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  --cut: 11px;
+  padding: var(--s3) var(--s6);
+  border: 0;
+  border-radius: 0;
+  clip-path: var(--seal-shape);
+  /* 邊 ＝ 一層由亮轉暗的漸層，跟介面上每一塊石牌同一套（Phase 15） */
+  background-color: rgba(196, 220, 236, 0.26);
+  backdrop-filter: blur(12px);
+  text-align: center;
+  animation: rise var(--d-slow) var(--e-out);
+  filter: drop-shadow(0 18px 34px rgba(0, 0, 0, 0.7));
+}
+.hud__interact::before {
+  content: '';
+  position: absolute;
+  inset: 1px;
+  z-index: -1;
+  clip-path: var(--seal-shape-in);
+  background-color: rgba(9, 12, 18, 0.94);
+}
+.hud__interact::after {
+  content: '';
+  position: absolute;
+  inset: 1px;
+  clip-path: var(--seal-shape-in);
+  background-image: var(--grain);
+  opacity: 0.05;
+  mix-blend-mode: overlay;
+  pointer-events: none;
+}
+.hud__interact b {
+  font-family: var(--font-display);
+  font-size: 1.38rem;
+  font-weight: 500;
+  letter-spacing: var(--tr-cjk);
+  color: var(--paper);
+}
+.hud__interact span {
+  font-size: var(--t-micro);
+  color: var(--paper-3);
+}
+.hud__interact kbd {
+  margin-top: var(--s2);
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(10px);
+  }
+}
+
+.hud__controls {
+  position: absolute;
+  left: 50%;
+  bottom: var(--s5);
+  transform: translateX(-50%);
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: var(--t-meta);
+  letter-spacing: 0.06em;
+  color: rgba(120, 137, 161, 0.9);
+  text-shadow: 0 1px 10px #000;
+  white-space: nowrap;
+}
+
+.hud__toasts {
+  position: absolute;
+  right: var(--s6);
+  bottom: var(--s6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  align-items: flex-end;
+}
+.toast {
+  position: relative;
+  padding: var(--s3) var(--s4) var(--s3) var(--s4);
+  border: 1px solid var(--rule);
+  border-left: 2px solid var(--star);
+  border-radius: 0 var(--radius) var(--radius) 0;
+  background: rgba(9, 12, 18, 0.92);
+  backdrop-filter: blur(12px);
+  font-size: var(--t-micro);
+  line-height: 1.6;
+  color: var(--paper-2);
+  max-width: 42ch;
+  opacity: 0;
+  transform: translateX(18px);
+  transition: opacity var(--d-mid) var(--e-out), transform var(--d-mid) var(--e-out);
+}
+.toast.is-in {
+  opacity: 1;
+  transform: none;
+}
+.toast--good {
+  border-left-color: var(--good);
+}
+.toast--warn {
+  border-left-color: var(--gold);
+  color: #efe1c9;
+}
+
+/* ================================================================ 指南針
+   Phase 14。世界有五片土地、四條橋，轉一轉就不知道自己面向哪裡。
+   左下角一個圓形羅盤：錶盤跟著鏡頭轉、金針指向下一個目標、
+   五根淡針是五座地標。純 DOM ＋ CSS，沒有任何外部素材。 */
+.compass {
+  position: absolute;
+  left: var(--s6);
+  bottom: var(--s6);
+  width: 190px;
+  pointer-events: none;
+  user-select: none;
+  z-index: 2;
+}
+.compass[hidden] {
+  display: none;
+}
+.compass__ring {
+  position: relative;
+  width: 132px;
+  height: 132px;
+  border-radius: 50%;
+  border: 1px solid var(--rule-2);
+  background: radial-gradient(circle at 50% 42%, rgba(15, 21, 30, 0.82), rgba(5, 8, 13, 0.92));
+  box-shadow: 0 14px 44px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(214, 232, 244, 0.08);
+  overflow: hidden;
+}
+/* 固定不動的指標：畫面正上方＝你現在面向的方向 */
+.compass__index {
+  position: absolute;
+  top: 1px;
+  left: 50%;
+  margin-left: -5px;
+  width: 0;
+  height: 0;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-top: 8px solid rgba(214, 232, 244, 0.85);
+  z-index: 4;
+}
+.compass__dial,
+.compass__cards,
+.compass__marks {
+  position: absolute;
+  inset: 0;
+}
+.compass__minor {
+  position: absolute;
+  top: 3px;
+  left: 50%;
+  margin-left: -0.5px;
+  width: 1px;
+  height: 5px;
+  background: rgba(169, 201, 216, 0.28);
+  transform-origin: 50% 63px;
+  transform: rotate(var(--a));
+}
+.compass__card {
+  position: absolute;
+  inset: 0;
+}
+.compass__card i {
+  position: absolute;
+  top: 11px;
+  left: 0;
+  right: 0;
+  width: 1.5em;
+  margin: 0 auto;
+  font-family: var(--font-ui);
+  font-size: 0.92rem;
+  font-style: normal;
+  font-weight: 500;
+  line-height: 1;
+  text-align: center;
+  letter-spacing: 0;
+  color: rgba(169, 201, 216, 0.66);
+}
+/* 北比其他三個亮一點 —— 一眼認得出基準 */
+.compass__card:first-child i {
+  color: rgba(214, 232, 244, 0.94);
+}
+/* 五座地標：很淡的短針，用該區的顏色 */
+.compass__mark {
+  position: absolute;
+  inset: 0;
+}
+.compass__mark::before {
+  content: '';
+  position: absolute;
+  top: 31px;
+  left: 50%;
+  margin-left: -2.5px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--c);
+  opacity: 0.5;
+}
+/* 下一個目標：金針 */
+.compass__needle {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+}
+.compass__needle[hidden] {
+  display: none;
+}
+.compass__needle span {
+  position: absolute;
+  top: 34px;
+  left: 50%;
+  margin-left: -7px;
+  width: 0;
+  height: 0;
+  border-left: 7px solid transparent;
+  border-right: 7px solid transparent;
+  border-bottom: 15px solid var(--gold);
+  filter: drop-shadow(0 0 8px rgba(230, 199, 155, 0.55));
+}
+.compass__needle::before {
+  content: '';
+  position: absolute;
+  top: 49px;
+  left: 50%;
+  margin-left: -1px;
+  width: 2px;
+  height: 19px;
+  background: linear-gradient(180deg, rgba(230, 199, 155, 0.8), rgba(230, 199, 155, 0));
+}
+.compass__hub {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 7px;
+  height: 7px;
+  margin: -3.5px 0 0 -3.5px;
+  border-radius: 50%;
+  background: rgba(230, 199, 155, 0.85);
+  box-shadow: 0 0 12px rgba(230, 199, 155, 0.5);
+  z-index: 4;
+}
+.compass__label {
+  margin: var(--s2) 0 0;
+  font-family: var(--font-ui);
+  font-size: var(--t-meta);
+  line-height: 1.5;
+  letter-spacing: var(--tr-cjk);
+  color: var(--paper-3);
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.95);
+}
+/* 目標名一行、距離一行 —— 名字長也不會斷在「約 35 / 步」中間 */
+.compass__label b {
+  display: block;
+  font-weight: 500;
+  color: var(--paper-2);
+}
+.compass__label span {
+  display: block;
+  color: var(--paper-4);
+}
+@media (max-width: 900px) {
+  .compass {
+    width: 150px;
+  }
+  .compass__ring {
+    width: 104px;
+    height: 104px;
+  }
+  .compass__card i {
+    top: 9px;
+  }
+  .compass__minor {
+    transform-origin: 50% 49px;
+  }
+  .compass__mark::before {
+    top: 25px;
+  }
+  .compass__needle span {
+    top: 26px;
+  }
+  .compass__needle::before {
+    top: 41px;
+    height: 15px;
+  }
+}
+
+/* ================================================================ overlay
+   面板 = 壓在夜色上的一張深墨紙。 */
+.overlay {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 3vh 3vw;
+  opacity: 0;
+  transition: opacity var(--d-mid) var(--e-out);
+  z-index: 20;
+}
+.overlay.is-open {
+  opacity: 1;
+}
+.overlay__scrim {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(120% 100% at 50% 0%, rgba(5, 8, 13, 0.72), rgba(2, 4, 7, 0.94));
+  backdrop-filter: blur(4px);
+}
+
+.panel {
+  position: relative;
+  width: min(1060px, 100%);
+  max-height: 94vh;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--rule-2);
+  border-radius: var(--radius-lg);
+  background: linear-gradient(168deg, var(--ink-3) 0%, var(--ink-1) 46%, var(--ink-0) 100%);
+  box-shadow: 0 40px 120px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(0, 0, 0, 0.5);
+  opacity: 0;
+  transform: translateY(14px) scale(0.992);
+  transition: transform var(--d-slow) var(--e-out), opacity var(--d-mid) var(--e-out);
+  overflow: hidden;
+}
+/* 顆粒：所有面板共用的質感底 */
+.panel::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: var(--grain);
+  opacity: 0.055;
+  mix-blend-mode: overlay;
+  pointer-events: none;
+  z-index: 2;
+}
+/* 頂緣的一道星光 */
+.panel::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(169, 201, 216, 0.36) 22%, rgba(230, 199, 155, 0.3) 62%, transparent);
+  pointer-events: none;
+  z-index: 3;
+}
+.overlay.is-open .panel {
+  opacity: 1;
+  transform: none;
+}
+.overlay--wide .panel {
+  width: min(1340px, 100%);
+}
+
+.panel__head {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--s5);
+  padding: var(--s5) var(--s6) var(--s3);
+  border-bottom: 1px solid var(--rule);
+  z-index: 1;
+}
+.panel__eyebrow {
+  margin: 0 0 var(--s2);
+}
+.panel__title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--t-title);
+  font-weight: 500;
+  line-height: var(--lh-head);
+  letter-spacing: var(--tr-cjk-display);
+  color: var(--paper);
+  text-wrap: balance;
+}
+.panel__sub {
+  margin: var(--s2) 0 0;
+  font-size: var(--t-micro);
+  letter-spacing: 0.04em;
+  color: var(--paper-3);
+}
+.panel__sub:empty {
+  display: none;
+}
+.panel__close {
+  --cut: 6px;
+  flex: none;
+  font-family: var(--font-meta);
+  font-size: var(--t-meta);
+  letter-spacing: var(--tr-meta-tight);
+  text-transform: uppercase;
+  min-height: 40px;
+  padding: 6px 14px;
+}
+.panel__body {
+  position: relative;
+  padding: var(--s5) var(--s6) var(--s6);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(169, 201, 216, 0.3) transparent;
+  z-index: 1;
+}
+.panel__body::-webkit-scrollbar {
+  width: 10px;
+}
+.panel__body::-webkit-scrollbar-thumb {
+  background: rgba(169, 201, 216, 0.24);
+  border-radius: var(--radius-pill);
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+
+/* ================================================================ 練習室
+   「Prompt 主控台」的設計主體。Phase 12 起是**四幕式**：一次只有一幕擁有畫面
+   （①委託 ②指引 ③刻印 ④手印），版面規則見檔案最後的 Phase 12 區塊。 */
+.console {
+  display: block;
+}
+
+/* 情境：整個練習室的主文。宋體、行距放到 1.95、首字放大。 */
+.console__scenario {
+  margin: 0 0 var(--s5);
+  font-family: var(--font-prose);
+  font-size: var(--t-lead);
+  line-height: var(--lh-prose);
+  letter-spacing: var(--tr-cjk);
+  color: #dfe9f3;
+  text-wrap: pretty;
+}
+.console__scenario::first-letter {
+  -webkit-initial-letter: 2;
+  initial-letter: 2;
+  margin-right: 0.16em;
+  color: var(--gold);
+  font-weight: 500;
+}
+
+/* 你的任務：整個練習室最重要的一塊。左邊的情境是氛圍，這裡是「要做什麼」。 */
+.mission {
+  margin: 0 0 var(--s4);
+  padding: var(--s4) var(--s4) var(--s4) var(--s5);
+  border-left: 2px solid var(--gold);
+  background: linear-gradient(90deg, rgba(198, 160, 92, 0.09), rgba(198, 160, 92, 0));
+  border-radius: 0 var(--radius) var(--radius) 0;
+}
+.mission .meta-rule {
+  margin: 0 0 var(--s2);
+}
+.mission h4 {
+  margin: 0;
+}
+.mission__text {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: var(--t-small);
+  line-height: 1.85;
+  letter-spacing: var(--tr-cjk);
+  color: #eaf2f9;
+  text-wrap: pretty;
+}
+
+/* 素材：NPC 真的遞給你的那張紙 —— 看得見、可以複製、和你的答案有因果關係。 */
+.artifact {
+  margin: 0 0 var(--s5);
+  padding: var(--s3) var(--s4);
+  border: 1px solid var(--rule-2);
+  border-radius: var(--radius);
+  background: rgba(4, 6, 10, 0.5);
+}
+.artifact__label {
+  margin: 0 0 var(--s2);
+  font-family: var(--font-meta);
+  font-size: var(--t-meta);
+  letter-spacing: var(--tr-meta);
+  text-transform: uppercase;
+  color: var(--paper-4);
+}
+.artifact__body {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-family: var(--font-mono);
+  font-size: 1.32rem;
+  line-height: 1.85;
+  color: rgba(223, 233, 243, 0.92);
+}
+
+/* 快速填入：這一關會用到的短句，按一下就插到游標處 */
+.fills {
+  margin-top: var(--s4);
+}
+.fills .meta-rule {
+  margin-bottom: var(--s2);
+}
+.fills h4 {
+  margin: 0;
+}
+.fills__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+}
+/* 快速填入＝一片可以撿起來的小石籤（quiet 階） */
+.fill {
+  --cut: 6px;
+  --seal-lit: rgba(196, 220, 236, 0.2);
+  --face: linear-gradient(180deg, rgba(18, 25, 35, 0.72), rgba(6, 9, 14, 0.78));
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 7px 14px;
+  color: var(--paper-2);
+  font-family: var(--font-ui);
+  font-size: var(--t-meta);
+  letter-spacing: var(--tr-cjk);
+}
+.fill__plus {
+  color: var(--gold);
+  transition: color var(--d-fast) var(--e-snap);
+}
+/* 用過的：石籤已經被拿走過 —— 面壓進去、光收掉 */
+.fill.is-used {
+  --face: linear-gradient(180deg, #05080c, #0e141d);
+  --inlay-w: 0px;
+  color: var(--paper-4);
+}
+.fill.is-used::before {
+  opacity: 0.45;
+}
+.fill.is-used .fill__plus {
+  color: rgba(230, 199, 155, 0.4);
+}
+
+/* 線索：一個安靜的可展開 —— 折起來時只有一行小字 */
+.clue {
+  margin: 0 0 var(--s5);
+  border-top: 1px solid var(--rule);
+  border-bottom: 1px solid var(--rule);
+}
+.clue > summary {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  cursor: pointer;
+  padding: var(--s3) 0;
+  font-family: var(--font-ui);
+  font-size: var(--t-micro);
+  font-weight: 500;
+  letter-spacing: var(--tr-cjk);
+  color: rgba(230, 199, 155, 0.82);
+  list-style: none;
+  transition: color var(--d-fast) var(--e-snap);
+}
+.clue > summary:hover {
+  color: var(--gold);
+}
+.clue > summary::-webkit-details-marker {
+  display: none;
+}
+/* 展開記號＝一顆刻著十字的小封印石，打開時轉成 ✕ */
+.clue > summary::after {
+  content: '+';
+  margin-left: auto;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  --cut: 6px;
+  clip-path: var(--seal-shape);
+  background-image: linear-gradient(180deg, rgba(230, 199, 155, 0.26), rgba(0, 0, 0, 0.42));
+  font-family: var(--font-mono);
+  font-size: 17px;
+  line-height: 1;
+  transition: transform var(--d-mid) var(--e-out), background-image var(--d-fast) var(--e-snap);
+}
+.clue > summary:hover::after {
+  background-image: linear-gradient(180deg, rgba(246, 227, 194, 0.7), rgba(0, 0, 0, 0.42));
+}
+.clue[open] > summary::after {
+  transform: rotate(45deg);
+}
+.clue p {
+  margin: 0;
+  padding: 0 0 var(--s4);
+  font-family: var(--font-prose);
+  /* 宋體的下限是 15px：再小，暗底上的橫畫會不見 */
+  font-size: 1.66rem;
+  line-height: var(--lh-prose);
+  color: #e6dcc9;
+  animation: clue-open var(--d-slow) var(--e-out);
+}
+@keyframes clue-open {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+/* 評分項清單：像目錄，不像 checkbox */
+.checklist {
+  list-style: none;
+  margin: 0 0 var(--s6);
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+.checklist li {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: baseline;
+  gap: var(--s2) var(--s3);
+  padding: var(--s3) 0;
+  border-bottom: 1px solid rgba(196, 220, 236, 0.055);
+  font-size: var(--t-small);
+  color: var(--paper-2);
+}
+.checklist li:last-child {
+  border-bottom: 0;
+}
+.checklist__dot {
+  display: none;
+}
+.checklist__text {
+  min-width: 0;
+}
+.checklist__text b {
+  font-weight: 500;
+  letter-spacing: var(--tr-cjk);
+  color: var(--paper);
+}
+.checklist__text i {
+  display: block;
+  font-style: normal;
+  font-size: var(--t-micro);
+  color: var(--paper-3);
+  margin-top: 2px;
+}
+.checklist__w {
+  font-family: var(--font-mono);
+  font-size: var(--t-micro);
+  font-weight: 500;
+  color: var(--paper-4);
+  flex: none;
+  white-space: nowrap;
+}
+.checklist .src {
+  grid-column: 1 / -1;
+  justify-self: start;
+}
+
+/* 技巧積木（Phase 18）：貼著書寫檯下緣的一條工具列。
+   以前是右欄的雙欄卡片（名稱 ＋ 說明 ＋ 中文片段 ＋ 收起來的英文），
+   離輸入框很遠又很佔位；現在壓成一行一片的小石籤（quiet 階），
+   牌面只留技巧名，說明與英文寫法收進 title。 */
+.console__blocks {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--s2) var(--s3);
+  margin-top: var(--s3);
+}
+.blocks__label {
+  flex: none;
+  font-family: var(--font-ui);
+  font-size: var(--t-micro);
+  font-weight: 500;
+  letter-spacing: var(--tr-cjk);
+  color: var(--paper-4);
+  white-space: nowrap;
+}
+.blocks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+  min-width: 0;
+}
+/* 一片積木 ＝ 一塊可以撿起來搬走的小建材（和快速填入同一階） */
+.block {
+  --cut: 6px;
+  --seal-lit: rgba(196, 220, 236, 0.2);
+  --face: linear-gradient(180deg, rgba(18, 25, 35, 0.72), rgba(6, 9, 14, 0.78));
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 6px 14px;
+  text-align: left;
+  color: var(--paper-2);
+  font-family: var(--font-ui);
+}
+.block b {
+  font-size: var(--t-micro);
+  font-weight: 500;
+  line-height: 1.3;
+  letter-spacing: var(--tr-cjk);
+  color: var(--paper);
+  white-space: nowrap;
+}
+.block__plus {
+  color: var(--gold);
+  transition: color var(--d-fast) var(--e-snap);
+}
+/* 用過的：這塊建材已經搬進去過了 —— 面壓進去、光收掉 */
+.block.is-used {
+  --face: linear-gradient(180deg, #05080c, #0e141d);
+  --inlay-w: 0px;
+  color: var(--paper-4);
+}
+.block.is-used b {
+  color: var(--paper-3);
+}
+.block.is-used::before {
+  opacity: 0.45;
+}
+.block.is-used .block__plus {
+  color: rgba(230, 199, 155, 0.4);
+}
+
+.rail h4 {
+  margin: 0;
+}
+
+/* -------------------------------------------------- 書寫檯 */
+.console__label {
+  margin: 0;
+}
+
+/* 焦點寫作面：外框在 focus 時亮起一圈，像檯燈被打開 */
+/* 書寫檯＝一塊被鑿平的石板：同一族的斜切角，只是大得多 */
+.desk {
+  --cut: 16px;
+  position: relative;
+  isolation: isolate;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+.desk::before,
+.desk::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  clip-path: var(--seal-shape);
+  background-image: linear-gradient(180deg, rgba(196, 220, 236, 0.22), rgba(196, 220, 236, 0.05) 40%,
+    rgba(0, 0, 0, 0.6));
+  transition: background-image var(--d-mid) var(--e-out), filter var(--d-mid) var(--e-out);
+}
+.desk::after {
+  inset: 1px;
+  clip-path: var(--seal-shape-in);
+  background-color: rgba(4, 6, 10, 0.72);
+  background-image: none;
+  transition: background-color var(--d-mid) var(--e-out);
+}
+.desk:focus-within::before {
+  background-image: linear-gradient(180deg, rgba(214, 236, 250, 0.72), rgba(169, 201, 216, 0.22) 40%,
+    rgba(0, 0, 0, 0.6));
+  filter: drop-shadow(0 0 26px rgba(169, 201, 216, 0.28));
+}
+.desk:focus-within::after {
+  background-color: rgba(4, 6, 10, 0.88);
+}
+.prompt-input {
+  display: block;
+  width: 100%;
+  min-height: 250px;
+  padding: var(--s5) var(--s5) var(--s3);
+  border: 0;
+  border-radius: var(--radius);
+  background: transparent;
+  color: #dfe9f3;
+  /* 使用者輸入 → 系統字型（子集缺字也安全） */
+  font-family: var(--font-input);
+  font-size: 1.42rem;
+  line-height: 1.85;
+  letter-spacing: 0.01em;
+  resize: vertical;
+  outline: none;
+}
+.prompt-input::placeholder {
+  color: var(--paper-4);
+  font-style: italic;
+}
+.desk__foot {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  padding: 0 var(--s5) var(--s3);
+  font-family: var(--font-mono);
+  font-size: var(--t-meta);
+  letter-spacing: 0.06em;
+  color: var(--paper-4);
+}
+.desk__count {
+  transition: color var(--d-fast) var(--e-snap);
+}
+.desk__count.is-live {
+  color: rgba(169, 201, 216, 0.85);
+}
+.desk__foot .spacer {
+  flex: 1;
+}
+
+.console__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  margin-top: var(--s4);
+}
+.console__actions .spacer {
+  flex: 1;
+}
+.console__help {
+  margin: var(--s3) 0 0;
+  font-family: var(--font-ui);
+  font-size: var(--t-meta);
+  letter-spacing: 0.05em;
+  color: var(--paper-4);
+}
+
+/* ---------------------------------------------------------------- 結果揭示 */
+.result {
+  margin-top: var(--s6);
+  padding-top: var(--s5);
+  border-top: 1px solid var(--rule-2);
+}
+.result:focus {
+  outline: none;
+}
+
+/* 揭示序列：每一塊照 --i 依序進場 */
+.reveal {
+  animation: reveal-in var(--d-slow) var(--e-out) both;
+  animation-delay: calc(var(--i, 0) * var(--stagger));
+}
+@keyframes reveal-in {
+  from {
+    opacity: 0;
+    transform: translateY(9px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.result__top {
+  display: flex;
+  gap: var(--s6);
+  align-items: center;
+  padding: var(--s5) 0;
+  border-bottom: 1px solid var(--rule);
+}
+.result__top.is-pass {
+  border-bottom-color: var(--rule-gold);
+}
+.result__top.is-fail {
+  border-bottom-color: rgba(224, 128, 110, 0.28);
+}
+
+/* 評價印章：Fraunces 的大字 ＋ 一圈細框 */
+.grade {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 118px;
+  height: 118px;
+  flex: none;
+  border: 1px solid var(--rule-2);
+  border-radius: 50%;
+}
+.is-pass .grade {
+  border-color: var(--rule-gold);
+}
+.grade__mark {
+  font-family: var(--font-display);
+  font-size: 66px;
+  font-weight: 600;
+  font-variation-settings: 'opsz' 120, 'SOFT' 0, 'WONK' 1;
+  line-height: 1;
+  letter-spacing: 0;
+  color: var(--gold);
+  text-shadow: 0 0 30px rgba(230, 199, 155, 0.45);
+}
+.is-fail .grade__mark {
+  color: var(--paper-4);
+  text-shadow: none;
+}
+.grade__label {
+  position: absolute;
+  bottom: -10px;
+  padding: 1px 8px;
+  background: var(--ink-1);
+  /* 內容是「完美 / 優秀 / 尚未通過」等中文 —— 不套 Latin 的 tracking */
+  font-family: var(--font-ui);
+  font-size: var(--t-meta);
+  letter-spacing: var(--tr-cjk);
+  color: var(--paper-3);
+  white-space: nowrap;
+}
+.result__meter {
+  flex: 1;
+  min-width: 0;
+}
+.result__scoreline {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s2);
+  margin: 0 0 var(--s3);
+  font-family: var(--font-mono);
+  font-size: var(--t-micro);
+  letter-spacing: 0.06em;
+  color: var(--paper-3);
+}
+.result__scoreline b {
+  font-family: var(--font-display);
+  font-size: 2.4rem;
+  font-weight: 500;
+  color: var(--paper);
+  line-height: 1;
+}
+.result__meter p {
+  margin: var(--s3) 0 0;
+  font-size: var(--t-micro);
+}
+.gain {
+  color: var(--good);
+  font-weight: 500;
+  letter-spacing: var(--tr-cjk);
+}
+.gain--none {
+  color: var(--gold);
+  font-weight: 400;
+}
+.xp-tick {
+  font-family: var(--font-display);
+  font-size: 1.8rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.rows {
+  list-style: none;
+  margin: var(--s5) 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+.row {
+  display: flex;
+  gap: var(--s4);
+  padding: var(--s4) 0;
+  border-bottom: 1px solid rgba(196, 220, 236, 0.06);
+  animation: reveal-in var(--d-slow) var(--e-out) both;
+  animation-delay: calc(220ms + var(--i, 0) * var(--stagger));
+}
+.row:last-child {
+  border-bottom: 0;
+}
+/* 狀態一律「符號 ＋ 形狀 ＋ 顏色」三重編碼，不只靠顏色 */
+.row__icon {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border: 1px solid currentColor;
+  font-family: var(--font-mono);
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--paper-4);
+}
+.row--pass .row__icon {
+  border-radius: 50%;
+  color: var(--good);
+}
+.row--part .row__icon {
+  border-radius: var(--radius);
+  color: var(--warn);
+}
+.row--miss .row__icon {
+  border-radius: 0;
+  color: var(--bad);
+}
+.row__main {
+  flex: 1;
+  min-width: 0;
+}
+.row__head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s3);
+}
+.row__head b {
+  font-weight: 500;
+  letter-spacing: var(--tr-cjk);
+  color: var(--paper);
+}
+.row__score {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: var(--t-micro);
+  color: var(--paper-4);
+  flex: none;
+}
+.row__evidence {
+  margin: var(--s1) 0 0;
+  font-size: var(--t-small);
+  color: var(--paper-2);
+}
+.row__hint {
+  margin: var(--s2) 0 0;
+  padding-left: var(--s3);
+  border-left: 1px solid var(--rule-gold);
+  font-size: var(--t-small);
+  line-height: 1.7;
+  color: #e9dcc4;
+}
+.row .src {
+  display: inline-block;
+  margin-top: var(--s2);
+}
+
+/* 收進圖鑑 / 新解鎖：暖金髮絲框 */
+.collected {
+  margin-top: var(--s5);
+  padding: var(--s4) 0 var(--s4) var(--s4);
+  border-left: 1px solid var(--rule-gold);
+  background: linear-gradient(90deg, var(--gold-dim), transparent 70%);
+  animation: reveal-in var(--d-slow) var(--e-out) both;
+  animation-delay: calc(320ms + var(--i, 0) * var(--stagger));
+}
+.collected h4 {
+  margin: 0 0 var(--s2);
+}
+.collected ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--t-small);
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.collected ul b {
+  font-weight: 500;
+  letter-spacing: var(--tr-cjk);
+}
+.collected ul .muted {
+  font-family: var(--font-mono);
+  font-size: var(--t-meta);
+}
+
+.result__source {
+  margin: var(--s5) 0 0;
+  padding-top: var(--s4);
+  border-top: 1px solid var(--rule);
+  font-family: var(--font-ui);
+  font-size: var(--t-meta);
+  letter-spacing: var(--tr-cjk);
+  color: var(--paper-4);
+  word-break: break-word;
+}
+.result__source .src {
+  margin-left: var(--s2);
+  letter-spacing: 0.02em;
+}
+
+/* ================================================================ codex
+   收藏品的目錄：像美術館的圖錄，不像清單。 */
+.badges {
+  margin-bottom: var(--s7);
+}
+.badges h4 {
+  margin: 0;
+}
+.badges__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s5);
+}
+.badge {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  padding: 0 0 var(--s2);
+  border-bottom: 1px solid var(--rule);
+  opacity: 0.4;
+  font-size: var(--t-small);
+  min-width: 128px;
+  transition: opacity var(--d-mid) var(--e-out), border-color var(--d-mid) var(--e-out);
+}
+.badge.is-on {
+  opacity: 1;
+  border-bottom-color: color-mix(in srgb, var(--c) 55%, transparent);
+}
+.badge b {
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+.badge__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--c);
+  flex: none;
+}
+.badge__n {
+  margin-left: auto;
+  font-family: var(--font-display);
+  font-size: 1.7rem;
+  font-weight: 500;
+  color: var(--paper-2);
+}
+.badges__hidden {
+  margin: var(--s4) 0 0;
+  font-family: var(--font-display);
+  font-size: 1.6rem;
+  letter-spacing: var(--tr-cjk);
+  color: var(--gold);
+}
+
+.codex {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s8);
+}
+/* 區域 = 圖錄的一個章節。沒有卡片框，用大標 ＋ 髮絲線分章。 */
+.region-card {
+  position: relative;
+  padding-top: var(--s2);
+}
+/* 區域精通＝蓋在圖錄右上角的一枚封印 */
+.region-card__seal {
+  --cut: 7px;
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 1;
+  isolation: isolate;
+  padding: 4px 12px;
+  border: 0;
+  border-radius: 0;
+  font-family: var(--font-ui);
+  font-size: var(--t-meta);
+  letter-spacing: var(--tr-cjk);
+  color: #17110a;
+  font-weight: 600;
+  background: transparent;
+}
+.region-card__seal::before,
+.region-card__seal::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  clip-path: var(--seal-shape);
+  background-image: linear-gradient(180deg, #fdf3e0, rgba(120, 88, 46, 0.9));
+}
+.region-card__seal::after {
+  inset: 1px;
+  clip-path: var(--seal-shape-in);
+  background-image: linear-gradient(180deg, #f2dab4, #c8a271);
+}
+.region-card.is-mastered .region-card__head {
+  border-bottom-color: var(--rule-gold);
+}
+.region-card.is-mastered .region-card__head h3 {
+  color: #f6e5c6;
+}
+.region-card__head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--s5);
+  padding: 0 0 var(--s3);
+  margin-bottom: var(--s5);
+  border-bottom: 1px solid var(--rule-2);
+  border-left: 2px solid var(--c);
+  padding-left: var(--s4);
+}
+.region-card__head h3 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--t-h2);
+  font-weight: 500;
+  letter-spacing: var(--tr-title);
+  line-height: var(--lh-head);
+  color: var(--paper);
+}
+.region-card__head h3 .muted {
+  display: block;
+  font-family: var(--font-meta);
+  font-size: var(--t-meta);
+  font-weight: 500;
+  letter-spacing: var(--tr-meta);
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--c) 70%, var(--paper-3));
+  margin-top: 3px;
+}
+.region-card__head p {
+  margin: 0;
+  font-size: var(--t-micro);
+  color: var(--paper-3);
+}
+.region-card__meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--s2);
+  flex: none;
+}
+.region-card__body {
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s6);
+}
+
+.topic {
+  padding-top: 0;
+}
+.topic__head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s3);
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--t-h3);
+  font-weight: 500;
+  letter-spacing: var(--tr-cjk);
+  color: var(--paper);
+}
+.topic__num {
+  font-family: var(--font-mono);
+  font-size: var(--t-meta);
+  font-weight: 500;
+  color: var(--paper-4);
+  flex: none;
+}
+.topic__count {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: var(--t-meta);
+  color: var(--paper-4);
+  flex: none;
+}
+.topic__sub {
+  margin: var(--s1) 0 var(--s3) 0;
+  font-size: var(--t-micro);
+  color: var(--paper-3);
+}
+
+.techs {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+.tech {
+  border-bottom: 1px solid rgba(196, 220, 236, 0.06);
+}
+.tech:last-child {
+  border-bottom: 0;
+}
+/* 未收集 = 剪影：只留編號與一句提示，維持收集慾 */
+.tech--locked {
+  opacity: 0.3;
+  padding: var(--s3) 0;
+}
+.tech--locked .tech__head {
+  align-items: baseline;
+}
+.tech--locked .tech__title {
+  font-family: var(--font-mono);
+  letter-spacing: 0.3em;
+}
+.codex__hint {
+  margin: var(--s3) 0 0;
+  font-size: var(--t-micro);
+  color: var(--paper-4);
+}
+.tech__head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s3);
+}
+.tech summary {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s3);
+  padding: var(--s3) 0;
+  cursor: pointer;
+  list-style: none;
+  transition: color var(--d-fast) var(--e-snap);
+}
+.tech summary::-webkit-details-marker {
+  display: none;
+}
+.tech summary:hover .tech__title {
+  color: var(--star);
+}
+.tech__id {
+  font-family: var(--font-mono);
+  font-size: var(--t-meta);
+  color: var(--paper-4);
+  flex: none;
+  min-width: 92px;
+}
+.tech__title {
+  font-size: var(--t-small);
+  font-weight: 500;
+  letter-spacing: var(--tr-cjk);
+  color: var(--paper);
+  transition: color var(--d-fast) var(--e-snap);
+}
+.tech__chips {
+  margin-left: auto;
+  display: flex;
+  gap: var(--s1);
+  flex: none;
+}
+/* 廠家標記＝一小片有色的礦籤 */
+.chip {
+  --cut: 4px;
+  position: relative;
+  isolation: isolate;
+  display: inline-block;
+  padding: 2px 9px;
+  border: 0;
+  border-radius: 0;
+  font-family: var(--font-meta);
+  font-size: var(--t-meta);
+  letter-spacing: 0.06em;
+  color: color-mix(in srgb, var(--c) 78%, var(--paper));
+}
+.chip::before,
+.chip::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  clip-path: var(--seal-shape);
+  background-image: linear-gradient(180deg, color-mix(in srgb, var(--c) 58%, transparent),
+    color-mix(in srgb, var(--c) 14%, transparent));
+}
+.chip::after {
+  inset: 1px;
+  clip-path: var(--seal-shape-in);
+  background-image: linear-gradient(180deg, rgba(10, 14, 20, 0.9), rgba(5, 7, 10, 0.92));
+}
+.tech__body {
+  padding: 0 0 var(--s5) 92px;
+  animation: reveal-in var(--d-mid) var(--e-out);
+}
+.tech__tip {
+  margin: 0 0 var(--s3);
+  font-family: var(--font-prose);
+  font-size: 1.66rem;
+  line-height: var(--lh-prose);
+  color: #d4dfeb;
+}
+.tech__ex {
+  margin: 0 0 var(--s3);
+  padding: var(--s3) var(--s4);
+  border-left: 1px solid var(--rule-2);
+  background: rgba(4, 6, 10, 0.6);
+  font-family: var(--font-mono);
+  font-size: var(--t-micro);
+  line-height: 1.75;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: #b6c8d6;
+  max-height: 260px;
+  overflow: auto;
+}
+.tech__note {
+  margin: 0 0 var(--s3);
+  padding: var(--s2) var(--s4);
+  border-left: 1px solid var(--rule-gold);
+  background: linear-gradient(90deg, var(--gold-dim), transparent 70%);
+  font-size: var(--t-micro);
+  line-height: 1.7;
+  color: #e7dbc7;
+}
+.tech__srcs {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2) var(--s5);
+}
+@media (max-width: 720px) {
+  .tech__body {
+    padding-left: 0;
+  }
+}
+
+/* ================================================================ 隱藏成就 */
+.finale__lead {
+  margin: 0 0 var(--s5);
+  font-family: var(--font-prose);
+  font-size: var(--t-lead);
+  line-height: var(--lh-prose);
+  letter-spacing: var(--tr-cjk);
+  color: #e2ecf5;
+  text-wrap: pretty;
+}
+.finale__lead::first-letter {
+  -webkit-initial-letter: 2;
+  initial-letter: 2;
+  margin-right: 0.16em;
+  color: var(--gold);
+}
+.finale__note {
+  margin: var(--s5) 0 var(--s6);
+  padding-left: var(--s4);
+  border-left: 1px solid var(--rule-gold);
+  font-family: var(--font-prose);
+  font-size: 1.66rem;
+  line-height: var(--lh-prose);
+  color: #efe0c6;
+}
+.finale h4 {
+  margin: 0;
+}
+.finale__srcs {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: var(--s2);
+  font-size: var(--t-micro);
+}
+.finale__srcs .muted {
+  font-family: var(--font-meta);
+  font-size: var(--t-meta);
+  letter-spacing: var(--tr-meta-tight);
+  text-transform: uppercase;
+  display: inline-block;
+  min-width: 96px;
+}
+/* 成就面板加一層暖光，但保持克制 */
+#achievement .panel {
+  background: linear-gradient(168deg, #1b1710 0%, var(--ink-1) 44%, var(--ink-0) 100%);
+  border-color: var(--rule-gold);
+}
+#achievement .panel__title {
+  color: #f7e7c9;
+}
+
+/* ================================================================ settings */
+.settings__row {
+  display: flex;
+  align-items: center;
+  gap: var(--s4);
+  padding: var(--s3) 0;
+  border-bottom: 1px solid rgba(196, 220, 236, 0.055);
+}
+.settings__row label {
+  min-width: 6.5em;
+  flex: none;
+  font-family: var(--font-ui);
+  font-size: var(--t-micro);
+  font-weight: 500;
+  letter-spacing: var(--tr-cjk);
+  color: var(--paper-3);
+}
+.settings__row .muted {
+  font-size: var(--t-micro);
+}
+/* 音量＝一道刻進石頭的凹槽，滑鈕是一顆嵌在裡面的金滴 */
+.settings__row input[type='range'] {
+  appearance: none;
+  flex: 1;
+  max-width: 240px;
+  height: 28px;
+  background: transparent;
+  cursor: pointer;
+}
+.settings__row input[type='range']::-webkit-slider-runnable-track {
+  /* 注意：軌道**不能**上 clip-path —— 滑鈕是畫在軌道裡的，會被一起剪掉。
+     凹槽的收邊改用漸層做（上緣暗＝被上唇擋住、下緣亮＝下唇迎光）。 */
+  height: 9px;
+  background-image: linear-gradient(90deg, transparent 0 3px, #000 3px 4px, transparent 4px),
+    linear-gradient(270deg, transparent 0 3px, #000 3px 4px, transparent 4px),
+    linear-gradient(180deg, rgba(0, 0, 0, 0.95) 0 2px, #0b1119 2px, #131c28 62%,
+      rgba(214, 236, 250, 0.42) 100%);
+}
+.settings__row input[type='range']::-moz-range-track {
+  height: 9px;
+  background-image: linear-gradient(180deg, rgba(0, 0, 0, 0.95) 0 2px, #0b1119 2px, #131c28 62%,
+    rgba(214, 236, 250, 0.42) 100%);
+}
+.settings__row input[type='range']::-webkit-slider-thumb {
+  appearance: none;
+  width: 18px;
+  height: 24px;
+  margin-top: -8px;
+  clip-path: polygon(50% 0, 100% 28%, 100% 72%, 50% 100%, 0 72%, 0 28%);
+  background-image: linear-gradient(180deg, #fdf1dc 0%, #e2bf90 52%, #a98252 100%);
+  transition: filter var(--d-fast) var(--e-snap);
+}
+.settings__row input[type='range']::-moz-range-thumb {
+  width: 18px;
+  height: 24px;
+  border: 0;
+  clip-path: polygon(50% 0, 100% 28%, 100% 72%, 50% 100%, 0 72%, 0 28%);
+  background-image: linear-gradient(180deg, #fdf1dc 0%, #e2bf90 52%, #a98252 100%);
+}
+.settings__row input[type='range']:hover::-webkit-slider-thumb,
+.settings__row input[type='range']:focus-visible::-webkit-slider-thumb {
+  filter: drop-shadow(0 0 8px rgba(230, 199, 155, 0.65));
+}
+.settings__row input[type='range']:focus-visible {
+  outline: none;
+}
+.settings__row output {
+  font-family: var(--font-display);
+  font-size: 1.7rem;
+  color: var(--paper);
+  min-width: 34px;
+}
+/* 下拉＝一塊嵌在凹槽裡的石籤（原生箭頭換成刻出來的三角） */
+.settings__row select {
+  --cut: 7px;
+  appearance: none;
+  /* 收起來的樣子由下面的 background-image 決定；background-color 是「打開之後」
+     那張原生清單的底色 —— 留成 transparent 的話瀏覽器會當成白底，
+     配上淺色文字就變成一片看不見的字（Phase 15 之後的實際災情）。 */
+  color-scheme: dark;
+  position: relative;
+  min-height: 40px;
+  padding: 8px 38px 8px 14px;
+  border: 0;
+  border-radius: 0;
+  clip-path: var(--seal-shape);
+  background-color: #0b1119;
+  background-image: linear-gradient(45deg, transparent 50%, var(--gold) 50%),
+    linear-gradient(135deg, var(--gold) 50%, transparent 50%),
+    linear-gradient(180deg, rgba(196, 220, 236, 0.24), rgba(196, 220, 236, 0.04) 3px, rgba(20, 28, 39, 0.94) 3px,
+      rgba(6, 9, 14, 0.96));
+  background-repeat: no-repeat;
+  background-size: 6px 6px, 6px 6px, 100% 100%;
+  background-position: calc(100% - 20px) 50%, calc(100% - 14px) 50%, 0 0;
+  color: var(--paper);
+  font-family: var(--font-ui);
+  font-size: var(--t-small);
+  cursor: pointer;
+  transition: background-image var(--d-fast) var(--e-snap);
+}
+.settings__row select:hover,
+.settings__row select:focus-visible {
+  background-image: linear-gradient(45deg, transparent 50%, #f6e3c2 50%),
+    linear-gradient(135deg, #f6e3c2 50%, transparent 50%),
+    linear-gradient(180deg, rgba(230, 199, 155, 0.85), rgba(230, 199, 155, 0.14) 3px, rgba(24, 33, 46, 0.96) 3px,
+      rgba(8, 12, 18, 0.96));
+}
+.settings__row select:focus-visible {
+  outline: none;
+}
+/* --------------------------------------------------------------------
+   下拉「打開之後」的那張清單。
+
+   這張清單不是我們畫的 —— 它由瀏覽器 / 作業系統畫，CSS 只碰得到兩件半：
+     · `color-scheme: dark`：清單的底、外框、陰影、捲軸（Chrome / Firefox /
+       Safari 都認）。這是「白底白字」的根治法，也是 macOS 上唯一有效的手段。
+     · `option` 的 `background-color` 與 `color`（Chrome / Edge / Firefox 認；
+       macOS 的原生選單會忽略，所以上面那行才是主力）。
+     · 字型、圓角、間距、每一列的高度：碰不到，別試。
+
+   底色與文字色兩個都要明講 —— 彈出清單**不繼承** select 的 color，
+   只寫其中一個就會再次變成「看不見的字」（Phase 15 之後的實際災情）。
+   規則放在全域（不綁 .settings__row），之後任何地方多一個下拉都直接是深色。
+   -------------------------------------------------------------------- */
+select {
+  color-scheme: dark;
+}
+select option,
+select optgroup {
+  background-color: #0b1119;
+  color: #eef4fa;
+  font-family: var(--font-ui);
+}
+/* 目前選中的那一列：加一層暖金底，鍵盤上下移動時看得出走到哪 */
+select option:checked,
+select option:hover,
+select option:focus {
+  background-color: #2b2418;
+  color: #f6e3c2;
+}
+select option:disabled {
+  color: #66768d;
+}
+/* 勾選＝一塊小石牌；蓋上去，勾痕才被刻出來 */
+.settings__row input[type='checkbox'] {
+  --cut: 6px;
+  appearance: none;
+  position: relative;
+  width: 26px;
+  height: 26px;
+  flex: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  cursor: pointer;
+  clip-path: var(--seal-shape);
+  background-image: linear-gradient(180deg, rgba(222, 242, 255, 0.85), rgba(196, 220, 236, 0.2) 46%,
+    rgba(0, 0, 0, 0.75));
+  transition: background-image var(--d-fast) var(--e-snap), filter var(--d-fast) var(--e-snap);
+}
+/* 石面（往內縮 1px，露出上面那層當邊） */
+.settings__row input[type='checkbox']::before {
+  content: '';
+  position: absolute;
+  inset: 1px;
+  clip-path: var(--seal-shape-in);
+  background-image: linear-gradient(180deg, #1c2634, #0a0f16);
+  transition: background-image var(--d-fast) var(--e-snap);
+}
+/* 勾痕 */
+.settings__row input[type='checkbox']::after {
+  content: '';
+  position: absolute;
+  left: 8px;
+  top: 4px;
+  width: 7px;
+  height: 12px;
+  border-right: 2px solid #17110a;
+  border-bottom: 2px solid #17110a;
+  rotate: 42deg;
+  opacity: 0;
+  scale: 0.6;
+  transition: opacity var(--d-fast) var(--e-out), scale var(--d-fast) var(--e-out);
+}
+.settings__row input[type='checkbox']:checked {
+  background-image: linear-gradient(180deg, #fdf3e0, rgba(120, 88, 46, 0.9));
+}
+.settings__row input[type='checkbox']:checked::before {
+  background-image: linear-gradient(180deg, #f2dab4, #c8a271);
+}
+.settings__row input[type='checkbox']:checked::after {
+  opacity: 1;
+  scale: 1;
+}
+.settings__row input[type='checkbox']:hover,
+.settings__row input[type='checkbox']:focus-visible {
+  filter: drop-shadow(0 0 7px rgba(230, 199, 155, 0.55));
+}
+.settings__row input[type='checkbox']:focus-visible {
+  outline: none;
+}
+/* 設定頁的按鈕（例如「重看引導課程」）不換行 —— Phase 14 字放大後才會撞到 */
+.settings__row .btn {
+  flex: none;
+  white-space: nowrap;
+}
+.rule {
+  border: 0;
+  border-top: 1px solid var(--rule);
+  margin: var(--s6) 0 var(--s5);
+}
+.settings__stats h4,
+.settings__danger h4 {
+  margin: 0;
+}
+.settings__stats ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--t-small);
+  color: var(--paper-2);
+  display: grid;
+  gap: var(--s2);
+}
+.settings__stats ul b {
+  font-family: var(--font-display);
+  font-size: 1.6rem;
+  font-weight: 500;
+  color: var(--paper);
+}
+.settings__danger {
+  padding: var(--s5);
+  border: 1px solid rgba(224, 128, 110, 0.22);
+  border-radius: var(--radius);
+  background: rgba(224, 128, 110, 0.035);
+}
+.settings__danger p {
+  margin: var(--s3) 0 var(--s4);
+  font-size: var(--t-micro);
+}
+.settings__danger .btn + .btn {
+  margin-left: var(--s2);
+}
+
+/* ================================================================ intro */
+.intro {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 4vh 4vw;
+  background: radial-gradient(120% 100% at 50% 0%, rgba(6, 10, 16, 0.84), rgba(2, 4, 7, 0.96));
+  backdrop-filter: blur(5px);
+  opacity: 0;
+  transition: opacity var(--d-slow) var(--e-out);
+  z-index: 30;
+}
+.intro.is-open {
+  opacity: 1;
+}
+.intro__card {
+  position: relative;
+  width: min(720px, 100%);
+  max-height: 92vh;
+  overflow-y: auto;
+  padding: var(--s8) var(--s8) var(--s7);
+  border: 1px solid var(--rule-2);
+  border-radius: var(--radius-lg);
+  background: linear-gradient(168deg, var(--ink-3), var(--ink-1) 48%, var(--ink-0));
+  box-shadow: 0 40px 120px rgba(0, 0, 0, 0.72);
+}
+.intro__card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: var(--grain);
+  opacity: 0.055;
+  mix-blend-mode: overlay;
+  pointer-events: none;
+  border-radius: var(--radius-lg);
+}
+.intro__card > * {
+  position: relative;
+}
+.intro__eyebrow {
+  margin: 0 0 var(--s4);
+  font-family: var(--font-meta);
+  font-size: var(--t-meta);
+  font-weight: 500;
+  letter-spacing: var(--tr-meta);
+  text-transform: uppercase;
+  color: rgba(169, 201, 216, 0.72);
+}
+.intro__title {
+  margin: 0 0 var(--s5);
+  font-family: var(--font-display);
+  font-size: clamp(2.4rem, 1.7rem + 2.8vw, 3.5rem);
+  font-weight: 500;
+  line-height: var(--lh-head);
+  letter-spacing: var(--tr-title);
+  color: var(--paper);
+  text-wrap: balance;
+}
+.intro__lead {
+  margin: 0 0 var(--s6);
+  font-family: var(--font-prose);
+  font-size: var(--t-lead);
+  line-height: var(--lh-prose);
+  letter-spacing: var(--tr-cjk);
+  color: #d4dfeb;
+  text-wrap: pretty;
+}
+.intro__keys {
+  list-style: none;
+  margin: 0 0 var(--s6);
+  padding: var(--s4) 0;
+  border-top: 1px solid var(--rule);
+  border-bottom: 1px solid var(--rule);
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(196px, 1fr));
+  gap: var(--s3) var(--s6);
+}
+.intro__keys li {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--t-micro);
+  color: var(--paper-3);
+}
+.intro__keys span {
+  margin-left: var(--s1);
+}
+.intro__note {
+  margin: 0 0 var(--s6);
+  padding-left: var(--s4);
+  border-left: 1px solid rgba(169, 201, 216, 0.36);
+  font-size: var(--t-micro);
+  line-height: 1.8;
+  color: var(--paper-2);
+}
+
+/* ================================================================ 標題卡
+   第一印象：分字揭示 ＋ 一條展開的髮絲線 ＋ 呼吸的開始鍵。 */
+.title {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  z-index: 40;
+  opacity: 0;
+  transition: opacity 0.8s var(--e-out);
+}
+.title.is-open {
+  opacity: 1;
+}
+.title.is-leaving {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.85s var(--e-inout);
+}
+.title__veil {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(72% 56% at 50% 42%, rgba(22, 38, 58, 0.4), transparent 70%),
+    radial-gradient(120% 100% at 50% 0%, rgba(5, 8, 13, 0.9), rgba(2, 3, 6, 0.97));
+  backdrop-filter: blur(7px);
+}
+.title__veil::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: var(--grain);
+  opacity: 0.06;
+  mix-blend-mode: overlay;
+}
+.title__inner {
+  position: relative;
+  text-align: center;
+  padding: 5vh 6vw;
+  max-width: 860px;
+}
+
+.title__mark {
+  margin: 0 0 var(--s6);
+  font-size: 26px;
+  color: var(--gold);
+  text-shadow: 0 0 40px rgba(230, 199, 155, 0.65);
+  opacity: 0;
+  animation: title-fade 1s var(--e-out) 0.1s forwards, title-mark 6s ease-in-out 1.4s infinite;
+}
+@keyframes title-mark {
+  0%,
+  100% {
+    transform: translateY(0) scale(1);
+    opacity: 0.75;
+  }
+  50% {
+    transform: translateY(-4px) scale(1.1);
+    opacity: 1;
+  }
+}
+@keyframes title-fade {
+  to {
+    opacity: 0.8;
+  }
+}
+
+/* 分字揭示：每個字從下方的遮罩後浮上來 */
+.title__name {
+  margin: 0;
+  font-family: var(--font-display);
+  -webkit-font-smoothing: antialiased;
+  font-size: var(--t-display);
+  font-weight: 300;
+  font-variation-settings: 'opsz' 144, 'SOFT' 0, 'WONK' 1;
+  letter-spacing: 0.02em;
+  line-height: 1.02;
+  color: #f2f7fc;
+  white-space: nowrap;
+}
+.title__ch {
+  display: inline-block;
+  opacity: 0;
+  transform: translateY(0.62em);
+  animation: ch-in 0.9s var(--e-out) forwards;
+  animation-delay: calc(0.36s + var(--i, 0) * 0.045s);
+  will-change: transform, opacity;
+}
+.title__ch--accent {
+  font-weight: 600;
+  color: var(--star);
+  text-shadow: 0 0 60px rgba(169, 201, 216, 0.45);
+}
+@keyframes ch-in {
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+/* 名字底下那條展開的線 */
+.title__rule {
+  width: min(420px, 70%);
+  height: 1px;
+  margin: var(--s5) auto var(--s5);
+  background: linear-gradient(90deg, transparent, rgba(169, 201, 216, 0.55), rgba(230, 199, 155, 0.45), transparent);
+  transform: scaleX(0);
+  animation: rule-open 1.1s var(--e-out) 0.95s forwards;
+}
+@keyframes rule-open {
+  to {
+    transform: scaleX(1);
+  }
+}
+
+.title__tag {
+  margin: 0;
+  font-family: var(--font-meta);
+  font-size: clamp(0.94rem, 0.85rem + 0.42vw, 1.1rem);
+  font-weight: 500;
+  letter-spacing: 0.42em;
+  text-indent: 0.42em;
+  text-transform: uppercase;
+  color: rgba(200, 220, 236, 0.72);
+  opacity: 0;
+  animation: reveal-in 1s var(--e-out) 1.15s forwards;
+}
+.title__zh {
+  margin: var(--s5) 0 0;
+  font-family: var(--font-prose);
+  font-size: var(--t-lead);
+  line-height: var(--lh-prose);
+  letter-spacing: 0.05em;
+  color: var(--paper-3);
+  opacity: 0;
+  animation: reveal-in 1s var(--e-out) 1.35s forwards;
+}
+/* 開始鍵＝第一塊石牌。hero 階，但走星光冷調（金色留給成就） */
+.title__start {
+  --cut: 13px;
+  --seal-lit: rgba(214, 236, 250, 0.66);
+  --face: linear-gradient(180deg, rgba(24, 36, 50, 0.86), rgba(6, 10, 16, 0.9));
+  --inlay: rgba(196, 220, 236, 0.6);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s2);
+  min-height: 54px;
+  margin: var(--s8) 0 0;
+  padding: var(--s3) var(--s7);
+  color: var(--paper);
+  font-family: var(--font-meta);
+  font-size: var(--t-small);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  opacity: 0;
+  transition: color var(--d-mid) var(--e-snap), translate var(--d-tap) var(--e-snap),
+    letter-spacing var(--d-mid) var(--e-snap);
+  animation: reveal-in 1s var(--e-out) 1.6s forwards;
+}
+/* 呼吸的光沿著石牌的輪廓走（drop-shadow 會跟著剪過的斜角，box-shadow 不會） */
+.title__start::before {
+  animation: title-breathe 3.6s ease-in-out 2.6s infinite;
+}
+/* hover / focus 時把呼吸關掉，讓 filter 交還給狀態（動畫會壓過一般宣告） */
+.title__start:hover::before,
+.title__start:focus-visible::before {
+  animation: none;
+}
+.title__start:hover:not(:disabled) {
+  letter-spacing: 0.2em;
+}
+.title__start kbd {
+  margin-left: var(--s2);
+}
+@keyframes title-breathe {
+  0%,
+  100% {
+    filter: drop-shadow(0 0 0 rgba(169, 201, 216, 0));
+  }
+  50% {
+    filter: drop-shadow(0 0 16px rgba(169, 201, 216, 0.42));
+  }
+}
+.title__foot {
+  margin: var(--s6) 0 0;
+  font-family: var(--font-ui);
+  font-size: var(--t-meta);
+  letter-spacing: 0.08em;
+  color: var(--paper-4);
+  opacity: 0;
+  animation: reveal-in 1s var(--e-out) 1.85s forwards;
+}
+
+/* ================================================================ 回饋節奏 */
+.hud__xpbar.is-gaining {
+  animation: xp-gain 1.2s var(--e-out);
+}
+@keyframes xp-gain {
+  0% {
+    box-shadow: 0 0 0 0 rgba(169, 201, 216, 0);
+  }
+  25% {
+    box-shadow: 0 0 16px 1px rgba(169, 201, 216, 0.7);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(169, 201, 216, 0);
+  }
+}
+.hud__lvbadge {
+  transition: transform var(--d-mid) var(--e-out), color var(--d-mid) var(--e-out);
+}
+.hud__lvbadge.is-levelup {
+  animation: lv-pop 1.4s var(--e-out);
+}
+@keyframes lv-pop {
+  0% {
+    transform: scale(1);
+  }
+  22% {
+    transform: scale(1.28);
+    color: var(--gold);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* 螢幕級慶祝 */
+.hud__banner {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+  opacity: 0;
+}
+.hud__banner.is-on {
+  animation: banner-in 2.2s var(--e-out);
+}
+.hud__banner b {
+  position: relative;
+  font-family: var(--font-display);
+  font-size: clamp(1.8rem, 4.4vw, 3.2rem);
+  font-weight: 300;
+  font-variation-settings: 'opsz' 144;
+  letter-spacing: 0.24em;
+  text-indent: 0.24em;
+  color: var(--gold);
+  text-shadow: 0 0 60px rgba(230, 199, 155, 0.75);
+}
+.hud__banner-glow {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(closest-side, rgba(230, 199, 155, 0.2), transparent 72%);
+  animation: banner-glow 2.2s var(--e-out);
+}
+.hud__banner--mastery b {
+  color: #f6e5c6;
+}
+.hud__banner--finale b {
+  color: #ffeed0;
+  letter-spacing: 0.18em;
+}
+@keyframes banner-in {
+  0% {
+    opacity: 0;
+    transform: scale(0.94);
+    filter: blur(9px);
+  }
+  16% {
+    opacity: 1;
+    transform: scale(1);
+    filter: none;
+  }
+  72% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.03);
+  }
+}
+@keyframes banner-glow {
+  0% {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+  30% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.7);
+  }
+}
+
+/* 評價印章的落章動作 */
+.grade.is-stamp .grade__mark {
+  animation: grade-stamp 0.66s cubic-bezier(0.14, 0.9, 0.2, 1) both;
+}
+@keyframes grade-stamp {
+  0% {
+    opacity: 0;
+    transform: scale(2.5) rotate(-9deg);
+    filter: blur(6px);
+  }
+  55% {
+    opacity: 1;
+    transform: scale(0.94) rotate(1.5deg);
+    filter: none;
+  }
+  100% {
+    opacity: 1;
+    transform: none;
+  }
+}
+.grade.is-stamp {
+  animation: grade-ring 0.9s var(--e-out) both;
+}
+@keyframes grade-ring {
+  0% {
+    box-shadow: 0 0 0 14px rgba(230, 199, 155, 0);
+    border-color: transparent;
+  }
+  40% {
+    box-shadow: 0 0 0 0 rgba(230, 199, 155, 0.28);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(230, 199, 155, 0);
+  }
+}
+.grade--s .grade__mark {
+  color: #ffe6b8;
+  text-shadow: 0 0 36px rgba(255, 218, 158, 0.8), 0 0 78px rgba(255, 202, 124, 0.35);
+}
+.grade.is-stamp .grade__label {
+  animation: reveal-in 0.5s 0.26s var(--e-out) both;
+}
+
+/* ================================================================ lore 石碑 */
+.overlay--lore .panel {
+  width: min(600px, 100%);
+}
+.lore {
+  position: relative;
+  padding: var(--s2) 0;
+}
+.lore__mark {
+  width: 40px;
+  height: 1px;
+  margin: 0 0 var(--s6);
+  background: linear-gradient(90deg, var(--gold), rgba(230, 199, 155, 0));
+}
+.lore__line {
+  margin: 0 0 var(--s4);
+  font-family: var(--font-prose);
+  font-size: 1.72rem;
+  line-height: var(--lh-prose);
+  letter-spacing: 0.045em;
+  color: #e4eef6;
+  text-wrap: pretty;
+  animation: reveal-in var(--d-reveal) var(--e-out) both;
+  animation-delay: calc(var(--i, 0) * 90ms);
+}
+.lore__line:last-of-type {
+  margin-bottom: var(--s6);
+}
+.lore__note {
+  margin: 0 0 var(--s1);
+  font-family: var(--font-ui);
+  font-size: var(--t-micro);
+  letter-spacing: var(--tr-cjk);
+  color: var(--gold);
+}
+.lore__note--seen {
+  color: var(--paper-4);
+}
+.lore__hint {
+  margin: var(--s5) 0 0;
+  font-size: var(--t-meta);
+  color: var(--paper-4);
+}
+
+/* ---------------------------------------------------------------- 走出來的收集
+   圖鑑底下那兩行小字：刻文小語與藏起來的地方。
+   刻意安靜 —— 它不是主線進度，是「順手撿到的」。 */
+.finds {
+  margin: var(--s6) 0 0;
+}
+.finds__list {
+  margin: var(--s4) 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: var(--s3);
+}
+.finds__list li {
+  display: grid;
+  grid-template-columns: auto auto 1fr;
+  align-items: baseline;
+  gap: var(--s3);
+  padding-bottom: var(--s3);
+  border-bottom: 1px solid var(--rule);
+  font-size: var(--t-micro);
+}
+.finds__list b {
+  color: var(--paper-2);
+  letter-spacing: var(--tr-cjk);
+}
+.finds__list span {
+  font-family: var(--font-ui);
+  font-variant-numeric: tabular-nums;
+  color: var(--gold);
+}
+.finds__list i {
+  font-style: normal;
+  color: var(--paper-4);
+}
+
+/* ================================================================ 刻文小語
+   Phase 22：介於「世界觀石碑」與「關卡」之間的第三層 ——
+   兩句世界的話，一段真的教學（含可點的官方出處），然後就收起來。
+   版面刻意比石碑再小一號：它是路過看一眼的東西，不是一個場景。
+   ================================================================ */
+.overlay--inscribe .overlay__panel {
+  max-width: 46rem;
+}
+.inscribe {
+  position: relative;
+  padding: var(--s2) 0;
+}
+.inscribe__line {
+  margin: 0 0 var(--s4);
+  font-family: var(--font-prose);
+  font-size: 1.44rem;
+  line-height: var(--lh-prose);
+  letter-spacing: 0.04em;
+  color: #e4eef6;
+  text-wrap: pretty;
+}
+.inscribe__glyph {
+  margin: var(--s6) 0 var(--s5);
+  padding: var(--s5) var(--s5) var(--s4);
+  border: 1px solid var(--rule);
+  border-left: 3px solid var(--gold);
+  background: rgba(255, 255, 255, 0.02);
+}
+.inscribe__tech {
+  margin: var(--s2) 0 var(--s3);
+  font-family: var(--font-display);
+  font-size: var(--t-h3);
+  color: var(--paper);
+}
+.inscribe__tip {
+  margin: 0 0 var(--s3);
+  font-family: var(--font-prose);
+  font-size: var(--t-body);
+  line-height: var(--lh-prose);
+  color: var(--paper-2);
+}
+.inscribe__how {
+  margin: 0 0 var(--s4);
+  font-size: var(--t-small);
+  line-height: var(--lh-body);
+  color: var(--gold);
+}
+.inscribe__note {
+  margin: 0 0 var(--s1);
+  font-family: var(--font-ui);
+  font-size: var(--t-micro);
+  letter-spacing: var(--tr-cjk);
+  color: var(--gold);
+}
+.inscribe__note--seen {
+  color: var(--paper-4);
+}
+.inscribe__got {
+  margin-left: var(--s3);
+  color: var(--star);
+}
+.inscribe__hint {
+  margin: var(--s5) 0 0;
+  font-size: var(--t-meta);
+  color: var(--paper-4);
+}
+
+/* ================================================================ 無障礙 */
+:focus-visible {
+  outline: 2px solid var(--star);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+.panel:focus,
+.result:focus {
+  outline: none;
+}
+.prompt-input:focus-visible {
+  outline: none;
+}
+.block:focus-visible,
+.tech summary:focus-visible {
+  outline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-delay: 0ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.05ms !important;
+  }
+  /* 動畫被關掉時，靠 animation-fill-mode 收尾的元素必須仍然看得見 */
+  .title__ch,
+  .title__tag,
+  .title__zh,
+  .title__start,
+  .title__foot,
+  .title__mark {
+    opacity: 1;
+    transform: none;
+  }
+  .title__rule {
+    transform: scaleX(1);
+  }
+
+  /* 刻印牌：**保留**狀態變化（受光方向、金線、邊色 —— 它們在傳達資訊），
+     只拿掉純裝飾的位移與掃光。參考 Tatiana Mac：reduce 是「換一種表達」
+     而不是「關掉」。 */
+  .seal,
+  .btn,
+  .opt,
+  .block,
+  .fill,
+  .acts__item,
+  .modeswitch,
+  .coach__fill,
+  .title__start {
+    translate: none !important;
+  }
+  .btn--primary::before,
+  .title__start::before {
+    animation: none !important;
+  }
+  .acts__item.is-now {
+    translate: none !important;
+  }
+  .title__start {
+    opacity: 1;
+  }
+}
+
+/* ================================================================ 小螢幕 */
+@media (max-width: 1100px) {
+  .panel__head {
+    padding: var(--s5) var(--s6) var(--s4);
+  }
+  .panel__body {
+    padding: var(--s5) var(--s6) var(--s6);
+  }
+}
+
+@media (max-width: 860px) {
+  .hud {
+    padding: var(--s4) var(--s5);
+  }
+  .hud__top {
+    flex-wrap: wrap;
+    gap: var(--s4);
+  }
+  .hud__controls {
+    display: none;
+  }
+  .hud__objective {
+    max-width: none;
+  }
+}
+
+@media (max-width: 720px) {
+  .panel__head {
+    padding: var(--s5) var(--s5) var(--s3);
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--s3);
+  }
+  .panel__close {
+    align-self: flex-end;
+  }
+  .panel__body {
+    padding: var(--s5);
+  }
+  .intro__card {
+    padding: var(--s6) var(--s5);
+  }
+  .result__top {
+    flex-wrap: wrap;
+    gap: var(--s5);
+  }
+  .badges__list {
+    gap: var(--s4);
+  }
+  /* Phase 18：積木是一片片的小石籤，窄畫面自己換行就好（不再撐滿整行） */
+  .console__blocks {
+    align-items: flex-start;
+  }
+}
+
+@media (max-height: 720px) {
+  .title__start {
+    margin-top: var(--s6);
+  }
+  .title__zh {
+    margin-top: var(--s4);
+  }
+}
+
+/* ================================================================ 序章
+   引導課程「喚醒神諭」：回聲的字幕條 ＋ 練習台。
+   字幕條刻意不做成 modal —— 玩家在被引導的同時，世界仍然是可以走的。 */
+
+.echo {
+  position: absolute;
+  left: 50%;
+  bottom: clamp(20px, 4.5vh, 48px);
+  transform: translateX(-50%) translateY(14px);
+  width: min(680px, calc(100vw - 2 * var(--s5)));
+  opacity: 0;
+  transition:
+    opacity var(--d-slow) var(--e-out),
+    transform var(--d-slow) var(--e-out);
+  z-index: 26;
+}
+.echo.is-open {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+.echo__card {
+  position: relative;
+  padding: var(--s5) var(--s6) var(--s4);
+  border: 1px solid var(--rule-2);
+  border-radius: var(--radius-lg);
+  background: linear-gradient(168deg, rgba(18, 25, 36, 0.94), rgba(5, 7, 10, 0.96));
+  box-shadow: 0 28px 80px rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(6px);
+}
+.echo__card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: var(--grain);
+  opacity: 0.05;
+  mix-blend-mode: overlay;
+  pointer-events: none;
+  border-radius: var(--radius-lg);
+}
+/* 上緣的一道星光：跟面板同一個語彙 */
+.echo__card::after {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(169, 201, 216, 0.5), transparent);
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+}
+.echo__eyebrow {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s3);
+  margin: 0 0 var(--s3);
+}
+.echo__who {
+  font-family: var(--font-ui);
+  font-size: var(--t-meta);
+  font-weight: 500;
+  letter-spacing: var(--tr-cjk);
+  color: rgba(230, 199, 155, 0.86);
+}
+.echo__step {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: var(--t-meta);
+  letter-spacing: var(--tr-meta-tight);
+  color: var(--paper-4);
+}
+/* Phase 13：一拍最多兩句，逐句浮出來（跟主控台的四幕同一種節奏） */
+.echo__lines {
+  display: grid;
+  gap: var(--s2);
+  min-height: 2.2em;
+}
+.echo__line {
+  margin: 0;
+  font-family: var(--font-prose);
+  font-size: var(--t-lead);
+  line-height: var(--lh-prose);
+  letter-spacing: var(--tr-cjk);
+  color: #dbe6f1;
+  text-wrap: pretty;
+}
+/* 門檻達成時回聲的那一句：語氣要跟「你做到了」對得上 */
+.echo__line--done {
+  color: #f0e6d4;
+}
+/* 換拍＝鏡頭切換：整張卡片重播一次進場 */
+.echo__card.is-cut {
+  animation: echo-cut var(--d-slow) var(--e-out);
+}
+@keyframes echo-cut {
+  from {
+    opacity: 0.35;
+    transform: translateY(7px);
+  }
+}
+/* 畢業拍的小提示（圖鑑在哪裡）—— 不佔台詞的位置 */
+.echo__note {
+  margin: var(--s4) 0 0;
+  font-family: var(--font-ui);
+  font-size: var(--t-micro);
+  line-height: 1.8;
+  letter-spacing: var(--tr-cjk);
+  color: var(--paper-4);
+}
+.echo__key {
+  font-family: var(--font-mono);
+  font-size: var(--t-meta);
+  color: var(--paper-4);
+}
+.echo__objective {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  margin: var(--s4) 0 0;
+  padding: var(--s2) var(--s3);
+  border: 1px solid var(--gold-dim);
+  border-radius: var(--radius);
+  background: rgba(230, 199, 155, 0.045);
+  font-size: var(--t-small);
+  color: var(--paper-2);
+}
+.echo__objective.is-done {
+  border-color: rgba(127, 209, 168, 0.36);
+  background: rgba(127, 209, 168, 0.05);
+}
+.echo__pip {
+  width: 7px;
+  height: 7px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--gold);
+  box-shadow: 0 0 0 0 rgba(230, 199, 155, 0.5);
+  animation: echo-pip 2.2s var(--e-inout) infinite;
+}
+.echo__objective.is-done .echo__pip {
+  background: var(--good);
+  animation: none;
+}
+@keyframes echo-pip {
+  50% {
+    box-shadow: 0 0 0 6px rgba(230, 199, 155, 0);
+  }
+}
+.echo__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  margin-top: var(--s4);
+}
+.echo__actions .spacer {
+  flex: 1;
+}
+.echo__skip {
+  padding: 0;
+  border: 0;
+  background: none;
+  font-family: var(--font-ui);
+  font-size: var(--t-micro);
+  letter-spacing: var(--tr-cjk);
+  color: var(--paper-4);
+  cursor: pointer;
+  border-bottom: 1px solid transparent;
+  transition: color var(--d-fast) var(--e-snap), border-color var(--d-fast) var(--e-snap);
+}
+.echo__skip:hover {
+  color: var(--paper-2);
+  border-bottom-color: var(--rule-2);
+}
+.echo__confirm {
+  margin-top: var(--s4);
+  padding-top: var(--s4);
+  border-top: 1px solid var(--rule);
+}
+.echo__confirm p {
+  margin: 0 0 var(--s3);
+  font-size: var(--t-small);
+  color: var(--paper-2);
+}
+.echo__confirm-actions {
+  display: flex;
+  gap: var(--s3);
+  justify-content: flex-end;
+}
+
+/* -------------------------------------------------- 練習台（序章的三堂課）
+   Phase 13：版面直接沿用正式關卡的四幕（.console / .act / .carvestage），
+   這裡只留兩件練習台自己的東西：回聲的聲音，與課後那顆「繼續」。 */
+.console--practice .act--brief,
+.console--practice .act--guide {
+  max-width: 64ch;
+}
+.practice__echo {
+  margin: 0 0 var(--s4);
+  padding-left: var(--s4);
+  border-left: 1px solid var(--rule-gold);
+  font-family: var(--font-prose);
+  font-size: var(--t-lead);
+  line-height: var(--lh-prose);
+  color: #e4d6bf;
+}
+.practice__next {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: var(--s5);
+}
+.teach {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+  margin-bottom: var(--s6);
+}
+.teach__card {
+  padding: var(--s4);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  background: rgba(18, 25, 36, 0.5);
+  animation: reveal-in var(--d-reveal) var(--e-out) both;
+  animation-delay: calc(var(--i, 0) * var(--stagger));
+}
+.teach__card h5 {
+  margin: 0 0 var(--s2);
+  font-family: var(--font-ui);
+  font-size: var(--t-small);
+  font-weight: 500;
+  letter-spacing: var(--tr-cjk);
+  color: var(--paper);
+}
+.teach__tip {
+  margin: 0 0 var(--s3);
+  font-size: var(--t-small);
+  line-height: var(--lh-body);
+  color: var(--paper-2);
+}
+.teach__ex {
+  margin: 0 0 var(--s3);
+  padding: var(--s3);
+  border-radius: var(--radius);
+  background: rgba(5, 7, 10, 0.66);
+  border: 1px solid var(--rule);
+  font-family: var(--font-input);
+  font-size: var(--t-micro);
+  line-height: 1.62;
+  color: #cfe0ee;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-x: auto;
+}
+
+/* -------------------------------------------------- 即時預檢 */
+.toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  font-family: var(--font-ui);
+  font-size: var(--t-meta);
+  letter-spacing: var(--tr-cjk);
+  color: var(--paper-4);
+  cursor: pointer;
+  user-select: none;
+}
+.toggle input {
+  accent-color: var(--star);
+  width: 12px;
+  height: 12px;
+  margin: 0;
+}
+.toggle:hover {
+  color: var(--paper-2);
+}
+
+.checklist--live li,
+/* 預檢亮燈時多了一顆狀態點 —— 沒有第三欄的話，「幾分」與「出處」會被擠到下一行
+   並把標題推去右邊（Phase 11 把這個舊版面瑕疵推到了預設畫面上，一併修掉）。 */
+.checklist li.checklist__row {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
+}
+/* 出處連結另起一行、對齊標題（欄位窄的時候才不會把權重擠掉） */
+.checklist li.checklist__row .src {
+  grid-column: 2 / -1;
+}
+.checklist__row .checklist__dot,
+.checklist--live .checklist__dot {
+  display: inline-flex;
+  justify-content: center;
+  width: 1.1em;
+  margin-top: 1px;
+  font-family: var(--font-mono);
+  font-size: var(--t-micro);
+  color: var(--paper-4);
+  transition: color var(--d-mid) var(--e-out);
+}
+.checklist__row.is-pass .checklist__dot {
+  color: var(--good);
+}
+.checklist__row.is-part .checklist__dot {
+  color: var(--warn);
+}
+.checklist__row.is-pass .checklist__text b {
+  color: var(--good);
+}
+.checklist__row.is-part .checklist__text b {
+  color: var(--warn);
+}
+.checklist__row.is-miss .checklist__text b {
+  color: var(--paper-3);
+}
+.checklist__evidence,
+.checklist__hint {
+  display: block;
+  margin-top: 3px;
+  font-style: normal;
+  font-size: var(--t-micro);
+  line-height: var(--lh-body);
+  color: var(--paper-4);
+}
+.checklist__evidence {
+  color: rgba(127, 209, 168, 0.78);
+}
+.checklist__row.is-part .checklist__evidence {
+  color: rgba(230, 180, 95, 0.8);
+}
+.desk__live {
+  font-family: var(--font-mono);
+  font-size: var(--t-micro);
+  color: var(--paper-4);
+  transition: color var(--d-mid) var(--e-out);
+}
+.desk__live.is-live {
+  color: var(--good);
+}
+
+@media (max-width: 720px) {
+  .echo {
+    width: calc(100vw - 2 * var(--s4));
+    bottom: var(--s4);
+  }
+  .echo__card {
+    padding: var(--s4) var(--s5) var(--s3);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .echo__card.is-cut,
+  .echo__line,
+  .teach__card {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+  .echo__pip {
+    animation: none;
+  }
+}
+
+/* 練習台開著時字幕條先退場：畫面上一次只有一個焦點 */
+.echo.is-veiled {
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(-50%) translateY(10px);
+}
+/* 序章正在教操作鍵 —— HUD 那行常駐提示先讓位（:has 不支援的瀏覽器只是照舊顯示） */
+.ui:has(.echo.is-open:not(.is-veiled)) .hud__controls {
+  opacity: 0;
+  transition: opacity var(--d-mid) var(--e-out);
+}
+
+/* 已經不能按的按鈕（例如過關後的「呈給神諭」、還沒試過的「看看範例」） */
+.btn:disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
+  filter: saturate(0.6);
+}
+
+/* ================================================================
+   Phase 9 — 教練層：漂浮提示球、黃色教學框、進度燈、亮燈回饋
+   ----------------------------------------------------------------
+   對象是完全沒有 prompt 背景的一般人：
+   任何時候只要卡住，右下角那顆球都能給一句「照著填就對了」的中文。
+   規則：永遠不擋畫面、永遠不是 modal、永遠不打斷打字。
+   ================================================================ */
+
+/* -------------------------------------------------- 進度燈 */
+.lamp {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  margin: 0 0 var(--s3);
+  padding: var(--s2) var(--s3);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  background: rgba(18, 25, 36, 0.5);
+  font-family: var(--font-ui);
+  font-size: var(--t-meta);
+  letter-spacing: var(--tr-cjk);
+  color: var(--paper-3);
+  transition:
+    border-color var(--d-mid) var(--e-out),
+    color var(--d-mid) var(--e-out),
+    background var(--d-mid) var(--e-out);
+}
+.lamp__dot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--paper-4);
+  box-shadow: 0 0 0 0 rgba(127, 209, 168, 0);
+  transition: background var(--d-mid) var(--e-out);
+}
+.lamp.is-ready {
+  border-color: rgba(127, 209, 168, 0.4);
+  background: rgba(127, 209, 168, 0.08);
+  color: var(--good);
+}
+.lamp.is-ready .lamp__dot {
+  background: var(--good);
+  animation: lamp-breathe 2.4s var(--e-inout) infinite;
+}
+@keyframes lamp-breathe {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(127, 209, 168, 0.5);
+  }
+  50% {
+    box-shadow: 0 0 0 5px rgba(127, 209, 168, 0);
+  }
+}
+
+/* -------------------------------------------------- 剛剛才亮起來的那一項 */
+.checklist__row.is-justlit {
+  animation: row-lightup var(--d-slow) var(--e-out) both;
+}
+.checklist__row.is-justlit .checklist__dot {
+  animation: dot-pop 560ms var(--e-out) both;
+}
+@keyframes row-lightup {
+  0% {
+    background: rgba(127, 209, 168, 0.22);
+    transform: translateX(-3px);
+  }
+  100% {
+    background: rgba(127, 209, 168, 0);
+    transform: none;
+  }
+}
+@keyframes dot-pop {
+  0% {
+    transform: scale(0.6);
+    filter: brightness(2.2);
+  }
+  55% {
+    transform: scale(1.35);
+  }
+  100% {
+    transform: scale(1);
+    filter: none;
+  }
+}
+
+/* -------------------------------------------------- 可以過關了的送出鍵 */
+/* 同一塊石牌，換一種礦：可以過關時整塊翻成孔雀石綠並開始呼吸 */
+.btn--primary.is-ready,
+.btn--primary.is-ready:hover:not(:disabled) {
+  --face: linear-gradient(180deg, #b6ecd0 0%, #8ed8b2 54%, #6cbf9a 100%);
+  --inlay: rgba(18, 74, 52, 0.45);
+  color: #06170f;
+}
+.btn--primary.is-ready::before,
+.btn--primary.is-ready:hover:not(:disabled)::before {
+  background-image: linear-gradient(180deg, #ecfdf4, rgba(140, 214, 178, 0.92) 48%, rgba(12, 46, 32, 0.85));
+  background-size: 100% 100%;
+  background-position: 0 0;
+  animation: submit-glow 2.6s var(--e-inout) infinite;
+}
+@keyframes submit-glow {
+  0%,
+  100% {
+    filter: drop-shadow(0 0 0 rgba(127, 209, 168, 0));
+  }
+  50% {
+    filter: drop-shadow(0 0 14px rgba(127, 209, 168, 0.55));
+  }
+}
+
+/* -------------------------------------------------- 漂浮提示球 */
+.orb {
+  /* 黏在第三幕的底部：石碑與輸入框永遠不會被蓋住 */
+  position: sticky;
+  bottom: var(--s4);
+  z-index: 4;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  margin: var(--s4) 0 0;
+  --cut: 9px;
+  min-height: 40px;
+  padding: 8px 16px 8px 12px;
+  border: 0;
+  border-radius: 0;
+  isolation: isolate;
+  background: transparent;
+  filter: drop-shadow(0 10px 22px rgba(0, 0, 0, 0.6));
+  font-family: var(--font-ui);
+  font-size: var(--t-meta);
+  letter-spacing: var(--tr-cjk);
+  color: var(--gold);
+  cursor: pointer;
+  transition:
+    transform var(--d-fast) var(--e-snap),
+    box-shadow var(--d-mid) var(--e-out),
+    border-color var(--d-mid) var(--e-out);
+}
+/* 護符牌的邊與面（和刻印牌同一套作法，只是走暖色） */
+.orb::before,
+.orb::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  clip-path: var(--seal-shape);
+  background-image: linear-gradient(180deg, rgba(246, 227, 194, 0.72), rgba(230, 199, 155, 0.18) 46%,
+    rgba(0, 0, 0, 0.7));
+  transition: background-image var(--d-fast) var(--e-snap);
+}
+.orb::after {
+  inset: 1px;
+  clip-path: var(--seal-shape-in);
+  background-image: linear-gradient(180deg, rgba(34, 27, 16, 0.98), rgba(16, 13, 8, 0.98));
+}
+.orb:hover {
+  transform: translateY(-2px);
+}
+.orb:hover::before {
+  background-image: linear-gradient(180deg, #fbeed6, rgba(230, 199, 155, 0.5) 46%, rgba(0, 0, 0, 0.7));
+}
+.orb:focus-visible {
+  outline: none;
+}
+.orb:focus-visible::before {
+  background-image: linear-gradient(180deg, #fbeed6, rgba(230, 199, 155, 0.8));
+  filter: drop-shadow(0 0 9px rgba(230, 199, 155, 0.6));
+}
+@media (max-width: 900px) {
+  .coach {
+    margin-right: 0;
+  }
+}
+.orb__core {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 32%, #fff4dd, var(--gold) 62%, rgba(230, 199, 155, 0.2));
+  box-shadow: 0 0 10px rgba(230, 199, 155, 0.55);
+  animation: orb-float 3.6s var(--e-inout) infinite;
+}
+@keyframes orb-float {
+  0%,
+  100% {
+    transform: translateY(0) scale(1);
+    opacity: 0.85;
+  }
+  50% {
+    transform: translateY(-3px) scale(1.08);
+    opacity: 1;
+  }
+}
+/* 發呆 20 秒、或送出沒過 → 溫和地招手（不是 modal、不搶焦點） */
+.orb.is-nudging {
+  animation: orb-nudge 1.5s var(--e-out) 4;
+}
+@keyframes orb-nudge {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(230, 199, 155, 0);
+  }
+  35% {
+    box-shadow: 0 0 22px 4px rgba(230, 199, 155, 0.4);
+  }
+}
+.orb.is-tucked {
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(6px);
+}
+.orb.is-done .orb__core {
+  background: radial-gradient(circle at 35% 32%, #e8fff2, var(--good) 62%, rgba(127, 209, 168, 0.2));
+  box-shadow: 0 0 10px rgba(127, 209, 168, 0.5);
+}
+
+/* -------------------------------------------------- 黃色教學框 */
+.coach {
+  /* 黏在第三幕的底部，蓋住的是刻痕對照那一欄 —— 正好是它要解釋的東西 */
+  max-width: min(560px, 100%);
+  position: sticky;
+  bottom: var(--s4);
+  z-index: 5;
+  max-height: min(58vh, 520px);
+  overflow-y: auto;
+  margin-top: var(--s3);
+  margin-right: var(--s6);
+  padding: var(--s4) var(--s5);
+  border: 1px solid rgba(230, 199, 155, 0.42);
+  border-left: 3px solid var(--gold);
+  border-radius: var(--radius-lg);
+  background: linear-gradient(180deg, rgba(44, 36, 20, 0.97), rgba(30, 25, 15, 0.97));
+  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.42);
+  animation: coach-in var(--d-mid) var(--e-out) both;
+}
+@keyframes coach-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+.coach__head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s2);
+  margin-bottom: var(--s2);
+}
+.coach__head b {
+  font-family: var(--font-display);
+  font-size: var(--t-h3);
+  letter-spacing: var(--tr-cjk);
+  color: #ffeccd;
+}
+.coach__of {
+  font-family: var(--font-mono);
+  font-size: var(--t-micro);
+  color: rgba(230, 199, 155, 0.6);
+}
+/* 關掉提示：同一族，縮到最小的一枚方印 */
+.coach__x {
+  --cut: 5px;
+  position: relative;
+  isolation: isolate;
+  display: inline-grid;
+  place-items: center;
+  margin-left: auto;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: rgba(230, 199, 155, 0.72);
+  font-size: var(--t-meta);
+  line-height: 1;
+  cursor: pointer;
+  transition: color var(--d-fast) var(--e-snap);
+}
+.coach__x::before,
+.coach__x::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  clip-path: var(--seal-shape);
+  background-image: linear-gradient(180deg, rgba(230, 199, 155, 0.34), rgba(0, 0, 0, 0.4));
+  transition: background-image var(--d-fast) var(--e-snap);
+}
+.coach__x::after {
+  inset: 1px;
+  clip-path: var(--seal-shape-in);
+  background-image: linear-gradient(180deg, rgba(38, 30, 18, 0.95), rgba(16, 13, 8, 0.95));
+}
+.coach__x:hover {
+  color: #ffeccd;
+}
+.coach__x:hover::before {
+  background-image: linear-gradient(180deg, #f6e3c2, rgba(230, 199, 155, 0.5));
+}
+.coach__x:focus-visible {
+  outline: none;
+}
+.coach__x:focus-visible::before {
+  background-image: linear-gradient(180deg, #f6e3c2, rgba(230, 199, 155, 0.8));
+  filter: drop-shadow(0 0 8px rgba(230, 199, 155, 0.55));
+}
+.coach__what,
+.coach__how {
+  margin: 0 0 var(--s2);
+  font-family: var(--font-prose);
+  font-size: var(--t-body);
+  line-height: var(--lh-body);
+  letter-spacing: var(--tr-cjk);
+  color: #f2e3c8;
+}
+.coach__how {
+  color: rgba(242, 227, 200, 0.82);
+}
+.coach__fills {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  margin: var(--s3) 0;
+}
+/* 教練遞過來的句子：一塊暖色的小牌 */
+.coach__fill {
+  --cut: 7px;
+  --seal-lit: rgba(230, 199, 155, 0.46);
+  --face: linear-gradient(180deg, rgba(58, 44, 25, 0.62), rgba(24, 18, 10, 0.7));
+  display: flex;
+  align-items: baseline;
+  gap: var(--s2);
+  width: 100%;
+  min-height: 40px;
+  padding: 9px var(--s4);
+  text-align: left;
+}
+.coach__fill:hover::before {
+  background-image: linear-gradient(180deg, rgba(246, 227, 194, 0.85), rgba(230, 199, 155, 0.24) 48%, var(--seal-shade));
+}
+.coach__fill.is-used {
+  --face: linear-gradient(180deg, #0b0906, #17120a);
+  --inlay-w: 0px;
+  opacity: 0.62;
+}
+.coach__fillhead {
+  flex: none;
+  font-family: var(--font-ui);
+  font-size: var(--t-micro);
+  letter-spacing: 0.12em;
+  color: var(--gold);
+}
+.coach__filltext {
+  min-width: 0;
+  font-family: var(--font-input);
+  font-size: var(--t-micro);
+  line-height: 1.5;
+  color: #f4e8d2;
+  overflow-wrap: anywhere;
+}
+.coach__foot {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  padding-top: var(--s2);
+  border-top: 1px solid rgba(230, 199, 155, 0.18);
+}
+.coach__next {
+  padding: 4px 10px;
+  border: 1px solid rgba(230, 199, 155, 0.36);
+  border-radius: var(--radius-pill);
+  background: transparent;
+  font-family: var(--font-ui);
+  font-size: var(--t-micro);
+  letter-spacing: var(--tr-cjk);
+  color: var(--gold);
+  cursor: pointer;
+}
+.coach__next:hover {
+  background: rgba(230, 199, 155, 0.14);
+}
+.coach__foot .src {
+  margin-left: auto;
+}
+
+/* -------------------------------------------------- 官方原文（次要參考） */
+.origin {
+  margin: var(--s2) 0 0;
+  font-size: var(--t-micro);
+}
+.origin > summary {
+  cursor: pointer;
+  font-family: var(--font-ui);
+  font-size: var(--t-micro);
+  letter-spacing: var(--tr-cjk);
+  color: var(--paper-4);
+  list-style: none;
+}
+.origin > summary::-webkit-details-marker {
+  display: none;
+}
+/* 摺頁的箭頭：刻出來的小三角，不是預設的 ▸ */
+.origin > summary::before {
+  content: '';
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  margin-right: 7px;
+  clip-path: polygon(0 0, 100% 50%, 0 100%);
+  background-image: linear-gradient(180deg, rgba(230, 199, 155, 0.85), rgba(230, 199, 155, 0.4));
+  transition: rotate var(--d-mid) var(--e-out);
+}
+.origin[open] > summary::before {
+  rotate: 90deg;
+}
+.origin > summary:hover {
+  color: var(--star);
+}
+.origin__note {
+  margin: var(--s2) 0 var(--s1);
+  font-size: var(--t-micro);
+  color: var(--paper-4);
+}
+/* 第二幕把官方原文整包收進一個摺頁：焦點留給那一條刻文 */
+.origin--refs {
+  margin-top: var(--s5);
+  padding-top: var(--s4);
+  border-top: 1px solid var(--rule);
+}
+.origin__refs {
+  margin-top: var(--s3);
+}
+.origin__body {
+  margin: 0 0 var(--s2);
+  padding: var(--s2) var(--s3);
+  border-left: 1px solid var(--rule-2);
+  background: rgba(9, 12, 18, 0.55);
+  font-family: var(--font-input);
+  font-size: var(--t-micro);
+  line-height: 1.6;
+  color: var(--paper-3);
+  white-space: pre-wrap;
+  overflow-x: auto;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .orb__core,
+  .orb.is-nudging,
+  .lamp.is-ready .lamp__dot,
+  .btn--primary.is-ready,
+  .checklist__row.is-justlit,
+  .checklist__row.is-justlit .checklist__dot,
+  .coach {
+    animation: none;
+  }
+}
+
+/* ================================================================
+   Phase 11 · 石碑刻印（引導式選擇建構）
+   ================================================================
+   右欄從「書寫檯」換成一塊立起來的深色石碑。
+   一次問一段，選對就刻上去；刻滿了浮出手掌印，按住就發動。
+
+   美術上刻意不用圖檔：石面是漸層 ＋ 既有的 --grain 顆粒，
+   金色髮絲礦脈是兩條 1px 的線性漸層（跟整個設計系統同一套語言）。
+   刻痕感靠 inset 的 text-shadow ＋ 一層極淡的高光位移做出來。
+   ================================================================ */
+
+.console__moderule {
+  align-items: baseline;
+}
+.console__moderule .spacer {
+  flex: 1;
+}
+
+/* 安靜的模式切換：最小的一塊石牌，不搶主畫面 */
+.modeswitch {
+  --cut: 6px;
+  --seal-lit: rgba(196, 220, 236, 0.16);
+  --face: linear-gradient(180deg, rgba(16, 22, 31, 0.6), rgba(5, 8, 12, 0.66));
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 5px 13px;
+  color: var(--paper-4);
+  font-family: var(--font-ui);
+  font-size: var(--t-meta);
+  letter-spacing: var(--tr-cjk);
+}
+
+.stele-stage {
+  display: block;
+}
+
+/* ---------------------------------------------------------------- 石碑 */
+.stele {
+  position: relative;
+  overflow: hidden;
+  min-height: 168px;
+  margin: 0 0 var(--s5);
+  padding: var(--s5) var(--s5) var(--s5) calc(var(--s5) + 2px);
+  border: 1px solid var(--rule-2);
+  /* 上緣是一道拱（水平半徑 44%、垂直 30px），下緣是方的 —— 一塊立起來的碑 */
+  border-radius: 44% 44% var(--radius) var(--radius) / 30px 30px var(--radius) var(--radius);
+  background:
+    radial-gradient(120% 80% at 50% 0%, rgba(169, 201, 216, 0.07), rgba(169, 201, 216, 0) 60%),
+    linear-gradient(178deg, #16202c 0%, #101822 46%, #0a1017 100%);
+  box-shadow: inset 0 1px 0 rgba(214, 232, 244, 0.08), inset 0 -18px 34px rgba(0, 0, 0, 0.45);
+  transition: box-shadow var(--d-slow) var(--e-out);
+}
+.stele__grain {
+  position: absolute;
+  inset: 0;
+  background-image: var(--grain);
+  background-size: 160px 160px;
+  opacity: 0.16;
+  mix-blend-mode: soft-light;
+  pointer-events: none;
+}
+/* 金色髮絲礦脈：兩條斜的極細漸層，讓石面不是一塊死板 */
+.stele__vein {
+  position: absolute;
+  pointer-events: none;
+  background: linear-gradient(
+    to bottom,
+    rgba(230, 199, 155, 0) 0%,
+    rgba(230, 199, 155, 0.4) 30%,
+    rgba(230, 199, 155, 0.14) 70%,
+    rgba(230, 199, 155, 0) 100%
+  );
+}
+.stele__vein--a {
+  top: -6%;
+  left: 22%;
+  width: 1px;
+  height: 112%;
+  transform: rotate(9deg);
+  opacity: 0.55;
+}
+.stele__vein--b {
+  top: -10%;
+  right: 30%;
+  width: 1px;
+  height: 120%;
+  transform: rotate(-13deg);
+  opacity: 0.32;
+}
+/* 石碑不收的時候一閃而過的裂光 */
+.stele__crack {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(114deg, rgba(224, 128, 110, 0) 46%, rgba(224, 128, 110, 0.5) 50%, rgba(224, 128, 110, 0) 54%),
+    linear-gradient(72deg, rgba(224, 128, 110, 0) 62%, rgba(224, 128, 110, 0.28) 65%, rgba(224, 128, 110, 0) 68%);
+}
+.stele__eyebrow {
+  position: relative;
+  margin: 0 0 var(--s3);
+  font-family: var(--font-meta);
+  font-size: var(--t-meta);
+  letter-spacing: var(--tr-meta);
+  text-transform: uppercase;
+  color: var(--paper-4);
+}
+.stele__empty {
+  position: relative;
+  margin: 0;
+  font-family: var(--font-prose);
+  font-size: var(--t-small);
+  line-height: 1.9;
+  color: var(--paper-4);
+}
+.stele__lines {
+  position: relative;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+/* 刻痕：暗底上壓下去的字 —— 上緣暗、下緣一絲高光 */
+.carved {
+  margin: 0 0 6px;
+  font-family: var(--font-input);
+  font-size: 1.3rem;
+  line-height: 1.9;
+  letter-spacing: 0.02em;
+  color: #b9cbdb;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  text-shadow: 0 -1px 0 rgba(0, 0, 0, 0.85), 0 1px 0 rgba(214, 232, 244, 0.14);
+}
+.carved.is-fresh {
+  animation: chisel var(--d-reveal) var(--e-out) both;
+}
+@keyframes chisel {
+  0% {
+    clip-path: inset(0 100% 0 0);
+    color: #f2f7fb;
+    text-shadow: 0 0 12px rgba(230, 199, 155, 0.7);
+  }
+  55% {
+    clip-path: inset(0 0 0 0);
+    color: #eaf2f9;
+  }
+  100% {
+    clip-path: inset(0 0 0 0);
+    color: #b9cbdb;
+    text-shadow: 0 -1px 0 rgba(0, 0, 0, 0.85), 0 1px 0 rgba(214, 232, 244, 0.14);
+  }
+}
+
+/* 刻上去的那一下：石碑自己抖一下（螢幕級的微震，不動版面） */
+.stele.is-stamp {
+  animation: stele-thud 260ms var(--e-out) both;
+}
+@keyframes stele-thud {
+  0% {
+    transform: translate3d(0, -3px, 0) scale(1.006);
+  }
+  30% {
+    transform: translate3d(1px, 2px, 0) scale(0.997);
+  }
+  60% {
+    transform: translate3d(-1px, 0, 0) scale(1.001);
+  }
+  100% {
+    transform: none;
+  }
+}
+.stele.is-reject {
+  animation: stele-shake 300ms var(--e-inout) both;
+}
+.stele.is-reject .stele__crack {
+  animation: crack-flash 300ms var(--e-out) both;
+}
+@keyframes stele-shake {
+  0%,
+  100% {
+    transform: none;
+  }
+  15% {
+    transform: translate3d(-5px, 0, 0);
+  }
+  35% {
+    transform: translate3d(4px, 0, 0);
+  }
+  55% {
+    transform: translate3d(-3px, 0, 0);
+  }
+  78% {
+    transform: translate3d(2px, 0, 0);
+  }
+}
+@keyframes crack-flash {
+  0% {
+    opacity: 0;
+  }
+  25% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+/* 刻滿了：石碑自己亮起來 */
+.stele.is-full {
+  box-shadow: inset 0 1px 0 rgba(230, 199, 155, 0.24), inset 0 -18px 40px rgba(0, 0, 0, 0.45),
+    0 0 0 1px rgba(230, 199, 155, 0.2), 0 0 46px rgba(230, 199, 155, 0.1);
+}
+.stele.is-ignited {
+  animation: stele-ignite 900ms var(--e-out) both;
+}
+@keyframes stele-ignite {
+  0% {
+    box-shadow: inset 0 0 0 rgba(230, 199, 155, 0), 0 0 0 rgba(230, 199, 155, 0);
+  }
+  35% {
+    box-shadow: inset 0 0 70px rgba(230, 199, 155, 0.5), 0 0 90px rgba(230, 199, 155, 0.34);
+  }
+  100% {
+    box-shadow: inset 0 1px 0 rgba(230, 199, 155, 0.24), 0 0 46px rgba(230, 199, 155, 0.12);
+  }
+}
+
+/* 石屑：刻下去噴出來的碎粒（JS 只塞 8–10 顆，用完就移掉） */
+.stele__dust {
+  position: absolute;
+  left: 50%;
+  bottom: 26%;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+.dust {
+  position: absolute;
+  width: 3px;
+  height: 3px;
+  border-radius: 1px;
+  background: rgba(230, 199, 155, 0.85);
+  animation: dust-fly var(--d, 600ms) var(--e-out) both;
+}
+@keyframes dust-fly {
+  0% {
+    opacity: 0.95;
+    transform: translate3d(0, 0, 0) scale(var(--s, 1)) rotate(0deg);
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(var(--x, 0), var(--y, -30px), 0) scale(0.2) rotate(var(--r, 90deg));
+  }
+}
+
+/* ------------------------------------------------------- 這一段要填什麼 */
+.carve {
+  margin: 0 0 var(--s4);
+}
+.carve__progress {
+  margin: 0 0 var(--s2);
+  font-family: var(--font-meta);
+  font-size: var(--t-meta);
+  letter-spacing: var(--tr-meta-tight);
+  text-transform: uppercase;
+  color: var(--paper-4);
+}
+.carve__ask {
+  margin: 0 0 var(--s3);
+  font-family: var(--font-display);
+  font-size: var(--t-h2);
+  line-height: var(--lh-head);
+  letter-spacing: var(--tr-cjk-display);
+  color: #eef4fa;
+  text-wrap: pretty;
+}
+.carve__options {
+  display: grid;
+  gap: var(--s2);
+}
+.carve__tip {
+  margin: var(--s3) 0 0;
+  font-size: var(--t-micro);
+  color: var(--paper-4);
+}
+.carve__tip kbd {
+  padding: 1px 5px;
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  font-family: var(--font-mono);
+  font-size: 1.05rem;
+  color: var(--paper-3);
+}
+
+/* 選項卡＝一片刻好字的石籤：整塊可點，左邊留一個數字給鍵盤。
+   （Phase 15：改用刻印牌系統，邊與面都是剪出來的，不再是 CSS border） */
+.opt {
+  --cut: 11px;
+  --seal-lit: rgba(196, 220, 236, 0.24);
+  --face: linear-gradient(180deg, rgba(19, 27, 38, 0.94), rgba(8, 11, 17, 0.96));
+  display: grid;
+  grid-template-columns: 26px minmax(0, 1fr);
+  gap: var(--s3);
+  width: 100%;
+  min-height: 48px;
+  padding: var(--s3) var(--s4);
+  color: var(--paper-2);
+  font-family: var(--font-ui);
+  font-size: var(--t-small);
+  line-height: 1.8;
+  letter-spacing: var(--tr-cjk);
+  text-align: left;
+  animation: opt-in var(--d-mid) var(--e-out) both;
+  animation-delay: calc(var(--i, 0) * 46ms);
+}
+@keyframes opt-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 6px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+/* 鍵盤數字：一顆小小的符文石 */
+.opt__key {
+  --cut: 5px;
+  grid-row: 1 / span 2;
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  margin-top: 2px;
+  font-family: var(--font-mono);
+  font-size: 1.2rem;
+  color: var(--paper-3);
+  transition: color var(--d-fast) var(--e-snap);
+}
+.opt__key::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  clip-path: var(--seal-shape);
+  background-image: linear-gradient(180deg, rgba(196, 220, 236, 0.26), rgba(0, 0, 0, 0.5));
+  transition: background-image var(--d-fast) var(--e-snap);
+}
+.opt__key::after {
+  content: '';
+  position: absolute;
+  inset: 1px;
+  z-index: -1;
+  clip-path: var(--seal-shape-in);
+  background-image: linear-gradient(180deg, #10161f, #05080c);
+}
+.opt:hover:not(.is-wrong) .opt__key {
+  color: var(--gold);
+}
+.opt:hover:not(.is-wrong) .opt__key::before {
+  background-image: linear-gradient(180deg, rgba(230, 199, 155, 0.72), rgba(0, 0, 0, 0.5));
+}
+.opt__text {
+  min-width: 0;
+}
+.opt__line {
+  display: block;
+  overflow-wrap: anywhere;
+}
+.opt__line + .opt__line {
+  color: var(--paper-3);
+}
+/* 石碑不收：這個選項留在原地，旁邊掛著它的教學回饋（金線＝教練的聲音）。
+   石籤上多一道裂痕（一層極細的斜線漸層），不用圖檔也讀得出「壞了」。 */
+.opt.is-wrong {
+  --face: linear-gradient(180deg, rgba(11, 9, 10, 0.94), rgba(5, 4, 5, 0.96));
+  --inlay-w: 0px;
+  color: var(--paper-4);
+  cursor: default;
+  translate: none;
+}
+.opt.is-wrong::before {
+  background-image: linear-gradient(180deg, rgba(224, 128, 110, 0.5), rgba(224, 128, 110, 0.1) 46%, var(--seal-shade));
+}
+.opt.is-wrong::after {
+  background-image: linear-gradient(112deg, transparent 44.1%, rgba(224, 128, 110, 0.2) 44.7%, transparent 45.3%),
+    linear-gradient(76deg, transparent 62.1%, rgba(224, 128, 110, 0.12) 62.5%, transparent 63%), var(--face);
+  background-size: 100% 100%, 100% 100%, 100% 100%;
+  background-position: 0 0, 0 0, 0 0;
+}
+.opt.is-wrong .opt__key {
+  color: rgba(224, 128, 110, 0.7);
+}
+.opt.is-wrong .opt__key::before {
+  background-image: linear-gradient(180deg, rgba(224, 128, 110, 0.4), rgba(0, 0, 0, 0.5));
+}
+.opt__fb {
+  grid-column: 2;
+  margin-top: var(--s2);
+  padding-left: var(--s3);
+  border-left: 3px solid var(--gold);
+  font-size: var(--t-micro);
+  line-height: 1.75;
+  color: #f0e3cd;
+  animation: reveal-in var(--d-mid) var(--e-out) both;
+}
+
+/* ------------------------------------------------------------ 手掌印 */
+.palmwrap {
+  display: grid;
+  justify-items: center;
+  gap: var(--s3);
+  padding: var(--s4) 0 var(--s2);
+  animation: reveal-in var(--d-slow) var(--e-out) both;
+}
+.palmwrap__lead {
+  margin: 0;
+  font-family: var(--font-prose);
+  font-size: var(--t-small);
+  color: var(--paper-3);
+  text-align: center;
+}
+.palm {
+  --hold: 0;
+  position: relative;
+  display: grid;
+  place-items: center;
+  gap: 2px;
+  width: 168px;
+  padding: var(--s4) var(--s3) var(--s3);
+  border: 1px solid var(--rule-gold);
+  border-radius: 84px 84px var(--radius-lg) var(--radius-lg);
+  background: radial-gradient(70% 60% at 50% 34%, rgba(230, 199, 155, 0.14), rgba(230, 199, 155, 0) 70%);
+  color: var(--gold);
+  font-family: var(--font-ui);
+  cursor: pointer;
+  animation: palm-breathe 3.4s var(--e-inout) infinite;
+  touch-action: none;
+}
+@keyframes palm-breathe {
+  0%,
+  100% {
+    box-shadow: 0 0 0 rgba(230, 199, 155, 0), inset 0 0 22px rgba(230, 199, 155, 0.08);
+  }
+  50% {
+    box-shadow: 0 0 30px rgba(230, 199, 155, 0.2), inset 0 0 30px rgba(230, 199, 155, 0.16);
+  }
+}
+.palm:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 3px;
+}
+/* 按住時的填充環：conic-gradient 由 --hold 驅動（JS 每幀寫一次） */
+.palm__ring {
+  position: absolute;
+  inset: -5px;
+  border-radius: inherit;
+  padding: 2px;
+  background: conic-gradient(
+    from -90deg,
+    var(--gold) calc(var(--hold) * 360deg),
+    rgba(230, 199, 155, 0.1) calc(var(--hold) * 360deg)
+  );
+  -webkit-mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+  opacity: 0;
+  transition: opacity var(--d-fast) var(--e-out);
+}
+.palm.is-holding .palm__ring {
+  opacity: 1;
+}
+.palm.is-holding {
+  animation: none;
+  box-shadow: 0 0 40px rgba(230, 199, 155, 0.28), inset 0 0 34px rgba(230, 199, 155, 0.2);
+}
+/* 手掌本體：五根手指 ＋ 掌心，純 CSS */
+.palm__hand {
+  position: relative;
+  width: 52px;
+  height: 56px;
+  margin-bottom: 2px;
+}
+.palm__finger,
+.palm__thumb,
+.palm__pad {
+  position: absolute;
+  border-radius: 999px;
+  background: rgba(230, 199, 155, 0.5);
+}
+.palm__finger {
+  width: 8px;
+  height: 24px;
+  top: 0;
+}
+.palm__finger:nth-child(1) {
+  left: 10px;
+  height: 22px;
+}
+.palm__finger:nth-child(2) {
+  left: 21px;
+  height: 26px;
+  top: -2px;
+}
+.palm__finger:nth-child(3) {
+  left: 32px;
+  height: 24px;
+}
+.palm__finger:nth-child(4) {
+  left: 43px;
+  height: 19px;
+  top: 3px;
+}
+.palm__thumb {
+  width: 8px;
+  height: 17px;
+  left: 2px;
+  top: 20px;
+  transform: rotate(28deg);
+}
+.palm__pad {
+  left: 8px;
+  top: 22px;
+  width: 40px;
+  height: 32px;
+  border-radius: 14px 14px 18px 18px;
+}
+.palm.is-holding .palm__finger,
+.palm.is-holding .palm__thumb,
+.palm.is-holding .palm__pad {
+  background: rgba(240, 218, 182, 0.82);
+}
+.palm__label {
+  font-size: var(--t-small);
+  letter-spacing: var(--tr-cjk);
+  color: #f0e3cd;
+}
+.palm__hint {
+  font-size: var(--t-micro);
+  color: rgba(230, 199, 155, 0.6);
+}
+.palm.is-slipped .palm__hint {
+  color: var(--warn);
+  animation: palm-slip 520ms var(--e-out) both;
+}
+@keyframes palm-slip {
+  0%,
+  100% {
+    transform: none;
+  }
+  30% {
+    transform: translate3d(-3px, 0, 0);
+  }
+  65% {
+    transform: translate3d(3px, 0, 0);
+  }
+}
+.palm.is-fired {
+  animation: palm-fire 700ms var(--e-out) both;
+}
+@keyframes palm-fire {
+  0% {
+    box-shadow: 0 0 0 rgba(230, 199, 155, 0);
+  }
+  30% {
+    box-shadow: 0 0 90px rgba(230, 199, 155, 0.55);
+  }
+  100% {
+    box-shadow: 0 0 26px rgba(230, 199, 155, 0.14);
+  }
+}
+
+/* 石碑刻印時左欄的清單只是「進度表」，不用再擺 rubric 的操作 */
+.is-guided .console__blocks {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  .palm {
+    width: 148px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* 動畫換成單純的顯示：抖動、石屑、呼吸全部關掉，但每個元素都要看得見 */
+  .stele.is-stamp,
+  .stele.is-reject,
+  .stele.is-ignited,
+  .palm,
+  .palm.is-fired,
+  .palm.is-slipped .palm__hint,
+  .dust {
+    animation: none;
+  }
+  .carved.is-fresh,
+  .opt,
+  .opt__fb,
+  .palmwrap {
+    animation: none;
+    opacity: 1;
+    transform: none;
+    clip-path: none;
+    color: unset;
+  }
+  .carved.is-fresh {
+    color: #b9cbdb;
+  }
+  .opt__fb {
+    color: #f0e3cd;
+  }
+  .stele.is-reject .stele__crack {
+    animation: none;
+  }
+}
+
+/* ================================================================
+   Phase 12 · 四幕分鏡（導演式引導）
+   ================================================================
+   問題：以前一打開關卡，題目、官方說法、答案區同時攤在眼前，玩家不知道
+   先讀哪一個。現在改成**一次只有一幕擁有畫面**：
+
+     ①委託 → ②指引（神諭刻文）→ ③刻印 → ④手印
+
+   轉場刻意做成「鏡頭切換」：舊的那一幕直接切掉，新的一幕從 display:none
+   回來 —— CSS 動畫因此自己重播，幕內每一行再照 .reveal .d1 .d2 .d3
+   依序浮出來（節奏參考 llm-agent-playground 的 reveal d1/d2/d3）。
+   ================================================================ */
+
+/* ---------------------------------------------------------------- 幕指示器
+   Phase 15：改成一件器物 —— **四塊封印石，被一條軌道串起來**。
+   走過一幕，它前面那一段軌道就注滿金；三種狀態靠「形狀」而不是只靠顏色分：
+
+     未走到（disabled）  沒點燈的石頭：平面、無鑲線、邊光只剩三成
+     走過（.is-done）    蓋過章：受光方向顛倒（壓進去）＋ 金鑲線常駐
+     現在（.is-now）     點著的那一塊：石面翻成星光白、浮起來、外圈符文光
+
+   軌道的填色不需要 JS —— 用相鄰選擇器：某一塊亮了或蓋過章了，
+   它後面那一段就注金。 */
+.acts {
+  display: flex;
+  align-items: stretch;
+  gap: 3px;
+  margin: 0 0 var(--s6);
+  padding-bottom: var(--s4);
+  border-bottom: 1px solid var(--rule);
+  flex-wrap: wrap;
+}
+/* 兩塊封印石之間的軌道：底是髮絲線，注金時由左往右長出來 */
+.acts__rule {
+  align-self: center;
+  flex: 1 1 14px;
+  min-width: 12px;
+  height: 3px;
+  clip-path: polygon(0 1px, 100% 0, 100% 3px, 0 2px);
+  background-color: var(--rule);
+  background-image: linear-gradient(90deg, rgba(230, 199, 155, 0.35), var(--gold));
+  background-repeat: no-repeat;
+  background-size: 0% 100%;
+  transition: background-size var(--d-slow) var(--e-out);
+}
+.acts__item.is-done + .acts__rule,
+.acts__item.is-now + .acts__rule {
+  background-size: 100% 100%;
+}
+.acts__item {
+  --cut: 8px;
+  --seal-lit: rgba(196, 220, 236, 0.22);
+  --face: linear-gradient(180deg, rgba(20, 28, 39, 0.9), rgba(6, 9, 14, 0.94));
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  min-height: 40px;
+  padding: 7px 15px;
+  color: var(--paper-4);
+  font-family: var(--font-ui);
+  font-size: var(--t-micro);
+  font-weight: 500;
+  letter-spacing: var(--tr-cjk);
+}
+.acts__num {
+  font-family: var(--font-mono);
+  font-size: 1.6rem;
+  line-height: 1;
+  color: inherit;
+  opacity: 0.85;
+}
+/* 還沒走到的幕：看得見但按不下去（不能跳過指引） */
+.acts__item:disabled {
+  color: rgba(102, 118, 141, 0.72);
+}
+/* 走過的幕：蓋過章 —— 石面被壓進去，金鑲線留在溝槽裡 */
+.acts__item.is-done {
+  --face: linear-gradient(180deg, #05080d, #131b26);
+  --inlay-w: calc(100% - var(--cut) * 2);
+  color: rgba(236, 209, 168, 0.92);
+}
+.acts__item.is-done::before {
+  background-image: linear-gradient(180deg, rgba(0, 0, 0, 0.7), rgba(230, 199, 155, 0.42));
+}
+/* 現在這一幕：點著的封印石 */
+.acts__item.is-now {
+  --face: linear-gradient(180deg, #eaf3fb 0%, #c2d8e8 58%, #a9c9d8 100%);
+  --inlay: rgba(30, 52, 70, 0.42);
+  --inlay-w: calc(100% - var(--cut) * 2);
+  color: #08111a;
+  font-weight: 600;
+  translate: 0 -1px;
+}
+.acts__item.is-now::before {
+  background-image: linear-gradient(180deg, #ffffff, rgba(169, 201, 216, 0.7) 52%, rgba(12, 22, 32, 0.9));
+  filter: drop-shadow(0 0 10px rgba(169, 201, 216, 0.34));
+}
+.acts__item.is-now .acts__num {
+  opacity: 1;
+}
+
+/* ---------------------------------------------------------------- 一幕 */
+.act {
+  /* 每次從 display:none 回來都會重播 —— 這就是「鏡頭切換」的那一下 */
+  animation: act-cut var(--d-slow) var(--e-out) both;
+}
+@keyframes act-cut {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.act[tabindex]:focus {
+  outline: none;
+}
+.act--brief,
+.act--guide {
+  max-width: 68ch;
+  margin: 0 auto;
+}
+.act__kicker {
+  margin: 0 0 var(--s4);
+  font-family: var(--font-meta);
+  font-size: var(--t-meta);
+  letter-spacing: var(--tr-meta);
+  text-transform: uppercase;
+  color: var(--paper-4);
+}
+.act__kickerzh {
+  margin-left: var(--s2);
+  font-family: var(--font-ui);
+  letter-spacing: var(--tr-cjk);
+  text-transform: none;
+  color: rgba(230, 199, 155, 0.82);
+}
+.act__head {
+  margin: 0 0 var(--s2);
+  font-family: var(--font-display);
+  font-size: var(--t-title);
+  font-weight: 400;
+  letter-spacing: var(--tr-title);
+  color: #f0f6fb;
+}
+.act__lead {
+  margin: 0 0 var(--s5);
+  font-family: var(--font-ui);
+  font-size: var(--t-micro);
+  line-height: 1.8;
+  letter-spacing: var(--tr-cjk);
+  color: var(--paper-4);
+}
+.act__foot {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  margin-top: var(--s6);
+  padding-top: var(--s4);
+  border-top: 1px solid var(--rule);
+}
+.act__foot .spacer {
+  flex: 1;
+}
+.act__hint {
+  font-family: var(--font-mono);
+  font-size: var(--t-meta);
+  color: var(--paper-4);
+}
+
+/* 這一次要用上的工法：從 mission 搬出來的「怎麼答」（Phase 12 的資料重整） */
+.craft {
+  margin: 0 0 var(--s5);
+  padding: var(--s3) var(--s4);
+  border-left: 2px solid var(--gold);
+  border-radius: 0 var(--radius) var(--radius) 0;
+  background: linear-gradient(90deg, rgba(198, 160, 92, 0.1), rgba(198, 160, 92, 0));
+  font-family: var(--font-ui);
+  font-size: var(--t-small);
+  line-height: 1.85;
+  letter-spacing: var(--tr-cjk);
+  color: #f3e8d3;
+}
+
+/* ---------------------------------------------------------------- 神諭刻文 */
+.glyphs {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.glyph {
+  display: flex;
+  gap: var(--s4);
+  padding: var(--s4) 0;
+  border-top: 1px solid var(--rule);
+}
+.glyph:last-child {
+  border-bottom: 1px solid var(--rule);
+}
+.glyph__mark {
+  flex: none;
+  width: 22px;
+  font-family: var(--font-mono);
+  font-size: var(--t-micro);
+  line-height: 1.9;
+  color: rgba(230, 199, 155, 0.6);
+}
+.glyph__body {
+  min-width: 0;
+}
+.glyph__title {
+  margin: 0 0 var(--s2);
+  font-family: var(--font-ui);
+  font-size: var(--t-h3);
+  font-weight: 500;
+  letter-spacing: var(--tr-cjk);
+  color: #eaf2f9;
+}
+.glyph__title i {
+  margin-left: var(--s2);
+  font-family: var(--font-ui);
+  font-size: var(--t-meta);
+  font-style: normal;
+  color: var(--paper-4);
+}
+.glyph__what,
+.glyph__how {
+  margin: 0 0 var(--s2);
+  font-family: var(--font-prose);
+  font-size: 1.66rem;
+  line-height: var(--lh-prose);
+  letter-spacing: var(--tr-cjk);
+  color: #dfe9f3;
+  text-wrap: pretty;
+}
+.glyph__how {
+  color: rgba(230, 220, 201, 0.9);
+}
+
+/* ---------------------------------------------------------------- 第三幕舞台 */
+.carvehead {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s3);
+  margin-bottom: var(--s5);
+  flex-wrap: wrap;
+}
+.carvehead .spacer {
+  flex: 1;
+}
+.carvehead .act__kicker {
+  margin: 0;
+}
+.carvestage {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 0.6fr);
+  gap: 0;
+}
+.carvestage__main {
+  min-width: 0;
+  padding-right: var(--s6);
+}
+/* 即時亮燈的刻痕對照就在石碑旁邊 —— 刻一段亮一盞，兩邊同時看得到 */
+.rail {
+  align-self: start;
+  position: sticky;
+  top: 0;
+  min-width: 0;
+  padding-left: var(--s6);
+  border-left: 1px solid var(--rule);
+  transition: opacity var(--d-slow) var(--e-out);
+}
+/* 第四幕：鏡頭給手印，旁邊的對照退到背景（還在，只是不搶戲） */
+.console.is-palm .rail {
+  opacity: 0.5;
+}
+.console.is-palm .stele {
+  box-shadow: inset 0 1px 0 rgba(214, 232, 244, 0.12), 0 0 60px -18px rgba(230, 199, 155, 0.5);
+}
+@media (max-width: 900px) {
+  .carvestage {
+    grid-template-columns: 1fr;
+    gap: var(--s6);
+  }
+  .carvestage__main {
+    padding-right: 0;
+  }
+  .rail {
+    position: static;
+    padding-left: 0;
+    border-left: 0;
+    border-top: 1px solid var(--rule);
+    padding-top: var(--s5);
+  }
+}
+
+/* 側頁籤：第二幕的刻文壓成一行一條，隨時翻得回來（不是一牆文字） */
+.guidetab {
+  margin-top: var(--s5);
+  border-top: 1px solid var(--rule);
+  border-bottom: 1px solid var(--rule);
+}
+.guidetab > summary {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  padding: var(--s3) 0;
+  cursor: pointer;
+  list-style: none;
+  font-family: var(--font-ui);
+  font-size: var(--t-micro);
+  letter-spacing: var(--tr-cjk);
+  color: rgba(230, 199, 155, 0.82);
+}
+.guidetab > summary::-webkit-details-marker {
+  display: none;
+}
+.guidetab > summary::after {
+  content: '+';
+  margin-left: auto;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  --cut: 6px;
+  clip-path: var(--seal-shape);
+  background-image: linear-gradient(180deg, rgba(230, 199, 155, 0.26), rgba(0, 0, 0, 0.42));
+  font-family: var(--font-mono);
+  font-size: 15px;
+  line-height: 1;
+  transition: transform var(--d-mid) var(--e-out), background-image var(--d-fast) var(--e-snap);
+}
+.guidetab > summary:hover::after {
+  background-image: linear-gradient(180deg, rgba(246, 227, 194, 0.7), rgba(0, 0, 0, 0.42));
+}
+.guidetab[open] > summary::after {
+  transform: rotate(45deg);
+}
+.guidetab__list {
+  margin: 0 0 var(--s4);
+  padding: 0;
+  list-style: none;
+}
+.guidetab__list li {
+  padding: var(--s2) 0;
+  border-top: 1px solid var(--rule);
+  font-family: var(--font-ui);
+  font-size: var(--t-meta);
+  line-height: 1.7;
+  letter-spacing: var(--tr-cjk);
+  color: var(--paper-3);
+}
+.guidetab__list b {
+  display: block;
+  color: #eaf2f9;
+  font-weight: 500;
+}
+.guidetab__list span {
+  display: block;
+  color: var(--paper-4);
+}
+.guidetab__list .src {
+  display: inline-block;
+  margin-top: 2px;
+}
+
+/* ---------------------------------------------------------------- 揭示節拍
+   .d1 / .d2 / .d3 / .d4 只是 --i 的別名（沿用參考專案的寫法，讀起來就是分鏡） */
+.reveal.d1 {
+  --i: 1;
+}
+.reveal.d2 {
+  --i: 2;
+}
+.reveal.d3 {
+  --i: 3;
+}
+.reveal.d4 {
+  --i: 4;
+}
+
+@media (max-width: 720px) {
+  .acts__item {
+    padding: 3px 8px;
+  }
+  .acts__rule {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* 減少動態：轉場改成瞬切，但每一幕都必須完整看得見 */
+  .act,
+  .glyph {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ================================================================
+   Phase 13 · 資訊提示（ⓘ）
+   ================================================================
+   世界觀的說法（「神諭原典」）後面本來永遠跟著一句「＝各家官方文件」
+   的旁白。那句話是對的，但它一直站在故事前面。現在收進一顆 ⓘ：
+   滑過、focus、點一下都看得到；預設不佔版面。
+
+   注意：**真正的出處連結不收進來**，它永遠留在畫面上（護欄 2）。
+   ================================================================ */
+.infotip {
+  position: relative;
+  display: inline-flex;
+  vertical-align: baseline;
+  margin-left: 4px;
+}
+/* ⓘ ＝ 一顆嵌在文句裡的符文石 */
+.infotip__btn {
+  --cut: 8px;
+  position: relative;
+  isolation: isolate;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: rgba(230, 199, 155, 0.72);
+  font-family: var(--font-ui);
+  font-size: 1.2rem;
+  line-height: 1;
+  cursor: help;
+  transition: color var(--d-fast) var(--e-snap);
+}
+.infotip__btn::before,
+.infotip__btn::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  clip-path: var(--seal-shape);
+  background-image: linear-gradient(180deg, rgba(230, 199, 155, 0.34), rgba(0, 0, 0, 0.4));
+  transition: background-image var(--d-fast) var(--e-snap), filter var(--d-fast) var(--e-snap);
+}
+.infotip__btn::after {
+  inset: 1px;
+  clip-path: var(--seal-shape-in);
+  background-image: linear-gradient(180deg, rgba(32, 26, 16, 0.9), rgba(10, 8, 5, 0.9));
+}
+.infotip__btn:hover,
+.infotip__btn:focus-visible {
+  color: #f7e7c9;
+}
+.infotip__btn:hover::before,
+.infotip__btn:focus-visible::before {
+  background-image: linear-gradient(180deg, #f6e3c2, rgba(230, 199, 155, 0.5));
+  filter: drop-shadow(0 0 8px rgba(230, 199, 155, 0.5));
+}
+.infotip__btn:focus-visible {
+  outline: none;
+}
+.infotip__bubble {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  z-index: 30;
+  width: max-content;
+  max-width: min(30ch, 68vw);
+  --cut: 9px;
+  padding: var(--s3) var(--s4);
+  border: 0;
+  border-radius: 0;
+  clip-path: var(--seal-shape);
+  background-color: rgba(230, 199, 155, 0.4);
+  color: var(--paper-2);
+  font-family: var(--font-ui);
+  font-size: var(--t-micro);
+  font-weight: 400;
+  line-height: 1.75;
+  letter-spacing: var(--tr-cjk);
+  text-align: left;
+  white-space: normal;
+  /* 預設看不見：內容留在 DOM（可被查證、螢幕閱讀器讀得到），但不佔畫面 */
+  opacity: 0;
+  visibility: hidden;
+  transform: translate(-50%, 4px);
+  pointer-events: none;
+  /*
+   * 只讓「位移」補間。
+   * 提示要嘛看得到、要嘛看不到 —— opacity / visibility 不走 transition，
+   * 免得在低幀率的裝置上出現「已經 hover 了但還是看不到」的空窗。
+   */
+  transition: transform var(--d-fast) var(--e-out);
+}
+/* 氣泡的面（往內縮 1px，露出上面那層當金邊） */
+.infotip__bubble::before {
+  content: '';
+  position: absolute;
+  inset: 1px;
+  z-index: -1;
+  clip-path: var(--seal-shape-in);
+  background-color: rgba(9, 12, 18, 0.98);
+}
+.infotip:hover .infotip__bubble,
+.infotip:focus-within .infotip__bubble,
+.infotip.is-open .infotip__bubble {
+  opacity: 1;
+  visibility: visible;
+  transform: translate(-50%, 0);
+}
+/* 小尖角，指回那顆 ⓘ */
+.infotip__bubble::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  width: 7px;
+  height: 7px;
+  margin-left: -4px;
+  margin-top: -4px;
+  border-right: 1px solid var(--rule-gold);
+  border-bottom: 1px solid var(--rule-gold);
+  background: rgba(9, 12, 18, 0.97);
+  transform: rotate(45deg);
+}
+@media (prefers-reduced-motion: reduce) {
+  .infotip__bubble {
+    transition: none;
+    transform: translate(-50%, 0);
+  }
+}
+
+/* ================================================================ 效能監視器
+   Phase 17。這個世界是 three.js／WebGL 畫出來的，想知道自己的機器跑不跑得動
+   就得看得到數字。右上角一塊切角的小石牌（clip-path 切角 ＋ 石面漸層 ＋ 顆粒，
+   和石碑同一套語言），浮在所有東西之上 —— 但整塊 pointer-events: none，
+   只有上緣把手與收合鈕接得到滑鼠，永遠不會擋住玩家對世界的操作。 */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+.ui > .perfmon {
+  position: absolute;
+  top: 116px;
+  right: var(--s6);
+  z-index: 60;
+  width: 168px;
+  padding: 0 0 var(--s3);
+  /* 右上與左下切角 —— 一塊被鑿下來的小石牌 */
+  clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 10px 100%, 0 calc(100% - 10px));
+  border: 1px solid var(--rule);
+  background:
+    radial-gradient(120% 70% at 50% 0%, rgba(169, 201, 216, 0.07), rgba(169, 201, 216, 0) 62%),
+    linear-gradient(178deg, #16202c 0%, #101822 52%, #0a1017 100%);
+  box-shadow: inset 0 1px 0 rgba(214, 232, 244, 0.07), 0 10px 26px rgba(0, 0, 0, 0.45);
+  font-family: var(--font-mono);
+  color: var(--paper-3);
+  user-select: none;
+  /* 診斷面板不吃滑鼠：只有下面兩個控制項自己打開 */
+  pointer-events: none;
+}
+.perfmon[hidden] {
+  display: none;
+}
+.perfmon__grain {
+  position: absolute;
+  inset: 0;
+  background-image: var(--grain);
+  background-size: 160px 160px;
+  opacity: 0.14;
+  mix-blend-mode: soft-light;
+  pointer-events: none;
+}
+
+.perfmon__grip {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s2);
+  padding: 6px var(--s3) 6px var(--s3);
+  border-bottom: 1px solid var(--rule);
+  cursor: grab;
+  pointer-events: auto;
+  touch-action: none;
+}
+.perfmon.is-dragging .perfmon__grip {
+  cursor: grabbing;
+}
+.perfmon__chip {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+}
+.perfmon__chip b {
+  font-size: 1.28rem;
+  font-weight: 500;
+  line-height: 1;
+  color: var(--paper-2);
+  font-variant-numeric: tabular-nums;
+}
+.perfmon.is-low .perfmon__chip b {
+  color: var(--gold);
+}
+.perfmon__chip i {
+  font-family: var(--font-meta);
+  font-style: normal;
+  font-size: 0.68rem;
+  letter-spacing: var(--tr-meta);
+  text-transform: uppercase;
+  color: var(--paper-4);
+}
+.perfmon__fold {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--paper-4);
+  font-size: 0.8rem;
+  line-height: 1;
+  cursor: pointer;
+  pointer-events: auto;
+  transition: color var(--d-fast) var(--e-out), border-color var(--d-fast) var(--e-out);
+}
+.perfmon__fold:hover,
+.perfmon__fold:focus-visible {
+  color: var(--paper-2);
+  border-color: var(--rule-2);
+}
+
+.perfmon__body {
+  position: relative;
+  padding: var(--s2) var(--s3) 0;
+}
+.perfmon.is-collapsed .perfmon__body {
+  display: none;
+}
+.perfmon.is-collapsed {
+  width: 118px;
+  padding-bottom: 0;
+}
+.perfmon__graph {
+  display: block;
+  width: 100%;
+  height: 30px;
+  margin: 0 0 var(--s2);
+  opacity: 0.95;
+}
+.perfmon__graph[hidden] {
+  display: none;
+}
+.perfmon__rows {
+  margin: 0;
+}
+.perfmon__row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s2);
+  padding: 2px 0;
+  border-top: 1px solid rgba(196, 220, 236, 0.06);
+}
+.perfmon__row[hidden] {
+  display: none;
+}
+.perfmon__row dt {
+  font-family: var(--font-meta);
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  color: var(--paper-4);
+}
+.perfmon__row dd {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--paper-2);
+  font-variant-numeric: tabular-nums;
+}
+/* 「不支援」這種非數字的字：安靜一點，不要跟真的數據搶眼睛 */
+.perfmon__row dd.is-muted {
+  color: var(--paper-4);
+}
+
+/* --- 顯示卡（Phase 19）------------------------------------------------
+   瀏覽器沒有「GPU 使用率」這種 API，所以這裡只給拿得到的兩件事實：
+   型號與每幀渲染耗時。解釋收在一顆 ⓘ 後面，不佔版面。 */
+.perfmon__gpu {
+  margin-top: var(--s2);
+  padding-top: 4px;
+  border-top: 1px solid rgba(196, 220, 236, 0.06);
+}
+.perfmon__gpuhead {
+  /* ⓘ 的氣泡就掛在這一列上（見下方說明） */
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin: 0;
+  font-family: var(--font-meta);
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  color: var(--paper-4);
+}
+.perfmon__gpuname {
+  margin: 1px 0 0;
+  font-size: 0.74rem;
+  line-height: 1.35;
+  color: var(--paper-2);
+  overflow-wrap: anywhere;
+}
+.perfmon__gpuflag {
+  margin: 2px 0 0;
+  font-family: var(--font-meta);
+  font-size: 0.68rem;
+  letter-spacing: 0.03em;
+  /* 警示色（暖金）＝ 沒有真的用到顯示卡 */
+  color: var(--gold);
+}
+.perfmon__gpuflag[hidden] {
+  display: none;
+}
+/* 這顆 ⓘ 要接得到滑鼠／鍵盤（整塊石牌是 pointer-events: none） */
+.perfmon .infotip {
+  /* 石牌本身有 clip-path（切角）—— 子元素跑不出這塊石頭，
+     所以氣泡不能往外開，改成貼著石牌內緣、跟石牌一樣寬 */
+  position: static;
+  pointer-events: auto;
+  margin-left: 2px;
+}
+.perfmon .infotip__btn {
+  width: 16px;
+  height: 16px;
+  font-size: 0.78rem;
+}
+.perfmon .infotip__bubble {
+  left: 0;
+  right: 0;
+  width: auto;
+  max-width: none;
+  transform: translate(0, 4px);
+  padding: 6px 8px;
+  font-size: 0.7rem;
+  line-height: 1.55;
+}
+.perfmon .infotip:hover .infotip__bubble,
+.perfmon .infotip:focus-within .infotip__bubble,
+.perfmon .infotip.is-open .infotip__bubble {
+  transform: translate(0, 0);
+}
+/* 氣泡已經跟石牌同寬，那根小尖角指不到 ⓘ 上 —— 收掉 */
+.perfmon .infotip__bubble::after {
+  display: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .perfmon .infotip__bubble {
+    transform: translate(0, 0);
+  }
+}
+
+.perfmon__foot {
+  margin: var(--s2) 0 0;
+  font-family: var(--font-meta);
+  font-size: 0.66rem;
+  letter-spacing: 0.04em;
+  color: var(--paper-4);
+}
+
+@media (max-width: 900px) {
+  .ui > .perfmon {
+    top: 104px;
+    width: 148px;
+  }
+}
+
+/* ================================================================ 導航閃爍提示
+   Phase 21。指南針只回答「哪個方向」，但如果玩家在原地繞了快一分鐘，
+   畫面上沒有人會提醒他。這一行就是回聲在上方說的那句話。
+
+   位置：畫面上方置中，壓在 HUD 頂列**下方**（不與等級／區域名／效能監視器重疊）。
+   它不綁 3D 座標，也不擋任何點擊（pointer-events: none）。
+   節奏：進場浮起 → 呼吸兩下 → 8 秒後自己淡出（收場短於進場，全系統一致）。 */
+.nudge {
+  position: absolute;
+  /* 壓在 HUD 頂列（等級 / 區域名 / 下一個目標那三行）**下方**，
+     不要和「下一個目標：…」擠在一起 —— 那一行的底大約在 120px。 */
+  top: clamp(150px, 21vh, 236px);
+  left: 50%;
+  width: max-content;
+  max-width: min(560px, 62vw);
+  transform: translate(-50%, -10px);
+  padding: var(--s3) var(--s5) var(--s4);
+  text-align: center;
+  pointer-events: none;
+  user-select: none;
+  opacity: 0;
+  /* 用 visibility 收（不是 display:none）—— 顯示時才有可補間的「前一個狀態」，
+     淡入才不會被瀏覽器整個跳過。收起時 visibility 等淡出跑完再切。 */
+  visibility: hidden;
+  transition: opacity var(--d-mid) var(--e-out), transform var(--d-slow) var(--e-out),
+    visibility 0s linear var(--d-mid);
+  z-index: 3;
+}
+.nudge[hidden] {
+  display: none;
+}
+.nudge.is-on {
+  opacity: 1;
+  visibility: visible;
+  transform: translate(-50%, 0);
+  transition: opacity var(--d-mid) var(--e-out), transform var(--d-slow) var(--e-out), visibility 0s;
+}
+/* 上下各一條會發亮的髮絲線 —— 「刻在空氣裡的一行字」 */
+.nudge::before,
+.nudge::after {
+  content: '';
+  position: absolute;
+  left: 12%;
+  right: 12%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(230, 199, 155, 0.42), transparent);
+}
+.nudge::before {
+  top: 0;
+}
+.nudge::after {
+  bottom: 0;
+}
+.nudge__eyebrow {
+  margin: 0 0 6px;
+  color: rgba(230, 199, 155, 0.68);
+}
+.nudge__line {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: clamp(1.5rem, 1.1rem + 0.9vw, 2rem);
+  font-weight: 400;
+  line-height: var(--lh-head);
+  letter-spacing: var(--tr-cjk-display);
+  color: var(--paper);
+  text-shadow: 0 2px 18px rgba(0, 0, 0, 0.85);
+}
+.nudge__line b {
+  font-weight: 600;
+  color: var(--gold);
+  text-shadow: 0 0 24px rgba(230, 199, 155, 0.6);
+}
+.nudge__sub {
+  margin: 6px 0 0;
+  font-size: var(--t-micro);
+  letter-spacing: 0.05em;
+  color: var(--paper-3);
+  text-shadow: 0 1px 10px #000;
+}
+.nudge__sub[hidden] {
+  display: none;
+}
+/* 閃爍＝很慢的呼吸，不是霓虹燈。金線與字一起亮，兩秒一次。 */
+.nudge.is-on .nudge__line,
+.nudge.is-on::before,
+.nudge.is-on::after {
+  animation: nudge-breathe 2.1s var(--e-out) infinite;
+}
+@keyframes nudge-breathe {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  52% {
+    opacity: 0.44;
+  }
+}
+
+/* ================================================================ 分享結果卡
+   Phase 21。canvas 畫出來的 1200×630 圖，疊在其他面板**上面**開
+   （z-index 24 > overlay 的 20，但仍在 intro 30 / 標題卡 40 之下）。 */
+.overlay--share {
+  z-index: 24;
+}
+.overlay--share .panel {
+  width: min(900px, 100%);
+}
+.sharecard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+}
+/* 分享卡的重點是那張圖與「下載圖片」—— 標頭收窄，把高度讓出來 */
+.overlay--share .panel__head {
+  padding-bottom: var(--s2);
+}
+.sharecard__frame {
+  position: relative;
+  /* 卡片是 1200×630（比例 1.905）。把「寬度」綁在可用高度上，
+     整張圖才不會把「下載圖片」那排按鈕擠到摺線下面去。 */
+  width: min(100%, max(240px, calc((94vh - 400px) * 1.905)));
+  margin-inline: auto;
+  border: 1px solid var(--rule-2);
+  background: var(--ink-0);
+  padding: 6px;
+}
+/* 金色的四角刻痕：和等級方章同一個手法 */
+.sharecard__frame::before,
+.sharecard__frame::after {
+  content: '';
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  border: 1px solid var(--rule-gold);
+}
+.sharecard__frame::before {
+  top: -1px;
+  left: -1px;
+  border-right: 0;
+  border-bottom: 0;
+}
+.sharecard__frame::after {
+  right: -1px;
+  bottom: -1px;
+  border-left: 0;
+  border-top: 0;
+}
+.sharecard__canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-width: 100%;
+}
+.sharecard__caption {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--t-body);
+  letter-spacing: var(--tr-cjk-display);
+  color: var(--paper);
+}
+.sharecard__note {
+  margin: 0;
+  font-size: var(--t-micro);
+  color: var(--paper-4);
+}
+.sharecard__acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s3);
+  align-items: center;
+  padding-top: var(--s2);
+  border-top: 1px solid var(--rule);
+}
+
+/* 結果面板 / 隱藏成就畫面上的分享入口（刻印牌的 quiet 階） */
+.result__share {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s3);
+  margin-top: var(--s5);
+  padding-top: var(--s4);
+  border-top: 1px solid var(--rule);
+}
+.result__share .muted {
+  font-size: var(--t-micro);
+}
+
+/* 圖鑑頂端的稱號列 */
+.sharebar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s4);
+  margin: 0 0 var(--s5);
+  padding: var(--s4) 0;
+  border-top: 1px solid var(--rule-gold);
+  border-bottom: 1px solid var(--rule);
+}
+.sharebar__who {
+  min-width: 0;
+}
+.sharebar__rank {
+  display: block;
+  margin-top: 6px;
+  font-family: var(--font-display);
+  font-size: var(--t-h2);
+  font-weight: 500;
+  letter-spacing: var(--tr-cjk-display);
+  color: var(--paper);
+}
+.sharebar__rank .muted {
+  font-size: var(--t-body);
+}
+.sharebar__next {
+  margin: 6px 0 0;
+  font-size: var(--t-micro);
+}
+.region-card__share {
+  margin-top: var(--s3);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* 減少動態：不閃爍，只留一次淡入（提示仍然看得到、仍然會自己淡出） */
+  .nudge.is-on .nudge__line,
+  .nudge.is-on::before,
+  .nudge.is-on::after {
+    animation: none;
+  }
+  .nudge {
+    transform: translate(-50%, 0);
+  }
+}
+
+@media (max-width: 900px) {
+  .nudge {
+    top: clamp(132px, 19vh, 190px);
+    max-width: 78vw;
+  }
+  .sharecard__acts .btn {
+    flex: 1 1 auto;
+  }
+}
+
+/* ================================================================ 操作一覽（Phase 23）
+   純鍵盤玩得完 —— 這一頁是旅人抄下來的手記：左邊鍵帽、右邊一句話。
+   兩欄的 grid，鍵帽那欄固定寬度，所以整疊鍵對得整整齊齊。 */
+.overlay--keys .panel {
+  width: min(680px, 100%);
+}
+.keyhelp__group {
+  margin: 0 0 var(--s6);
+}
+.keyhelp__note {
+  margin: calc(var(--s2) * -1) 0 var(--s4);
+  font-size: var(--t-micro);
+  color: var(--paper-4);
+}
+.keyhelp__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.keyhelp__row {
+  display: grid;
+  grid-template-columns: minmax(120px, 168px) 1fr;
+  gap: var(--s4);
+  align-items: baseline;
+  padding: var(--s2) 0;
+  border-bottom: 1px solid var(--rule);
+}
+.keyhelp__row:last-child {
+  border-bottom: 0;
+}
+.keyhelp__keys {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.keyhelp__what {
+  font-size: var(--t-micro);
+  color: var(--paper-2);
+}
+.keyhelp__foot {
+  margin: var(--s5) 0 0;
+  padding-top: var(--s4);
+  border-top: 1px solid var(--rule);
+  font-size: var(--t-micro);
+  color: var(--paper-4);
+}
+@media (max-width: 640px) {
+  .keyhelp__row {
+    grid-template-columns: 1fr;
+    gap: var(--s2);
+  }
+}
+
+/* 戴在可按的東西身上的鍵帽：縮一號、稍微退到後面，不跟主要文字搶 */
+.btn kbd,
+.modeswitch kbd,
+.orb__label kbd,
+.clue > summary kbd,
+.guidetab > summary kbd,
+.palm__hint kbd,
+.codex__hint kbd,
+.settings__row kbd {
+  margin-left: var(--s2);
+  opacity: 0.78;
+}
+
+/* 可展開的小標題也要有焦點環 —— 鍵盤玩家要看得出「現在停在這裡」 */
+.clue > summary:focus-visible,
+.guidetab > summary:focus-visible,
+.origin > summary:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 3px;
+  color: var(--gold);
+}
