@@ -361,14 +361,18 @@ const SFX_FILE_SET = new Set(AUDIO_MANIFEST.sfx);
 
 /** 把檔名接成可以 fetch 的網址（子路徑部署也算得對）。 */
 export function audioUrl(file) {
+  // Vite 在建置時把 BASE_URL 固定成 base（例如 '/promptasy/' 或 './'）——
+  // 用它當基準，網址有沒有結尾斜線（/promptasy vs /promptasy/）都解析得對。
+  const base = (typeof import.meta !== 'undefined' && import.meta.env?.BASE_URL) || './';
+  const rel = base.endsWith('/') ? base + AUDIO_DIR : `${base}/${AUDIO_DIR}`;
   if (typeof document !== 'undefined' && document.baseURI) {
     try {
-      return new URL(AUDIO_DIR + file, document.baseURI).href;
+      return new URL(rel + file, document.baseURI).href;
     } catch {
       /* 退回相對路徑 */
     }
   }
-  return AUDIO_DIR + file;
+  return rel + file;
 }
 
 /** 過關音效依評價加碼（S 多兩個泛音、C 只有基本三音）—— 合成版。 */
