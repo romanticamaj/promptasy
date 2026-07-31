@@ -50,8 +50,7 @@ export function createEntryGate({ onUnlock, onEnter, fade = 600 } = {}) {
       <button class="entrygate__enter" data-enter type="button">
         <span class="entrygate__orb" aria-hidden="true"></span>
         <span class="entrygate__line">推開夜色之門</span>
-        <span class="entrygate__hint">點擊進入⋯</span>
-        <span class="sr-only">或按任意鍵</span>
+        <span class="sr-only">點擊或按任意鍵進入</span>
       </button>
     </div>
   `;
