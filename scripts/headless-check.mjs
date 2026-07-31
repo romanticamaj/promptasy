@@ -456,9 +456,18 @@ async function main() {
       source: d.source,
     };
   `);
-  eq(beforeGesture.audioRequests, 0, '標題卡按下去之前一個音檔都沒抓（不拖慢第一個畫面）');
-  eq(beforeGesture.started, false, '手勢之前 AudioContext 沒啟動');
-  eq(beforeGesture.pending, 0, '手勢之前沒有排隊中的音檔');
+  /*
+   * 這三條在「標題卡開場曲」上線之後改了語意（見那一次的提交）：
+   * 開場曲**刻意**在標題卡上就響起（瀏覽器允許自動播放就直接播，不允許就等第一下按鍵），
+   * 所以「手勢之前零音檔、零 AudioContext」已經不是現在要守的東西。
+   * 現在要守的是護欄 5 的本意：**別在第一個畫面就把 15 MB 全抓下來**。
+   */
+  ok(
+    beforeGesture.audioRequests <= 14,
+    '標題卡上只抓該抓的那幾支（沒有把整包音檔全拉下來）',
+    `requests=${beforeGesture.audioRequests}`
+  );
+  ok(beforeGesture.pending <= 4, '標題卡上排隊中的音檔沒有失控', `pending=${beforeGesture.pending}`);
 
   // 按任意鍵開始
   await key('Enter', 'Enter', { vk: 13 });
@@ -3344,9 +3353,14 @@ async function main() {
   eq(audioFiles.chain.duck, true, '配樂前面有 duck（過關的頌缽響時把床壓低）');
   eq(audioFiles.chain.bgmBus, true, '音檔配樂有自己的 bus');
   eq(audioFiles.chain.sfxBus, true, '音效有自己的 bus');
-  eq(audioFiles.bgmKeys.length, 5, '五區各有一首配樂音檔');
-  eq(new Set(audioFiles.files).size, 5, '五首配樂各是不同的檔案');
-  eq(new Set(audioFiles.titles).size, 5, '五首配樂曲名各不相同');
+  // 五片土地各一首 ＋ 標題卡的開場曲
+  eq(audioFiles.bgmKeys.length, 6, '五區各有一首配樂音檔，外加標題卡的開場曲');
+  ok(audioFiles.bgmKeys.includes('title'), '開場曲也在配樂表上', audioFiles.bgmKeys.join(','));
+  for (const region of ['foundations', 'reasoning', 'grounding', 'orchestration', 'config']) {
+    ok(audioFiles.bgmKeys.includes(region), `${region} 有自己的配樂`);
+  }
+  eq(new Set(audioFiles.files).size, 6, '每一首都是不同的檔案');
+  eq(new Set(audioFiles.titles).size, 6, '每一首曲名各不相同');
   eq(audioFiles.sfxSynthFallback, true, '每一支音檔音效都留著合成備援');
   ok(audioFiles.requests > 0, '手勢之後才開始抓音檔', `requests=${audioFiles.requests}`);
   console.log(`  · 這台機器${audioFiles.decodable ? '解得開' : '解不開'} m4a（AAC）`);
@@ -5288,10 +5302,14 @@ async function main() {
       copyClass: copy ? copy.className : '',
       dlClass: dl.className,
       dlLabel: dl.textContent.trim(),
-      // 帶不走圖片的那排入口不該再存在
+      // 那一排（Phase 31）：三個平台 ＋ 一顆「複製文案」
       chips: document.querySelectorAll('#sharecard [data-chip]').length,
+      chipIds: [...document.querySelectorAll('#sharecard [data-chip]')].map((n) => n.getAttribute('data-chip')),
+      chipLabels: [...document.querySelectorAll('#sharecard [data-chip]')].map((n) => n.textContent.trim()),
       sendLabel: document.querySelectorAll('#sharecard .sharecard__sendlabel').length,
+      // 那一排是按鈕不是連結 —— 因為要先把圖備好才開新頁（順序不能交給瀏覽器）
       newTabs: document.querySelectorAll('#sharecard a[target="_blank"]').length,
+      chipTags: [...new Set([...document.querySelectorAll('#sharecard [data-chip]')].map((n) => n.tagName))],
       sayTag: say ? say.tagName : '',
       sayValue: say ? say.value : '',
       sayLabel: document.querySelector('#sharecard .sharecard__saylabel')?.textContent.trim() || '',
@@ -5312,9 +5330,19 @@ async function main() {
   eq(sendPlain.open, true, '分享卡打得開');
   eq(sendPlain.sysHidden, true, '這個瀏覽器帶不動檔案 → 系統分享的入口收起來（不給死路）');
   eq(sendPlain.sysDrawn, false, '收起來的入口真的沒畫出來（鍵盤也走不到）');
-  eq(sendPlain.chips, 0, '那排帶不走圖片的入口整排不見了（Phase 28 修的就是這個）');
-  eq(sendPlain.sendLabel, 0, '「分享到」那一排的標題也一起走了');
-  eq(sendPlain.newTabs, 0, '分享卡上沒有任何會開新頁的連結');
+  eq(sendPlain.chips, 4, '那一排有四顆：三個平台 ＋ 一顆「複製文案」（Phase 31）');
+  eq(sendPlain.chipIds.join(','), 'threads,facebook,instagram,caption', '那一排的順序：最順的那條路排前面');
+  ok(
+    sendPlain.chipLabels.join(' ').includes('Threads') &&
+      sendPlain.chipLabels.join(' ').includes('Facebook') &&
+      sendPlain.chipLabels.join(' ').includes('Instagram') &&
+      sendPlain.chipLabels.join(' ').includes('複製文案'),
+    '那一排每一顆都寫著自己是什麼',
+    sendPlain.chipLabels.join(' ｜ ')
+  );
+  eq(sendPlain.sendLabel, 1, '那一排有自己的標題');
+  eq(sendPlain.newTabs, 0, '那一排是按鈕不是連結（先備好圖，才輪到開新頁）');
+  eq(sendPlain.chipTags.join(','), 'BUTTON', '那一排全部是按鈕');
   ok(sendPlain.copyLabel.includes('複製圖＋文'), '沒有系統分享時，那顆鈕寫著「複製圖＋文」', sendPlain.copyLabel);
   ok(sendPlain.copyClass.includes('btn--primary'), '沒有系統分享時，「複製圖＋文」就是主角', sendPlain.copyClass);
   ok(sendPlain.dlClass.includes('btn--ghost'), '「下載圖片」退成安靜的那一階（一個畫面只有一個主角）', sendPlain.dlClass);
@@ -5379,6 +5407,192 @@ async function main() {
   ok(!/https?:\/\//.test(copyClick.clip[0].text), '剪貼簿裡那段話沒有連結', copyClick.clip[0].text);
   ok(copyClick.toast.some((t) => t.includes('貼上')), '提示告訴玩家貼上就行', copyClick.toast.join(' ｜ '));
 
+  /* ================================================================ */
+  /* Phase 31：那一排「直接開這裡貼上」                                  */
+  /*                                                                  */
+  /*   規則變了（WORLD.md §3.5b）：平台入口可以存在，**前提是它一定帶得走 */
+  /*   那張圖**。所以每一顆按下去都要做到三件事：                        */
+  /*     ① 圖真的被備好（放進剪貼簿，或存成檔案）                        */
+  /*     ② 同一個手勢裡開那一頁（玩家本來就登入著）                      */
+  /*     ③ 提示明講接下來要按的那一下                                    */
+  /*   「只送出一個連結」的入口＝這一節要擋下來的東西。                   */
+  /* ================================================================ */
+  console.log('\n▸ 直接開這裡貼上（Phase 31）');
+
+  /*
+   * 把「開新頁」與「存檔案」都攔下來 ——
+   * 真的開分頁會讓後面的測試接錯頁面，真的下載會在機器上留檔案。
+   * 攔的方式刻意選「記下來 ＋ 擋掉預設行為」，這樣被測的程式一行都不用改。
+   */
+  await evaluate(`
+    window.__opened = [];
+    window.__realOpen = window.open;
+    window.open = (url, target, features) => {
+      window.__opened.push({
+        url, target, features,
+        // 手勢還在不在？（開新頁之前只要 await 一次就會變 false，然後被當成彈出視窗擋掉）
+        gesture: navigator.userActivation ? navigator.userActivation.isActive : null,
+      });
+      return null;
+    };
+    window.__downloads = [];
+    window.__dlSpy = (e) => {
+      const a = e.target.closest && e.target.closest('[data-download]');
+      if (!a) return;
+      // 注意：這段字串是 node 這邊的樣板字面值 —— 別在裡面寫正規表示式的斜線
+      window.__downloads.push({ name: a.getAttribute('download'), isImage: a.href.startsWith('data:image/png') });
+      e.preventDefault();
+      e.stopPropagation();
+    };
+    document.addEventListener('click', window.__dlSpy, true);
+    return true;
+  `);
+
+  /** 按下那一排的某一顆，把「剪貼簿寫了什麼 / 開了哪一頁 / 存了什麼 / 說了什麼」全撈回來。 */
+  async function tapChip(id) {
+    return evaluate(`
+      window.__clip.length = 0;
+      window.__opened.length = 0;
+      window.__downloads.length = 0;
+      document.querySelectorAll('.toast').forEach((n) => n.remove());
+      const chip = document.querySelector('#sharecard [data-chip="${id}"]');
+      chip.click();
+      await new Promise((r) => setTimeout(r, 380));
+      return {
+        clip: window.__clip,
+        opened: window.__opened,
+        downloads: window.__downloads,
+        toast: [...document.querySelectorAll('.toast')].map((n) => n.textContent.trim()),
+        used: chip.classList.contains('is-used'),
+        label: chip.textContent.trim(),
+      };
+    `);
+  }
+
+  // 這時候框裡那段話是玩家改過的（上面打進去的「（今晚刻完的）」）
+  const capNow = await evaluate(`return document.querySelector('#sharecard [data-caption]').value.trim();`);
+  ok(capNow.includes('（今晚刻完的）'), '那段話還是玩家改過的版本', capNow);
+
+  /* --- ① Threads：文字用網址帶進去，剪貼簿只放圖 --- */
+  const th = await tapChip('threads');
+  eq(th.opened.length, 1, 'Threads：真的開了一頁');
+  ok(th.opened[0].url.startsWith('https://www.threads.com/intent/post?text='), 'Threads：開的是官方的撰寫入口', th.opened[0].url);
+  ok(
+    decodeURIComponent(th.opened[0].url.split('text=')[1]).includes('（今晚刻完的）'),
+    'Threads：玩家改過的那段話真的被帶進網址（撰寫框會先填好）',
+    th.opened[0].url
+  );
+  ok(!/https?:\/\//.test(decodeURIComponent(th.opened[0].url.split('text=')[1])), 'Threads：帶過去的那段話裡沒有網址');
+  eq(th.opened[0].target, '_blank', 'Threads：開在新分頁');
+  ok(String(th.opened[0].features).includes('noopener'), 'Threads：開出去的那一頁動不到這一頁', String(th.opened[0].features));
+  eq(th.opened[0].gesture, true, 'Threads：開新頁時手勢還在（不會被當成彈出視窗擋掉）');
+  eq(th.clip.length, 1, 'Threads：只寫一次剪貼簿');
+  eq(th.clip[0].types.join(','), 'image/png', 'Threads：剪貼簿裡**只有圖**（那一下 Ctrl+V 不會變成貼出一段字）');
+  ok(th.toast.some((t) => t.includes('Ctrl+V')), 'Threads：提示直接寫出要按的那組鍵', th.toast.join(' ｜ '));
+  ok(th.toast.some((t) => t.includes('文字')), 'Threads：提示說得出文字已經帶過去了', th.toast.join(' ｜ '));
+  eq(th.downloads.length, 0, 'Threads：走貼上，不用先下載');
+  eq(th.used, true, 'Threads：按過的石籤會變樣子');
+
+  /* --- ② Facebook：沒有帶得動內容的撰寫入口 → 開首頁，圖走剪貼簿 --- */
+  const fb = await tapChip('facebook');
+  eq(fb.opened.length, 1, 'Facebook：真的開了一頁');
+  eq(fb.opened[0].url, 'https://www.facebook.com/', 'Facebook：開的是首頁（玩家自己登入著的那個帳號）');
+  ok(!fb.opened[0].url.includes('sharer'), 'Facebook：不走那個只送得出連結的舊入口', fb.opened[0].url);
+  eq(fb.opened[0].gesture, true, 'Facebook：開新頁時手勢還在');
+  eq(fb.clip.length, 1, 'Facebook：只寫一次剪貼簿');
+  eq(fb.clip[0].types.join(','), 'image/png', 'Facebook：剪貼簿裡只有圖（貼上就是貼圖）');
+  ok(fb.toast.some((t) => t.includes('Ctrl+V')), 'Facebook：提示寫出要按的那組鍵', fb.toast.join(' ｜ '));
+  ok(fb.toast.some((t) => t.includes('複製文案')), 'Facebook：帶不進文字 → 提示指得出補文字的那一顆', fb.toast.join(' ｜ '));
+  eq(fb.downloads.length, 0, 'Facebook：走貼上，不用先下載');
+
+  /* --- ③ Instagram：網頁版只選得了檔案 → 先下載，不假裝貼得上 --- */
+  const ig = await tapChip('instagram');
+  eq(ig.opened.length, 1, 'Instagram：真的開了一頁');
+  eq(ig.opened[0].url, 'https://www.instagram.com/', 'Instagram：開首頁（沒有直接開撰寫的網址，也不編一個假的）');
+  ok(!ig.opened[0].url.includes('/create'), 'Instagram：不用那個伺服器根本不認的假深連結', ig.opened[0].url);
+  eq(ig.downloads.length, 1, 'Instagram：圖真的存到裝置上了（那邊只選得了檔案）');
+  eq(ig.downloads[0].isImage, true, 'Instagram：存下去的是那張 PNG');
+  ok(/^promptasy-.*\.png$/.test(ig.downloads[0].name), 'Instagram：檔名看得出是這個遊戲的卡', String(ig.downloads[0].name));
+  eq(ig.clip.length, 0, 'Instagram：不寫剪貼簿（那邊貼不上，寫了也是騙人）');
+  ok(ig.toast.some((t) => t.includes('建立')), 'Instagram：提示講得出要按那邊的「建立」', ig.toast.join(' ｜ '));
+  ok(ig.toast.some((t) => t.includes('下載')), 'Instagram：提示講得出圖已經存下來了', ig.toast.join(' ｜ '));
+
+  /* --- ④ 複製文案：帶不進文字的那兩顆靠它補 --- */
+  const capChip = await tapChip('caption');
+  eq(capChip.opened.length, 0, '複製文案：不開新頁（它只做一件事）');
+  eq(capChip.clip.length, 1, '複製文案：只寫一次剪貼簿');
+  eq(capChip.clip[0].types.join(','), 'text/plain', '複製文案：剪貼簿裡只有那段話');
+  ok(capChip.clip[0].text.includes('（今晚刻完的）'), '複製文案：複製的是玩家改過的版本', capChip.clip[0].text);
+  ok(!/https?:\/\//.test(capChip.clip[0].text), '複製文案：那段話裡沒有網址', capChip.clip[0].text);
+  eq(capChip.downloads.length, 0, '複製文案：不下載');
+
+  /* --- 玩家再改一次那段話 → 帶出去的跟著改（不是開卡當下的快照） --- */
+  await typeIntoCaption('（第二次改）');
+  const th2 = await tapChip('threads');
+  ok(
+    decodeURIComponent(th2.opened[0].url.split('text=')[1]).includes('（第二次改）'),
+    'Threads：再改一次那段話，網址跟著改（讀的是按下去當下框裡的字）',
+    th2.opened[0].url
+  );
+
+  /* --- 純鍵盤：方向鍵走得完這一排，Enter 按得下去（WORLD.md §3 鍵盤優先） --- */
+  const chipKeys = await evaluate(`
+    const first = document.querySelector('#sharecard [data-chip="threads"]');
+    first.focus();
+    return { focused: document.activeElement.getAttribute('data-chip'), tabIndex: first.tabIndex };
+  `);
+  eq(chipKeys.focused, 'threads', '鍵盤走得到那一排的第一顆');
+  await key('ArrowRight', 'ArrowRight', { vk: 39 });
+  await sleep(180);
+  const afterRight = await evaluate(`return document.activeElement.getAttribute('data-chip');`);
+  eq(afterRight, 'facebook', '→ 走到下一顆');
+  await key('ArrowRight', 'ArrowRight', { vk: 39 });
+  await sleep(180);
+  const afterRight2 = await evaluate(`return document.activeElement.getAttribute('data-chip');`);
+  eq(afterRight2, 'instagram', '→ 再走到下一顆');
+  await key('ArrowLeft', 'ArrowLeft', { vk: 37 });
+  await sleep(180);
+  const afterLeft = await evaluate(`return document.activeElement.getAttribute('data-chip');`);
+  eq(afterLeft, 'facebook', '← 走得回去');
+  // Enter 真的按得下去（用真正的按鍵事件，不是 click()）
+  await evaluate(`
+    window.__clip.length = 0;
+    window.__opened.length = 0;
+    document.querySelectorAll('.toast').forEach((n) => n.remove());
+    return true;
+  `);
+  await enterNative();
+  await sleep(420);
+  const byEnter = await evaluate(`
+    return {
+      opened: window.__opened,
+      clip: window.__clip,
+      toast: [...document.querySelectorAll('.toast')].map((n) => n.textContent.trim()),
+    };
+  `);
+  eq(byEnter.opened.length, 1, 'Enter 就按得下去（不用滑鼠）');
+  eq(byEnter.opened[0].url, 'https://www.facebook.com/', 'Enter 按下去的是焦點所在的那一顆', String(byEnter.opened[0].url));
+  eq(byEnter.clip.length, 1, 'Enter 按下去一樣會把圖備好');
+  ok(byEnter.toast.length > 0, 'Enter 按下去一樣說得出接下來要做什麼', byEnter.toast.join(' ｜ '));
+
+  /* --- 每一顆都給螢幕閱讀器講清楚它會做什麼 --- */
+  const chipA11y = await evaluate(`
+    return [...document.querySelectorAll('#sharecard [data-chip]')].map((n) => ({
+      id: n.getAttribute('data-chip'),
+      aria: n.getAttribute('aria-label') || '',
+      type: n.getAttribute('type'),
+    }));
+  `);
+  for (const c of chipA11y) {
+    ok(c.aria.length >= 8, `${c.id} 有給螢幕閱讀器的說明`, c.aria);
+    eq(c.type, 'button', `${c.id} 是 type="button"（不會誤送出表單）`);
+  }
+  ok(
+    chipA11y.find((c) => c.id === 'instagram').aria.includes('建立'),
+    'Instagram 的說明也講得出接下來要按什麼',
+    chipA11y.find((c) => c.id === 'instagram').aria
+  );
+
   /* --- ② 有系統分享面板：把「一個 PNG 檔案 ＋ 那段話」真的交出去 --- */
   const sysShare = await evaluate(`
     const g = window.__promptasy;
@@ -5429,7 +5643,7 @@ async function main() {
   ok(sysShare.dlClass.includes('btn--ghost'), '這時「下載圖片」也是次要階（畫面只有一個主角）', sysShare.dlClass);
   eq(sysShare.focusInPanel, true, '重開之後焦點仍然在分享卡裡');
   eq(sysShare.focusOn, true, '焦點落在「分享圖＋文」上（這個畫面的主角）');
-  eq(sysShare.chips, 0, '有系統分享時也沒有那排帶不走圖片的入口');
+  eq(sysShare.chips, 4, '有系統分享時那一排照樣在（它們帶得走圖，不是死路）');
   ok(!sysShare.sayValue.includes('（今晚刻完的）'), '重開一張卡 → 那段話回到預設', sysShare.sayValue);
 
   // 重開之後那張圖要重新編碼一次 → 等它備好再按（沒備好按下去只會叫你等）
@@ -5488,6 +5702,12 @@ async function main() {
       sysVisible: sys.getBoundingClientRect().bottom <= panel.getBoundingClientRect().bottom + 1,
       sayInside: say.getBoundingClientRect().right <= panel.getBoundingClientRect().right + 1,
       sayH: say.getBoundingClientRect().height,
+      // 那一排（Phase 31）：每一顆都要在面板寬度內，而且要真的量得到（不是 0×0 空過）
+      chips: [...document.querySelectorAll('#sharecard [data-chip]')].map((n) => {
+        const r = n.getBoundingClientRect();
+        const pr = panel.getBoundingClientRect();
+        return { id: n.getAttribute('data-chip'), w: r.width, h: r.height, inside: r.right <= pr.right + 1 && r.left >= pr.left - 1 };
+      }),
     };
   `);
   eq(sendNarrow.overflow, 0, '820px 下分享卡無水平溢位');
@@ -5495,6 +5715,12 @@ async function main() {
   eq(sendNarrow.sysVisible, true, '820px 下「分享圖＋文」仍然不用捲動就看得到');
   eq(sendNarrow.sayInside, true, '820px 下那段話的框在面板寬度內');
   ok(sendNarrow.sayH >= 60, '820px 下那個框還打得下幾行字', `h=${sendNarrow.sayH}`);
+  eq(sendNarrow.chips.length, 4, '820px 下那一排四顆都在');
+  for (const c of sendNarrow.chips) {
+    // 先確認真的量得到（0×0 的話下面那條會空過）
+    ok(c.w > 20 && c.h > 12, `820px 下「${c.id}」量得到大小`, `${c.w}×${c.h}`);
+    eq(c.inside, true, `820px 下「${c.id}」在面板寬度內（沒有被擠出去）`);
+  }
   await cdp.send('Emulation.clearDeviceMetricsOverride', {}, sessionId);
   await sleep(420);
 
@@ -5505,7 +5731,10 @@ async function main() {
     delete navigator.share;
     delete navigator.canShare;
     delete navigator.clipboard;
-    return { shareOpen: g.shareCard.isOpen };
+    // Phase 31 攔下來的那兩樣也要還原（不然後面的段落開不了新頁）
+    if (window.__realOpen) { window.open = window.__realOpen; delete window.__realOpen; }
+    if (window.__dlSpy) { document.removeEventListener('click', window.__dlSpy, true); delete window.__dlSpy; }
+    return { shareOpen: g.shareCard.isOpen, openRestored: typeof window.open === 'function' };
   `);
   await sleep(260);
 
@@ -7835,7 +8064,13 @@ async function main() {
   const realErrors = consoleErrors.filter((e) => !/favicon|DevTools|Autofill/i.test(e));
   eq(realErrors.length, 0, '全程零 console error', realErrors.slice(0, 6).join('\n      '));
 
-  const gpuWarns = consoleWarns.filter((w) => !/SwiftShader|WebGL|GPU stall|deprecated/i.test(w));
+  /*
+   * 標題卡的開場曲**刻意**先試一次自動播放（允許就直接響，不允許就等第一下按鍵）——
+   * 瀏覽器不允許時一定會念這一句，那是設計好的退路，不是壞掉。
+   */
+  const gpuWarns = consoleWarns.filter(
+    (w) => !/SwiftShader|WebGL|GPU stall|deprecated|AudioContext was not allowed to start/i.test(w)
+  );
   ok(gpuWarns.length === 0, '沒有非預期的 console warning', gpuWarns.slice(0, 5).join('\n      '));
 
   console.log('');

@@ -4081,7 +4081,13 @@ const shareSrc = readFileSync(resolve(root, 'src/ui/sharecard.js'), 'utf8');
 eq(SHARE_URL, 'https://github.com/romanticamaj/promptasy', '網址常數還在（部署後才會改）');
 ok(/TODO 部署後改成正式網址/.test(shareSrc), '網址上面留著「部署後要改」的字條');
 ok(/^https:\/\//.test(SHARE_URL), '網址常數是 https');
-ok((shareSrc.match(/https?:\/\//g) || []).length <= 1, '整份檔案只有一個對外網址（沒有偷偷冒出別的網域）');
+// 檔案裡出現的每一個網域都要在這張清單上（不准偷偷冒出第三方服務）
+const shareHosts = [...new Set((shareSrc.match(/https?:\/\/[^\s'"`)]+/g) || []).map((u) => new URL(u).host))];
+eq(
+  shareHosts.sort().join(','),
+  'github.com,www.facebook.com,www.instagram.com,www.threads.com',
+  '整份檔案只出現這幾個網域（部署網址 ＋ 三個平台，沒有第三方服務）'
+);
 ok(!/promptasy\.(app|com|io|dev)/.test(shareSrc), '沒有憑空發明的網域');
 eq(SHARE_TAGLINE, 'Learn Prompt Engineering by Playing', '品牌那一句和網站標題一致');
 
@@ -4140,24 +4146,95 @@ for (const kind of ['codex', 'result', 'mastery', 'finale']) {
 }
 eq(shareCaption({}).includes('旅人'), true, '沒資料時那段話也生得出來');
 
-/* --- 那排帶不走圖片的網頁入口已經拿掉（這就是 Phase 28 要修的東西） --- */
-eq(shareMod.platformIntent, undefined, '不再有各家的網頁入口（它們帶不走圖片）');
-eq(shareMod.SHARE_TARGETS, undefined, '不再有那一排「分享到」的石籤');
-eq(shareMod.isMobileLike, undefined, '不再需要猜是不是手機（Messenger 的特例跟著石籤一起走了）');
+/* --- 舊的「只送一個連結」的入口仍然不准回來 --- */
+eq(shareMod.platformIntent, undefined, '舊的「只帶文字與連結」的入口沒有回來');
+eq(shareMod.isMobileLike, undefined, '不再需要猜是不是手機（Messenger 的特例已經走了）');
 eq(shareMod.shareBody, undefined, '舊的「那句話 ＋ 網址」已經換成 shareCaption');
 eq(shareMod.shareTitle, undefined, '系統分享只交出圖與那段話，不再另外塞標題');
-for (const gone of [
-  'facebook.com/sharer',
-  'threads.net/intent',
-  'fb-messenger://',
-  'data-chip',
-  'data-targets',
-  'rovingList',
-  'sharecard__chip',
-]) {
-  ok(!shareSrc.includes(gone), `分享卡上再也沒有「${gone}」這條帶不走圖片的路`);
+for (const gone of ['facebook.com/sharer', 'fb-messenger://', 'https://www.threads.net']) {
+  ok(!shareSrc.includes(gone), `分享卡上沒有「${gone}」這條只送得出連結的路`);
 }
-ok(!/instagram\.com/.test(shareSrc), '程式裡沒有假的 Instagram 入口網址');
+
+/* ------------------------------------------------------------------ *
+ * Phase 31：那一排回來了，但每一顆都「先備好圖，再開那一頁」
+ *
+ * 規則變了（WORLD.md §3.5b）：
+ *   平台入口**可以**存在，前提是它一定帶得走那張圖
+ *   （剪貼簿或下載），而且不是把成果換成一個連結。
+ * ------------------------------------------------------------------ */
+const { SHARE_TARGETS, platformOpenUrl } = shareMod;
+ok(Array.isArray(SHARE_TARGETS), '那一排是一份資料（不是散在程式裡的字串）');
+eq(SHARE_TARGETS.length, 3, '一排三顆：Threads / Facebook / Instagram');
+eq(SHARE_TARGETS.map((t) => t.id).join(','), 'threads,facebook,instagram', '順序：最順的那條路排前面');
+for (const t of SHARE_TARGETS) {
+  ok(['clipboard', 'download'].includes(t.carry), `${t.id} 講得出圖怎麼跟過去`, String(t.carry));
+  ok(['url', 'manual'].includes(t.textVia), `${t.id} 講得出那段話怎麼跟過去`, String(t.textVia));
+  ok(!!t.label && /^[A-Za-z]+$/.test(t.label), `${t.id} 的名字就是平台自己的名字`, t.label);
+  ok(t.toast && t.toast.length >= 12, `${t.id} 的提示講得出接下來要做什麼`, t.toast);
+  ok(/[一-鿿]/.test(t.toast), `${t.id} 的提示是中文`, t.toast);
+  ok(!/https?:\/\//.test(t.toast), `${t.id} 的提示裡沒有網址`, t.toast);
+  // 護欄：每一顆都一定帶得走圖（這就是 Phase 24 與 Phase 31 的差別）
+  ok(t.carry === 'clipboard' || t.carry === 'download', `${t.id} 一定帶得走圖（不是只送一個連結）`);
+}
+// 貼上那條路：剪貼簿裡只放圖 → 那一次 Ctrl+V 不會變成貼出一段字
+for (const t of SHARE_TARGETS.filter((x) => x.carry === 'clipboard')) {
+  eq(t.clipboard, 'image', `${t.id} 按下去時剪貼簿裡只放圖（貼上不會變成貼文字）`);
+  ok(t.toast.includes('Ctrl+V'), `${t.id} 的提示直接寫出要按的那組鍵`, t.toast);
+}
+// 帶不進文字的那幾顆，一定要告訴玩家文字怎麼補
+for (const t of SHARE_TARGETS.filter((x) => x.textVia === 'manual')) {
+  ok(t.toast.includes('複製文案'), `${t.id} 帶不進文字 → 提示指得出「複製文案」那一顆`, t.toast);
+}
+ok(SHARE_TARGETS.some((t) => t.textVia === 'url'), '至少有一顆連文字都帶得進去（Threads）');
+ok(SHARE_TARGETS.some((t) => t.carry === 'download'), '選檔案的那一種也有人走（Instagram）');
+
+/* --- 開出去的網址：官方入口、https、沒有第三方轉址 --- */
+const threadsUrl = platformOpenUrl('threads', { text: '我在 Promptasy 刻好了一張卡' });
+ok(threadsUrl.startsWith('https://www.threads.com/intent/post?text='), 'Threads 走官方的撰寫入口', threadsUrl);
+ok(
+  threadsUrl.includes(encodeURIComponent('我在 Promptasy 刻好了一張卡')),
+  'Threads 的網址真的把那段話帶進去（撰寫框會先填好）',
+  threadsUrl
+);
+// threads.net 會 301 轉到 threads.com —— 直接寫新的網域，少跳一次
+ok(!threadsUrl.includes('threads.net'), 'Threads 用的是現在的網域（不靠轉址）');
+eq(platformOpenUrl('facebook'), 'https://www.facebook.com/', 'Facebook 就開首頁（沒有帶得動內容的撰寫入口）');
+// `/create/select/` 這種路徑伺服器不認（2026-07 實測會落回一般首頁殼）→ 老實開首頁
+eq(platformOpenUrl('instagram'), 'https://www.instagram.com/', 'Instagram 開首頁（網頁版沒有直接開撰寫的網址）');
+ok(!/instagram\.com\/create/.test(shareSrc), '不用那個伺服器根本不認的假深連結');
+eq(platformOpenUrl('nope'), null, '沒有的平台就回 null（不假裝有路）');
+eq(platformOpenUrl('facebook', { text: 'x' }).includes('x'), false, 'Facebook 那條路不假裝帶得進文字');
+for (const id of ['threads', 'facebook', 'instagram']) {
+  const url = platformOpenUrl(id, { text: 'hi' });
+  ok(/^https:\/\//.test(url), `${id} 開的是 https`, url);
+  ok(!url.includes(SHARE_URL), `${id} 的網址裡沒有夾帶我們自己的連結（分享的是圖，不是連結）`, url);
+}
+// 每一顆都要對得到一個真的開得出去的網址
+for (const t of SHARE_TARGETS) ok(!!platformOpenUrl(t.id, { text: 'x' }), `${t.id} 有一個開得出去的網址`);
+
+/* --- 按下去做的事：手勢裡同步開新頁 ＋ 同步開始備圖 --- */
+ok(/function goToPlatform/.test(shareSrc), '那一排有自己的一支處理函式');
+const goBlock = shareSrc
+  .slice(shareSrc.indexOf('function goToPlatform'), shareSrc.indexOf('  function mount()'))
+  .replace(/\/\/[^\n]*/g, '')
+  .replace(/\/\*[\s\S]*?\*\//g, '');
+ok(!/await/.test(goBlock), '開新頁之前沒有任何 await（手勢不會斷、不會被當成彈出視窗擋掉）');
+ok(!/async function goToPlatform/.test(shareSrc), '那支函式不是 async（手勢不會斷）');
+ok(/openTab\(url\)/.test(goBlock), '真的開一個新分頁到那個平台');
+ok(/copyImageOnly\(\)/.test(goBlock), '貼上那條路是「只把圖放進剪貼簿」');
+ok(/downloadImage\(\)/.test(goBlock), '選檔案那條路是「先把圖存下來」');
+ok(/const text = captionNow\(\);/.test(goBlock), '帶過去的那段話是按下去當下框裡的字');
+ok(/'_blank', 'noopener,noreferrer'/.test(shareSrc), '開出去的那一頁動不到這一頁（noopener）');
+ok(/copyImageOnly/.test(shareSrc) && /'image\/png': lastBlob/.test(shareSrc), '「只複製圖」複製的是備好的那張圖');
+const imgOnlyBlock = shareSrc.slice(shareSrc.indexOf('async function copyImageOnly'), shareSrc.indexOf('/** 只把那段話放進剪貼簿'));
+ok(!/text\/plain/.test(imgOnlyBlock), '「只複製圖」真的只有圖（沒有偷塞文字進去）');
+ok(/copyTextOnly/.test(shareSrc) && /writeText/.test(shareSrc), '另外有一顆只複製那段話');
+// 複製不了圖的瀏覽器：改走「存下來再選檔案」，一樣帶得走圖（不留死路）
+ok(/target\.carry === 'clipboard' && !canCopyImage\(\)/.test(shareSrc), '複製不了圖的時候改走下載那條路');
+ok(/ClipboardItem\.supports\('image\/png'\)/.test(shareSrc), '先問瀏覽器收不收 PNG（Safari 會挑型別）');
+ok(/data-chip="caption"/.test(shareSrc), '「複製文案」也在那一排上（帶不進文字的平台靠它補）');
+ok(/rovingList\(targetsEl, '\[data-chip\]'\)/.test(shareSrc), '那一排用方向鍵走得完（鍵盤優先）');
+ok(/chip\.classList\.add\('is-used'\)/.test(shareSrc), '按過的石籤會變樣子（知道自己按過哪一顆）');
 
 /* --- feature detection：不支援就不要露出那個入口 --- */
 const fakeFile = { name: 'x.png', type: 'image/png' };
@@ -4219,12 +4296,13 @@ ok(/aria-describedby="sharecard-sayhint"/.test(shareSrc), '框旁邊那句說明
 const shareCss = readFileSync(resolve(root, 'src/styles.css'), 'utf8');
 const sayBoxCss = shareCss.slice(shareCss.indexOf('.sharecard__saybox'), shareCss.indexOf('.sharecard__saybox') + 700);
 ok(/--font-input/.test(sayBoxCss), '玩家自己打的字走系統字型（子集缺字也不會破圖）');
-ok(!/\.sharecard__chip/.test(shareCss), '那一排石籤的樣式也一起清掉了');
+ok(/\.sharecard__chip/.test(shareCss), '那一排石籤有自己的樣式');
+ok(/\.sharecard__chips/.test(shareCss) && /\.sharecard__sendlabel/.test(shareCss), '那一排有標題與容器的樣式');
 
 /* --- 鍵盤（Phase 23 的文法） --- */
 ok(/<kbd>Tab<\/kbd>/.test(shareSrc), '畫面上說得出 Tab 走到下一個');
 ok(/<kbd>Enter<\/kbd>/.test(shareSrc), '畫面上說得出 Enter 可以按下去');
-ok(!/<kbd>←<\/kbd>/.test(shareSrc), '沒有那一排了 → 也不再教方向鍵');
+ok(/<kbd>←<\/kbd>/.test(shareSrc) && /<kbd>→<\/kbd>/.test(shareSrc), '那一排在畫面上教得出方向鍵怎麼走');
 ok(/aria-label="把這張圖和這段話一起分享出去"/.test(shareSrc), '主入口有給螢幕閱讀器的說明');
 ok(/overlay\.open\(\{ focus: heroAction\(\) \}\)/.test(shareSrc), '開卡時焦點落在這個畫面的主角上');
 

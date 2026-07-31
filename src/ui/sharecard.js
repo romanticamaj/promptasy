@@ -8,6 +8,10 @@
  * 那段話預設是世界的說法，玩家可以在框裡改成自己想說的，
  * 按下去的那一刻讀的就是框裡當下的字。沒有連結、沒有別的東西。
  *
+ * Phase 31 把「直接開 Threads / Facebook / Instagram」那一排放了回來，
+ * 但每一顆都是「**先把圖備好 → 再開那個地方**」的一次動作，
+ * 不是把成果換成一個連結（見下方那段長註解）。
+ *
  * 護欄：
  *   · **完全離線** —— 沒有任何外部服務、沒有 SDK、沒有網路請求。
  *     圖是 canvas 畫出來的，字型用的是已經自架的子集（document.fonts），
@@ -18,23 +22,35 @@
  * 視覺語言 = 夜間檔案館 ＋ 刻印牌：深墨石面、切角外框、金髮絲、
  * 冷星光當主色、暖金只留給「已達成」的熱點。
  */
-import { createOverlay, el } from './dom.js';
+import { createOverlay, el, esc, rovingList } from './dom.js';
 import { rankFor, rankStats } from '../progression/ranks.js';
 
 export const CARD_W = 1200;
 export const CARD_H = 630;
 
 /* ------------------------------------------------------------------ *
- * 分享出去的東西只有兩樣：**這張圖 ＋ 一段話**（Phase 28）
+ * 分享出去的東西只有兩樣：**這張圖 ＋ 一段話**（Phase 28 / Phase 31）
  *
- * Phase 24 曾經在下面排了一列「分享到 Facebook / Threads」的網頁入口 ——
- * 那些入口**只收得下文字和一個連結，收不下圖片**，
- * 所以收到的人看到的是一個程式碼倉庫的連結，不是玩家剛刻出來的那張卡。
- * 那不是玩家要分享的東西，整排已經拿掉。
+ * Phase 24 曾經在下面排了一列「分享到 ⭕⭕」的網頁入口 ——
+ * 那些入口把**連結**丟過去，收到的人看到的是一個程式碼倉庫，
+ * 不是玩家剛刻出來的那張卡。Phase 28 因此把整排拿掉。
  *
- * 現在只有一條路，而且兩種情況都送得出「圖 ＋ 那段話」：
- *   · 系統分享面板帶得動檔案 → 圖檔本身 ＋ 那段話直接交給 FB / IG / Threads / 訊息
- *   · 帶不動 → 把圖 ＋ 那段話一起放進剪貼簿（另外附一顆「下載圖片」保底）
+ * Phase 31 把那一排放回來，但換了做法：**先備好圖，再開那個地方**。
+ * 每一顆的規則都一樣 ——
+ *   ① 在按下去的那一瞬間把圖放進剪貼簿（或下載到裝置上）
+ *   ② 同一個手勢裡開新分頁到那個平台（玩家本來就登入著）
+ *   ③ 提示明講「接下來要做的那一個動作」
+ * **沒有任何一顆是「只送出一個連結」** —— 圖一定跟著走。
+ *
+ * 各家真正收得下什麼（2026-07 實測 ＋ 官方文件）：
+ *   · Threads 有 `threads.com/intent/post?text=`，文字會直接帶進撰寫框；
+ *     圖片沒有任何網址參數帶得動 → 剪貼簿只放**圖**，Ctrl+V 一定貼得出圖來，
+ *     不會和文字搶同一次貼上。
+ *   · Facebook 的 `sharer.php` 只吃連結（`quote` 早就失效），
+ *     也沒有帶得動內容的撰寫入口 → 只開首頁，圖走剪貼簿，
+ *     文字另外給一顆「複製文案」（一次貼上只帶得走一種東西，所以老實分成兩步）。
+ *   · Instagram 網頁版的「建立」走的是選檔案，不吃貼上 → 先把 PNG 下載下來，
+ *     再開那一頁，讓玩家選剛剛那張圖。**不假裝它貼得上。**
  *
  * 沒有任何 SDK、沒有註冊任何應用程式、也不連任何伺服器 ——
  * 每一條路都是「玩家自己按下去」才會發生的一次動作。
@@ -79,6 +95,80 @@ export function shareText(model = {}) {
 export function shareCaption(model = {}) {
   return `${shareText(model)}\n${SHARE_TAGLINE}`;
 }
+
+/* ------------------------------------------------------------------ *
+ * 那一排「直接開這裡貼上」（Phase 31）
+ * ------------------------------------------------------------------ */
+
+/**
+ * 按下去要開的那一頁。
+ *
+ * · `threads` —— 官方的撰寫入口，`text` 會直接帶進撰寫框。
+ *   `threads.net/intent/post` 會 301 轉到 `threads.com/intent/post`（參數原封不動），
+ *   所以直接寫新的網域，少跳一次。沒登入的話會先到登入頁，登入完自己回到這一頁。
+ * · `facebook` —— 沒有任何帶得動內容的撰寫入口（`sharer.php` 只吃連結），
+ *   所以就開首頁，讓玩家在自己已經登入的帳號裡點開貼文框。
+ * · `instagram` —— 網頁版沒有任何「直接開撰寫」的網址（`/create/select/` 這種路徑
+ *   伺服器根本不認，2026-07 實測會落回一般的首頁殼），所以老實開首頁，
+ *   讓玩家自己按左邊那顆「建立」。圖是先下載好的，因為那個視窗只選得了檔案。
+ *
+ * @param {string} id threads / facebook / instagram
+ * @param {object} [opts]
+ * @param {string} [opts.text] 帶得進去的話（只有 Threads 收）
+ * @returns {string|null} 沒有這條路就回 null（不假裝有）
+ */
+export function platformOpenUrl(id, { text = '' } = {}) {
+  switch (id) {
+    case 'threads':
+      return `https://www.threads.com/intent/post?text=${encodeURIComponent(text)}`;
+    case 'facebook':
+      return 'https://www.facebook.com/';
+    case 'instagram':
+      return 'https://www.instagram.com/';
+    default:
+      return null;
+  }
+}
+
+/**
+ * 那一排石籤。
+ *
+ * `carry` 說的是「圖怎麼跟過去」：
+ *   · `clipboard` —— 放進剪貼簿，玩家在那邊按 Ctrl+V
+ *   · `download`  —— 下載成檔案，玩家在那邊選檔案
+ * `textVia` 說的是「那段話怎麼跟過去」：
+ *   · `url`    —— 網址參數直接帶進撰寫框
+ *   · `manual` —— 那邊帶不進去 → 旁邊另外給一顆「複製文案」
+ *
+ * **每一顆都一定帶得走圖**（這是 Phase 31 和 Phase 24 最大的差別）。
+ */
+export const SHARE_TARGETS = [
+  {
+    id: 'threads',
+    label: 'Threads',
+    carry: 'clipboard',
+    textVia: 'url',
+    // 剪貼簿只放圖 → 那一次 Ctrl+V 不會變成貼上文字
+    clipboard: 'image',
+    toast: '文字已經帶過去了 —— 在那邊的框裡按 Ctrl+V 貼上圖片。',
+  },
+  {
+    id: 'facebook',
+    label: 'Facebook',
+    carry: 'clipboard',
+    textVia: 'manual',
+    clipboard: 'image',
+    toast: '圖片複製好了 —— 點開貼文框按 Ctrl+V 貼上圖片，文字回來按「複製文案」。',
+  },
+  {
+    id: 'instagram',
+    label: 'Instagram',
+    // 網頁版的「建立」只選得了檔案，貼不上 —— 所以先下載，不假裝貼得上
+    carry: 'download',
+    textVia: 'manual',
+    toast: '圖片下載好了 —— 在那邊按「建立」，選剛剛那張圖，文字回來按「複製文案」。',
+  },
+];
 
 /**
  * 一個只有 PNG 檔頭的假檔案。
@@ -667,12 +757,20 @@ export function createShareCard({ content, progression, ranksFile, onClose, onTo
     return lastModel ? shareCaption(lastModel) : '';
   }
 
-  const canCopyImage = () =>
-    typeof navigator !== 'undefined' &&
-    navigator.clipboard &&
-    typeof navigator.clipboard.write === 'function' &&
-    typeof window !== 'undefined' &&
-    typeof window.ClipboardItem === 'function';
+  const canCopyImage = () => {
+    if (typeof navigator === 'undefined' || !navigator.clipboard) return false;
+    if (typeof navigator.clipboard.write !== 'function') return false;
+    if (typeof window === 'undefined' || typeof window.ClipboardItem !== 'function') return false;
+    // 有的瀏覽器（Safari）會挑型別 —— 問得到就問，問不到就照舊試試看
+    try {
+      if (typeof window.ClipboardItem.supports === 'function') {
+        return window.ClipboardItem.supports('image/png') !== false;
+      }
+    } catch {
+      /* 問不出來就當作可以，真的不行下面的 catch 會接住 */
+    }
+    return true;
+  };
 
   /**
    * 把圖（＋那句話）放進剪貼簿。
@@ -698,6 +796,120 @@ export function createShareCard({ content, progression, ranksFile, onClose, onTo
     }
   }
 
+  /**
+   * 只把圖放進剪貼簿（Phase 31）。
+   *
+   * 一次貼上只帶得走一種東西 —— 那些撰寫框看到剪貼簿裡有圖就會貼圖、
+   * 只有文字才貼文字。所以要玩家「按 Ctrl+V 貼上圖片」的時候，
+   * 剪貼簿裡就**只放圖**，那一下不會變成貼出一段字。
+   */
+  async function copyImageOnly() {
+    if (!lastBlob || !canCopyImage()) return false;
+    try {
+      await navigator.clipboard.write([new window.ClipboardItem({ 'image/png': lastBlob })]);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /** 只把那段話放進剪貼簿（Facebook / Instagram 那邊帶不進去，得自己貼）。 */
+  async function copyTextOnly(text) {
+    if (!text) return false;
+    const clip = typeof navigator !== 'undefined' ? navigator.clipboard : null;
+    if (!clip) return false;
+    try {
+      if (typeof clip.writeText === 'function') {
+        await clip.writeText(text);
+        return true;
+      }
+      if (typeof clip.write === 'function' && typeof window !== 'undefined' && typeof window.ClipboardItem === 'function') {
+        await clip.write([new window.ClipboardItem({ 'text/plain': new Blob([text], { type: 'text/plain' }) })]);
+        return true;
+      }
+    } catch {
+      /* 沒權限就回 false，上面會改口叫玩家用別條路 */
+    }
+    return false;
+  }
+
+  /**
+   * 把圖存到裝置上（Instagram 網頁版的「建立」只選得了檔案）。
+   * 走的是已經備好的那顆 <a download> —— 同一個手勢裡按它就行。
+   */
+  function downloadImage() {
+    const dl = overlay.body.querySelector('[data-download]');
+    if (!dl || !dl.href || dl.href.endsWith('#')) return false;
+    try {
+      dl.click();
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * 開一個新分頁到那個平台。
+   *
+   * 一定要在按下去的那一瞬間**同步**呼叫（前面不能 await），
+   * 不然瀏覽器會當成不是玩家自己開的而擋下來。
+   * `noopener` —— 開出去的那一頁動不到這一頁。
+   */
+  function openTab(url) {
+    if (!url || typeof window === 'undefined' || typeof window.open !== 'function') return false;
+    try {
+      const w = window.open(url, '_blank', 'noopener,noreferrer');
+      if (w && typeof w === 'object' && 'opener' in w) w.opener = null;
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * 那一排石籤按下去做的事（Phase 31）：
+   * **先把圖備好 → 同一個手勢裡開那一頁 → 說出接下來要做的那一個動作。**
+   */
+  function goToPlatform(target) {
+    if (!target || !lastModel) return;
+    const text = captionNow();
+    const url = platformOpenUrl(target.id, { text });
+    const ready = !!lastBlob;
+
+    // 這個瀏覽器不讓程式複製圖 → 那就走「存下來再選檔案」那條路（一樣帶得走圖）
+    if (target.carry === 'clipboard' && !canCopyImage()) {
+      const saved = downloadImage();
+      openTab(url);
+      onToast?.(
+        saved
+          ? '這個瀏覽器不讓程式複製圖 —— 已經幫你存下來了，把它拖進那邊的框裡。'
+          : '圖還在刻 —— 那一頁先開著，等一下回來再按一次。',
+        saved ? 'good' : 'warn'
+      );
+      return;
+    }
+
+    if (target.carry === 'download') {
+      // 下載與開新頁都必須在這個手勢裡（前面一個 await 都不能有）
+      const saved = downloadImage();
+      openTab(url);
+      onToast?.(
+        saved ? target.toast : '圖還在刻 —— 那一頁先開著，等一下回來再按一次就會存下圖。',
+        saved ? 'good' : 'warn'
+      );
+      return;
+    }
+
+    // 剪貼簿要在手勢裡就開始寫（不 await），開新頁也在同一個手勢裡
+    const writing = copyImageOnly();
+    openTab(url);
+    writing.then((copied) => {
+      if (copied) onToast?.(target.toast, 'good');
+      else if (!ready) onToast?.('圖還在刻 —— 那一頁先開著，等一下回來再按一次就會複製好圖。', 'warn');
+      else onToast?.('這個瀏覽器不讓程式複製圖 —— 改按「下載圖片」，再到那一頁選檔案。', 'warn');
+    });
+  }
+
   function mount() {
     if (overlay.body.querySelector('[data-download]')) return;
     const canCopy = canCopyImage();
@@ -717,7 +929,21 @@ export function createShareCard({ content, progression, ranksFile, onClose, onTo
             <a class="btn btn--ghost" data-download download="promptasy.png" href="#">下載圖片</a>
             <button class="btn btn--ghost" type="button" data-back>回去</button>
           </div>
-          <p class="sharecard__hint" id="sharecard-sayhint">開啟 Facebook / Instagram / Threads 直接貼上 —— 圖和文字會一起送出。</p>
+          <p class="sharecard__hint" id="sharecard-sayhint">複製起來，到 Facebook / Instagram / Threads 直接貼上 —— 圖和文字都在剪貼簿裡。</p>
+          <div class="sharecard__send">
+            <p class="sharecard__sendlabel">直接開這裡貼上</p>
+            <div class="sharecard__chips" data-targets>
+              ${SHARE_TARGETS.map(
+                (t) =>
+                  `<button class="fill sharecard__chip" type="button" data-chip="${esc(t.id)}" aria-label="${esc(
+                    `${t.label}：${t.toast}`
+                  )}">${esc(t.label)}<span class="fill__plus" aria-hidden="true">↗</span></button>`
+              ).join('')}
+              <button class="fill sharecard__chip" type="button" data-chip="caption" aria-label="只把那段話複製起來">複製文案<span class="fill__plus" aria-hidden="true">⧉</span></button>
+            </div>
+            <p class="sharecard__hint">按下去會先把圖備好，再開那一頁 —— 你本來就登入著，貼上就能發。</p>
+            <p class="sharecard__hint">這一排用 <kbd>←</kbd> <kbd>→</kbd> 移動、<kbd>Enter</kbd> 挑一個。</p>
+          </div>
           <p class="sharecard__hint">圖只在這台裝置上，不會上傳。用 <kbd>Tab</kbd> 移動、<kbd>Enter</kbd> 按下去。</p>
         </div>
       </div>
@@ -767,6 +993,27 @@ export function createShareCard({ content, progression, ranksFile, onClose, onTo
         } catch {
           onToast?.('這台裝置沒接受這次分享 —— 改用「複製圖＋文」吧。', 'warn');
         }
+      });
+    }
+
+    /* --- 那一排：先備好圖，再開那一頁（Phase 31） --- */
+    const targetsEl = overlay.body.querySelector('[data-targets]');
+    if (targetsEl) {
+      rovingList(targetsEl, '[data-chip]');
+      targetsEl.addEventListener('click', (e) => {
+        const chip = e.target.closest?.('[data-chip]');
+        if (!chip || chip.disabled || !targetsEl.contains(chip)) return;
+        const id = chip.getAttribute('data-chip');
+        chip.classList.add('is-used');
+        if (id === 'caption') {
+          // 只複製那段話（開新頁的那幾顆帶不進去文字，回來按這顆補上）
+          copyTextOnly(captionNow()).then((copied) => {
+            if (copied) onToast?.('文案複製好了 —— 到那邊的框裡貼上。', 'good');
+            else onToast?.('這個瀏覽器不讓程式複製 —— 那段話可以直接從框裡選起來自己複製。', 'warn');
+          });
+          return;
+        }
+        goToPlatform(SHARE_TARGETS.find((t) => t.id === id));
       });
     }
   }

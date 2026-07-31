@@ -6347,11 +6347,42 @@ select option:disabled {
   border-color: var(--rule-gold);
   box-shadow: 0 0 0 1px var(--rule-gold);
 }
+/* 直接開這裡貼上（Phase 31）
+   一排 quiet 階的石籤 —— 按下去先把圖備好（複製或下載），再開那一頁。
+   每一顆都帶得走圖，所以它們不是「只送一個連結」的入口。 */
+.sharecard__send {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2) var(--s3);
+  padding-top: var(--s3);
+  border-top: 1px solid var(--rule);
+}
+.sharecard__sendlabel {
+  margin: 0;
+  flex: 0 0 auto;
+  font-family: var(--font-ui);
+  font-size: var(--t-micro);
+  letter-spacing: var(--tr-cjk);
+  color: var(--paper-3);
+}
+.sharecard__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+  min-width: 0;
+}
+.sharecard__chip {
+  text-decoration: none;
+}
 .sharecard__hint {
   margin: 0;
   font-size: var(--t-micro);
   line-height: 1.5;
   color: var(--paper-4);
+}
+.sharecard__send .sharecard__hint {
+  flex: 1 1 100%;
 }
 .sharecard__hint kbd {
   margin: 0 2px;

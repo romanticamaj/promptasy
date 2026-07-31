@@ -56,7 +56,7 @@
     "src/world/reactive.js",
     "src/world/world.js"
   ],
-  "corpusHash": "931bda8163ed26c1",
+  "corpusHash": "18c5827fdbc11fb6",
   "coverage": {
     "latin": [
       32,
@@ -303,6 +303,8 @@
       10216,
       10217,
       10230,
+      10697,
+      11093,
       12539
     ],
     "cjk": [
@@ -2061,6 +2063,8 @@
       10023,
       10216,
       10217,
+      10697,
+      11093,
       12539
     ],
     "newsreader": [
@@ -2115,6 +2119,8 @@
       10022,
       10023,
       10230,
+      10697,
+      11093,
       12539
     ],
     "mono": [
@@ -2142,6 +2148,8 @@
       10007,
       10022,
       10023,
+      10697,
+      11093,
       12539
     ],
     "serif-tc": [],
@@ -2198,8 +2206,8 @@
           "default": 14
         }
       },
-      "requested": 245,
-      "missing": 16,
+      "requested": 247,
+      "missing": 18,
       "source": "Inter.ttf",
       "author": "Rasmus Andersson",
       "license": "SIL Open Font License 1.1",
@@ -2226,8 +2234,8 @@
           "default": 16
         }
       },
-      "requested": 245,
-      "missing": 52,
+      "requested": 247,
+      "missing": 54,
       "source": "Newsreader.ttf",
       "author": "Production Type (Jean-Baptiste Morizot, Lucas Descroix)",
       "license": "SIL Open Font License 1.1",
@@ -2249,8 +2257,8 @@
           "default": 400
         }
       },
-      "requested": 245,
-      "missing": 25,
+      "requested": 247,
+      "missing": 27,
       "source": "JetBrainsMono.ttf",
       "author": "JetBrains (Philipp Nurullin, Konstantin Bulenkov)",
       "license": "SIL Open Font License 1.1",
