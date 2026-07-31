@@ -1,5 +1,5 @@
 /**
- * PromptArcade — 會回應你的東西（proximity reactions）＋ 藏起來的地方（secrets）
+ * Promptasy — 會回應你的東西（proximity reactions）＋ 藏起來的地方（secrets）
  *
  * 這一層的目的只有一個：**讓世界注意到你走過去了**。
  * 不是新玩法、不是新關卡、不擋路、不搶 E 鍵 —— 走過去，它就有反應。

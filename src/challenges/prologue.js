@@ -1,5 +1,5 @@
 /**
- * PromptArcade — 序章（引導課程）內容解析
+ * Promptasy — 序章（引導課程）內容解析
  *
  * prologue.json 只記「引用哪一條技巧、哪一組 before/after」，
  * 真正會顯示出來的教學文字一律在這裡從 curriculum.json 取出來 —— 逐字，不改寫。

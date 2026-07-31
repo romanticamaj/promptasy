@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * PromptArcade — 字型子集化（build-time，執行一次就好）
+ * Promptasy — 字型子集化（build-time，執行一次就好）
  *
  * 為什麼要這個腳本：
  *   遊戲必須完全離線（護欄 3、CLAUDE.md 技術棧），所以不能連 Google Fonts CDN。
@@ -330,7 +330,7 @@ async function ensureSources(fetchMissing) {
 
 async function main() {
   const fetchMissing = process.argv.includes('--fetch');
-  console.log('PromptArcade — 字型子集化\n');
+  console.log('Promptasy — 字型子集化\n');
   await ensureSources(fetchMissing);
 
   const corpus = collectCorpus();

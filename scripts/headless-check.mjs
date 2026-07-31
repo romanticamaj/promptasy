@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * PromptArcade — 端到端 headless 驗證
+ * Promptasy — 端到端 headless 驗證
  *
  *   npm run test:e2e
  *
@@ -197,7 +197,7 @@ async function main() {
   await waitFor(async () => (await fetch(APP_URL)).ok, { label: 'vite 啟動' });
 
   console.log(`▸ chrome      ${chrome}`);
-  profileDir = mkdtempSync(join(tmpdir(), 'promptarcade-e2e-'));
+  profileDir = mkdtempSync(join(tmpdir(), 'promptasy-e2e-'));
   const browser = spawn(
     chrome,
     [
@@ -306,6 +306,23 @@ async function main() {
     await cdp.send('Input.dispatchKeyEvent', { type: 'keyUp', ...base }, sessionId);
   }
 
+  /**
+   * 「原生」的 Tab。和 enterNative 同樣的道理：只送 keyDown / keyUp 時
+   * 瀏覽器不會真的搬焦點，要 rawKeyDown 才會走預設的焦點巡覽。
+   * @param {boolean} [shift] Shift + Tab（往回走）
+   */
+  async function tabNative(shift = false) {
+    const base = {
+      code: 'Tab',
+      key: 'Tab',
+      windowsVirtualKeyCode: 9,
+      nativeVirtualKeyCode: 9,
+      modifiers: shift ? 8 : 0,
+    };
+    await cdp.send('Input.dispatchKeyEvent', { type: 'rawKeyDown', ...base }, sessionId);
+    await cdp.send('Input.dispatchKeyEvent', { type: 'keyUp', ...base }, sessionId);
+  }
+
   /** 真的敲一個字進去（會走 keydown → 文字輸入 → keyup，和人打字一模一樣）。 */
   async function typeChar(ch, code, vk) {
     await cdp.send(
@@ -323,25 +340,25 @@ async function main() {
   /**
    * 重新整理頁面並確定「新的那一頁」已經就緒。
    *
-   * 直接 Page.reload + 輪詢 window.__promptarcade 會有競態：重整還沒開始時
+   * 直接 Page.reload + 輪詢 window.__promptasy 會有競態：重整還沒開始時
    * 第一次輪詢讀到的是「舊頁面」的把手，之後所有操作都會打在重整中的頁面上。
    * 所以先在舊頁面插一支旗子，等到旗子消失（＝真的換頁了）才算完成。
    */
   async function reloadPage(label = '重新載入') {
     await evaluate('window.__stale = true; return 1;');
     await cdp.send('Page.reload', {}, sessionId);
-    await waitFor(() => evaluate('return !window.__stale && !!window.__promptarcade;'), { label });
+    await waitFor(() => evaluate('return !window.__stale && !!window.__promptasy;'), { label });
     await sleep(900);
   }
 
   /* ================================================================ */
   console.log('▸ 開機與標題卡');
   await cdp.send('Page.navigate', { url: APP_URL }, sessionId);
-  await waitFor(() => evaluate('return !!window.__promptarcade;'), { label: '遊戲載入' });
+  await waitFor(() => evaluate('return !!window.__promptasy;'), { label: '遊戲載入' });
   await sleep(900);
 
   const boot = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     return {
       challenges: g.content.challenges.length,
       techniques: g.content.curriculum.techniques.length,
@@ -374,7 +391,7 @@ async function main() {
 
   /* --- Phase 5：人形主角、故事小景、地標、世界觀石碑 --- */
   const phase5 = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     const ch = g.player.character;
     const j = ch ? ch.joints : null;
     const names = [];
@@ -425,14 +442,14 @@ async function main() {
     const el = document.querySelector('.title');
     return { name: el.querySelector('.title__name')?.textContent, tag: el.querySelector('.title__tag')?.textContent };
   `);
-  eq(titleText.name, 'PromptArcade', '標題卡顯示遊戲名');
+  eq(titleText.name, 'Promptasy', '標題卡顯示遊戲名');
   ok(/Learn Prompt Engineering by Playing/.test(titleText.tag || ''), '標題卡顯示定位句');
 
   // 按任意鍵開始
   await key('Enter', 'Enter', { vk: 13 });
   await sleep(400);
   const afterTitle = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     return {
       titleOpen: g.title.isOpen,
       introOpen: g.intro.isOpen,
@@ -468,7 +485,7 @@ async function main() {
 
   // --- 第一拍：兩句話一起浮出來（不是一次倒一牆字，也不是一句一句點） ---
   const wake = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     const lines = Array.from(document.querySelectorAll('.echo__line')).map((p) => p.textContent);
     return {
       kind: g.prologue.beat?.kind,
@@ -491,7 +508,7 @@ async function main() {
 
   await echoAdvance(1);
   const moveBeat = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     const el = document.querySelector('.echo__objective');
     return {
       gate: g.prologue.beat?.gate,
@@ -507,7 +524,7 @@ async function main() {
 
   // --- 門檻一：真的走一步才過（不是按「我知道了」） ---
   const moveGate = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     const before = g.prologue.gatePassed;
     window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyW' }));
     const until = performance.now() + 6000;
@@ -522,7 +539,7 @@ async function main() {
   ok(moveGate.line.length > 0, '達成時回聲立刻換一句回饋', moveGate.line);
 
   await echoAdvance(1);
-  eq(await evaluate('return window.__promptarcade.prologue.beat?.gate;'), 'camera', '進入鏡頭門檻');
+  eq(await evaluate('return window.__promptasy.prologue.beat?.gate;'), 'camera', '進入鏡頭門檻');
 
   // --- 門檻二：轉鏡頭（Phase 16：方向鍵 ← → 就是視角鍵，而且不會把角色帶著走） ---
   ok(moveBeat.text.includes('W') && !/方向鍵/.test(moveBeat.text), '移動目標只講 W A S D（方向鍵已改成視角鍵）', moveBeat.text);
@@ -531,7 +548,7 @@ async function main() {
   `);
   ok(/←|→/.test(camObjective), '鏡頭門檻的目標寫著要按方向鍵', camObjective);
   const camGate = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     const before = g.prologue.gatePassed;
     const yaw0 = g.player.cameraYaw;
     // 先把上一個門檻留下的慣性歸零，才量得準「方向鍵有沒有讓角色動」
@@ -555,11 +572,11 @@ async function main() {
   ok(camGate.moved < 0.5, '按方向鍵時角色留在原地（方向鍵不再移動）', `moved=${camGate.moved.toFixed(3)}`);
 
   await echoAdvance(1);
-  eq(await evaluate('return window.__promptarcade.prologue.beat?.gate;'), 'run', '進入奔跑門檻');
+  eq(await evaluate('return window.__promptasy.prologue.beat?.gate;'), 'run', '進入奔跑門檻');
 
   // --- 門檻三：真的跑起來（走路不算） ---
   const runGate = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyW' }));
     await new Promise((r) => setTimeout(r, 900));
     const walkingPassed = g.prologue.gatePassed;
@@ -574,11 +591,11 @@ async function main() {
   eq(runGate.after, true, '按住 Shift 跑起來才過關');
 
   await echoAdvance(1);
-  eq(await evaluate('return window.__promptarcade.prologue.beat?.gate;'), 'arrive', '進入「走到祭壇」門檻');
+  eq(await evaluate('return window.__promptasy.prologue.beat?.gate;'), 'arrive', '進入「走到祭壇」門檻');
 
   // --- 門檻四：走到起始祭壇 ---
   const arriveGate = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     const s = g.world.shrine;
     const before = g.prologue.gatePassed;
     g.player.teleport(s.position.x + 1.5, s.position.z + 1.5);
@@ -595,7 +612,7 @@ async function main() {
 
   await echoAdvance(1);
   const lessonLead = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     return {
       kind: g.prologue.beat?.kind,
       phase: g.prologue.phase,
@@ -615,7 +632,7 @@ async function main() {
 
   // --- 第一幕 · 委託：先看見那句「弱」的請求 ---
   const pAct1 = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     return {
       open: g.practice.isOpen,
       stepId: g.practice.step?.id,
@@ -645,7 +662,7 @@ async function main() {
   await evaluate(`document.querySelector('#practice [data-act-next="2"]').click(); return 1;`);
   await sleep(320);
   const pAct2 = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     const glyphs = document.querySelectorAll('#practice .glyphs .glyph');
     const src = document.querySelector('#practice .glyphs a.src');
     const lead = document.querySelector('#practice .act--guide .act__lead');
@@ -719,7 +736,7 @@ async function main() {
   await evaluate(`document.querySelector('#practice [data-act-next="3"]').click(); return 1;`);
   await sleep(320);
   const pAct3 = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     return {
       act: g.practice.act,
       total: g.practice.stele.progress.total,
@@ -738,7 +755,7 @@ async function main() {
 
   // 選錯：石碑不收、給一句教學回饋、不會失敗
   const proWrongPick = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     const slot = g.practice.step.flow.slots[0];
     const idx = slot.options.findIndex((o) => !o.correct);
     const before = g.practice.stele.progress.carved;
@@ -763,7 +780,7 @@ async function main() {
 
   // 一段一段選對：刻痕對照跟著亮
   const carve = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     const lit = [];
     while (!g.practice.stele.done) {
       const i = g.practice.step.flow.slots[g.practice.stele.progress.carved].options.findIndex((o) => o.correct);
@@ -796,7 +813,7 @@ async function main() {
 
   // --- 第四幕 · 手印：呈給神諭 → 拿 S、給 XP、收進圖鑑 ---
   const verdict = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     g.practice.press();
     await new Promise((r) => setTimeout(r, 400));
     const links = Array.from(document.querySelectorAll('#practice .result a.src')).map((a) => a.href);
@@ -828,7 +845,7 @@ async function main() {
 
   // 出處連結真的是 curriculum 裡那一條（不是隨便湊的）
   const citationCheck = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     const step = g.prologueContent.step('prologue-clarity');
     const urls = new Set(g.content.curriculum.techniques.flatMap((t) => t.sources.map((s) => s.url)));
     const shown = Array.from(document.querySelectorAll('#practice .result a.src')).map((a) => a.href.replace(/\\/$/, ''));
@@ -839,7 +856,7 @@ async function main() {
 
   // --- 課後：回聲補一句短的過場，再切下一拍 ---
   const bridge = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     document.querySelector('#practice [data-next]').click();
     await new Promise((r) => setTimeout(r, 420));
     return {
@@ -860,7 +877,7 @@ async function main() {
   /** 走完一整堂課：宣布 → 委託 → 刻文 → 刻印 → 手印 → 過場。 */
   async function playLesson(wantId) {
     return evaluate(`
-      const g = window.__promptarcade;
+      const g = window.__promptasy;
       const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
       document.querySelector('.echo [data-cta]').click();   // 過場 → 下一拍
       await sleep(320);
@@ -922,7 +939,7 @@ async function main() {
 
   // --- 畢業：指路第一座石座、寫下旗標、交還操作權 ---
   const graduation = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     document.querySelector('.echo [data-cta]').click();
     await new Promise((r) => setTimeout(r, 420));
     const marker = g.world.markers.find((m) => m.id === 'gate-of-clarity-01');
@@ -954,7 +971,7 @@ async function main() {
   ok(/圖鑑/.test(graduation.note), '小提示指向圖鑑', graduation.note);
 
   const handoff = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     let clicks = 0;
     while (g.prologue.isActive && clicks < 8) {
       const cta = document.querySelector('.echo [data-cta]');
@@ -989,7 +1006,7 @@ async function main() {
   console.log('\n▸ 老玩家不會被塞回教學（存檔相容）');
   const veteran = await evaluate(`
     // 一份「Phase 6 時代」的存檔：有進度，但根本沒有 prologueDone 這個欄位
-    localStorage.setItem('promptarcade.v1.save', JSON.stringify({
+    localStorage.setItem('promptasy.v1.save', JSON.stringify({
       version: 1, xp: 320, level: 4,
       unlockedRegions: ['foundations', 'reasoning'],
       collected: ['clarity-01', 'clarity-02'],
@@ -1004,7 +1021,7 @@ async function main() {
   await key('Enter', 'Enter', { vk: 13 });
   await sleep(500);
   const veteranBoot = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     return {
       prologueActive: g.prologue.isActive,
       done: g.progression.isPrologueDone(),
@@ -1019,11 +1036,11 @@ async function main() {
 
   await evaluate(`document.querySelector('.intro [data-start]').click(); return 1;`);
   await sleep(300);
-  eq(await evaluate('return window.__promptarcade.intro.isOpen;'), false, '教學可關閉');
+  eq(await evaluate('return window.__promptasy.intro.isOpen;'), false, '教學可關閉');
 
   // 回到乾淨狀態：後面的檢查（XP / 圖鑑 / 通關數）都以新存檔為前提
   await evaluate(`
-    localStorage.setItem('promptarcade.v1.save', JSON.stringify({
+    localStorage.setItem('promptasy.v1.save', JSON.stringify({
       version: 1, flags: { prologueDone: true, introSeen: true }
     }));
     return 1;
@@ -1032,7 +1049,7 @@ async function main() {
   await key('Enter', 'Enter', { vk: 13 });
   await sleep(400);
   const cleanBoot = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     return { xp: g.progression.state.xp, collected: g.progression.state.collected.length, prologueActive: g.prologue.isActive, introOpen: g.intro.isOpen };
   `);
   eq(cleanBoot.xp, 0, '乾淨存檔：XP 歸零');
@@ -1068,7 +1085,7 @@ async function main() {
   ok(warm.stable >= 3, '畫面持續在更新（暖機完成）', JSON.stringify(warm));
   // 引擎的遊戲時間探針：之後的手感量測都以它為準
   await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     // 累加「被夾住的 dt」= 模擬時間。引擎傳進來的 t 是真實經過時間，
     // 在 swiftshader 上會跟模擬時間脫鉤（掉幀時 dt 會被 clamp 到 0.1）。
     window.__gt = { t: 0 };
@@ -1077,7 +1094,7 @@ async function main() {
   `);
 
   const moveResult = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     // 以「遊戲時間」計時：軟體渲染的幀率會讓 wall-clock 與遊戲時間脫鉤
     const waitGame = async (seconds) => {
       const until = window.__gt.t + seconds;
@@ -1109,7 +1126,7 @@ async function main() {
   ok(moveResult.camY > moveResult.playerY, '鏡頭在角色上方');
 
   const runFov = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     const waitGame = async (seconds) => {
       const until = window.__gt.t + seconds;
       const bail = performance.now() + seconds * 8000 + 4000;
@@ -1128,7 +1145,7 @@ async function main() {
 
   /* --- Phase 5：程序化步態（關節真的在動、左右腿反相） --- */
   const gait = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     const j = g.player.character.joints;
     const idleL = j.hipL.rotation.x;
     const idleKnee = j.kneeL.rotation.x;
@@ -1168,7 +1185,7 @@ async function main() {
 
   /* --- Phase 9：抬頭真的看得到天空（石碑上那句「抬頭看看四周」不能是騙人的） --- */
   const lookUp = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     const THREE_UP = { x: 0, y: 1, z: 0 };
     const waitGame = async (seconds) => {
       const until = window.__gt.t + seconds;
@@ -1253,7 +1270,7 @@ async function main() {
    * 所以拆成幾段短的量測（每段都先把位置與仰角歸零，彼此不互相污染）。
    */
   const SCHEME_PRELUDE = `
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     const waitGame = async (seconds) => {
       const until = window.__gt.t + seconds;
       const bail = performance.now() + seconds * 4000 + 3000;
@@ -1406,7 +1423,7 @@ async function main() {
   ok(/WASD/.test(controlCopy.text), 'HUD 仍然說 WASD 是移動鍵', controlCopy.text);
 
   const cheer = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     const ch = g.player.character;
     const j = ch.joints;
     const before = j.shoulderL.rotation.x;
@@ -1437,7 +1454,7 @@ async function main() {
   /* ================================================================ */
   console.log('\n▸ 走到石座 → 送出 prompt');
   const near = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     const m = g.world.markers.find((x) => x.id === 'gate-of-clarity-01');
     g.player.teleport(m.position.x + 2, m.position.z + 2);
     await new Promise((r) => setTimeout(r, 260));
@@ -1462,7 +1479,7 @@ async function main() {
   console.log('  · 第一幕 · 委託');
   const VIS = `const vis = (sel) => { const n = document.querySelector(sel); return !!n && !n.hidden && n.offsetParent !== null; };`;
   const act1 = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     ${VIS}
     const nav = Array.from(document.querySelectorAll('#prompt-console .acts__item'));
     return {
@@ -1512,7 +1529,7 @@ async function main() {
   await key('Enter', 'Enter', { vk: 13 });
   await sleep(460);
   const act2 = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     ${VIS}
     const glyphs = Array.from(document.querySelectorAll('#prompt-console .glyph'));
     const nav = Array.from(document.querySelectorAll('#prompt-console .acts__item'));
@@ -1551,7 +1568,7 @@ async function main() {
       canJumpCarve: g.promptConsole.canGoAct(3),
       canBackBrief: g.promptConsole.canGoAct(1),
       seen: g.progression.hasSeenGuidance('gate-of-clarity-01'),
-      persisted: (JSON.parse(localStorage.getItem('promptarcade.v1.save')).guidanceSeen || []).includes('gate-of-clarity-01'),
+      persisted: (JSON.parse(localStorage.getItem('promptasy.v1.save')).guidanceSeen || []).includes('gate-of-clarity-01'),
       xp: g.progression.state.xp,
     };
   `);
@@ -1597,7 +1614,7 @@ async function main() {
 
   /* --- 回頭：第二幕 → 第一幕 → 再往前（走過的幕自由來回） --- */
   const actBack = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     ${VIS}
     document.querySelector('#prompt-console .act--guide [data-act-go="1"]').click();
     await new Promise((r) => setTimeout(r, 320));
@@ -1625,7 +1642,7 @@ async function main() {
     return 1;
   `);
   const consoleOpen = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     ${VIS}
     return {
       act: g.promptConsole.act,
@@ -1688,7 +1705,7 @@ async function main() {
 
   /* --- 切到自由書寫：底下的舊玩法（起手寫法 / 快速填入 / 積木 / 提示球 / 預檢）一項都沒少 --- */
   const toFree = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     document.querySelector('#prompt-console [data-mode]').click();
     await new Promise((r) => setTimeout(r, 320));
     document.querySelector('#prompt-console .prompt-input').focus();
@@ -1714,7 +1731,7 @@ async function main() {
 
   // Phase 7：正式主控台也有「預檢」——跟練習台同一支引擎，打字就先亮起來
   const preflight = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     const box = document.querySelector('#prompt-console [data-preflight]');
     const ta = document.querySelector('#prompt-console .prompt-input');
     const lit = () => document.querySelectorAll('#prompt-console .checklist li.is-pass').length;
@@ -1745,7 +1762,7 @@ async function main() {
 
   /* --- Phase 9：亮燈動畫 ＋ 進度燈 ＋「可以過關了」的送出鍵 --- */
   const consoleLive = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     const ta = document.querySelector('#prompt-console .prompt-input');
     const lamp = document.querySelector('#prompt-console [data-lamp]');
     const submit = document.querySelector('#prompt-console [data-submit]');
@@ -1802,7 +1819,7 @@ async function main() {
 
   /* --- Phase 9：漂浮提示球 ＋ 黃色教學框 ＋「幫我填」 --- */
   const orb = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     const ta = document.querySelector('#prompt-console .prompt-input');
     const orbBtn = document.querySelector('#prompt-console [data-orb]');
     const box = () => document.querySelector('#prompt-console [data-coach]');
@@ -1899,7 +1916,7 @@ async function main() {
       hidden: document.querySelector('#prompt-console [data-result]').hidden,
       fail: !!document.querySelector('#prompt-console .result__top.is-fail'),
       hints: document.querySelectorAll('#prompt-console .row__hint').length,
-      xp: window.__promptarcade.progression.state.xp,
+      xp: window.__promptasy.progression.state.xp,
     };
   `);
   eq(bad.hidden, false, '送出爛 prompt 會有結果面板');
@@ -1908,7 +1925,7 @@ async function main() {
   eq(bad.xp, 0, '未通過不給 XP');
 
   const good = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     const ta = document.querySelector('.prompt-input');
     ta.value = 'Summarize the town notice below for first-time visitors who have never been here.\\n' +
       'Output format: 3 bullet points, each under 20 words.';
@@ -1923,7 +1940,7 @@ async function main() {
       best: g.progression.bestGrade('gate-of-clarity-01'),
       markerCleared: g.world.markers.find((m) => m.id === 'gate-of-clarity-01').cleared,
       focusOnResult: document.activeElement?.classList.contains('result'),
-      saved: !!localStorage.getItem('promptarcade.v1.save'),
+      saved: !!localStorage.getItem('promptasy.v1.save'),
     };
   `);
   eq(good.grade, 'S', '示範解答拿到 S');
@@ -1944,14 +1961,14 @@ async function main() {
 
   await key('Escape', 'Escape', { vk: 27 });
   await sleep(300);
-  eq(await evaluate('return window.__promptarcade.promptConsole.isOpen;'), false, 'Esc 關閉主控台');
+  eq(await evaluate('return window.__promptasy.promptConsole.isOpen;'), false, 'Esc 關閉主控台');
 
   /* ================================================================ */
   console.log('\n▸ 題目、快速填入、看看範例（Phase 8）');
 
   // --- 任務 / 素材 / 起手 / 提示：一打開就看得到「要做什麼」 ---
   const brief = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     const c = g.content.challenge('gate-of-clarity-01');
     // 先把面板捲到底，確認下一次開啟會自己回到頂端
     g.promptConsole.open(c);
@@ -1994,7 +2011,7 @@ async function main() {
 
   // --- 半透明提示：空的時候看得見，一打字就消失，而且不會被送出 ---
   const placeholderFlow = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     g.promptConsole.open(g.content.challenge('mimic-mirror-04'));
     await new Promise((r) => setTimeout(r, 300));
     const ta = document.querySelector('#prompt-console .prompt-input');
@@ -2021,7 +2038,7 @@ async function main() {
 
   // --- 快速填入：按一下就插到游標處，預檢跟著亮 ---
   const quickFill = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     const ta = document.querySelector('#prompt-console .prompt-input');
     ta.value = '';
     ta.dispatchEvent(new Event('input', { bubbles: true }));
@@ -2056,7 +2073,7 @@ async function main() {
 
   // --- 送出兩次沒過 → 解鎖「看看範例」→ 填進去就過關 ---
   const sampleFlow = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     const c = g.content.challenge('postbox-sprite-02');
     g.promptConsole.open(c);
     await new Promise((r) => setTimeout(r, 320));
@@ -2100,7 +2117,7 @@ async function main() {
 
   // --- 技巧積木：插進去的是中文，英文只當次要參考 ---
   const blockZh = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     g.promptConsole.open(g.content.challenge('gate-of-clarity-01'));
     await new Promise((r) => setTimeout(r, 320));
     // 走到第三幕（刻印／書寫檯）才量得到版面 —— 前兩幕整個 act 是 display:none
@@ -2198,7 +2215,7 @@ async function main() {
     }, sessionId);
     await sleep(360);
     const bar = await evaluate(`
-      const g = window.__promptarcade;
+      const g = window.__promptasy;
       g.promptConsole.close();
       await new Promise((r) => setTimeout(r, 200));
       g.promptConsole.open(g.content.challenge('gate-of-clarity-01'));
@@ -2252,7 +2269,7 @@ async function main() {
 
   /* --- Phase 9：只靠畫面上的教練提示，一般人也能過「正面表述」那一關 --- */
   const coachOnly = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     g.promptConsole.close();
     await new Promise((r) => setTimeout(r, 220));
     g.promptConsole.open(g.content.challenge('lost-automaton-03'));
@@ -2303,7 +2320,7 @@ async function main() {
   ok(['S', 'A', 'B', 'C'].includes(String(coachOnly.grade)), '正面表述關卡真的過得了', String(coachOnly.grade));
   ok(Boolean(coachOnly.best), '過關紀錄寫進存檔', String(coachOnly.best));
 
-  await evaluate(`window.__promptarcade.promptConsole.close(); return 1;`);
+  await evaluate(`window.__promptasy.promptConsole.close(); return 1;`);
   await sleep(260);
 
   /* ================================================================ */
@@ -2311,7 +2328,7 @@ async function main() {
 
   // --- 從設定頁把答題方式切回石碑刻印（平白的說法、一個下拉選單） ---
   const modeSetting = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     g.settings.open();
     await new Promise((r) => setTimeout(r, 260));
     const sel = document.querySelector('#settings #set-mode');
@@ -2328,7 +2345,7 @@ async function main() {
       options,
       before,
       saved: g.progression.state.settings.promptMode,
-      persisted: JSON.parse(localStorage.getItem('promptarcade.v1.save')).settings.promptMode,
+      persisted: JSON.parse(localStorage.getItem('promptasy.v1.save')).settings.promptMode,
       mode: g.promptConsole.mode,
     };
   `);
@@ -2346,7 +2363,7 @@ async function main() {
 
   // --- 開一關沒被別的測試碰過的：面具工坊 ---
   const carveOpen = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     g.promptConsole.open(g.content.challenge('mask-workshop-41'));
     await new Promise((r) => setTimeout(r, 240));
     // Phase 12：石碑住在第三幕 —— 先讓導演把鏡頭推到那裡
@@ -2386,7 +2403,7 @@ async function main() {
   // --- 選錯：石碑不收，抖一下 ＋ 出現一句白話的教學回饋（不失敗、不扣分） ---
   const wrongIdx = (carveOpen.correctIndex + 1) % 3;
   const wrongPick = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     const btn = document.querySelector('#prompt-console [data-opt="${wrongIdx}"]');
     btn.click();
     await new Promise((r) => setTimeout(r, 120));
@@ -2432,7 +2449,7 @@ async function main() {
 
   // --- 一段一段刻上去：全部用鍵盤 1/2/3，刻痕數要跟著長 ---
   const carveAll = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     const flow = g.content.flow('mask-workshop-41');
     const steps = [];
     for (let i = 0; i < flow.slots.length; i += 1) {
@@ -2514,7 +2531,7 @@ async function main() {
   const shortPress = await evaluate(`
     const palm = document.querySelector('#prompt-console [data-palm]');
     return {
-      fired: window.__promptarcade.promptConsole.stele.fired,
+      fired: window.__promptasy.promptConsole.stele.fired,
       slipped: palm.classList.contains('is-slipped'),
       hint: palm.querySelector('.palm__hint').textContent.trim(),
       resultHidden: document.querySelector('#prompt-console [data-result]').hidden,
@@ -2538,7 +2555,7 @@ async function main() {
         // 蓄力環是一圈 conic-gradient，由 --hold 推進（軟體渲染下影格很稀疏，
         // 所以這裡只驗結構，不驗某一刻的填滿比例）
         ring: getComputedStyle(ring).backgroundImage.slice(0, 40),
-        fired: window.__promptarcade.promptConsole.stele.fired,
+        fired: window.__promptasy.promptConsole.stele.fired,
       };
     `);
   })();
@@ -2551,7 +2568,7 @@ async function main() {
   eq(holdMid.fired, false, '按住 300ms 還不會發動（門檻是 600ms）');
 
   const sealed = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     return {
       fired: g.promptConsole.stele.fired,
       ignited: document.querySelector('#prompt-console .stele').classList.contains('is-ignited'),
@@ -2583,7 +2600,7 @@ async function main() {
 
   /* --- Phase 12：重玩時第二幕可以跳過（指引看過就記住了，沒看過的不給跳） --- */
   const replayActs = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     g.promptConsole.close();
     await new Promise((r) => setTimeout(r, 220));
     const seenBefore = g.progression.hasSeenGuidance('gate-of-clarity-01');
@@ -2625,7 +2642,7 @@ async function main() {
 
   /* --- Phase 12：介面上不准再出現「送出評分」這種系統術語 --- */
   const jargon = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     g.promptConsole.open(g.content.challenge('gate-of-clarity-01'));
     await new Promise((r) => setTimeout(r, 300));
     g.promptConsole.goAct(3, { force: true });
@@ -2658,7 +2675,7 @@ async function main() {
       await sleep(360);
     }
     const fit = await evaluate(`
-      const g = window.__promptarcade;
+      const g = window.__promptasy;
       g.promptConsole.close();
       await new Promise((r) => setTimeout(r, 160));
       g.promptConsole.open(g.content.challenge('archive-seal-25'));
@@ -2683,7 +2700,7 @@ async function main() {
 
   // --- 切到自由書寫：預檢、快速填入、送出都還在（學習優先，畢業的人可以離開輔助輪） ---
   const freeStillWorks = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     g.promptConsole.close();
     await new Promise((r) => setTimeout(r, 200));
     g.promptConsole.open(g.content.challenge('dial-room-43'));
@@ -2736,7 +2753,7 @@ async function main() {
 
   // --- 切回石碑刻印：下一關又從第一段開始問（切換不會弄壞狀態） ---
   const backToGuided = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     g.promptConsole.close();
     await new Promise((r) => setTimeout(r, 200));
     g.promptConsole.setMode('guided');
@@ -2751,7 +2768,7 @@ async function main() {
       options: document.querySelectorAll('#prompt-console .opt').length,
       progress: document.querySelector('#prompt-console [data-progress]').textContent.trim(),
       setting: g.progression.state.settings.promptMode,
-      persisted: JSON.parse(localStorage.getItem('promptarcade.v1.save')).settings.promptMode,
+      persisted: JSON.parse(localStorage.getItem('promptasy.v1.save')).settings.promptMode,
     };
     g.promptConsole.close();
     await new Promise((r) => setTimeout(r, 180));
@@ -2767,7 +2784,7 @@ async function main() {
   /* ================================================================ */
   console.log('\n▸ 道具碰撞（Phase 8）');
   const collision = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     const waitGame = async (seconds) => {
       const until = window.__gt.t + seconds;
       const bail = performance.now() + seconds * 8000 + 4000;
@@ -2850,7 +2867,7 @@ async function main() {
   /* ================================================================ */
   console.log('\n▸ 以前走得過去的那幾樣東西（Phase 20）');
   const ghosts = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     const waitGame = async (seconds) => {
       const until = window.__gt.t + seconds;
       const bail = performance.now() + seconds * 8000 + 4000;
@@ -3038,7 +3055,7 @@ async function main() {
   /* ================================================================ */
   console.log('\n▸ 世界觀石碑（Phase 5）');
   const tabletNear = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     const tab = g.world.tablets.find((t) => t.id === 'hearth');
     g.player.teleport(tab.position.x + 1.4, tab.position.z + 1.4);
     await new Promise((r) => setTimeout(r, 320));
@@ -3061,7 +3078,7 @@ async function main() {
   await key('KeyE', 'e', { vk: 69 });
   await sleep(420);
   const tabletRead = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     const panel = document.getElementById('lore-tablet');
     return {
       open: g.tabletPanel.isOpen,
@@ -3072,7 +3089,7 @@ async function main() {
       inPanel: panel.querySelector('.panel').contains(document.activeElement),
       xp: g.progression.state.xp,
       read: g.progression.hasReadLore('hearth'),
-      saved: (JSON.parse(localStorage.getItem('promptarcade.v1.save')).loreRead || []).length,
+      saved: (JSON.parse(localStorage.getItem('promptasy.v1.save')).loreRead || []).length,
     };
   `);
   eq(tabletRead.open, true, '按 E 打開石碑');
@@ -3087,9 +3104,9 @@ async function main() {
 
   await key('Escape', 'Escape', { vk: 27 });
   await sleep(320);
-  eq(await evaluate('return window.__promptarcade.tabletPanel.isOpen;'), false, 'Esc 收起石碑面板');
+  eq(await evaluate('return window.__promptasy.tabletPanel.isOpen;'), false, 'Esc 收起石碑面板');
   eq(
-    await evaluate('return window.__promptarcade.player.speed >= 0 && !!window.__promptarcade.player;'),
+    await evaluate('return window.__promptasy.player.speed >= 0 && !!window.__promptasy.player;'),
     true,
     '收起面板後角色可以繼續動'
   );
@@ -3097,7 +3114,7 @@ async function main() {
   await key('KeyE', 'e', { vk: 69 });
   await sleep(420);
   const tabletAgain = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     const panel = document.getElementById('lore-tablet');
     return { open: g.tabletPanel.isOpen, note: panel.querySelector('.lore__note')?.textContent || '', xp: g.progression.state.xp };
   `);
@@ -3112,7 +3129,7 @@ async function main() {
   await key('KeyC', 'c', { vk: 67 });
   await sleep(350);
   const codex = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     return {
       open: g.codex.isOpen,
       techs: document.querySelectorAll('#codex .tech').length,
@@ -3133,7 +3150,7 @@ async function main() {
   await key('KeyO', 'o', { vk: 79 });
   await sleep(350);
   const vol = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     const slider = document.getElementById('set-volume');
     slider.value = '22';
     slider.dispatchEvent(new Event('input', { bubbles: true }));
@@ -3141,7 +3158,7 @@ async function main() {
     return {
       settingsOpen: g.settings.isOpen,
       audioVolume: g.audio.getVolume(),
-      saved: JSON.parse(localStorage.getItem('promptarcade.v1.save')).settings.volume,
+      saved: JSON.parse(localStorage.getItem('promptasy.v1.save')).settings.volume,
     };
   `);
   eq(vol.settingsOpen, true, 'O 開啟設定');
@@ -3152,21 +3169,21 @@ async function main() {
   const settingsWording = await evaluate(`
     const text = document.getElementById('settings').innerText;
     const banned = ['後製', 'bloom', 'Bloom', '色彩分級', 'pixelRatio', 'Web Audio', 'localStorage',
-      'shader', 'Shader', 'WebGL', '子集', '字型', 'promptarcade.v1.save', 'postprocessing', 'DOM', 'CSS'];
+      'shader', 'Shader', 'WebGL', '子集', '字型', 'promptasy.v1.save', 'postprocessing', 'DOM', 'CSS'];
     return { hits: banned.filter((w) => text.includes(w)), len: text.length };
   `);
   eq(settingsWording.hits.length, 0, '設定頁沒有網站設計 / 技術細節的字眼（Phase 8 回報）', settingsWording.hits.join('、'));
   ok(settingsWording.len > 60, '設定頁仍有可讀的說明文字', String(settingsWording.len));
 
   const qualityLow = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     const sel = document.getElementById('set-quality');
     sel.value = 'low';
     sel.dispatchEvent(new Event('change', { bubbles: true }));
     await new Promise((r) => setTimeout(r, 300));
     return {
       engineQuality: g.engine.quality,
-      saved: JSON.parse(localStorage.getItem('promptarcade.v1.save')).settings.quality,
+      saved: JSON.parse(localStorage.getItem('promptasy.v1.save')).settings.quality,
       stillRendering: g.engine.renderer.info.render.frame > 0,
     };
   `);
@@ -3175,7 +3192,7 @@ async function main() {
   eq(qualityLow.stillRendering, true, '低畫質仍持續渲染');
 
   const qualityHigh = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     const sel = document.getElementById('set-quality');
     sel.value = 'high';
     sel.dispatchEvent(new Event('change', { bubbles: true }));
@@ -3257,7 +3274,7 @@ async function main() {
   /* ================================================================ */
   console.log('\n▸ 分區配樂與氣氛');
   const moods = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     const mod = g.audio;
     const ids = ['foundations', 'reasoning', 'grounding', 'orchestration', 'config'];
     const seen = [];
@@ -3276,7 +3293,7 @@ async function main() {
   /* ================================================================ */
   console.log('\n▸ 閘門與跨區（含氣氛切換）');
   const locked = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     const gate = g.world.gates.find((x) => x.id === 'reasoning');
     g.player.teleport(gate.position.x - 6, gate.position.z - 6);
     await new Promise((r) => setTimeout(r, 200));
@@ -3288,7 +3305,7 @@ async function main() {
   eq(locked.gateOpen, false, '閘門顯示為關閉');
 
   const blocked = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     const site = { x: -95, z: -95 };
     await new Promise((r) => setTimeout(r, 1600));
     window.dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyW' }));
@@ -3297,6 +3314,217 @@ async function main() {
   `);
   ok(blocked.distToRegion > 40, '閘門鎖住時走不進 reasoning', `dist=${blocked.distToRegion.toFixed(1)}`);
   eq(blocked.walkable, false, '鎖住的區域判定為不可行走');
+
+  /* ---------------------------------------------------------------- *
+   * Phase 29：門會問你「要不要先行前往」
+   * ---------------------------------------------------------------- */
+  console.log('\n▸ 先行前往（詢問式閘門 · Phase 29）');
+
+  // 先把上一段可能開著的東西收乾淨，並走遠一點（重新武裝「走到門前就問」）
+  await evaluate(`
+    const g = window.__promptasy;
+    if (g.gateAsk.isOpen) g.gateAsk.close();
+    g.player.teleport(0, 6);
+    await new Promise((r) => setTimeout(r, 300));
+    return 1;
+  `);
+
+  // (1) 走進閘門 → 對話框自己出現（不用先學一個鍵）
+  const walkIn = await evaluate(`
+    const g = window.__promptasy;
+    const gate = g.world.gates.find((x) => x.id === 'reasoning');
+    // 從門的正前方 12 公尺（超過自動詢問半徑）往門走過去
+    const dir = gate.corridor.dir;
+    g.player.teleport(gate.position.x - dir.x * 12, gate.position.z - dir.z * 12);
+    await new Promise((r) => setTimeout(r, 400));
+    const beforeOpen = g.gateAsk.isOpen;
+    // 直接沿著橋往門的方向推進（不靠鏡頭方向，測試才穩）
+    const until = performance.now() + 6000;
+    while (!g.gateAsk.isOpen && performance.now() < until) {
+      const p = g.player.position;
+      const d = Math.hypot(gate.position.x - p.x, gate.position.z - p.z);
+      if (d < 0.4) break;
+      g.player.teleport(p.x + dir.x * 0.6, p.z + dir.z * 0.6);
+      await new Promise((r) => setTimeout(r, 90));
+    }
+    // 覆蓋層的焦點是在 requestAnimationFrame 裡送過去的 —— 等它落定再量
+    await new Promise((r) => setTimeout(r, 350));
+    const panel = document.querySelector('#gate-ask');
+    return {
+      beforeOpen,
+      open: g.gateAsk.isOpen,
+      region: g.gateAsk.regionId,
+      text: panel ? panel.innerText : '',
+      buttons: panel ? [...panel.querySelectorAll('[data-go], [data-stay]')].map((b) => b.textContent.trim()) : [],
+      links: panel ? panel.querySelectorAll('a[href^="http"]').length : 0,
+      focused: document.activeElement ? document.activeElement.getAttribute('data-stay') !== null : false,
+      inputEnabled: g.player.inputEnabled,
+    };
+  `);
+  eq(walkIn.beforeOpen, false, '還沒走到門前不會被問');
+  eq(walkIn.open, true, '走進閘門 → 對話框自己出現');
+  eq(walkIn.region, 'reasoning', '問的是 reasoning 那道門');
+  ok(walkIn.text.includes('這道門的考驗還沒完成'), '講出「考驗還沒完成」', walkIn.text.slice(0, 60));
+  ok(walkIn.text.includes('還差：'), '講得出還差什麼');
+  ok(walkIn.text.includes('前方的試煉不會因此變簡單'), '老實說「不會因此變簡單」');
+  ok(walkIn.buttons.includes('直接前往'), '有「直接前往」', walkIn.buttons.join(' / '));
+  ok(walkIn.buttons.includes('先留下修行'), '有「先留下修行」');
+  eq(walkIn.links, 0, '這是世界的一句話，不放官方連結（護欄 2）');
+  eq(walkIn.focused, true, '焦點預設落在「先留下修行」（不會誤按越過一整區）');
+
+  // (2) 「先留下修行」→ 收起來、門仍然關著
+  const stayed = await evaluate(`
+    const g = window.__promptasy;
+    document.querySelector('#gate-ask [data-stay]').click();
+    await new Promise((r) => setTimeout(r, 400));
+    const gate = g.world.gates.find((x) => x.id === 'reasoning');
+    return {
+      open: g.gateAsk.isOpen,
+      unlocked: g.progression.isRegionUnlocked('reasoning'),
+      gateOpen: gate.isOpen,
+      walkable: g.world.isWalkable(-95, -95),
+      skipped: g.progression.skippedGateCount(),
+    };
+  `);
+  eq(stayed.open, false, '「先留下修行」把對話框收起來');
+  eq(stayed.unlocked, false, '門沒有因此被打開');
+  eq(stayed.gateOpen, false, '閘門仍然是關的');
+  eq(stayed.walkable, false, '那一區仍然走不進去');
+  eq(stayed.skipped, 0, '沒有留下任何「先行前往」的記錄');
+
+  // (3) 站在原地不會被連問（要走遠一點再回來）
+  const noNag = await evaluate(`
+    const g = window.__promptasy;
+    await new Promise((r) => setTimeout(r, 1200));
+    return g.gateAsk.isOpen;
+  `);
+  eq(noNag, false, '選了「先留下修行」之後站在門口不會被連問');
+
+  // (4) 按 E 也問得出來（純鍵盤路徑）
+  await key('KeyE', 'e', { vk: 69 });
+  await sleep(400);
+  const byKey = await evaluate(`
+    const g = window.__promptasy;
+    await new Promise((r) => setTimeout(r, 350));
+    return {
+      open: g.gateAsk.isOpen,
+      region: g.gateAsk.regionId,
+      onStay: document.activeElement ? document.activeElement.getAttribute('data-stay') !== null : false,
+    };
+  `);
+  eq(byKey.open, true, '按 E 也問得出來');
+  eq(byKey.region, 'reasoning', '按 E 問的是同一道門');
+  eq(byKey.onStay, true, '按 E 打開時焦點也落在「先留下修行」');
+
+  // (5) 純鍵盤：Tab 移到「直接前往」，Enter 按下去
+  const beforeCounts = await evaluate(`
+    const g = window.__promptasy;
+    return {
+      xp: g.progression.state.xp,
+      cleared: Object.keys(g.progression.state.bestGrades).length,
+      collected: g.progression.state.collected.length,
+      badges: Object.values(g.progression.state.badges).reduce((a, b) => a + b, 0),
+      level: g.progression.levelInfo().level,
+    };
+  `);
+  await tabNative(true);
+  await sleep(200);
+  const onGo = await evaluate(`
+    return document.activeElement ? document.activeElement.getAttribute('data-go') !== null : false;
+  `);
+  eq(onGo, true, 'Shift+Tab 走得到「直接前往」（焦點鎖在對話框裡）');
+  await enterNative();
+  await sleep(900);
+
+  const proceeded = await evaluate(`
+    const g = window.__promptasy;
+    const gate = g.world.gates.find((x) => x.id === 'reasoning');
+    return {
+      askOpen: g.gateAsk.isOpen,
+      unlocked: g.progression.isRegionUnlocked('reasoning'),
+      gateOpen: gate.isOpen,
+      walkable: g.world.isWalkable(-95, -95),
+      skipped: g.progression.state.skippedGates,
+      xp: g.progression.state.xp,
+      cleared: Object.keys(g.progression.state.bestGrades).length,
+      collected: g.progression.state.collected.length,
+      badges: Object.values(g.progression.state.badges).reduce((a, b) => a + b, 0),
+      level: g.progression.levelInfo().level,
+      inputEnabled: g.player.inputEnabled,
+      persisted: JSON.parse(localStorage.getItem('promptasy.v1.save')).skippedGates,
+    };
+  `);
+  eq(proceeded.askOpen, false, '按下「直接前往」後對話框收起來');
+  eq(proceeded.unlocked, true, '那一區變成走得進去');
+  eq(proceeded.gateOpen, true, '橋上的閘門開了');
+  eq(proceeded.walkable, true, '原本走不進去的地方現在走得進去');
+  ok((proceeded.skipped || []).includes('reasoning'), '存檔記下「這道門是被問開的」', String(proceeded.skipped));
+  ok((proceeded.persisted || []).includes('reasoning'), '而且真的寫進 localStorage', String(proceeded.persisted));
+  eq(proceeded.inputEnabled, true, '關掉對話框後操控權還回來了');
+  // 記帳誠實：一個數字都不准變
+  eq(proceeded.xp, beforeCounts.xp, '先行前往不給 XP');
+  eq(proceeded.cleared, beforeCounts.cleared, '「已通關 x / 27」沒有被灌水');
+  eq(proceeded.collected, beforeCounts.collected, '圖鑑沒有多收技巧');
+  eq(proceeded.badges, beforeCounts.badges, '徽章一個都沒多');
+  eq(proceeded.level, beforeCounts.level, '等級沒有被推上去');
+
+  // (6) 已經開了的門不會再問一次
+  const noRepeat = await evaluate(`
+    const g = window.__promptasy;
+    const gate = g.world.gates.find((x) => x.id === 'reasoning');
+    g.player.teleport(gate.position.x, gate.position.z);
+    await new Promise((r) => setTimeout(r, 900));
+    const afterWalk = g.gateAsk.isOpen;
+    window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyE' }));
+    await new Promise((r) => setTimeout(r, 300));
+    return { afterWalk, afterKey: g.gateAsk.isOpen };
+  `);
+  eq(noRepeat.afterWalk, false, '門開了之後走過去不會再被問');
+  eq(noRepeat.afterKey, false, '門開了之後按 E 也不會再被問');
+
+  // (7) 跨重整仍然開著、仍然不會再問
+  await reloadPage('先行前往後重新載入');
+  await key('Enter', 'Enter', { vk: 13 });
+  await sleep(600);
+  const afterReload = await evaluate(`
+    const g = window.__promptasy;
+    const gate = g.world.gates.find((x) => x.id === 'reasoning');
+    g.player.teleport(gate.position.x, gate.position.z);
+    await new Promise((r) => setTimeout(r, 900));
+    return {
+      unlocked: g.progression.isRegionUnlocked('reasoning'),
+      gateOpen: gate.isOpen,
+      skipped: g.progression.hasSkippedGate('reasoning'),
+      asked: g.gateAsk.isOpen,
+      xp: g.progression.state.xp,
+      cleared: Object.keys(g.progression.state.bestGrades).length,
+    };
+  `);
+  eq(afterReload.unlocked, true, '重整後那一區仍然走得進去');
+  eq(afterReload.gateOpen, true, '重整後閘門仍然是開的');
+  eq(afterReload.skipped, true, '重整後仍記得「這是先行前往的門」');
+  eq(afterReload.asked, false, '重整後也不會再被問一次');
+  eq(afterReload.xp, beforeCounts.xp, '重整後 XP 仍然誠實');
+  eq(afterReload.cleared, beforeCounts.cleared, '重整後通關數仍然誠實');
+
+  // (8) 設定頁誠實列出「其中幾道門是先行前往的」
+  const settingsHonest = await evaluate(`
+    const g = window.__promptasy;
+    g.settings.open();
+    await new Promise((r) => setTimeout(r, 400));
+    const text = document.querySelector('#settings .settings__stats').innerText;
+    g.settings.close();
+    return text;
+  `);
+  ok(/先行前往/.test(settingsHonest), '設定頁講出「其中 N 道門是你先行前往的」', settingsHonest.replace(/\n/g, ' · '));
+
+  // 收尾：把先行前往的痕跡清掉，後面幾節從乾淨的狀態繼續
+  await evaluate(`
+    const g = window.__promptasy;
+    if (g.gateAsk.isOpen) g.gateAsk.close();
+    g.player.teleport(0, 6);
+    return 1;
+  `);
 
   // 種一份「foundations 全破」的存檔後重載，驗證跨區
   const seeded = await evaluate(`
@@ -3313,19 +3541,19 @@ async function main() {
       settings: { music: 'ambient-01', volume: 0.4, quality: 'high', muted: true, promptMode: 'free' },
       flags: { introSeen: true }
     };
-    localStorage.setItem('promptarcade.v1.save', JSON.stringify(save));
+    localStorage.setItem('promptasy.v1.save', JSON.stringify(save));
     return true;
   `);
   eq(seeded, true, '種入「foundations 全破」的存檔');
 
   await cdp.send('Page.navigate', { url: APP_URL }, sessionId);
-  await waitFor(() => evaluate('return !!window.__promptarcade;'), { label: '重新載入' });
+  await waitFor(() => evaluate('return !!window.__promptasy;'), { label: '重新載入' });
   await sleep(700);
   await key('Enter', 'Enter', { vk: 13 });
   await sleep(500);
 
   const reloaded = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     return {
       introOpen: g.intro.isOpen,
       titleOpen: g.title.isOpen,
@@ -3345,7 +3573,7 @@ async function main() {
   eq(reloaded.consoleMode, 'free', '主控台開機就照著存檔的答題方式走');
 
   const crossing = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     const fogBefore = g.engine.scene.fog.color.getHex();
     const audioBefore = g.audio.region;
     g.player.teleport(-95, -95);
@@ -3369,7 +3597,7 @@ async function main() {
   /* ================================================================ */
   console.log('\n▸ 鏡頭避障（Phase 3 已知問題）');
   const camera = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     // 走到書架密集的 grounding 區旁邊（用 teleport 略過解鎖，只測鏡頭）
     g.player.teleport(95 - 27, -95);
     await new Promise((r) => setTimeout(r, 1500));
@@ -3400,7 +3628,7 @@ async function main() {
       families: uniq,
       faces: document.fonts.size,
       // 用文字量測反證「字型真的生效」：自架字型與 sans-serif 的寬度必須不同
-      latinDiff: Math.abs(probe("'Fraunces Display'", 'PromptArcade') - probe('sans-serif', 'PromptArcade')),
+      latinDiff: Math.abs(probe("'Fraunces Display'", 'Promptasy') - probe('sans-serif', 'Promptasy')),
       // 漢字一律是全形等寬，量寬度分不出字型 —— 改問瀏覽器「這套字有沒有這些字」
       serifCovers: document.fonts.check("32px 'Arcade Serif TC'", '技巧圖鑑清晰之門'),
       sansCovers: document.fonts.check("32px 'Arcade Sans TC'", '技巧圖鑑清晰之門'),
@@ -3449,7 +3677,7 @@ async function main() {
 
   // 2) 標題卡的分字揭示會跑完（每個字最後都回到 opacity 1）
   const titleReveal = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     const root = g.title.root;
     root.hidden = false;
     root.classList.remove('is-leaving');
@@ -3475,9 +3703,9 @@ async function main() {
       ruleScale,
     };
   `);
-  eq(titleReveal.count, 12, '標題被拆成 12 個字元各自進場');
-  eq(titleReveal.text, 'PromptArcade', '拆字後 textContent 仍然是完整品牌名');
-  eq(titleReveal.aria, 'PromptArcade', '拆字後給螢幕閱讀器的 aria-label 正確');
+  eq(titleReveal.count, 9, '標題被拆成 9 個字元各自進場（Promptasy）');
+  eq(titleReveal.text, 'Promptasy', '拆字後 textContent 仍然是完整品牌名');
+  eq(titleReveal.aria, 'Promptasy', '拆字後給螢幕閱讀器的 aria-label 正確');
   ok(titleReveal.midway < 0.5, '揭示開始時最後一個字還沒出現（真的有 stagger）', String(titleReveal.midway));
   ok(titleReveal.minOpacity > 0.99, '揭示結束後每個字都完全顯示', String(titleReveal.minOpacity));
   // scaleX 用字串比對（!/matrix\(0/）會被 0.99999 這種收尾誤判成失敗 —— 改成看數值
@@ -3486,12 +3714,12 @@ async function main() {
   ok(ruleScaleX > 0.99, '標題下的髮絲線展開完成', titleReveal.ruleScale);
 
   // 下面幾項量的是書寫檯（textarea ＋ 送出）的版面與動畫 → 先切到自由書寫模式
-  await evaluate(`window.__promptarcade.promptConsole.setMode('free'); return 1;`);
+  await evaluate(`window.__promptasy.promptConsole.setMode('free'); return 1;`);
   await sleep(200);
 
   // 3) 面板開啟動畫會收斂（不會卡在半透明 / 偏移）
   const openAnim = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     g.promptConsole.open(g.content.challenges[0]);
     await new Promise((r) => setTimeout(r, 60));
     const panel = document.querySelector('#prompt-console .panel');
@@ -3511,7 +3739,7 @@ async function main() {
 
   // 4) 評分結果的逐條揭示：一開始錯開，動畫跑完全部顯示
   const revealSeq = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     const ta = document.querySelector('.prompt-input');
     ta.value = 'Summarize the town notice below for first-time visitors who have never been here.\\n' +
       'Output format: 3 bullet points, each under 20 words.';
@@ -3563,7 +3791,7 @@ async function main() {
     }, sessionId);
     await sleep(400);
     const layout = await evaluate(`
-      const g = window.__promptarcade;
+      const g = window.__promptasy;
       const panels = [];
       for (const [name, api] of [['練習室', g.promptConsole], ['圖鑑', g.codex], ['設定', g.settings]]) {
         api.open(api === g.promptConsole ? g.content.challenges[0] : undefined);
@@ -3605,7 +3833,7 @@ async function main() {
 
   /* --- ① 圖鑑：中文在前、官方英文收在「原文 ↗」＋出處永遠看得到 --- */
   const codexZh = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     g.promptConsole.close(); g.settings.close(); g.codex.close();
     // 全部收集起來才看得到 68 條的內容
     g.progression.state.collected = g.content.curriculum.techniques.map((t) => t.id);
@@ -3711,7 +3939,7 @@ async function main() {
 
   /* --- ② 說明文字放大：情境文字 ≥ 舊值的 1.7 倍 --- */
   const typeScale = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     g.codex.close();
     g.promptConsole.open(g.content.challenge('gate-of-clarity-01'));
     await new Promise((r) => setTimeout(r, 420));
@@ -3750,7 +3978,7 @@ async function main() {
 
   /* --- ③ 指南針 --- */
   const compass = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     g.promptConsole.close();
     await new Promise((r) => setTimeout(r, 400));
     // 前面的測試可能把玩家丟到別的地方 —— 先站回出生點，方位才對得起來
@@ -3784,7 +4012,7 @@ async function main() {
 
   // 轉鏡頭 → 錶盤真的跟著轉，而且角度數學和世界狀態對得起來
   const compassTurn = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     const dialOf = () => parseFloat((document.querySelector('.compass__dial').style.transform.match(/-?[\\d.]+/) || [0])[0]);
     const needleOf = () => parseFloat((document.querySelector('.compass__needle').style.transform.match(/-?[\\d.]+/) || [0])[0]);
     const before = { yaw: g.player.cameraYaw, dial: dialOf(), needle: needleOf() };
@@ -3828,7 +4056,7 @@ async function main() {
 
   // 面板打開時收起來（和 HUD 其他元素一致）
   const compassHide = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     g.codex.open();
     await new Promise((r) => setTimeout(r, 420));
     const hiddenWhenPanel = document.querySelector('.compass').getClientRects().length === 0;
@@ -3842,7 +4070,7 @@ async function main() {
 
   // 走過去 → 步數要變少（指南針真的在導航，不是裝飾）
   const compassWalk = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     const s0 = g.compass.state();
     const t = s0.objective;
     const p = g.player.position;
@@ -3891,7 +4119,7 @@ async function main() {
   }
 
   await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     g.settings.close();
     g.codex.close();
     g.promptConsole.open(g.content.challenges[0]);
@@ -3982,7 +4210,7 @@ async function main() {
 
   // 換一幕 → 軌道跟著往前注金（純 CSS 的相鄰選擇器，不靠 JS）
   const railAfter = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     document.querySelector('#prompt-console [data-act-next="2"]').click();
     const rules = [...document.querySelectorAll('#prompt-console .acts__rule')];
     const read = () => parseFloat(getComputedStyle(rules[1]).backgroundSize.split(' ')[0]) || 0;
@@ -4117,7 +4345,7 @@ async function main() {
 
   // ── 表單控制項：凹槽與金滴、封印式勾選 ───────────────────────
   const form = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     g.promptConsole.close();
     await new Promise((r) => setTimeout(r, 300));
     g.settings.open();
@@ -4169,7 +4397,7 @@ async function main() {
   await cdp.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] }, sessionId);
   await sleep(260);
   const calm = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     g.settings.close();
     await new Promise((r) => setTimeout(r, 250));
     g.promptConsole.open(g.content.challenges[0]);
@@ -4206,12 +4434,12 @@ async function main() {
   `);
   eq(noRemote.length, 0, '樣式表零外部資產（全部是漸層 / 內嵌 SVG / 本機字型）', JSON.stringify(noRemote).slice(0, 160));
 
-  await evaluate(`window.__promptarcade.promptConsole.close(); await new Promise((r) => setTimeout(r, 300)); return 1;`);
+  await evaluate(`window.__promptasy.promptConsole.close(); await new Promise((r) => setTimeout(r, 300)); return 1;`);
 
   /* ================================================================ */
   console.log('\n▸ 從設定重看引導課程 ＋ 跳過');
   const replay = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     g.settings.open();
     await new Promise((r) => setTimeout(r, 220));
     const hasButton = !!document.querySelector('#settings [data-prologue]');
@@ -4234,7 +4462,7 @@ async function main() {
   eq(replay.echoHidden, false, '回聲字幕條再度出現');
 
   const skipFlow = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     document.querySelector('.echo [data-skip]').click();
     await new Promise((r) => setTimeout(r, 200));
     const confirmShown = !document.querySelector('.echo__confirm').hidden;
@@ -4264,13 +4492,13 @@ async function main() {
 
   await evaluate(`document.querySelector('.intro [data-start]').click(); return 1;`);
   await sleep(260);
-  eq(await evaluate('return window.__promptarcade.intro.isOpen;'), false, '操作說明可關閉');
+  eq(await evaluate('return window.__promptasy.intro.isOpen;'), false, '操作說明可關閉');
 
   /* ================================================================ */
   console.log('\n▸ 效能監視器（Phase 17）');
 
   const perfOff = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     const node = document.querySelector('.perfmon');
     const cs = getComputedStyle(node);
     return {
@@ -4292,7 +4520,7 @@ async function main() {
   ok(perfOff.z >= 50, '疊在所有東西之上（診斷面板）', `z=${perfOff.z}`);
 
   const perfOn = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     g.settings.open();
     await new Promise((r) => setTimeout(r, 240));
     const box = document.querySelector('#settings [data-perf]');
@@ -4358,7 +4586,7 @@ async function main() {
 
   /* --- 顯示卡（Phase 19）：型號 ＋ 每幀 GPU 耗時 --- */
   const gpuInfo = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     const node = document.querySelector('.perfmon');
     // 多等一會兒：GPU 的計時查詢要隔幾幀才收得到結果
     await new Promise((r) => setTimeout(r, 1500));
@@ -4454,7 +4682,7 @@ async function main() {
 
   // 收合成一塊「只有 FPS」的小牌子
   const perfFold = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     const node = document.querySelector('.perfmon');
     node.querySelector('[data-fold]').click();
     await new Promise((r) => setTimeout(r, 200));
@@ -4476,13 +4704,13 @@ async function main() {
   eq(perfFold.collapsed.aria, 'false', '收合狀態有 aria-expanded');
   eq(perfFold.backOpen, true, '再按一次展開');
 
-  await evaluate(`window.__promptarcade.settings.close(); await new Promise((r) => setTimeout(r, 240)); return 1;`);
+  await evaluate(`window.__promptasy.settings.close(); await new Promise((r) => setTimeout(r, 240)); return 1;`);
 
   // F3：關掉 → 再打開
   await key('F3', 'F3', { vk: 114 });
   await sleep(320);
   const perfF3Off = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     const before = g.perfmon.state().frames;
     await new Promise((r) => setTimeout(r, 2000));
     const after = g.perfmon.state().frames;
@@ -4509,7 +4737,7 @@ async function main() {
   await key('F3', 'F3', { vk: 114 });
   await sleep(2000);
   const perfF3On = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     return {
       enabled: g.perfmon.isEnabled,
       hidden: document.querySelector('.perfmon').hidden,
@@ -4526,7 +4754,7 @@ async function main() {
   await reloadPage('效能監視器跨重整');
   await sleep(2000);
   const perfReload = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     const st = g.perfmon.state();
     return {
       enabled: g.perfmon.isEnabled,
@@ -4542,7 +4770,7 @@ async function main() {
 
   // 關回去（後面的段落不需要它）
   await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     g.perfmon.setEnabled(false);
     g.progression.updateSettings({ perfMonitor: false });
     return 1;
@@ -4550,7 +4778,7 @@ async function main() {
 
   /* --- 護欄：介面上不准出現任何「API key」這類的旁白（Phase 17） --- */
   const noKeyCopy = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     g.settings.open();
     await new Promise((r) => setTimeout(r, 220));
     const parts = [document.body.textContent || '', g.title.root.textContent || '', g.intro.root.textContent || ''];
@@ -4585,11 +4813,11 @@ async function main() {
 
   // 種一份「Lv.6 / 收集 46 條 / 精通 2 片」的存檔 —— 對應的稱號一定是「釋義者」
   const seedRank = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     const cur = g.content.curriculum;
     const of = (id) => cur.techniques.filter((t) => t.groupId === id).map((t) => t.id);
     const collected = [...of('foundations'), ...of('reasoning'), ...of('orchestration').slice(0, 14)];
-    localStorage.setItem('promptarcade.v1.save', JSON.stringify({
+    localStorage.setItem('promptasy.v1.save', JSON.stringify({
       version: 1, xp: 1200, level: 6,
       unlockedRegions: ['foundations'],
       collected,
@@ -4608,7 +4836,7 @@ async function main() {
   await sleep(500);
 
   const rankNow = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     const info = g.rank();
     return {
       level: g.progression.levelInfo().level,
@@ -4628,7 +4856,7 @@ async function main() {
   await key('KeyC', 'c', { vk: 67 });
   await sleep(400);
   const codexShare = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     return {
       open: g.codex.isOpen,
       rankBar: document.querySelector('#codex .sharebar__rank')?.textContent.trim() || '',
@@ -4645,7 +4873,7 @@ async function main() {
   eq(codexShare.masteredShare, 2, '兩片已精通的土地各有一顆分享鈕');
 
   const card = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     document.querySelector('#codex [data-share-codex]').click();
     await new Promise((r) => setTimeout(r, 900));
     const cv = g.shareCard.canvas;
@@ -4720,7 +4948,7 @@ async function main() {
   await key('Escape', 'Escape', { vk: 27 });
   await sleep(320);
   const afterShare = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     return { shareOpen: g.shareCard.isOpen, codexOpen: g.codex.isOpen };
   `);
   eq(afterShare.shareOpen, false, 'Esc 關閉分享卡');
@@ -4730,7 +4958,7 @@ async function main() {
 
   /* --- 通關後的分享入口：卡片標亮「這一關剛學到的技法」 --- */
   const resultShare = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     const ch = g.content.challenge('gate-of-clarity-01');
     g.promptConsole.open(ch);
     await new Promise((r) => setTimeout(r, 400));
@@ -4746,7 +4974,7 @@ async function main() {
   eq(resultShare.act, 3, '走到第三幕（作答）');
 
   const passShare = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     const ta = document.querySelector('.prompt-input');
     ta.value = g.content.challenge('gate-of-clarity-01').sample;
     document.querySelector('#prompt-console [data-submit]').click();
@@ -4765,7 +4993,7 @@ async function main() {
   ok(passShare.quietTier.includes('btn--ghost'), '分享鈕走刻印牌的 quiet 階', passShare.quietTier);
 
   const resultCard = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     document.querySelector('#prompt-console [data-share]').click();
     await new Promise((r) => setTimeout(r, 800));
     const m = g.shareCard.model();
@@ -4789,7 +5017,7 @@ async function main() {
   ok(resultCard.kindLabel.includes('刻印紀錄'), '右上角寫著這是哪一種卡', resultCard.kindLabel);
 
   const teachesMatch = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     const ch = g.content.challenge('gate-of-clarity-01');
     const ids = g.shareCard.model().techniques.map((t) => t.id);
     return ids.every((id) => ch.teaches.includes(id));
@@ -4869,7 +5097,7 @@ async function main() {
     const t0 = Date.now();
     while (Date.now() - t0 < limitMs) {
       // eslint-disable-next-line no-await-in-loop
-      if (await evaluate(`return !!window.__promptarcade.shareCard.file;`)) return true;
+      if (await evaluate(`return !!window.__promptasy.shareCard.file;`)) return true;
       // eslint-disable-next-line no-await-in-loop
       await sleep(300);
     }
@@ -4888,11 +5116,11 @@ async function main() {
     await sleep(160);
   }
 
-  await evaluate(`window.__promptarcade.shareCard.open({ kind: 'codex' }); return true;`);
+  await evaluate(`window.__promptasy.shareCard.open({ kind: 'codex' }); return true;`);
   const plainReady = await waitShareFile();
 
   const sendPlain = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     const ready = ${plainReady};
     const sys = document.querySelector('#sharecard [data-sysshare]');
     const dl = document.querySelector('#sharecard [data-download]');
@@ -4974,7 +5202,7 @@ async function main() {
   /* --- 玩家把那段話改成自己想說的 → 複製出去的就是改過的版本 --- */
   await typeIntoCaption('（今晚刻完的）');
   const edited = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     const box = document.querySelector('#sharecard [data-caption]');
     return { value: box.value, data: g.shareCard.shareData() };
   `);
@@ -5000,7 +5228,7 @@ async function main() {
 
   /* --- ② 有系統分享面板：把「一個 PNG 檔案 ＋ 那段話」真的交出去 --- */
   const sysShare = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     window.__shared = null;
     Object.defineProperty(navigator, 'canShare', {
       configurable: true,
@@ -5069,7 +5297,7 @@ async function main() {
   eq(shared.files[0].type, 'image/png', '交出去的是 PNG');
   eq(shared.files[0].isFile, true, '交出去的真的是 File');
   ok(shared.files[0].size > 20000, '交出去的圖有內容', `size=${shared.files[0].size}`);
-  ok(/^promptarcade-.*\.png$/.test(shared.files[0].name), '檔名看得出是這個遊戲的卡', shared.files[0].name);
+  ok(/^promptasy-.*\.png$/.test(shared.files[0].name), '檔名看得出是這個遊戲的卡', shared.files[0].name);
   ok(shared.text.includes('（這一關卡了三次）'), '交出去的那段話是玩家改過的版本', shared.text);
   ok(shared.text.includes('釋義者') && shared.text.includes('46 / 68'), '那段話帶著稱號與收集進度', shared.text);
   ok(shared.text.includes('Learn Prompt Engineering by Playing'), '那段話帶著品牌落款');
@@ -5119,7 +5347,7 @@ async function main() {
 
   // 把動過的東西還原，後面的段落照原樣跑
   await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     g.shareCard.close();
     delete navigator.share;
     delete navigator.canShare;
@@ -5132,7 +5360,7 @@ async function main() {
   console.log('\n▸ 導航閃爍提示（Phase 21）');
 
   const nudgeIdle = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     // 離目標夠遠、而且站著不動
     const t0 = g.world.objectiveTarget(g.hud.region);
     g.player.teleport(t0.x + 62, t0.z + 44);
@@ -5202,7 +5430,7 @@ async function main() {
   ok(nudgeIdle.rect.bottom < nudgeIdle.compassTop, '提示不會蓋到左下角的指南針');
 
   const nudgeApproach = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     const t = g.world.objectiveTarget(g.hud.region);
     const before = Math.hypot(t.x - g.player.position.x, t.z - g.player.position.z);
     // 明顯往目標走過去
@@ -5218,7 +5446,7 @@ async function main() {
   ok(nudgeApproach.state.cooldown > 60, '收起來之後進入冷卻', `cd=${nudgeApproach.state.cooldown}`);
 
   const nudgeCooldown = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     const t = g.world.objectiveTarget(g.hud.region);
     g.player.teleport(t.x + 62, t.z + 44);   // 又走遠了
     g.nudge.update(20);
@@ -5235,7 +5463,7 @@ async function main() {
   eq(nudgeCooldown.after.visible, true, '冷卻結束後又會提醒一次');
 
   const nudgeFade = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     g.nudge.update(4);
     const mid = g.nudge.state();
     g.nudge.update(5);   // 累計 9 秒 > 8 秒
@@ -5245,7 +5473,7 @@ async function main() {
   eq(nudgeFade.after.visible, false, '顯示滿 8 秒自己淡出');
 
   const nudgeUnlock = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     g.nudge.announceUnlock('reasoning');
     const el = document.querySelector('.nudge');
     return {
@@ -5262,7 +5490,7 @@ async function main() {
   ok(/往[北東南西]/.test(nudgeUnlock.sub) || nudgeUnlock.sub.includes('閘門'), '解鎖提示也給方向', nudgeUnlock.sub);
 
   const nudgePanel = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     g.codex.open();
     await new Promise((r) => setTimeout(r, 260));
     g.nudge.update(0.2);
@@ -5280,7 +5508,7 @@ async function main() {
 
   /* --- ① 世界裡真的有這三層東西，而且都不新增光源 --- */
   const phase22 = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     const names = [];
     g.world.root.traverse((o) => {
       if (o.name && (o.name.startsWith('inscription:') || o.name.startsWith('reactive:') || o.name.startsWith('secret:')))
@@ -5313,7 +5541,7 @@ async function main() {
 
   /* --- ② 走近會回應：狀態真的變了（不是只有聲音） --- */
   const reaction = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     const chime = g.world.reactive.objects.find((o) => o.kind === 'chime');
     const caps = g.world.reactive.objects.find((o) => o.kind === 'glowcap');
     const out = { chimeId: chime.id, capsId: caps.id };
@@ -5359,7 +5587,7 @@ async function main() {
 
   /* --- ③ 刻文小語的完整流程：走近 → E → 分段揭示 → 出處 → XP 只給一次 --- */
   const insFlow = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     const spec = g.inscriptionData.entries[0];
     const before = { xp: g.progression.state.xp, found: g.progression.inscriptionCount() };
     g.player.teleport(spec.at[0] + 2.2, spec.at[1] + 2.2);
@@ -5392,7 +5620,7 @@ async function main() {
     out.xpAfter = g.progression.state.xp;
     out.foundAfter = g.progression.inscriptionCount();
     out.collected = g.progression.isCollected(spec.techniqueId);
-    out.saved = JSON.parse(localStorage.getItem('promptarcade.v1.save')).inscriptionsFound;
+    out.saved = JSON.parse(localStorage.getItem('promptasy.v1.save')).inscriptionsFound;
     // 真實出處：拿 curriculum 對一次
     const tech = g.content.technique(spec.techniqueId);
     out.realTitle = tech.title;
@@ -5427,7 +5655,7 @@ async function main() {
 
   // 重讀不再給 XP
   const insAgain = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     g.inscriptionPanel.close();
     await new Promise((r) => setTimeout(r, 260));
     const xp = g.progression.state.xp;
@@ -5447,7 +5675,7 @@ async function main() {
 
   /* --- ④ 圖鑑的小收集計數 --- */
   const finds = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     g.codex.open();
     await new Promise((r) => setTimeout(r, 380));
     const rows = [...document.querySelectorAll('#codex .finds__list li')].map((li) => ({
@@ -5471,7 +5699,7 @@ async function main() {
 
   /* --- ⑤ 找到一個祕密：走進去就算（不用按 E），只算一次 --- */
   const secretFlow = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     const spec = g.secretData.entries.find((s) => s.blessing) || g.secretData.entries[0];
     const before = { xp: g.progression.state.xp, n: g.progression.secretCount() };
     g.player.teleport(spec.at[0] + 24, spec.at[1] + 24);
@@ -5491,7 +5719,7 @@ async function main() {
       toasts,
       anyPanel: g.inscriptionPanel.isOpen || g.promptConsole.isOpen || g.tabletPanel.isOpen,
       flag: g.progression.state.flags.echoBlessing === true,
-      saved: JSON.parse(localStorage.getItem('promptarcade.v1.save')).secretsFound,
+      saved: JSON.parse(localStorage.getItem('promptasy.v1.save')).secretsFound,
       beforeN: before.n,
     };
     // 再站一會兒：不會給第二次
@@ -5518,7 +5746,7 @@ async function main() {
 
   // 隱藏標記會出現在圖鑑裡
   const blessed = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     g.codex.open();
     await new Promise((r) => setTimeout(r, 360));
     const txt = document.querySelector('#codex .finds')?.textContent || '';
@@ -5530,7 +5758,7 @@ async function main() {
 
   /* --- ⑥ 讀題的時候世界不會在旁邊叮咚響 --- */
   const quiet = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     const chime = g.world.reactive.objects.find((o) => o.kind === 'chime');
     g.player.teleport(chime.x + 20, chime.z + 20);
     await new Promise((r) => setTimeout(r, 380));
@@ -5550,7 +5778,7 @@ async function main() {
 
   /* --- ⑦ 這一層不影響走位：碰撞與淨空照舊 --- */
   const stillClear = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     const out = { insBlocked: [], reactBlocked: [], laneBlocked: 0 };
     for (const spec of g.inscriptionData.entries) {
       let free = 0;
@@ -5585,7 +5813,7 @@ async function main() {
 
   /* --- ① 世界裡真的有這一層，而且沒有多花任何一盞燈 --- */
   const p25 = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     const names = [];
     g.world.root.traverse((o) => { if (o.name && o.name.startsWith('handle:')) names.push(o.name); });
     let lights = 0, tris = 0;
@@ -5617,7 +5845,7 @@ async function main() {
 
   /* --- ② 陶罐的完整流程：走近 → 提示 → E → 小窗 → XP → 存檔 --- */
   const urnFlow = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     const spec = g.handleData.entries.find((e) => e.kind === 'urn');
     const obj = g.world.handles.object(spec.id);
     const before = { xp: g.progression.state.xp, n: g.progression.handleCount() };
@@ -5654,7 +5882,7 @@ async function main() {
     out.claims = /神諭原典|官方|技巧/.test(panel.textContent);
     out.xpAfter = g.progression.state.xp;
     out.nAfter = g.progression.handleCount();
-    out.saved = JSON.parse(localStorage.getItem('promptarcade.v1.save')).handlesUsed;
+    out.saved = JSON.parse(localStorage.getItem('promptasy.v1.save')).handlesUsed;
     out.before = before;
     // 蓋子真的掀開了
     await new Promise((r) => setTimeout(r, 500));
@@ -5680,7 +5908,7 @@ async function main() {
 
   // 再掀一次：蓋子還是開著、不再給 XP
   const urnAgain = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     g.handlePanel.close();
     await new Promise((r) => setTimeout(r, 280));
     const spec = g.handleData.entries.find((e) => e.kind === 'urn');
@@ -5702,7 +5930,7 @@ async function main() {
 
   /* --- ③ 絞盤：按三次 E 才轉得開，而且推到一半不會失敗 --- */
   const capFlow = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     const spec = g.handleData.entries.find((e) => e.kind === 'capstan');
     const obj = g.world.handles.object(spec.id);
     const out = { id: spec.id, steps: [], xp0: g.progression.state.xp };
@@ -5726,7 +5954,7 @@ async function main() {
     out.spin1 = obj.drum.rotation.y;
     out.opened = obj.opened;
     out.shaft = obj.shaft.visible;
-    out.saved = JSON.parse(localStorage.getItem('promptarcade.v1.save')).handlesUsed.includes(spec.id);
+    out.saved = JSON.parse(localStorage.getItem('promptasy.v1.save')).handlesUsed.includes(spec.id);
     return out;
   `);
   ok(/推動/.test(capFlow.hint0), '走近絞盤 → 提示是「推動」', capFlow.hint0);
@@ -5748,7 +5976,7 @@ async function main() {
 
   /* --- ④ 長凳：坐下 → 鏡頭往後退 → 走一步就自己起身 --- */
   const benchFlow = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     const spec = g.handleData.entries.find((e) => e.kind === 'bench');
     g.player.teleport(spec.at[0] + 2.2, spec.at[1] + 2.2);
     await new Promise((r) => setTimeout(r, 420));
@@ -5801,7 +6029,7 @@ async function main() {
 
   /* --- ⑤ 響石：可以一直敲，但只有第一次給 XP --- */
   const gongFlow = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     const spec = g.handleData.entries.find((e) => e.kind === 'gong');
     const obj = g.world.handles.object(spec.id);
     g.player.teleport(spec.at[0] + 2.0, spec.at[1] + 2.0);
@@ -5836,7 +6064,7 @@ async function main() {
 
   /* --- ⑥ 守望石：摸它 → 睜眼 ＋ 轉向你還沒解開的那座石座 --- */
   const watchFlow = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     const spec = g.handleData.entries.find((e) => e.kind === 'watchstone');
     const obj = g.world.handles.object(spec.id);
     g.player.teleport(spec.at[0] + 2.0, spec.at[1] + 2.0);
@@ -5872,7 +6100,7 @@ async function main() {
 
   /* --- ⑦ 指路石：四個方向，一塊牌子一行 --- */
   const signFlow = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     const spec = g.handleData.entries.find((e) => e.kind === 'signpost');
     g.player.teleport(spec.at[0] + 2.0, spec.at[1] + 2.0);
     await new Promise((r) => setTimeout(r, 420));
@@ -5903,7 +6131,7 @@ async function main() {
 
   /* --- ⑧ 火盆：點著之後就一直亮著 --- */
   const fireFlow = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     const spec = g.handleData.entries.find((e) => e.kind === 'brazier');
     const obj = g.world.handles.object(spec.id);
     g.player.teleport(spec.at[0] + 2.0, spec.at[1] + 2.0);
@@ -5933,7 +6161,7 @@ async function main() {
 
   /* --- ⑨ 純鍵盤：不碰滑鼠也動得了（Phase 23 的鐵則） --- */
   await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     const spec = g.handleData.entries.find((e) => e.kind === 'moonpool');
     g.player.teleport(spec.at[0] + 1.8, spec.at[1] + 1.8);
     return true;
@@ -5942,13 +6170,13 @@ async function main() {
   await key('KeyE', 'e', { vk: 69 });
   await sleep(700);
   const kbHandle = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     const spec = g.handleData.entries.find((e) => e.kind === 'moonpool');
     const obj = g.world.handles.object(spec.id);
     return {
       used: g.progression.hasUsedHandle(spec.id),
       scoop: obj.scoop,
-      saved: JSON.parse(localStorage.getItem('promptarcade.v1.save')).handlesUsed.includes(spec.id),
+      saved: JSON.parse(localStorage.getItem('promptasy.v1.save')).handlesUsed.includes(spec.id),
     };
   `);
   eq(kbHandle.used, true, '真的按下鍵盤的 E 也動得了器物（純鍵盤走得完）');
@@ -5957,7 +6185,7 @@ async function main() {
 
   /* --- ⑩ 圖鑑：多了一列「動過的器物」 --- */
   const handleFinds = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     g.codex.open();
     await new Promise((r) => setTimeout(r, 400));
     const rows = [...document.querySelectorAll('#codex .finds__list li')].map((li) => ({
@@ -5977,7 +6205,7 @@ async function main() {
 
   /* --- ⑪ 這一層不影響走位：四周每個方向都走得到 --- */
   const handleClear = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     const blocked = [];
     for (const spec of g.handleData.entries) {
       let free = 0;
@@ -5993,7 +6221,7 @@ async function main() {
 
   /* --- ⑫ 讀題的時候不會被器物打斷（面板開著時不接 E） --- */
   const handleQuiet = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     const spec = g.handleData.entries.find((e) => e.kind === 'gong');
     const obj = g.world.handles.object(spec.id);
     g.player.teleport(spec.at[0] + 1.8, spec.at[1] + 1.8);
@@ -6016,7 +6244,7 @@ async function main() {
   /* --- ⑧ 重整之後兩個新欄位都還在 --- */
   await reloadPage('Phase 22 重整');
   const persisted = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     await new Promise((r) => setTimeout(r, 200));
     const spec = g.inscriptionData.entries[0];
     return {
@@ -6072,11 +6300,11 @@ async function main() {
   // 前一段做過一次重整 → 標題卡又擋在前面。用鍵盤把它按掉（本來就是「按任意鍵開始」）
   await key('Enter', 'Enter', { vk: 13 });
   await sleep(700);
-  eq(await evaluate(`return window.__promptarcade.title.isOpen;`), false, '按鍵就收得掉標題卡');
+  eq(await evaluate(`return window.__promptasy.title.isOpen;`), false, '按鍵就收得掉標題卡');
 
   // 場面清乾淨：把前面測試留下的任何一層收掉，把操控權還給角色
   await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     if (g.prologue.isActive) g.prologue.skip();
     await new Promise((r) => setTimeout(r, 200));
     // 跳過序章的人會拿到一張操作說明卡 —— 收掉它
@@ -6097,7 +6325,7 @@ async function main() {
   // 挑一關還沒通關、而且有石碑流程的；把角色放在「鏡頭正前方 9 公尺」的位置，
   // 這樣按住 W 就會直直走過去（走的方向是鏡頭看出去的方向）
   const kbTarget = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     const c = g.content.challenges.find((c) => !g.progression.isCleared(c.id) && g.content.flow(c.id));
     const m = g.world.markers.find((m) => m.id === c.id);
     const yaw = g.player.cameraYaw;
@@ -6120,7 +6348,7 @@ async function main() {
   const kbWalk = await waitFor(
     () =>
       evaluate(`
-        const g = window.__promptarcade;
+        const g = window.__promptasy;
         const m = g.world.markers.find((m) => m.id === '${kbTarget.id}');
         const d = Math.hypot(g.player.position.x - m.position.x, g.player.position.z - m.position.z);
         const el = document.querySelector('.hud__interact');
@@ -6136,7 +6364,7 @@ async function main() {
   await key('KeyE', 'e', { vk: 69 });
   await sleep(500);
   const kbAct1 = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     return { open: g.promptConsole.isOpen, act: g.promptConsole.act, id: g.promptConsole.challenge?.id };
   `);
   eq(kbAct1.open, true, '按 E 打開了這一關');
@@ -6146,7 +6374,7 @@ async function main() {
   await key('Enter', 'Enter', { vk: 13 });
   await sleep(420);
   const kbAct2 = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     return {
       act: g.promptConsole.act,
       glyphs: document.querySelectorAll('#prompt-console [data-guidance] .glyph').length,
@@ -6180,7 +6408,7 @@ async function main() {
   await key('Enter', 'Enter', { vk: 13 });
   await sleep(420);
   const kbAct3 = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     return {
       act: g.promptConsole.act,
       focusedOnOption: document.activeElement?.classList.contains('opt'),
@@ -6210,7 +6438,7 @@ async function main() {
   const kbCarve = [];
   for (let i = 0; i < kbTarget.slots; i += 1) {
     const idx = await evaluate(`
-      const g = window.__promptarcade;
+      const g = window.__promptasy;
       const flow = g.content.flow('${kbTarget.id}');
       const s = flow.slots[g.promptConsole.stele.progress.carved];
       return s ? s.options.findIndex((o) => o.correct) : -1;
@@ -6221,7 +6449,7 @@ async function main() {
     await sleep(420);
     kbCarve.push(
       await evaluate(`
-        const g = window.__promptarcade;
+        const g = window.__promptasy;
         return {
           carved: g.promptConsole.stele.progress.carved,
           lit: document.querySelectorAll('#prompt-console .checklist li.is-pass').length,
@@ -6238,7 +6466,7 @@ async function main() {
   );
 
   const kbPalm = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     return {
       act: g.promptConsole.act,
       palmFocused: document.activeElement === document.querySelector('#prompt-console [data-palm]'),
@@ -6255,7 +6483,7 @@ async function main() {
   await keyUp('Enter', 'Enter', { vk: 13 });
   await sleep(700);
   const kbResult = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     return {
       fired: g.promptConsole.stele.fired,
       resultShown: !document.querySelector('#prompt-console [data-result]').hidden,
@@ -6274,7 +6502,7 @@ async function main() {
   await key('KeyS', 's', { vk: 83 });
   await sleep(700);
   const kbShare = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     return {
       open: g.shareCard.isOpen,
       consoleStillOpen: g.promptConsole.isOpen,
@@ -6290,7 +6518,7 @@ async function main() {
   await key('Escape', 'Escape', { vk: 27 });
   await sleep(400);
   const kbAfterShare = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     return { share: g.shareCard.isOpen, console: g.promptConsole.isOpen };
   `);
   eq(kbAfterShare.share, false, 'Esc 先收分享卡');
@@ -6298,13 +6526,13 @@ async function main() {
 
   await key('Escape', 'Escape', { vk: 27 });
   await sleep(400);
-  eq(await evaluate(`return window.__promptarcade.promptConsole.isOpen;`), false, '再按一次 Esc 收起這一關');
+  eq(await evaluate(`return window.__promptasy.promptConsole.isOpen;`), false, '再按一次 Esc 收起這一關');
 
   // --- C 翻圖鑑：方向鍵走條目、Enter 展開 ---
   await key('KeyC', 'c', { vk: 67 });
   await sleep(600);
   const kbCodexOpen = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     const body = document.querySelector('#codex .panel__body');
     return {
       open: g.codex.isOpen,
@@ -6346,7 +6574,7 @@ async function main() {
 
   await key('Escape', 'Escape', { vk: 27 });
   await sleep(400);
-  eq(await evaluate(`return window.__promptarcade.codex.isOpen;`), false, 'Esc 收起圖鑑');
+  eq(await evaluate(`return window.__promptasy.codex.isOpen;`), false, 'Esc 收起圖鑑');
 
   // --- O 設定：Tab 走到下拉、方向鍵改值、空白鍵切勾勾 ---
   await key('KeyO', 'o', { vk: 79 });
@@ -6370,7 +6598,7 @@ async function main() {
   onQuality = await evaluate(`return document.activeElement?.id === 'set-quality';`);
   eq(onQuality, true, `Tab 走得到畫質（走了 ${tabs} 下）`);
 
-  const qualityBefore = await evaluate(`return window.__promptarcade.progression.state.settings.quality;`);
+  const qualityBefore = await evaluate(`return window.__promptasy.progression.state.settings.quality;`);
   // 停在最後一項時要往上按 —— 方向不重要，重點是「不用滑鼠也改得動」
   const atLast = await evaluate(`
     const sel = document.querySelector('#set-quality');
@@ -6382,7 +6610,7 @@ async function main() {
   await key(goKey, goKey, { vk: goVk });
   await sleep(500);
   const kbQuality = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     return { setting: g.progression.state.settings.quality, engine: g.engine.quality, value: document.querySelector('#set-quality').value };
   `);
   ok(kbQuality.setting !== qualityBefore, '方向鍵真的把下拉改掉了', `${qualityBefore} → ${kbQuality.setting}`);
@@ -6391,18 +6619,18 @@ async function main() {
   await key(backKey, backKey, { vk: backVk });
   await sleep(500);
   eq(
-    await evaluate(`return window.__promptarcade.progression.state.settings.quality;`),
+    await evaluate(`return window.__promptasy.progression.state.settings.quality;`),
     qualityBefore,
     '方向鍵也改得回去'
   );
 
   // 空白鍵切勾勾（靜音）
   await evaluate(`document.querySelector('#set-mute').focus(); return 1;`);
-  const muteBefore = await evaluate(`return window.__promptarcade.progression.state.settings.muted;`);
+  const muteBefore = await evaluate(`return window.__promptasy.progression.state.settings.muted;`);
   await key('Space', ' ', { vk: 32 });
   await sleep(320);
   const kbMute = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     return { setting: g.progression.state.settings.muted, checked: document.querySelector('#set-mute').checked };
   `);
   eq(kbMute.setting, !muteBefore, '空白鍵切得動勾勾');
@@ -6410,29 +6638,29 @@ async function main() {
   await key('Space', ' ', { vk: 32 });
   await sleep(320);
   eq(
-    await evaluate(`return window.__promptarcade.progression.state.settings.muted;`),
+    await evaluate(`return window.__promptasy.progression.state.settings.muted;`),
     muteBefore,
     '再按一次就切回來'
   );
 
   await key('Escape', 'Escape', { vk: 27 });
   await sleep(400);
-  eq(await evaluate(`return window.__promptarcade.settings.isOpen;`), false, 'Esc 收起設定');
+  eq(await evaluate(`return window.__promptasy.settings.isOpen;`), false, 'Esc 收起設定');
 
   // --- 鏡頭拉遠 / 拉近：以前只有滾輪，現在 - 與 = 都行 ---
-  const zoomStart = await evaluate(`return window.__promptarcade.player.cameraDistance;`);
+  const zoomStart = await evaluate(`return window.__promptasy.player.cameraDistance;`);
   await keyDown('Minus', '-', { vk: 189 });
   await sleep(700);
   await keyUp('Minus', '-', { vk: 189 });
   await sleep(200);
-  const zoomOut = await evaluate(`return window.__promptarcade.player.cameraDistance;`);
+  const zoomOut = await evaluate(`return window.__promptasy.player.cameraDistance;`);
   ok(zoomOut > zoomStart + 0.5, '按 - 鏡頭真的拉遠了', `${zoomStart.toFixed(2)} → ${zoomOut.toFixed(2)}`);
 
   await keyDown('Equal', '=', { vk: 187 });
   await sleep(900);
   await keyUp('Equal', '=', { vk: 187 });
   await sleep(200);
-  const zoomIn = await evaluate(`return window.__promptarcade.player.cameraDistance;`);
+  const zoomIn = await evaluate(`return window.__promptasy.player.cameraDistance;`);
   ok(zoomIn < zoomOut - 0.5, '按 = 鏡頭又拉回來', `${zoomOut.toFixed(2)} → ${zoomIn.toFixed(2)}`);
 
   // 上下限夾得住（按到底也不會翻過去）
@@ -6441,7 +6669,7 @@ async function main() {
   await keyUp('Minus', '-', { vk: 189 });
   await sleep(200);
   const zoomRange = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     return { d: g.player.cameraDistance, max: g.player.zoomRange.max, min: g.player.zoomRange.min };
   `);
   ok(zoomRange.d <= zoomRange.max + 0.001, '拉遠到底就停住', JSON.stringify(zoomRange));
@@ -6451,7 +6679,7 @@ async function main() {
   await key('Slash', '?', { vk: 191, modifiers: 8 });
   await sleep(600);
   const kbHelp = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     const rows = Array.from(document.querySelectorAll('#keyhelp .keyhelp__row'));
     const body = document.querySelector('#keyhelp .panel__body');
     return {
@@ -6481,7 +6709,7 @@ async function main() {
 
   // 操作一覽打開時角色不會被方向鍵帶著跑
   const helpFrozen = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     const before = { x: g.player.position.x, z: g.player.position.z };
     window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyW' }));
     await new Promise((r) => setTimeout(r, 500));
@@ -6493,7 +6721,7 @@ async function main() {
   await key('Escape', 'Escape', { vk: 27 });
   await sleep(400);
   const kbHelpClosed = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     return { open: g.keyhelp.isOpen, anyOpen: g.promptConsole.isOpen || g.codex.isOpen || g.settings.isOpen };
   `);
   eq(kbHelpClosed.open, false, 'Esc 收起操作一覽');
@@ -6502,14 +6730,14 @@ async function main() {
   // 收起之後角色又動得了（操控權還回來了）
   await keyDown('KeyW', 'w', { vk: 87 });
   await sleep(600);
-  const kbWalkAgain = await evaluate(`return window.__promptarcade.player.speed;`);
+  const kbWalkAgain = await evaluate(`return window.__promptasy.player.speed;`);
   await keyUp('KeyW', 'w', { vk: 87 });
   await sleep(500);
   ok(kbWalkAgain > 1, '收起操作一覽之後角色又動得了', kbWalkAgain.toFixed(2));
 
   /* --- 打字的時候，單鍵快捷一律失效 --- */
   const kbTypingSetup = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     g.promptConsole.setMode('free');
     g.promptConsole.open(g.content.challenges[0]);
     await new Promise((r) => setTimeout(r, 300));
@@ -6549,7 +6777,7 @@ async function main() {
   }
   await sleep(400);
   const kbTyped = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     const ta = document.querySelector('#prompt-console .prompt-input');
     return {
       value: ta.value,
@@ -6581,13 +6809,13 @@ async function main() {
   await key('Escape', 'Escape', { vk: 27 });
   await sleep(420);
   eq(
-    await evaluate(`return window.__promptarcade.promptConsole.isOpen;`),
+    await evaluate(`return window.__promptasy.promptConsole.isOpen;`),
     false,
     '在輸入框裡按 Esc 也收得起來（不會被關在裡面）'
   );
 
   // 把答題方式切回預設，不影響後面的測試
-  await evaluate(`window.__promptarcade.promptConsole.setMode('guided'); return 1;`);
+  await evaluate(`window.__promptasy.promptConsole.setMode('guided'); return 1;`);
   await sleep(200);
 
   /* ================================================================ */
@@ -6614,7 +6842,7 @@ async function main() {
   }
 
   await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     g.promptConsole.close(); g.codex.close(); g.settings.close();
     g.promptConsole.setMode('guided');
     return 1;
@@ -6623,7 +6851,7 @@ async function main() {
 
   /* --- 資料層：三種題型都在，其他 24 關一個位元組都沒變 --- */
   const kinds = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     const flows = g.content.flowFile.flows;
     const out = { total: g.content.challenges.length, byKind: { choice: 0, order: 0, workshop: 0 }, missing: [] };
     for (const c of g.content.challenges) {
@@ -6650,7 +6878,7 @@ async function main() {
    * 一、排序刻印：純鍵盤走完（拿起 → 搬 → 放下 → 亮燈 → 手印 → S）
    * ---------------------------------------------------------------- */
   const orderOpen = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     g.promptConsole.open(g.content.challenge('long-scroll-tower-23'));
     await new Promise((r) => setTimeout(r, 260));
     const actAtOpen = g.promptConsole.act;
@@ -6698,7 +6926,7 @@ async function main() {
 
   // 純鍵盤：Enter 拿起 → ↓ 搬 → Enter 放下
   const lift = await evaluate(`
-    const b = window.__promptarcade.orderBoardProbe = window.__promptarcade.promptConsole.orderBoard;
+    const b = window.__promptasy.orderBoardProbe = window.__promptasy.promptConsole.orderBoard;
     document.querySelector('#prompt-console [data-slip="question"]').focus();
     return 1;
   `);
@@ -6706,7 +6934,7 @@ async function main() {
   await key('Enter', 'Enter', { vk: 13 });
   await sleep(200);
   const held = await evaluate(`
-    const b = window.__promptarcade.promptConsole.orderBoard;
+    const b = window.__promptasy.promptConsole.orderBoard;
     return {
       held: b.held,
       pressed: document.querySelector('#prompt-console [data-slip="question"]').getAttribute('aria-pressed'),
@@ -6726,7 +6954,7 @@ async function main() {
   await key('ArrowDown', 'ArrowDown', { vk: 40 });
   await sleep(160);
   const moved = await evaluate(`
-    const b = window.__promptarcade.promptConsole.orderBoard;
+    const b = window.__promptasy.promptConsole.orderBoard;
     return { arrangement: b.arrangement, live: b.announcement, held: b.held,
       focused: document.activeElement?.getAttribute('data-slip'),
       ranks: [...document.querySelectorAll('#prompt-console .slip__rank')].map((n) => n.textContent) };
@@ -6740,7 +6968,7 @@ async function main() {
   await key('Enter', 'Enter', { vk: 13 });
   await sleep(320);
   const dropped = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     const b = g.promptConsole.orderBoard;
     return {
       held: b.held,
@@ -6780,7 +7008,7 @@ async function main() {
   await mouse('mouseReleased', palmBox.x, palmBox.y);
   await sleep(700);
   const orderResult = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     return {
       fired: g.promptConsole.orderBoard.fired,
       grade: document.querySelector('#prompt-console .grade__mark')?.textContent.trim(),
@@ -6799,7 +7027,7 @@ async function main() {
 
   /* --- 指標拖曳：用真的滑鼠事件把石版拖到別的位置 --- */
   await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     g.promptConsole.open(g.content.challenge('priority-stair-42'));
     await new Promise((r) => setTimeout(r, 260));
     g.promptConsole.goAct(3, { force: true });
@@ -6807,7 +7035,7 @@ async function main() {
     return 1;
   `);
   const stairBefore = await evaluate(`
-    const b = window.__promptarcade.promptConsole.orderBoard;
+    const b = window.__promptasy.promptConsole.orderBoard;
     return { arrangement: b.arrangement, correct: b.correctOrder, slips: document.querySelectorAll('#prompt-console .slip').length };
   `);
   eq(stairBefore.slips, 4, '優先序階梯有 4 片石版');
@@ -6833,7 +7061,7 @@ async function main() {
   await mouse('mouseReleased', drag.toX, drag.toY);
   await sleep(360);
   const dragged = await evaluate(`
-    const b = window.__promptarcade.promptConsole.orderBoard;
+    const b = window.__promptasy.promptConsole.orderBoard;
     return { arrangement: b.arrangement, right: b.progress.right,
       rightMark: document.querySelector('#prompt-console .slip[data-slip-id="role"]').classList.contains('is-right') };
   `);
@@ -6843,7 +7071,7 @@ async function main() {
 
   // 排錯不會失敗：手掌印不出現、不扣分、也不會跳結果面板
   const stillSafe = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     const b = g.promptConsole.orderBoard;
     b.arrange(['role', 'context', 'format', 'task']);
     await new Promise((r) => setTimeout(r, 160));
@@ -6861,7 +7089,7 @@ async function main() {
   eq(stillSafe.canGo4, false, '排錯時第四幕按不下去');
 
   const stairDone = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     const b = g.promptConsole.orderBoard;
     const xpBefore = g.progression.state.xp;
     b.arrange(b.correctOrder);
@@ -6883,7 +7111,7 @@ async function main() {
    * 二、神諭工坊：純鍵盤走完整條派工流程
    * ---------------------------------------------------------------- */
   const wsOpen = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     g.promptConsole.close();
     await new Promise((r) => setTimeout(r, 200));
     const c = g.content.challenge('oracle-workshop-36');
@@ -6960,7 +7188,7 @@ async function main() {
 
   // 挑錯工具 → 就地教學、不扣分、不前進
   const badTool = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     document.querySelector('#prompt-console [data-tool="ledger"]').focus();
     return 1;
   `);
@@ -6968,7 +7196,7 @@ async function main() {
   await enterNative();
   await sleep(320);
   const badToolOut = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     const btn = document.querySelector('#prompt-console [data-tool="ledger"]');
     const fb = btn.querySelector('[data-tool-fb]');
     return {
@@ -6996,7 +7224,7 @@ async function main() {
   await enterNative();
   await sleep(260);
   const afterFirstTool = await evaluate(`
-    const w = window.__promptarcade.promptConsole.workshop;
+    const w = window.__promptasy.promptConsole.workshop;
     return { chosen: w.dispatch.chosen, stage: w.stage,
       taken: document.querySelector('#prompt-console [data-tool="weather"]').classList.contains('is-taken'),
       slip: [...document.querySelectorAll('#prompt-console .workshop .carved')].map((li) => li.textContent).join('|'),
@@ -7012,7 +7240,7 @@ async function main() {
   await enterNative();
   await sleep(360);
   const paramStage = await evaluate(`
-    const w = window.__promptarcade.promptConsole.workshop;
+    const w = window.__promptasy.promptConsole.workshop;
     return {
       stage: w.stage,
       progress: document.querySelector('#prompt-console .workshop .carve__progress').textContent.trim(),
@@ -7037,7 +7265,7 @@ async function main() {
   await enterNative();
   await sleep(240);
   const stoneHeld = await evaluate(`
-    const w = window.__promptarcade.promptConsole.workshop;
+    const w = window.__promptasy.promptConsole.workshop;
     return { held: w.held, live: w.announcement,
       pressed: document.querySelector('#prompt-console [data-stone="yesterday"]')?.getAttribute('aria-pressed'),
       focused: document.activeElement?.getAttribute('data-pslot') };
@@ -7050,7 +7278,7 @@ async function main() {
   await enterNative();
   await sleep(320);
   const badDrop = await evaluate(`
-    const w = window.__promptarcade.promptConsole.workshop;
+    const w = window.__promptasy.promptConsole.workshop;
     const slot = document.querySelector('#prompt-console [data-pslot="weather.place"]');
     return {
       fbShown: !slot.querySelector('[data-pslot-fb]').hidden,
@@ -7085,7 +7313,7 @@ async function main() {
     await sleep(260);
   }
   const orderStage = await evaluate(`
-    const w = window.__promptarcade.promptConsole.workshop;
+    const w = window.__promptasy.promptConsole.workshop;
     return {
       stage: w.stage,
       values: w.dispatch.values,
@@ -7119,7 +7347,7 @@ async function main() {
   await key('Enter', 'Enter', { vk: 13 });
   await sleep(400);
   const ruleStage = await evaluate(`
-    const w = window.__promptarcade.promptConsole.workshop;
+    const w = window.__promptasy.promptConsole.workshop;
     return {
       stage: w.stage,
       ordered: w.dispatch.ordered,
@@ -7147,7 +7375,7 @@ async function main() {
   await enterNative();
   await sleep(300);
   const badRule = await evaluate(`
-    const w = window.__promptarcade.promptConsole.workshop;
+    const w = window.__promptasy.promptConsole.workshop;
     const btn = document.querySelector('#prompt-console .workshop [data-rule="0"]');
     return {
       wrong: btn.classList.contains('is-wrong'),
@@ -7170,7 +7398,7 @@ async function main() {
   await typeChar('2', 'Digit2', 50);
   await sleep(420);
   const wsDone = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     const w = g.promptConsole.workshop;
     return {
       done: w.done,
@@ -7198,7 +7426,7 @@ async function main() {
   await mouse('mouseReleased', wsPalm.x, wsPalm.y);
   await sleep(700);
   const wsResult = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     return {
       fired: g.promptConsole.workshop.fired,
       grade: document.querySelector('#prompt-console .grade__mark')?.textContent.trim(),
@@ -7217,7 +7445,7 @@ async function main() {
 
   /* --- 新石座：世界上真的有一座、走近互動得到 --- */
   const pedestal = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     g.promptConsole.close();
     await new Promise((r) => setTimeout(r, 220));
     const c = g.content.challenge('oracle-workshop-36');
@@ -7249,7 +7477,7 @@ async function main() {
 
   /* --- 換一種答題方式：自由書寫仍然照舊 --- */
   const wsFree = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     g.promptConsole.open(g.content.challenge('oracle-workshop-36'));
     await new Promise((r) => setTimeout(r, 240));
     g.promptConsole.goAct(3, { force: true });
@@ -7281,7 +7509,7 @@ async function main() {
 
   /* --- 24 關的石碑刻印一個位元組都沒變 --- */
   const untouched = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     g.promptConsole.open(g.content.challenge('gate-of-clarity-01'));
     await new Promise((r) => setTimeout(r, 240));
     g.promptConsole.goAct(3, { force: true });
@@ -7308,7 +7536,7 @@ async function main() {
   await cdp.send('Emulation.setDeviceMetricsOverride', { width: 820, height: 760, deviceScaleFactor: 1, mobile: false }, sessionId);
   await sleep(320);
   const narrow27 = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     const out = {};
     g.promptConsole.open(g.content.challenge('long-scroll-tower-23'));
     await new Promise((r) => setTimeout(r, 240));
@@ -7333,9 +7561,104 @@ async function main() {
   await sleep(300);
 
   /* ================================================================ */
+  console.log('\n▸ 改名（Promptasy）與舊存檔搬家（Phase 29）');
+
+  const branding = await evaluate(`
+    const html = document.documentElement.innerHTML;
+    return {
+      docTitle: document.title,
+      ogTitle: document.querySelector('meta[property="og:title"]')?.getAttribute('content') || '',
+      desc: document.querySelector('meta[name="description"]')?.getAttribute('content') || '',
+      oldNameInDom: /PromptArcade/.test(document.body.innerText),
+      hasNew: !!window.__promptasy,
+      aliasWorks: window.__promptarcade === window.__promptasy,
+      saveKey: !!localStorage.getItem('promptasy.v1.save') || localStorage.getItem('promptasy.v1.save') === null,
+    };
+  `);
+  eq(branding.docTitle, 'Promptasy — Learn Prompt Engineering by Playing', 'document.title 是新品牌名');
+  eq(branding.ogTitle, 'Promptasy — Learn Prompt Engineering by Playing', 'og:title 是新品牌名');
+  ok(/learn prompt engineering by playing/i.test(branding.desc), 'meta description 的定位句還在', branding.desc.slice(0, 70));
+  eq(branding.oldNameInDom, false, '畫面上找不到舊品牌名');
+  eq(branding.hasNew, true, '除錯把手改叫 window.__promptasy');
+  eq(branding.aliasWorks, true, '舊名字 window.__promptarcade 留成別名（外面的腳本不會壞）');
+
+  // 種一份「改名前」的存檔（只寫舊 key），重整後所有進度都要在
+  await evaluate(`
+    localStorage.clear();
+    localStorage.setItem('promptarcade.v1.save', JSON.stringify({
+      version: 1, xp: 540, level: 5,
+      unlockedRegions: ['foundations', 'reasoning'],
+      collected: ['clarity-01', 'clarity-03', 'positive-01'],
+      bestGrades: { 'gate-of-clarity-01': 'S', 'postbox-sprite-02': 'A', 'lost-automaton-03': 'S' },
+      loreRead: ['lore-hub-01'],
+      badges: { openai: 1, anthropic: 2, google: 0, xai: 0 },
+      settings: { music: 'ambient-01', volume: 0.27, quality: 'high', muted: true, promptMode: 'free' },
+      flags: { introSeen: true, prologueDone: true }
+    }));
+    return 1;
+  `);
+  await reloadPage('舊存檔搬家後重新載入');
+  await key('Enter', 'Enter', { vk: 13 });
+  await sleep(600);
+
+  const migrated = await evaluate(`
+    const g = window.__promptasy;
+    return {
+      xp: g.progression.state.xp,
+      level: g.progression.levelInfo().level,
+      collected: g.progression.state.collected.length,
+      cleared: Object.keys(g.progression.state.bestGrades).length,
+      grade: g.progression.bestGrade('gate-of-clarity-01'),
+      lore: g.progression.loreReadCount(),
+      unlocked: g.progression.isRegionUnlocked('reasoning'),
+      skipped: g.progression.skippedGateCount(),
+      volume: g.progression.state.settings.volume,
+      promptMode: g.progression.state.settings.promptMode,
+      prologueDone: g.progression.isPrologueDone(),
+      introOpen: g.intro.isOpen,
+      newKey: !!localStorage.getItem('promptasy.v1.save'),
+      oldKeyKept: !!localStorage.getItem('promptarcade.v1.save'),
+      newKeyXp: JSON.parse(localStorage.getItem('promptasy.v1.save')).xp,
+    };
+  `);
+  eq(migrated.xp, 540, '舊存檔的 XP 一分不少地搬過來');
+  eq(migrated.level, 4, '等級由搬過來的 XP 重算（540 XP = Lv.4）');
+  eq(migrated.collected, 3, '已收集技巧搬過來了');
+  eq(migrated.cleared, 3, '關卡評價搬過來了');
+  eq(migrated.grade, 'S', '評價本身沒有被改掉');
+  eq(migrated.lore, 1, '讀過的石碑搬過來了');
+  eq(migrated.unlocked, true, '已解鎖區域搬過來了');
+  eq(migrated.skipped, 0, '舊存檔沒有的新欄位補成空的（不會憑空多出先行前往）');
+  eq(migrated.volume, 0.27, '設定搬過來了');
+  eq(migrated.promptMode, 'free', '答題方式搬過來了');
+  eq(migrated.prologueDone, true, '老玩家不會被塞回教學');
+  eq(migrated.introOpen, false, '看過的操作說明也不會再彈一次');
+  eq(migrated.newKey, true, '搬完立刻寫進新 key');
+  eq(migrated.oldKeyKept, true, '舊 key 原封不動留著（想退版還在）');
+  eq(migrated.newKeyXp, 540, '寫進新 key 的內容正確');
+
+  // 重置：新舊兩個 key 都要清掉，不然重整又會被搬回來
+  const bothCleared = await evaluate(`
+    const g = window.__promptasy;
+    g.settings.open();
+    await new Promise((r) => setTimeout(r, 200));
+    document.querySelector('#settings [data-reset]').click();
+    await new Promise((r) => setTimeout(r, 120));
+    document.querySelector('#settings [data-reset]').click();
+    await new Promise((r) => setTimeout(r, 260));
+    g.settings.close();
+    return {
+      newKey: localStorage.getItem('promptasy.v1.save'),
+      oldKey: localStorage.getItem('promptarcade.v1.save'),
+    };
+  `);
+  eq(bothCleared.newKey, null, '重置清掉新 key');
+  eq(bothCleared.oldKey, null, '重置也清掉改名前的舊 key（不會被搬回來）');
+
+  /* ================================================================ */
   console.log('\n▸ 重置');
   const reset = await evaluate(`
-    const g = window.__promptarcade;
+    const g = window.__promptasy;
     g.settings.open();
     await new Promise((r) => setTimeout(r, 200));
     document.querySelector('#settings [data-reset]').click();
@@ -7346,7 +7669,7 @@ async function main() {
       xp: g.progression.state.xp,
       collected: g.progression.state.collected.length,
       cleared: Object.keys(g.progression.state.bestGrades).length,
-      storage: localStorage.getItem('promptarcade.v1.save'),
+      storage: localStorage.getItem('promptasy.v1.save'),
     };
   `);
   eq(reset.xp, 0, '重置後 XP 歸零');

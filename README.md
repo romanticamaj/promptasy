@@ -1,4 +1,4 @@
-# PromptArcade — Learn Prompt Engineering by Playing
+# Promptasy — Learn Prompt Engineering by Playing
 
 > A browser game to learn prompt engineering by playing — explore a world and solve challenges by writing prompts. Techniques from OpenAI, Anthropic, Google & xAI, each cited.
 
@@ -57,7 +57,7 @@
 | <kbd>←</kbd><kbd>→</kbd> / 滑鼠拖曳 | 轉鏡頭 |
 | <kbd>↑</kbd><kbd>↓</kbd> / 向上拖曳 / <kbd>空白鍵</kbd> | 抬頭看天空 / 低頭 |
 | <kbd>-</kbd><kbd>=</kbd> / 滑鼠滾輪 | 鏡頭拉遠 / 拉近（別名 <kbd>PageDown</kbd><kbd>PageUp</kbd>） |
-| <kbd>E</kbd> | 與石座互動 / 閱讀世界觀石碑 / 查看閘門條件 |
+| <kbd>E</kbd> | 與石座互動 / 閱讀世界觀石碑 / 問問橋上的門（可先行前往） |
 | <kbd>C</kbd> | 技巧圖鑑 |
 | <kbd>O</kbd> | 設定（音量 / 靜音 / 畫質 / 重置進度） |
 | <kbd>?</kbd> | 操作一覽（隨時叫得出來，讀題讀到一半也行） |
@@ -104,7 +104,7 @@ npm run test:e2e     # headless Chrome 端到端驗證（會自己起 dev server
 ## 專案結構
 
 ```
-promptarcade/
+promptasy/
 ├─ CLAUDE.md                 # 北極星文件：願景、護欄、路線圖、變更紀錄
 ├─ index.html
 ├─ vite.config.js

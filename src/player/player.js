@@ -1,5 +1,5 @@
 /**
- * PromptArcade — 第三人稱角色控制器 ＋ 跟隨鏡頭
+ * Promptasy — 第三人稱角色控制器 ＋ 跟隨鏡頭
  *
  * 角色是有骨節的人形旅人（見 `character.js`）——全部由 three.js 基本幾何體組成，成本近乎零。
  * 手感（M5）全部靠這一支檔案：
@@ -426,6 +426,10 @@ export function createPlayer({ engine, quality = 'high', startPosition = [0, 0],
     /** 這一幀是否按著 Shift。 */
     get running() {
       return running;
+    },
+    /** 現在接不接受操控（面板打開時為 false）。 */
+    get inputEnabled() {
+      return inputEnabled;
     },
     setInputEnabled(v) {
       inputEnabled = v;

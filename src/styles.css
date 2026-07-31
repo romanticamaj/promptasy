@@ -1,5 +1,5 @@
 /* ================================================================
-   PromptArcade — UI 設計系統 · 「夜間檔案館 / The Night Archive」
+   Promptasy — UI 設計系統 · 「夜間檔案館 / The Night Archive」
    ================================================================
 
    一個身分，五個面板都照著走：
@@ -3211,6 +3211,65 @@ select option:disabled {
   color: var(--paper-4);
 }
 .lore__hint {
+  margin: var(--s5) 0 0;
+  font-size: var(--t-meta);
+  color: var(--paper-4);
+}
+
+/* ============================================================ 橋上的門會問你
+   Phase 29：條件沒到也走得過去 —— 門會先問一句。
+   刻意跟石碑同一個調性（一條金線、幾行大字），但底下多兩個要選的東西。 */
+.overlay--gateask .panel {
+  width: min(560px, 100%);
+}
+.gateask {
+  position: relative;
+  padding: var(--s2) 0;
+}
+.gateask__mark {
+  width: 40px;
+  height: 1px;
+  margin: 0 0 var(--s6);
+  background: linear-gradient(90deg, var(--gold), rgba(230, 199, 155, 0));
+}
+.gateask__line {
+  margin: 0 0 var(--s3);
+  font-family: var(--font-prose);
+  font-size: 1.55rem;
+  line-height: var(--lh-prose);
+  letter-spacing: 0.04em;
+  color: #e4eef6;
+  text-wrap: pretty;
+  animation: reveal-in var(--d-reveal) var(--e-out) both;
+  animation-delay: calc(var(--i, 0) * 80ms);
+}
+.gateask__need {
+  margin: 0 0 var(--s4);
+  padding: var(--s2) var(--s3);
+  border-left: 2px solid var(--gold);
+  background: rgba(230, 199, 155, 0.06);
+  font-family: var(--font-ui);
+  font-size: var(--t-meta);
+  letter-spacing: var(--tr-cjk);
+  color: var(--gold);
+  animation: reveal-in var(--d-reveal) var(--e-out) both;
+  animation-delay: calc(var(--i, 0) * 80ms);
+}
+.gateask__warn {
+  margin: 0 0 var(--s6);
+  font-family: var(--font-ui);
+  font-size: var(--t-meta);
+  letter-spacing: var(--tr-cjk);
+  color: var(--paper-4);
+  animation: reveal-in var(--d-reveal) var(--e-out) both;
+  animation-delay: calc(var(--i, 0) * 80ms);
+}
+.gateask__acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s3);
+}
+.gateask__hint {
   margin: var(--s5) 0 0;
   font-size: var(--t-meta);
   color: var(--paper-4);

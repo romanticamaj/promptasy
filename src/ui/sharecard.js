@@ -1,5 +1,5 @@
 /**
- * PromptArcade — 可分享的結果卡（Phase 21）
+ * Promptasy — 可分享的結果卡（Phase 21）
  *
  * 玩家在里程碑（通關 / 圖鑑 / 區域精通 / 隱藏成就）按下「分享」，
  * 就地用 canvas 畫一張 1200×630 的圖（og-image 比例，貼到聊天室或社群都不會被裁壞）。
@@ -47,7 +47,7 @@ export const CARD_H = 630;
  * 不是一個連結。留著這個常數是為了之後真的部署時有地方可以改。
  * TODO 部署後改成正式網址
  */
-export const SHARE_URL = 'https://github.com/romanticamaj/promptarcade';
+export const SHARE_URL = 'https://github.com/romanticamaj/promptasy';
 
 /** 品牌那一句（和 index.html 的標題同一句）。 */
 export const SHARE_TAGLINE = 'Learn Prompt Engineering by Playing';
@@ -59,15 +59,15 @@ export function shareText(model = {}) {
   const got = `已把 ${model.collected ?? 0} / ${model.total ?? 0} 條技法刻進圖鑑`;
   if (model.kind === 'result' && model.headline) {
     const grade = model.grade ? `，評價 ${model.grade}` : '';
-    return `我在 PromptArcade 通過了「${model.headline}」${grade} —— 現在的稱號是「${rank}」（Lv.${lv}），${got}。`;
+    return `我在 Promptasy 通過了「${model.headline}」${grade} —— 現在的稱號是「${rank}」（Lv.${lv}），${got}。`;
   }
   if (model.kind === 'mastery' && model.headline) {
-    return `我在 PromptArcade 收齊了一片土地：${model.headline} —— 現在的稱號是「${rank}」（Lv.${lv}），${got}。`;
+    return `我在 Promptasy 收齊了一片土地：${model.headline} —— 現在的稱號是「${rank}」（Lv.${lv}），${got}。`;
   }
   if (model.kind === 'finale') {
-    return `我在 PromptArcade 走完了整趟旅程 —— 稱號「${rank}」（Lv.${lv}），${got}。`;
+    return `我在 Promptasy 走完了整趟旅程 —— 稱號「${rank}」（Lv.${lv}），${got}。`;
   }
-  return `我在 PromptArcade 修行成了「${rank}」（Lv.${lv}）—— ${got}。`;
+  return `我在 Promptasy 修行成了「${rank}」（Lv.${lv}）—— ${got}。`;
 }
 
 /**
@@ -90,7 +90,7 @@ export function shareCaption(model = {}) {
  */
 export const SHARE_PROBE = (() => {
   try {
-    return new File([new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10])], 'promptarcade.png', { type: 'image/png' });
+    return new File([new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10])], 'promptasy.png', { type: 'image/png' });
   } catch {
     return null;
   }
@@ -464,9 +464,9 @@ export function drawCard(canvas, m) {
   ctx.save();
   ctx.font = `500 20px ${FONT_DISPLAY}`;
   ctx.fillStyle = '#c8d5e3';
-  ctx.fillText('PromptArcade', L, CARD_H - 46);
+  ctx.fillText('Promptasy', L, CARD_H - 46);
   // 品牌名的寬度會隨字型載入狀態變動 —— 一定要量，不能寫死偏移量
-  const brandW = ctx.measureText('PromptArcade').width;
+  const brandW = ctx.measureText('Promptasy').width;
   ctx.font = `400 16px ${FONT_META}`;
   ctx.fillStyle = '#66768d';
   ctx.fillText('— Learn Prompt Engineering by Playing', L + brandW + 12, CARD_H - 46);
@@ -539,7 +539,7 @@ export function createShareCard({ content, progression, ranksFile, onClose, onTo
       `500 22px 'Arcade Sans TC'`,
     ];
     try {
-      await Promise.all(wanted.map((f) => document.fonts.load(f, '刻印 PromptArcade')));
+      await Promise.all(wanted.map((f) => document.fonts.load(f, '刻印 Promptasy')));
       await document.fonts.ready;
     } catch {
       /* 字型載不起來就用系統字型畫 —— 卡片還是出得來 */
@@ -583,14 +583,14 @@ export function createShareCard({ content, progression, ranksFile, onClose, onTo
   }
 
   function fileName(model) {
-    return `promptarcade-${model.kind}-lv${model.level}-${model.collected}of${model.total}.png`;
+    return `promptasy-${model.kind}-lv${model.level}-${model.collected}of${model.total}.png`;
   }
 
   async function render(opts) {
     await ensureFonts();
     lastModel = buildModel(opts);
     drawCard(canvas, lastModel);
-    const alt = `PromptArcade 結果卡：${lastModel.rankTitle} · Lv.${lastModel.level} · 已收集 ${lastModel.collected} / ${lastModel.total} 條技巧`;
+    const alt = `Promptasy 結果卡：${lastModel.rankTitle} · Lv.${lastModel.level} · 已收集 ${lastModel.collected} / ${lastModel.total} 條技巧`;
     canvas.setAttribute('aria-label', alt);
 
     const dl = overlay.body.querySelector('[data-download]');
@@ -714,7 +714,7 @@ export function createShareCard({ content, progression, ranksFile, onClose, onTo
           <div class="sharecard__acts">
             <button class="btn btn--primary" type="button" data-sysshare hidden aria-label="把這張圖和這段話一起分享出去">分享圖＋文</button>
             ${canCopy ? '<button class="btn btn--primary" type="button" data-copy>複製圖＋文</button>' : ''}
-            <a class="btn btn--ghost" data-download download="promptarcade.png" href="#">下載圖片</a>
+            <a class="btn btn--ghost" data-download download="promptasy.png" href="#">下載圖片</a>
             <button class="btn btn--ghost" type="button" data-back>回去</button>
           </div>
           <p class="sharecard__hint" id="sharecard-sayhint">開啟 Facebook / Instagram / Threads 直接貼上 —— 圖和文字會一起送出。</p>

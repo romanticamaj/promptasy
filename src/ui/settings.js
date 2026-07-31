@@ -1,5 +1,5 @@
 /**
- * PromptArcade — 設定頁：音量 / 靜音 / 畫質 / 重置進度（二次確認）
+ * Promptasy — 設定頁：音量 / 靜音 / 畫質 / 重置進度（二次確認）
  */
 import { createOverlay, esc } from './dom.js';
 
@@ -94,6 +94,11 @@ export function createSettings({
             <li>已解鎖區域 <b>${progression.state.unlockedRegions
               .map((id) => esc((content.group(id) || {}).name || id))
               .join('、')}</b></li>
+            ${
+              progression.skippedGateCount() > 0
+                ? `<li>其中 <b>${progression.skippedGateCount()}</b> 道門是你先行前往的（門開了，關還在那裡等你）</li>`
+                : ''
+            }
           </ul>
         </section>
 

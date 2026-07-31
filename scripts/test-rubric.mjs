@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * PromptArcade — 離線 rubric 引擎自我測試
+ * Promptasy — 離線 rubric 引擎自我測試
  *
  *   npm run test:rubric
  *
@@ -3986,11 +3986,11 @@ const { SHARE_URL, SHARE_TAGLINE, shareText, shareCaption, systemShareSupported 
 const shareSrc = readFileSync(resolve(root, 'src/ui/sharecard.js'), 'utf8');
 
 /* --- 網址：留一個常數給部署用，但不進玩家看到的那段話 --- */
-eq(SHARE_URL, 'https://github.com/romanticamaj/promptarcade', '網址常數還在（部署後才會改）');
+eq(SHARE_URL, 'https://github.com/romanticamaj/promptasy', '網址常數還在（部署後才會改）');
 ok(/TODO 部署後改成正式網址/.test(shareSrc), '網址上面留著「部署後要改」的字條');
 ok(/^https:\/\//.test(SHARE_URL), '網址常數是 https');
 ok((shareSrc.match(/https?:\/\//g) || []).length <= 1, '整份檔案只有一個對外網址（沒有偷偷冒出別的網域）');
-ok(!/promptarcade\.(app|com|io|dev)/.test(shareSrc), '沒有憑空發明的網域');
+ok(!/promptasy\.(app|com|io|dev)/.test(shareSrc), '沒有憑空發明的網域');
 eq(SHARE_TAGLINE, 'Learn Prompt Engineering by Playing', '品牌那一句和網站標題一致');
 
 /* --- 零 SDK / 零外部腳本（護欄 3） --- */
@@ -4019,7 +4019,7 @@ const shareModel = {
 const codexText = shareText(shareModel);
 ok(codexText.includes('釋義者'), '那句話帶著稱號', codexText);
 ok(codexText.includes('46 / 68'), '那句話帶著收集進度', codexText);
-ok(codexText.includes('PromptArcade'), '那句話講得出這是什麼遊戲', codexText);
+ok(codexText.includes('Promptasy'), '那句話講得出這是什麼遊戲', codexText);
 ok(/[一-鿿]/.test(codexText), '那句話是中文');
 ok(codexText.length <= 90, `那句話不長（${codexText.length} 字）`);
 const resultText = shareText({ ...shareModel, kind: 'result', headline: '清晰之門', grade: 'S' });
@@ -4043,7 +4043,7 @@ for (const kind of ['codex', 'result', 'mastery', 'finale']) {
   const c = shareCaption({ ...shareModel, kind, headline: '清晰之門', grade: 'S' });
   ok(!/https?:\/\//.test(c), `${kind} 那段話裡沒有任何連結`, c);
   ok(!/github/i.test(c), `${kind} 那段話裡沒有程式碼倉庫的字眼`, c);
-  ok(c.includes('PromptArcade'), `${kind} 那段話講得出這是什麼遊戲`);
+  ok(c.includes('Promptasy'), `${kind} 那段話講得出這是什麼遊戲`);
   ok(c.length <= 120, `${kind} 那段話不長（${c.length} 字）`);
 }
 eq(shareCaption({}).includes('旅人'), true, '沒資料時那段話也生得出來');
@@ -4434,6 +4434,238 @@ ok(/<kbd>\?<\/kbd>/.test(introSrc), '開場的操作說明卡提到 `?`');
 ok(/data-keys/.test(settingsSrc) && /操作一覽/.test(settingsSrc), '設定頁有「操作一覽」的入口');
 ok(/\? 操作一覽/.test(hudSrc), 'HUD 底下那行提到 `?`');
 ok(/onOpenKeyHelp/.test(mainSrc), '設定頁的入口真的接到操作一覽');
+
+
+/* ================================================================== */
+/* Phase 29a：橋上的門會問你（先行前往）                              */
+/* ================================================================== */
+console.log('\n▸ 先行前往（詢問式閘門）');
+
+{
+  // 全新存檔：欄位在、是空的
+  eq(SaveIO.defaultSave().skippedGates.length, 0, '新存檔的 skippedGates 是空的');
+  // 舊存檔（Phase 28 之前）沒有這個欄位 → normalize 要補成空陣列，不能是 undefined
+  const old = SaveIO.normalize({ version: 1, xp: 300, collected: ['clarity-01'] });
+  ok(Array.isArray(old.skippedGates), '舊存檔沒有 skippedGates → 補成空陣列');
+  eq(old.skippedGates.length, 0, '補出來的是空陣列');
+  eq(SaveIO.normalize({ skippedGates: ['a', 'a', 9, 'b'] }).skippedGates.length, 2, 'skippedGates 去重並丟掉非字串');
+  // 純加法：不能動到任何既有欄位
+  eq(old.xp, 300, '新增欄位不影響 XP');
+  eq(old.collected.length, 1, '新增欄位不影響圖鑑');
+
+  memory.clear();
+  const prog = createProgression({ curriculum, challenges });
+
+  // 一開始只有 foundations
+  eq(prog.isRegionUnlocked('reasoning'), false, '一開始 reasoning 是鎖住的');
+  const before = prog.gateStatus('reasoning');
+  eq(before.unlocked, false, '門是關的');
+  eq(before.skipped, false, '而且不是先行前往開的');
+  ok(before.needs.length >= 1, '講得出還差什麼', before.needs.join(' / '));
+  ok(before.text.includes('先行前往'), '門上的說明有講「也可以先行前往」', before.text);
+
+  // 先行前往
+  const res = prog.skipGate('reasoning');
+  eq(res.opened, true, '「直接前往」真的把門打開了');
+  eq(prog.isRegionUnlocked('reasoning'), true, '那一區變成走得進去');
+  eq(prog.hasSkippedGate('reasoning'), true, '記下「這道門是被問開的」');
+  eq(prog.skippedGateCount(), 1, '先行前往的門數對得上');
+  eq(prog.gateStatus('reasoning').skipped, true, 'gateStatus 也照實說');
+
+  // 記帳誠實：一分 XP、一條技巧、一個徽章、一關評價都不能多
+  eq(prog.state.xp, 0, '先行前往不給 XP');
+  eq(prog.state.collected.length, 0, '先行前往不收技巧');
+  eq(Object.keys(prog.state.bestGrades).length, 0, '先行前往不寫任何一關的評價');
+  eq(prog.clearedCount('foundations'), 0, '前一區的通關數沒有被灌水');
+  eq(Object.values(prog.state.badges).reduce((a, b) => a + b, 0), 0, '徽章一個都沒多');
+  eq(prog.levelInfo().level, 1, '等級沒有被推上去');
+
+  // 重複按不會重複記
+  const again = prog.skipGate('reasoning');
+  eq(again.opened, false, '已經開了的門不會再開一次');
+  eq(again.alreadyOpen, true, '而且說得出「本來就開著」');
+  eq(prog.skippedGateCount(), 1, '不會重複記帳');
+
+  // 不認得的區域 id 不能偷開門
+  eq(prog.skipGate('atlantis').opened, false, '不存在的區域開不了');
+  eq(prog.skipGate('').opened, false, '空字串開不了');
+  eq(prog.skippedGateCount(), 1, '亂傳的參數不會污染記錄');
+
+  // 存檔：寫得進去、重讀還在
+  const reloaded = createProgression({ curriculum, challenges });
+  eq(reloaded.hasSkippedGate('reasoning'), true, '先行前往跨重整還記得');
+  eq(reloaded.isRegionUnlocked('reasoning'), true, '那一區重整後仍然走得進去');
+  eq(reloaded.state.xp, 0, '重整後 XP 仍然是誠實的 0');
+
+  // 之後真的把條件補滿 → 不會再慶祝一次（它已經在 unlockedRegions 裡）
+  const clears = ['gate-of-clarity-01', 'postbox-sprite-02', 'lost-automaton-03', 'mimic-mirror-04'];
+  let lastOutcome = null;
+  for (const id of clears) {
+    const c = challenges.find((x) => x.id === id);
+    lastOutcome = reloaded.recordResult({
+      challengeId: id,
+      passed: true,
+      grade: 'S',
+      teaches: c.teaches || [],
+      baseXp: c.xp,
+    });
+  }
+  eq(reloaded.clearedCount('foundations'), 4, '真的把前一區打到 4 關');
+  ok(reloaded.levelInfo().level >= 3, '等級也真的到了', `Lv.${reloaded.levelInfo().level}`);
+  eq(
+    (lastOutcome.newlyUnlocked || []).includes('reasoning'),
+    false,
+    '條件補滿時不會把已經先行前往的門算成「新解鎖」（不會慶祝兩次）'
+  );
+  eq(reloaded.hasSkippedGate('reasoning'), true, '記號留著 —— 它仍然是被問開的那道門');
+
+  // 重置：先行前往的記錄要一起清掉
+  reloaded.resetAll();
+  eq(reloaded.skippedGateCount(), 0, '重置後先行前往的記錄清空');
+  eq(reloaded.isRegionUnlocked('reasoning'), false, '重置後那道門重新關上');
+  memory.clear();
+}
+
+// 世界與 UI 的接線（靜態掃描）
+{
+  const gateSrc = srcOf('src/ui/gate.js');
+  const worldSrc = srcOf('src/world/world.js');
+  ok(/直接前往/.test(gateSrc), '對話框有「直接前往」');
+  ok(/先留下修行/.test(gateSrc), '對話框有「先留下修行」');
+  ok(/前方的試煉不會因此變簡單/.test(gateSrc), '有把話講清楚：門開了不代表題目變簡單');
+  ok(/還差：/.test(gateSrc), '對話框說得出還差什麼');
+  ok(!/https?:\/\//.test(gateSrc), '這是世界的一句話，不放官方連結（護欄 2）');
+  ok(/createOverlay/.test(gateSrc), '沿用共用的覆蓋層（焦點鎖 / Esc / aria 都在）');
+  ok(/focus: article\.querySelector\('\[data-stay\]'\)/.test(gateSrc), '預設焦點在「先留下修行」，不會誤按越過一整區');
+  ok(/gateAsk\.isOpen \|\|/.test(mainSrc), '對話框打開時世界停手（算進 anyPanelOpen）');
+  ok(/gateAsk\.isOpen\) gateAsk\.close\(\)/.test(mainSrc), 'Esc 收得起來');
+  ok(/function proceedThroughGate/.test(mainSrc), '「直接前往」接到真的開門');
+  ok(/world\.openGate\(regionId, true\)/.test(mainSrc), '開門帶著屏障淡出 ＋ 擴散光環（和考過時一樣）');
+  ok(/GATE_ASK_RADIUS/.test(mainSrc), '走到門前會自己問（不用先學一個鍵）');
+  ok(/gateAskSnoozed/.test(mainSrc), '選了「先留下修行」就不會被連問');
+  ok(/status\.skipped/.test(worldSrc), '門上的字說得出「你是先行前往的」');
+  ok(/skippedGateCount\(\) > 0/.test(settingsSrc), '設定頁誠實列出先行前往過幾道門');
+  ok(/問問這道門/.test(mainSrc), 'HUD 的互動提示改成「問問這道門」');
+  ok(/橋上的門/.test(srcOf('src/ui/keyhelp.js')), '操作一覽提到橋上的門也按 E');
+}
+
+/* ================================================================== */
+/* Phase 29b：改名（PromptArcade → Promptasy）與存檔搬家              */
+/* ================================================================== */
+console.log('\n▸ 改名與存檔搬家');
+
+{
+  eq(SaveIO.SAVE_KEY, 'promptasy.v1.save', '存檔 key 換成新的命名空間');
+  ok(SaveIO.LEGACY_SAVE_KEYS.includes('promptarcade.v1.save'), '舊 key 記在遷移清單裡');
+
+  // (1) 全新：兩個 key 都沒有 → 新存檔
+  memory.clear();
+  eq(SaveIO.load().xp, 0, '兩個 key 都沒有 → 全新存檔');
+
+  // (2) 只有舊 key → 搬過來，一分不少
+  memory.clear();
+  const legacySave = {
+    version: 1,
+    xp: 640,
+    level: 6,
+    unlockedRegions: ['foundations', 'reasoning', 'grounding'],
+    collected: ['clarity-01', 'clarity-03', 'positive-01'],
+    bestGrades: { 'gate-of-clarity-01': 'S', 'postbox-sprite-02': 'A' },
+    loreRead: ['t1', 't2'],
+    prologueSteps: ['p-a'],
+    guidanceSeen: ['gate-of-clarity-01'],
+    inscriptionsFound: ['i1'],
+    secretsFound: ['s1'],
+    handlesUsed: ['h1'],
+    badges: { openai: 2, anthropic: 3, google: 1, xai: 0 },
+    settings: { music: 'ambient-01', volume: 0.33, quality: 'low', muted: true, promptMode: 'free' },
+    flags: { introSeen: true, prologueDone: true },
+  };
+  memory.set('promptarcade.v1.save', JSON.stringify(legacySave));
+  const moved = SaveIO.load();
+  eq(moved.xp, 640, '舊存檔的 XP 搬過來了');
+  eq(moved.level, 6, '等級搬過來了');
+  eq(moved.collected.length, 3, '已收集技巧搬過來了');
+  eq(Object.keys(moved.bestGrades).length, 2, '關卡評價搬過來了');
+  eq(moved.bestGrades['gate-of-clarity-01'], 'S', '評價本身沒有被改掉');
+  eq(moved.unlockedRegions.length, 3, '已解鎖區域搬過來了');
+  eq(moved.loreRead.length, 2, '讀過的石碑搬過來了');
+  eq(moved.prologueSteps.length, 1, '序章進度搬過來了');
+  eq(moved.guidanceSeen.length, 1, '看過的神諭刻文搬過來了');
+  eq(moved.inscriptionsFound.length, 1, '刻文小語搬過來了');
+  eq(moved.secretsFound.length, 1, '找到的祕密搬過來了');
+  eq(moved.handlesUsed.length, 1, '動過的器物搬過來了');
+  eq(moved.badges.anthropic, 3, '徽章搬過來了');
+  eq(moved.settings.volume, 0.33, '設定搬過來了');
+  eq(moved.settings.promptMode, 'free', '答題方式搬過來了');
+  eq(moved.flags.prologueDone, true, '旗標搬過來了（不會被塞回教學）');
+  eq(moved.skippedGates.length, 0, '舊存檔沒有的新欄位補成空陣列');
+  ok(memory.has('promptasy.v1.save'), '搬完立刻寫進新 key');
+  ok(memory.has('promptarcade.v1.save'), '舊 key 原封不動留著（想退版還在）');
+  eq(JSON.parse(memory.get('promptasy.v1.save')).xp, 640, '寫進新 key 的內容正確');
+
+  // (3) 兩個都在 → 新的優先（不能被舊的蓋回去）
+  memory.clear();
+  memory.set('promptarcade.v1.save', JSON.stringify({ version: 1, xp: 10 }));
+  memory.set('promptasy.v1.save', JSON.stringify({ version: 1, xp: 999 }));
+  eq(SaveIO.load().xp, 999, '兩個 key 都在時，新的優先');
+
+  // (4) 只有舊 key 而且壞掉 → 不會爆，退回新存檔
+  memory.clear();
+  memory.set('promptarcade.v1.save', '{ 壞掉的 json');
+  const realWarn2 = console.warn;
+  console.warn = () => {};
+  eq(SaveIO.load().xp, 0, '舊 key 壞掉也不會讓遊戲開不起來');
+  console.warn = realWarn2;
+
+  // (5) 重置：兩個 key 都清掉（不然重整又會被搬回來）
+  memory.clear();
+  memory.set('promptarcade.v1.save', JSON.stringify({ version: 1, xp: 500 }));
+  memory.set('promptasy.v1.save', JSON.stringify({ version: 1, xp: 500 }));
+  SaveIO.reset();
+  eq(memory.has('promptasy.v1.save'), false, '重置清掉新 key');
+  eq(memory.has('promptarcade.v1.save'), false, '重置也清掉舊 key');
+  eq(SaveIO.load().xp, 0, '重置後重整仍然是新存檔（沒有被搬回來）');
+  memory.clear();
+}
+
+// 品牌字串掃描
+{
+  const titleSrc = srcOf('src/ui/title.js');
+  const indexHtml = srcOf('index.html');
+  const pkg = JSON.parse(srcOf('package.json'));
+  eq([...'Promptasy'].length, 9, '品牌名是 9 個字元（標題卡的拆字數）');
+  ok(/const NAME = 'Promptasy'/.test(titleSrc), '標題卡的品牌名已改');
+  ok(!/PromptArcade/.test(titleSrc), '標題卡不再出現舊名');
+  ok(indexHtml.includes('<title>Promptasy — Learn Prompt Engineering by Playing</title>'), 'index.html 的 title 已改');
+  ok(indexHtml.includes('og:title" content="Promptasy'), 'og:title 已改');
+  ok(!/PromptArcade/.test(indexHtml), 'index.html 不再出現舊名');
+  eq(pkg.name, 'promptasy', 'package.json 的名字已改');
+  ok(/Learn Prompt Engineering by Playing/.test(titleSrc), '定位句留著（沒有跟著改名一起被砍掉）');
+  // 分享出去的那段話
+  ok(/Promptasy/.test(shareSrc), '分享的那段話落款是新名字');
+  ok(!/PromptArcade/.test(shareSrc), '分享的那段話沒有舊名字殘留');
+  eq(SHARE_URL, 'https://github.com/romanticamaj/promptasy', '網址常數跟著改名');
+  // 除錯把手：新名字要有，舊名字留成別名
+  ok(/window\.__promptasy = \{/.test(mainSrc), '除錯把手改叫 __promptasy');
+  ok(/window\.__promptarcade = window\.__promptasy/.test(mainSrc), '舊名字留成別名（外面的腳本不會壞）');
+  // 遊戲裡看得到的字串一律不准再出現舊名
+  for (const rel of [
+    'src/ui/codex.js',
+    'src/ui/settings.js',
+    'src/ui/intro.js',
+    'src/ui/achievement.js',
+    'src/ui/hud.js',
+    'src/data/ranks.json',
+    'src/data/builder-zh.json',
+    'src/data/curriculum-zh.json',
+    'src/data/dated-notes.json',
+  ]) {
+    ok(!/PromptArcade/.test(srcOf(rel)), `${rel} 不再出現舊品牌名`);
+  }
+  // 存檔那一支是唯一還准提舊名的地方（遷移用）
+  ok(/promptarcade\.v1\.save/.test(srcOf('src/save/save.js')), '存檔模組留著舊 key（遷移需要）');
+}
 
 /* ------------------------------------------------------------------ */
 console.log('');

@@ -1,5 +1,5 @@
 /**
- * PromptArcade — 首次進入的教學提示（看過就記在存檔裡，不再打擾）
+ * Promptasy — 首次進入的教學提示（看過就記在存檔裡，不再打擾）
  */
 import { el } from './dom.js';
 
@@ -11,7 +11,7 @@ export function createIntro({ onDismiss }) {
   root.setAttribute('aria-label', '操作說明');
   root.innerHTML = `
     <div class="intro__card">
-      <p class="intro__eyebrow">PromptArcade — Foundations</p>
+      <p class="intro__eyebrow">Promptasy — Foundations</p>
       <h1 class="intro__title">高原上的第一課</h1>
       <p class="intro__lead">
         你是一名旅人。這座高原上的居民都在等一段「講得夠清楚的話」。

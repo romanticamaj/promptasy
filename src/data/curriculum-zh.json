@@ -1,7 +1,7 @@
 {
   "version": 1,
   "authored": "game",
-  "note": "官方範例的中文譯寫層。這一份是 PromptArcade 自己寫的中文版本，讓中文玩家看得懂那些官方範例在做什麼；它不是任何廠商的官方文字，也不當作引文使用。畫面上一律「中文在前、官方英文原文收在可展開的『原文 ↗』裡並附可點的出處」。每條技巧的官方說法與出處以 curriculum.json 的 techniques[].example / tip / note / sources 為準，那一份逐字未改。",
+  "note": "官方範例的中文譯寫層。這一份是 Promptasy 自己寫的中文版本，讓中文玩家看得懂那些官方範例在做什麼；它不是任何廠商的官方文字，也不當作引文使用。畫面上一律「中文在前、官方英文原文收在可展開的『原文 ↗』裡並附可點的出處」。每條技巧的官方說法與出處以 curriculum.json 的 techniques[].example / tip / note / sources 為準，那一份逐字未改。",
   "techniques": {
     "clarity-01": {
       "example": "黃金法則：「把你的 prompt 拿給一位對這個任務幾乎沒有背景的同事看，請他照著做一次。如果他會困惑，模型也會。」"

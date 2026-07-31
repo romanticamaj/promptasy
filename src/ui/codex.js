@@ -1,5 +1,5 @@
 /**
- * PromptArcade — 圖鑑（Codex / 搜集）
+ * Promptasy — 圖鑑（Codex / 搜集）
  *
  * 5 大區域 → 15 主題 → 68 條技巧。
  * 已收集：展開看說明、範例、模型差異、可點的官方出處。
@@ -172,7 +172,7 @@ export function createCodex({
           ${
             view.translated
               ? `<details class="origin"><summary>原文 ↗（官方英文）</summary>
-                  <p class="origin__note">上面那段中文是 PromptArcade 自己寫的譯寫，方便閱讀；下面才是官方文件的原文。</p>
+                  <p class="origin__note">上面那段中文是 Promptasy 自己寫的譯寫，方便閱讀；下面才是官方文件的原文。</p>
                   ${origin.tip ? `<p class="origin__body" lang="en">${esc(origin.tip)}</p>` : ''}
                   ${origin.example ? `<pre class="origin__body" lang="en">${esc(origin.example)}</pre>` : ''}
                   ${origin.note ? `<p class="origin__body" lang="en">${safeRich(origin.note)}</p>` : ''}

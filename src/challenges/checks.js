@@ -1,5 +1,5 @@
 /**
- * PromptArcade — 離線 rubric 檢查器（Offline rubric checks）
+ * Promptasy — 離線 rubric 檢查器（Offline rubric checks）
  *
  * 設計原則（見 CLAUDE.md「關卡與評分引擎」）：
  *  1. 判定「技巧是否被『運用』」，不是比對固定字串 → 反作弊。

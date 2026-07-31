@@ -1,5 +1,5 @@
 /**
- * PromptArcade — 世界：五片土地、連接橋、關卡石座、區域閘門、氛圍粒子
+ * Promptasy — 世界：五片土地、連接橋、關卡石座、區域閘門、氛圍粒子
  *
  * 全部用 three.js 幾何體程序化生成（本期不下載任何外部模型），
  * 靠打光 / 霧 / 配色 / 後製做出「看起來很貴」的畫面。
@@ -2137,8 +2137,11 @@ export function createWorld({
     refreshGates() {
       for (const gate of gates) {
         const status = progression.gateStatus(gate.id);
-        if (status.unlocked) gate.open(false);
-        else gate.setLabel(status.text);
+        if (status.unlocked) {
+          gate.open(false);
+          // Phase 29：先行前往的門照實說 —— 它是被問開的，不是被考過的
+          if (status.skipped) gate.setLabel('已開啟 · 你先行前往');
+        } else gate.setLabel(status.text);
       }
     },
 

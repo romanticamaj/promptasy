@@ -37,6 +37,7 @@
     "src/ui/codex.js",
     "src/ui/compass.js",
     "src/ui/dom.js",
+    "src/ui/gate.js",
     "src/ui/handle.js",
     "src/ui/hud.js",
     "src/ui/inscription.js",

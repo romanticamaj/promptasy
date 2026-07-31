@@ -1,5 +1,5 @@
 /**
- * PromptArcade — 神諭工坊（派工檯：工具使用 / function calling 的操作題）
+ * Promptasy — 神諭工坊（派工檯：工具使用 / function calling 的操作題）
  *
  * Phase 27。前面 26 關教的都是「怎麼把話寫清楚」，但**神諭會用工具**這件事，
  * 用選擇題講不清楚 —— 一般人聽完「function calling」四個字還是不知道那是什麼。

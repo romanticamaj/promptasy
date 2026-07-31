@@ -1,4 +1,4 @@
-# WORLD.md — PromptArcade 世界觀聖經
+# WORLD.md — Promptasy 世界觀聖經
 
 > 這片土地上曾經有一群人學會了跟神諭說話。
 > 他們留下的東西還在。你是後來的旅人，沿著他們走出來的路，把這件事重新學一遍。
@@ -54,7 +54,10 @@ CLAUDE.md 的六條開發護欄仍然優先於本文件的任何美學主張。�
 | `orchestration` | 流程與代理 | 西南 · 齒輪工坊 | 金屬、有節奏、偏綠 | 把大事拆小 | 巨臂吊車 |
 | `config` | 角色與參數 | 東南 · 面具劇場 | 舞台光、暖、偏紅 | 換上面具再開口 | 面具拱門 |
 
-四條橋中央各有一道**閘門**：鎖住時真的走不過去，解鎖條件是「等級 ＋ 前一區通關數」。
+四條橋中央各有一道**閘門**：解鎖條件是「等級 ＋ 前一區通關數」。
+條件沒到時門是關的，但**它會問你一句**——走到門前（或按 `E`）會出現「這道門的考驗還沒完成（還差…）。想先過去看看嗎？前方的試煉不會因此變簡單」。
+選「直接前往」門就開了（記進存檔的 `skippedGates`），選「先留下修行」門留著、走遠再回來才會再問一次。
+**先行前往開的是門，不是進度**：不給 XP、不收技巧、不寫任何一關的評價——所有數字照實計；之後真的補滿條件時也不會再慶祝一次。
 過一座橋是一個**事件**——霧色、色偏、環境光、配樂全部平滑漂移，外加一記光湧。
 
 ### 1.5 NPC 與「誰在說話」
@@ -401,9 +404,10 @@ traveler*                主角的關節
 
 ### 5.4 存檔欄位
 
-`promptarcade.v1.save`。新增欄位一律**純加法**，並在 `normalize()` 裡給預設值（舊存檔不能因此壞掉，也不能被塞回教學）。
-`loreRead` / `inscriptionsFound` / `secretsFound` / `handlesUsed` / `prologueSteps` / `guidanceSeen`
-**都不寫 `bestGrades`**——它們不佔「已通關 x / 26」，也不算區域解鎖的通關數。
+`promptasy.v1.save`（Phase 29 由 `promptarcade.v1.save` 改名，`load()` 會把舊 key 搬過來、舊的留在原地；`reset()` 兩個都清）。新增欄位一律**純加法**，並在 `normalize()` 裡給預設值（舊存檔不能因此壞掉，也不能被塞回教學）。
+`loreRead` / `inscriptionsFound` / `secretsFound` / `handlesUsed` / `prologueSteps` / `guidanceSeen` / `skippedGates`
+**都不寫 `bestGrades`**——它們不佔「已通關 x / 27」，也不算區域解鎖的通關數。
+`skippedGates` 只記「這道門是被問開的」——它會讓 `unlockedRegions` 多一區，但一分 XP、一條技巧、一個徽章都不加。
 
 ---
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * PromptArcade — 模擬玩家驗收（Phase 10）
+ * Promptasy — 模擬玩家驗收（Phase 10）
  *
  *   npm run test:playtest
  *

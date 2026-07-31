@@ -1,5 +1,5 @@
 /**
- * PromptArcade — 進入點
+ * Promptasy — 進入點
  *
  * Phase 4（M4 美術與氛圍 ＋ M5 音樂與手感）：
  *   標題卡 → 3D 世界（星空 / 極光 / 貼地霧 / 光柱）→ 走到石座 → 按 E →
@@ -41,6 +41,7 @@ import { createSettings } from './ui/settings.js';
 import { createIntro } from './ui/intro.js';
 import { createTablet } from './ui/tablet.js';
 import { createInscription } from './ui/inscription.js';
+import { createGateAsk } from './ui/gate.js';
 import { createHandlePanel } from './ui/handle.js';
 import { HANDLE_VERBS, HANDLE_VERBS_USED, HANDLE_KINDS, CAPSTAN_TURNS } from './world/handles.js';
 
@@ -336,6 +337,24 @@ function boot() {
   });
   ui.appendChild(inscriptionPanel.root);
 
+  /* --- Phase 29：橋上的門會問你一句（條件沒到也能先行前往） --- */
+  const gateAsk = createGateAsk({
+    onProceed: (regionId) => proceedThroughGate(regionId),
+    onStay: (regionId) => {
+      // 留下來修行：這道門暫時不再問（走遠一點再回來才會重新問一次）
+      gateAskSnoozed = regionId;
+      const g = content.group(regionId);
+      hud.toast(`${g ? g.name : regionId}：門還在那裡，等你準備好。`, 'info');
+    },
+    onClose: (opts = {}) => {
+      audio.cue('close');
+      // Esc / 點背景關掉 = 先留下修行（不會偷偷幫你開門）
+      if (opts.regionId) gateAskSnoozed = opts.regionId;
+      closePanel();
+    },
+  });
+  ui.appendChild(gateAsk.root);
+
   /* --- Phase 25：器物的小窗（只有陶罐與指路石會開它） --- */
   const handlePanel = createHandlePanel({
     onClose: () => {
@@ -482,6 +501,7 @@ function boot() {
     finale.isOpen ||
     tabletPanel.isOpen ||
     inscriptionPanel.isOpen ||
+    gateAsk.isOpen ||
     handlePanel.isOpen ||
     practice.isOpen ||
     title.isOpen;
@@ -493,6 +513,13 @@ function boot() {
   let nearInscription = null;
   /** Phase 25：走近的器物（陶罐 / 火盆 / 響石 / 守望石 / 撈月池 / 指路石 / 絞盤 / 長凳）。 */
   let nearHandle = null;
+  /**
+   * Phase 29：剛剛選了「先留下修行」的那道門。
+   * 走遠一點（離開互動半徑）再回來才會重新問一次 —— 站在門口不會被連問。
+   */
+  let gateAskSnoozed = null;
+  /** 走到門前自動問一次的距離（比互動半徑 14 近很多：真的走到門口才問）。 */
+  const GATE_ASK_RADIUS = 7.5;
   /** 目前坐在哪一張長凳上（沒坐就是 null）。 */
   let seatedOn = null;
   /** 坐下之前的鏡頭距離 —— 起身要還回去。 */
@@ -514,6 +541,41 @@ function boot() {
       compass.refresh();
     }
     if (outcome.leveledUp) hud.toast(`升級了！Lv.${outcome.levelAfter}`, 'good');
+  }
+
+  /**
+   * Phase 29：問一問這道門。
+   * 已經開了的門不問（不管當初是考過的還是先行前往的）。
+   */
+  function askGate(gate) {
+    if (!gate) return false;
+    const status = progression.gateStatus(gate.meta.id);
+    if (status.unlocked) return false;
+    gateAskSnoozed = null;
+    openPanel(gateAsk, gate.meta, status);
+    return true;
+  }
+
+  /**
+   * 先行前往：把門打開讓玩家過去。
+   *
+   * 開的是門，不是進度 —— 不給 XP、不收技巧、不寫任何一關的評價。
+   * 所以「已通關 x / 27」「已收集 x / 68」「四廠徽章」一個數字都不會變。
+   */
+  function proceedThroughGate(regionId) {
+    const res = progression.skipGate(regionId);
+    if (!res.opened) return;
+    const g = content.group(regionId);
+    const name = g ? g.name : regionId;
+    world.openGate(regionId, true); // 和考過時一樣的屏障淡出 ＋ 擴散光環
+    world.refreshGates();
+    compass.refresh();
+    hud.refresh();
+    audio.cue('unlock');
+    engine.pulse(1.0);
+    // 刻意不說「解鎖」——你不是解開它，是它讓你先過去
+    hud.toast(`${name}：門為你開了。前方的試煉不會因此變簡單。`, 'info');
+    nudge.announceUnlock(regionId);
   }
 
   /** 讀一則刻文小語：第一次讀給少量 XP，並把它教的那條技巧寫進圖鑑。 */
@@ -722,6 +784,22 @@ function boot() {
     nearHandle = !blocked && hitHandle ? hitHandle.handle : null;
     nearGate = hitGate ? hitGate.gate : null;
 
+    /*
+     * Phase 29：走到門前，門自己會問。
+     * 不用學一個鍵、不用猜條件 —— 撞上去就知道自己有得選。
+     * 選了「先留下修行」之後要走遠一點（離開互動半徑）才會再問一次。
+     */
+    if (!nearGate || nearGate.id !== gateAskSnoozed) gateAskSnoozed = null;
+    if (
+      nearGate &&
+      hitGate.distance <= GATE_ASK_RADIUS &&
+      nearGate.id !== gateAskSnoozed &&
+      !progression.gateStatus(nearGate.meta.id).unlocked
+    ) {
+      askGate(nearGate);
+      return;
+    }
+
     if (nearMarker) {
       const best = progression.bestGrade(nearMarker.challenge.id);
       hud.setInteract(
@@ -762,7 +840,7 @@ function boot() {
       hud.setInteract(
         `<b>${nearGate.meta.name} · ${nearGate.meta.nameEn}</b><span>${
           status.unlocked ? '閘門已開啟 —— 沿著橋往前走' : status.text
-        }</span>`
+        }</span>${status.unlocked ? '' : '<kbd>E</kbd> 問問這道門'}`
       );
     } else {
       hud.setInteract(null);
@@ -786,6 +864,7 @@ function boot() {
       else if (finale.isOpen) finale.close();
       else if (tabletPanel.isOpen) tabletPanel.close();
       else if (inscriptionPanel.isOpen) inscriptionPanel.close();
+      else if (gateAsk.isOpen) gateAsk.close();
       else if (handlePanel.isOpen) handlePanel.close();
       return;
     }
@@ -825,13 +904,11 @@ function boot() {
       e.preventDefault();
       useHandle(nearHandle);
     } else if (e.code === 'KeyE' && nearGate) {
+      e.preventDefault();
       const status = progression.gateStatus(nearGate.meta.id);
-      hud.toast(
-        status.unlocked
-          ? `${nearGate.meta.name}：閘門已開啟，沿著橋往前走。`
-          : `${nearGate.meta.name}：${status.text}。`,
-        status.unlocked ? 'info' : 'warn'
-      );
+      // 還沒開的門：問一次「要不要先行前往」。已經開了的門只回一句話。
+      if (!status.unlocked) askGate(nearGate);
+      else hud.toast(`${nearGate.meta.name}：閘門已開啟，沿著橋往前走。`, 'info');
     } else if (e.code === 'KeyC') {
       openPanel(codex);
     } else if (e.code === 'KeyO') {
@@ -846,7 +923,7 @@ function boot() {
   title.open();
 
   // 除錯 / 自動化測試用的把手（純讀寫遊戲狀態，沒有任何外部連線）
-  window.__promptarcade = {
+  window.__promptasy = {
     content,
     progression,
     world,
@@ -874,6 +951,9 @@ function boot() {
     tabletPanel,
     inscriptionPanel,
     inscriptionData: inscriptionFile,
+    gateAsk,
+    /** Phase 29：走到門前問一次（測試 / 除錯用）。 */
+    askGate: (regionId) => askGate(world.gates.find((g) => g.id === regionId)),
     secretData: secretFile,
     handlePanel,
     handleData: handleFile,
@@ -881,9 +961,14 @@ function boot() {
     /** 目前坐在哪一張長凳上（測試用）。 */
     seatedOn: () => (seatedOn ? seatedOn.id : null),
   };
+  /**
+   * 改名前的舊名字（PromptArcade）。留成別名 —— 外面若有人寫了書籤小工具
+   * 或自己的測試腳本，不會因為改名就整個壞掉。
+   */
+  window.__promptarcade = window.__promptasy;
 
   console.info(
-    `[PromptArcade] 世界就緒 — ${content.challenges.length} 個關卡 / ${
+    `[Promptasy] 世界就緒 — ${content.challenges.length} 個關卡 / ${
       (curriculum.techniques || []).length
     } 條技巧 / ${world.gates.length} 道閘門 / Lv.${progression.levelInfo().level}`
   );

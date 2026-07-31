@@ -1,11 +1,24 @@
 /**
- * PromptArcade — 存檔（localStorage）
+ * Promptasy — 存檔（localStorage）
  *
- * key: promptarcade.v1.save（schema 見 CLAUDE.md）
+ * key: promptasy.v1.save（schema 見 CLAUDE.md）
  * 護欄 4：進度可存、可重置；載入必須容錯（壞掉的存檔不能讓遊戲開不起來）。
  */
 
-export const SAVE_KEY = 'promptarcade.v1.save';
+export const SAVE_KEY = 'promptasy.v1.save';
+
+/**
+ * Phase 29：遊戲改名（PromptArcade → Promptasy），存檔的 key 命名空間跟著改。
+ *
+ * 已經玩到一半的人不該因為改名就從頭來過，所以讀檔時多看一眼舊 key：
+ *   · 新 key 有東西 → 直接用新的（新的永遠優先，兩個都在也一樣）
+ *   · 新 key 沒有、舊 key 有 → 搬過來（寫進新 key），**舊 key 原封不動留著**
+ *
+ * 刻意不刪舊 key：萬一玩家在同一個瀏覽器上開著舊版分頁（或想退版），
+ * 舊存檔還在原地。它只有幾 KB，留著的代價遠低於刪錯的代價。
+ * 重置（reset）時兩個 key 都清掉 —— 「重新學習」就該是真的乾淨。
+ */
+export const LEGACY_SAVE_KEYS = Object.freeze(['promptarcade.v1.save']);
 export const SAVE_VERSION = 1;
 
 /** 全新存檔。 */
@@ -29,6 +42,10 @@ export function defaultSave() {
     secretsFound: [],
     // Phase 25：已經動過的器物 id（陶罐 / 火盆 / 響石…；純風味，不進圖鑑、不算徽章）
     handlesUsed: [],
+    // Phase 29：玩家選擇「先行前往」而提前開啟的閘門（區域 id）。
+    // 純記帳用 —— 它只說明「這道門是被問開的，不是被考過的」，
+    // 不影響 XP、圖鑑、徽章，也不會把任何一關算成已通關。
+    skippedGates: [],
     badges: { openai: 0, anthropic: 0, google: 0, xai: 0 },
     settings: {
       music: 'ambient-01',
@@ -49,7 +66,7 @@ function storage() {
   try {
     if (typeof localStorage === 'undefined') return null;
     // Safari 私密瀏覽等情況：存取本身就可能丟例外
-    const probe = '__promptarcade_probe__';
+    const probe = '__promptasy_probe__';
     localStorage.setItem(probe, '1');
     localStorage.removeItem(probe);
     return localStorage;
@@ -143,6 +160,8 @@ export function normalize(raw) {
     secretsFound: [...new Set(strArr(d.secretsFound) || [])],
     // Phase 25：舊存檔沒有 handlesUsed → 空陣列（純加法，不影響任何既有欄位）
     handlesUsed: [...new Set(strArr(d.handlesUsed) || [])],
+    // Phase 29：舊存檔沒有 skippedGates → 空陣列（純加法）
+    skippedGates: [...new Set(strArr(d.skippedGates) || [])],
     bestGrades,
     badges,
     settings,
@@ -150,16 +169,39 @@ export function normalize(raw) {
   };
 }
 
-/** 讀檔。壞掉 / 不存在 → 回傳全新存檔。 */
+/**
+ * 讀檔。壞掉 / 不存在 → 回傳全新存檔。
+ * 新 key 沒有東西時，會把改名前的舊 key 搬過來（見 LEGACY_SAVE_KEYS）。
+ */
 export function load() {
   const ls = storage();
   if (!ls) return defaultSave();
   try {
-    const raw = ls.getItem(SAVE_KEY);
+    let raw = ls.getItem(SAVE_KEY);
+    let migratedFrom = null;
+    if (!raw) {
+      for (const legacy of LEGACY_SAVE_KEYS) {
+        const old = ls.getItem(legacy);
+        if (old) {
+          raw = old;
+          migratedFrom = legacy;
+          break;
+        }
+      }
+    }
     if (!raw) return defaultSave();
-    return normalize(JSON.parse(raw));
+    const data = normalize(JSON.parse(raw));
+    if (migratedFrom) {
+      // 搬家：立刻寫進新 key（之後就走新的那條路），舊的留在原地
+      try {
+        ls.setItem(SAVE_KEY, JSON.stringify(data));
+      } catch {
+        /* 寫不進去（配額 / 私密瀏覽）也不影響這一次的遊玩 */
+      }
+    }
+    return data;
   } catch (err) {
-    console.warn('[PromptArcade] 存檔毀損，改用新存檔：', err);
+    console.warn('[Promptasy] 存檔毀損，改用新存檔：', err);
     return defaultSave();
   }
 }
@@ -172,7 +214,7 @@ export function save(data) {
     ls.setItem(SAVE_KEY, JSON.stringify(normalize(data)));
     return true;
   } catch (err) {
-    console.warn('[PromptArcade] 存檔失敗：', err);
+    console.warn('[Promptasy] 存檔失敗：', err);
     return false;
   }
 }
@@ -183,11 +225,13 @@ export function reset() {
   if (ls) {
     try {
       ls.removeItem(SAVE_KEY);
+      // 改名前的舊存檔一起清掉，不然「重置」之後重整又會被搬回來
+      for (const legacy of LEGACY_SAVE_KEYS) ls.removeItem(legacy);
     } catch (err) {
-      console.warn('[PromptArcade] 清除存檔失敗：', err);
+      console.warn('[Promptasy] 清除存檔失敗：', err);
     }
   }
   return defaultSave();
 }
 
-export default { SAVE_KEY, SAVE_VERSION, defaultSave, normalize, load, save, reset };
+export default { SAVE_KEY, LEGACY_SAVE_KEYS, SAVE_VERSION, defaultSave, normalize, load, save, reset };

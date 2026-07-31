@@ -1,5 +1,5 @@
 /**
- * PromptArcade — 刻文小語（inscribed props）
+ * Promptasy — 刻文小語（inscribed props）
  *
  * 世界裡的第三層互動，夾在既有的兩層之間：
  *

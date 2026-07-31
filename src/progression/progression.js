@@ -1,5 +1,5 @@
 /**
- * PromptArcade — 進程系統（XP / 等級 / 圖鑑收集 / 廠家徽章 / 區域解鎖）
+ * Promptasy — 進程系統（XP / 等級 / 圖鑑收集 / 廠家徽章 / 區域解鎖）
  *
  * 這一層不碰 DOM、不 import JSON，資料由外部注入 → 可在 node 測試腳本直接跑。
  */
@@ -154,17 +154,73 @@ export function createProgression({ curriculum, challenges, io = SaveIO, onChang
       const requiresOk = !requires || clearedHave >= clearedNeeded;
       const unlocked = api.isRegionUnlocked(regionId);
 
+      const skipped = api.hasSkippedGate(regionId);
+
       let text = '已開啟';
+      const needs = [];
       if (!unlocked) {
-        const parts = [];
-        if (!levelOk) parts.push(`Lv.${gate.level}（目前 Lv.${level}）`);
+        if (!levelOk) needs.push(`Lv.${gate.level}（目前 Lv.${level}）`);
         if (!requiresOk) {
           const prev = (curriculum.groups || []).find((g) => g.id === requires.region);
-          parts.push(`${prev ? prev.name : requires.region} 通關 ${clearedNeeded} 關（目前 ${clearedHave}）`);
+          needs.push(`${prev ? prev.name : requires.region} 通關 ${clearedNeeded} 關（目前 ${clearedHave}）`);
         }
-        text = parts.length ? `需要 ${parts.join(' ＋ ')}` : '條件已滿足，通過即可開啟';
+        // Phase 29：門檻沒到也走得過去 —— 條件照講，但要讓玩家知道他有得選
+        text = needs.length ? `需要 ${needs.join(' ＋ ')}　·　也可以先行前往` : '條件已滿足，通過即可開啟';
+      } else if (skipped) {
+        text = '已開啟 · 你是先行前往的';
       }
-      return { unlocked, level: gate.level, levelOk, requires, clearedNeeded, clearedHave, requiresOk, text };
+      return {
+        unlocked,
+        skipped,
+        level: gate.level,
+        levelOk,
+        requires,
+        clearedNeeded,
+        clearedHave,
+        requiresOk,
+        needs,
+        text,
+      };
+    },
+
+    /* ---------------------------------------------------------------- *
+     * Phase 29：先行前往（詢問式閘門）
+     *
+     * 已經懂這些東西的人不該被門擋住。走到門前會被問一次；
+     * 選「直接前往」就把那一區加進 unlockedRegions，並在 skippedGates 留下記號。
+     *
+     * **記帳一律誠實**：這裡不寫 bestGrades、不給 XP、不收技巧、不動徽章 ——
+     * 門開了不代表你學會了。之後真的把條件補滿時，refreshUnlocks() 也不會
+     * 再把它算成「新解鎖」（它已經在 unlockedRegions 裡），所以不會慶祝兩次。
+     * ---------------------------------------------------------------- */
+
+    /** 這道門是被「先行前往」開的嗎。 */
+    hasSkippedGate(regionId) {
+      return Array.isArray(state.skippedGates) && state.skippedGates.includes(regionId);
+    },
+
+    /** 先行前往過幾道門（誠實記帳用）。 */
+    skippedGateCount() {
+      return Array.isArray(state.skippedGates) ? state.skippedGates.length : 0;
+    },
+
+    /**
+     * 先行前往：把這一區開起來。
+     * @param {string} regionId
+     * @returns {{opened:boolean, alreadyOpen:boolean, regionId:string}}
+     */
+    skipGate(regionId) {
+      if (!Array.isArray(state.skippedGates)) state.skippedGates = [];
+      if (!regionId || !REGION_GATES[regionId]) {
+        return { opened: false, alreadyOpen: false, regionId };
+      }
+      if (state.unlockedRegions.includes(regionId)) {
+        return { opened: false, alreadyOpen: true, regionId };
+      }
+      state.unlockedRegions.push(regionId);
+      if (!state.skippedGates.includes(regionId)) state.skippedGates.push(regionId);
+      persist();
+      return { opened: true, alreadyOpen: false, regionId };
     },
 
     /**

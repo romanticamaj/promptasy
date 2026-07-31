@@ -1,5 +1,5 @@
 /**
- * PromptArcade — 開場標題卡
+ * Promptasy — 開場標題卡
  *
  * 遊戲一開就是這一頁：品牌名、定位句、按任意鍵開始。
  * 它同時扮演兩個實際功能：
@@ -8,13 +8,13 @@
  */
 import { el, esc } from './dom.js';
 
-const NAME = 'PromptArcade';
-/** 'Arcade' 那六個字用主色 —— 對應原本的 <span>。 */
+const NAME = 'Promptasy';
+/** 'Prompt' 之後那三個字（asy）用主色 —— 對應原本的 <span>。 */
 const ACCENT_FROM = 'Prompt'.length;
 
 /**
  * 把字名拆成一個個 <span>，讓每個字元照 --i 依序從遮罩後浮上來。
- * textContent 仍然是完整的 'PromptArcade'（測試與螢幕閱讀器都不受影響）。
+ * textContent 仍然是完整的 'Promptasy'（測試與螢幕閱讀器都不受影響）。
  */
 function stageName(name) {
   return [...name]
@@ -29,7 +29,7 @@ export function createTitle({ onStart, subtitle = 'Learn Prompt Engineering by P
   const root = el('div', 'title');
   root.setAttribute('role', 'dialog');
   root.setAttribute('aria-modal', 'true');
-  root.setAttribute('aria-label', 'PromptArcade — 開始畫面');
+  root.setAttribute('aria-label', 'Promptasy — 開始畫面');
   root.innerHTML = `
     <div class="title__veil"></div>
     <div class="title__inner">
@@ -39,7 +39,7 @@ export function createTitle({ onStart, subtitle = 'Learn Prompt Engineering by P
       <p class="title__tag">${esc(subtitle)}</p>
       <p class="title__zh">在一個夜色的世界裡探索，用你寫的 prompt 解開它。</p>
       <button class="title__start" data-start type="button">按任意鍵開始 <kbd>Enter</kbd></button>
-      <p class="title__foot">68 條技巧 · 26 個關卡 · 每一條都附得出官方出處</p>
+      <p class="title__foot">68 條技巧 · 27 個關卡 · 每一條都附得出官方出處</p>
     </div>
   `;
 

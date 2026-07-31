@@ -2,7 +2,7 @@
   "version": 1,
   "authored": "game",
   "checked": "2026-07",
-  "note": "時代註記層。這一份是 PromptArcade 自己寫的查核備註，不是任何廠商的官方文字，也不當作引文使用。用途只有一個：當某條技巧的官方建議在新一代模型上變了（或引用的文件被下架），在畫面上安靜地補一句有日期的提醒，並附上可點的新官方連結。curriculum.json 逐字未改 —— 那些引文在它們的年代是正確的引用；官方說法一律以 curriculum.json 的 techniques[].tip / example / note / sources 為準。稽核過程與完整落差清單見 docs/promptbooks/gap-analysis.md。",
+  "note": "時代註記層。這一份是 Promptasy 自己寫的查核備註，不是任何廠商的官方文字，也不當作引文使用。用途只有一個：當某條技巧的官方建議在新一代模型上變了（或引用的文件被下架），在畫面上安靜地補一句有日期的提醒，並附上可點的新官方連結。curriculum.json 逐字未改 —— 那些引文在它們的年代是正確的引用；官方說法一律以 curriculum.json 的 techniques[].tip / example / note / sources 為準。稽核過程與完整落差清單見 docs/promptbooks/gap-analysis.md。",
   "notes": [
     {
       "techniqueId": "params-01",

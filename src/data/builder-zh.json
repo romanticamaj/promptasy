@@ -1,7 +1,7 @@
 {
   "version": 1,
   "authored": "game",
-  "note": "技巧積木的中文範例片段。這一份是 PromptArcade 自己寫的中文版本，方便玩家直接用中文組 prompt；它不是任何廠商的官方文字，也不當作引文使用。每條技巧的官方說法與出處一律以 curriculum.json 的 techniques[].sources 為準。",
+  "note": "技巧積木的中文範例片段。這一份是 Promptasy 自己寫的中文版本，方便玩家直接用中文組 prompt；它不是任何廠商的官方文字，也不當作引文使用。每條技巧的官方說法與出處一律以 curriculum.json 的 techniques[].sources 為準。",
   "blocks": [
     {
       "id": "role",

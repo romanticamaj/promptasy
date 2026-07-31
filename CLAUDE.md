@@ -1,10 +1,10 @@
-# PromptArcade
+# Promptasy
 
 > 一款在瀏覽器裡「邊玩邊學 prompt engineering」的探索型小遊戲。
 > 玩家在一個有氛圍的世界裡探索、遇到問題、在地圖上找線索，然後**寫 prompt** 去解決它；
 > 解開後獲得經驗、解鎖新區域、把技巧收進圖鑑。核心是兩件事：**學習** ＋ **搜集**。
 
-- **Repo / 品牌**：`promptarcade`
+- **Repo / 品牌**：`promptasy`（Phase 29 由 `promptarcade` 改名；prompt ＋ fantasy）
 - **一句話定位**：Learn Prompt Engineering by Playing.
 - **狀態**：規劃中（尚未開工）。本檔是專案北極星，所有開發決策以此為準。
 
@@ -12,7 +12,7 @@
 
 ## 這份文件是什麼
 
-這是 PromptArcade 的**長期目標文件（north star）**與 AI 開發代理（Claude Code）的工作指南。
+這是 Promptasy 的**長期目標文件（north star）**與 AI 開發代理（Claude Code）的工作指南。
 它刻意**不把美術風格、世界觀、關卡形式寫死**——只鎖定不可動搖的核心價值，其餘方向開放給每次迭代自行判斷、逐步演化。
 任何一次開發，先讀這份文件，再決定「這次要把遊戲往哪個方向推進一格」。
 
@@ -20,7 +20,7 @@
 
 ## /goal — 長期、開放、不設限方向的目標
 
-> **持續打造並精進 PromptArcade：一款用「探索世界 ＋ 寫 prompt 解謎」來學會 prompt engineering 的瀏覽器遊戲。**
+> **持續打造並精進 Promptasy：一款用「探索世界 ＋ 寫 prompt 解謎」來學會 prompt engineering 的瀏覽器遊戲。**
 
 這是一個**沒有終點的 long-running 目標**。每一次執行，挑一個「當下投報率最高」的改進，端到端做完、確保遊戲仍可執行（`npm run dev` 能跑、無 console error），然後把進展記到本檔最底的變更紀錄。
 
@@ -143,13 +143,13 @@
 
 ## 存檔與重置（localStorage）
 
-- 進度存在 **localStorage**，key 命名空間 `promptarcade.v1.*`，資料含版本欄位以利未來遷移。
+- 進度存在 **localStorage**，key 命名空間 `promptasy.v1.*`（改名前是 `promptarcade.v1.*`，`load()` 會自動搬過來），資料含版本欄位以利未來遷移。
 - 存：等級 / XP、已解鎖區域、已收集技巧、各關最佳評價、廠家徽章、設定（音量、選的音樂、畫質）。
 - **一鍵重置**：設定頁提供「重置進度、重新學習」，清空存檔並回到起點（要二次確認）。
 - 存檔 schema 範例：
 
 ```jsonc
-// localStorage["promptarcade.v1.save"]
+// localStorage["promptasy.v1.save"]
 {
   "version": 1,
   "xp": 320, "level": 4,
@@ -178,7 +178,7 @@
 ## 專案結構（建議）
 
 ```
-promptarcade/
+promptasy/
 ├─ CLAUDE.md                 # 本檔：北極星 + /goal + 變更紀錄
 ├─ README.md                 # 對外說明（含 SEO 關鍵字，見下）
 ├─ index.html
@@ -258,7 +258,7 @@ promptarcade/
 
 ## SEO（給 README 與網站 head）
 
-- `<title>`：`PromptArcade — Learn Prompt Engineering by Playing`
+- `<title>`：`Promptasy — Learn Prompt Engineering by Playing`
 - meta / repo 描述：`A browser game to learn prompt engineering by playing — explore a world and solve challenges by writing prompts. Techniques from OpenAI, Anthropic, Google & xAI, each cited.`
 - GitHub topics：`prompt-engineering` `learn-prompting` `game` `gamification` `llm` `education` `threejs` `webgl`
 - 鎖長尾詞：`prompt engineering game`、`learn prompt engineering by playing`、`interactive prompt engineering practice`。
@@ -314,3 +314,5 @@ npm run preview  # 預覽 build 結果
 - **2026-07-31 · Phase 26（課程總稽核：把已經被官方推翻的東西誠實標出來）**：依產品指示「comprehensive 的確認一次 prompt 的技巧，確保我們的關卡豐富度」，把 `docs/promptbooks/` 底下 9 份 2026-07-30 擷取的官方參考資料（Anthropic 102 條／OpenAI 139／Google 86／xAI 40，加上 Qwen／DeepSeek／Mistral／Meta-Llama／其他）逐條比對遊戲的 68 技巧、26 關、111 段刻印流程與 13 則刻文小語，產出 **`docs/promptbooks/gap-analysis.md`**（六節：過時／已反轉、未覆蓋的新技巧、關卡重複度診斷、路線圖、出處健檢、本階段做了什麼）。**稽核結果**：找到 **14 項過時或被縮限的內容**（A 級「照做會出錯」4 項：取樣參數三家各自否定且 `dial-room-43` 的滿分示範解答就是它、自我檢查在 Claude Opus 5 要刪掉而不是改寫、xAI 指南整頁 404、`role-04` 的官方立場已反轉；B 級「適用範圍縮小」10 項），**38 條值得新增的技巧候選**（5 分 15 條、4 分 15 條、3 分 8 條）與 **6 組現成的廠家反差素材**；同時逐一 curl 了 `curriculum.json` 引用的 **26 個網址**：21 個正常、**1 個硬 404**（`docs.x.ai/docs/guides/grok-code-prompt-engineering`，被 5 條技巧引用）、1 個官方自標即將移除（`ai.google.dev/gemini-api/docs/gemini-3`，被 4 條引用）、1 個舊路徑、1 個內容已搬走、1 個擋自動擷取。**兩個結構性發現**（比任何單條錯誤都嚴重）：（a）2026 年三家官方都轉向「最小必要結構」（GPT-5.6 精簡化讓分數 +10–15%／token −41–66%、Anthropic「最好的 prompt 不是最長的」、Gemini 3.x「冗長的 prompt 工程會讓它過度分析」），而遊戲的 S 評價正在獎勵相反行為；（b）遊戲主打中文圈，卻完全沒有 **Qwen** —— 唯一有中文母語 prompt 方法論的廠商（六要素框架、分隔符選字原則、「語言→語種」的歧義修正），而且 68 條裡**沒有任何一條教「怎麼讓模型用中文回答」**。**本階段的修法（最小外科手術，`curriculum.json` 逐字未改 —— 那些引文在它們的年代是正確的引用）**：新增第三層譯寫性質的資料 **`src/data/dated-notes.json`**（`authored: "game"`，檔頭明講不是官方文字、官方說法一律回 `curriculum.json`），內含 **4 條技巧時代註記**（`params-01` 取樣參數：Gemini 3.x 建議全部移除／Claude Sonnet 5 設了回 400／Mistral 說 0 也只是趨近確定，改用文字規則求一致；`params-02`：貪婪解碼不再通用，Qwen 思考模式明令禁止；`cot-04`：Claude Opus 5 本來就會自驗，官方建議刪掉驗證句；`decompose-02`：拆成多次呼叫已縮小到「要檢查中間結果或強制固定流程」）與 **2 條出處狀態註記**（xAI 404、Google deprecated，各附後繼參考），每一條都帶年月 ＋ 可點的 https 官方連結。**顯示層**：`content.js` 的 `createContent()` 收第 7 個參數、`displayTechnique()` 多回一個 `dated`、新增 `datedNote(id)` / `sourceNote(url)`（沒有這一層時安靜降級）；`dom.js` 新增共用的 `datedNoteHtml()` / `sourceNoteHtml()`；**圖鑑、主控台第二幕（神諭刻文）、刻文小語**三處都會在原文下面補一行小、冷色、帶 `※` 的註腳，官方出處清單旁邊則標出「此文件已下架（2026-07 查核）。後繼參考：… ↗」——**原網址永遠留在畫面上，只是旁邊多一句實話**（護欄 2）；`styles.css` 新增 `.datednote` / `.srcnote`。`challenges.json` 只動了兩處 `clue`（`dial-room-43` 補「取樣旋鈕要看模型、一次只轉一個」、`effort-forge-15` 補「自我驗算在 Opus 5 要刪掉」），**評分、示範解答、刻印流程、rubric 一條未改**。**驗證**：`npm run fonts` 重跑（語料 50 檔 / Latin 246 · CJK 1612 · Display 104 / 1317.2 KB，指紋測試綠）；`npm run test:rubric` 15415 → **15504 個斷言全過**（新增時代註記層：`authored` 與免責說明、查核年月格式、每條掛在真實技巧 id 上且不重複、文字是中文／看得到日期／無整句英文／連結不埋在文字裡、至少一個 https 官方出處、下架註記的網址真的被 `curriculum` 引用到且後繼參考不是原網址、**原網址仍留在 `curriculum.json` 沒被改掉**、`displayTechnique().dated` 與 `datedNote()` / `sourceNote()` 真的接得出來、活著的出處不會被誤標、沒有這一層時安靜降級）；`npm run test:playtest` **212 個斷言全過**（未動）；`npm run build` 通過；`npm run test:e2e` **1364 項檢查全過、零 console error**。**下一步建議**：（a）Phase 27 誠實度收尾 —— `role-04` 重寫、5 條 xAI 出處置換（`iterate-05` 可直接換成快取最佳實務頁、內容更強）、4 條技巧改指非 deprecated 的 Google 頁、Anthropic 那 14 條補 anchor（現在全指向同一個沒有錨點的合併頁）；（b）Phase 28 中文圈補課 —— 新增「說話的規矩」主題（回答語言跟隨提問語言、六要素、分隔符選字、語種歧義、沒有 system 欄位時怎麼辦），並把 `qwen` / `deepseek` 加進 vendors（徽章的隱藏成就條件要維持四廠，否則違反護欄 7）；（c）Phase 29 減法與工具 —— 處理「S 評價在獎勵把每一項都塞進去」的評分失衡，並把 `assignsTask`（26/26 全中）降權成地基、把 `specifiesFormat`（14/26）與 `hasDelimiters`（12/26）從 6 關與 4 關換成該關真正的主題（前三名合計占比 49% → 約 33%），工具與代理則需要新的題型（勾選該不該呼叫工具、把矛盾規則排成決策樹）；（d）Phase 30「分歧之廳」—— 六組廠家反差做成「先發模型卡、再出題」，同一個素材換一張卡正解就翻面。
 - **2026-07-31 · Phase 27（除了 A B C 選擇題，再加兩種真的要動手的題型）**：依產品指示「也可以設計一些互動題，讓使用者去拖拉東西、互動操作，在過程中學會 prompt 技巧以及 LLM 使用的概念，像是 tool use、function calling」。**資料層**：`flows.json` 新增 `kind`（`choice` / `order` / `workshop`，**沒寫就是 `choice`** —— 其餘 24 關一個位元組都沒動、行為零變化），三種題型都留著原本的選擇題流程當後備資料；三者「做對」組出來的那段文字都**等於該關的 `sample`**、都走同一支離線 rubric 引擎、都以同一隻手掌印收尾（新增 `src/prompt/palm.js` 把按住 600ms 的儀式抽成共用零件，仍然用計時器判定、不看影格）。**① 排序刻印**（`src/prompt/order.js`）：石版已經刻好了，玩家要把它們**排順**——這是選擇題教不了的東西（次序本身就是官方文件講的技巧）。滑鼠拖得動（pointer 事件 ＋ FLIP 位移），純鍵盤也走得完（`Enter` 拿起 → `↑` `↓` 搬 → `Enter` 放下；沒拿東西時 `↑` `↓` 只移動焦點、`Home` / `End` 搬到頭尾、拿著時 `Esc` 是放回原地而不是關面板），每一次拿起 / 搬動 / 放下都用 `aria-live` 講出來；石版節點**只建一次、之後只搬不重建**（用 innerHTML 重建會讓拿在手上的那一片在拿起的瞬間掉焦點，後面的方向鍵就全部落空）。**排錯不會失敗**：排對的那一片立刻標上暖金的「位置對了」刻記，**排順了手掌印才浮出來** —— 「送出之後才發現排錯」這件事在設計上不存在。套用在兩關次序就是課程的關卡：**長卷之塔**（資料在前、問題在後）與**優先序階梯**（規則區放最上面）。**② 神諭工坊**（`src/prompt/workshop.js`）＋**新的第 27 關 `oracle-workshop-36`**（齒輪工坊，`npc` 管事·派工，教 `agentic-01` / `agentic-02` / `decompose-02` / `grounding-03`，出處 OpenAI · GPT-4.1 prompting guide）：旅人的委託是「明天湖邊會不會下雨？順便把答案寄給燈塔守」，玩家當派工人走四步 —— **挑工具牌**（三張裡兩張用得到，挑到「查帳」會就地長出一句解釋）→ **把值石拖進參數格**（六顆值石、四個格子；放錯只告訴你這一格要的是什麼，值石回托盤）→ **排出兩通呼叫的相依順序**（第三步直接沿用排序刻印）→ **立一條規矩**（「參數找不到就反問我，不要自己編一個」）。四步分別教「工具是**宣告**出來的：名字 ＋ 說明 ＋ 每個參數的型別與用途」「**參數不是用求的，是用填的**，而且只能來自委託裡真的講過的東西」「呼叫有先後，前一步的結果才是下一步的材料」「缺參數要反問，不要幻覺」。**世界**：新石座落在 `[-115, 66]`（離最近的石座 20.9 公尺，避開所有小景 / 地標 / 石碑 / 刻文小語 / 器物 / 祕密的淨空圈，24 個方向 × 2–6 公尺高低兩種畫質都走得到），石座 26 → 27、齒輪工坊 5 → 6 關，**沒有新增任何存檔欄位**（舊存檔完全不受影響）。**其他**：設定頁的答題方式說明改寫成三種題型都講得通的說法、操作一覽補上「拿起一片石版或值石」與「拿著東西時方向鍵是搬它」兩行、README 與 WORLD.md 同步（WORLD.md 新增 §3.3b「三種答題方式」的作答文法 ＋ 維護檢查表的 Phase 27 逐條結果）。**驗證**：`npm run fonts` 重跑（語料 53 檔 / CJK 1615 字 / 1319.8 KB，指紋測試綠）；`npm run test:rubric` 由 15504 擴到 **16098 個斷言全過**（新增 `flowKind()` 的預設與退化路徑、三種題型的關卡分佈、排序資料的 `pieces`／`order` 必須是同一組的排列、**初始排法不等於正解且沒有任何一片剛好站對**、排對＝S 且每條檢查滿分、排好的字＝`sample`；工坊的四步問句、工具規格三欄俱全、參數的型別與放錯教學、托盤一定有多餘的值石、規矩剛好一條對、錯的選項都有 ≥12 字白話中文回饋且不自帶連結、派工完成＝`sample` 且每條檢查滿分、只挑完工具還不滿分）；`npm run test:playtest` 由 212 擴到 **226 個斷言全過**；`npm run build` 通過；`npm run test:e2e` 由 1364 擴到 **1530 項檢查全過、零 console error**（新增 166 項：三種題型的分佈與 24 關的後備資料、排序刻印**純鍵盤走完一圈**（拿起 → 搬 → 放下 → `aria-live` → 對照亮燈 → 手掌印真的按住 900ms → S ＋ XP ＋ 出處）、**CDP 真滑鼠拖曳**把「角色與目標」搬到最上面並立刻標成位置對了、排錯時手掌印不出現／第四幕按不下去／不跳失敗面板／不扣分、神諭工坊四步純鍵盤走完（挑錯工具 / 放錯值石 / 立錯規矩全部只是就地教學）、派工單組出來的字＝`sample`、第一幕仍然零官方連結而第二幕四條刻文都掛「神諭原典：〈文件名〉↗」、新石座在場景圖上且四周走得到、切到自由書寫再切回來、24 關的石碑刻印一切照舊、820px 下兩種新題型都無水平溢位）；另外修掉 headless 驗證**中斷時會把已收集到的失敗訊息一起吃掉**的問題（現在中斷也會把前面的失敗印出來）。**下一步建議**：（a）工坊目前只有一關，`docs/promptbooks/gap-analysis.md` §2 的 N-16～N-20（工具說明該寫多長、結構化輸出、檢索預算、動作預算、授權邊界）可以直接複用同一個面板，換一份 `workshop` 資料就是一關；（b）排序刻印可以再做「兩種排法都過關但評價不同」的取捨題，把「權衡」也變成可練習的東西；（c）行動裝置仍未做 —— 拖曳走的是 pointer 事件所以觸控本來就動得了，但 720px 以下的工具牌 / 參數格 / 托盤版面還沒調；（d）Phase 10 留下的建議仍在：`assignsTask` 的遮蔽邏輯還沒套到 `positiveFraming` 與 `keepsPromptLean`。
 - **2026-07-31 · Phase 28（分享修正：送出去的是「那張圖 ＋ 一段話」，不是一個連結）**：依產品回饋「分享的東西錯了，我想要的是分享使用者完成任務的那張圖，然後配上一段話」，把 Phase 24 的分享整個收斂回這兩樣東西。**拿掉的**：那排「分享到 Facebook / Threads / Messenger / Instagram」的網頁入口 —— 它們**只收得下文字和一個連結、收不下圖片**，收到的人看到的是一個程式碼倉庫的連結而不是玩家剛刻出來的那張卡，那正是這次要修的 bug（`platformIntent` / `SHARE_TARGETS` / `isMobileLike` / `shareTitle` / `shareBody` 五個匯出、`rovingList` 的方向鍵排、`.sharecard__chip*` / `__send*` / `__caption` / `__note` 的樣式全數移除，Messenger 與 Instagram 的特例跟著一起走）；預設那段話裡的 `SHARE_URL` 也拿掉（常數留著給之後部署改，但**不再進入玩家貼出去的字**）。**留下並強化的**：`shareCaption()` ＝ 世界的說法 ＋ 品牌落款（「我在 PromptArcade 通過了『清晰之門』，評價 S —— 現在的稱號是『釋義者』（Lv.6），已把 46 / 68 條技法刻進圖鑑。／ Learn Prompt Engineering by Playing」，四種卡各一句），開卡的第一幀就同步填進一個**真的能改的輸入框**（玩家自己打的字走 `--font-input` 系統字型；改過就不會被重畫蓋掉，換一張卡才回到預設）。**主路**「分享圖＋文」＝ `navigator.share({ files: [那張 PNG], text: 框裡當下的字 })` —— 按下去的那一刻**同步**讀框（前面仍然一行 `await` 都沒有，`userActivation.isActive` 實測手勢沒斷），**不帶 `url`、不帶 `title`**，圖與話一起交給系統分享面板上的 FB / IG / Threads / 訊息。**沒有系統分享時**主角換成「複製圖＋文」（同一份 `ClipboardItem` 裡有 `image/png` 與玩家改過的 `text/plain`）＋「下載圖片」保底，畫面只留一句白話：「開啟 Facebook / Instagram / Threads 直接貼上 —— 圖和文字會一起送出。」**版面**：分享卡改成「圖在左、那段話與按鈕在右」的兩欄（≥900px），預覽圖從 286px 寬長到 421px，四顆石頭與說明全部還在摺線上面；窄畫面仍是上下疊，820px 下無水平溢位。鍵盤回到最單純的 <kbd>Tab</kbd> / <kbd>Enter</kbd>（鍵帽跟著換），焦點落在當下的主角上。WORLD.md 新增 §3.5b 把規則寫死：**分享 ＝ 圖 ＋ 一段話、那段話裡不准有網址、不做任何帶不走圖的網頁入口**。**驗證**：`npm run fonts` 重跑（語料 53 檔 / CJK 1616 字 / 1319.6 KB，指紋測試綠）；`npm run test:rubric` 16098 → **16106 個斷言全過**（Phase 24 那一節整段改寫：四種卡的那段話**一律不得出現 http／github**、被拿掉的匯出與字串（`facebook.com/sharer`、`threads.net/intent`、`fb-messenger://`、`data-chip`、`rovingList`、`sharecard__chip`）逐一斷言不存在、`navigator.share` 的參數就是 `{ files: [lastFile], text }` 且不含 `url:` / `title:`、那段話從框裡同步讀、剪貼簿帶的是玩家改過的字、輸入框的 label / `aria-describedby` / 系統字型、說明不再提「連結」）；`npm run test:playtest` **226 個斷言全過**（未動）；`npm run build` 通過；`npm run test:e2e` **1521 項通過、零 console error**（分享那一節重寫成 74 項：石籤與「分享到」整排不存在、分享卡上沒有任何會開新頁的連結、整張卡的文字裡找不到網址或 github、那段話預設就寫好且不帶連結、用 `Input.insertText` 真的打字進去 → 複製出去與交給系統分享的都是**改過的版本**、`Object.keys(data)` 只有 `files,text`、換一張卡回到預設、沒有系統分享時「複製圖＋文」是主角且焦點落在它身上、820px 無水平溢位），另以 headless 截圖人工複審三個狀態（桌機兩欄 / 有系統分享 / 820px 窄畫面）。**已知（與本次無關）**：`排序刻印與神諭工坊（Phase 27）` 的兩項**滑鼠拖曳**斷言在這台機器上（軟體渲染、每幀約 200ms）失敗；把 Phase 28 這一整節從 e2e 拿掉再跑一次控制組，同樣兩項照樣失敗（1447 通過），而單獨重現那段拖曳三次全過 —— 屬既有環境問題，不是這次改動造成的。**下一步建議**：（a）`SHARE_URL` 部署後仍要換掉並補 `og:*` meta；（b）那段話可以依「這次最亮的那條技法」換句型，會更像戰績而不是模板；（c）行動裝置仍未做（觸控搖桿、720px 以下的分享卡版面）；（d）Phase 10 留下的 `assignsTask` 遮蔽邏輯還沒套到 `positiveFraming` / `keepsPromptLean`。
+
+- **2026-07-31 · Phase 29（橋上的門會問你 ＋ 遊戲改名 Promptasy）**：兩件事。**① 詢問式閘門（可先行前往）**：四條橋中央的門本來是硬擋，已經懂這些東西的人只能被關在原地。現在門會**問一句** —— 走到門前（自動詢問半徑 7.5 公尺）或按 `E`，都會開一個「夜間檔案館」語言的小對話框：「這道門的考驗還沒完成（還差：Lv.3（目前 Lv.1）＋ 撰寫基本功 通關 4 關（目前 0））。想先過去看看嗎？前方的試煉不會因此變簡單。」兩個選擇：**直接前往**（走原本那支 `world.openGate(id, true)`，同樣的屏障淡出 ＋ 擴散光環，那一區立刻走得進去）／**先留下修行**（門留著；走遠離開互動半徑再回來才會重新問一次，站在門口不會被連問；`Esc`／點背景等同「先留下」，絕不偷偷開門）。新增 `src/ui/gate.js`（沿用 `createOverlay` 的焦點鎖 / `Esc` / `aria`，預設焦點在「先留下修行」—— 誤按 `Enter` 不會就這樣越過一整區；不放任何官方連結，護欄 2）。**記帳一律誠實**：存檔新增純加法欄位 `skippedGates[]`，`skipGate()` 只往 `unlockedRegions` 加一區並留下記號 ——不給 XP、不收技巧、不動徽章、不寫任何一關的 `bestGrades`，所以「已通關 x / 27」「已收集 x / 68」「四廠徽章」「等級」一個數字都不變；之後真的把條件補滿時 `refreshUnlocks()` 也不會再把它算成「新解鎖」（它已經在 `unlockedRegions` 裡），**不會慶祝兩次**；`gateStatus()` 新增 `skipped` / `needs[]`，門上的字改成「需要 … · 也可以先行前往」，開了之後改成「已開啟 · 你先行前往」，設定頁多一行「其中 N 道門是你先行前往的（門開了，關還在那裡等你）」。正常解鎖路徑一個字未改（達標仍是自動開門 ＋ 慶祝）。HUD 互動提示改成「`E` 問問這道門」、操作一覽的 `E` 補上「橋上的門」、README 按鍵表與 WORLD.md §1.4 同步；`player` 新增唯讀的 `inputEnabled`。**② 全面改名 PromptArcade → Promptasy（prompt ＋ fantasy）**：品牌字串一次掃完 —— 標題卡（分字揭示由 12 → **9** 個 `<span>`，`Prompt` 白 ＋ `asy` 主色，定位句 `Learn Prompt Engineering by Playing` 原樣保留）、`index.html` 的 `<title>` / `og:title`、`package.json` 的 `name`、分享結果卡的落款與四種說法與檔名與 `SHARE_URL`、圖鑑／設定／成就／稱號／各資料檔的「這是遊戲自撰」註記、全部檔頭註解、README / WORLD.md 標題、CLAUDE.md 的品牌行（**歷史變更紀錄一字未改** —— 它們在當年就叫 PromptArcade）。**存檔搬家（關鍵）**：key 命名空間 `promptarcade.v1.*` → `promptasy.v1.*`，`load()` 在「新 key 沒東西、舊 key 有」時把舊存檔搬過來並立刻寫進新 key，**舊 key 刻意留著**（幾 KB 的代價換一條退版的路）；兩個都在時**新的優先**；舊 key 壞掉也不會讓遊戲開不起來；`reset()` 兩個 key 一起清（不然重整又被搬回來）。`window.__promptarcade` 保留成 `window.__promptasy` 的別名（外面的書籤小工具與腳本不會壞），e2e 全面改用新名字。順手修掉標題卡上寫死的「26 個關卡」（Phase 27 之後其實是 27 關）。字型檔名 `arcade-*.woff2` 與字族名 `Arcade Serif TC` 等**刻意不改**（純內部別名，玩家看不到，改動風險大於收益）；`docs/promptbooks/*.md` 是當時擷取的研究稿，依指示不動。**驗證**：`npm run fonts` 重跑（語料 54 檔 / CJK 1616 字 / 1319.6 KB，指紋測試綠）；`npm run test:rubric` 16106 → **16212 個斷言全過**（新增：`skippedGates` 的新舊存檔相容與去重、`skipGate()` 的開門／重複按／亂傳參數／跨重整、**先行前往不動 XP／圖鑑／徽章／通關數／等級**、補滿條件時不重複慶祝、重置清空、對話框文案與「不放連結」、存檔搬家的四種情境（全新／只有舊 key／兩個都在以新為準／舊 key 壞掉）＋ 重置清兩個 key、品牌字串掃描與 9 字元品牌名）；`npm run test:playtest` **226 個斷言全過**（未動）；`npm run build` 通過；`npm run test:e2e` 1521 → **1585 項通過、零 console error**（新增 64 項：走進閘門對話框自己出現（沿橋推進，非鏡頭方向）／講出還差什麼與「不會因此變簡單」／零官方連結／焦點預設在「先留下修行」→ 按下去門仍然關著且那一區仍走不進去、站在門口不被連問 → 按 `E` 也問得出來 → `Shift+Tab`（改用 `rawKeyDown` 的原生 Tab）走到「直接前往」→ `Enter` 開門 →那一區走得進去、`skippedGates` 寫進 localStorage、XP／通關數／圖鑑／徽章／等級一個都沒變、操控權還回來 → 門開了之後走過去與按 `E` 都不再問 → 重整後仍開著仍不問 → 設定頁誠實列出；`document.title` / `og:title` / 畫面上找不到舊品牌名 / `__promptasy` 與舊別名、種一份只有舊 key 的存檔重整後 XP／等級／評價／圖鑑／石碑／設定／答題方式／旗標全數還在且新 key 已寫入、舊 key 留著、重置兩個都清）。**已知（與本次無關）**：Phase 27 排序刻印的兩項**滑鼠拖曳**斷言在這台機器上（軟體渲染、每幀約 200 ms）仍然失敗，連跑兩次結果完全一致 —— 屬 Phase 28 已記錄的既有環境問題。**下一步建議**：（a）先行前往目前只留在設定頁一行字，可以在圖鑑或結果卡上做一個「這片土地你是走進來的，還是考進來的」的溫和標記，讓誠實記帳也變成收集的一部分；（b）先行前往的人會直接撞上難度斷層，可考慮在該區第一座石座旁放一句回聲的提醒（「這裡的題目預設你已經會前一片土地的東西」）；（c）改名後 `SHARE_URL` 指向 `romanticamaj/promptasy`，orchestrator 改完 repo 名要確認連結通；og-image 與 `og:*` 仍未補；（d）行動裝置仍未做（觸控搖桿、720px 以下的版面），Phase 10 留下的 `assignsTask` 遮蔽邏輯也還沒套到 `positiveFraming` / `keepsPromptLean`。

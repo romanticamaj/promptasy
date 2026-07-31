@@ -1,5 +1,5 @@
 /**
- * PromptArcade — 操作一覽（Phase 23）
+ * Promptasy — 操作一覽（Phase 23）
  *
  * 這個世界從頭到尾都可以只用鍵盤走完：走路、轉鏡頭、拉遠拉近、走近石座、
  * 一段一段把 prompt 刻上去、把手掌按上石碑、翻圖鑑、改設定。
@@ -37,7 +37,7 @@ export const KEY_GROUPS = Object.freeze([
     id: 'world',
     title: '走近東西',
     rows: [
-      { keys: ['E'], what: '唯一的互動鍵：石座、石碑、角落的刻文' },
+      { keys: ['E'], what: '唯一的互動鍵：石座、石碑、角落的刻文、橋上的門' },
       { keys: ['C'], what: '翻開技巧圖鑑' },
       { keys: ['O'], what: '設定：音量、畫質、答題方式、重新開始' },
       { keys: ['Esc'], what: '收起最上面那一層' },

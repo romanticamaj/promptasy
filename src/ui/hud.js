@@ -1,5 +1,5 @@
 /**
- * PromptArcade — HUD：等級／XP 條、區域名、最近目標、互動提示、快捷按鈕、浮動訊息
+ * Promptasy — HUD：等級／XP 條、區域名、最近目標、互動提示、快捷按鈕、浮動訊息
  */
 import { el, esc } from './dom.js';
 

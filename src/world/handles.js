@@ -1,5 +1,5 @@
 /**
- * PromptArcade — 動得了的器物（handled props）
+ * Promptasy — 動得了的器物（handled props）
  *
  * 世界裡的第五層互動。前四層是：
  *

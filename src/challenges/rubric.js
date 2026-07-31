@@ -1,5 +1,5 @@
 /**
- * PromptArcade — 評分引擎（offline rubric engine）
+ * Promptasy — 評分引擎（offline rubric engine）
  *
  * 輸入：challenge（資料定義） + 玩家寫的 prompt
  * 輸出：每條檢查的過/部分/未過 ＋ 教學提示 ＋ 總分 ＋ 評價（S/A/B/C）＋ XP

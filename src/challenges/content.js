@@ -1,5 +1,5 @@
 /**
- * PromptArcade — 內容索引
+ * Promptasy — 內容索引
  * 把 curriculum.json / challenges.json 包成好查的介面，避免各處重複寫 find()。
  *
  * 積木的中文片段（builder-zh.json）是**遊戲自撰的翻譯層**：

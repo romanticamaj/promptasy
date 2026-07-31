@@ -1,5 +1,5 @@
 /**
- * PromptArcade — 引擎層：renderer / scene / camera / 後製 / 主迴圈
+ * Promptasy — 引擎層：renderer / scene / camera / 後製 / 主迴圈
  *
  * 美術方向（低成本、高感知質感）：**平靜的夜間探索**。
  *   · 一套統一的色本（天空漸層 → 霧 → 地面 → 各區主色 → UI 全部同源）

@@ -1,5 +1,5 @@
 /**
- * PromptArcade — 音訊：分區生成式配樂 ＋ 合成音效
+ * Promptasy — 音訊：分區生成式配樂 ＋ 合成音效
  *
  * 全部用 Web Audio 即時合成，**沒有任何外部音檔**（護欄：離線可玩、資產零成本）。
  *
@@ -449,7 +449,7 @@ export function createAudio({ volume = 0.5, muted = false, region = 'foundations
         started = true;
         armBell();
       } catch (err) {
-        console.warn('[PromptArcade] 環境音無法啟動：', err);
+        console.warn('[Promptasy] 環境音無法啟動：', err);
       }
     },
 
