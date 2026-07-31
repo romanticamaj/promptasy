@@ -2,8 +2,11 @@
  * PromptArcade — 可分享的結果卡（Phase 21）
  *
  * 玩家在里程碑（通關 / 圖鑑 / 區域精通 / 隱藏成就）按下「分享」，
- * 就地用 canvas 畫一張 1200×630 的圖（og-image 比例，貼到聊天室或社群都不會被裁壞），
- * 然後下載 PNG 或複製到剪貼簿。
+ * 就地用 canvas 畫一張 1200×630 的圖（og-image 比例，貼到聊天室或社群都不會被裁壞）。
+ *
+ * 分享出去的就是**這張圖 ＋ 一段話**（Phase 28）——
+ * 那段話預設是世界的說法，玩家可以在框裡改成自己想說的，
+ * 按下去的那一刻讀的就是框裡當下的字。沒有連結、沒有別的東西。
  *
  * 護欄：
  *   · **完全離線** —— 沒有任何外部服務、沒有 SDK、沒有網路請求。
@@ -15,22 +18,33 @@
  * 視覺語言 = 夜間檔案館 ＋ 刻印牌：深墨石面、切角外框、金髮絲、
  * 冷星光當主色、暖金只留給「已達成」的熱點。
  */
-import { createOverlay, el, esc, rovingList } from './dom.js';
+import { createOverlay, el } from './dom.js';
 import { rankFor, rankStats } from '../progression/ranks.js';
 
 export const CARD_W = 1200;
 export const CARD_H = 630;
 
 /* ------------------------------------------------------------------ *
- * 要帶著走的網址與那句話（Phase 24）
+ * 分享出去的東西只有兩樣：**這張圖 ＋ 一段話**（Phase 28）
  *
- * 分享出去的東西只有兩樣：**這張圖**（在你的裝置上畫的）與**一句話**。
- * 沒有任何 SDK、沒有註冊任何應用程式、核心迴圈也不需要網路 ——
- * 底下每一條路都是「玩家自己按下去」才會發生的一次動作（user-initiated intent）。
+ * Phase 24 曾經在下面排了一列「分享到 Facebook / Threads」的網頁入口 ——
+ * 那些入口**只收得下文字和一個連結，收不下圖片**，
+ * 所以收到的人看到的是一個程式碼倉庫的連結，不是玩家剛刻出來的那張卡。
+ * 那不是玩家要分享的東西，整排已經拿掉。
+ *
+ * 現在只有一條路，而且兩種情況都送得出「圖 ＋ 那段話」：
+ *   · 系統分享面板帶得動檔案 → 圖檔本身 ＋ 那段話直接交給 FB / IG / Threads / 訊息
+ *   · 帶不動 → 把圖 ＋ 那段話一起放進剪貼簿（另外附一顆「下載圖片」保底）
+ *
+ * 沒有任何 SDK、沒有註冊任何應用程式、也不連任何伺服器 ——
+ * 每一條路都是「玩家自己按下去」才會發生的一次動作。
  * ------------------------------------------------------------------ */
 
 /**
- * 卡片要帶著走的網址。
+ * 這個遊戲之後會住的地方。
+ *
+ * **不放進玩家貼出去的那段話裡** —— 分享的是那張圖與玩家自己寫的話，
+ * 不是一個連結。留著這個常數是為了之後真的部署時有地方可以改。
  * TODO 部署後改成正式網址
  */
 export const SHARE_URL = 'https://github.com/romanticamaj/promptarcade';
@@ -56,48 +70,14 @@ export function shareText(model = {}) {
   return `我在 PromptArcade 修行成了「${rank}」（Lv.${lv}）—— ${got}。`;
 }
 
-/** 系統分享面板上那一行標題。 */
-export function shareTitle(model = {}) {
-  return `PromptArcade — ${model.rankTitle || '旅人'}`;
-}
-
-/** 那句話 ＋ 品牌那一句 ＋ 網址（貼哪裡都看得懂是什麼）。 */
-export function shareBody(model = {}) {
-  return `${shareText(model)}\n${SHARE_TAGLINE} · ${SHARE_URL}`;
-}
-
 /**
- * 各家的分享入口（intent）。
+ * 預設的那段話：世界的說法 ＋ 品牌那一句當落款。
  *
- * 誠實地說：這些網頁入口**只帶得走文字與連結，帶不走圖片**
- * （那是各家自己的限制，不是我們少做了什麼）——
- * 所以按下去的時候會同時把圖複製到剪貼簿，貼上就補齊了。
- * 圖片本身要交到 Facebook / Instagram / Threads / Messenger 手上，
- * 唯一的路是系統分享面板（`navigator.share` 帶檔案）。
- *
- * @param {string} id facebook / threads / messenger / instagram
- * @param {object} [opts]
- * @param {string} [opts.url]  要帶走的網址
- * @param {string} [opts.text] 要帶走的文字
- * @param {boolean} [opts.mobile] 是不是手機（決定 Messenger 走不走 app 連結）
- * @returns {string|null} 沒有這條路就回 null（不假裝有）
+ * 玩家可以在分享卡上把它改成自己想說的（那個輸入框裡的字才是真的送出去的）。
+ * **不帶網址** —— 分享的是圖，不是連結。
  */
-export function platformIntent(id, { url = SHARE_URL, text = '', mobile = false } = {}) {
-  const u = encodeURIComponent(url);
-  switch (id) {
-    case 'facebook':
-      return `https://www.facebook.com/sharer/sharer.php?u=${u}&quote=${encodeURIComponent(text)}`;
-    case 'threads':
-      return `https://www.threads.net/intent/post?text=${encodeURIComponent(`${text}\n${url}`)}`;
-    case 'messenger':
-      // 手機上才有 app 連結可走；桌機的 messenger.com 沒有帶內容的入口 → 回 null，改走複製
-      return mobile ? `fb-messenger://share?link=${u}` : null;
-    case 'instagram':
-      // Instagram 沒有任何網頁投稿入口。不假裝有，也不做假的按鈕。
-      return null;
-    default:
-      return null;
-  }
+export function shareCaption(model = {}) {
+  return `${shareText(model)}\n${SHARE_TAGLINE}`;
 }
 
 /**
@@ -116,13 +96,6 @@ export const SHARE_PROBE = (() => {
   }
 })();
 
-/** 這台裝置是不是手機（Messenger 的 app 連結只有手機開得起來）。 */
-export function isMobileLike(nav = typeof navigator !== 'undefined' ? navigator : null) {
-  if (!nav) return false;
-  const touch = Number(nav.maxTouchPoints || 0) > 0;
-  return touch && /Android|iPhone|iPad|iPod|Mobile/i.test(String(nav.userAgent || ''));
-}
-
 /**
  * 這個瀏覽器能不能把「檔案」交給系統分享面板。
  * 這是唯一能把圖片本身交到那些 app 手上的路 —— 不支援就不要露出那個入口。
@@ -136,20 +109,6 @@ export function systemShareSupported(file, nav = typeof navigator !== 'undefined
     return false;
   }
 }
-
-/** 那一排「分享到」的石籤。 */
-export const SHARE_TARGETS = [
-  { id: 'facebook', label: 'Facebook', toast: '圖片已複製 —— 到剛打開的那一頁貼上就行。' },
-  { id: 'threads', label: 'Threads', toast: '圖片已複製 —— 到剛打開的那一頁貼上就行。' },
-  {
-    id: 'messenger',
-    label: 'Messenger',
-    // 桌機沒有帶內容的入口 → 那就只複製，並且說清楚接下來要做什麼
-    copyFallback: true,
-    toast: '圖片和文字都複製好了 —— 打開 Messenger 貼上就行。',
-  },
-  { id: 'instagram', label: 'Instagram', reason: 'Instagram 只能用手機上的系統分享' },
-];
 
 /* ------------------------------------------------------------------ *
  * 繪圖小工具
@@ -564,6 +523,8 @@ export function createShareCard({ content, progression, ranksFile, onClose, onTo
    */
   let lastBlob = null;
   let lastFile = null;
+  /** 玩家改過那段話沒？改過就不再被預設值蓋掉。 */
+  let captionEdited = false;
 
   /** 子集字型要先真的載進來，canvas 才畫得出中文（否則會退回系統字型）。 */
   async function ensureFonts() {
@@ -637,11 +598,9 @@ export function createShareCard({ content, progression, ranksFile, onClose, onTo
       dl.href = canvas.toDataURL('image/png');
       dl.download = fileName(lastModel);
     }
+    // 玩家已經動手改過那段話 → 不要蓋掉他寫的東西
     const cap = overlay.body.querySelector('[data-caption]');
-    if (cap) {
-      cap.textContent = `${lastModel.rankTitle} · Lv.${lastModel.level} · 已收集 ${lastModel.collected} / ${lastModel.total} 條技巧`;
-    }
-    renderTargets();
+    if (cap && !captionEdited) cap.value = shareCaption(lastModel);
     await prepareFile();
   }
 
@@ -664,41 +623,48 @@ export function createShareCard({ content, progression, ranksFile, onClose, onTo
     applySupport();
   }
 
-  /** 有系統分享面板才露出那個入口；沒有的話「下載圖片」就是主角。 */
+  /**
+   * 誰是主角？
+   *   · 系統分享面板帶得動檔案 → 「分享圖＋文」（那是唯一能把圖交給那些 app 的路）
+   *   · 帶不動 → 「複製圖＋文」；連剪貼簿都不給寫 → 「下載圖片」
+   * 一個畫面只有一個主角，其餘退成安靜的那一階。
+   */
   function applySupport() {
     const sys = overlay.body.querySelector('[data-sysshare]');
     // 用假檔案問就夠了 → 開卡的第一幀就知道要不要露出這個入口
     const supported = systemShareSupported(lastFile || SHARE_PROBE);
     if (sys) sys.hidden = !supported;
+    const copy = overlay.body.querySelector('[data-copy]');
     const dl = overlay.body.querySelector('[data-download]');
+    const copyIsHero = !supported && !!copy;
+    if (copy) {
+      copy.classList.toggle('btn--primary', copyIsHero);
+      copy.classList.toggle('btn--ghost', !copyIsHero);
+    }
+    const dlIsHero = !supported && !copyIsHero;
     if (dl) {
-      dl.classList.toggle('btn--primary', !supported);
-      dl.classList.toggle('btn--ghost', supported);
+      dl.classList.toggle('btn--primary', dlIsHero);
+      dl.classList.toggle('btn--ghost', !dlIsHero);
     }
   }
 
-  /** 「分享到」那一排：有入口的是連結，沒有入口的老實說沒有。 */
-  function renderTargets() {
-    const wrap = overlay.body.querySelector('[data-targets]');
-    if (!wrap || !lastModel) return;
-    const text = shareBody(lastModel);
-    const mobile = isMobileLike();
-    wrap.innerHTML = SHARE_TARGETS.map((t) => {
-      const href = platformIntent(t.id, { text, mobile });
-      if (href) {
-        return `<a class="fill sharecard__chip" data-chip="${esc(t.id)}" href="${esc(
-          href
-        )}" target="_blank" rel="noopener noreferrer">${esc(t.label)}<span class="fill__plus" aria-hidden="true">↗</span></a>`;
-      }
-      if (t.copyFallback) {
-        return `<button class="fill sharecard__chip" type="button" data-chip="${esc(t.id)}">${esc(
-          t.label
-        )}<span class="fill__plus" aria-hidden="true">⧉</span></button>`;
-      }
-      return `<button class="fill sharecard__chip" type="button" data-chip="${esc(t.id)}" disabled title="${esc(
-        t.reason || ''
-      )}" aria-label="${esc(`${t.label}：${t.reason || ''}`)}">${esc(t.label)}</button>`;
-    }).join('');
+  /** 這個畫面的主角（開卡時焦點就落在它上面）。 */
+  function heroAction() {
+    const sys = overlay.body.querySelector('[data-sysshare]');
+    if (sys && !sys.hidden) return sys;
+    return (
+      overlay.body.querySelector('[data-copy]') ||
+      overlay.body.querySelector('[data-download]') ||
+      null
+    );
+  }
+
+  /** 目前輸入框裡那段話（按下去的那一刻才讀，讀的是玩家改過的版本）。 */
+  function captionNow() {
+    const box = overlay.body.querySelector('[data-caption]');
+    const typed = box ? String(box.value || '').trim() : '';
+    if (typed) return typed;
+    return lastModel ? shareCaption(lastModel) : '';
   }
 
   const canCopyImage = () =>
@@ -739,32 +705,37 @@ export function createShareCard({ content, progression, ranksFile, onClose, onTo
     overlay.body.innerHTML = `
       <div class="sharecard">
         <div class="sharecard__frame" data-frame></div>
-        <p class="sharecard__caption" data-caption></p>
-        <p class="sharecard__note">這張圖是在你的裝置上畫出來的 —— 不會上傳到任何地方，存下來或貼給別人看。</p>
-        <div class="sharecard__acts">
-          <button class="btn btn--primary" type="button" data-sysshare hidden aria-label="把這張圖分享到其他地方">分享…</button>
-          <a class="btn btn--primary" data-download download="promptarcade.png" href="#">下載圖片</a>
-          ${canCopy ? '<button class="btn btn--ghost" type="button" data-copy>複製圖片</button>' : ''}
-          <button class="btn btn--ghost" type="button" data-back>回去</button>
-        </div>
-        <div class="sharecard__send">
-          <p class="sharecard__sendlabel">分享到</p>
-          <div class="sharecard__chips" data-targets></div>
-          <p class="sharecard__hint">Facebook 與 Threads 的網頁入口只帶得走文字和連結 —— 按下去會順手把圖複製起來，貼上就補齊了。Instagram 只能用手機上的系統分享。</p>
-          <p class="sharecard__hint">這一排用 <kbd>←</kbd> <kbd>→</kbd> 移動，<kbd>Enter</kbd> 挑一個。</p>
+        <div class="sharecard__side">
+          <div class="sharecard__say">
+            <label class="sharecard__saylabel" for="sharecard-say">一段話（可以改成你想說的）</label>
+            <textarea class="sharecard__saybox" id="sharecard-say" data-caption rows="2"
+              aria-describedby="sharecard-sayhint" spellcheck="false"></textarea>
+          </div>
+          <div class="sharecard__acts">
+            <button class="btn btn--primary" type="button" data-sysshare hidden aria-label="把這張圖和這段話一起分享出去">分享圖＋文</button>
+            ${canCopy ? '<button class="btn btn--primary" type="button" data-copy>複製圖＋文</button>' : ''}
+            <a class="btn btn--ghost" data-download download="promptarcade.png" href="#">下載圖片</a>
+            <button class="btn btn--ghost" type="button" data-back>回去</button>
+          </div>
+          <p class="sharecard__hint" id="sharecard-sayhint">開啟 Facebook / Instagram / Threads 直接貼上 —— 圖和文字會一起送出。</p>
+          <p class="sharecard__hint">圖只在這台裝置上，不會上傳。用 <kbd>Tab</kbd> 移動、<kbd>Enter</kbd> 按下去。</p>
         </div>
       </div>
     `;
     overlay.body.querySelector('[data-frame]').appendChild(canvas);
     overlay.body.querySelector('[data-back]').addEventListener('click', () => api.close());
 
+    /* --- 那段話：玩家動過就不再被覆蓋 --- */
+    const sayBox = overlay.body.querySelector('[data-caption]');
+    if (sayBox) sayBox.addEventListener('input', () => { captionEdited = true; });
+
     const copyBtn = overlay.body.querySelector('[data-copy]');
     if (copyBtn) {
       copyBtn.addEventListener('click', () => {
         const ready = !!lastBlob;
         // blob 開卡時就備好了 → 這裡不 await，寫剪貼簿仍在使用者手勢裡
-        copyBundle().then((copied) => {
-          if (copied) onToast?.('已複製到剪貼簿 —— 直接貼上就行。', 'good');
+        copyBundle(captionNow()).then((copied) => {
+          if (copied) onToast?.('圖和那段話都複製好了 —— 到想貼的地方直接貼上。', 'good');
           else if (!ready) onToast?.('圖還在刻 —— 等一下再按一次。', 'warn');
           // 沒有權限 / 瀏覽器不給 → 退回「下載」這條一定走得通的路
           else onToast?.('這個瀏覽器不讓程式寫剪貼簿，改用「下載圖片」吧。', 'warn');
@@ -781,43 +752,21 @@ export function createShareCard({ content, progression, ranksFile, onClose, onTo
           onToast?.('圖還在刻 —— 等一下再按一次。', 'warn');
           return;
         }
+        // 讀的是輸入框裡當下那段話（玩家改過的版本）—— 同步讀，手勢不會斷
+        const text = captionNow();
         try {
           // 注意：這一行前面不准有任何 await —— 手勢一斷，系統分享面板就開不起來
-          const p = navigator.share({
-            files: [lastFile],
-            title: shareTitle(lastModel),
-            text: shareBody(lastModel),
-          });
+          const p = navigator.share({ files: [lastFile], text });
           if (p && typeof p.catch === 'function') {
             p.catch((err) => {
               // 玩家自己按取消不算失敗，什麼都不要說
               if (err && (err.name === 'AbortError' || err.name === 'NotAllowedError')) return;
-              onToast?.('這台裝置沒接受這次分享 —— 改用「下載圖片」吧。', 'warn');
+              onToast?.('這台裝置沒接受這次分享 —— 改用「複製圖＋文」吧。', 'warn');
             });
           }
         } catch {
-          onToast?.('這台裝置沒接受這次分享 —— 改用「下載圖片」吧。', 'warn');
+          onToast?.('這台裝置沒接受這次分享 —— 改用「複製圖＋文」吧。', 'warn');
         }
-      });
-    }
-
-    /* --- 各家的入口：複製圖 ＋ 開那一頁（連結自己會開，不攔它） --- */
-    const targetsEl = overlay.body.querySelector('[data-targets]');
-    if (targetsEl) {
-      rovingList(targetsEl, '[data-chip]');
-      targetsEl.addEventListener('click', (e) => {
-        const chip = e.target.closest?.('[data-chip]');
-        if (!chip || chip.disabled || !targetsEl.contains(chip)) return;
-        const id = chip.getAttribute('data-chip');
-        const target = SHARE_TARGETS.find((t) => t.id === id);
-        const ready = !!lastBlob;
-        // 同步開始寫剪貼簿（還在手勢裡），開新頁交給連結自己的預設行為
-        copyBundle(shareBody(lastModel || {})).then((copied) => {
-          if (copied) onToast?.(target?.toast || '圖片已複製 —— 貼上就行。', 'good');
-          else if (!ready) onToast?.('圖還在刻 —— 文字和連結先帶過去了，等一下再按一次就會一起複製。', 'warn');
-          else onToast?.('這個瀏覽器不讓程式寫剪貼簿 —— 先「下載圖片」再上傳吧。', 'warn');
-        });
-        chip.classList.add('is-used');
       });
     }
   }
@@ -836,10 +785,10 @@ export function createShareCard({ content, progression, ranksFile, onClose, onTo
     model() {
       return lastModel;
     },
-    /** 這次要帶出去的那句話與網址（除錯 / 自動化測試用）。 */
+    /** 這次要帶出去的那段話（除錯 / 自動化測試用）—— 沒有網址，只有圖與話。 */
     shareData() {
       if (!lastModel) return null;
-      return { title: shareTitle(lastModel), text: shareBody(lastModel), url: SHARE_URL };
+      return { text: captionNow(), preset: shareCaption(lastModel) };
     },
     /** 已經備好的 PNG（系統分享面板拿到的就是這一份）。 */
     get file() {
@@ -854,13 +803,20 @@ export function createShareCard({ content, progression, ranksFile, onClose, onTo
      */
     open(opts = {}) {
       mount();
-      // 開卡的第一幀就決定「分享…」在不在 —— 焦點才不會落在別的地方之後又被搶走
+      // 每開一張新的卡，那段話回到預設（上一張的話不會跟過來）
+      captionEdited = false;
+      // 卡片資料是同步算得出來的 → 那段話開卡的第一幀就在框裡，不用等圖畫完
+      lastModel = buildModel(opts);
+      const cap = overlay.body.querySelector('[data-caption]');
+      if (cap) cap.value = shareCaption(lastModel);
+      // 開卡的第一幀就決定「分享圖＋文」在不在 —— 焦點才不會落在別的地方之後又被搶走
       applySupport();
       overlay.setEyebrow('分享 · SHARE');
       // 副標留空：這句話已經在下面的說明裡，標頭少一行就能把高度讓給圖
       overlay.setTitle('分享你的刻印紀錄', '');
       overlay.resetScroll();
-      overlay.open();
+      // 焦點落在這個畫面的主角上（不是輸入框：那段話已經寫好了，想改再 Shift+Tab 回去）
+      overlay.open({ focus: heroAction() });
       // 字型可能還沒 load 完 —— render 是 async，畫好會自己補上
       render(opts);
     },

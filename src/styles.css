@@ -6189,16 +6189,22 @@ select option:disabled {
   flex-direction: column;
   gap: var(--s3);
 }
-/* 分享卡的重點是那張圖與「下載圖片」—— 標頭收窄，把高度讓出來 */
+.sharecard__side {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  min-width: 0;
+}
+/* 分享卡的重點是那張圖與那段話 —— 標頭收窄，把高度讓出來 */
 .overlay--share .panel__head {
   padding-bottom: var(--s2);
 }
 .sharecard__frame {
   position: relative;
-  /* 卡片是 1200×630（比例 1.905）。把「寬度」綁在可用高度上，
-     整張圖才不會把「下載圖片」那排按鈕擠到摺線下面去。
-     Phase 24 在下面多了「分享到」那一排 → 讓出來的高度跟著加。 */
-  width: min(100%, max(240px, calc((94vh - 520px) * 1.905)));
+  /* 卡片是 1200×630（比例 1.905）。窄畫面是上下疊的，所以把「寬度」綁在可用高度上，
+     整張圖才不會把那排按鈕擠到摺線下面去。
+     Phase 28 在下面多了「一段話」那個輸入框 → 讓出來的高度跟著算進去。 */
+  width: min(100%, max(200px, calc((94vh - 585px) * 1.905)));
   margin-inline: auto;
   border: 1px solid var(--rule-2);
   background: var(--ink-0);
@@ -6231,18 +6237,6 @@ select option:disabled {
   height: auto;
   max-width: 100%;
 }
-.sharecard__caption {
-  margin: 0;
-  font-family: var(--font-display);
-  font-size: var(--t-body);
-  letter-spacing: var(--tr-cjk-display);
-  color: var(--paper);
-}
-.sharecard__note {
-  margin: 0;
-  font-size: var(--t-micro);
-  color: var(--paper-4);
-}
 .sharecard__acts {
   display: flex;
   flex-wrap: wrap;
@@ -6256,38 +6250,45 @@ select option:disabled {
   text-decoration: none;
 }
 
-/* 分享到 …（Phase 24）
-   一排 quiet 階的石籤：有入口的是連結（↗），只能複製的帶 ⧉，
-   沒有網頁入口的那一片沒點燈（disabled）—— 不假裝有路。 */
-.sharecard__send {
+/* 一段話（Phase 28）
+   分享出去的兩樣東西之一 —— 所以它是一個真的能改的框，不是一行說明。
+   玩家自己打的字一律走系統字型（子集缺字也不會破圖）。 */
+.sharecard__say {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--s2) var(--s3);
+  flex-direction: column;
+  gap: var(--s2);
   padding-top: var(--s3);
   border-top: 1px solid var(--rule);
 }
-.sharecard__sendlabel {
-  margin: 0;
-  flex: 0 0 auto;
+.sharecard__saylabel {
   font-family: var(--font-ui);
   font-size: var(--t-micro);
   letter-spacing: var(--tr-cjk);
   color: var(--paper-3);
 }
-.sharecard__chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--s2);
+.sharecard__saybox {
+  display: block;
+  width: 100%;
+  min-height: 6.4em;
+  padding: var(--s3);
+  border: 1px solid var(--rule-2);
+  border-radius: var(--radius);
+  background: var(--ink-0);
+  color: #dfe9f3;
+  font-family: var(--font-input);
+  /* 比內文小一階：那段話本來就是兩三行，太大反而只看得到半句 */
+  font-size: var(--t-micro);
+  line-height: 1.55;
+  resize: vertical;
+  outline: none;
+  transition: border-color var(--d-fast) var(--e-out), box-shadow var(--d-fast) var(--e-out);
 }
-.sharecard__chip {
-  text-decoration: none;
-}
-.sharecard__chip.is-used {
-  --face: linear-gradient(180deg, #05080c, #0e141d);
+.sharecard__saybox:focus-visible,
+.sharecard__saybox:focus {
+  border-color: var(--rule-gold);
+  box-shadow: 0 0 0 1px var(--rule-gold);
 }
 .sharecard__hint {
-  flex: 1 1 100%;
   margin: 0;
   font-size: var(--t-micro);
   line-height: 1.5;
@@ -6295,6 +6296,30 @@ select option:disabled {
 }
 .sharecard__hint kbd {
   margin: 0 2px;
+}
+/* 寬一點的畫面：圖在左、那段話與按鈕在右。
+   分享的主角是那張圖 —— 橫著擺，圖就能大一倍，按鈕也還在摺線上面。
+   （橫著擺時圖的寬度由 flex-basis 決定，上面那條綁在可用高度的 width 只管窄畫面。） */
+@media (min-width: 900px) {
+  .sharecard {
+    flex-direction: row;
+    align-items: flex-start;
+    gap: var(--s5);
+  }
+  .sharecard__frame {
+    flex: 1 1 52%;
+    max-width: 52%;
+    margin-inline: 0;
+  }
+  .sharecard__side {
+    flex: 1 1 48%;
+  }
+  /* 橫著擺的時候，左右已經分好欄了 —— 再拉髮絲線只會把畫面切碎 */
+  .sharecard__say,
+  .sharecard__acts {
+    padding-top: 0;
+    border-top: 0;
+  }
 }
 
 /* 結果面板 / 隱藏成就畫面上的分享入口（刻印牌的 quiet 階） */
@@ -6365,14 +6390,6 @@ select option:disabled {
   }
   .sharecard__acts .btn {
     flex: 1 1 auto;
-  }
-  /* 窄畫面：石籤自己撐開，手指按得到 */
-  .sharecard__chips {
-    flex: 1 1 100%;
-  }
-  .sharecard__chip {
-    flex: 1 1 auto;
-    justify-content: center;
   }
 }
 

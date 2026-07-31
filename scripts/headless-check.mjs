@@ -4677,7 +4677,7 @@ async function main() {
       href: (dl?.getAttribute('href') || '').startsWith('data:image/png;base64,'),
       hrefLen: (dl?.getAttribute('href') || '').length,
       download: dl?.getAttribute('download') || '',
-      caption: document.querySelector('#sharecard [data-caption]')?.textContent.trim() || '',
+      caption: document.querySelector('#sharecard [data-caption]')?.value.trim() || '',
       model: g.shareCard.model(),
       focusInPanel: document.querySelector('#sharecard .panel').contains(document.activeElement),
       zShare: Number(getComputedStyle(document.getElementById('sharecard')).zIndex),
@@ -4701,7 +4701,8 @@ async function main() {
   ok(card.hrefLen > 20000, '下載連結帶得動整張圖', `len=${card.hrefLen}`);
   ok(/\.png$/.test(card.download), '下載檔名是 .png', card.download);
   ok(card.download.includes('lv6'), '檔名帶著等級', card.download);
-  ok(card.caption.includes('釋義者'), '預覽下方寫出稱號', card.caption);
+  ok(card.caption.includes('釋義者'), '那段話預設就寫好了（帶著稱號）', card.caption);
+  ok(!/https?:\/\//.test(card.caption), '那段話裡沒有任何連結', card.caption);
   eq(card.model.rankTitle, '釋義者', '卡片資料的稱號正確');
   eq(card.model.level, 6, '卡片資料的等級正確');
   eq(card.model.collected, 46, '卡片資料的收集數正確');
@@ -4820,35 +4821,37 @@ async function main() {
   await sleep(280);
 
   /* ================================================================ */
-  console.log('\n▸ 分享到社群（Phase 24）');
+  console.log('\n▸ 分享 ＝ 圖 ＋ 一段話（Phase 28）');
 
   /*
-   * 三條路各驗一次：
-   *   ① 沒有系統分享面板（大部分桌機瀏覽器）→ 那個入口收起來，只留各家的入口
-   *   ② 有系統分享面板 → 露出來，而且真的把「一個 PNG 檔案」交出去
-   *   ③ 各家的入口 → 圖 ＋ 文字進剪貼簿，連結自己開新頁（鍵盤也走得完）
+   * 分享出去的東西只有兩樣：**那張卡的圖 ＋ 玩家自己那段話**。
    *
-   * 測試裡把真正的開新頁攔下來（capture 期 preventDefault）——
-   * 不然 headless 會真的去連 facebook.com。
+   * Phase 24 那排「分享到 Facebook / Threads」的網頁入口已經整排拿掉 ——
+   * 它們只帶得走文字和一個連結，收到的人看到的是一個程式碼倉庫的連結，
+   * 不是玩家剛刻出來的那張卡。這一節就是在守這件事。
+   *
+   * 兩種環境各驗一次：
+   *   ① 系統分享面板帶不動檔案（大部分桌機瀏覽器）
+   *      → 那個入口收起來，「複製圖＋文」變成主角，
+   *        剪貼簿裡真的有圖，也有玩家改過的那段話
+   *   ② 帶得動 → 露出來，交出去的是「一個 PNG 檔案 ＋ 玩家改過的那段話」，
+   *        沒有 url、沒有 title，也沒有任何連結
    */
   await evaluate(`
-    // 攔下「真的開新頁」，其餘行為（我們自己的 click 處理）照跑
-    window.__opened = [];
-    window.__realOpen = window.open;
-    window.open = (...args) => { window.__opened.push(args[0]); return null; };
-    document.addEventListener('click', (e) => {
-      const a = e.target.closest?.('#sharecard a[target="_blank"]');
-      if (a) { e.preventDefault(); window.__opened.push(a.href); }
-    }, true);
-    // 剪貼簿換成假的，寫進去的東西留下來給測試看
+    // 剪貼簿換成假的：連寫進去的那段話本身都留下來給測試看
     window.__clip = [];
     Object.defineProperty(navigator, 'clipboard', {
       configurable: true,
       value: {
         write: async (items) => {
-          window.__clip.push(items.flatMap((it) => [...it.types]));
+          for (const it of items) {
+            const types = [...it.types];
+            let text = null;
+            if (types.includes('text/plain')) text = await (await it.getType('text/plain')).text();
+            window.__clip.push({ types, text });
+          }
         },
-        writeText: async (t) => { window.__clip.push(['text:' + t]); },
+        writeText: async (t) => { window.__clip.push({ types: ['text/plain'], text: t }); },
       },
     });
     // 先確定沒有系統分享面板（Linux 桌機的 Chrome 本來就沒有，這裡讓它變成確定的）
@@ -4873,6 +4876,18 @@ async function main() {
     return false;
   }
 
+  /** 真的用鍵盤在那段話後面補字（Input.insertText ＝ 真正的輸入事件）。 */
+  async function typeIntoCaption(text) {
+    await evaluate(`
+      const box = document.querySelector('#sharecard [data-caption]');
+      box.focus();
+      box.setSelectionRange(box.value.length, box.value.length);
+      return true;
+    `);
+    await cdp.send('Input.insertText', { text }, sessionId);
+    await sleep(160);
+  }
+
   await evaluate(`window.__promptarcade.shareCard.open({ kind: 'codex' }); return true;`);
   const plainReady = await waitShareFile();
 
@@ -4881,159 +4896,109 @@ async function main() {
     const ready = ${plainReady};
     const sys = document.querySelector('#sharecard [data-sysshare]');
     const dl = document.querySelector('#sharecard [data-download]');
-    const chips = [...document.querySelectorAll('#sharecard [data-chip]')].map((n) => ({
-      id: n.getAttribute('data-chip'),
-      tag: n.tagName,
-      label: n.textContent.trim(),
-      href: n.getAttribute('href') || '',
-      target: n.getAttribute('target') || '',
-      rel: n.getAttribute('rel') || '',
-      disabled: !!n.disabled,
-      title: n.getAttribute('title') || '',
-      drawn: n.getClientRects().length > 0,
-      minH: n.getBoundingClientRect().height,
-    }));
+    const copy = document.querySelector('#sharecard [data-copy]');
+    const say = document.querySelector('#sharecard [data-caption]');
     return {
       open: g.shareCard.isOpen,
       ready,
       sysHidden: sys.hidden,
       sysDrawn: sys.getClientRects().length > 0,
+      copyLabel: copy ? copy.textContent.trim() : '',
+      copyClass: copy ? copy.className : '',
       dlClass: dl.className,
-      chips,
+      dlLabel: dl.textContent.trim(),
+      // 帶不走圖片的那排入口不該再存在
+      chips: document.querySelectorAll('#sharecard [data-chip]').length,
+      sendLabel: document.querySelectorAll('#sharecard .sharecard__sendlabel').length,
+      newTabs: document.querySelectorAll('#sharecard a[target="_blank"]').length,
+      sayTag: say ? say.tagName : '',
+      sayValue: say ? say.value : '',
+      sayLabel: document.querySelector('#sharecard .sharecard__saylabel')?.textContent.trim() || '',
+      sayFont: say ? getComputedStyle(say).fontFamily : '',
+      sayDescribed: say ? say.getAttribute('aria-describedby') : '',
+      labelFor: document.querySelector('#sharecard .sharecard__saylabel')?.getAttribute('for') || '',
       hints: [...document.querySelectorAll('#sharecard .sharecard__hint')].map((n) => n.textContent.trim()),
-      label: document.querySelector('#sharecard .sharecard__sendlabel')?.textContent.trim() || '',
+      kbd: [...document.querySelectorAll('#sharecard .sharecard__hint kbd')].map((n) => n.textContent.trim()),
       data: g.shareCard.shareData(),
+      focusOnCopy: document.activeElement.getAttribute('data-copy') !== null,
       file: g.shareCard.file
         ? { name: g.shareCard.file.name, type: g.shareCard.file.type, size: g.shareCard.file.size }
         : null,
       remoteNodes: document.querySelectorAll('#sharecard img, #sharecard iframe, #sharecard script').length,
-      kbd: [...document.querySelectorAll('#sharecard .sharecard__hint kbd')].map((n) => n.textContent.trim()),
+      wholeText: document.querySelector('#sharecard .panel').textContent,
     };
   `);
   eq(sendPlain.open, true, '分享卡打得開');
   eq(sendPlain.sysHidden, true, '這個瀏覽器帶不動檔案 → 系統分享的入口收起來（不給死路）');
   eq(sendPlain.sysDrawn, false, '收起來的入口真的沒畫出來（鍵盤也走不到）');
-  ok(sendPlain.dlClass.includes('btn--primary'), '沒有系統分享時，「下載圖片」就是主角', sendPlain.dlClass);
-  eq(sendPlain.chips.length, 4, '「分享到」有四片石籤');
-  eq(sendPlain.chips.map((c) => c.id).join(','), 'facebook,threads,messenger,instagram', '四片石籤依序排好');
-  eq(sendPlain.label, '分享到', '那一排前面寫著「分享到」');
-  ok(sendPlain.chips.every((c) => c.drawn), '四片石籤都畫出來了');
-  ok(sendPlain.chips.every((c) => c.minH >= 36), '石籤按得到（高度 ≥ 36px）', JSON.stringify(sendPlain.chips.map((c) => c.minH)));
+  eq(sendPlain.chips, 0, '那排帶不走圖片的入口整排不見了（Phase 28 修的就是這個）');
+  eq(sendPlain.sendLabel, 0, '「分享到」那一排的標題也一起走了');
+  eq(sendPlain.newTabs, 0, '分享卡上沒有任何會開新頁的連結');
+  ok(sendPlain.copyLabel.includes('複製圖＋文'), '沒有系統分享時，那顆鈕寫著「複製圖＋文」', sendPlain.copyLabel);
+  ok(sendPlain.copyClass.includes('btn--primary'), '沒有系統分享時，「複製圖＋文」就是主角', sendPlain.copyClass);
+  ok(sendPlain.dlClass.includes('btn--ghost'), '「下載圖片」退成安靜的那一階（一個畫面只有一個主角）', sendPlain.dlClass);
+  ok(sendPlain.dlLabel.includes('下載圖片'), '「下載圖片」還在（保底那條路）', sendPlain.dlLabel);
+  eq(sendPlain.focusOnCopy, true, '開卡時焦點就落在主角上');
   eq(sendPlain.remoteNodes, 0, '分享卡仍然沒有任何外部資源節點（零 SDK）');
 
-  const fbChip = sendPlain.chips.find((c) => c.id === 'facebook');
-  const thChip = sendPlain.chips.find((c) => c.id === 'threads');
-  const mgChip = sendPlain.chips.find((c) => c.id === 'messenger');
-  const igChip = sendPlain.chips.find((c) => c.id === 'instagram');
-  eq(fbChip.tag, 'A', 'Facebook 是真的連結（Enter 就開得起來）');
-  ok(fbChip.href.startsWith('https://www.facebook.com/sharer/sharer.php?u='), 'Facebook 走官方 sharer 入口', fbChip.href);
-  ok(
-    fbChip.href.includes(encodeURIComponent('https://github.com/romanticamaj/promptarcade')),
-    '網址有經過編碼放進 u',
-    fbChip.href
-  );
-  ok(fbChip.href.includes('quote=' + encodeURIComponent(sendPlain.data.text)), '那句話有經過編碼放進 quote');
-  ok(fbChip.href.includes(encodeURIComponent('釋義者')), '連結裡帶著稱號（中文有編碼）');
-  ok(!/[ 「」]/.test(fbChip.href), 'Facebook 連結沒有沒編碼的字元', fbChip.href);
-  eq(fbChip.target, '_blank', 'Facebook 開新頁');
-  eq(fbChip.rel, 'noopener noreferrer', '開新頁帶著 noopener noreferrer');
-  eq(thChip.tag, 'A', 'Threads 是真的連結');
-  ok(thChip.href.startsWith('https://www.threads.net/intent/post?text='), 'Threads 走官方 intent 入口', thChip.href);
-  ok(thChip.href.includes(encodeURIComponent('https://github.com/romanticamaj/promptarcade')), 'Threads 的文字裡帶著網址');
-  eq(mgChip.tag, 'BUTTON', '桌機沒有 Messenger 的入口 → 那一片只複製，不假裝開得起來');
-  eq(mgChip.href, '', '桌機的 Messenger 沒有假的連結');
-  eq(mgChip.disabled, false, '桌機的 Messenger 還是按得下去（複製給你貼）');
-  eq(igChip.tag, 'BUTTON', 'Instagram 沒有網頁入口');
-  eq(igChip.disabled, true, 'Instagram 那一片沒點燈（不假裝有路）');
-  ok(igChip.title.includes('手機'), 'Instagram 說得出要用手機的系統分享', igChip.title);
-  ok(sendPlain.hints.join(' ').includes('文字和連結'), '畫面上老實說這條路只帶得走文字和連結', sendPlain.hints.join(' '));
-  ok(sendPlain.hints.join(' ').includes('Instagram'), '畫面上說得出 Instagram 的限制');
-  ok(sendPlain.kbd.includes('Enter'), '畫面上戴著 Enter 的鍵帽', sendPlain.kbd.join(' '));
-  ok(sendPlain.kbd.includes('←') && sendPlain.kbd.includes('→'), '畫面上戴著方向鍵的鍵帽', sendPlain.kbd.join(' '));
+  /* --- 那段話：一個真的能改的框，預設就寫好了，而且不帶連結 --- */
+  eq(sendPlain.sayTag, 'TEXTAREA', '那段話是一個可以改的框');
+  ok(sendPlain.sayValue.includes('釋義者'), '那段話預設帶著稱號', sendPlain.sayValue);
+  ok(sendPlain.sayValue.includes('46 / 68'), '那段話預設帶著收集進度', sendPlain.sayValue);
+  ok(sendPlain.sayValue.includes('Learn Prompt Engineering by Playing'), '那段話落款是品牌那一句');
+  ok(!/https?:\/\//.test(sendPlain.sayValue), '那段話裡沒有任何連結', sendPlain.sayValue);
+  ok(!/github/i.test(sendPlain.sayValue), '那段話裡沒有程式碼倉庫的字眼', sendPlain.sayValue);
+  ok(!/https?:\/\//.test(sendPlain.wholeText), '整張分享卡上都看不到網址', sendPlain.wholeText.slice(0, 120));
+  ok(!/github/i.test(sendPlain.wholeText), '整張分享卡上都看不到程式碼倉庫的字眼');
+  ok(sendPlain.sayLabel.includes('一段話'), '框上面寫著這是什麼', sendPlain.sayLabel);
+  eq(sendPlain.labelFor, 'sharecard-say', '標籤綁得到那個框（螢幕閱讀器唸得出來）');
+  eq(sendPlain.sayDescribed, 'sharecard-sayhint', '框旁邊那句說明也綁得回框本身');
+  ok(!/Arcade Sans|Arcade Serif/.test(sendPlain.sayFont), '玩家自己打的字走系統字型（子集缺字也不會破圖）', sendPlain.sayFont);
+  ok(sendPlain.data.text === sendPlain.sayValue.trim(), '要送出去的那段話就是框裡的字');
+  eq(Object.keys(sendPlain.data).join(','), 'text,preset', '要送出去的東西只有那段話（沒有網址）');
+
+  /* --- 畫面上的說明：貼上之後會發生什麼 --- */
+  const plainHints = sendPlain.hints.join(' ');
+  ok(plainHints.includes('Facebook') && plainHints.includes('Instagram') && plainHints.includes('Threads'),
+    '說明點得出常見的那幾個地方', plainHints);
+  ok(plainHints.includes('貼上'), '說明講得出「直接貼上」這個動作', plainHints);
+  ok(plainHints.includes('圖和文字'), '說明講得出圖和文字會一起送出', plainHints);
+  ok(!plainHints.includes('連結'), '說明不再提「連結」（分享的是圖）', plainHints);
+  ok(sendPlain.kbd.includes('Tab') && sendPlain.kbd.includes('Enter'), '畫面上戴著 Tab / Enter 的鍵帽', sendPlain.kbd.join(' '));
   eq(sendPlain.ready, true, '開卡之後 PNG 會自己備好（不用等玩家按下去才畫）');
   ok(!!sendPlain.file, '開卡的時候 PNG 就備好了（按下去才不會斷手勢）');
   eq(sendPlain.file.type, 'image/png', '備好的是 PNG');
   ok(sendPlain.file.size > 20000, '備好的 PNG 有內容', `size=${sendPlain.file.size}`);
   ok(/\.png$/.test(sendPlain.file.name), '備好的檔名是 .png', sendPlain.file.name);
-  ok(sendPlain.data.text.includes('釋義者'), '要帶出去的那句話有稱號', sendPlain.data.text);
-  ok(sendPlain.data.text.includes('46 / 68'), '要帶出去的那句話有收集進度');
-  ok(sendPlain.data.text.includes('https://github.com/romanticamaj/promptarcade'), '要帶出去的那句話有網址');
-  ok(!sendPlain.data.text.includes('送出評分'), '那句話沒有系統術語');
 
-  /* --- ③ 各家的入口：圖 ＋ 文字進剪貼簿，連結自己開新頁 --- */
-  const chipClick = await evaluate(`
+  /* --- 玩家把那段話改成自己想說的 → 複製出去的就是改過的版本 --- */
+  await typeIntoCaption('（今晚刻完的）');
+  const edited = await evaluate(`
+    const g = window.__promptarcade;
+    const box = document.querySelector('#sharecard [data-caption]');
+    return { value: box.value, data: g.shareCard.shareData() };
+  `);
+  ok(edited.value.includes('（今晚刻完的）'), '打進去的字真的留在框裡', edited.value);
+  ok(edited.data.text.includes('（今晚刻完的）'), '要送出去的那段話跟著改了', edited.data.text);
+
+  const copyClick = await evaluate(`
     window.__clip.length = 0;
-    window.__opened.length = 0;
-    document.querySelector('#sharecard [data-chip="facebook"]').click();
-    await new Promise((r) => setTimeout(r, 320));
+    document.querySelector('#sharecard [data-copy]').click();
+    await new Promise((r) => setTimeout(r, 360));
     return {
       clip: window.__clip,
-      opened: window.__opened,
-      used: document.querySelector('#sharecard [data-chip="facebook"]').className,
       toast: [...document.querySelectorAll('.toast')].map((n) => n.textContent.trim()),
     };
   `);
-  eq(chipClick.clip.length, 1, '按一下 Facebook → 只寫一次剪貼簿');
-  ok(chipClick.clip[0].includes('image/png'), '剪貼簿裡有圖', JSON.stringify(chipClick.clip[0]));
-  ok(chipClick.clip[0].includes('text/plain'), '剪貼簿裡也有那句話', JSON.stringify(chipClick.clip[0]));
-  eq(chipClick.opened.length, 1, '同時開了那一頁');
-  ok(chipClick.opened[0].startsWith('https://www.facebook.com/sharer/sharer.php'), '開的是 Facebook 的入口', chipClick.opened[0]);
-  ok(chipClick.used.includes('is-used'), '按過的石籤看得出來按過了', chipClick.used);
-  ok(chipClick.toast.some((t) => t.includes('圖片已複製')), '提示告訴玩家貼上就行', chipClick.toast.join(' ｜ '));
+  eq(copyClick.clip.length, 1, '按一下「複製圖＋文」→ 只寫一次剪貼簿');
+  ok(copyClick.clip[0].types.includes('image/png'), '剪貼簿裡有圖', JSON.stringify(copyClick.clip[0].types));
+  ok(copyClick.clip[0].types.includes('text/plain'), '剪貼簿裡也有那段話', JSON.stringify(copyClick.clip[0].types));
+  ok(copyClick.clip[0].text.includes('（今晚刻完的）'), '剪貼簿裡那段話是玩家改過的版本', copyClick.clip[0].text);
+  ok(copyClick.clip[0].text.includes('釋義者'), '剪貼簿裡那段話也帶著稱號');
+  ok(!/https?:\/\//.test(copyClick.clip[0].text), '剪貼簿裡那段話沒有連結', copyClick.clip[0].text);
+  ok(copyClick.toast.some((t) => t.includes('貼上')), '提示告訴玩家貼上就行', copyClick.toast.join(' ｜ '));
 
-  const mgClick = await evaluate(`
-    window.__clip.length = 0;
-    window.__opened.length = 0;
-    document.querySelector('#sharecard [data-chip="messenger"]').click();
-    await new Promise((r) => setTimeout(r, 320));
-    return { clip: window.__clip, opened: window.__opened, toast: [...document.querySelectorAll('.toast')].map((n) => n.textContent.trim()) };
-  `);
-  eq(mgClick.clip.length, 1, '桌機的 Messenger 也把圖 ＋ 文字複製好');
-  eq(mgClick.opened.length, 0, '桌機的 Messenger 不亂開沒有用的頁');
-  ok(mgClick.toast.some((t) => t.includes('Messenger')), '提示說得出「開 Messenger 貼上」', mgClick.toast.join(' ｜ '));
-
-  const igClick = await evaluate(`
-    window.__clip.length = 0;
-    window.__opened.length = 0;
-    const ig = document.querySelector('#sharecard [data-chip="instagram"]');
-    ig.click();
-    await new Promise((r) => setTimeout(r, 200));
-    return { clip: window.__clip.length, opened: window.__opened.length };
-  `);
-  eq(igClick.clip, 0, '沒點燈的 Instagram 按不動（不做假的事）');
-  eq(igClick.opened, 0, 'Instagram 不會偷偷開什麼頁');
-
-  /* --- 鍵盤：方向鍵在那一排裡走，Enter 挑一個 --- */
-  await evaluate(`
-    document.querySelector('#sharecard [data-chip="facebook"]').focus();
-    return true;
-  `);
-  await key('ArrowRight', 'ArrowRight', { vk: 39 });
-  await sleep(160);
-  const kbChip = await evaluate(`
-    return { at: document.activeElement.getAttribute('data-chip') };
-  `);
-  eq(kbChip.at, 'threads', '方向鍵在那一排裡往右走一格');
-  await key('End', 'End', { vk: 35 });
-  await sleep(160);
-  const kbEnd = await evaluate(`return { at: document.activeElement.getAttribute('data-chip') };`);
-  // 沒點燈的 Instagram 不收焦點（Phase 23：焦點只停在真的按得動的東西上）
-  eq(kbEnd.at, 'messenger', 'End 跳到最後一片按得動的石籤（跳過沒點燈的那片）');
-  await key('Home', 'Home', { vk: 36 });
-  await sleep(160);
-  const kbHome = await evaluate(`
-    window.__clip.length = 0;
-    window.__opened.length = 0;
-    return { at: document.activeElement.getAttribute('data-chip') };
-  `);
-  eq(kbHome.at, 'facebook', 'Home 跳回那一排的第一片');
-  await enterNative();
-  await sleep(320);
-  const kbEnter = await evaluate(`return { clip: window.__clip, opened: window.__opened };`);
-  eq(kbEnter.clip.length, 1, 'Enter 就等於按下去（圖進了剪貼簿）');
-  ok(kbEnter.opened.length === 1 && kbEnter.opened[0].includes('facebook.com/sharer'), 'Enter 也開得起那一頁', kbEnter.opened.join(' '));
-
-  /* --- ② 有系統分享面板：把一個 PNG 檔案真的交出去 --- */
+  /* --- ② 有系統分享面板：把「一個 PNG 檔案 ＋ 那段話」真的交出去 --- */
   const sysShare = await evaluate(`
     const g = window.__promptarcade;
     window.__shared = null;
@@ -5045,7 +5010,6 @@ async function main() {
       configurable: true,
       value: async (data) => {
         window.__shared = {
-          title: data.title,
           text: data.text,
           keys: Object.keys(data),
           files: (data.files || []).map((f) => ({
@@ -5061,31 +5025,38 @@ async function main() {
     await new Promise((r) => setTimeout(r, 260));
     const sys = document.querySelector('#sharecard [data-sysshare]');
     const dl = document.querySelector('#sharecard [data-download]');
+    const copy = document.querySelector('#sharecard [data-copy]');
     return {
       sysHidden: sys.hidden,
       label: sys.textContent.trim(),
       aria: sys.getAttribute('aria-label') || '',
       hero: sys.className,
+      copyClass: copy.className,
       dlClass: dl.className,
       focusInPanel: document.querySelector('#sharecard .panel').contains(document.activeElement),
       focusOn: document.activeElement.getAttribute('data-sysshare') !== null,
       chips: document.querySelectorAll('#sharecard [data-chip]').length,
+      // 換一張卡 → 那段話回到預設（上一張改過的話不會跟過來）
+      sayValue: document.querySelector('#sharecard [data-caption]').value,
     };
   `);
   eq(sysShare.sysHidden, false, '瀏覽器帶得動檔案 → 系統分享的入口出現');
-  ok(sysShare.label.includes('分享'), '那個入口寫著「分享…」', sysShare.label);
-  ok(sysShare.aria.includes('分享'), '那個入口有給螢幕閱讀器的說明', sysShare.aria);
+  ok(sysShare.label.includes('分享圖＋文'), '那個入口寫著「分享圖＋文」', sysShare.label);
+  ok(sysShare.aria.includes('圖') && sysShare.aria.includes('話'), '那個入口有給螢幕閱讀器的說明', sysShare.aria);
   ok(sysShare.hero.includes('btn--primary'), '系統分享是主角（hero 階）', sysShare.hero);
-  ok(sysShare.dlClass.includes('btn--ghost'), '這時「下載圖片」退成次要階（畫面只有一個主角）', sysShare.dlClass);
+  ok(sysShare.copyClass.includes('btn--ghost'), '這時「複製圖＋文」退成次要階', sysShare.copyClass);
+  ok(sysShare.dlClass.includes('btn--ghost'), '這時「下載圖片」也是次要階（畫面只有一個主角）', sysShare.dlClass);
   eq(sysShare.focusInPanel, true, '重開之後焦點仍然在分享卡裡');
-  eq(sysShare.focusOn, true, '焦點落在「分享…」上（第一個可按的東西）');
-  eq(sysShare.chips, 4, '有系統分享時，各家的入口照樣留著');
+  eq(sysShare.focusOn, true, '焦點落在「分享圖＋文」上（這個畫面的主角）');
+  eq(sysShare.chips, 0, '有系統分享時也沒有那排帶不走圖片的入口');
+  ok(!sysShare.sayValue.includes('（今晚刻完的）'), '重開一張卡 → 那段話回到預設', sysShare.sayValue);
 
   // 重開之後那張圖要重新編碼一次 → 等它備好再按（沒備好按下去只會叫你等）
   const sysReady = await waitShareFile();
   eq(sysReady, true, '重開之後 PNG 又備好了');
 
-  // 真的按下去（Input 事件 → 真正的使用者手勢）
+  // 玩家先把那段話改成自己想說的，再真的按下去（Input 事件 → 真正的使用者手勢）
+  await typeIntoCaption('（這一關卡了三次）');
   await evaluate(`
     document.querySelector('#sharecard [data-sysshare]').focus();
     return true;
@@ -5099,10 +5070,11 @@ async function main() {
   eq(shared.files[0].isFile, true, '交出去的真的是 File');
   ok(shared.files[0].size > 20000, '交出去的圖有內容', `size=${shared.files[0].size}`);
   ok(/^promptarcade-.*\.png$/.test(shared.files[0].name), '檔名看得出是這個遊戲的卡', shared.files[0].name);
-  ok(shared.title.includes('PromptArcade') && shared.title.includes('釋義者'), '標題是品牌 ＋ 稱號', shared.title);
-  ok(shared.text.includes('釋義者') && shared.text.includes('46 / 68'), '那句話帶著稱號與收集進度', shared.text);
-  ok(shared.text.includes('https://github.com/romanticamaj/promptarcade'), '那句話帶著網址', shared.text);
-  ok(!shared.keys.includes('url'), '不同時塞 url（有些系統會因此丟掉檔案）', shared.keys.join(','));
+  ok(shared.text.includes('（這一關卡了三次）'), '交出去的那段話是玩家改過的版本', shared.text);
+  ok(shared.text.includes('釋義者') && shared.text.includes('46 / 68'), '那段話帶著稱號與收集進度', shared.text);
+  ok(shared.text.includes('Learn Prompt Engineering by Playing'), '那段話帶著品牌落款');
+  ok(!/https?:\/\//.test(shared.text), '那段話裡沒有任何連結（收到的人看到的是圖，不是連結）', shared.text);
+  eq(shared.keys.sort().join(','), 'files,text', '交出去的只有圖與那段話（沒有 url、沒有 title）');
   eq(shared.gesture, true, '呼叫時使用者手勢還在（share 之前沒有 await）');
 
   // 玩家自己取消不該變成錯誤
@@ -5118,7 +5090,7 @@ async function main() {
   `);
   eq(abort.after, abort.before, '玩家自己取消分享時什麼都不說（不是失敗）');
 
-  /* --- 窄畫面：那一排不會把「下載圖片」擠到摺線下面 --- */
+  /* --- 窄畫面：那段話與按鈕都不會被擠到摺線下面 --- */
   await cdp.send(
     'Emulation.setDeviceMetricsOverride',
     { width: 820, height: 720, deviceScaleFactor: 1, mobile: false },
@@ -5127,19 +5099,21 @@ async function main() {
   await sleep(520);
   const sendNarrow = await evaluate(`
     const panel = document.querySelector('#sharecard .panel');
-    const dl = document.querySelector('#sharecard [data-download]');
-    const chips = [...document.querySelectorAll('#sharecard [data-chip]')];
+    const sys = document.querySelector('#sharecard [data-sysshare]');
+    const say = document.querySelector('#sharecard [data-caption]');
     return {
       overflow: Math.max(0, panel.scrollWidth - panel.clientWidth),
       docOverflow: Math.max(0, document.documentElement.scrollWidth - window.innerWidth),
-      dlVisible: dl.getBoundingClientRect().bottom <= panel.getBoundingClientRect().bottom + 1,
-      chipsInside: chips.every((c) => c.getBoundingClientRect().right <= panel.getBoundingClientRect().right + 1),
+      sysVisible: sys.getBoundingClientRect().bottom <= panel.getBoundingClientRect().bottom + 1,
+      sayInside: say.getBoundingClientRect().right <= panel.getBoundingClientRect().right + 1,
+      sayH: say.getBoundingClientRect().height,
     };
   `);
   eq(sendNarrow.overflow, 0, '820px 下分享卡無水平溢位');
   eq(sendNarrow.docOverflow, 0, '820px 下整頁無水平溢位');
-  eq(sendNarrow.dlVisible, true, '820px 下「下載圖片」仍然不用捲動就看得到');
-  eq(sendNarrow.chipsInside, true, '820px 下四片石籤都在面板寬度內');
+  eq(sendNarrow.sysVisible, true, '820px 下「分享圖＋文」仍然不用捲動就看得到');
+  eq(sendNarrow.sayInside, true, '820px 下那段話的框在面板寬度內');
+  ok(sendNarrow.sayH >= 60, '820px 下那個框還打得下幾行字', `h=${sendNarrow.sayH}`);
   await cdp.send('Emulation.clearDeviceMetricsOverride', {}, sessionId);
   await sleep(420);
 
@@ -5147,7 +5121,6 @@ async function main() {
   await evaluate(`
     const g = window.__promptarcade;
     g.shareCard.close();
-    window.open = window.__realOpen;
     delete navigator.share;
     delete navigator.canShare;
     delete navigator.clipboard;
