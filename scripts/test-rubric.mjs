@@ -1889,14 +1889,14 @@ console.log('▸ 音訊模組');
 const Audio = await import('../src/audio/audio.js');
 const { REGION_MOODS, REGION_MOOD_IDS, moodFor, SFX, createAudio } = Audio;
 
-eq(REGION_MOOD_IDS.length, 5, '五個區域都有配樂設定');
+eq(REGION_MOOD_IDS.length, 6, '五個區域＋開場都有配樂設定');
 for (const g of curriculum.groups) {
   ok(Boolean(REGION_MOODS[g.id]), `[${g.id}] 有對應的配樂性格`);
 }
 // 每一區都要真的「不一樣」，否則跨區就沒有意義
-eq(new Set(REGION_MOOD_IDS.map((id) => REGION_MOODS[id].root)).size, 5, '五區根音各不相同');
-eq(new Set(REGION_MOOD_IDS.map((id) => REGION_MOODS[id].name)).size, 5, '五區曲名各不相同');
-eq(new Set(REGION_MOOD_IDS.map((id) => REGION_MOODS[id].scale.join(','))).size, 5, '五區音階各不相同');
+eq(new Set(REGION_MOOD_IDS.map((id) => REGION_MOODS[id].root)).size, 6, '五區＋開場根音各不相同');
+eq(new Set(REGION_MOOD_IDS.map((id) => REGION_MOODS[id].name)).size, 6, '五區＋開場曲名各不相同');
+eq(new Set(REGION_MOOD_IDS.map((id) => REGION_MOODS[id].scale.join(','))).size, 6, '五區＋開場音階各不相同');
 ok(
   new Set(REGION_MOOD_IDS.map((id) => REGION_MOODS[id].bellDensity)).size >= 4,
   '鐘聲密度至少有四種變化'
@@ -1953,15 +1953,15 @@ const {
   REGION_NEIGHBORS,
 } = Audio;
 
-eq(Object.keys(BGM_TRACKS).length, 5, '五個區域各有一首配樂音檔');
+eq(Object.keys(BGM_TRACKS).length, 6, '五個區域＋開場各有一首配樂音檔');
 for (const g of curriculum.groups) {
   const t = BGM_TRACKS[g.id];
   ok(Boolean(t), `[${g.id}] 有對應的配樂音檔`);
   ok(t && /^bgm_[a-z]+\.m4a$/.test(t.file), `[${g.id}] 配樂檔名符合命名規則`, t && t.file);
   ok(t && nonEmptyStr(t.title), `[${g.id}] 配樂有曲名`);
 }
-eq(new Set(Object.values(BGM_TRACKS).map((t) => t.file)).size, 5, '五首配樂各是不同的檔案');
-eq(new Set(Object.values(BGM_TRACKS).map((t) => t.title)).size, 5, '五首配樂曲名各不相同');
+eq(new Set(Object.values(BGM_TRACKS).map((t) => t.file)).size, 6, '六首配樂各是不同的檔案');
+eq(new Set(Object.values(BGM_TRACKS).map((t) => t.title)).size, 6, '六首配樂曲名各不相同');
 
 // 檔案要真的在 public/audio/（護欄 5：部署時 Vite 會原封不動搬進 dist/）
 const audioSizes = new Map();

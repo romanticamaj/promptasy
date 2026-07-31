@@ -39,6 +39,20 @@ const semitone = (n) => Math.pow(2, n / 12);
  * 匯出成純資料 → 可以在 node 測試裡直接驗證，不需要 AudioContext。
  */
 export const REGION_MOODS = Object.freeze({
+  // 開場標題卡：還沒進入世界之前的夜 —— 音檔沒到之前用最安靜的墊音頂著
+  title: Object.freeze({
+    id: 'title',
+    name: '開場的夜',
+    root: 92.5,
+    scale: Object.freeze([0, 7, 12, 19]),
+    bellScale: Object.freeze([0, 7, 12]),
+    voicing: Object.freeze(['sine', 'sine', 'triangle']),
+    cutoff: 520,
+    lfoRate: 0.035,
+    bellDensity: 0.2,
+    bellEvery: 17,
+    detune: 5,
+  }),
   // 撰寫基本功：A 小調自然音，開放五度，最平靜
   foundations: Object.freeze({
     id: 'foundations',
@@ -270,6 +284,7 @@ export const AUDIO_DIR = 'audio/';
  * `mood` 指到合成備援的性格 —— 檔案沒到的時候放的就是它。
  */
 export const BGM_TRACKS = Object.freeze({
+  title: Object.freeze({ region: 'title', file: 'bgm_title.m4a', title: 'Promptasy Overture' }),
   foundations: Object.freeze({ region: 'foundations', file: 'bgm_foundations.m4a', title: 'Night Plateau Pad' }),
   reasoning: Object.freeze({ region: 'reasoning', file: 'bgm_reasoning.m4a', title: 'Thinking Corridor Float' }),
   grounding: Object.freeze({ region: 'grounding', file: 'bgm_grounding.m4a', title: 'Sunken Archive Bowed' }),
@@ -286,6 +301,8 @@ export const BGM_TRACKS = Object.freeze({
  * 只用來決定「先偷偷抓哪一首」的順序，抓的是壓縮檔、不解碼。
  */
 export const REGION_NEIGHBORS = Object.freeze({
+  // 標題卡上先偷偷抓中央高原的配樂 —— 按下開始鍵之後的第一次交叉淡接才不會等
+  title: Object.freeze(['foundations']),
   foundations: Object.freeze(['reasoning', 'grounding', 'orchestration', 'config']),
   reasoning: Object.freeze(['foundations', 'grounding']),
   grounding: Object.freeze(['foundations', 'orchestration']),
@@ -1017,6 +1034,28 @@ export function createAudio({ volume = 0.5, muted = false, region = 'foundations
     },
 
     /** 必須由使用者手勢呼叫（點擊 / 按鍵）。 */
+    /**
+     * 標題卡的開場曲。瀏覽器允許自動播放就直接響起；
+     * 不允許的話，掛一次性的手勢監聽（第一下按鍵／點擊 —— 包含「按任意鍵開始」那一下）
+     * 一有手勢就 resume。進入遊戲後由世界的 setRegion 交叉淡接到當區配樂。
+     */
+    titleIntro() {
+      if (started) return;
+      currentRegion = 'title';
+      this.start();
+      if (!ctx) return;
+      const unlock = () => {
+        ctx?.resume?.();
+        window.removeEventListener('pointerdown', unlock, true);
+        window.removeEventListener('keydown', unlock, true);
+      };
+      ctx.resume?.().catch?.(() => {});
+      if (ctx.state !== 'running') {
+        window.addEventListener('pointerdown', unlock, true);
+        window.addEventListener('keydown', unlock, true);
+      }
+    },
+
     start() {
       if (started) {
         ctx?.resume?.();

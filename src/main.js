@@ -437,6 +437,9 @@ function boot() {
   const title = createTitle({
     onStart: () => {
       audio.start();
+      // 開場曲讓位給當區配樂（5 秒的等功率交叉淡接，像鏡頭從序幕搖進世界）
+      const here = world.regionAt(player.position.x, player.position.z);
+      audio.setRegion(here?.id || 'foundations', 5);
       audio.cue('open');
       engine.pulse(0.85);
       if (!progression.isPrologueDone()) {
@@ -930,6 +933,7 @@ function boot() {
   engine.start();
   player.setInputEnabled(false);
   title.open();
+  audio.titleIntro();
 
   // 除錯 / 自動化測試用的把手（純讀寫遊戲狀態，沒有任何外部連線）
   window.__promptasy = {
