@@ -31,9 +31,48 @@
     <link rel="preload" href="/fonts/fraunces-display.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="preload" href="/fonts/inter-ui.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ctext y='26' font-size='26'%3E%E2%9C%A6%3C/text%3E%3C/svg%3E" />
+    <!--
+      Phase 34 · 開場的黑幕（#bootcover）
+
+      這一塊**刻意寫在 index.html 裡、而且是行內樣式**：styles.css 是被 main.js
+      import 進來的，要等模組載完才生效 —— 那之前的每一幀都不受它保護。黑幕必須
+      「第一幀就已經蓋滿」，所以它不能依賴任何後載的東西。
+
+      規則很簡單：從開機到玩家在標題卡上按下開始為止，3D 世界一眼都不准被看到。
+      引擎照樣在底下轉（暖機、編譯 shader、生地形都在這段時間做完），只是沒人看得到。
+      按下開始 → 黑幕用 1.4 秒淡出，像劇場的燈慢慢亮起來。
+
+      z-index 35：壓在世界／HUD／序章字幕（≤30）之上，但在標題卡（40）與入場門（45）
+      之下 —— 那兩張才是這段時間唯一該被看到的東西。
+    -->
+    <style>
+      html,
+      body {
+        margin: 0;
+        background: #010204;
+      }
+      #bootcover {
+        position: fixed;
+        inset: 0;
+        z-index: 35;
+        background: #010204;
+        pointer-events: none;
+        opacity: 1;
+        transition: opacity 1.4s cubic-bezier(0.19, 1, 0.22, 1);
+      }
+      #bootcover.is-lifting {
+        opacity: 0;
+      }
+      @media (prefers-reduced-motion: reduce) {
+        #bootcover {
+          transition-duration: 0.45s;
+        }
+      }
+    </style>
   </head>
   <body>
     <div id="app"></div>
+    <div id="bootcover" role="presentation" aria-hidden="true"></div>
     <script type="module" src="/src/main.js"></script>
   </body>
 </html>

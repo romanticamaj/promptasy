@@ -434,9 +434,28 @@ function boot() {
   });
   ui.appendChild(prologue.root);
 
+  /*
+   * Phase 34 · 開場的黑幕
+   *
+   * `#bootcover` 寫在 index.html 裡（行內樣式，第一幀就生效 —— 見那裡的註解）。
+   * 從開機到玩家按下開始為止，3D 世界一眼都不准被看到；引擎照樣在底下暖機。
+   * 按下開始 → 1.4 秒淡出，像劇場的燈慢慢亮起來 —— 這個「慢」是刻意的，
+   * 世界第一次出現的那一下值得一個鏡頭。
+   */
+  const bootCover = document.getElementById('bootcover');
+  let coverLifted = false;
+  function liftBootCover() {
+    if (coverLifted || !bootCover) return;
+    coverLifted = true;
+    bootCover.classList.add('is-lifting');
+    // 淡完就從 DOM 拿掉（它是全螢幕的合成層，留著沒有意義）
+    setTimeout(() => bootCover.remove(), 1800);
+  }
+
   /* --- 開場標題卡 --- */
   const title = createTitle({
     onStart: () => {
+      liftBootCover();
       audio.start();
       // 開場曲讓位給當區配樂（5 秒的等功率交叉淡接，像鏡頭從序幕搖進世界）
       const here = world.regionAt(player.position.x, player.position.z);
@@ -460,7 +479,16 @@ function boot() {
   /* --- 入場門（Phase 33）：自動播放被擋時的那一下手勢 --- */
   const entryGate = createEntryGate({
     // 手勢的呼叫堆疊裡就要 resume，晚一拍瀏覽器不認
-    onUnlock: () => audio.start(),
+    onUnlock: () => {
+      audio.start();
+      /*
+       * 推開那一下要有聲音 —— 而且要像一扇石門被推開、不是按到一個介面按鈕。
+       * `gateOpen` 就是那一聲（有音檔時是 sfx_unlock_door.m4a，沒有就退回
+       * 87 Hz 的低頻合成版）。這是玩家在這個世界裡聽到的第一個聲音，
+       * 排在 resume 之後同一拍發出，開場曲的第一個音進來時它剛好散掉。
+       */
+      audio.cue('gateOpen');
+    },
     onEnter: () => title.open(),
   });
   ui.appendChild(entryGate.root);
@@ -983,6 +1011,9 @@ function boot() {
     toggleKeyHelp,
     title,
     entryGate,
+    /** Phase 34：開場黑幕（測試 / 除錯用）。 */
+    bootCover: () => document.getElementById('bootcover'),
+    liftBootCover,
     intro,
     prologue,
     prologueContent,

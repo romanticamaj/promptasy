@@ -8,8 +8,20 @@
  * Phase 32.5 的作法是「標題卡按兩下」（第一下喚醒音樂、第二下進入），
  * 但玩家不知道第一下在做什麼，通常直接連按穿過去，等於什麼都沒得到。
  *
- * 這裡改成把那一下手勢**獨立成一道門**：一片近乎全黑的畫面、一枚呼吸的印記、
+ * 這裡改成把那一下手勢**獨立成一道門**：一片近乎全黑的畫面、一盞呼吸燈、
  * 一句話。推開它 → 音訊解鎖 → 門淡出 → 標題卡的揭示與開場曲同時開始。
+ *
+ * Phase 34：門面重做成「一盞呼吸燈」。原本是一枚印記加一個框、再加兩行字（中文一行、
+ * 英文 enter 一行）——資訊不少，但看起來像一顆普通的按鈕。現在整道門只剩三樣東西，
+ * 而且是**一件一件**出現的：
+ *
+ *   0.35s  呼吸燈亮起（唯一的光源，5.6 秒一次的慢呼吸）
+ *   1.50s  「推開夜色之門」在光底下慢慢浮出來
+ *   2.90s  「點擊進入⋯」再更淡地出現
+ *
+ * 三樣東西全部延遲 ≥0.3s 才出現，所以「探到自動播放其實放行、220ms 內撤掉這道門」
+ * 的那條路上，玩家看到的只有一瞬間的黑，不會有字閃過去。
+ * 推開的那一下會放一聲石門滑開的音（`gateOpen`），由 main.js 接在 onUnlock 上。
  *
  * 自動播放**被允許**的造訪（返客、`--autoplay-policy=no-user-gesture-required`
  * 的測試環境）根本不會看到這道門 —— main.js 在開機時先探測一次，
@@ -35,13 +47,12 @@ export function createEntryGate({ onUnlock, onEnter, fade = 600 } = {}) {
   root.innerHTML = `
     <div class="entrygate__veil"></div>
     <div class="entrygate__inner">
-      <button class="entrygate__seal" data-enter type="button">
-        <span class="entrygate__glyph" aria-hidden="true">✦</span>
-        <span class="entrygate__zh">推開夜色之門</span>
-        <span class="entrygate__rule" aria-hidden="true"></span>
-        <span class="entrygate__en" aria-hidden="true">enter</span>
+      <button class="entrygate__enter" data-enter type="button">
+        <span class="entrygate__orb" aria-hidden="true"></span>
+        <span class="entrygate__line">推開夜色之門</span>
+        <span class="entrygate__hint">點擊進入⋯</span>
+        <span class="sr-only">或按任意鍵</span>
       </button>
-      <p class="entrygate__hint">按任意鍵，或點一下</p>
     </div>
   `;
 

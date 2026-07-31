@@ -2835,9 +2835,13 @@ select option:disabled {
 }
 
 /* ================================================================ 入場門
-   自動播放被擋的首次造訪才會看到：一片近乎全黑、一枚呼吸的印記、一句話。
-   推開它 → 音訊解鎖 → 門淡出 → 標題卡的分字揭示與開場曲同時開始。
-   刻意極簡：這裡什麼都不教，只是把那一下必要的手勢變成一個有意義的動作。 */
+   自動播放被擋的首次造訪才會看到：一片近乎全黑、一盞呼吸燈、一句話。
+   推開它 → 音訊解鎖 → 門淡出 → 標題卡的揭示與開場曲同時開始。
+   刻意極簡：這裡什麼都不教，只是把那一下必要的手勢變成一個有意義的動作。
+
+   Phase 34：門面收到只剩「光 → 字 → 提示」三拍，各自延遲 ≥0.3s 才出現
+   （0.35s / 1.5s / 2.9s）—— 探測到自動播放其實放行時會在 220ms 內撤掉這道門，
+   那條路上玩家只會看到一瞬間的黑，不會有字閃過去。 */
 .entrygate {
   position: absolute;
   inset: 0;
@@ -2875,92 +2879,81 @@ select option:disabled {
   opacity: 0.05;
   mix-blend-mode: overlay;
 }
-/*
- * 內容延遲 0.3s 才浮出。探測到「其實可以自動播放」時我們會在 220ms 內撤掉這道門 ——
- * 那種情況下玩家只會看到一瞬間的黑，不會看到門的字閃過去。
- */
 .entrygate__inner {
   position: relative;
   text-align: center;
   padding: 5vh 6vw;
-  opacity: 0;
-  animation: reveal-in 1.1s var(--e-out) 0.3s forwards;
 }
-.entrygate__seal {
+/* 整道門就是一個大按鈕：沒有框、沒有底色 —— 可以按的東西是那盞光本身。 */
+.entrygate__enter {
   display: grid;
   justify-items: center;
-  gap: var(--s4);
+  gap: var(--s5);
   margin: 0 auto;
-  padding: var(--s6) var(--s8);
-  /* 門框：一直都在（滑鼠與鍵盤看到的是同一個東西），受光時才亮起來 */
-  border: 1px solid rgba(169, 201, 216, 0.15);
-  border-radius: 2px;
+  padding: var(--s7) var(--s8);
+  border: 0;
   background: none;
   color: inherit;
   cursor: pointer;
   text-align: center;
-  transition: border-color var(--d-mid) var(--e-out);
 }
-.entrygate__seal:hover,
-.entrygate__seal:focus-visible {
-  border-color: rgba(169, 201, 216, 0.4);
+.entrygate__enter:focus-visible {
+  outline: 1px solid rgba(169, 201, 216, 0.42);
+  outline-offset: 10px;
 }
-.entrygate__glyph {
-  font-size: 32px;
-  line-height: 1;
-  color: var(--gold);
-  text-shadow: 0 0 44px rgba(230, 199, 155, 0.6);
-  animation: entrygate-breathe 4.4s ease-in-out infinite;
+/*
+ * 呼吸燈：整道門唯一的光源。一顆暖金的小圓點 ＋ 兩層往外散的光暈，
+ * 5.6 秒一次的慢呼吸（比心跳慢一半——要像睡著的東西，不是待機指示燈）。
+ */
+.entrygate__orb {
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 50%, #fff6e4 0%, var(--gold) 42%, rgba(230, 199, 155, 0) 74%);
+  box-shadow: 0 0 26px 6px rgba(230, 199, 155, 0.34), 0 0 78px 22px rgba(230, 199, 155, 0.14);
+  opacity: 0;
+  /* 純濃度變化：這裡不要位移，光就該從黑裡浮出來、待在原地呼吸 */
+  animation: gate-fade 1.6s var(--e-out) 0.35s forwards,
+    entrygate-breathe 5.6s ease-in-out 1.95s infinite;
+}
+@keyframes gate-fade {
+  to {
+    opacity: 1;
+  }
 }
 @keyframes entrygate-breathe {
   0%,
   100% {
-    transform: translateY(0) scale(1);
-    opacity: 0.72;
+    transform: scale(0.86);
+    opacity: 0.52;
   }
   50% {
-    transform: translateY(-5px) scale(1.12);
+    transform: scale(1.16);
     opacity: 1;
   }
 }
-.entrygate__zh {
+/* 光底下那一句話：慢慢浮出來（1.4 秒），不要有位移 —— 只有濃度在變 */
+.entrygate__line {
   font-family: var(--font-prose);
   font-size: var(--t-lead);
   line-height: var(--lh-prose);
-  letter-spacing: 0.16em;
-  text-indent: 0.16em;
+  letter-spacing: 0.22em;
+  text-indent: 0.22em;
   color: var(--paper-2);
-}
-.entrygate__rule {
-  width: min(200px, 46vw);
-  height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(169, 201, 216, 0.5), transparent);
-}
-.entrygate__en {
-  font-family: var(--font-meta);
-  font-size: var(--t-meta);
-  font-weight: 500;
-  letter-spacing: 0.42em;
-  text-indent: 0.42em;
-  text-transform: uppercase;
-  color: rgba(200, 220, 236, 0.46);
-}
-.entrygate__seal:hover .entrygate__en,
-.entrygate__seal:focus-visible .entrygate__en {
-  color: rgba(214, 236, 250, 0.78);
-}
-.entrygate__seal:focus-visible {
-  outline: 1px solid rgba(169, 201, 216, 0.5);
-  outline-offset: 6px;
+  opacity: 0;
+  animation: gate-fade 1.4s var(--e-out) 1.5s forwards;
 }
 .entrygate__hint {
-  margin: var(--s6) 0 0;
   font-family: var(--font-ui);
   font-size: var(--t-meta);
-  letter-spacing: 0.08em;
+  letter-spacing: 0.14em;
+  text-indent: 0.14em;
   color: var(--paper-4);
   opacity: 0;
-  animation: reveal-in 1s var(--e-out) 1.1s forwards;
+  animation: gate-fade 1.2s var(--e-out) 2.9s forwards;
+}
+.entrygate__enter:hover .entrygate__line {
+  color: var(--paper);
 }
 
 /* ================================================================ 標題卡
@@ -3029,7 +3022,8 @@ select option:disabled {
   }
 }
 
-/* 分字揭示：每個字從下方的遮罩後浮上來 */
+/* Phase 34：整個名字從模糊裡慢慢對焦（不再一個字一個字彈出來）。
+   blur 只跑一次、只有這一個元素 —— 軟體渲染的機器也吃得下。 */
 .title__name {
   margin: 0;
   font-family: var(--font-display);
@@ -3041,24 +3035,20 @@ select option:disabled {
   line-height: 1.02;
   color: #f2f7fc;
   white-space: nowrap;
-}
-.title__ch {
-  display: inline-block;
   opacity: 0;
-  transform: translateY(0.62em);
-  animation: ch-in 0.9s var(--e-out) forwards;
-  animation-delay: calc(0.36s + var(--i, 0) * 0.045s);
-  will-change: transform, opacity;
+  filter: blur(11px);
+  animation: title-name-in 1.7s var(--e-out) 0.15s forwards;
+  will-change: opacity, filter;
 }
-.title__ch--accent {
+.title__accent {
   font-weight: 600;
   color: var(--star);
   text-shadow: 0 0 60px rgba(169, 201, 216, 0.45);
 }
-@keyframes ch-in {
+@keyframes title-name-in {
   to {
     opacity: 1;
-    transform: none;
+    filter: blur(0);
   }
 }
 /* 名字底下那條展開的線 */
@@ -3068,7 +3058,7 @@ select option:disabled {
   margin: var(--s5) auto var(--s5);
   background: linear-gradient(90deg, transparent, rgba(169, 201, 216, 0.55), rgba(230, 199, 155, 0.45), transparent);
   transform: scaleX(0);
-  animation: rule-open 1.1s var(--e-out) 0.95s forwards;
+  animation: rule-open 1.2s var(--e-out) 1s forwards;
 }
 @keyframes rule-open {
   to {
@@ -3076,8 +3066,16 @@ select option:disabled {
   }
 }
 
+/*
+ * Phase 34：這兩句話是**打出來的**（JS 一個字元一個字元填進 .title__typed）。
+ * 兩件事因此變得重要：
+ *   1. 容器要先佔好一行的高度 —— 不然打第一個字的瞬間整頁會往下跳。
+ *   2. 完整句子另外放在 .sr-only 裡（絕對定位、不佔高度），螢幕閱讀器不會念到半句話。
+ */
 .title__tag {
   margin: 0;
+  min-height: 1.6em;
+  line-height: 1.6;
   font-family: var(--font-meta);
   font-size: clamp(0.94rem, 0.85rem + 0.42vw, 1.1rem);
   font-weight: 500;
@@ -3085,18 +3083,38 @@ select option:disabled {
   text-indent: 0.42em;
   text-transform: uppercase;
   color: rgba(200, 220, 236, 0.72);
-  opacity: 0;
-  animation: reveal-in 1s var(--e-out) 1.15s forwards;
 }
 .title__zh {
   margin: var(--s5) 0 0;
+  min-height: calc(var(--t-lead) * var(--lh-prose));
   font-family: var(--font-prose);
   font-size: var(--t-lead);
   line-height: var(--lh-prose);
   letter-spacing: 0.05em;
   color: var(--paper-3);
+}
+/* 打字的游標：一根細的星光色豎線，只有正在打的那一行才亮著 */
+.title__caret {
+  display: inline-block;
+  width: 1px;
+  height: 1em;
+  margin-left: 0.12em;
+  vertical-align: -0.12em;
+  background: var(--star);
   opacity: 0;
-  animation: reveal-in 1s var(--e-out) 1.35s forwards;
+}
+.title__caret.is-on {
+  animation: title-caret 1.05s steps(1, end) infinite;
+}
+@keyframes title-caret {
+  0%,
+  49% {
+    opacity: 0.85;
+  }
+  50%,
+  100% {
+    opacity: 0;
+  }
 }
 /* 開始鍵＝第一塊石牌。hero 階，但走星光冷調（金色留給成就） */
 .title__start {
@@ -3116,18 +3134,24 @@ select option:disabled {
   font-size: var(--t-small);
   letter-spacing: 0.16em;
   text-transform: uppercase;
+  /* Phase 34：兩句話打完之後才浮出來（由 JS 掛 .is-ready，不是固定延遲的 CSS 動畫）*/
   opacity: 0;
-  transition: color var(--d-mid) var(--e-snap), translate var(--d-tap) var(--e-snap),
-    letter-spacing var(--d-mid) var(--e-snap);
-  animation: reveal-in 1s var(--e-out) 1.6s forwards;
+  transition: opacity 0.9s var(--e-out), color var(--d-mid) var(--e-snap),
+    translate var(--d-tap) var(--e-snap), letter-spacing var(--d-mid) var(--e-snap);
+}
+.title.is-ready .title__start {
+  opacity: 1;
 }
 /* 呼吸的光沿著石牌的輪廓走（drop-shadow 會跟著剪過的斜角，box-shadow 不會） */
-.title__start::before {
-  animation: title-breathe 3.6s ease-in-out 2.6s infinite;
+.title.is-ready .title__start::before {
+  animation: title-breathe 3.6s ease-in-out 1s infinite;
 }
-/* hover / focus 時把呼吸關掉，讓 filter 交還給狀態（動畫會壓過一般宣告） */
+/* hover / focus 時把呼吸關掉，讓 filter 交還給狀態（動畫會壓過一般宣告）。
+   選擇器要跟得上 .is-ready 的權重，不然關不掉。 */
 .title__start:hover::before,
-.title__start:focus-visible::before {
+.title__start:focus-visible::before,
+.title.is-ready .title__start:hover::before,
+.title.is-ready .title__start:focus-visible::before {
   animation: none;
 }
 .title__start:hover:not(:disabled) {
@@ -3145,16 +3169,6 @@ select option:disabled {
     filter: drop-shadow(0 0 16px rgba(169, 201, 216, 0.42));
   }
 }
-.title__foot {
-  margin: var(--s6) 0 0;
-  font-family: var(--font-ui);
-  font-size: var(--t-meta);
-  letter-spacing: 0.08em;
-  color: var(--paper-4);
-  opacity: 0;
-  animation: reveal-in 1s var(--e-out) 1.85s forwards;
-}
-
 /* ================================================================ 回饋節奏 */
 .hud__xpbar.is-gaining {
   animation: xp-gain 1.2s var(--e-out);
@@ -3574,20 +3588,28 @@ select option:disabled {
     transition-duration: 0.05ms !important;
   }
   /* 動畫被關掉時，靠 animation-fill-mode 收尾的元素必須仍然看得見 */
-  .title__ch,
+  .title__name,
   .title__tag,
   .title__zh,
   .title__start,
-  .title__foot,
   .title__mark,
   .entrygate__inner,
-  .entrygate__glyph,
+  .entrygate__orb,
+  .entrygate__line,
   .entrygate__hint {
     opacity: 1;
     transform: none;
   }
+  /* 名字的對焦動畫被關掉 → 模糊也要一起解除，不然會停在糊的那一幀 */
+  .title__name {
+    filter: none;
+  }
   .title__rule {
     transform: scaleX(1);
+  }
+  /* 打字的游標在 reduce 下不閃（文字本身是 JS 一次補完的） */
+  .title__caret {
+    display: none;
   }
 
   /* 刻印牌：**保留**狀態變化（受光方向、金線、邊色 —— 它們在傳達資訊），

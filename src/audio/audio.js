@@ -467,6 +467,12 @@ export function createAudio({ volume = 0.5, muted = false, region = 'foundations
   const layers = new Map(); // regionId → { gain, oscs }
   let lastStepAt = 0;
   let lastClickAt = 0;
+  /*
+   * 最近放過的幾聲（除錯 / 自動化測試用）。純記帳，不影響播放 ——
+   * 「推開入場門有沒有真的響一聲」這種事，從外面看不到 AudioContext 裡面，
+   * 只能靠這裡留下的紀錄。環狀保留最後 12 筆就夠了。
+   */
+  const cueLog = [];
 
   /* ---------------- 音檔：載入 / 解碼 / 播放 ---------------- */
 
@@ -1205,6 +1211,8 @@ export function createAudio({ volume = 0.5, muted = false, region = 'foundations
       const spec = SFX[kind];
       const fileSpec = SFX_FILES[kind];
       if (!spec && !fileSpec) return false;
+      cueLog.push(kind);
+      if (cueLog.length > 12) cueLog.shift();
 
       // 連按的 UI 音要節流（刻印牌可以按很快，但聲音不能疊成一片）
       if (fileSpec && fileSpec.throttle && ctx) {
@@ -1268,6 +1276,9 @@ export function createAudio({ volume = 0.5, muted = false, region = 'foundations
       return {
         started,
         region: currentRegion,
+        /** 最近放過的音效（最舊 → 最新）。 */
+        cues: cueLog.slice(),
+        lastCue: cueLog.length ? cueLog[cueLog.length - 1] : null,
         source: sourceFor(currentRegion),
         usesFiles: filesEnabled,
         muted: isMuted,

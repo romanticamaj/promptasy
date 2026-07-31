@@ -4331,26 +4331,32 @@ for (const banned of ['送出評分', '按鈕', '面板', 'localStorage', 'rubri
 /*   · CSS 不指向任何外部字型 CDN                                       */
 /* ================================================================== */
 /* ================================================================== */
-/* 入場門（Phase 33）                                                  */
+/* 開場（入場門 Phase 33 ＋ 黑幕與標題卡 Phase 34）                    */
 /*                                                                    */
 /* 自動播放被擋的首次造訪，先出一道門把「必要的那一下手勢」變成一個     */
-/* 有意義的動作；門推開之後，標題卡的分字揭示才和開場曲一起發生。       */
+/* 有意義的動作；門推開之後，標題卡的揭示才和開場曲一起發生。           */
 /* 自動播放放行的造訪（返客 / 測試環境）完全看不到這道門。             */
+/*                                                                    */
+/* Phase 34 再加一條硬規則：**按下開始之前，3D 世界一眼都不准被看到**   */
+/* —— 由寫在 index.html 裡的黑幕 `#bootcover` 負責（行內樣式，第一幀    */
+/* 就生效；styles.css 是 main.js import 進來的，那之前保護不到）。      */
 /*                                                                    */
 /* 這裡是原始碼層級的看門狗：DOM 行為由 e2e 兩種自動播放政策各跑一次。 */
 /* ================================================================== */
-console.log('\n▸ 入場門（Phase 33）');
+console.log('\n▸ 開場（入場門 ＋ 黑幕 ＋ 標題卡）');
 
 const gateSrc = readFileSync(resolve(root, 'src/ui/entrygate.js'), 'utf8');
 const titleSrc = readFileSync(resolve(root, 'src/ui/title.js'), 'utf8');
 const bootSrc = readFileSync(resolve(root, 'src/main.js'), 'utf8');
 const gateCss = readFileSync(resolve(root, 'src/styles.css'), 'utf8');
 
-/* --- 文案：一句中文 ＋ 一個小小的英文字 --- */
+/* --- 文案：一盞燈 ＋ 一句話 ＋ 一行小小的提示（Phase 34：極簡化） --- */
 ok(/推開夜色之門/.test(gateSrc), '門上寫著「推開夜色之門」');
-ok(/按任意鍵，或點一下/.test(gateSrc), '門上講清楚怎麼推（按任意鍵，或點一下）');
-ok(/>enter</.test(gateSrc), '底下一行小小的英文 enter');
-ok(/✦/.test(gateSrc), '有一枚會呼吸的印記');
+ok(/點擊進入⋯/.test(gateSrc), '底下一行安靜的「點擊進入⋯」');
+ok(/entrygate__orb/.test(gateSrc), '門上有一盞呼吸燈（不再是印記＋外框的按鈕）');
+ok(!/entrygate__seal|entrygate__glyph|>enter</.test(gateSrc), 'Phase 33 的印記／外框／enter 已整組移除');
+// 鍵盤的人看不到「點一下」也要知道按什麼 —— 用 sr-only 補一句
+ok(/sr-only">或按任意鍵/.test(gateSrc), '螢幕閱讀器聽得到「或按任意鍵」（視覺上收起來）');
 // 護欄 2：入口不是課程，不准放官方出處或技巧宣稱
 ok(!/https?:\/\//.test(gateSrc.replace(/^[\s\S]*?\*\//, '')), '入場門不放任何連結（它是世界的入口，不是課程）');
 
@@ -4370,8 +4376,14 @@ ok(
   !/setTimeout\([^)]*onUnlock/.test(gateSrc) && !/requestAnimationFrame\([^)]*onUnlock/.test(gateSrc),
   'onUnlock 沒有被包進 setTimeout / rAF（晚一拍瀏覽器就不認這個手勢）'
 );
-ok(/onUnlock: \(\) => audio\.start\(\)/.test(bootSrc), 'main.js 把音訊解鎖接在門的手勢上');
+ok(/onUnlock: \(\) => \{\s*\n\s*audio\.start\(\);/.test(bootSrc), 'main.js 把音訊解鎖接在門的手勢上');
 ok(/onEnter: \(\) => title\.open\(\)/.test(bootSrc), '門淡出之後才輪到標題卡');
+// Phase 34：推開的那一下要有聲音，而且是石門的聲音（不是介面的「叮」）
+ok(/audio\.cue\('gateOpen'\)/.test(bootSrc), '推開入場門會放一聲石門滑開（gateOpen）');
+ok(
+  bootSrc.indexOf("audio.cue('gateOpen')") > bootSrc.indexOf('onUnlock: () => {'),
+  '那一聲就掛在 onUnlock（手勢的同一拍）'
+);
 
 /* --- 開機的岔路：放行就跳過門，被擋才出門 --- */
 ok(/audio\.titleIntro\(\);/.test(bootSrc), '開機仍然先試一次開場曲');
@@ -4401,12 +4413,74 @@ ok(
   '門完全不透光（底下的世界與 HUD 都不會漏出來）',
   veilBlock.trim().slice(0, 120)
 );
-const innerBlock = gateCss.slice(gateCss.indexOf('.entrygate__inner {'), gateCss.indexOf('.entrygate__seal {'));
-ok(/animation: reveal-in [\d.]+s var\(--e-out\) 0\.3s forwards/.test(innerBlock), '門的內容延遲 0.3s 才浮出（撤掉時不會閃過去）');
+/*
+ * 門上的三樣東西全部延遲 ≥0.3s 才出現 —— 探測到「其實可以自動播放」時我們會在
+ * 220ms 內撤掉這道門，那條路上不能有任何字閃過去。
+ */
+for (const [cls, next] of [
+  ['.entrygate__orb', '@keyframes gate-fade'],
+  ['.entrygate__line', '.entrygate__hint'],
+  ['.entrygate__hint', '.entrygate__enter:hover'],
+]) {
+  const block = gateCss.slice(gateCss.indexOf(`${cls} {`), gateCss.indexOf(next));
+  const delay = Number((block.match(/animation:[^;]*?var\(--e-out\) ([\d.]+)s forwards/) || [])[1]);
+  ok(delay >= 0.3, `${cls} 延遲 ${delay}s 才浮出（撤掉這道門時不會閃過去）`, String(delay));
+}
+// 呼吸燈：慢呼吸，而且是無限循環（不是一次性的閃一下）
+const orbBlock = gateCss.slice(gateCss.indexOf('.entrygate__orb {'), gateCss.indexOf('@keyframes gate-fade'));
+const breathe = Number((orbBlock.match(/entrygate-breathe ([\d.]+)s/) || [])[1]);
+ok(breathe >= 4, `呼吸燈慢慢呼吸（${breathe}s 一次，比心跳慢一半）`, String(breathe));
+ok(/entrygate-breathe [\d.]+s ease-in-out [\d.]+s infinite/.test(orbBlock), '呼吸是持續的，不是閃一下就停');
 const reduceBlock = gateCss.slice(gateCss.indexOf('@media (prefers-reduced-motion: reduce)'));
-for (const cls of ['.entrygate__inner', '.entrygate__glyph', '.entrygate__hint']) {
+for (const cls of ['.entrygate__inner', '.entrygate__orb', '.entrygate__line', '.entrygate__hint']) {
   ok(reduceBlock.includes(cls), `prefers-reduced-motion 下 ${cls} 仍然看得見（不靠動畫收尾）`);
 }
+
+/* ------------------------------------------------------------------ */
+/* Phase 34 · 黑幕：按下開始之前，世界一眼都不准被看到                 */
+/* ------------------------------------------------------------------ */
+const bootHtml = readFileSync(resolve(root, 'index.html'), 'utf8');
+ok(/id="bootcover"/.test(bootHtml), '黑幕的節點寫在 index.html 裡（第一幀就在）');
+const coverCss = bootHtml.slice(bootHtml.indexOf('#bootcover {'), bootHtml.indexOf('</style>'));
+ok(/<style>/.test(bootHtml), '黑幕的樣式是行內的（不等 styles.css 載完）');
+ok(/position: fixed;/.test(coverCss) && /inset: 0;/.test(coverCss), '黑幕蓋滿整個視窗');
+ok(/background: #0[0-9a-f]{5};/.test(coverCss), '黑幕是不透光的實色（不是半透明的紗）');
+const coverZ = Number((coverCss.match(/z-index: (\d+);/) || [])[1]);
+ok(coverZ > 30 && coverZ < 40, `黑幕壓在世界／HUD 之上、標題卡之下（z-index ${coverZ}）`, String(coverZ));
+const coverFade = Number((coverCss.match(/transition: opacity ([\d.]+)s/) || [])[1]);
+ok(coverFade >= 1 && coverFade <= 2, `黑幕用 ${coverFade} 秒慢慢淡出（像劇場的燈亮起來）`, String(coverFade));
+ok(/#bootcover\.is-lifting \{\s*opacity: 0;/.test(coverCss), '掛上 is-lifting 才淡出');
+ok(/prefers-reduced-motion/.test(coverCss), 'reduce 下黑幕收得更快（但仍然會收）');
+// 只有「按下開始」那一刻才掀開；入場門那一下不算（門後面還有標題卡）
+ok(/function liftBootCover\(\)/.test(bootSrc), 'main.js 有掀黑幕的那一支');
+const titleStartBlock = bootSrc.slice(bootSrc.indexOf('const title = createTitle('), bootSrc.indexOf('ui.appendChild(title.root)'));
+ok(/liftBootCover\(\);/.test(titleStartBlock), '黑幕在標題卡按下開始時才掀開');
+ok(
+  !/liftBootCover/.test(bootSrc.slice(bootSrc.indexOf('createEntryGate('), bootSrc.indexOf('ui.appendChild(entryGate.root)'))),
+  '推開入場門不會掀黑幕（門後面還有標題卡）'
+);
+
+/* ------------------------------------------------------------------ */
+/* Phase 34 · 標題卡：名字整個淡入 ＋ 兩句話用打字機打出來             */
+/* ------------------------------------------------------------------ */
+ok(!/title__ch|stageName/.test(titleSrc), '分字揭示（每個字彈一下）已整組移除');
+ok(!/title__foot/.test(titleSrc) && !/title__foot/.test(gateCss), '底部那行統計數字已移除（連樣式一起）');
+ok(!/68 條技巧/.test(titleSrc), '標題卡不再列統計數字');
+ok(/title__typed/.test(titleSrc) && /title__caret/.test(titleSrc), '兩句話是打出來的（有游標）');
+ok(/\[\.\.\.text\]/.test(titleSrc), '打字用展開運算子切字元（中文一個字算一個，不會切壞）');
+ok(/const TYPE_CJK = \d+/.test(titleSrc) && /const TYPE_LATIN = \d+/.test(titleSrc), '中英各有自己的打字速度');
+const latinPer = Number((titleSrc.match(/const TYPE_LATIN = (\d+)/) || [])[1]);
+const cjkPer = Number((titleSrc.match(/const TYPE_CJK = (\d+)/) || [])[1]);
+ok(cjkPer > latinPer, `中文打得比英文慢（${cjkPer}ms > ${latinPer}ms／字）`);
+ok(/prefers-reduced-motion/.test(titleSrc), 'reduce 下不打字（直接顯示）');
+ok(/function finishTyping\(\)/.test(titleSrc), '有「一次補完」的那一支');
+const startFn = titleSrc.slice(titleSrc.indexOf('function start()'), titleSrc.indexOf('function onKey'));
+ok(/finishTyping\(\);/.test(startFn), '打到一半被按下去 → 同一拍補完，不會有半句話淡出去');
+ok(/sr-only">\$\{esc\(subtitle\)\}/.test(titleSrc), '完整的定位句一開始就在（螢幕閱讀器不會念到半句話）');
+const nameBlock = gateCss.slice(gateCss.indexOf('.title__name {'), gateCss.indexOf('.title__accent {'));
+ok(/filter: blur\(\d+px\)/.test(nameBlock), '名字從模糊裡對焦（整個一起，不是一個字一個字）');
+ok(!/@keyframes ch-in/.test(gateCss), 'ch-in 的關鍵影格也清掉了');
+ok(/\.title\.is-ready \.title__start \{\s*opacity: 1;/.test(gateCss), '開始鍵等兩句話打完才浮出（is-ready）');
 
 console.log('\n▸ 字型子集與授權');
 

@@ -391,6 +391,33 @@ async function main() {
       gateOpen: g.entryGate.isOpen,
       gateHidden: document.querySelector('.entrygate').hidden,
       gateDismissed: g.entryGate.dismissed,
+      /*
+       * Phase 34 · 開場黑幕：按下開始之前，3D 世界一眼都不准被看到。
+       * 「有沒有真的擋住」不能只看 opacity —— 要證明它在畫布**上面**。
+       * elementsFromPoint 會跳過 pointer-events:none 的元素，所以量的時候
+       * 先把它打開、量完立刻還原（純測量，不改畫面）。
+       */
+      cover: (() => {
+        const c = document.getElementById('bootcover');
+        if (!c) return null;
+        const cs = getComputedStyle(c);
+        const box = c.getBoundingClientRect();
+        const prev = c.style.pointerEvents;
+        c.style.pointerEvents = 'auto';
+        const stack = document.elementsFromPoint(
+          Math.round(innerWidth / 2),
+          Math.round(innerHeight / 2)
+        );
+        c.style.pointerEvents = prev;
+        return {
+          opacity: Number(cs.opacity),
+          z: Number(cs.zIndex),
+          pointer: cs.pointerEvents,
+          coversViewport: box.width >= innerWidth && box.height >= innerHeight,
+          coverIdx: stack.findIndex((e) => e.id === 'bootcover'),
+          canvasIdx: stack.findIndex((e) => e.tagName === 'CANVAS'),
+        };
+      })(),
       quality: g.engine.quality,
       sceneNames: g.engine.scene.children.map((c) => c.name).filter(Boolean),
       hasBeacon: g.world.markers.every((m) => !!m.beacon && !!m.halo),
@@ -410,6 +437,17 @@ async function main() {
   eq(boot.gateOpen, false, '自動播放放行時入場門不出現');
   eq(boot.gateHidden, true, '入場門的節點留在 DOM 但收起來');
   eq(boot.gateDismissed, false, '入場門根本沒被開過（不是「開了又關」）');
+  ok(boot.cover, '開機第一幀就有黑幕（#bootcover）');
+  eq(boot.cover.opacity, 1, '黑幕完全不透光（世界一點都漏不出來）');
+  eq(boot.cover.coversViewport, true, '黑幕蓋滿整個視窗');
+  ok(boot.cover.z > 30 && boot.cover.z < 40, '黑幕壓在世界之上、標題卡之下', `z=${boot.cover.z}`);
+  eq(boot.cover.pointer, 'none', '黑幕不吃滑鼠（純視覺）');
+  ok(boot.cover.coverIdx >= 0, '黑幕在畫面正中央量得到（不是 0×0 空過）');
+  ok(
+    boot.cover.canvasIdx > boot.cover.coverIdx,
+    '黑幕真的疊在 3D 畫布上面（按下開始之前看不到世界）',
+    `cover=${boot.cover.coverIdx} canvas=${boot.cover.canvasIdx}`
+  );
   ok(boot.sceneNames.includes('sky'), '天空 dome 存在');
   ok(boot.sceneNames.includes('stars'), '星空存在（M4）');
   ok(boot.sceneNames.includes('aurora'), '極光存在（M4）');
@@ -470,10 +508,30 @@ async function main() {
 
   const titleText = await evaluate(`
     const el = document.querySelector('.title');
-    return { name: el.querySelector('.title__name')?.textContent, tag: el.querySelector('.title__tag')?.textContent };
+    return {
+      name: el.querySelector('.title__name')?.textContent,
+      tag: el.querySelector('.title__tag')?.textContent,
+      // Phase 34：分字揭示與底部的統計數字都拿掉了
+      perChar: el.querySelectorAll('.title__ch').length,
+      foot: el.querySelectorAll('.title__foot').length,
+      text: el.textContent.replace(/\\s+/g, ' '),
+      typedSpans: el.querySelectorAll('.title__typed').length,
+      carets: el.querySelectorAll('.title__caret').length,
+      srLines: [...el.querySelectorAll('.sr-only')].map((s) => s.textContent),
+    };
   `);
   eq(titleText.name, 'Promptasy', '標題卡顯示遊戲名');
   ok(/Learn Prompt Engineering by Playing/.test(titleText.tag || ''), '標題卡顯示定位句');
+  eq(titleText.perChar, 0, '不再一個字一個字彈出來（分字揭示已移除）');
+  eq(titleText.foot, 0, '底部那行統計數字已移除');
+  ok(!/68 條技巧/.test(titleText.text), '標題卡上找不到「68 條技巧…」那一行', titleText.text.slice(0, 90));
+  eq(titleText.typedSpans, 2, '兩句話各有一個打字區');
+  eq(titleText.carets, 2, '兩句話各有一根游標');
+  ok(
+    titleText.srLines.some((s) => /Learn Prompt Engineering by Playing/.test(s)) &&
+      titleText.srLines.some((s) => /在一個夜色的世界裡探索/.test(s)),
+    '完整句子第一幀就在 sr-only 裡（螢幕閱讀器不會念到打一半的字）'
+  );
 
   // 開場曲：harness 帶 --autoplay-policy=no-user-gesture-required，
   // 標題卡上就該真的響起來（title 音軌在播、gain 有拉起來）
@@ -510,12 +568,57 @@ async function main() {
   );
   ok(beforeGesture.pending <= 4, '標題卡上排隊中的音檔沒有失控', `pending=${beforeGesture.pending}`);
 
+  /*
+   * Phase 34 · 打字機不擋輸入：打到一半按下開始，話會在同一拍被補完
+   * （不會有半句話淡出去），而且直接進場、不需要按第二下。
+   * 先把打字重播一次讓時機確定 —— 上面那一串斷言跑掉的時間會讓第一輪早就打完了。
+   */
+  await evaluate(`window.__promptasy.title.open(); return 1;`);
+  // 第一句從 1.35s 開始打，34ms／字 × 34 字 ≈ 1.2s。用輪詢等「正打到一半」——
+  // open() 先等一次 rAF，軟體渲染下那一幀可能要好幾百毫秒，固定 sleep 會抓不準。
+  const midType = await waitFor(
+    async () => {
+      const s = await evaluate(`
+        const el = document.querySelector('.title');
+        const tag = el.querySelector('[data-typed="tag"]');
+        return {
+          typing: window.__promptasy.title.isTyping,
+          len: tag.textContent.length,
+          full: 'Learn Prompt Engineering by Playing'.length,
+          caretOn: el.querySelector('[data-caret="tag"]').classList.contains('is-on'),
+          ready: el.classList.contains('is-ready'),
+          startOpacity: Number(getComputedStyle(el.querySelector('.title__start')).opacity),
+        };
+      `);
+      return s.len > 0 && s.len < s.full ? s : null;
+    },
+    { timeout: 12000, every: 120, label: '標題卡正在打字' }
+  ).catch(() => null);
+  ok(midType, '抓到「正在打字」的那一刻');
+  ok(midType && midType.typing, '這時候還在打字（時機抓對了）');
+  ok(
+    midType && midType.len > 0 && midType.len < midType.full,
+    '第一句正打到一半',
+    midType && `${midType.len}/${midType.full}`
+  );
+  ok(midType && midType.caretOn, '正在打的那一行游標亮著');
+  ok(midType && midType.ready === false, '兩句話沒打完，開始鍵還沒浮出來');
+  ok(midType && midType.startOpacity < 0.5, '開始鍵這時候還是淡的', midType && String(midType.startOpacity));
+
   // 按任意鍵開始
   await key('Enter', 'Enter', { vk: 13 });
   await sleep(400);
   const afterTitle = await evaluate(`
     const g = window.__promptasy;
+    const el = document.querySelector('.title');
+    const cover = document.getElementById('bootcover');
     return {
+      typedTag: el.querySelector('[data-typed="tag"]').textContent,
+      typedZh: el.querySelector('[data-typed="zh"]').textContent,
+      caretsOn: el.querySelectorAll('.title__caret.is-on').length,
+      stillTyping: g.title.isTyping,
+      coverLifting: cover ? cover.classList.contains('is-lifting') : 'removed',
+      coverOpacity: cover ? Number(getComputedStyle(cover).opacity) : 0,
       titleOpen: g.title.isOpen,
       introOpen: g.intro.isOpen,
       audioStarted: g.audio.isStarted,
@@ -526,12 +629,34 @@ async function main() {
     };
   `);
   eq(afterTitle.titleOpen, false, '按鍵後標題卡收起');
+  eq(afterTitle.typedTag, 'Learn Prompt Engineering by Playing', '打到一半被按下去 → 第一句被補完');
+  eq(afterTitle.typedZh, '在一個夜色的世界裡探索，用你寫的 prompt 解開它。', '第二句也一起補完');
+  eq(afterTitle.caretsOn, 0, '補完之後游標收起來');
+  eq(afterTitle.stillTyping, false, '打字停了（沒有殘留的計時器）');
+  eq(afterTitle.coverLifting, true, '按下開始 → 黑幕開始淡出（世界第一次亮起來）');
+  // 淡到哪一格不斷言：軟體渲染下 getComputedStyle 取到的是「上一幀」的值，
+  // 幀率一低就會讀到還沒動的 1。真正該守的是「有沒有淡完」——下面那條在等它消失。
   eq(afterTitle.prologueActive, true, '新玩家先進引導課程（Phase 7 序章）');
   eq(afterTitle.echoVisible, true, '回聲字幕條出現');
   eq(afterTitle.shrineActive, true, '起始祭壇亮起（序章的舞台）');
   eq(afterTitle.beatKind, 'say', '序章第一拍是醒來');
   eq(afterTitle.introOpen, false, '序章期間不跳舊的靜態教學卡');
   eq(afterTitle.audioStarted, true, '使用者手勢後 AudioContext 啟動');
+
+  // 黑幕淡完（1.4s）就自己從 DOM 消失 —— 世界完全露出來
+  const coverGone = await waitFor(
+    async () => {
+      const r = await evaluate(`
+        const c = document.getElementById('bootcover');
+        const canvas = document.querySelector('canvas');
+        return { present: !!c, canvasVisible: !!canvas && canvas.getBoundingClientRect().width > 0 };
+      `);
+      return r.present ? null : r;
+    },
+    { timeout: 6000, every: 200, label: '黑幕淡出後自己收掉' }
+  ).catch(() => null);
+  ok(coverGone, '黑幕淡完就從 DOM 拿掉（不留一個全螢幕的合成層）');
+  ok(coverGone && coverGone.canvasVisible, '這時候 3D 世界真的看得到了');
 
   /* ================================================================ */
   console.log('\n▸ 序章引導課程（Phase 13 · 導演式）');
@@ -3883,43 +4008,84 @@ async function main() {
     fonts.selfHosted.join(', ')
   );
 
-  // 2) 標題卡的分字揭示會跑完（每個字最後都回到 opacity 1）
+  /*
+   * 2) 標題卡的開場（Phase 34）：
+   *      名字整個從模糊裡對焦 → 髮絲線展開 → 定位句打字 → 中文句打字 → 開始鍵浮出
+   *    這裡把整段重播一次，量「開頭真的是模糊的」與「結尾每一樣東西都收好了」。
+   *    （標題卡此刻已經被關掉了 —— 量完會還原成關著的樣子，不影響後面的測試。）
+   */
   const titleReveal = await evaluate(`
     const g = window.__promptasy;
     const root = g.title.root;
+    const name = root.querySelector('.title__name');
+    const tag = root.querySelector('[data-typed="tag"]');
+    const zh = root.querySelector('[data-typed="zh"]');
     root.hidden = false;
     root.classList.remove('is-leaving');
     root.classList.add('is-open');
-    // 重播一次分字動畫
-    const chars = [...root.querySelectorAll('.title__ch')];
-    for (const c of chars) { c.style.animation = 'none'; void c.offsetWidth; c.style.animation = ''; }
-    const midway = getComputedStyle(chars[chars.length - 1]).opacity;
-    // 從 display:none 回來時 CSS 動畫會整組重播：最後一個字 0.36+11×0.045+0.9 ≈ 1.76s，
-    // 底線 0.95+1.1 = 2.05s —— 等 2.6s 確保兩者都收尾
-    await new Promise((r) => setTimeout(r, 2600));
-    const done = chars.map((c) => Number(getComputedStyle(c).opacity));
-    const name = root.querySelector('.title__name');
-    const ruleScale = getComputedStyle(root.querySelector('.title__rule')).transform;
-    root.hidden = true;
-    root.classList.remove('is-open');
-    return {
-      count: chars.length,
-      text: name.textContent,
-      aria: name.getAttribute('aria-label'),
-      midway: Number(midway),
-      minOpacity: Math.min(...done),
-      ruleScale,
+    // 重播名字的對焦動畫（從 display:none 回來時 CSS 動畫本來就會整組重播）
+    name.style.animation = 'none'; void name.offsetWidth; name.style.animation = '';
+    tag.textContent = ''; zh.textContent = '';
+    root.classList.remove('is-ready');
+    await new Promise((r) => setTimeout(r, 120));
+    const early = {
+      filter: getComputedStyle(name).filter,
+      opacity: Number(getComputedStyle(name).opacity),
     };
+    // 打字用 JS 驅動 —— open() 會把整段重播一次
+    g.title.open();
+    // 輪詢等「第一句開始打」，順手看第二句這時候還沒動（一句一句來）
+    let typingNow = null;
+    for (let i = 0; i < 150 && !typingNow; i += 1) {
+      await new Promise((r) => setTimeout(r, 80));
+      if (tag.textContent.length > 0) typingNow = { tagLen: tag.textContent.length, zhLen: zh.textContent.length };
+    }
+    // 全段 ≈ 1.35 + 34×0.034 + 0.32 + 24×0.072 + 0.26 ≈ 4.9s —— 輪詢等它自己停
+    for (let i = 0; i < 200 && g.title.isTyping; i += 1) await new Promise((r) => setTimeout(r, 100));
+    // 開始鍵是 0.9s 的 transition，等它收完再量
+    await new Promise((r) => setTimeout(r, 1400));
+    const done = {
+      filter: getComputedStyle(name).filter,
+      opacity: Number(getComputedStyle(name).opacity),
+      tag: tag.textContent,
+      zh: zh.textContent,
+      ready: root.classList.contains('is-ready'),
+      caretsOn: root.querySelectorAll('.title__caret.is-on').length,
+      startOpacity: Number(getComputedStyle(root.querySelector('.title__start')).opacity),
+      ruleScale: getComputedStyle(root.querySelector('.title__rule')).transform,
+      typing: g.title.isTyping,
+    };
+    // hide() 收起來但不觸發 onStart —— 遊戲狀態一點都不會被這次重播動到
+    g.title.hide();
+    const after = { titleOpen: g.title.isOpen, hidden: root.hidden };
+    return { early, typingNow, done, after, text: name.textContent, aria: name.getAttribute('aria-label') };
   `);
-  eq(titleReveal.count, 9, '標題被拆成 9 個字元各自進場（Promptasy）');
-  eq(titleReveal.text, 'Promptasy', '拆字後 textContent 仍然是完整品牌名');
-  eq(titleReveal.aria, 'Promptasy', '拆字後給螢幕閱讀器的 aria-label 正確');
-  ok(titleReveal.midway < 0.5, '揭示開始時最後一個字還沒出現（真的有 stagger）', String(titleReveal.midway));
-  ok(titleReveal.minOpacity > 0.99, '揭示結束後每個字都完全顯示', String(titleReveal.minOpacity));
+  eq(titleReveal.text, 'Promptasy', '標題卡的品牌名是完整的一段文字（不再被拆成一個個 span）');
+  eq(titleReveal.aria, 'Promptasy', '螢幕閱讀器讀到的名字正確');
+  ok(/blur\(([1-9]|\d\d)/.test(titleReveal.early.filter), '開頭名字是模糊的（整個一起對焦）', titleReveal.early.filter);
+  ok(titleReveal.early.opacity < 0.9, '開頭名字還沒完全顯影', String(titleReveal.early.opacity));
+  ok(
+    titleReveal.typingNow && titleReveal.typingNow.tagLen > 0 && titleReveal.typingNow.zhLen === 0,
+    '打字是一句一句來的（第一句在打的時候第二句還沒開始）',
+    JSON.stringify(titleReveal.typingNow)
+  );
+  ok(!/blur\([1-9]/.test(titleReveal.done.filter), '結束時名字完全對焦', titleReveal.done.filter);
+  ok(titleReveal.done.opacity > 0.99, '結束時名字完全顯示', String(titleReveal.done.opacity));
+  eq(titleReveal.done.tag, 'Learn Prompt Engineering by Playing', '定位句整句打完');
+  eq(titleReveal.done.zh, '在一個夜色的世界裡探索，用你寫的 prompt 解開它。', '中文那一句整句打完');
+  eq(titleReveal.done.typing, false, '打完就停（不會有殘留的計時器）');
+  eq(titleReveal.done.caretsOn, 0, '打完之後兩根游標都收起來');
+  eq(titleReveal.done.ready, true, '兩句話打完 → 標題卡進入 is-ready');
+  // 0.9 秒的 transition，收尾那一格由瀏覽器決定 —— 只要「明顯亮起來了」就算數
+  ok(titleReveal.done.startOpacity > 0.5, '開始鍵這時候才浮出來', String(titleReveal.done.startOpacity));
   // scaleX 用字串比對（!/matrix\(0/）會被 0.99999 這種收尾誤判成失敗 —— 改成看數值
   const ruleScaleX =
-    titleReveal.ruleScale === 'none' ? 1 : Number((titleReveal.ruleScale.match(/matrix\(([^,]+)/) || [])[1]);
-  ok(ruleScaleX > 0.99, '標題下的髮絲線展開完成', titleReveal.ruleScale);
+    titleReveal.done.ruleScale === 'none'
+      ? 1
+      : Number((titleReveal.done.ruleScale.match(/matrix\(([^,]+)/) || [])[1]);
+  ok(ruleScaleX > 0.99, '標題下的髮絲線展開完成', titleReveal.done.ruleScale);
+  eq(titleReveal.after.titleOpen, false, '重播完標題卡收回去了（不會卡住玩家的操作）');
+  eq(titleReveal.after.hidden, true, '重播完標題卡的節點也藏起來');
 
   // 下面幾項量的是書寫檯（textarea ＋ 送出）的版面與動畫 → 先切到自由書寫模式
   await evaluate(`window.__promptasy.promptConsole.setMode('free'); return 1;`);
@@ -8172,7 +8338,10 @@ async function main() {
     const g = window.__promptasy;
     const root = document.querySelector('.entrygate');
     const seal = root.querySelector('[data-enter]');
+    const orb = root.querySelector('.entrygate__orb');
     const box = seal.getBoundingClientRect();
+    const orbBox = orb.getBoundingClientRect();
+    const cover = document.getElementById('bootcover');
     return {
       gateOpen: g.entryGate.isOpen,
       gateHidden: root.hidden,
@@ -8186,22 +8355,76 @@ async function main() {
       w: Math.round(box.width), h: Math.round(box.height),
       links: root.querySelectorAll('a[href]').length,
       overflowX: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      // Phase 34：一盞呼吸燈 ＋ 一句話 ＋ 一行提示
+      orb: { w: Math.round(orbBox.width), h: Math.round(orbBox.height), anim: getComputedStyle(orb).animationName },
+      opacities: {
+        orb: Number(getComputedStyle(orb).opacity),
+        line: Number(getComputedStyle(root.querySelector('.entrygate__line')).opacity),
+        hint: Number(getComputedStyle(root.querySelector('.entrygate__hint')).opacity),
+      },
+      // 三樣東西是一件一件出現的，而且全部 ≥0.3s（撤掉這道門時不會有字閃過去）
+      delays: {
+        orb: parseFloat(getComputedStyle(orb).animationDelay),
+        line: parseFloat(getComputedStyle(root.querySelector('.entrygate__line')).animationDelay),
+        hint: parseFloat(getComputedStyle(root.querySelector('.entrygate__hint')).animationDelay),
+      },
+      legacy: root.querySelectorAll('.entrygate__seal, .entrygate__glyph, .entrygate__en').length,
+      // 黑幕：門的階段也一樣蓋著（世界一眼都不准被看到）
+      coverPresent: !!cover,
+      coverOpacity: cover ? Number(getComputedStyle(cover).opacity) : 0,
     };
   `);
   eq(gateShown.audioRunning, false, '預設自動播放政策下 AudioContext 真的被凍住（前提成立）');
   eq(gateShown.gateOpen, true, '被凍住 → 先出入場門');
   eq(gateShown.gateHidden, false, '入場門看得見');
   eq(gateShown.titleOpen, false, '入場門還在時，標題卡還沒登場');
-  eq(gateShown.titleHidden, true, '標題卡整個收著（分字揭示還沒起跑）');
+  eq(gateShown.titleHidden, true, '標題卡整個收著（開場揭示還沒起跑）');
   ok(/推開夜色之門/.test(gateShown.text), '門上寫著「推開夜色之門」', gateShown.text);
-  ok(/enter/i.test(gateShown.text), '底下一行小小的英文 enter', gateShown.text);
-  ok(/按任意鍵，或點一下/.test(gateShown.text), '講清楚怎麼推', gateShown.text);
+  ok(/點擊進入⋯/.test(gateShown.text), '底下一行安靜的「點擊進入⋯」', gateShown.text);
+  ok(/或按任意鍵/.test(gateShown.text), '鍵盤的人也聽得到怎麼進（sr-only）', gateShown.text);
+  eq(gateShown.legacy, 0, 'Phase 33 的印記／外框／enter 都不在了（門面極簡化）');
   eq(gateShown.focused, true, '焦點就落在門上（純鍵盤按下去就是它）');
   eq(gateShown.role, 'dialog', '門有 dialog 語意');
   ok((gateShown.label || '').length > 0, '門有 aria-label', gateShown.label);
-  ok(gateShown.w > 100 && gateShown.h > 60, '門的印記真的量得到（不是 0×0 空過）', `${gateShown.w}×${gateShown.h}`);
+  ok(gateShown.w > 100 && gateShown.h > 60, '門的內容真的量得到（不是 0×0 空過）', `${gateShown.w}×${gateShown.h}`);
+  ok(gateShown.orb.w >= 8 && gateShown.orb.h >= 8, '呼吸燈量得到', `${gateShown.orb.w}×${gateShown.orb.h}`);
+  ok(
+    /entrygate-breathe/.test(gateShown.orb.anim),
+    '呼吸燈真的在呼吸（動畫掛上去了）',
+    gateShown.orb.anim
+  );
+  // 一件一件出現：光 → 字 → 提示，而且全部延遲 ≥0.3s（自動播放放行時 220ms 內撤門，不會閃字）
+  ok(
+    gateShown.delays.orb >= 0.3 && gateShown.delays.line > gateShown.delays.orb && gateShown.delays.hint > gateShown.delays.line,
+    '光 → 字 → 提示，一件一件來（而且都晚於 0.3s）',
+    `orb=${gateShown.delays.orb} line=${gateShown.delays.line} hint=${gateShown.delays.hint}`
+  );
   eq(gateShown.links, 0, '入口不放任何連結（護欄 2：它不是課程）');
   eq(gateShown.overflowX, 0, '入場門沒有水平溢位');
+  eq(gateShown.coverPresent, true, '入場門這一段黑幕也還蓋著');
+  eq(gateShown.coverOpacity, 1, '推開之前世界完全看不到');
+
+  /*
+   * 再等一下：三樣東西全部到齊（光 → 字 → 提示）。
+   * 用輪詢而不是固定 sleep —— CSS 動畫是從「這道門第一次真的被畫出來」那一刻起算的，
+   * 而那一幀在軟體渲染的機器上可能被整個世界的第一次編譯往後推快一秒（AGENTS.md：
+   * 動畫時序類的斷言要 poll until，不要用固定 sleep）。
+   */
+  const gateSettled = await waitFor(
+    async () => {
+      const o = await gEval(`
+        const root = document.querySelector('.entrygate');
+        const v = (sel) => Number(getComputedStyle(root.querySelector(sel)).opacity);
+        return { orb: v('.entrygate__orb'), line: v('.entrygate__line'), hint: v('.entrygate__hint') };
+      `);
+      return o.line > 0.9 && o.hint > 0.6 ? o : null;
+    },
+    { timeout: 15000, every: 300, label: '入場門的三樣東西到齊' }
+  ).catch(() => null);
+  ok(gateSettled, '光 → 字 → 提示三樣都浮出來了', JSON.stringify(gateSettled));
+  ok(gateSettled && gateSettled.line > 0.9, '「推開夜色之門」完全浮出來了', gateSettled && String(gateSettled.line));
+  ok(gateSettled && gateSettled.hint > 0.6, '「點擊進入⋯」也到齊了', gateSettled && String(gateSettled.hint));
+  ok(gateSettled && gateSettled.orb > 0.4, '呼吸燈還在呼吸（不會呼吸到消失）', gateSettled && String(gateSettled.orb));
 
   // Esc 在入口什麼都不做
   await gcdp.send(
@@ -8228,8 +8451,14 @@ async function main() {
       audioRunning: g.audio.isRunning(),
       audioStarted: g.audio.isStarted,
       region: g.audio.debug().region,
+      cues: g.audio.debug().cues,
       prologueActive: g.prologue.isActive,
       name: document.querySelector('.title__name')?.textContent || '',
+      coverPresent: !!document.getElementById('bootcover'),
+      coverOpacity: (() => {
+        const c = document.getElementById('bootcover');
+        return c ? Number(getComputedStyle(c).opacity) : 0;
+      })(),
     };
   `);
   eq(gatePassed.gateOpen, false, '推開之後門就收了');
@@ -8238,8 +8467,16 @@ async function main() {
   eq(gatePassed.audioRunning, true, '那一下手勢真的解開了 AudioContext');
   eq(gatePassed.audioStarted, true, '音訊已啟動');
   eq(gatePassed.titleOpen, true, '門淡出之後標題卡接手');
-  eq(gatePassed.titleHidden, false, '標題卡的分字揭示這時候才起跑');
+  eq(gatePassed.titleHidden, false, '標題卡的開場揭示這時候才起跑');
   eq(gatePassed.name, 'Promptasy', '標題卡顯示遊戲名');
+  // Phase 34：推開那一下要有聲音 —— 而且是石門，不是介面的「叮」
+  ok(
+    (gatePassed.cues || []).includes('gateOpen'),
+    '推開入場門真的放了一聲石門滑開（gateOpen）',
+    (gatePassed.cues || []).join(' → ')
+  );
+  eq(gatePassed.coverPresent, true, '標題卡這一段黑幕仍然蓋著');
+  eq(gatePassed.coverOpacity, 1, '推開門之後世界還是看不到（門後面是標題卡，不是世界）');
   eq(gatePassed.region, 'title', '這時候放的是開場曲');
   eq(gatePassed.prologueActive, false, '還沒進遊戲（標題卡還在）');
 
@@ -8268,8 +8505,19 @@ async function main() {
       prologueActive: g.prologue.isActive,
       echoVisible: !document.querySelector('.echo').hidden,
       beatKind: g.prologue.beat?.kind,
+      coverLifted: (() => {
+        const c = document.getElementById('bootcover');
+        return !c || c.classList.contains('is-lifting');
+      })(),
+      typedZh: document.querySelector('[data-typed="zh"]')?.textContent || '',
     };
   `);
+  eq(gateEntered.coverLifted, true, '按下開始才掀黑幕（世界這時候第一次亮起來）');
+  eq(
+    gateEntered.typedZh,
+    '在一個夜色的世界裡探索，用你寫的 prompt 解開它。',
+    '打字被按斷也會補完（不會有半句話淡出去）'
+  );
   eq(gateEntered.titleOpen, false, '標題卡按一下就進得去（沒有第二段喚醒了）');
   eq(gateEntered.prologueActive, true, '新玩家接著進序章引導課程');
   eq(gateEntered.echoVisible, true, '回聲字幕條出現');

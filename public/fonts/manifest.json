@@ -57,7 +57,7 @@
     "src/world/reactive.js",
     "src/world/world.js"
   ],
-  "corpusHash": "63ef411ff1495f0d",
+  "corpusHash": "08d5c04454d55457",
   "coverage": {
     "latin": [
       32,
@@ -267,6 +267,7 @@
       8776,
       8804,
       8805,
+      8943,
       8984,
       9312,
       9313,
@@ -1026,6 +1027,7 @@
       26179,
       26185,
       26202,
+      26222,
       26223,
       26224,
       26234,
@@ -1653,6 +1655,7 @@
       35722,
       35731,
       35738,
+      35918,
       35920,
       35937,
       35980,
@@ -2054,6 +2057,7 @@
       10022
     ],
     "inter": [
+      8943,
       9432,
       9472,
       9474,
@@ -2090,6 +2094,7 @@
       8629,
       8658,
       8730,
+      8943,
       8984,
       9312,
       9313,
@@ -2135,6 +2140,7 @@
       8251,
       8629,
       8658,
+      8943,
       9312,
       9313,
       9314,
@@ -2212,8 +2218,8 @@
           "default": 14
         }
       },
-      "requested": 247,
-      "missing": 18,
+      "requested": 248,
+      "missing": 19,
       "source": "Inter.ttf",
       "author": "Rasmus Andersson",
       "license": "SIL Open Font License 1.1",
@@ -2240,8 +2246,8 @@
           "default": 16
         }
       },
-      "requested": 247,
-      "missing": 54,
+      "requested": 248,
+      "missing": 55,
       "source": "Newsreader.ttf",
       "author": "Production Type (Jean-Baptiste Morizot, Lucas Descroix)",
       "license": "SIL Open Font License 1.1",
@@ -2263,8 +2269,8 @@
           "default": 400
         }
       },
-      "requested": 247,
-      "missing": 27,
+      "requested": 248,
+      "missing": 28,
       "source": "JetBrainsMono.ttf",
       "author": "JetBrains (Philipp Nurullin, Konstantin Bulenkov)",
       "license": "SIL Open Font License 1.1",
@@ -2275,7 +2281,7 @@
       "id": "serif-tc",
       "family": "Arcade Serif TC",
       "file": "arcade-serif-tc.woff2",
-      "bytes": 590612,
+      "bytes": 590912,
       "role": "cjk",
       "variable": true,
       "weight": null,
@@ -2286,7 +2292,7 @@
           "default": 400
         }
       },
-      "requested": 1632,
+      "requested": 1634,
       "missing": 0,
       "source": "NotoSerifTC.ttf",
       "author": "Google (Noto Project)",
@@ -2298,7 +2304,7 @@
       "id": "sans-tc",
       "family": "Arcade Sans TC",
       "file": "arcade-sans-tc.woff2",
-      "bytes": 448788,
+      "bytes": 449496,
       "role": "cjk",
       "variable": true,
       "weight": null,
@@ -2309,7 +2315,7 @@
           "default": 400
         }
       },
-      "requested": 1632,
+      "requested": 1634,
       "missing": 0,
       "source": "NotoSansTC.ttf",
       "author": "Google (Noto Project)",
@@ -2318,5 +2324,5 @@
       "url": "https://github.com/google/fonts/tree/main/ofl/notosanstc"
     }
   ],
-  "totalBytes": 1361980
+  "totalBytes": 1362988
 }
