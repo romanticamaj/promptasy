@@ -1044,8 +1044,44 @@ export function createAudio({ volume = 0.5, muted = false, region = 'foundations
     },
 
     /**
+     * 自動播放探測（Phase 33）：resume 之後等一小段時間，看 AudioContext 有沒有真的
+     * 變成 running。用來決定開機要不要先出一道入場門。
+     *
+     * - true  → 政策放行（返客、或測試環境帶了 --autoplay-policy 旗標）：直接進標題卡。
+     * - false → 被凍住：先出入場門，讓玩家那一下手勢去解鎖。
+     *
+     * 只是「探測」，不會失敗 —— 沒有 AudioContext 也只是回 false。
+     * @param {number} [timeoutMs] 最多等多久（開機路徑上，別讓玩家等）
+     * @returns {Promise<boolean>}
+     */
+    whenRunning(timeoutMs = 220) {
+      if (!ctx) return Promise.resolve(false);
+      if (ctx.state === 'running') return Promise.resolve(true);
+      try {
+        ctx.resume?.()?.catch?.(() => {});
+      } catch {
+        /* 被政策擋下就是擋下，不是錯誤 */
+      }
+      return new Promise((resolve) => {
+        const t0 = Date.now();
+        const tick = () => {
+          if (!ctx || ctx.state === 'running') {
+            resolve(Boolean(ctx && ctx.state === 'running'));
+            return;
+          }
+          if (Date.now() - t0 >= timeoutMs) {
+            resolve(false);
+            return;
+          }
+          setTimeout(tick, 20);
+        };
+        tick();
+      });
+    },
+
+    /**
      * 標題卡的開場曲。瀏覽器允許自動播放就直接響起；
-     * 不允許的話，掛一次性的手勢監聽（第一下按鍵／點擊 —— 包含「按任意鍵開始」那一下）
+     * 不允許的話，掛一次性的手勢監聽（第一下按鍵／點擊 —— 也就是推開入場門那一下）
      * 一有手勢就 resume。進入遊戲後由世界的 setRegion 交叉淡接到當區配樂。
      */
     titleIntro() {

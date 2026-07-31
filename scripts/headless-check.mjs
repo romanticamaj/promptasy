@@ -130,7 +130,8 @@ class CDP {
 /* 啟動 dev server ＋ Chrome                                           */
 /* ------------------------------------------------------------------ */
 const children = [];
-let profileDir = null;
+/* 主瀏覽器一個、入場門那一段（Phase 33）另外再開一個 —— 收尾時全部清掉 */
+const profileDirs = [];
 
 function cleanup() {
   for (const child of children) {
@@ -146,9 +147,9 @@ function cleanup() {
       /* 已經死了 */
     }
   }
-  if (profileDir) {
+  for (const dir of profileDirs) {
     try {
-      rmSync(profileDir, { recursive: true, force: true });
+      rmSync(dir, { recursive: true, force: true });
     } catch {
       /* 清不掉就算了 */
     }
@@ -197,35 +198,50 @@ async function main() {
   await waitFor(async () => (await fetch(APP_URL)).ok, { label: 'vite 啟動' });
 
   console.log(`▸ chrome      ${chrome}`);
-  profileDir = mkdtempSync(join(tmpdir(), 'promptasy-e2e-'));
-  const browser = spawn(
-    chrome,
-    [
-      '--headless=new',
-      // 無頭環境沒有媒體互動分數，AudioContext 會被 suspend；放行自動播放，
-      // 讓標題卡維持「一鍵開始」的既有測試行為（真實瀏覽器的兩段式喚醒另有斷言）。
-      '--autoplay-policy=no-user-gesture-required',
-      // WSL/headless 沒有音訊裝置：用 null 輸出讓 AudioContext 能 running 而不報
-      // 「error from the audio device」（我們只斷言節點圖狀態，不需要真的出聲）
-      '--disable-audio-output',
-      `--remote-debugging-port=${CDP_PORT}`,
-      `--user-data-dir=${profileDir}`,
-      '--no-first-run',
-      '--no-default-browser-check',
-      '--disable-extensions',
-      '--disable-dev-shm-usage',
-      '--no-sandbox',
-      '--window-size=1280,800',
-      '--use-gl=angle',
-      '--use-angle=swiftshader',
-      '--enable-unsafe-swiftshader',
-      '--hide-scrollbars',
-      '--mute-audio',
-      'about:blank',
-    ],
-    { stdio: ['ignore', 'ignore', 'pipe'], detached: true }
-  );
-  children.push(browser);
+
+  /**
+   * 開一個無頭 Chrome。
+   * @param {object} o
+   * @param {number} o.cdpPort
+   * @param {boolean} o.allowAutoplay 帶不帶 --autoplay-policy=no-user-gesture-required。
+   *   主測試帶（＝返客／政策放行的路徑：入場門不出現，一鍵進場）；
+   *   入場門那一段**刻意不帶**，用瀏覽器的預設政策重現「首次造訪音訊被凍住」。
+   */
+  function launchChrome({ cdpPort, allowAutoplay }) {
+    const profile = mkdtempSync(join(tmpdir(), 'promptasy-e2e-'));
+    profileDirs.push(profile);
+    const proc = spawn(
+      chrome,
+      [
+        '--headless=new',
+        // 無頭環境沒有媒體互動分數，AudioContext 會被 suspend；放行自動播放，
+        // 讓標題卡維持「一鍵開始」的既有測試行為（被擋住的那條路另有一段專屬測試）。
+        ...(allowAutoplay ? ['--autoplay-policy=no-user-gesture-required'] : []),
+        // WSL/headless 沒有音訊裝置：用 null 輸出讓 AudioContext 能 running 而不報
+        // 「error from the audio device」（我們只斷言節點圖狀態，不需要真的出聲）
+        '--disable-audio-output',
+        `--remote-debugging-port=${cdpPort}`,
+        `--user-data-dir=${profile}`,
+        '--no-first-run',
+        '--no-default-browser-check',
+        '--disable-extensions',
+        '--disable-dev-shm-usage',
+        '--no-sandbox',
+        '--window-size=1280,800',
+        '--use-gl=angle',
+        '--use-angle=swiftshader',
+        '--enable-unsafe-swiftshader',
+        '--hide-scrollbars',
+        '--mute-audio',
+        'about:blank',
+      ],
+      { stdio: ['ignore', 'ignore', 'pipe'], detached: true }
+    );
+    children.push(proc);
+    return proc;
+  }
+
+  const browser = launchChrome({ cdpPort: CDP_PORT, allowAutoplay: true });
 
   const version = await waitFor(
     async () => {
@@ -372,6 +388,9 @@ async function main() {
       gates: g.world.gates.length,
       titleOpen: g.title.isOpen,
       introOpen: g.intro.isOpen,
+      gateOpen: g.entryGate.isOpen,
+      gateHidden: document.querySelector('.entrygate').hidden,
+      gateDismissed: g.entryGate.dismissed,
       quality: g.engine.quality,
       sceneNames: g.engine.scene.children.map((c) => c.name).filter(Boolean),
       hasBeacon: g.world.markers.every((m) => !!m.beacon && !!m.halo),
@@ -386,6 +405,11 @@ async function main() {
   eq(boot.gates, 4, '4 道閘門在世界裡');
   eq(boot.titleOpen, true, '開機先看到標題卡');
   eq(boot.introOpen, false, '標題卡期間教學還沒跳');
+  // Phase 33：harness 帶 --autoplay-policy=no-user-gesture-required ＝ 自動播放放行，
+  // 入場門連開都不該開（返客也是走這條路：零摩擦，一鍵進場）
+  eq(boot.gateOpen, false, '自動播放放行時入場門不出現');
+  eq(boot.gateHidden, true, '入場門的節點留在 DOM 但收起來');
+  eq(boot.gateDismissed, false, '入場門根本沒被開過（不是「開了又關」）');
   ok(boot.sceneNames.includes('sky'), '天空 dome 存在');
   ok(boot.sceneNames.includes('stars'), '星空存在（M4）');
   ok(boot.sceneNames.includes('aurora'), '極光存在（M4）');
@@ -8075,6 +8099,189 @@ async function main() {
   eq(reset.collected, 0, '重置後圖鑑清空');
   eq(reset.cleared, 0, '重置後通關紀錄清空');
   eq(reset.storage, null, '重置後 localStorage 已清除');
+
+  /* ================================================================ */
+  /*
+   * 入場門（Phase 33）—— 這一段**另外開一個 Chrome**，而且刻意不帶
+   * `--autoplay-policy=no-user-gesture-required`，重現真實首次造訪：
+   * AudioContext 被政策凍住 → 先出一道近乎全黑的門 → 推開它（那一下是 trusted
+   * gesture，音訊才解得開）→ 門淡出 → 標題卡的分字揭示與開場曲一起開始 → 再一下進場。
+   *
+   * 主測試那個瀏覽器是「政策放行」的路徑（門連開都不開），兩條路各驗一次。
+   */
+  console.log('\n▸ 入場門（Phase 33 · 預設自動播放政策）');
+  const GATE_CDP_PORT = CDP_PORT + 1;
+  launchChrome({ cdpPort: GATE_CDP_PORT, allowAutoplay: false });
+  const gateVersion = await waitFor(
+    async () => {
+      const r = await fetch(`http://127.0.0.1:${GATE_CDP_PORT}/json/version`);
+      return r.ok ? r.json() : null;
+    },
+    { label: '入場門用的 chrome DevTools' }
+  );
+  const gcdp = await CDP.connect(gateVersion.webSocketDebuggerUrl);
+  const gateTarget = await gcdp.send('Target.createTarget', { url: 'about:blank' });
+  const { sessionId: gsid } = await gcdp.send('Target.attachToTarget', {
+    targetId: gateTarget.targetId,
+    flatten: true,
+  });
+
+  const gateErrors = [];
+  gcdp.on((msg) => {
+    if (msg.sessionId !== gsid) return;
+    if (msg.method === 'Runtime.consoleAPICalled' && msg.params.type === 'error') {
+      gateErrors.push((msg.params.args || []).map((a) => a.value ?? a.description ?? '').join(' '));
+    } else if (msg.method === 'Runtime.exceptionThrown') {
+      const d = msg.params.exceptionDetails;
+      gateErrors.push(d.exception?.description || d.text || 'exception');
+    } else if (msg.method === 'Log.entryAdded' && msg.params.entry.level === 'error') {
+      gateErrors.push(`${msg.params.entry.source}: ${msg.params.entry.text}`);
+    }
+  });
+  await gcdp.send('Runtime.enable', {}, gsid);
+  await gcdp.send('Log.enable', {}, gsid);
+  await gcdp.send('Page.enable', {}, gsid);
+
+  async function gEval(expression) {
+    const r = await gcdp.send(
+      'Runtime.evaluate',
+      { expression: `(async () => { ${expression} })()`, awaitPromise: true, returnByValue: true },
+      gsid
+    );
+    if (r.exceptionDetails) throw new Error(r.exceptionDetails.exception?.description || r.exceptionDetails.text);
+    return r.result.value;
+  }
+  /** 真的按一下（rawKeyDown ＋ char ＋ keyUp）—— 這一組才會被當成使用者手勢。 */
+  async function gEnter() {
+    const base = { code: 'Enter', key: 'Enter', windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13 };
+    await gcdp.send('Input.dispatchKeyEvent', { type: 'rawKeyDown', ...base }, gsid);
+    await gcdp.send(
+      'Input.dispatchKeyEvent',
+      { type: 'char', text: '\r', key: 'Enter', windowsVirtualKeyCode: 13 },
+      gsid
+    );
+    await gcdp.send('Input.dispatchKeyEvent', { type: 'keyUp', ...base }, gsid);
+  }
+
+  await gcdp.send('Page.navigate', { url: APP_URL }, gsid);
+  await waitFor(() => gEval('return !!window.__promptasy;'), { label: '入場門情境載入' });
+  // whenRunning 的探測窗是 220ms —— 等它過去，狀態才定下來
+  await sleep(1400);
+
+  const gateShown = await gEval(`
+    const g = window.__promptasy;
+    const root = document.querySelector('.entrygate');
+    const seal = root.querySelector('[data-enter]');
+    const box = seal.getBoundingClientRect();
+    return {
+      gateOpen: g.entryGate.isOpen,
+      gateHidden: root.hidden,
+      titleOpen: g.title.isOpen,
+      titleHidden: document.querySelector('.title').hidden,
+      audioRunning: g.audio.isRunning(),
+      text: root.textContent.replace(/\\s+/g, ' ').trim(),
+      focused: document.activeElement === seal,
+      role: root.getAttribute('role'),
+      label: root.getAttribute('aria-label'),
+      w: Math.round(box.width), h: Math.round(box.height),
+      links: root.querySelectorAll('a[href]').length,
+      overflowX: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    };
+  `);
+  eq(gateShown.audioRunning, false, '預設自動播放政策下 AudioContext 真的被凍住（前提成立）');
+  eq(gateShown.gateOpen, true, '被凍住 → 先出入場門');
+  eq(gateShown.gateHidden, false, '入場門看得見');
+  eq(gateShown.titleOpen, false, '入場門還在時，標題卡還沒登場');
+  eq(gateShown.titleHidden, true, '標題卡整個收著（分字揭示還沒起跑）');
+  ok(/推開夜色之門/.test(gateShown.text), '門上寫著「推開夜色之門」', gateShown.text);
+  ok(/enter/i.test(gateShown.text), '底下一行小小的英文 enter', gateShown.text);
+  ok(/按任意鍵，或點一下/.test(gateShown.text), '講清楚怎麼推', gateShown.text);
+  eq(gateShown.focused, true, '焦點就落在門上（純鍵盤按下去就是它）');
+  eq(gateShown.role, 'dialog', '門有 dialog 語意');
+  ok((gateShown.label || '').length > 0, '門有 aria-label', gateShown.label);
+  ok(gateShown.w > 100 && gateShown.h > 60, '門的印記真的量得到（不是 0×0 空過）', `${gateShown.w}×${gateShown.h}`);
+  eq(gateShown.links, 0, '入口不放任何連結（護欄 2：它不是課程）');
+  eq(gateShown.overflowX, 0, '入場門沒有水平溢位');
+
+  // Esc 在入口什麼都不做
+  await gcdp.send(
+    'Input.dispatchKeyEvent',
+    { type: 'rawKeyDown', code: 'Escape', key: 'Escape', windowsVirtualKeyCode: 27, nativeVirtualKeyCode: 27 },
+    gsid
+  );
+  await gcdp.send('Input.dispatchKeyEvent', { type: 'keyUp', code: 'Escape', key: 'Escape', windowsVirtualKeyCode: 27 }, gsid);
+  await sleep(300);
+  eq(await gEval('return window.__promptasy.entryGate.isOpen;'), true, 'Esc 在入口什麼都不做（門還在）');
+
+  // 推開它：這一下是 trusted gesture → 音訊解鎖
+  await gEnter();
+  await sleep(900); // 門淡出 600ms，之後才 title.open()
+
+  const gatePassed = await gEval(`
+    const g = window.__promptasy;
+    return {
+      gateOpen: g.entryGate.isOpen,
+      gateHidden: document.querySelector('.entrygate').hidden,
+      gateDismissed: g.entryGate.dismissed,
+      titleOpen: g.title.isOpen,
+      titleHidden: document.querySelector('.title').hidden,
+      audioRunning: g.audio.isRunning(),
+      audioStarted: g.audio.isStarted,
+      region: g.audio.debug().region,
+      prologueActive: g.prologue.isActive,
+      name: document.querySelector('.title__name')?.textContent || '',
+    };
+  `);
+  eq(gatePassed.gateOpen, false, '推開之後門就收了');
+  eq(gatePassed.gateHidden, true, '門的節點也藏起來（不會擋到標題卡）');
+  eq(gatePassed.gateDismissed, true, '門記得自己已經被推開（不會再回來）');
+  eq(gatePassed.audioRunning, true, '那一下手勢真的解開了 AudioContext');
+  eq(gatePassed.audioStarted, true, '音訊已啟動');
+  eq(gatePassed.titleOpen, true, '門淡出之後標題卡接手');
+  eq(gatePassed.titleHidden, false, '標題卡的分字揭示這時候才起跑');
+  eq(gatePassed.name, 'Promptasy', '標題卡顯示遊戲名');
+  eq(gatePassed.region, 'title', '這時候放的是開場曲');
+  eq(gatePassed.prologueActive, false, '還沒進遊戲（標題卡還在）');
+
+  // 開場曲真的響起來（音檔解碼＋淡入要一點時間 → 輪詢，不要用固定 sleep）
+  const overtureUp = await waitFor(
+    async () => {
+      const d = await gEval(`
+        const d = window.__promptasy.audio.debug();
+        const t = (d.bgm || d.regions || {}).title || {};
+        return { playing: !!t.playing, gain: t.gain ?? 0 };
+      `);
+      return d.playing && d.gain > 0 ? d : null;
+    },
+    { timeout: 15000, every: 400, label: '開場曲在標題卡上響起' }
+  ).catch(() => null);
+  ok(overtureUp && overtureUp.playing, '開場曲在標題卡上開始播（揭示與音樂同時發生）');
+  ok(overtureUp && overtureUp.gain > 0, '開場曲的音量真的拉起來了', overtureUp && `gain=${overtureUp.gain}`);
+
+  // 再一下 → 進遊戲（維持「標題卡一鍵進場」）
+  await gEnter();
+  await sleep(900);
+  const gateEntered = await gEval(`
+    const g = window.__promptasy;
+    return {
+      titleOpen: g.title.isOpen,
+      prologueActive: g.prologue.isActive,
+      echoVisible: !document.querySelector('.echo').hidden,
+      beatKind: g.prologue.beat?.kind,
+    };
+  `);
+  eq(gateEntered.titleOpen, false, '標題卡按一下就進得去（沒有第二段喚醒了）');
+  eq(gateEntered.prologueActive, true, '新玩家接著進序章引導課程');
+  eq(gateEntered.echoVisible, true, '回聲字幕條出現');
+  eq(gateEntered.beatKind, 'say', '序章第一拍是醒來（推門那一下沒有穿透進來）');
+
+  const gateRealErrors = gateErrors.filter((e) => !/favicon|DevTools|Autofill/i.test(e));
+  eq(gateRealErrors.length, 0, '入場門情境零 console error', gateRealErrors.slice(0, 4).join('\n      '));
+  try {
+    gcdp.ws.close();
+  } catch {
+    /* 已經關了 */
+  }
 
   /* ================================================================ */
   await sleep(600);

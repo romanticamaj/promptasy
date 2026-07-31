@@ -2,9 +2,12 @@
  * Promptasy — 開場標題卡
  *
  * 遊戲一開就是這一頁：品牌名、定位句、按任意鍵開始。
- * 它同時扮演兩個實際功能：
- *   1. 提供 AudioContext 需要的「使用者手勢」（瀏覽器政策）
- *   2. 蓋住 three.js 第一幀的編譯與地形生成，開場不會看到閃爍
+ * 它同時扮演一個實際功能：蓋住 three.js 第一幀的編譯與地形生成，開場不會看到閃爍。
+ *
+ * Phase 33：分字揭示改成**由 open() 觸發**（元素預設 hidden，CSS 動畫要到那時才起跑），
+ * 因為自動播放被擋的首次造訪會先經過一道入場門（`entrygate.js`）——
+ * 門推開、開場曲真的響起來之後才輪到這一頁，揭示與音樂同步發生。
+ * 音訊解鎖那一下手勢由入場門負責，這裡不再兼差。
  */
 import { el, esc } from './dom.js';
 
@@ -28,12 +31,12 @@ function stageName(name) {
 /**
  * @param {object} opts
  * @param {() => void} [opts.onStart]
- * @param {() => boolean} [opts.awaken] 第一下手勢的攔截器：回傳 true 表示這一下
- *   被拿去「喚醒音訊」（瀏覽器自動播放被擋時），標題卡留著、等下一下才開始。
  * @param {string} [opts.subtitle]
  */
-export function createTitle({ onStart, awaken, subtitle = 'Learn Prompt Engineering by Playing' } = {}) {
+export function createTitle({ onStart, subtitle = 'Learn Prompt Engineering by Playing' } = {}) {
   const root = el('div', 'title');
+  // 預設收起來：分字揭示的 CSS 動畫要等 open() 才起跑（見檔頭）
+  root.hidden = true;
   root.setAttribute('role', 'dialog');
   root.setAttribute('aria-modal', 'true');
   root.setAttribute('aria-label', 'Promptasy — 開始畫面');
@@ -53,19 +56,8 @@ export function createTitle({ onStart, awaken, subtitle = 'Learn Prompt Engineer
   let done = false;
   let live = false;
 
-  let awakened = false;
-
   function start() {
     if (done || !live) return;
-    // 自動播放被擋的首次造訪：第一下手勢先喚醒開場曲（不進入遊戲），第二下才開始。
-    // awaken() 只會消耗一次手勢 —— 音訊已在響（或喚醒失敗）就直接開始，不會卡住玩家。
-    if (!awakened && awaken && awaken() === true) {
-      awakened = true;
-      root.classList.add('is-awake');
-      const btn = root.querySelector('[data-start]');
-      if (btn) btn.innerHTML = '夜色醒了 —— 再按一次，踏入它 <kbd>Enter</kbd>';
-      return;
-    }
     done = true;
     live = false;
     root.classList.add('is-leaving');
@@ -81,6 +73,8 @@ export function createTitle({ onStart, awaken, subtitle = 'Learn Prompt Engineer
   function onKey(e) {
     // Tab 留給無障礙導覽，其他任意鍵都算「開始」
     if (e.key === 'Tab') return;
+    // 按著不放的自動重複不算新的一下（推開入場門那一下不該穿透到這裡）
+    if (e.repeat) return;
     start();
   }
   function onPointer() {

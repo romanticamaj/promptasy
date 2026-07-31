@@ -858,6 +858,7 @@ a.src:hover {
  */
 .hud,
 .title,
+.entrygate,
 .toast,
 .hud__toasts {
   --t-meta: 0.96rem;
@@ -2833,6 +2834,135 @@ select option:disabled {
   color: var(--paper-2);
 }
 
+/* ================================================================ 入場門
+   自動播放被擋的首次造訪才會看到：一片近乎全黑、一枚呼吸的印記、一句話。
+   推開它 → 音訊解鎖 → 門淡出 → 標題卡的分字揭示與開場曲同時開始。
+   刻意極簡：這裡什麼都不教，只是把那一下必要的手勢變成一個有意義的動作。 */
+.entrygate {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  /* 蓋在標題卡（40）之上 —— 兩者淡入淡出交叉時，門永遠在上面 */
+  z-index: 45;
+  transition: opacity 0.62s var(--e-inout);
+}
+.entrygate.is-leaving {
+  opacity: 0;
+  pointer-events: none;
+}
+/*
+ * 完全不透光：門還在的時候，底下的世界與 HUD 一點都不該漏出來
+ * （半透明版本會讓「下一個目標」「圖鑑 / 設定」這些字浮在門後面，很髒）。
+ * 不透明的底色 ＋ 一層加色的微光，質感一樣但不漏光。
+ */
+.entrygate__veil {
+  position: absolute;
+  inset: 0;
+  background: #010204;
+}
+.entrygate__veil::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(76% 58% at 50% 46%, rgba(18, 32, 50, 0.62), transparent 72%);
+}
+.entrygate__veil::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: var(--grain);
+  opacity: 0.05;
+  mix-blend-mode: overlay;
+}
+/*
+ * 內容延遲 0.3s 才浮出。探測到「其實可以自動播放」時我們會在 220ms 內撤掉這道門 ——
+ * 那種情況下玩家只會看到一瞬間的黑，不會看到門的字閃過去。
+ */
+.entrygate__inner {
+  position: relative;
+  text-align: center;
+  padding: 5vh 6vw;
+  opacity: 0;
+  animation: reveal-in 1.1s var(--e-out) 0.3s forwards;
+}
+.entrygate__seal {
+  display: grid;
+  justify-items: center;
+  gap: var(--s4);
+  margin: 0 auto;
+  padding: var(--s6) var(--s8);
+  /* 門框：一直都在（滑鼠與鍵盤看到的是同一個東西），受光時才亮起來 */
+  border: 1px solid rgba(169, 201, 216, 0.15);
+  border-radius: 2px;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+  text-align: center;
+  transition: border-color var(--d-mid) var(--e-out);
+}
+.entrygate__seal:hover,
+.entrygate__seal:focus-visible {
+  border-color: rgba(169, 201, 216, 0.4);
+}
+.entrygate__glyph {
+  font-size: 32px;
+  line-height: 1;
+  color: var(--gold);
+  text-shadow: 0 0 44px rgba(230, 199, 155, 0.6);
+  animation: entrygate-breathe 4.4s ease-in-out infinite;
+}
+@keyframes entrygate-breathe {
+  0%,
+  100% {
+    transform: translateY(0) scale(1);
+    opacity: 0.72;
+  }
+  50% {
+    transform: translateY(-5px) scale(1.12);
+    opacity: 1;
+  }
+}
+.entrygate__zh {
+  font-family: var(--font-prose);
+  font-size: var(--t-lead);
+  line-height: var(--lh-prose);
+  letter-spacing: 0.16em;
+  text-indent: 0.16em;
+  color: var(--paper-2);
+}
+.entrygate__rule {
+  width: min(200px, 46vw);
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(169, 201, 216, 0.5), transparent);
+}
+.entrygate__en {
+  font-family: var(--font-meta);
+  font-size: var(--t-meta);
+  font-weight: 500;
+  letter-spacing: 0.42em;
+  text-indent: 0.42em;
+  text-transform: uppercase;
+  color: rgba(200, 220, 236, 0.46);
+}
+.entrygate__seal:hover .entrygate__en,
+.entrygate__seal:focus-visible .entrygate__en {
+  color: rgba(214, 236, 250, 0.78);
+}
+.entrygate__seal:focus-visible {
+  outline: 1px solid rgba(169, 201, 216, 0.5);
+  outline-offset: 6px;
+}
+.entrygate__hint {
+  margin: var(--s6) 0 0;
+  font-family: var(--font-ui);
+  font-size: var(--t-meta);
+  letter-spacing: 0.08em;
+  color: var(--paper-4);
+  opacity: 0;
+  animation: reveal-in 1s var(--e-out) 1.1s forwards;
+}
+
 /* ================================================================ 標題卡
    第一印象：分字揭示 ＋ 一條展開的髮絲線 ＋ 呼吸的開始鍵。 */
 .title {
@@ -3449,7 +3579,10 @@ select option:disabled {
   .title__zh,
   .title__start,
   .title__foot,
-  .title__mark {
+  .title__mark,
+  .entrygate__inner,
+  .entrygate__glyph,
+  .entrygate__hint {
     opacity: 1;
     transform: none;
   }

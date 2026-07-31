@@ -1939,6 +1939,9 @@ eq(silent.usesFiles, true, '預設會用音檔');
 eq(silent.useFiles(false), false, '可以強制回到合成配樂（離線 / 音檔壞掉時的退路）');
 eq(silent.debug().source, 'synth', '沒有音檔在播時聽到的是合成配樂');
 eq(silent.debug().started, false, '除錯狀態如實回報未啟動');
+eq(silent.isRunning(), false, '沒有 AudioContext → isRunning = false');
+eq(await silent.whenRunning(0), false, '自動播放探測在無音訊環境回 false（不丟例外、不卡住）');
+eq(await silent.whenRunning(50), false, '探測有逾時上限，不會無限等下去');
 silent.dispose();
 
 /* --- Phase 30：真的音檔（`public/audio/`）--- */
@@ -4327,6 +4330,84 @@ for (const banned of ['送出評分', '按鈕', '面板', 'localStorage', 'rubri
 /*   · 子集真的涵蓋整個專案語料（重新掃一次原始檔案，不信任 manifest）    */
 /*   · CSS 不指向任何外部字型 CDN                                       */
 /* ================================================================== */
+/* ================================================================== */
+/* 入場門（Phase 33）                                                  */
+/*                                                                    */
+/* 自動播放被擋的首次造訪，先出一道門把「必要的那一下手勢」變成一個     */
+/* 有意義的動作；門推開之後，標題卡的分字揭示才和開場曲一起發生。       */
+/* 自動播放放行的造訪（返客 / 測試環境）完全看不到這道門。             */
+/*                                                                    */
+/* 這裡是原始碼層級的看門狗：DOM 行為由 e2e 兩種自動播放政策各跑一次。 */
+/* ================================================================== */
+console.log('\n▸ 入場門（Phase 33）');
+
+const gateSrc = readFileSync(resolve(root, 'src/ui/entrygate.js'), 'utf8');
+const titleSrc = readFileSync(resolve(root, 'src/ui/title.js'), 'utf8');
+const bootSrc = readFileSync(resolve(root, 'src/main.js'), 'utf8');
+const gateCss = readFileSync(resolve(root, 'src/styles.css'), 'utf8');
+
+/* --- 文案：一句中文 ＋ 一個小小的英文字 --- */
+ok(/推開夜色之門/.test(gateSrc), '門上寫著「推開夜色之門」');
+ok(/按任意鍵，或點一下/.test(gateSrc), '門上講清楚怎麼推（按任意鍵，或點一下）');
+ok(/>enter</.test(gateSrc), '底下一行小小的英文 enter');
+ok(/✦/.test(gateSrc), '有一枚會呼吸的印記');
+// 護欄 2：入口不是課程，不准放官方出處或技巧宣稱
+ok(!/https?:\/\//.test(gateSrc.replace(/^[\s\S]*?\*\//, '')), '入場門不放任何連結（它是世界的入口，不是課程）');
+
+/* --- 鍵盤優先（WORLD.md §3） --- */
+ok(/addEventListener\('keydown'/.test(gateSrc), '任意鍵都推得開（鍵盤優先）');
+ok(/addEventListener\('pointerdown'/.test(gateSrc), '點一下 / 觸控也推得開');
+ok(/e\.key === 'Tab'/.test(gateSrc), 'Tab 留給無障礙導覽');
+ok(/e\.key === 'Escape'/.test(gateSrc), 'Esc 在入口什麼都不做（沒有東西可以關）');
+ok(/e\.repeat/.test(gateSrc), '按著不放的自動重複不算新的一下（不會穿透到標題卡）');
+ok(/aria-modal/.test(gateSrc) && /aria-label/.test(gateSrc), '門有 dialog 語意與 aria 標籤');
+ok(/\[data-enter\]'\)\?\.focus/.test(gateSrc), '開門時焦點就落在門上');
+
+/* --- 解鎖一定要待在手勢的呼叫堆疊裡 --- */
+const unlockLine = gateSrc.slice(gateSrc.indexOf('function leave'), gateSrc.indexOf('function onKey'));
+ok(/onUnlock\?\.\(\)/.test(unlockLine), '推開的那一刻同步呼叫 onUnlock');
+ok(
+  !/setTimeout\([^)]*onUnlock/.test(gateSrc) && !/requestAnimationFrame\([^)]*onUnlock/.test(gateSrc),
+  'onUnlock 沒有被包進 setTimeout / rAF（晚一拍瀏覽器就不認這個手勢）'
+);
+ok(/onUnlock: \(\) => audio\.start\(\)/.test(bootSrc), 'main.js 把音訊解鎖接在門的手勢上');
+ok(/onEnter: \(\) => title\.open\(\)/.test(bootSrc), '門淡出之後才輪到標題卡');
+
+/* --- 開機的岔路：放行就跳過門，被擋才出門 --- */
+ok(/audio\.titleIntro\(\);/.test(bootSrc), '開機仍然先試一次開場曲');
+ok(/if \(audio\.isRunning\(\)\) \{\s*title\.open\(\);/.test(bootSrc), '自動播放放行 → 直接開標題卡（零摩擦）');
+ok(/entryGate\.open\(\);/.test(bootSrc), '被擋住 → 先出入場門');
+ok(/audio\.whenRunning\(\d+\)\.then/.test(bootSrc), '出門的同時再非同步探測一次');
+ok(/if \(running\) entryGate\.skip\(\)/.test(bootSrc), '探到其實放行 → 在玩家看見門的內容之前撤掉');
+ok(/entryGate,/.test(bootSrc), '入場門掛上除錯把手（e2e 用得到）');
+
+/* --- Phase 32.5 的兩段式喚醒已經整段拿掉 --- */
+ok(!/awaken/.test(titleSrc), '標題卡不再有 awaken 攔截器');
+ok(!/夜色醒了/.test(titleSrc), '「夜色醒了 —— 再按一次」那句話已移除');
+ok(!/is-awake/.test(titleSrc) && !/is-awake/.test(gateCss), 'is-awake 狀態整組移除（樣式也沒有殘留）');
+ok(!/awaken/.test(bootSrc), 'main.js 不再接兩段式喚醒');
+ok(/按任意鍵開始/.test(titleSrc), '標題卡仍然是「按任意鍵開始」（一下就進得去）');
+
+/* --- 標題卡的揭示延到 open() 才起跑 --- */
+ok(/root\.hidden = true;/.test(titleSrc.slice(0, titleSrc.indexOf('let done'))), '標題卡預設收起（CSS 動畫等 open() 才跑）');
+ok(/e\.repeat/.test(titleSrc), '標題卡也擋自動重複（推門那一下不會穿透進來）');
+
+/* --- 樣式：近乎全黑、內容延遲浮出、reduce 下靜態顯示 --- */
+ok(/\.entrygate \{/.test(gateCss), '入場門有自己的樣式區塊');
+ok(/z-index: 45;/.test(gateCss.slice(gateCss.indexOf('.entrygate {'))), '門疊在標題卡（40）之上');
+const veilBlock = gateCss.slice(gateCss.indexOf('.entrygate__veil {'), gateCss.indexOf('.entrygate__veil::before'));
+ok(
+  /background: #0[0-9a-f]{5};/.test(veilBlock),
+  '門完全不透光（底下的世界與 HUD 都不會漏出來）',
+  veilBlock.trim().slice(0, 120)
+);
+const innerBlock = gateCss.slice(gateCss.indexOf('.entrygate__inner {'), gateCss.indexOf('.entrygate__seal {'));
+ok(/animation: reveal-in [\d.]+s var\(--e-out\) 0\.3s forwards/.test(innerBlock), '門的內容延遲 0.3s 才浮出（撤掉時不會閃過去）');
+const reduceBlock = gateCss.slice(gateCss.indexOf('@media (prefers-reduced-motion: reduce)'));
+for (const cls of ['.entrygate__inner', '.entrygate__glyph', '.entrygate__hint']) {
+  ok(reduceBlock.includes(cls), `prefers-reduced-motion 下 ${cls} 仍然看得見（不靠動畫收尾）`);
+}
+
 console.log('\n▸ 字型子集與授權');
 
 const { collectCorpus, corpusFingerprint, FONTS, charsFor, isCjk, readCmap } = await import(

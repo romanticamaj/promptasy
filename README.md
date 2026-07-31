@@ -200,10 +200,10 @@ promptasy/
 
 | Command | What it covers | Time | Latest run |
 | --- | --- | --- | --- |
-| `npm run test:rubric` | Scoring engine, data integrity, source health, collision audit, Chinese-only scan, font-corpus fingerprint, save migration | ~15 s | **16,429 assertions passing** |
+| `npm run test:rubric` | Scoring engine, data integrity, source health, collision audit, Chinese-only scan, font-corpus fingerprint, save migration | ~15 s | **16,469 assertions passing** |
 | `npm run test:playtest` | Every challenge is beatable by following the on-screen help: sample answer ≥ A, quick-fills always pass, weak starters always fail, misjudgement regressions | ~10 s | **226 assertions passing** |
 | `npm run build` | Vite build | ~2 s | passing |
-| `npm run test:e2e` | Headless Chrome playthrough over CDP (walking, prologue, carving, passing, sharing) — no puppeteer/playwright, just Node + system Chrome | 15–20 min on software rendering | **1,697 checks, 1,694 passing** (3 known animation-timing flakes under SwiftShader) |
+| `npm run test:e2e` | Headless Chrome playthrough over CDP (walking, prologue, carving, passing, sharing) — no puppeteer/playwright, just Node + system Chrome; a second browser instance replays the entry gate under the default autoplay policy | 15–20 min on software rendering | **1,735 checks** (a few known animation-timing flakes under SwiftShader) |
 
 ---
 

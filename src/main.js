@@ -48,6 +48,7 @@ import { HANDLE_VERBS, HANDLE_VERBS_USED, HANDLE_KINDS, CAPSTAN_TURNS } from './
 /** 鏡頭的水平前方向。提到模組層重複使用 —— 每幀迴圈裡不配置記憶體（WORLD.md §6.2）。 */
 const camForward = { x: 0, z: 1 };
 import { createTitle } from './ui/title.js';
+import { createEntryGate } from './ui/entrygate.js';
 import { createKeyHelp } from './ui/keyhelp.js';
 import { createAchievement } from './ui/achievement.js';
 import { createAudio } from './audio/audio.js';
@@ -433,10 +434,8 @@ function boot() {
   });
   ui.appendChild(prologue.root);
 
-  /* --- 開場標題卡（同時是 AudioContext 需要的使用者手勢） --- */
+  /* --- 開場標題卡 --- */
   const title = createTitle({
-    // 自動播放被擋時，第一下手勢先喚醒開場曲（resume 由 titleIntro 掛的監聽器做）
-    awaken: () => !audio.isRunning(),
     onStart: () => {
       audio.start();
       // 開場曲讓位給當區配樂（5 秒的等功率交叉淡接，像鏡頭從序幕搖進世界）
@@ -457,6 +456,14 @@ function boot() {
     },
   });
   ui.appendChild(title.root);
+
+  /* --- 入場門（Phase 33）：自動播放被擋時的那一下手勢 --- */
+  const entryGate = createEntryGate({
+    // 手勢的呼叫堆疊裡就要 resume，晚一拍瀏覽器不認
+    onUnlock: () => audio.start(),
+    onEnter: () => title.open(),
+  });
+  ui.appendChild(entryGate.root);
 
   /* --- 面板開關：打字時角色不能動 --- */
   let openedPanel = null;
@@ -934,8 +941,28 @@ function boot() {
   hud.refresh();
   engine.start();
   player.setInputEnabled(false);
-  title.open();
+
+  /*
+   * Phase 33 · 開機的岔路：
+   *
+   *   audio.titleIntro() 試著讓開場曲直接響起來。
+   *     ├─ 同步就 running（返客／--autoplay-policy 放行的測試環境）
+   *     │    → 零摩擦：直接開標題卡，揭示與音樂本來就同時發生。
+   *     └─ 被凍住（首次造訪的預設政策）
+   *          → 先出一道入場門（近乎全黑，只有一枚印記與一句話）。
+   *            同時再非同步探測一次（有些瀏覽器的 resume 慢一拍才成功）——
+   *            探到 running 就在玩家看見門的內容之前把它撤掉（門的內容延遲 0.3s 才浮出）。
+   *            真的被擋住 → 等玩家推開門，那一下手勢解鎖音訊，門淡出，標題卡接手。
+   */
   audio.titleIntro();
+  if (audio.isRunning()) {
+    title.open();
+  } else {
+    entryGate.open();
+    audio.whenRunning(220).then((running) => {
+      if (running) entryGate.skip();
+    });
+  }
 
   // 除錯 / 自動化測試用的把手（純讀寫遊戲狀態，沒有任何外部連線）
   window.__promptasy = {
@@ -955,6 +982,7 @@ function boot() {
     keyhelp,
     toggleKeyHelp,
     title,
+    entryGate,
     intro,
     prologue,
     prologueContent,
