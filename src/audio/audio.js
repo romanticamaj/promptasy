@@ -1,13 +1,29 @@
 /**
- * Promptasy — 音訊：分區生成式配樂 ＋ 合成音效
+ * Promptasy — 音訊：分區配樂（真的音檔）＋ 音效（音檔 ＋ 合成備援）
  *
- * 全部用 Web Audio 即時合成，**沒有任何外部音檔**（護欄：離線可玩、資產零成本）。
+ * Phase 30 起，`public/audio/` 放了站長自己做的五首分區配樂與十支音效。
+ * 但**合成引擎一條沒拆** —— 它現在是離線 / 載入中 / 檔案缺席時的備援：
+ * 把 `public/audio/` 清空，遊戲照樣有聲音、照樣能玩（護欄 3、7）。
  *
  * 結構：
- *   destination ← master ← [reverb(convolver) + dry] ← bus
- *   bus ← 每個區域一組 layer（pad 和聲 ＋ 低音 ＋ 濾波 LFO），用 gain 交叉淡入淡出
- *   bus ← 隨機鐘聲（依當區音階 / 密度排程）
- *   master ← SFX（不經 reverb 的部分直接進 master，反應才夠即時）
+ *   destination ← compressor ← master ← musicDuck ← [ 音檔配樂 bus
+ *                                                    ＋ 合成 pad（dry ＋ convolver reverb） ]
+ *                              master ← sfxBus ← [ 音檔音效 ＋ 合成音效 ]
+ *
+ *   - master：音量滑桿與靜音**同時管住兩條路**（音檔與合成共用同一顆 gain）。
+ *   - musicDuck：過關的頌缽響 9 秒，期間把配樂壓 3 dB，缽聲才浮得出來。
+ *   - compressor：最後一級（Phase 22 就有），一秒內連響好幾聲也不會削波。
+ *
+ * 配樂的無縫循環：音檔是修過頭尾但**沒有做成完美 loop** 的素材，所以不用
+ * `AudioBufferSourceNode.loop`（那會有接縫），改成**兩個 source 交替、等功率交叉淡入**：
+ * 每一段在 `duration - 2.5s` 的位置排下一段，前後各做 2.5 秒的 sin/cos 淡入淡出。
+ *
+ * 載入策略（護欄 5：不能拖慢第一個畫面）：
+ *   - 一律等到 `start()`（＝標題卡按下去的那個使用者手勢）才開始 fetch。
+ *   - 音效（共約 0.4 MB）先載、當區配樂次之，鄰區配樂最後排隊（只抓壓縮檔）。
+ *   - 解碼很吃記憶體（3 分鐘立體聲 ≈ 69 MB），所以**解碼只在要播的時候做**，
+ *     並且最多同時留兩首（正在播的 ＋ 正在淡出的），其餘只留壓縮位元組。
+ *   - 檔案還沒到 / fetch 失敗 / 解碼失敗 → 該區直接用合成 pad，不會有空白。
  *
  * 瀏覽器政策：AudioContext 必須在使用者手勢後才能啟動（title card 的「按任意鍵」就是那個手勢）。
  */
@@ -212,10 +228,137 @@ export const SFX = Object.freeze({
     gain: 0.06,
     seq: [[0, 0, 0.5, 0.8], [7, 0.1, 0.6, 0.8], [12, 0.2, 0.9, 0.6]],
   },
+  /* --- Phase 30：有音檔的那幾支，這裡放的是「檔案不在時」的備援合成版 --- */
+  // 刻印牌被按下去的那一下（很短、很小聲，連按也不吵）
+  click: { type: 'sine', base: 1318.51, gain: 0.016, seq: [[0, 0, 0.045, 1]] },
+  // 祭壇 / 刻文：一串很輕的泛音（比 blessing 短很多）
+  shrine: {
+    type: 'sine',
+    base: 349.23,
+    gain: 0.05,
+    seq: [[0, 0, 0.8, 0.7], [7, 0.14, 0.9, 0.7], [12, 0.3, 1.1, 0.5], [19, 0.48, 1.3, 0.3]],
+  },
+  // 石門滑開（先行前往：只有門，沒有慶祝的閃光）
+  gateOpen: {
+    type: 'sine',
+    base: 87.31,
+    gain: 0.08,
+    seq: [[0, 0, 0.9, 1], [5, 0.18, 1.0, 0.6], [12, 0.4, 1.2, 0.35]],
+  },
+  // 全數收集：最長、最厚的一支
+  finale: {
+    type: 'triangle',
+    base: 261.63,
+    gain: 0.08,
+    seq: [
+      [0, 0, 1.2, 0.8],
+      [4, 0.16, 1.3, 0.8],
+      [7, 0.32, 1.5, 0.85],
+      [12, 0.5, 1.8, 0.8],
+      [16, 0.72, 2.0, 0.6],
+      [19, 0.96, 2.4, 0.5],
+      [24, 1.24, 2.8, 0.35],
+    ],
+  },
 });
 
-/** 過關音效依評價加碼（S 多兩個泛音、C 只有基本三音）。 */
+/** 音檔目錄（相對於網站根目錄；`base: './'` 的部署也算得出來）。 */
+export const AUDIO_DIR = 'audio/';
+
+/**
+ * 五區配樂（站長以 Suno 創作，見 `public/LICENSE.md`）。
+ * `mood` 指到合成備援的性格 —— 檔案沒到的時候放的就是它。
+ */
+export const BGM_TRACKS = Object.freeze({
+  foundations: Object.freeze({ region: 'foundations', file: 'bgm_foundations.m4a', title: 'Night Plateau Pad' }),
+  reasoning: Object.freeze({ region: 'reasoning', file: 'bgm_reasoning.m4a', title: 'Thinking Corridor Float' }),
+  grounding: Object.freeze({ region: 'grounding', file: 'bgm_grounding.m4a', title: 'Sunken Archive Bowed' }),
+  orchestration: Object.freeze({
+    region: 'orchestration',
+    file: 'bgm_orchestration.m4a',
+    title: 'Gear Workshop Pulse',
+  }),
+  config: Object.freeze({ region: 'config', file: 'bgm_config.m4a', title: 'Mask Theatre Veil' }),
+});
+
+/**
+ * 鄰區：走過一座橋就到得了的地方（中央高原是樞紐，四片土地各自接一條橋）。
+ * 只用來決定「先偷偷抓哪一首」的順序，抓的是壓縮檔、不解碼。
+ */
+export const REGION_NEIGHBORS = Object.freeze({
+  foundations: Object.freeze(['reasoning', 'grounding', 'orchestration', 'config']),
+  reasoning: Object.freeze(['foundations', 'grounding']),
+  grounding: Object.freeze(['foundations', 'orchestration']),
+  orchestration: Object.freeze(['foundations', 'config']),
+  config: Object.freeze(['foundations', 'orchestration']),
+});
+
+/**
+ * 音效檔對照表：key 是既有的 cue 名稱 —— 有檔案就用檔案，沒有（或還沒載到）就用上面的合成版。
+ * `gain` 是相對音量（音檔本身峰值 −6 dBFS，這裡再壓到與 −20 LUFS 的配樂床平衡）。
+ * `layer` 是疊在同一次 cue 上的第二個檔案（解鎖＝微光 ＋ 稍慢一點的石門）。
+ * `duck` 是這一聲期間把配樂壓低幾秒（讓 9 秒的頌缽有地方響）。
+ */
+export const SFX_FILES = Object.freeze({
+  // 過關：9 秒頌缽 —— 讓它響完，期間配樂壓 3 dB
+  pass: Object.freeze({ file: 'sfx_pass.m4a', gain: 0.95, duck: 5.5 }),
+  // 呈給神諭（手掌按下去）：一陣風
+  submit: Object.freeze({ file: 'sfx_submit.m4a', gain: 0.8 }),
+  // 石碑收下一段（選對了）：確認的漲聲
+  stamp: Object.freeze({ file: 'sfx_select.m4a', gain: 0.5 }),
+  // 面板打開：翻頁（整座檔案館的味道）
+  open: Object.freeze({ file: 'sfx_page.m4a', gain: 0.5 }),
+  codex: Object.freeze({ file: 'sfx_page.m4a', gain: 0.6 }),
+  // 真的解鎖：微光 ＋ 石門（門稍微慢一點進來）
+  unlock: Object.freeze({
+    file: 'sfx_unlock_shimmer.m4a',
+    gain: 0.85,
+    layer: Object.freeze({ file: 'sfx_unlock_door.m4a', gain: 0.72, delay: 0.28 }),
+  }),
+  // 先行前往：只有石門，沒有慶祝的微光（比較重、比較沉）
+  gateOpen: Object.freeze({ file: 'sfx_unlock_door.m4a', gain: 0.9 }),
+  // 刻印牌被按下去
+  click: Object.freeze({ file: 'sfx_click.m4a', gain: 0.5, throttle: 0.07 }),
+  // 絞盤咬進一格 / 齒輪工坊的器物
+  ratchet: Object.freeze({ file: 'sfx_gear.m4a', gain: 0.6 }),
+  // 起始祭壇的門檻 ＋ 刻文小語
+  shrine: Object.freeze({ file: 'sfx_shrine.m4a', gain: 0.7 }),
+  // 隱藏成就：68 條全收集
+  finale: Object.freeze({ file: 'sfx_finale.m4a', gain: 0.9, duck: 4.5 }),
+});
+
+/** 全部會被載入的檔名（測試用：驗證 `public/audio/` 真的有這些檔）。 */
+export const AUDIO_MANIFEST = Object.freeze({
+  bgm: Object.freeze(Object.values(BGM_TRACKS).map((t) => t.file)),
+  sfx: Object.freeze(
+    Array.from(
+      new Set(
+        Object.values(SFX_FILES).flatMap((s) => (s.layer ? [s.file, s.layer.file] : [s.file]))
+      )
+    )
+  ),
+});
+
+/** 音效檔的集合（抓到就直接解碼常駐 —— 它們很小，但要按下去就有聲音）。 */
+const SFX_FILE_SET = new Set(AUDIO_MANIFEST.sfx);
+
+/** 把檔名接成可以 fetch 的網址（子路徑部署也算得對）。 */
+export function audioUrl(file) {
+  if (typeof document !== 'undefined' && document.baseURI) {
+    try {
+      return new URL(AUDIO_DIR + file, document.baseURI).href;
+    } catch {
+      /* 退回相對路徑 */
+    }
+  }
+  return AUDIO_DIR + file;
+}
+
+/** 過關音效依評價加碼（S 多兩個泛音、C 只有基本三音）—— 合成版。 */
 const GRADE_EXTRA = { S: [[12, 0.34, 1.3, 0.85], [19, 0.46, 1.6, 0.5]], A: [[12, 0.34, 1.1, 0.6]], B: [], C: [] };
+
+/** 過關頌缽的音量（音檔版）：S 敲得最實，C 收一點 —— 只是力度差別，不是懲罰。 */
+export const PASS_GRADE_GAIN = Object.freeze({ S: 1, A: 0.92, B: 0.84, C: 0.78 });
 
 /** 產生一段衰減噪音當作 impulse response —— 免費的空間感。 */
 function makeImpulse(ctx, seconds = 2.6, decay = 2.4) {
@@ -231,17 +374,70 @@ function makeImpulse(ctx, seconds = 2.6, decay = 2.4) {
   return buffer;
 }
 
+/** 配樂自我交叉淡入的重疊長度（秒）—— 尾巴疊回頭，接縫聽不出來。 */
+export const LOOP_CROSSFADE = 2.5;
+/** 跨區交叉淡入淡出的長度（秒）。 */
+export const REGION_CROSSFADE = 3.0;
+/** 同時解碼的配樂上限（3 分鐘立體聲 ≈ 69 MB，只留「正在播 ＋ 正在淡出」兩首）。 */
+export const MAX_DECODED_TRACKS = 2;
+
+/**
+ * 用一串 linear ramp 疊出等功率（sin / cos）曲線。
+ *
+ * 不用 `setValueCurveAtTime` 是因為它禁止與其他自動化重疊 ——
+ * 跨區時很容易「淡出還沒跑完就又要淡入」，那會直接丟例外。
+ *
+ * @param {AudioParam} param
+ * @param {number} t0    開始時間（AudioContext 時間）
+ * @param {number} dur   長度（秒）
+ * @param {number} from  起點音量
+ * @param {number} to    終點音量
+ */
+function equalPowerRamp(param, t0, dur, from, to) {
+  const STEPS = 24;
+  const lo = Math.max(0.0001, Math.min(from, to));
+  param.setValueAtTime(Math.max(0.0001, from), t0);
+  for (let i = 1; i <= STEPS; i += 1) {
+    const x = i / STEPS;
+    // 淡入用 sin、淡出用 cos —— 兩段相加的功率是常數，中間不會凹一個洞
+    const shape = to >= from ? Math.sin((x * Math.PI) / 2) : Math.cos((x * Math.PI) / 2);
+    const v = to >= from ? from + (to - from) * shape : to + (from - to) * shape;
+    param.linearRampToValueAtTime(Math.max(lo, v), t0 + dur * x);
+  }
+  param.setValueAtTime(Math.max(0.0001, to), t0 + dur);
+}
+
+/** 把一顆 gain 的自動化清乾淨並停在目前的值（跨區時反覆改目標也不會打架）。 */
+function holdParam(param, now) {
+  const value = param.value;
+  try {
+    param.cancelScheduledValues(now);
+  } catch {
+    /* 舊瀏覽器 */
+  }
+  try {
+    param.setValueAtTime(value, now);
+  } catch {
+    /* 忽略 */
+  }
+  return value;
+}
+
 /**
  * @param {object} opts
  * @param {number} [opts.volume]  0–1
  * @param {boolean} [opts.muted]
  * @param {string} [opts.region]  起始區域
+ * @param {boolean} [opts.files]  是否使用 `public/audio/` 的音檔（false = 只用合成備援）
  */
-export function createAudio({ volume = 0.5, muted = false, region = 'foundations' } = {}) {
+export function createAudio({ volume = 0.5, muted = false, region = 'foundations', files = true } = {}) {
   let ctx = null;
   let master = null;
   let musicBus = null;
+  let musicDuck = null;
+  let bgmBus = null;
   let sfxBus = null;
+  let compressor = null;
   let started = false;
   let bellTimer = 0;
   let currentVolume = Math.max(0, Math.min(1, volume));
@@ -249,9 +445,347 @@ export function createAudio({ volume = 0.5, muted = false, region = 'foundations
   let currentRegion = REGION_MOODS[region] ? region : 'foundations';
   const layers = new Map(); // regionId → { gain, oscs }
   let lastStepAt = 0;
+  let lastClickAt = 0;
+
+  /* ---------------- 音檔：載入 / 解碼 / 播放 ---------------- */
+
+  /** 是否使用音檔（false → 整組回到 Phase 4 的合成配樂）。 */
+  let filesEnabled = files !== false;
+  /** file → 'idle' | 'loading' | 'bytes' | 'failed'（壓縮位元組的狀態） */
+  const fetchState = new Map();
+  /** file → ArrayBuffer（壓縮檔，五首共約 15 MB） */
+  const bytes = new Map();
+  /** file → AudioBuffer（解碼後；音效常駐，配樂最多兩首） */
+  const decoded = new Map();
+  /** 解碼後配樂的使用順序（最近用到的排最後） */
+  const decodedOrder = [];
+  /** file → Promise（避免同一個檔案被抓兩次） */
+  const inflightFetch = new Map();
+  /** file → Promise（避免同一個檔案被解兩次） */
+  const inflightDecode = new Map();
+  /** 等著抓的佇列：{ file, priority }（數字小的先） */
+  const queue = [];
+  let running = 0;
+  const MAX_PARALLEL = 2;
+  /** 配樂播放器：regionId → { gain, buffer, segments, timer, playing } */
+  const players = new Map();
+  let duckUntil = 0;
+  let duckTimer = 0;
 
   const MASTER_SCALE = 0.34;
   const targetMaster = () => (isMuted ? 0 : currentVolume * MASTER_SCALE);
+
+  const canFetch = () => typeof fetch === 'function';
+
+  function pump() {
+    if (!filesEnabled || !canFetch()) return;
+    while (running < MAX_PARALLEL && queue.length) {
+      queue.sort((a, b) => a.priority - b.priority);
+      const job = queue.shift();
+      if (fetchState.get(job.file) === 'bytes' || fetchState.get(job.file) === 'loading') continue;
+      running += 1;
+      fetchBytes(job.file)
+        .then((buf) => {
+          // 音效很小（十支共約 0.4 MB）：抓到就直接解碼並常駐，按下去才不會慢一拍
+          if (buf && SFX_FILE_SET.has(job.file)) return decode(job.file, true);
+          return null;
+        })
+        .finally(() => {
+          running -= 1;
+          pump();
+        });
+    }
+  }
+
+  /** 抓一個檔案的壓縮位元組（不解碼）。失敗就標記起來，之後一律走合成備援。 */
+  function fetchBytes(file) {
+    if (bytes.has(file)) return Promise.resolve(bytes.get(file));
+    if (inflightFetch.has(file)) return inflightFetch.get(file);
+    if (!filesEnabled || !canFetch()) return Promise.resolve(null);
+    fetchState.set(file, 'loading');
+    const p = fetch(audioUrl(file))
+      .then((res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.arrayBuffer();
+      })
+      .then((buf) => {
+        bytes.set(file, buf);
+        fetchState.set(file, 'bytes');
+        return buf;
+      })
+      .catch(() => {
+        // 沒有音檔也要能玩 —— 標記失敗、回到合成備援，不丟例外、不寫 console.error
+        fetchState.set(file, 'failed');
+        return null;
+      })
+      .finally(() => inflightFetch.delete(file));
+    inflightFetch.set(file, p);
+    return p;
+  }
+
+  /** 排隊抓一個檔案（priority 小的先）。 */
+  function want(file, priority = 5) {
+    if (!filesEnabled || !file) return;
+    const st = fetchState.get(file);
+    if (st === 'bytes' || st === 'loading' || st === 'failed') return;
+    fetchState.set(file, 'idle');
+    queue.push({ file, priority });
+    pump();
+  }
+
+  /** 解碼並快取（音效 permanent = true；配樂會被 LRU 淘汰）。 */
+  function decode(file, permanent = false) {
+    if (decoded.has(file)) {
+      if (!permanent) touchDecoded(file);
+      return Promise.resolve(decoded.get(file));
+    }
+    if (inflightDecode.has(file)) return inflightDecode.get(file);
+    const p = fetchBytes(file)
+      .then((buf) => {
+        if (!buf || !ctx) return null;
+        // decodeAudioData 會把傳進去的 ArrayBuffer 抽走 → 一定要給副本
+        return ctx.decodeAudioData(buf.slice(0));
+      })
+      .then((audioBuffer) => {
+        if (!audioBuffer) return null;
+        decoded.set(file, audioBuffer);
+        if (!permanent) {
+          decodedOrder.push(file);
+          evictDecoded();
+        }
+        return audioBuffer;
+      })
+      .catch(() => {
+        // 解不開（瀏覽器不支援這個編碼）→ 當成沒有這個檔案
+        fetchState.set(file, 'failed');
+        return null;
+      })
+      .finally(() => inflightDecode.delete(file));
+    inflightDecode.set(file, p);
+    return p;
+  }
+
+  function touchDecoded(file) {
+    const i = decodedOrder.indexOf(file);
+    if (i >= 0) decodedOrder.splice(i, 1);
+    decodedOrder.push(file);
+  }
+
+  /** 只留最近用到的兩首配樂，其餘釋放（壓縮位元組留著，要用再解一次）。 */
+  function evictDecoded() {
+    while (decodedOrder.length > MAX_DECODED_TRACKS) {
+      const victim = decodedOrder.find((f) => !isPlayingFile(f));
+      if (!victim) return;
+      decodedOrder.splice(decodedOrder.indexOf(victim), 1);
+      decoded.delete(victim);
+      for (const p of players.values()) if (p.file === victim && !p.playing) p.buffer = null;
+    }
+  }
+
+  function isPlayingFile(file) {
+    for (const p of players.values()) if (p.playing && p.file === file) return true;
+    return false;
+  }
+
+  function playerFor(regionId) {
+    let p = players.get(regionId);
+    if (p) return p;
+    const track = BGM_TRACKS[regionId];
+    if (!track || !ctx || !bgmBus) return null;
+    const gain = ctx.createGain();
+    gain.gain.value = 0;
+    gain.connect(bgmBus);
+    p = { region: regionId, file: track.file, gain, buffer: null, segments: [], timer: 0, playing: false };
+    players.set(regionId, p);
+    return p;
+  }
+
+  /**
+   * 排一段配樂。每一段都是完整的一遍，前後各 2.5 秒等功率淡入淡出；
+   * 下一段排在 `duration - 2.5s`，兩段重疊的那 2.5 秒就是無縫接點。
+   */
+  function startSegment(p, when) {
+    if (!ctx || !p.buffer) return;
+    const duration = p.buffer.duration;
+    const xf = Math.max(0.4, Math.min(LOOP_CROSSFADE, duration * 0.25));
+    const src = ctx.createBufferSource();
+    src.buffer = p.buffer;
+    const g = ctx.createGain();
+    g.gain.value = 0.0001;
+    src.connect(g);
+    g.connect(p.gain);
+    equalPowerRamp(g.gain, when, xf, 0.0001, 1);
+    equalPowerRamp(g.gain, when + duration - xf, xf, 1, 0.0001);
+    try {
+      src.start(when);
+      src.stop(when + duration + 0.05);
+    } catch {
+      return;
+    }
+    const seg = { src, g };
+    p.segments.push(seg);
+    src.onended = () => {
+      const i = p.segments.indexOf(seg);
+      if (i >= 0) p.segments.splice(i, 1);
+      try {
+        g.disconnect();
+      } catch {
+        /* 已經斷開 */
+      }
+    };
+    // 提前 1 秒排下一段（timer 不準也沒關係 —— 真正的時間點是用 AudioContext 的時鐘算的）
+    const nextAt = when + duration - xf;
+    p.nextAt = nextAt;
+    if (p.timer) clearTimeout(p.timer);
+    p.timer = setTimeout(() => {
+      p.timer = 0;
+      if (p.playing) startSegment(p, Math.max(ctx.currentTime + 0.05, nextAt));
+    }, Math.max(50, (nextAt - ctx.currentTime - 1) * 1000));
+  }
+
+  /** 開始播某一區的配樂（buffer 必須已經解好）。 */
+  function startBgm(regionId, seconds = REGION_CROSSFADE) {
+    if (!filesEnabled) return false;
+    const p = playerFor(regionId);
+    if (!p || !p.buffer || !ctx) return false;
+    const now = ctx.currentTime;
+    const from = holdParam(p.gain.gain, now);
+    equalPowerRamp(p.gain.gain, now, Math.max(0.2, seconds), from, 1);
+    if (!p.playing) {
+      p.playing = true;
+      startSegment(p, now + 0.02);
+    }
+    touchDecoded(p.file);
+    return true;
+  }
+
+  /** 淡出並停掉某一區的配樂。 */
+  function stopBgm(regionId, seconds = REGION_CROSSFADE) {
+    const p = players.get(regionId);
+    if (!p || !p.playing || !ctx) return;
+    const now = ctx.currentTime;
+    const fade = Math.max(0.2, seconds);
+    const from = holdParam(p.gain.gain, now);
+    equalPowerRamp(p.gain.gain, now, fade, from, 0.0001);
+    if (p.timer) clearTimeout(p.timer);
+    p.timer = 0;
+    p.playing = false;
+    const segments = p.segments.slice();
+    setTimeout(() => {
+      for (const s of segments) {
+        try {
+          s.src.stop();
+        } catch {
+          /* 已經停了 */
+        }
+      }
+      p.segments = p.segments.filter((s) => !segments.includes(s));
+      evictDecoded();
+    }, fade * 1000 + 120);
+  }
+
+  /** 這一區現在聽到的是音檔還是合成？ */
+  function sourceFor(regionId) {
+    const p = players.get(regionId);
+    return p && p.playing ? 'file' : 'synth';
+  }
+
+  /**
+   * 把「現在該聽到什麼」套用到音檔與合成兩條路：
+   * 當區有音檔在播 → 合成 pad 收掉；音檔還沒到 → 合成 pad 頂著（不會有空白）。
+   */
+  function applyMix(seconds = REGION_CROSSFADE) {
+    if (!ctx) return;
+    const target = currentRegion;
+    for (const id of REGION_MOOD_IDS) if (id !== target) stopBgm(id, seconds);
+    const usingFile = sourceFor(target) === 'file';
+    for (const [id, layer] of layers) {
+      const now = ctx.currentTime;
+      const on = id === target && !usingFile ? 1 : 0;
+      layer.gain.gain.setTargetAtTime(on, now, Math.max(0.2, seconds) / 3);
+    }
+  }
+
+  /** 要某一區的配樂：抓 → 解碼 → 播（已經在播就只是重新淡入）。 */
+  function requestBgm(regionId, seconds = REGION_CROSSFADE) {
+    if (!filesEnabled || !ctx || !BGM_TRACKS[regionId]) return Promise.resolve(false);
+    const track = BGM_TRACKS[regionId];
+    want(track.file, 0);
+    return fetchBytes(track.file)
+      .then((raw) => {
+        // 抓到的時候玩家可能已經走到別區了 —— 那就不要解碼（解碼很吃記憶體）
+        if (!raw || currentRegion !== regionId) return null;
+        return decode(track.file);
+      })
+      .then((buffer) => {
+        // 解碼是非同步的：這期間玩家可能已經把音檔關掉了（護欄 3 的退路）
+        if (!buffer || !filesEnabled) {
+          applyMix(seconds); // 沒抓到 → 確保合成 pad 頂上
+          return false;
+        }
+        const p = playerFor(regionId);
+        if (!p) return false;
+        p.buffer = buffer;
+        // 解碼完成時玩家可能已經走到別區了 —— 那就不要硬播
+        if (currentRegion !== regionId) return false;
+        startBgm(regionId, seconds);
+        applyMix(seconds);
+        return true;
+      });
+  }
+
+  /** 偷偷把鄰區的壓縮檔先抓下來（不解碼，記憶體便宜）。 */
+  function prefetchNeighbors() {
+    const list = REGION_NEIGHBORS[currentRegion] || [];
+    list.forEach((id, i) => {
+      const t = BGM_TRACKS[id];
+      if (t) want(t.file, 10 + i);
+    });
+  }
+
+  /** 播一個音檔音效。 */
+  function playFile(file, { gain = 1, delay = 0, rate = 1 } = {}) {
+    const buffer = decoded.get(file);
+    if (!buffer || !ctx || !sfxBus) return false;
+    const src = ctx.createBufferSource();
+    src.buffer = buffer;
+    src.playbackRate.value = rate;
+    const g = ctx.createGain();
+    g.gain.value = Math.max(0, gain);
+    src.connect(g);
+    g.connect(sfxBus);
+    const when = ctx.currentTime + Math.max(0, delay);
+    try {
+      src.start(when);
+    } catch {
+      return false;
+    }
+    src.onended = () => {
+      try {
+        g.disconnect();
+      } catch {
+        /* 已經斷開 */
+      }
+    };
+    return true;
+  }
+
+  /** 過關的頌缽響很久 —— 期間把配樂壓 3 dB，缽聲才浮得出來。 */
+  function duckMusic(seconds = 4) {
+    if (!ctx || !musicDuck) return;
+    const now = ctx.currentTime;
+    duckUntil = Math.max(duckUntil, now + seconds);
+    holdParam(musicDuck.gain, now);
+    musicDuck.gain.setTargetAtTime(0.7, now, 0.12);
+    if (duckTimer) clearTimeout(duckTimer);
+    duckTimer = setTimeout(() => {
+      duckTimer = 0;
+      if (!ctx || !musicDuck) return;
+      const t = ctx.currentTime;
+      holdParam(musicDuck.gain, t);
+      musicDuck.gain.setTargetAtTime(1, t, 0.6);
+    }, Math.max(200, (duckUntil - now) * 1000));
+  }
 
   /** 建一組區域 layer（pad 三聲部 ＋ 低音 ＋ 濾波 LFO）。 */
   function buildLayer(mood) {
@@ -316,25 +850,36 @@ export function createAudio({ volume = 0.5, muted = false, region = 'foundations
      * （Web Audio 的通用作法：最後一級放 DynamicsCompressorNode。）
      */
     try {
-      const comp = ctx.createDynamicsCompressor();
-      comp.threshold.value = -18;
-      comp.knee.value = 24;
-      comp.ratio.value = 6;
-      comp.attack.value = 0.004;
-      comp.release.value = 0.22;
-      master.connect(comp);
-      comp.connect(ctx.destination);
+      compressor = ctx.createDynamicsCompressor();
+      compressor.threshold.value = -18;
+      compressor.knee.value = 24;
+      compressor.ratio.value = 6;
+      compressor.attack.value = 0.004;
+      compressor.release.value = 0.22;
+      master.connect(compressor);
+      compressor.connect(ctx.destination);
     } catch {
+      compressor = null;
       master.connect(ctx.destination);
     }
 
-    // 音樂：一半乾聲、一半進 reverb
+    // 配樂（音檔與合成都走這裡）→ 過關的頌缽會暫時把它壓 3 dB
+    musicDuck = ctx.createGain();
+    musicDuck.gain.value = 1;
+    musicDuck.connect(master);
+
+    // 音檔配樂：不再進合成用的 convolver（音檔自己已經有空間感了）
+    bgmBus = ctx.createGain();
+    bgmBus.gain.value = 1;
+    bgmBus.connect(musicDuck);
+
+    // 合成配樂：一半乾聲、一半進 reverb
     musicBus = ctx.createGain();
     musicBus.gain.value = 1;
     const dry = ctx.createGain();
     dry.gain.value = 0.72;
     musicBus.connect(dry);
-    dry.connect(master);
+    dry.connect(musicDuck);
 
     try {
       const conv = ctx.createConvolver();
@@ -343,20 +888,29 @@ export function createAudio({ volume = 0.5, muted = false, region = 'foundations
       wet.gain.value = 0.42;
       musicBus.connect(conv);
       conv.connect(wet);
-      wet.connect(master);
+      wet.connect(musicDuck);
     } catch {
       /* 沒有 convolver 也不影響核心體驗 */
     }
 
-    // 音效走另一條路（不加太多 reverb，回饋才夠即時）
+    // 音效走另一條路（不加太多 reverb、也不被 duck 壓到，回饋才夠即時）
     sfxBus = ctx.createGain();
     sfxBus.gain.value = 1;
     sfxBus.connect(master);
 
     for (const id of REGION_MOOD_IDS) layers.set(id, buildLayer(REGION_MOODS[id]));
+    // 開機這一刻先讓合成 pad 頂著 —— 音檔還在路上，不能有一段空白
     const here = layers.get(currentRegion);
     if (here) here.gain.gain.setTargetAtTime(1, ctx.currentTime, 0.6);
     return true;
+  }
+
+  /** 使用者手勢之後才開始抓檔案：當區配樂與音效先，鄰區配樂排在後面慢慢抓。 */
+  function beginLoading() {
+    if (!filesEnabled || !canFetch()) return;
+    for (const file of AUDIO_MANIFEST.sfx) want(file, 1);
+    requestBgm(currentRegion, 4.5);
+    prefetchNeighbors();
   }
 
   /** 依當區音階敲一顆鐘。 */
@@ -393,13 +947,16 @@ export function createAudio({ volume = 0.5, muted = false, region = 'foundations
     over.stop(now + 3.6);
   }
 
-  /** 鐘聲排程：每區密度不同，用 setTimeout 鏈而不是固定 interval。 */
+  /**
+   * 鐘聲排程：每區密度不同，用 setTimeout 鏈而不是固定 interval。
+   * 音檔配樂在播的時候不敲鐘 —— 那是合成 pad 的裝飾，疊在真的曲子上會打架。
+   */
   function armBell() {
-    if (bellTimer) window.clearTimeout(bellTimer);
+    if (bellTimer) clearTimeout(bellTimer);
     const mood = moodFor(currentRegion);
     const wait = (mood.bellEvery * 0.7 + Math.random() * mood.bellEvery * 0.6) * 1000;
-    bellTimer = window.setTimeout(() => {
-      if (Math.random() < mood.bellDensity) scheduleBell();
+    bellTimer = setTimeout(() => {
+      if (sourceFor(currentRegion) !== 'file' && Math.random() < mood.bellDensity) scheduleBell();
       armBell();
     }, wait);
   }
@@ -425,6 +982,27 @@ export function createAudio({ volume = 0.5, muted = false, region = 'foundations
     }
   }
 
+  /**
+   * 放一支音檔音效（沒有檔案 / 還沒載到 → 回 false，呼叫端會退回合成版）。
+   * @returns {boolean} 有沒有真的用音檔放出去
+   */
+  function playFileCue(kind, gainScale = 1) {
+    if (!filesEnabled || isMuted || !ctx) return false;
+    const spec = SFX_FILES[kind];
+    if (!spec || !decoded.has(spec.file)) return false;
+    const ok = playFile(spec.file, { gain: (spec.gain ?? 1) * gainScale, rate: spec.rate ?? 1 });
+    if (!ok) return false;
+    // 疊在同一次 cue 上的第二層（解鎖＝微光 ＋ 稍慢一點進來的石門）
+    if (spec.layer && decoded.has(spec.layer.file)) {
+      playFile(spec.layer.file, {
+        gain: (spec.layer.gain ?? 1) * gainScale,
+        delay: spec.layer.delay || 0,
+      });
+    }
+    if (spec.duck) duckMusic(spec.duck);
+    return true;
+  }
+
   const api = {
     /** 目前的區域 id（音樂用）。 */
     get region() {
@@ -448,6 +1026,8 @@ export function createAudio({ volume = 0.5, muted = false, region = 'foundations
         if (!buildGraph()) return;
         started = true;
         armBell();
+        // 檔案一律等到這個使用者手勢之後才開始抓（護欄 5：不拖慢第一個畫面）
+        beginLoading();
       } catch (err) {
         console.warn('[Promptasy] 環境音無法啟動：', err);
       }
@@ -455,20 +1035,64 @@ export function createAudio({ volume = 0.5, muted = false, region = 'foundations
 
     /**
      * 跨區時交叉淡入淡出到另一段配樂。
+     * 有音檔就換音檔（等功率交叉淡入約 3 秒）；還沒到就先讓合成 pad 頂著，
+     * 等它解好再從合成漂到音檔上。
      * @param {string} regionId
-     * @param {number} [seconds] 淡出淡入的時間常數
+     * @param {number} [seconds] 交叉淡入淡出的長度
      */
-    setRegion(regionId, seconds = 2.2) {
+    setRegion(regionId, seconds = REGION_CROSSFADE) {
       if (!regionId || !REGION_MOODS[regionId] || regionId === currentRegion) return false;
       currentRegion = regionId;
-      if (ctx && layers.size) {
-        const tau = Math.max(0.2, seconds) / 3; // setTargetAtTime 的時間常數
-        for (const [id, layer] of layers) {
-          layer.gain.gain.setTargetAtTime(id === regionId ? 1 : 0, ctx.currentTime, tau);
-        }
+      if (ctx) {
+        applyMix(seconds);
+        requestBgm(regionId, seconds);
+        prefetchNeighbors();
         armBell();
       }
       return true;
+    },
+
+    /**
+     * 先把某一區的配樂準備好（測試 / 提前預熱用）。
+     * @returns {Promise<boolean>} 有沒有真的拿到音檔
+     */
+    load(regionId = currentRegion) {
+      const track = BGM_TRACKS[regionId];
+      if (!track || !ctx || !filesEnabled) return Promise.resolve(false);
+      want(track.file, 0);
+      return decode(track.file).then((buf) => {
+        if (!buf) return false;
+        const p = playerFor(regionId);
+        if (p) p.buffer = buf;
+        if (regionId === currentRegion) {
+          startBgm(regionId, REGION_CROSSFADE);
+          applyMix(REGION_CROSSFADE);
+        }
+        return true;
+      });
+    },
+
+    /**
+     * 切換「用音檔」還是「只用合成」。
+     * 關掉＝把 `public/audio/` 當成不存在（離線 / 檔案壞掉時的手動退路，也是測試用的開關）。
+     */
+    useFiles(on = true) {
+      const next = Boolean(on);
+      if (next === filesEnabled) return filesEnabled;
+      filesEnabled = next;
+      if (!ctx) return filesEnabled;
+      if (!filesEnabled) {
+        for (const id of REGION_MOOD_IDS) stopBgm(id, 0.6);
+        // 立刻讓合成 pad 接手（stopBgm 是非同步收尾，這裡先把 playing 關掉）
+        for (const p of players.values()) p.playing = false;
+      } else {
+        requestBgm(currentRegion, REGION_CROSSFADE);
+      }
+      applyMix(1.2);
+      return filesEnabled;
+    },
+    get usesFiles() {
+      return filesEnabled;
     },
 
     setVolume(v) {
@@ -489,22 +1113,37 @@ export function createAudio({ volume = 0.5, muted = false, region = 'foundations
     },
 
     /**
-     * 音效。`cue('pass', { grade: 'S' })` 會依評價加碼。
-     * @param {keyof SFX} kind
+     * 音效。有音檔就放音檔，沒有（或還沒載到）就放合成版 —— 呼叫端不用管是哪一種。
+     * `cue('pass', { grade: 'S' })` 會依評價微調音量。
+     * @param {keyof SFX | keyof SFX_FILES} kind
      */
     cue(kind = 'pass', opts = {}) {
       const spec = SFX[kind];
-      if (!spec) return false;
+      const fileSpec = SFX_FILES[kind];
+      if (!spec && !fileSpec) return false;
+
+      // 連按的 UI 音要節流（刻印牌可以按很快，但聲音不能疊成一片）
+      if (fileSpec && fileSpec.throttle && ctx) {
+        const t = ctx.currentTime;
+        if (t - lastClickAt < fileSpec.throttle) return true;
+        lastClickAt = t;
+      }
+
+      const gainScale = Number.isFinite(opts.gain) ? opts.gain : 1;
       if (kind === 'pass') {
+        // 評價越高、缽敲得越實（S 最滿，C 收一點）
+        const gradeScale = PASS_GRADE_GAIN[opts.grade] ?? PASS_GRADE_GAIN.C;
+        if (playFileCue(kind, gradeScale * gainScale)) return true;
         const extra = GRADE_EXTRA[opts.grade] || [];
         playSeq(spec, { extra, gainScale: opts.grade === 'S' ? 1.15 : 1 });
         return true;
       }
-      playSeq(spec, { gainScale: opts.gain ?? 1, baseScale: opts.baseScale ?? 1 });
+      if (playFileCue(kind, gainScale)) return true;
+      if (spec) playSeq(spec, { gainScale, baseScale: opts.baseScale ?? 1 });
       return true;
     },
 
-    /** 走路的軟腳步聲（節流，避免一秒踩十下）。 */
+    /** 走路的軟腳步聲（節流，避免一秒踩十下）。合成，沒有音檔。 */
     step(now = 0) {
       if (!ctx || isMuted) return false;
       if (now - lastStepAt < 0.26) return false;
@@ -513,9 +1152,85 @@ export function createAudio({ volume = 0.5, muted = false, region = 'foundations
       return true;
     },
 
+    /**
+     * 目前的音訊狀態（除錯 / 自動化測試用；純讀狀態，不做任何事）。
+     */
+    debug() {
+      const bgm = {};
+      for (const id of REGION_MOOD_IDS) {
+        const track = BGM_TRACKS[id];
+        const p = players.get(id);
+        bgm[id] = {
+          file: track ? track.file : null,
+          title: track ? track.title : null,
+          fetch: track ? fetchState.get(track.file) || 'idle' : 'idle',
+          decoded: Boolean(track && decoded.has(track.file)),
+          playing: Boolean(p && p.playing),
+          segments: p ? p.segments.length : 0,
+          gain: p ? Number(p.gain.gain.value.toFixed(4)) : 0,
+          loopSeconds: p && p.buffer ? Number(p.buffer.duration.toFixed(2)) : 0,
+          synthGain: layers.has(id) ? Number(layers.get(id).gain.gain.value.toFixed(4)) : 0,
+        };
+      }
+      const sfx = {};
+      for (const [kind, spec] of Object.entries(SFX_FILES)) {
+        sfx[kind] = {
+          file: spec.file,
+          ready: decoded.has(spec.file),
+          fetch: fetchState.get(spec.file) || 'idle',
+          synthFallback: Boolean(SFX[kind]),
+        };
+      }
+      return {
+        started,
+        region: currentRegion,
+        source: sourceFor(currentRegion),
+        usesFiles: filesEnabled,
+        muted: isMuted,
+        volume: currentVolume,
+        masterGain: master ? Number(master.gain.value.toFixed(4)) : 0,
+        duckGain: musicDuck ? Number(musicDuck.gain.value.toFixed(4)) : 1,
+        chain: {
+          context: Boolean(ctx),
+          master: Boolean(master),
+          compressor: Boolean(compressor),
+          duck: Boolean(musicDuck),
+          bgmBus: Boolean(bgmBus),
+          sfxBus: Boolean(sfxBus),
+        },
+        pending: queue.length + running,
+        failed: Array.from(fetchState.entries())
+          .filter(([, v]) => v === 'failed')
+          .map(([k]) => k),
+        decodedTracks: decodedOrder.slice(),
+        bgm,
+        sfx,
+      };
+    },
+
     dispose() {
-      if (bellTimer) window.clearTimeout(bellTimer);
+      if (bellTimer) clearTimeout(bellTimer);
       bellTimer = 0;
+      if (duckTimer) clearTimeout(duckTimer);
+      duckTimer = 0;
+      for (const p of players.values()) {
+        if (p.timer) clearTimeout(p.timer);
+        p.timer = 0;
+        p.playing = false;
+        for (const s of p.segments) {
+          try {
+            s.src.stop();
+          } catch {
+            /* 已經停了 */
+          }
+        }
+        p.segments = [];
+      }
+      players.clear();
+      queue.length = 0;
+      decoded.clear();
+      decodedOrder.length = 0;
+      bytes.clear();
       layers.clear();
       started = false;
       ctx?.close?.();

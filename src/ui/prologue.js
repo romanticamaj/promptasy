@@ -227,7 +227,8 @@ export function createPrologue({
     gateDone = true;
     armed = false;
     objectiveEl.classList.add('is-done');
-    audio?.cue?.('unlock');
+    // 序章的門檻＝祭壇在回應你（走到光圈裡的那一聲也是同一支）
+    audio?.cue?.('shrine');
     engine?.pulse?.(0.35);
     paint();
   }

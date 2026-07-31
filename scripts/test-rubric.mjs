@@ -11,7 +11,7 @@
  *  4. 進程系統：XP、升等、圖鑑收集、廠家徽章、重玩只補差額
  *  5. 資料完整性：challenges 的 technique id 與官方出處都真的存在於 curriculum
  */
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync, existsSync, statSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 
@@ -1935,7 +1935,99 @@ eq(silent.region, 'reasoning', '切換後區域更新');
 eq(silent.mood.id, 'reasoning', '切換後 mood 跟著換');
 eq(silent.setRegion('reasoning'), false, '切到同一區不重複淡入淡出');
 eq(silent.setRegion('nope'), false, '未知區域不切換');
+eq(silent.usesFiles, true, '預設會用音檔');
+eq(silent.useFiles(false), false, '可以強制回到合成配樂（離線 / 音檔壞掉時的退路）');
+eq(silent.debug().source, 'synth', '沒有音檔在播時聽到的是合成配樂');
+eq(silent.debug().started, false, '除錯狀態如實回報未啟動');
 silent.dispose();
+
+/* --- Phase 30：真的音檔（`public/audio/`）--- */
+const {
+  BGM_TRACKS,
+  SFX_FILES,
+  AUDIO_MANIFEST,
+  AUDIO_DIR,
+  PASS_GRADE_GAIN,
+  LOOP_CROSSFADE,
+  REGION_CROSSFADE,
+  REGION_NEIGHBORS,
+} = Audio;
+
+eq(Object.keys(BGM_TRACKS).length, 5, '五個區域各有一首配樂音檔');
+for (const g of curriculum.groups) {
+  const t = BGM_TRACKS[g.id];
+  ok(Boolean(t), `[${g.id}] 有對應的配樂音檔`);
+  ok(t && /^bgm_[a-z]+\.m4a$/.test(t.file), `[${g.id}] 配樂檔名符合命名規則`, t && t.file);
+  ok(t && nonEmptyStr(t.title), `[${g.id}] 配樂有曲名`);
+}
+eq(new Set(Object.values(BGM_TRACKS).map((t) => t.file)).size, 5, '五首配樂各是不同的檔案');
+eq(new Set(Object.values(BGM_TRACKS).map((t) => t.title)).size, 5, '五首配樂曲名各不相同');
+
+// 檔案要真的在 public/audio/（護欄 5：部署時 Vite 會原封不動搬進 dist/）
+const audioSizes = new Map();
+for (const file of [...AUDIO_MANIFEST.bgm, ...AUDIO_MANIFEST.sfx]) {
+  const p = resolve(root, 'public', AUDIO_DIR + file);
+  const there = existsSync(p);
+  ok(there, `音檔存在：public/${AUDIO_DIR}${file}`);
+  if (there) audioSizes.set(file, statSync(p).size);
+}
+const audioTotal = [...audioSizes.values()].reduce((a, b) => a + b, 0);
+ok(audioTotal > 1024 * 1024, '音檔總量看起來是真的檔案（> 1 MB）', `${(audioTotal / 1e6).toFixed(1)} MB`);
+ok(audioTotal < 20 * 1024 * 1024, '音檔總量在 20 MB 預算內', `${(audioTotal / 1e6).toFixed(1)} MB`);
+for (const file of AUDIO_MANIFEST.bgm) {
+  ok((audioSizes.get(file) || 0) > 500 * 1024, `配樂 ${file} 是完整的一首（> 0.5 MB）`);
+}
+for (const file of AUDIO_MANIFEST.sfx) {
+  const size = audioSizes.get(file) || 0;
+  ok(size > 1024 && size < 1024 * 1024, `音效 ${file} 大小合理（1 KB – 1 MB）`, `${size} B`);
+}
+
+// 每一支有音檔的 cue 都必須留著合成備援 —— 音檔載不到時不能有一聲是啞的（護欄 3）
+for (const [kind, spec] of Object.entries(SFX_FILES)) {
+  ok(Boolean(SFX[kind]), `音效 ${kind} 有合成備援（音檔載不到也有聲音）`);
+  ok(nonEmptyStr(spec.file) && spec.file.endsWith('.m4a'), `音效 ${kind} 指到 m4a 檔`, spec.file);
+  ok(AUDIO_MANIFEST.sfx.includes(spec.file), `音效 ${kind} 的檔案在 manifest 裡`);
+  ok(spec.gain > 0 && spec.gain <= 1, `音效 ${kind} 的相對音量在 0..1（不會削波）`, String(spec.gain));
+  if (spec.layer) {
+    ok(AUDIO_MANIFEST.sfx.includes(spec.layer.file), `音效 ${kind} 疊的第二層也在 manifest 裡`);
+    ok(spec.layer.delay >= 0 && spec.layer.delay < 1, `音效 ${kind} 的第二層延遲合理`);
+  }
+}
+// 兩支解鎖音：真的解鎖有微光 ＋ 石門，先行前往只有石門
+ok(Boolean(SFX_FILES.unlock.layer), '真的解鎖是「微光 ＋ 石門」兩層');
+eq(SFX_FILES.gateOpen.file, 'sfx_unlock_door.m4a', '先行前往只用石門那一支');
+eq(Boolean(SFX_FILES.gateOpen.layer), false, '先行前往沒有慶祝的微光');
+ok(SFX_FILES.pass.duck > 0, '過關的頌缽會把配樂壓低（讓它響完）');
+ok(SFX_FILES.click.throttle > 0, '刻印牌的按鍵音有節流');
+
+// 評價只影響力度，不會把音量調成 0（不是懲罰）
+for (const grade of ['S', 'A', 'B', 'C']) {
+  const v = PASS_GRADE_GAIN[grade];
+  ok(v > 0.5 && v <= 1, `過關音效 ${grade} 的力度合理`, String(v));
+}
+ok(PASS_GRADE_GAIN.S > PASS_GRADE_GAIN.C, 'S 敲得比 C 實');
+
+ok(LOOP_CROSSFADE >= 1.5 && LOOP_CROSSFADE <= 5, '自我循環的重疊長度合理', String(LOOP_CROSSFADE));
+ok(REGION_CROSSFADE >= 2 && REGION_CROSSFADE <= 6, '跨區交叉淡入淡出約 3 秒', String(REGION_CROSSFADE));
+for (const id of REGION_MOOD_IDS) {
+  const ns = REGION_NEIGHBORS[id] || [];
+  ok(ns.length > 0, `[${id}] 有鄰區可以預抓`);
+  for (const n of ns) {
+    ok(Boolean(BGM_TRACKS[n]), `[${id}] 的鄰區 ${n} 是真的區域`);
+    ok(n !== id, `[${id}] 不會把自己當鄰區`);
+  }
+}
+
+// 音檔完全不見時（例如把 public/audio/ 清空）也要照樣有聲音
+const noFiles = createAudio({ volume: 0.5, files: false });
+eq(noFiles.usesFiles, false, '關掉音檔後只用合成');
+eq(noFiles.cue('pass', { grade: 'S' }), true, '沒有音檔照樣 cue 得動過關音');
+eq(noFiles.cue('click'), true, '新音效在沒有音檔時走合成備援');
+eq(noFiles.cue('shrine'), true, '祭壇音在沒有音檔時走合成備援');
+eq(noFiles.cue('gateOpen'), true, '石門音在沒有音檔時走合成備援');
+eq(noFiles.cue('finale'), true, '全收集音在沒有音檔時走合成備援');
+eq(noFiles.debug().usesFiles, false, '除錯狀態如實回報「沒在用音檔」');
+noFiles.dispose();
 
 /* ------------------------------------------------------------------ */
 /* 8. 世界氣氛表（M4：跨區的霧色 / 色偏 / 光強）                        */

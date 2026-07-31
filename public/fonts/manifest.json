@@ -56,7 +56,7 @@
     "src/world/reactive.js",
     "src/world/world.js"
   ],
-  "corpusHash": "55534d007de9ad63",
+  "corpusHash": "5b9b0d71ad4350a1",
   "coverage": {
     "latin": [
       32,
@@ -774,6 +774,7 @@
       24187,
       24189,
       24190,
+      24202,
       24207,
       24213,
       24230,
@@ -1099,6 +1100,7 @@
       27133,
       27138,
       27161,
+      27166,
       27169,
       27171,
       27193,
@@ -1142,6 +1144,7 @@
       27744,
       27745,
       27754,
+      27760,
       27770,
       27785,
       27794,
@@ -1165,6 +1168,7 @@
       28023,
       28040,
       28085,
+      28120,
       28129,
       28136,
       28145,
@@ -1195,6 +1199,7 @@
       28431,
       28436,
       28450,
+      28466,
       28472,
       28500,
       28516,
@@ -1406,6 +1411,7 @@
       32005,
       32011,
       32013,
+      32016,
       32020,
       32025,
       32026,
@@ -1452,6 +1458,7 @@
       32380,
       32396,
       32570,
+      32573,
       32592,
       32617,
       32622,
@@ -1552,6 +1559,7 @@
       34892,
       34899,
       34909,
+      34913,
       34915,
       34920,
       34928,
@@ -1812,6 +1820,7 @@
       38518,
       38519,
       38520,
+      38538,
       38542,
       38548,
       38555,
@@ -1851,6 +1860,7 @@
       38917,
       38918,
       38920,
+      38924,
       38928,
       38931,
       38936,
@@ -2250,7 +2260,7 @@
       "id": "serif-tc",
       "family": "Arcade Serif TC",
       "file": "arcade-serif-tc.woff2",
-      "bytes": 584440,
+      "bytes": 588188,
       "role": "cjk",
       "variable": true,
       "weight": null,
@@ -2261,7 +2271,7 @@
           "default": 400
         }
       },
-      "requested": 1616,
+      "requested": 1626,
       "missing": 0,
       "source": "NotoSerifTC.ttf",
       "author": "Google (Noto Project)",
@@ -2273,7 +2283,7 @@
       "id": "sans-tc",
       "family": "Arcade Sans TC",
       "file": "arcade-sans-tc.woff2",
-      "bytes": 444240,
+      "bytes": 447688,
       "role": "cjk",
       "variable": true,
       "weight": null,
@@ -2284,7 +2294,7 @@
           "default": 400
         }
       },
-      "requested": 1616,
+      "requested": 1626,
       "missing": 0,
       "source": "NotoSansTC.ttf",
       "author": "Google (Noto Project)",
@@ -2293,5 +2303,5 @@
       "url": "https://github.com/google/fonts/tree/main/ofl/notosanstc"
     }
   ],
-  "totalBytes": 1351260
+  "totalBytes": 1358456
 }

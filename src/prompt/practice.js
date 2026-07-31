@@ -38,7 +38,18 @@ const SCAFFOLD = {
   light: { hintsUpfront: false },
 };
 
-export function createPractice({ content, progression, onPass, onSubmit, onDone, onClose, onCarve, onReject, onSeal }) {
+export function createPractice({
+  content,
+  progression,
+  onPass,
+  onSubmit,
+  onDone,
+  onClose,
+  onCarve,
+  onReject,
+  onSeal,
+  onTap,
+}) {
   let step = null;
   /** 這一課送出過幾次（重刻一次算一次）。 */
   let attempts = 0;
@@ -166,6 +177,7 @@ export function createPractice({ content, progression, onPass, onSubmit, onDone,
       goAct(4, { force: true });
     },
     onPress: ({ text }) => submit(text),
+    onTap: () => onTap?.(),
   });
   steleSlot.appendChild(stele.root);
 

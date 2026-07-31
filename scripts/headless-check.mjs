@@ -445,6 +445,21 @@ async function main() {
   eq(titleText.name, 'Promptasy', '標題卡顯示遊戲名');
   ok(/Learn Prompt Engineering by Playing/.test(titleText.tag || ''), '標題卡顯示定位句');
 
+  // Phase 30：音檔（共約 15 MB）不能在標題卡之前開始下載（護欄 5：不拖慢第一個畫面）
+  const beforeGesture = await evaluate(`
+    const g = window.__promptasy;
+    const d = g.audio.debug();
+    return {
+      audioRequests: performance.getEntriesByType('resource').filter((r) => /\\.m4a(\\?|$)/.test(r.name)).length,
+      started: d.started,
+      pending: d.pending,
+      source: d.source,
+    };
+  `);
+  eq(beforeGesture.audioRequests, 0, '標題卡按下去之前一個音檔都沒抓（不拖慢第一個畫面）');
+  eq(beforeGesture.started, false, '手勢之前 AudioContext 沒啟動');
+  eq(beforeGesture.pending, 0, '手勢之前沒有排隊中的音檔');
+
   // 按任意鍵開始
   await key('Enter', 'Enter', { vk: 13 });
   await sleep(400);
@@ -3289,6 +3304,144 @@ async function main() {
   for (const m of moods) eq(m.region, m.id, `[${m.id}] 配樂可切換`);
   eq(new Set(moods.map((m) => m.root)).size, 5, '五區的根音各不相同（M5 分區配樂）');
   eq(new Set(moods.map((m) => m.name)).size, 5, '五區的曲名各不相同');
+
+  /* ---------------------------------------------------------------- *
+   * Phase 30：真的音檔（`public/audio/`）＋ 合成備援
+   *
+   * 兩條路都要驗：
+   *   (a) 檔案讀得到 → buffer 那條路真的接上去（source = 'file'、有 segment 在跑）
+   *   (b) 檔案讀不到（或手動關掉）→ 合成 pad 頂上，一聲都不會啞
+   * 不驗「聽起來對不對」（headless 沒有喇叭）—— 只驗節點圖與狀態。
+   * ---------------------------------------------------------------- */
+  const audioFiles = await evaluate(`
+    const g = window.__promptasy;
+    const d = g.audio.debug();
+    // 這台機器解得開 m4a（AAC）嗎？解不開就走備援那條路（一樣要通過）
+    let decodable = false;
+    try {
+      const res = await fetch('audio/sfx_click.m4a');
+      const raw = await res.arrayBuffer();
+      const probe = new (window.AudioContext || window.webkitAudioContext)();
+      const buf = await probe.decodeAudioData(raw.slice(0));
+      decodable = !!buf && buf.duration > 0;
+      probe.close();
+    } catch (err) { decodable = false; }
+    const bgmRequests = performance.getEntriesByType('resource').filter((r) => /\\.m4a(\\?|$)/.test(r.name));
+    return {
+      chain: d.chain,
+      usesFiles: d.usesFiles,
+      bgmKeys: Object.keys(d.bgm),
+      sfxKeys: Object.keys(d.sfx),
+      sfxSynthFallback: Object.values(d.sfx).every((s) => s.synthFallback),
+      titles: Object.values(d.bgm).map((b) => b.title),
+      files: Object.values(d.bgm).map((b) => b.file),
+      requests: bgmRequests.length,
+      decodable,
+    };
+  `);
+  eq(audioFiles.chain.master, true, '音訊鏈上有 master（音量與靜音同時管住兩條路）');
+  eq(audioFiles.chain.compressor, true, '最後一級有 compressor（Phase 22 的防削波還在）');
+  eq(audioFiles.chain.duck, true, '配樂前面有 duck（過關的頌缽響時把床壓低）');
+  eq(audioFiles.chain.bgmBus, true, '音檔配樂有自己的 bus');
+  eq(audioFiles.chain.sfxBus, true, '音效有自己的 bus');
+  eq(audioFiles.bgmKeys.length, 5, '五區各有一首配樂音檔');
+  eq(new Set(audioFiles.files).size, 5, '五首配樂各是不同的檔案');
+  eq(new Set(audioFiles.titles).size, 5, '五首配樂曲名各不相同');
+  eq(audioFiles.sfxSynthFallback, true, '每一支音檔音效都留著合成備援');
+  ok(audioFiles.requests > 0, '手勢之後才開始抓音檔', `requests=${audioFiles.requests}`);
+  console.log(`  · 這台機器${audioFiles.decodable ? '解得開' : '解不開'} m4a（AAC）`);
+
+  if (audioFiles.decodable) {
+    // (a) 檔案這條路：等當區配樂解好並開始播
+    const playing = await evaluate(`
+      const g = window.__promptasy;
+      g.audio.setRegion('foundations', 0.4);
+      const ok = await g.audio.load('foundations');
+      await new Promise((r) => setTimeout(r, 900));
+      const d = g.audio.debug();
+      return { ok, d: d.bgm.foundations, source: d.source, decodedTracks: d.decodedTracks.length };
+    `);
+    eq(playing.ok, true, '當區配樂真的載得起來（fetch → decode → buffer）');
+    eq(playing.d.playing, true, '配樂用 AudioBufferSourceNode 播出來了');
+    eq(playing.source, 'file', '有音檔時聽到的是音檔，不是合成');
+    ok(playing.d.segments >= 1, '有一段配樂正在跑（自我交叉淡入的第一段）', `segments=${playing.d.segments}`);
+    ok(playing.d.loopSeconds > 60, '配樂是完整的一首（不是幾秒的片段）', `${playing.d.loopSeconds}s`);
+    ok(playing.d.gain > 0.5, '配樂的 gain 已經淡進來', `gain=${playing.d.gain}`);
+    ok(playing.d.synthGain < 0.35, '音檔接手之後合成 pad 退場', `synth=${playing.d.synthGain}`);
+    ok(playing.decodedTracks <= 2, '同時最多只留兩首解碼後的配樂（記憶體）', `n=${playing.decodedTracks}`);
+
+    // 跨區：交叉淡入淡出到另一首（舊的收掉、新的接上）
+    const swapped = await evaluate(`
+      const g = window.__promptasy;
+      g.audio.setRegion('grounding', 0.6);
+      await g.audio.load('grounding');
+      await new Promise((r) => setTimeout(r, 1200));
+      const d = g.audio.debug();
+      return {
+        region: d.region,
+        source: d.source,
+        grounding: d.bgm.grounding,
+        foundations: d.bgm.foundations,
+        decodedTracks: d.decodedTracks.length,
+      };
+    `);
+    eq(swapped.region, 'grounding', '跨區後配樂換到 grounding');
+    eq(swapped.source, 'file', '跨區後聽到的還是音檔');
+    eq(swapped.grounding.playing, true, '新一區的配樂接上了');
+    ok(swapped.grounding.gain > 0.4, '新一區的配樂淡進來', `gain=${swapped.grounding.gain}`);
+    ok(swapped.foundations.gain < 0.5, '上一區的配樂淡出去', `gain=${swapped.foundations.gain}`);
+    ok(swapped.decodedTracks <= 2, '跨區時解碼後的配樂仍然最多兩首', `n=${swapped.decodedTracks}`);
+
+    // 音效：按下去用的是音檔那條路（不是合成）
+    const sfx = await evaluate(`
+      const g = window.__promptasy;
+      const d = g.audio.debug();
+      return { click: d.sfx.click, page: d.sfx.open, pass: d.sfx.pass, unlock: d.sfx.unlock };
+    `);
+    for (const [name, s] of Object.entries(sfx)) {
+      ok(s.fetch !== 'failed', `音效 ${name} 抓得到`, `${s.file} / ${s.fetch}`);
+    }
+  } else {
+    const fallbackOnly = await evaluate(`
+      const g = window.__promptasy;
+      await new Promise((r) => setTimeout(r, 600));
+      const d = g.audio.debug();
+      return { source: d.source, synth: d.bgm[d.region].synthGain };
+    `);
+    eq(fallbackOnly.source, 'synth', '解不開音檔時整組回到合成配樂');
+    ok(fallbackOnly.synth > 0.3, '合成 pad 頂上來了（不會有一段無聲）', `synth=${fallbackOnly.synth}`);
+  }
+
+  // (b) 備援：把音檔當成不存在（＝清空 public/audio/）→ 合成 pad 接手，一聲都不啞
+  const fallback = await evaluate(`
+    const g = window.__promptasy;
+    g.audio.setRegion('foundations', 0.4);
+    g.audio.useFiles(false);
+    await new Promise((r) => setTimeout(r, 1400));
+    const d = g.audio.debug();
+    const cues = ['pass', 'unlock', 'gateOpen', 'click', 'shrine', 'finale', 'submit', 'open', 'codex']
+      .map((k) => g.audio.cue(k));
+    return {
+      source: d.source,
+      usesFiles: d.usesFiles,
+      synth: d.bgm.foundations.synthGain,
+      anyPlaying: Object.values(d.bgm).some((b) => b.playing),
+      cues,
+    };
+  `);
+  eq(fallback.usesFiles, false, '可以把音檔關掉（離線 / 檔案壞掉時的退路）');
+  eq(fallback.source, 'synth', '關掉音檔後聽到的是合成配樂');
+  eq(fallback.anyPlaying, false, '關掉音檔後沒有 buffer 還在播');
+  ok(fallback.synth > 0.5, '合成 pad 淡回來了', `synth=${fallback.synth}`);
+  eq(fallback.cues.every(Boolean), true, '關掉音檔後每一支音效照樣有聲音（合成備援）');
+
+  const restored = await evaluate(`
+    const g = window.__promptasy;
+    g.audio.useFiles(true);
+    await new Promise((r) => setTimeout(r, 400));
+    return g.audio.debug().usesFiles;
+  `);
+  eq(restored, true, '可以再切回音檔');
 
   /* ================================================================ */
   console.log('\n▸ 閘門與跨區（含氣氛切換）');

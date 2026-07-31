@@ -180,6 +180,7 @@ function boot() {
       progression.setFlag('finaleSeen', true);
       hud.toast('✦ 隱藏成就：68 條技巧全數收集，四廠徽章全數點亮', 'good');
       hud.celebrate('68 / 68 · 全數收集', 'finale');
+      audio.cue('finale');
       engine.pulse(1.2);
       setTimeout(() => openPanel(finale), 900);
     }
@@ -201,6 +202,8 @@ function boot() {
       audio.cue('seal');
       engine.pulse(0.45);
     },
+    // 刻印牌被按下去的那一下（節流在音訊那邊）
+    onTap: () => audio.cue('click'),
     onShare: (opts) => openShare(opts),
     onResult: ({ challenge, evaluation, outcome }) => {
       hud.refresh();
@@ -388,6 +391,7 @@ function boot() {
       audio.cue('seal');
       engine.pulse(0.45);
     },
+    onTap: () => audio.cue('click'),
     onPass: ({ evaluation }) => {
       hud.refresh();
       audio.cue('pass', { grade: evaluation.grade });
@@ -458,8 +462,11 @@ function boot() {
     nudge.noteActivity();
     player.setInputEnabled(false);
     if (panel === codex) audio.cue('codex');
-    // 器物的小窗自己會放那件東西的聲音（掀蓋 / 敲木牌），不要再疊一聲通用的開窗音
-    else if (panel !== promptConsole && panel !== handlePanel) audio.cue('open');
+    // 器物的小窗與刻文小語自己會放那件東西的聲音（掀蓋 / 敲木牌 / 祭壇），
+    // 不要再疊一聲通用的翻頁音
+    else if (panel !== promptConsole && panel !== handlePanel && panel !== inscriptionPanel) {
+      audio.cue('open');
+    }
     panel.open(...args);
   }
   function closePanel() {
@@ -571,7 +578,8 @@ function boot() {
     world.refreshGates();
     compass.refresh();
     hud.refresh();
-    audio.cue('unlock');
+    // 只有石門滑開的那一聲，沒有慶祝的微光 —— 這不是你考過的門
+    audio.cue('gateOpen');
     engine.pulse(1.0);
     // 刻意不說「解鎖」——你不是解開它，是它讓你先過去
     hud.toast(`${name}：門為你開了。前方的試煉不會因此變簡單。`, 'info');
@@ -898,7 +906,8 @@ function boot() {
       readTablet(nearTablet);
     } else if (e.code === 'KeyE' && nearInscription) {
       e.preventDefault();
-      audio.cue('open');
+      // 刻文小語用祭壇的那一聲（和起始祭壇同一個聲音世界），不是翻頁
+      audio.cue('shrine');
       readInscription(nearInscription);
     } else if (e.code === 'KeyE' && nearHandle) {
       e.preventDefault();

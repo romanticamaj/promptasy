@@ -151,6 +151,7 @@ export function createPromptConsole({
   onReject,
   onSeal,
   onShare,
+  onTap,
 }) {
   let current = null;
   let currentFlow = null;
@@ -359,6 +360,7 @@ export function createPromptConsole({
       goAct(4, { force: true });
     },
     onPress: ({ text }) => submit(text),
+    onTap: () => onTap?.(),
   });
   steleSlot.appendChild(stele.root);
 

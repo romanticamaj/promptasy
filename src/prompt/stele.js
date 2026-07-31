@@ -35,8 +35,9 @@ function prefersReduced() {
  * @param {(info:{feedback:string,option:object})=>void} [opts.onReject] 石碑不收這一片
  * @param {(info:{text:string})=>void} [opts.onComplete] 全部刻完（手掌印出現）
  * @param {(info:{text:string})=>void} [opts.onPress]    手掌按下去（要把刻好的字呈給神諭了）
+ * @param {()=>void} [opts.onTap]                        刻印牌被按下去的那一下（純聲音回饋）
  */
-export function createStele({ onCarve, onReject, onComplete, onPress } = {}) {
+export function createStele({ onCarve, onReject, onComplete, onPress, onTap } = {}) {
   /** 目前這一關的流程（flows.json 的一份）。 */
   let flow = null;
   /** 已經刻上去的片段（依序）。 */
@@ -185,6 +186,8 @@ export function createStele({ onCarve, onReject, onComplete, onPress } = {}) {
     const option = s.options[i];
     if (!option) return null;
     const btn = optionsEl.querySelector(`[data-opt="${i}"]`);
+    // 牌子被按下去的那一下（不管對錯都有；音訊那邊會節流）
+    onTap?.();
 
     if (!option.correct) {
       // 選錯不扣分、不失敗 —— 石碑只是不收這一片
