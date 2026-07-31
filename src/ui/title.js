@@ -25,7 +25,14 @@ function stageName(name) {
     .join('');
 }
 
-export function createTitle({ onStart, subtitle = 'Learn Prompt Engineering by Playing' } = {}) {
+/**
+ * @param {object} opts
+ * @param {() => void} [opts.onStart]
+ * @param {() => boolean} [opts.awaken] 第一下手勢的攔截器：回傳 true 表示這一下
+ *   被拿去「喚醒音訊」（瀏覽器自動播放被擋時），標題卡留著、等下一下才開始。
+ * @param {string} [opts.subtitle]
+ */
+export function createTitle({ onStart, awaken, subtitle = 'Learn Prompt Engineering by Playing' } = {}) {
   const root = el('div', 'title');
   root.setAttribute('role', 'dialog');
   root.setAttribute('aria-modal', 'true');
@@ -46,8 +53,19 @@ export function createTitle({ onStart, subtitle = 'Learn Prompt Engineering by P
   let done = false;
   let live = false;
 
+  let awakened = false;
+
   function start() {
     if (done || !live) return;
+    // 自動播放被擋的首次造訪：第一下手勢先喚醒開場曲（不進入遊戲），第二下才開始。
+    // awaken() 只會消耗一次手勢 —— 音訊已在響（或喚醒失敗）就直接開始，不會卡住玩家。
+    if (!awakened && awaken && awaken() === true) {
+      awakened = true;
+      root.classList.add('is-awake');
+      const btn = root.querySelector('[data-start]');
+      if (btn) btn.innerHTML = '夜色醒了 —— 再按一次，踏入它 <kbd>Enter</kbd>';
+      return;
+    }
     done = true;
     live = false;
     root.classList.add('is-leaving');

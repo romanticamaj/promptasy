@@ -435,6 +435,8 @@ function boot() {
 
   /* --- 開場標題卡（同時是 AudioContext 需要的使用者手勢） --- */
   const title = createTitle({
+    // 自動播放被擋時，第一下手勢先喚醒開場曲（resume 由 titleIntro 掛的監聽器做）
+    awaken: () => !audio.isRunning(),
     onStart: () => {
       audio.start();
       // 開場曲讓位給當區配樂（5 秒的等功率交叉淡接，像鏡頭從序幕搖進世界）

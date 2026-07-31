@@ -202,6 +202,12 @@ async function main() {
     chrome,
     [
       '--headless=new',
+      // 無頭環境沒有媒體互動分數，AudioContext 會被 suspend；放行自動播放，
+      // 讓標題卡維持「一鍵開始」的既有測試行為（真實瀏覽器的兩段式喚醒另有斷言）。
+      '--autoplay-policy=no-user-gesture-required',
+      // WSL/headless 沒有音訊裝置：用 null 輸出讓 AudioContext 能 running 而不報
+      // 「error from the audio device」（我們只斷言節點圖狀態，不需要真的出聲）
+      '--disable-audio-output',
       `--remote-debugging-port=${CDP_PORT}`,
       `--user-data-dir=${profileDir}`,
       '--no-first-run',
@@ -444,6 +450,17 @@ async function main() {
   `);
   eq(titleText.name, 'Promptasy', '標題卡顯示遊戲名');
   ok(/Learn Prompt Engineering by Playing/.test(titleText.tag || ''), '標題卡顯示定位句');
+
+  // 開場曲：harness 帶 --autoplay-policy=no-user-gesture-required，
+  // 標題卡上就該真的響起來（title 音軌在播、gain 有拉起來）
+  const overture = await evaluate(`
+    const d = window.__promptasy.audio.debug();
+    const t = (d.bgm || d.regions || {}).title || {};
+    return { running: window.__promptasy.audio.isRunning(), playing: !!t.playing, gain: t.gain ?? 0, region: d.region };
+  `);
+  eq(overture.region, 'title', '標題卡期間配樂區域是 title');
+  ok(overture.running, '自動播放放行時 AudioContext 是 running');
+  ok(overture.playing, '開場曲(Promptasy Overture)在標題卡上就開始播');
 
   // Phase 30：音檔（共約 15 MB）不能在標題卡之前開始下載（護欄 5：不拖慢第一個畫面）
   const beforeGesture = await evaluate(`

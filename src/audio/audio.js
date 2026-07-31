@@ -1038,6 +1038,11 @@ export function createAudio({ volume = 0.5, muted = false, region = 'foundations
     },
 
     /** 必須由使用者手勢呼叫（點擊 / 按鍵）。 */
+    /** AudioContext 是否真的在出聲（自動播放政策放行、或已有使用者手勢）。 */
+    isRunning() {
+      return Boolean(ctx && ctx.state === 'running');
+    },
+
     /**
      * 標題卡的開場曲。瀏覽器允許自動播放就直接響起；
      * 不允許的話，掛一次性的手勢監聽（第一下按鍵／點擊 —— 包含「按任意鍵開始」那一下）
