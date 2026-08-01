@@ -203,7 +203,7 @@ export function createCodex({
 
   function render() {
     const collected = progression.state.collected.length;
-    const totalTech = (content.curriculum.techniques || []).length;
+    const totalTech = content.catalog.counts.techniques;
     overlay.setEyebrow('技巧圖鑑 · 收集冊');
     overlay.setTitle('技巧圖鑑', `已收集 ${collected} / ${totalTech} 條技巧`);
 

@@ -12,13 +12,27 @@
  * 不依賴 puppeteer / playwright —— 只用 node 內建的 fetch + WebSocket ＋ 系統上的 Chrome。
  */
 import { spawn } from 'node:child_process';
-import { mkdtempSync, rmSync, existsSync } from 'node:fs';
+import { mkdtempSync, rmSync, existsSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, '..');
+
+/*
+ * 課程 v2 · Phase B：「68 條技巧 / 5 個區域」不再寫死在斷言裡。
+ * 能算的現算（catalog），真的是當期契約的登記在 scripts/expected-counts.json。
+ */
+const { createCatalog } = await import('../src/challenges/catalog.js');
+const readData = (p) => JSON.parse(readFileSync(resolve(root, p), 'utf8'));
+const CATALOG = createCatalog({
+  curriculum: readData('src/data/curriculum.json'),
+  skillCodex: readData('src/data/skill-codex-v2.json'),
+  regions: readData('src/data/regions-v2.json'),
+});
+const EXPECT = readData('scripts/expected-counts.json').contract;
+const TECHNIQUE_TOTAL = CATALOG.counts.techniques;
 
 const DEV_PORT = Number(process.env.PA_PORT || 5199);
 const CDP_PORT = Number(process.env.PA_CDP_PORT || 9333);
@@ -395,6 +409,9 @@ async function main() {
     return {
       challenges: g.content.challenges.length,
       techniques: g.content.curriculum.techniques.length,
+      /* 課程 v2 · Phase B：runtime catalog 有沒有真的在開機時建起來（fail fast 會直接讓開機爆掉） */
+      catalogCounts: g.catalog ? { ...g.catalog.counts } : null,
+      catalogImplemented: g.catalog ? g.catalog.implementedRegionIds().join(',') : '',
       markers: g.world.markers.length,
       gates: g.world.gates.length,
       titleOpen: g.title.isOpen,
@@ -437,9 +454,19 @@ async function main() {
       moteColors: !!g.world.motes.geometry.attributes.color,
     };
   `);
-  eq(boot.challenges, 27, '27 個關卡載入');
-  eq(boot.techniques, 68, '68 條技巧載入');
-  eq(boot.markers, 27, '27 座石座在世界裡');
+  eq(boot.challenges, EXPECT.challenges.value, `${EXPECT.challenges.value} 個關卡載入`);
+  eq(boot.techniques, TECHNIQUE_TOTAL, `${TECHNIQUE_TOTAL} 條技巧載入`);
+  eq(boot.markers, EXPECT.challenges.value, `${EXPECT.challenges.value} 座石座在世界裡`);
+  // 課程 v2 的合併層在開機時就建好了，而且玩家看到的仍然只有已上線的五區
+  ok(Boolean(boot.catalogCounts), 'runtime catalog 在開機時建起來了');
+  eq(boot.catalogCounts && boot.catalogCounts.skills, EXPECT.v2Skills.value, `catalog 帶著 ${EXPECT.v2Skills.value} 條 v2 技能`);
+  eq(boot.catalogCounts && boot.catalogCounts.regions, EXPECT.v2Regions.value, `catalog 帶著 ${EXPECT.v2Regions.value} 個區域`);
+  eq(
+    boot.catalogCounts && boot.catalogCounts.implementedRegions,
+    EXPECT.v2ImplementedRegions.value,
+    `其中只有 ${EXPECT.v2ImplementedRegions.value} 區已上線（其餘七區只在資料層，畫面看不到）`
+  );
+  eq(boot.catalogImplemented, CATALOG.implementedRegionIds().join(','), '已上線的區域就是既有五區');
   eq(boot.gates, 4, '4 道閘門在世界裡');
   eq(boot.titleOpen, true, '開機先看到標題卡');
   eq(boot.introOpen, false, '標題卡期間教學還沒跳');
@@ -3402,7 +3429,7 @@ async function main() {
     };
   `);
   eq(codex.open, true, 'C 開啟圖鑑');
-  eq(codex.techs, 68, '圖鑑列出 68 條技巧');
+  eq(codex.techs, TECHNIQUE_TOTAL, `圖鑑列出 ${TECHNIQUE_TOTAL} 條技巧`);
   ok(codex.collected > 0, '這一輪已經收集了一些技巧', `collected=${codex.collected}`);
   eq(codex.locked, codex.total - codex.collected, '未收集的技巧顯示為 ???');
   eq(codex.inPanel, true, '圖鑑開啟時焦點在面板內（M6 無障礙）');
@@ -5373,7 +5400,7 @@ async function main() {
   eq(card.model.rankTitle, '釋義者', '卡片資料的稱號正確');
   eq(card.model.level, 6, '卡片資料的等級正確');
   eq(card.model.collected, 46, '卡片資料的收集數正確');
-  eq(card.model.total, 68, '卡片資料的技巧總數正確');
+  eq(card.model.total, TECHNIQUE_TOTAL, '卡片資料的技巧總數正確');
   eq(card.model.kind, 'codex', '這是「收集冊」變體');
   eq(card.model.regions.filter((r) => r.mastered).length, 2, '卡片標出兩片已精通的土地');
   eq(card.model.techniques.length, 3, '卡片列出三條最近收集的技法');

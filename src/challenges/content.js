@@ -15,7 +15,14 @@
  * 但 curriculum.json 的引文在它們的年代是正確的引用，所以一個字都不動；
  * 改成在畫面上安靜地補一句**有日期**的查核備註 ＋ 可點的新官方連結。
  * 引用的文件被下架時同理：原網址留著，顯示層另外標一句「已下架」與後繼參考。
+ *
+ * 課程 v2 · Phase B：第四個同性質的層 —— runtime catalog（`catalog.js`）。
+ * 區域與技巧的**數量與列舉**一律改走它（`content.catalog`），不再有人寫死 68 / 5。
+ * catalog 沒傳進來時會就地用 curriculum 建一份 legacy-only 的（行為與以前完全相同），
+ * 所以既有的測試呼叫端一個字都不必改。
  */
+import { createCatalog } from './catalog.js';
+
 export function createContent(
   curriculum,
   challengeFile,
@@ -23,8 +30,11 @@ export function createContent(
   coachFile = null,
   flowFile = null,
   curriculumZh = null,
-  datedFile = null
+  datedFile = null,
+  catalogInput = null
 ) {
+  /** 課程 v2 的合併層：舊 68 條 ＋ 新 130 技能 ＋ 12 區（只有 implemented 的會被列舉）。 */
+  const catalog = catalogInput || createCatalog({ curriculum });
   const challenges = (challengeFile.challenges || []).slice().sort((a, b) => (a.order || 0) - (b.order || 0));
   const techniques = new Map((curriculum.techniques || []).map((t) => [t.id, t]));
   const topics = new Map((curriculum.topics || []).map((t) => [t.id, t]));
@@ -105,6 +115,8 @@ export function createContent(
 
   return {
     curriculum,
+    /** 課程 v2 的 runtime catalog（區域／技巧／技能的唯一列舉來源）。 */
+    catalog,
     challenges,
     technique: (id) => techniques.get(id) || null,
     /** 這條技巧的中文譯寫（沒有就是 null）。 */
@@ -124,7 +136,19 @@ export function createContent(
     vendor: (id) => vendors.get(id) || null,
     builderBlock: (id) => builder.get(id) || null,
     challenge: (id) => byChallengeId.get(id) || null,
-    groupsOrdered: () => (curriculum.groups || []).slice().sort((a, b) => a.order - b.order),
+    /**
+     * 圖鑑／結果卡列舉的區域。
+     *
+     * **一律只列 catalog 裡 `implemented: true` 的區域** —— 課程 v2 的另外七區
+     * 此刻只存在於資料層（世界還沒蓋），玩家看到的仍然是既有五區。
+     * 回傳的是 `curriculum.groups` 的原物件，欄位與以前一模一樣。
+     */
+    groupsOrdered: () => catalog.implementedRegions().map((r) => r.legacyGroup).filter(Boolean),
+    /** 同一份列舉，但帶著 v2 的區域欄位（主題句、地標、軟門檻規格）。 */
+    regionsOrdered: () => catalog.implementedRegions(),
+    /** v2 技能（130 條）：目前只有資料層在用，畫面尚未列舉。 */
+    skill: (id) => catalog.skill(id),
+    regionSkills: (regionId) => catalog.regionSkills(regionId),
     topicsOf: (groupId) => (curriculum.topics || []).filter((t) => t.groupId === groupId),
     techniquesOf: (topicId) => (curriculum.techniques || []).filter((t) => t.topicId === topicId),
     challengesOf: (regionId) => challenges.filter((c) => c.region === regionId),

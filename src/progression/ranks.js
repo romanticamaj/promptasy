@@ -5,8 +5,8 @@
  * 稱號就是那個東西：由三個進度量共同決定 ——
  *
  *   level     等級（＝ XP 曲線）
- *   collected 已收進圖鑑的技巧數（0–68）
- *   mastered  已精通（該區技巧全收集）的區域數（0–5）
+ *   collected 已收進圖鑑的技巧數（0 – 目前技巧總數）
+ *   mastered  已精通（該區技巧全收集）的區域數（0 – 目前已上線的區域數）
  *
  * 規則刻意簡單：**三個門檻同時滿足**才算晉級，取滿足條件的最後一個稱號。
  * 三個門檻在 ranks.json 裡都不遞減 → 順序一定單調，不會有「收集變多反而降級」。
@@ -15,12 +15,24 @@
  * 稱號是遊戲自撰的世界觀稱謂，不是任何官方文件的分級（見 ranks.json 的 note）。
  */
 
+/**
+ * 稱號門檻的一格。
+ *
+ * 課程 v2 · Phase B：門檻可以寫 `"all"`，意思是「全部」——由 runtime catalog
+ * 現算（收集＝目前技巧總數、精通＝目前真的在世界裡的區域數）。
+ * 課程長大時最高階的稱號會跟著長，不必回頭改資料裡的 68 / 5。
+ */
+export function rankThreshold(value, whole) {
+  if (value === 'all') return Number.isFinite(whole) ? whole : Infinity;
+  return Number.isFinite(value) ? value : 0;
+}
+
 /** 稱號門檻是否被這組進度滿足。 */
 export function rankSatisfied(stats, rank) {
   return (
-    (stats.level || 0) >= (rank.level || 0) &&
-    (stats.collected || 0) >= (rank.collected || 0) &&
-    (stats.mastered || 0) >= (rank.mastered || 0)
+    (stats.level || 0) >= rankThreshold(rank.level, Infinity) &&
+    (stats.collected || 0) >= rankThreshold(rank.collected, stats.total) &&
+    (stats.mastered || 0) >= rankThreshold(rank.mastered, stats.regions)
   );
 }
 
@@ -43,9 +55,9 @@ export function rankFor(stats, ranks) {
   const next = list[index + 1] || null;
   const needs = next
     ? {
-        level: Math.max(0, (next.level || 0) - (stats.level || 0)),
-        collected: Math.max(0, (next.collected || 0) - (stats.collected || 0)),
-        mastered: Math.max(0, (next.mastered || 0) - (stats.mastered || 0)),
+        level: Math.max(0, rankThreshold(next.level, Infinity) - (stats.level || 0)),
+        collected: Math.max(0, rankThreshold(next.collected, stats.total) - (stats.collected || 0)),
+        mastered: Math.max(0, rankThreshold(next.mastered, stats.regions) - (stats.mastered || 0)),
       }
     : null;
   return { rank, index, total: list.length, next, needs };
@@ -53,14 +65,17 @@ export function rankFor(stats, ranks) {
 
 /**
  * 從進程系統讀出稱號需要的三個數字（＋結果卡會用到的幾個附帶數字）。
+ *
  * @param {object} progression createProgression() 的回傳
- * @param {object} curriculum  curriculum.json
+ * @param {object} source      runtime catalog（建議）或 curriculum.json（舊呼叫端）
  */
-export function rankStats(progression, curriculum) {
-  const groups = (curriculum && curriculum.groups) || [];
-  const techniques = (curriculum && curriculum.techniques) || [];
+export function rankStats(progression, source) {
+  /* catalog 有 implementedRegionIds()；curriculum.json 只有 groups —— 兩種都收 */
+  const isCatalog = Boolean(source && typeof source.implementedRegionIds === 'function');
+  const regionIds = isCatalog ? source.implementedRegionIds() : ((source && source.groups) || []).map((g) => g.id);
+  const techniques = isCatalog ? source.techniques : (source && source.techniques) || [];
   const state = progression.state;
-  const mastered = groups.map((g) => g.id).filter((id) => progression.regionMastery(id).mastered);
+  const mastered = regionIds.filter((id) => progression.regionMastery(id).mastered);
   return {
     level: progression.levelInfo().level,
     xp: state.xp,
@@ -68,9 +83,9 @@ export function rankStats(progression, curriculum) {
     total: techniques.length,
     mastered: mastered.length,
     masteredRegions: mastered,
-    regions: groups.length,
+    regions: regionIds.length,
     cleared: Object.keys(state.bestGrades || {}).length,
   };
 }
 
-export default { rankFor, rankSatisfied, rankStats };
+export default { rankFor, rankSatisfied, rankStats, rankThreshold };

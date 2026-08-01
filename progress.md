@@ -186,3 +186,89 @@ e2e 一直沒跑過，殘留舊斷言）；修好之後第二次跑到 799 個�
 - `effort-forge-15` 的第二幕教 `params-03`，但通關收集的仍是它自己的 legacy `teaches`
   （`params-03` 由刻度儀之室收集）—— manifest 已裁決的過渡狀態，Phase J 移除相容層時一併收斂。
 - 未 commit／push；未動 `CLAUDE.md`、`vite.config.js`、port 5175、`src/data/curriculum.json`（sha256 測試仍綠）。
+
+
+---
+
+## Phase B · step 1 — v2 catalog bridge（2026-08-01 · done）
+
+**一句話**：把「68 條技巧 / 5 個區域」這兩個散在十幾個檔案裡的寫死數字，收斂成一份
+`src/challenges/catalog.js`；同時把課程 v2 的 **130 條技能 / 12 個區域**以 authored 資料層落地
+（新七區 `implemented: false`）。**玩家看到的東西完全沒變**：仍然是 27 關 / 68 條 / 5 區。
+
+### 做了什麼
+
+1. **`src/data/skill-codex-v2.json`（新，185 KB）** —— 130 條技能逐條轉錄自 `curriculum-v2.md` §一，
+   每條含 `id / nameZh / nameEn / tier / regionId / order / prereqs / masterRefs / oneLiner /
+   legacyTechniqueId / legacyTechniqueSource / sources[]`。
+   `sources` 是**程式從 `docs/prompt-engineering-master-list.md` 對應條目的「出處」欄逐條解析**出來的
+   （共 445 筆，每筆帶 `masterRef` 可回查），不是人工重打、更不是從設計表一句話擴寫。
+2. **`src/data/regions-v2.json`（新，13 KB）** —— 12 區。既有五區的 id／名稱／顏色／topicIds 一律
+   以 `curriculum.json` 的 `groups` 為準（merge 時取原物件，不重寫）；新七區 `implemented: false`。
+   每區帶 v2 的知識式軟門檻規格（`skills` / `regionSkills` / `masteredRegions` / `masteredAnyCount` ＋原句），
+   **但這一期沒有啟用**：現行解鎖仍然完全由 `progression.js` 的 `REGION_GATES` 決定。
+3. **`src/challenges/catalog.js`（新）** —— 單一 loader，把三份資料合成 runtime catalog，
+   建構時就跑完整驗證（fail fast）。沒傳 v2 資料時會用 `curriculum.groups` 就地合成一份
+   「全部已上線」的區域表，所以既有的 20 幾個 `createProgression({ curriculum, … })` 呼叫端行為一字未變。
+4. **去硬編碼（runtime）** —— `main.js`（建 catalog 並傳給 content／progression／ranks；隱藏成就的
+   68 改成 `achievement.total`；開機 log 走 `catalog.counts`）、`content.js`（`groupsOrdered()` 改由
+   `catalog.implementedRegions()` 推導，新增 `regionsOrdered()` / `skill()` / `regionSkills()`）、
+   `progression.js`（技巧／廠商／區域列舉全改走 catalog）、`ranks.js`（`rankStats` 收 catalog 或
+   curriculum 都行；新增 `rankThreshold()` 支援 `"all"`）、`ranks.json`（最高階稱號的 68／5 → `"all"`）、
+   `codex.js` / `settings.js` / `achievement.js`（總數走 `content.catalog.counts.techniques`）。
+5. **去硬編碼（測試）** —— `scripts/expected-counts.json`（新）登記「真的是契約」的數字並逐格寫理由：
+   27 關、目前上線的三種 kind、130 技能、12 區、5 區已上線、無出處技能 ≤3。
+   其餘（配樂 6 = 5 區＋開場、氣氛 5、地標 5、稱號門檻、rubric 涵蓋率…）一律改成由 catalog 現算。
+6. **新測試區段「課程 v2 runtime catalog（Phase B step 1）」** —— 資料契約（130／12／id 唯一／
+   區域加總／先修拓撲無環／tier 合法／中文欄位）＋ **每一筆出處都必須真的出現在 master list 對應條目的
+   「出處」欄**（護欄 2 的結構性保證）＋ 蒸餾規則 3（不得引用「出處找不到」的條目）＋ 新舊對照
+   （`skillsForTechnique` / `techniqueForSkill` 互為反查）＋ 遷移 manifest 的 `needsV2Catalog` 收尾
+   ＋ **行為中立**（catalog 版與 legacy 版的 `groupsOrdered()` / `masteredRegions()` / `hiddenAchievement()`
+   逐欄相同、`REGION_GATES` 的 key 就是已上線區域、尚未上線的七區沒有任何關卡）
+   ＋ 8 條 fail-fast 破壞測試（重複 id／先修不存在／成環／壞 tier／非 https／無出處又無說明／
+   壞 legacyTechniqueId／把還沒蓋好的區域標成已上線）。
+
+### 本次實跑
+
+| 指令 | Phase A | Phase B step 1 |
+|---|---|---|
+| `npm run fonts` | 語料 55 檔／CJK 1634 字／1331.5 KB | ✓ 語料 **58** 檔／CJK **1664** 字／**1348.4 KB**（指紋測試綠） |
+| `npm run test:rubric` | 17,705 | ✓ **21,393** |
+| `npm run test:playtest` | 263 | ✓ **263**（未改，行為中立） |
+| `npm run build` | ✓ | ✓（JS 1,461.66 KB / gzip 416.43 KB） |
+| `npm run test:e2e` | 1,811 全過 | ✓ **1,816 項全過、零 console error**（第一次跑有 6 條環境型 flaky，見下） |
+
+**e2e 誠實記錄**：第一次跑 1810 過／6 紅，全部落在 findings 已登記的 flaky 家族
+（開場曲自動播放時序、fps 暖機 `{stable:0,fps:0}`、火盆亮度取樣、設定面板焦點時序、
+`priority-stair-42` 的滑鼠拖曳 2 條）。當時機器 load average 11、軟體渲染每幀 228.6 ms。
+依 `task_plan.md` §4「只對已知動畫 flaky 允許一次重跑」重跑一次，**1,816 項全過、零 console error**。
+所有失敗都與本期改動無關（本期沒有碰音訊、粒子、拖曳、焦點）。
+
+新測試都**實際破壞過一次確認會紅**（改完立刻還原、再跑一次確認回綠 21,393）：
+把 `regions-v2.json` 的 `forms.implemented` 改成 `true` → catalog 在建構時直接丟例外
+（`[catalog] 已實作的區域與 curriculum.groups 不一致：…,forms ≠ …`，整支測試中止 —— fail fast 生效）；
+把 `clear-golden` 的第一個出處網址加一個字元 → 1 紅（`[clear-golden] 出處逐字取自 master #12 的「出處」欄`）；
+把 `ranks.json` 的 `"all"` 改回 `68` → 2 紅（`最後一個稱號的收集門檻寫成 "all"，不是寫死的數字`）。
+
+### 數字
+
+- 技能：**130**（foundations 14 / reasoning 15 / grounding 12 / orchestration 12 / config 12 /
+  forms 14 / toolcraft 11 / frugality 7 / refinery 11 / wards 5 / sight 8 / divergence 9）。
+- tier：basic 37 / advanced 55 / master 38（由資料現算）。
+- 出處：**445 筆**，每條技能 1–12 筆；**0 條技能沒有出處**（master list 唯一標「找不到」的 #11
+  在蒸餾規則 3 就被排除，沒有被任何技能引用）。1 條技能（`migrate-cot-to-knob`）的出處帶
+  master list 原有的「已標示下架」狀態註記，原樣傳遞。
+- 新舊對照：130 條裡 **45 條**接得回舊 68 條（24 條來自遷移 manifest、20 條由附錄 C 的子集關係推導、
+  1 條人工裁決 `skeleton-dev-message`），85 條是舊課程沒有的新技能 → `legacyTechniqueId: null`。
+  遷移 manifest 有 25 條 `v2SkillId → primaryTechniqueId`，其中 `tool-when-not → agentic-01`
+  本來就標了 `needsV2Catalog: true`（暫用）—— 這一期誠實回填成 `null` 並寫下理由
+  （`agentic-01` 真正的後裔是 `tool-native-field`），測試逐條守住。
+
+### 未做／留給後續
+
+- 新七區只有資料，**沒有世界、沒有關卡、沒有圖鑑條目**；`gate` 規格尚未接上 runtime。
+- `skill-codex-v2.json` 目前完整進 bundle（minify 後約 135 KB），JS 從約 1,320 KB → 1,462 KB。
+  真正要省的話應該等圖鑑用得到它時再談 code-split，不要現在為了體積犧牲 fail-fast。
+- 字型語料因為掃到新資料檔的中文（廠商名、文件名、區域主題句）而從 1634 → 1664 字、
+  1331.5 → 1348.4 KB。這是 Phase 6 就定下的「保守超集」策略的必然成本。
+- 未 commit／push；未動 `CLAUDE.md`、`vite.config.js`、port 5175、`src/data/curriculum.json`（sha256 仍綠）。

@@ -4,6 +4,7 @@
  * 這一層不碰 DOM、不 import JSON，資料由外部注入 → 可在 node 測試腳本直接跑。
  */
 import { betterGrade, xpForGrade } from '../challenges/rubric.js';
+import { createCatalog } from '../challenges/catalog.js';
 import * as SaveIO from '../save/save.js';
 
 /** 升到下一級所需 XP：100, 160, 220, 280 … */
@@ -42,15 +43,25 @@ export const REGION_GATES = Object.freeze({
 
 /**
  * @param {object} opts
- * @param {object} opts.curriculum  curriculum.json
+ * @param {object} [opts.catalog]   課程 v2 的 runtime catalog（技巧／區域的唯一列舉來源）
+ * @param {object} [opts.curriculum] curriculum.json（沒給 catalog 時就地建一份 legacy-only 的）
  * @param {Array}  opts.challenges  challenges.json 的 challenges 陣列
  * @param {object} [opts.io]        存檔 IO（測試時可注入假的）
  * @param {Function} [opts.onChange] 狀態變動回呼
  */
-export function createProgression({ curriculum, challenges, io = SaveIO, onChange = null }) {
-  const techniqueById = new Map((curriculum.techniques || []).map((t) => [t.id, t]));
+export function createProgression({ catalog = null, curriculum = null, challenges, io = SaveIO, onChange = null }) {
+  /*
+   * 課程 v2 · Phase B：技巧與區域的列舉統一從 catalog 來。
+   * 只傳 curriculum 的舊呼叫端（測試腳本）行為完全不變 —— catalog 會就地
+   * 用同一份 curriculum 建 legacy-only 版本，列舉結果一模一樣。
+   */
+  const cat = catalog || createCatalog({ curriculum });
+  const cur = cat.curriculum;
+  const techniqueById = new Map(cat.techniques.map((t) => [t.id, t]));
   const challengeById = new Map((challenges || []).map((c) => [c.id, c]));
-  const vendorIds = (curriculum.vendors || []).map((v) => v.id);
+  const vendorIds = (cur.vendors || []).map((v) => v.id);
+  /** 目前真的在世界裡的區域 id（catalog 的 implemented；legacy 模式下就是 curriculum.groups）。 */
+  const regionIds = cat.implementedRegionIds();
 
   let state = io.load();
 
@@ -161,7 +172,7 @@ export function createProgression({ curriculum, challenges, io = SaveIO, onChang
       if (!unlocked) {
         if (!levelOk) needs.push(`Lv.${gate.level}（目前 Lv.${level}）`);
         if (!requiresOk) {
-          const prev = (curriculum.groups || []).find((g) => g.id === requires.region);
+          const prev = cat.legacyGroups().find((g) => g.id === requires.region);
           needs.push(`${prev ? prev.name : requires.region} 通關 ${clearedNeeded} 關（目前 ${clearedHave}）`);
         }
         // Phase 29：門檻沒到也走得過去 —— 條件照講，但要讓玩家知道他有得選
@@ -228,9 +239,9 @@ export function createProgression({ curriculum, challenges, io = SaveIO, onChang
      * @param {number} [badgeTarget] 每廠需要的技巧標記數（與圖鑑顯示一致）
      */
     hiddenAchievement(badgeTarget = 5) {
-      const all = curriculum.techniques || [];
+      const all = cat.techniques;
       const collected = all.filter((t) => state.collected.includes(t.id)).length;
-      const vendors = (curriculum.vendors || []).map((v) => ({
+      const vendors = (cur.vendors || []).map((v) => ({
         id: v.id,
         name: v.name,
         count: state.badges[v.id] || 0,
@@ -242,12 +253,12 @@ export function createProgression({ curriculum, challenges, io = SaveIO, onChang
 
     /** 已精通（該區技巧全收集）的區域 id 清單。 */
     masteredRegions() {
-      return (curriculum.groups || []).map((g) => g.id).filter((id) => api.regionMastery(id).mastered);
+      return regionIds.filter((id) => api.regionMastery(id).mastered);
     },
 
     /** 區域完成度（已收集 / 該區技巧總數）。 */
     regionMastery(regionId) {
-      const all = (curriculum.techniques || []).filter((t) => t.groupId === regionId);
+      const all = cat.techniques.filter((t) => t.groupId === regionId);
       const got = all.filter((t) => state.collected.includes(t.id));
       return { total: all.length, collected: got.length, mastered: all.length > 0 && got.length === all.length };
     },
@@ -611,7 +622,7 @@ export function createProgression({ curriculum, challenges, io = SaveIO, onChang
       const topics = new Set(
         state.collected.map((id) => techniqueById.get(id)).filter(Boolean).map((t) => t.topicId)
       );
-      return (curriculum.builder || [])
+      return (cur.builder || [])
         .filter((b) => (map[b.id] || []).some((topic) => topics.has(topic)))
         .map((b) => b.id);
     },

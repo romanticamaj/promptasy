@@ -8,6 +8,8 @@
  *   跨區時：配樂交叉淡入淡出 ＋ 霧色 / 色偏 / 光強平滑漂移。
  */
 import curriculum from './data/curriculum.json';
+import skillCodexV2 from './data/skill-codex-v2.json';
+import regionsV2 from './data/regions-v2.json';
 import challengeFile from './data/challenges.json';
 import prologueFile from './data/prologue.json';
 import builderZh from './data/builder-zh.json';
@@ -25,6 +27,7 @@ import { createEngine } from './engine/engine.js';
 import { createWorld, atmosphereFor } from './world/world.js';
 import { createPlayer } from './player/player.js';
 import { createContent } from './challenges/content.js';
+import { createCatalog } from './challenges/catalog.js';
 import { createPrologueContent } from './challenges/prologue.js';
 import { createProgression } from './progression/progression.js';
 import { createPromptConsole } from './prompt/console.js';
@@ -58,6 +61,19 @@ function boot() {
   if (!app) throw new Error('#app not found');
   app.innerHTML = '';
 
+  /*
+   * 課程 v2 · Phase B — runtime catalog。
+   *
+   * 舊 68 條技巧（curriculum.json，官方引文、byte-identical）
+   *   ＋ 130 條 v2 技能（skill-codex-v2.json，authored: game ＋ 真實官方出處）
+   *   ＋ 12 區（regions-v2.json，其中 7 區 implemented: false）
+   * 合成同一份 runtime catalog。資料不合契約會在這裡當場丟例外（fail fast）。
+   *
+   * **玩家看到的東西這一期完全不變**：世界、圖鑑、結果卡一律只列舉
+   * `implementedRegions()`（就是既有五區），所以仍然是 27 關 / 68 條 / 5 區。
+   */
+  const catalog = createCatalog({ curriculum, skillCodex: skillCodexV2, regions: regionsV2 });
+
   const content = createContent(
     curriculum,
     challengeFile,
@@ -65,11 +81,12 @@ function boot() {
     coachFile,
     flowFile,
     curriculumZh,
-    datedFile
+    datedFile,
+    catalog
   );
   // 序章的教學內容：只引用 curriculum 既有的技巧與弱→強對照（逐字，附官方出處）
   const prologueContent = createPrologueContent(prologueFile, curriculum, curriculumZh);
-  const progression = createProgression({ curriculum, challenges: content.challenges });
+  const progression = createProgression({ catalog, challenges: content.challenges });
   const quality = progression.state.settings.quality === 'low' ? 'low' : 'high';
 
   /* --- 3D 場景 --- */
@@ -179,8 +196,8 @@ function boot() {
     const achievement = progression.hiddenAchievement();
     if (achievement.complete && !progression.state.flags.finaleSeen) {
       progression.setFlag('finaleSeen', true);
-      hud.toast('✦ 隱藏成就：68 條技巧全數收集，四廠徽章全數點亮', 'good');
-      hud.celebrate('68 / 68 · 全數收集', 'finale');
+      hud.toast(`✦ 隱藏成就：${achievement.total} 條技巧全數收集，四廠徽章全數點亮`, 'good');
+      hud.celebrate(`${achievement.collected} / ${achievement.total} · 全數收集`, 'finale');
       audio.cue('finale');
       engine.pulse(1.2);
       setTimeout(() => openPanel(finale), 900);
@@ -246,7 +263,7 @@ function boot() {
     progression,
     onClose: () => closePanel(),
     onShare: (opts) => openShare(opts),
-    getRank: () => rankFor(rankStats(progression, curriculum), ranksFile.ranks),
+    getRank: () => rankFor(rankStats(progression, catalog), ranksFile.ranks),
     inscriptionTotal: (inscriptionFile.entries || []).length,
     secretTotal: (secretFile.entries || []).length,
     handleTotal: (handleFile.entries || []).length,
@@ -1005,7 +1022,7 @@ function boot() {
     nudge,
     shareCard,
     ranks: ranksFile,
-    rank: () => rankFor(rankStats(progression, curriculum), ranksFile.ranks),
+    rank: () => rankFor(rankStats(progression, catalog), ranksFile.ranks),
     perfmon,
     keyhelp,
     toggleKeyHelp,
@@ -1034,6 +1051,8 @@ function boot() {
     handleKinds: HANDLE_KINDS,
     /** 目前坐在哪一張長凳上（測試用）。 */
     seatedOn: () => (seatedOn ? seatedOn.id : null),
+    /** 課程 v2 的 runtime catalog（測試用：所有「x / y」都該從這裡推導）。 */
+    catalog,
   };
   /**
    * 改名前的舊名字（PromptArcade）。留成別名 —— 外面若有人寫了書籤小工具
@@ -1043,7 +1062,7 @@ function boot() {
 
   console.info(
     `[Promptasy] 世界就緒 — ${content.challenges.length} 個關卡 / ${
-      (curriculum.techniques || []).length
+      catalog.counts.techniques
     } 條技巧 / ${world.gates.length} 道閘門 / Lv.${progression.levelInfo().level}`
   );
 }

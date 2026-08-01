@@ -23,6 +23,19 @@ const curriculum = readJson('src/data/curriculum.json');
 const challengeData = readJson('src/data/challenges.json');
 const challenges = challengeData.challenges;
 
+/*
+ * 課程 v2 · Phase B — runtime catalog。
+ *
+ * 「68 條技巧 / 5 個區域」這種數字以前散在測試裡寫死；現在一律從 catalog 現算。
+ * 真的是「當期驗收目標」的那幾個數字（27 關、130 技能、12 區…）登記在
+ * scripts/expected-counts.json，改它＝有意識地改契約。
+ */
+const skillCodexV2 = readJson('src/data/skill-codex-v2.json');
+const regionsV2 = readJson('src/data/regions-v2.json');
+const EXPECT = readJson('scripts/expected-counts.json').contract;
+const { createCatalog } = await import('../src/challenges/catalog.js');
+const catalog = createCatalog({ curriculum, skillCodex: skillCodexV2, regions: regionsV2 });
+
 const { CHECK_IDS, runCheck, MIN_PROMPT_LENGTH } = await import('../src/challenges/checks.js');
 const { findEnglishSentence: ENGLISH } = await import('./zh-scan.mjs');
 const { CHECKS: CHECK_DEFS } = await import('../src/challenges/checks.js');
@@ -1339,7 +1352,7 @@ for (const c of challenges) {
 }
 ok(
   curriculum.techniques.every((t) => Array.isArray(t.sources) && t.sources.length > 0),
-  '68 條技巧每條都有官方出處'
+  `${catalog.counts.techniques} 條技巧每條都有官方出處`
 );
 
 /* 涵蓋率：每一條技巧都要有關卡教（圖鑑才收集得完） ------------------- */
@@ -1853,7 +1866,7 @@ eq(prog.state.collected.length, curriculum.techniques.length, '全破所有關�
 for (const g of curriculum.groups) {
   eq(prog.regionMastery(g.id).mastered, true, `[${g.id}] 全收集 → 精通`);
 }
-eq(prog.masteredRegions().length, curriculum.groups.length, '五個區域全部精通');
+eq(prog.masteredRegions().length, catalog.counts.implementedRegions, '所有已上線的區域全部精通');
 
 const achievement = prog.hiddenAchievement();
 eq(achievement.complete, true, '隱藏成就達成（全技巧 ＋ 四廠徽章）');
@@ -1889,14 +1902,22 @@ console.log('▸ 音訊模組');
 const Audio = await import('../src/audio/audio.js');
 const { REGION_MOODS, REGION_MOOD_IDS, moodFor, SFX, createAudio } = Audio;
 
-eq(REGION_MOOD_IDS.length, 6, '五個區域＋開場都有配樂設定');
-for (const g of curriculum.groups) {
+eq(
+  REGION_MOOD_IDS.length,
+  catalog.counts.implementedRegions + 1,
+  '每個已上線的區域＋開場都有配樂設定'
+);
+for (const g of catalog.legacyGroups()) {
   ok(Boolean(REGION_MOODS[g.id]), `[${g.id}] 有對應的配樂性格`);
 }
 // 每一區都要真的「不一樣」，否則跨區就沒有意義
-eq(new Set(REGION_MOOD_IDS.map((id) => REGION_MOODS[id].root)).size, 6, '五區＋開場根音各不相同');
-eq(new Set(REGION_MOOD_IDS.map((id) => REGION_MOODS[id].name)).size, 6, '五區＋開場曲名各不相同');
-eq(new Set(REGION_MOOD_IDS.map((id) => REGION_MOODS[id].scale.join(','))).size, 6, '五區＋開場音階各不相同');
+eq(new Set(REGION_MOOD_IDS.map((id) => REGION_MOODS[id].root)).size, REGION_MOOD_IDS.length, '每一區＋開場的根音各不相同');
+eq(new Set(REGION_MOOD_IDS.map((id) => REGION_MOODS[id].name)).size, REGION_MOOD_IDS.length, '每一區＋開場的曲名各不相同');
+eq(
+  new Set(REGION_MOOD_IDS.map((id) => REGION_MOODS[id].scale.join(','))).size,
+  REGION_MOOD_IDS.length,
+  '每一區＋開場的音階各不相同'
+);
 ok(
   new Set(REGION_MOOD_IDS.map((id) => REGION_MOODS[id].bellDensity)).size >= 4,
   '鐘聲密度至少有四種變化'
@@ -1956,8 +1977,12 @@ const {
   REGION_NEIGHBORS,
 } = Audio;
 
-eq(Object.keys(BGM_TRACKS).length, 6, '五個區域＋開場各有一首配樂音檔');
-for (const g of curriculum.groups) {
+eq(
+  Object.keys(BGM_TRACKS).length,
+  catalog.counts.implementedRegions + 1,
+  '每個已上線的區域＋開場各有一首配樂音檔'
+);
+for (const g of catalog.legacyGroups()) {
   const t = BGM_TRACKS[g.id];
   ok(Boolean(t), `[${g.id}] 有對應的配樂音檔`);
   ok(t && /^bgm_[a-z]+\.m4a$/.test(t.file), `[${g.id}] 配樂檔名符合命名規則`, t && t.file);
@@ -2038,8 +2063,12 @@ noFiles.dispose();
 console.log('▸ 世界氣氛');
 
 const { REGION_ATMOSPHERE, atmosphereFor } = World;
-eq(Object.keys(REGION_ATMOSPHERE).length, 5, '五個區域都有氣氛設定');
-for (const g of curriculum.groups) {
+eq(
+  Object.keys(REGION_ATMOSPHERE).length,
+  catalog.counts.implementedRegions,
+  '每個已上線的區域都有氣氛設定（尚未蓋好的七區不該出現在世界資料裡）'
+);
+for (const g of catalog.legacyGroups()) {
   const a = REGION_ATMOSPHERE[g.id];
   ok(Boolean(a), `[${g.id}] 有氣氛設定`);
   if (!a) continue;
@@ -2395,8 +2424,8 @@ for (let i = 0; i < STORY_VIGNETTES.length; i += 1) {
 }
 
 /* --- 地標：每區剛好一個、夠高、夠遠、周圍留白 ------------------------ */
-eq(LANDMARKS.length, 5, '五個區域各有一個地標');
-for (const g of curriculum.groups) {
+eq(LANDMARKS.length, catalog.counts.implementedRegions, '每個已上線的區域各有一個地標');
+for (const g of catalog.legacyGroups()) {
   eq(LANDMARKS.filter((l) => l.region === g.id).length, 1, `[${g.id}] 剛好一個地標（hero asset 要稀有）`);
 }
 for (const l of LANDMARKS) {
@@ -3694,19 +3723,28 @@ eq(flowKind({ kind: 'order' }), 'choice', '宣告了 order 卻沒有 orderFlow �
 eq(flowKind({ kind: 'order', orderFlow: {} }), 'order', 'order ＋ orderFlow → 排序刻印');
 eq(flowKind({ kind: 'workshop' }), 'choice', '宣告了 workshop 卻沒有 workshop 資料 → 退回石碑刻印');
 eq(flowKind({ kind: 'workshop', workshop: {} }), 'workshop', 'workshop ＋ 資料 → 神諭工坊');
-eq(FLOW_KINDS.length, 3, '一共三種題型');
+eq(
+  FLOW_KINDS.slice().sort().join(','),
+  EXPECT.flowKinds.value.slice().sort().join(','),
+  `目前上線的題型就是 expected-counts 登記的那幾種（${EXPECT.flowKinds.value.join(' / ')}）`
+);
 for (const k of FLOW_KINDS) {
   ok(CJK.test(KIND_LABEL[k]), `題型 ${k} 在畫面上有中文說法`, KIND_LABEL[k]);
 }
 
 const kindOf = (id) => flowKind(flowData.flows[id]);
-const byKind = { choice: [], order: [], workshop: [] };
+const byKind = Object.fromEntries(FLOW_KINDS.map((k) => [k, []]));
 for (const c of challenges) byKind[kindOf(c.id)].push(c.id);
+eq(challenges.length, EXPECT.challenges.value, `關卡數＝目前的契約（${EXPECT.challenges.value} 關）`);
 eq(byKind.order.length, 2, '兩關改成排序刻印（次序本身就是那一關的課程）');
 eq(byKind.workshop.length, 1, '一關是神諭工坊');
-eq(byKind.choice.length, challenges.length - 3, `其餘 ${challenges.length - 3} 關維持石碑刻印`);
+eq(
+  byKind.choice.length,
+  challenges.length - byKind.order.length - byKind.workshop.length,
+  `其餘 ${challenges.length - byKind.order.length - byKind.workshop.length} 關維持石碑刻印`
+);
 eq(byKind.order.sort().join(','), 'long-scroll-tower-23,priority-stair-42', '改成排序的是那兩關');
-eq(byKind.workshop.join(','), 'oracle-workshop-36', '神諭工坊是新的第 27 關');
+eq(byKind.workshop.join(','), 'oracle-workshop-36', '神諭工坊是那一關');
 for (const [id, f] of Object.entries(flowData.flows)) {
   if (!('kind' in f)) continue;
   ok(FLOW_KINDS.includes(f.kind), `[${id}] kind 是合法的題型`, String(f.kind));
@@ -3943,7 +3981,22 @@ console.log('\n▸ 稱號與分享卡（Phase 21）');
 
 const ranksFile = readJson('src/data/ranks.json');
 const RANKS = ranksFile.ranks;
-const { rankFor, rankSatisfied, rankStats } = await import('../src/progression/ranks.js');
+const { rankFor, rankSatisfied, rankStats, rankThreshold } = await import('../src/progression/ranks.js');
+
+/*
+ * 課程 v2 · Phase B：稱號門檻可以寫 "all"（＝目前的技巧總數 / 已上線區域數），
+ * 由 catalog 現算。測試一律先解析成數字再比，所以課程長大時這一段不必再改。
+ */
+const RANK_WHOLE = { total: catalog.counts.techniques, regions: catalog.counts.implementedRegions };
+const thrCollected = (r) => rankThreshold(r.collected, RANK_WHOLE.total);
+const thrMastered = (r) => rankThreshold(r.mastered, RANK_WHOLE.regions);
+/** 拿這個稱號自己的門檻當「剛好達到」的 stats（含 catalog 的總量，"all" 才解析得出來）。 */
+const atRank = (r) => ({
+  level: r.level,
+  collected: thrCollected(r),
+  mastered: thrMastered(r),
+  ...RANK_WHOLE,
+});
 
 eq(ranksFile.authored, 'game', 'ranks.json 標明是遊戲自撰（不是官方分級）');
 ok(nonEmptyStr(ranksFile.note) && ranksFile.note.length > 30, 'ranks.json 有說明它不代表任何外部認證');
@@ -3957,8 +4010,16 @@ for (const r of RANKS) {
   ok(nonEmptyStr(r.titleEn) && /^[A-Za-z\s'-]+$/.test(r.titleEn), `${r.id} 有英文副名`);
   ok(nonEmptyStr(r.line) && r.line.length >= 8 && r.line.length <= 40, `${r.id} 的一句話長度合理（${r.line.length} 字）`);
   ok(Number.isInteger(r.level) && r.level >= 1, `${r.id} 的等級門檻是正整數`);
-  ok(Number.isInteger(r.collected) && r.collected >= 0, `${r.id} 的收集門檻是非負整數`);
-  ok(Number.isInteger(r.mastered) && r.mastered >= 0 && r.mastered <= 5, `${r.id} 的精通門檻在 0..5`);
+  ok(
+    r.collected === 'all' || (Number.isInteger(r.collected) && r.collected >= 0),
+    `${r.id} 的收集門檻是非負整數或 "all"`
+  );
+  ok(
+    r.mastered === 'all' || (Number.isInteger(r.mastered) && r.mastered >= 0),
+    `${r.id} 的精通門檻是非負整數或 "all"`
+  );
+  ok(thrCollected(r) <= RANK_WHOLE.total, `${r.id} 的收集門檻拿得到（不超過目前技巧總數）`, `${thrCollected(r)}`);
+  ok(thrMastered(r) <= RANK_WHOLE.regions, `${r.id} 的精通門檻拿得到（不超過已上線區域數）`, `${thrMastered(r)}`);
   // 稱號是風味內容：不得帶連結、不得自帶 source（真正的出處只在關卡與圖鑑）
   ok(!/https?:\/\//.test(JSON.stringify(r)), `${r.id} 不自帶連結`);
   ok(!('source' in r) && !('sources' in r), `${r.id} 沒有 source 欄位`);
@@ -3969,17 +4030,23 @@ for (const r of RANKS) {
 eq(RANKS[0].level, 1, '第一個稱號從 Lv.1 起算');
 eq(RANKS[0].collected, 0, '第一個稱號不需要任何收集');
 eq(RANKS[0].mastered, 0, '第一個稱號不需要任何精通');
-eq(RANKS[RANKS.length - 1].collected, (curriculum.techniques || []).length, '最後一個稱號要求收集全部技巧');
-eq(RANKS[RANKS.length - 1].mastered, (curriculum.groups || []).length, '最後一個稱號要求五片土地全部精通');
+eq(thrCollected(RANKS[RANKS.length - 1]), catalog.counts.techniques, '最後一個稱號要求收集全部技巧（由 catalog 現算）');
+eq(
+  thrMastered(RANKS[RANKS.length - 1]),
+  catalog.counts.implementedRegions,
+  '最後一個稱號要求所有已上線的土地全部精通（由 catalog 現算）'
+);
+eq(RANKS[RANKS.length - 1].collected, 'all', '最後一個稱號的收集門檻寫成 "all"，不是寫死的數字');
+eq(RANKS[RANKS.length - 1].mastered, 'all', '最後一個稱號的精通門檻寫成 "all"，不是寫死的數字');
 
 for (let i = 1; i < RANKS.length; i += 1) {
   const a = RANKS[i - 1];
   const b = RANKS[i];
   ok(b.level >= a.level, `門檻單調：${b.id} 的等級不低於 ${a.id}`);
-  ok(b.collected >= a.collected, `門檻單調：${b.id} 的收集數不低於 ${a.id}`);
-  ok(b.mastered >= a.mastered, `門檻單調：${b.id} 的精通數不低於 ${a.id}`);
+  ok(thrCollected(b) >= thrCollected(a), `門檻單調：${b.id} 的收集數不低於 ${a.id}`);
+  ok(thrMastered(b) >= thrMastered(a), `門檻單調：${b.id} 的精通數不低於 ${a.id}`);
   ok(
-    b.level > a.level || b.collected > a.collected || b.mastered > a.mastered,
+    b.level > a.level || thrCollected(b) > thrCollected(a) || thrMastered(b) > thrMastered(a),
     `${b.id} 至少有一項門檻真的變高（否則會被 ${a.id} 蓋掉）`
   );
 }
@@ -3987,37 +4054,51 @@ for (let i = 1; i < RANKS.length; i += 1) {
 // 拿每個稱號自己的門檻去查，一定要查回它自己（不會被上一個或下一個蓋掉）
 for (let i = 0; i < RANKS.length; i += 1) {
   const r = RANKS[i];
-  const got = rankFor({ level: r.level, collected: r.collected, mastered: r.mastered }, RANKS);
+  const got = rankFor(atRank(r), RANKS);
   eq(got.rank.id, r.id, `門檻剛好達到時就是「${r.title}」`);
   eq(got.index, i, `${r.id} 的序號正確`);
   eq(got.next ? got.next.id : null, RANKS[i + 1] ? RANKS[i + 1].id : null, `${r.id} 指得出下一個稱號`);
 }
-eq(rankFor({ level: 0, collected: 0, mastered: 0 }, RANKS).rank.id, RANKS[0].id, '什麼都沒有時是第一個稱號');
-eq(rankFor({ level: 99, collected: 999, mastered: 9 }, RANKS).rank.id, RANKS[RANKS.length - 1].id, '滿到爆時是最後一個稱號');
-eq(rankFor({ level: 99, collected: 999, mastered: 9 }, RANKS).next, null, '最後一個稱號沒有下一個');
+const MAXED = { level: 99, collected: 999, mastered: 99, ...RANK_WHOLE };
+eq(rankFor({ level: 0, collected: 0, mastered: 0, ...RANK_WHOLE }, RANKS).rank.id, RANKS[0].id, '什麼都沒有時是第一個稱號');
+eq(rankFor(MAXED, RANKS).rank.id, RANKS[RANKS.length - 1].id, '滿到爆時是最後一個稱號');
+eq(rankFor(MAXED, RANKS).next, null, '最後一個稱號沒有下一個');
 eq(rankFor({ level: 1, collected: 0, mastered: 0 }, []).rank, null, '沒有稱號資料時安靜回 null（不丟例外）');
 // 三個條件是 AND：等級夠但收集不夠，不能晉級
 eq(
-  rankFor({ level: 99, collected: RANKS[1].collected - 1, mastered: 9 }, RANKS).rank.id,
+  rankFor({ ...MAXED, collected: thrCollected(RANKS[1]) - 1 }, RANKS).rank.id,
   RANKS[0].id,
   '等級再高，收集數不夠就晉不了級（三個條件是 AND）'
 );
-eq(rankSatisfied({ level: 1, collected: 0, mastered: 0 }, RANKS[1]), false, 'rankSatisfied：門檻沒到就是 false');
+eq(rankSatisfied({ level: 1, collected: 0, mastered: 0, ...RANK_WHOLE }, RANKS[1]), false, 'rankSatisfied：門檻沒到就是 false');
+// "all" 是「現算」不是「寫死」：技巧總數變多時，最高階稱號的門檻要跟著變高
+eq(
+  rankSatisfied({ level: 99, collected: catalog.counts.techniques, mastered: 99, total: catalog.counts.techniques + 10, regions: 99 }, RANKS[RANKS.length - 1]),
+  false,
+  '"all" 會跟著課程長大：技巧總數變多時，原本的收集數就不再算「全部」'
+);
 
 /* --- 每一個稱號都走得到：用真的進程系統跑一次「全部只拿 C」的最壞路徑 --- */
 memory.clear();
-const rankProg = createProgression({ curriculum, challenges });
+const rankProg = createProgression({ catalog, challenges });
 const visited = [];
 function noteRank() {
-  const info = rankFor(rankStats(rankProg, curriculum), RANKS);
+  const info = rankFor(rankStats(rankProg, catalog), RANKS);
   if (!visited.length || visited[visited.length - 1] !== info.rank.id) visited.push(info.rank.id);
 }
 noteRank();
-const zeroStats = rankStats(rankProg, curriculum);
+const zeroStats = rankStats(rankProg, catalog);
 eq(zeroStats.level, 1, 'rankStats：新存檔是 Lv.1');
 eq(zeroStats.collected, 0, 'rankStats：新存檔收集 0 條');
 eq(zeroStats.mastered, 0, 'rankStats：新存檔精通 0 片');
-eq(zeroStats.total, (curriculum.techniques || []).length, 'rankStats：技巧總數正確');
+eq(zeroStats.total, catalog.counts.techniques, 'rankStats：技巧總數正確');
+eq(zeroStats.regions, catalog.counts.implementedRegions, 'rankStats：區域數只算已上線的（不含尚未蓋好的七區）');
+// 舊呼叫端（直接丟 curriculum.json）行為必須完全一樣
+eq(
+  JSON.stringify(rankStats(rankProg, curriculum)),
+  JSON.stringify(rankStats(rankProg, catalog)),
+  'rankStats：丟 curriculum 或丟 catalog 的結果一模一樣（相容層沒有偷偷改行為）'
+);
 
 for (const c of challenges) {
   rankProg.recordResult({
@@ -4029,9 +4110,9 @@ for (const c of challenges) {
   });
   noteRank();
 }
-const finalStats = rankStats(rankProg, curriculum);
-eq(finalStats.collected, (curriculum.techniques || []).length, '全 C 通關後 68 條技巧全收集');
-eq(finalStats.mastered, (curriculum.groups || []).length, '全 C 通關後五片土地全精通');
+const finalStats = rankStats(rankProg, catalog);
+eq(finalStats.collected, catalog.counts.techniques, '全 C 通關後所有技巧全收集');
+eq(finalStats.mastered, catalog.counts.implementedRegions, '全 C 通關後所有已上線的土地全精通');
 ok(
   finalStats.level >= RANKS[RANKS.length - 1].level,
   `全 C 通關的等級（${finalStats.level}）足以拿到最後一個稱號（需要 Lv.${RANKS[RANKS.length - 1].level}）`
@@ -5062,7 +5143,7 @@ console.log('\n▸ 課程 v2 遷移契約（Phase 0／A）');
   const migration = readJson('docs/design/curriculum-v2-migration.json');
   const rows = migration.challenges;
 
-  eq(rows.length, 27, 'manifest 有 27 關（一關都不能少）');
+  eq(rows.length, EXPECT.challenges.value, `manifest 有 ${EXPECT.challenges.value} 關（一關都不能少）`);
   eq(migration.authored, 'game', 'manifest 標成遊戲自撰（它是實作契約，不是官方引文）');
 
   // id 與現況資料逐一對得起來（順序也一樣）
@@ -5074,7 +5155,11 @@ console.log('\n▸ 課程 v2 遷移契約（Phase 0／A）');
   eq(tally.keep, 5, 'D1：保留 5 關（逐關表逐行點名，不是摘要數字）');
   eq(tally.rework, 20, 'D1：改造 20 關');
   eq(tally.application, 2, 'D1：轉為應用關 2 關');
-  eq(tally.keep + tally.rework + tally.application, rows.length, 'D1：三種處置加起來剛好 27，沒有漏關也沒有重複');
+  eq(
+    tally.keep + tally.rework + tally.application,
+    rows.length,
+    `D1：三種處置加起來剛好 ${rows.length}，沒有漏關也沒有重複`
+  );
   for (const r of rows) {
     ok(['keep', 'rework', 'application'].includes(r.disposition), `${r.id} 的處置是三種之一`, r.disposition);
   }
@@ -5390,6 +5475,298 @@ console.log('\n▸ 小數門檻的顯示與「一關只教一條」（Phase A）
     const primaries = challenges.map((c) => c.primaryTechniqueId).filter(Boolean);
     eq(new Set(primaries).size, primaries.length, '25 條主技巧互不重複（C2）');
     eq(primaries.length, 25, '25 關有主技巧、2 關應用關沒有');
+  }
+}
+
+/* ================================================================== */
+/* 課程 v2 · Phase B step 1 — runtime catalog bridge                   */
+/*                                                                     */
+/*   舊 68 條技巧（curriculum.json，官方引文、byte-identical）          */
+/* ＋ 130 條 v2 技能（skill-codex-v2.json，authored: game）             */
+/* ＋ 12 區（regions-v2.json，其中 7 區 implemented: false）            */
+/* 合成同一份 runtime catalog。這一段守三件事：                        */
+/*   (a) 資料契約（130 / 12 / 先修無環 / 出處是真的官方連結）           */
+/*   (b) 護欄 2：每一條技能的 sources 都回查得到 master list 的條目     */
+/*   (c) 行為中立：已上線那五區的列舉結果與舊的 curriculum.groups 一樣  */
+/* ================================================================== */
+console.log('\n▸ 課程 v2 runtime catalog（Phase B step 1）');
+{
+  /* --- 檔頭：這是 authored 層，不是官方引文 --- */
+  eq(skillCodexV2.authored, 'game', 'skill-codex-v2.json 標明是遊戲自撰的技能總表');
+  eq(regionsV2.authored, 'game', 'regions-v2.json 標明是遊戲自撰');
+  ok(nonEmptyStr(skillCodexV2.note) && skillCodexV2.note.length > 40, 'skill-codex-v2.json 說清楚哪些是自撰、哪些是官方');
+  ok(/curriculum\.json/.test(skillCodexV2.note), 'skill-codex-v2.json 明講舊 68 條的官方引文仍以 curriculum.json 為準');
+  ok(Boolean(skillCodexV2.provenance && skillCodexV2.provenance.sources), 'skill-codex-v2.json 寫得出出處是從哪裡解析來的');
+
+  /* --- 數量：這是當期的契約（scripts/expected-counts.json） --- */
+  eq(catalog.counts.skills, EXPECT.v2Skills.value, `${EXPECT.v2Skills.value} 條技能（curriculum-v2 §一）`);
+  eq(catalog.counts.regions, EXPECT.v2Regions.value, `${EXPECT.v2Regions.value} 個區域（curriculum-v2 §二）`);
+  eq(
+    catalog.counts.implementedRegions,
+    EXPECT.v2ImplementedRegions.value,
+    `其中 ${EXPECT.v2ImplementedRegions.value} 區已經在世界裡蓋好`
+  );
+  eq(catalog.counts.upcomingRegions, catalog.counts.regions - catalog.counts.implementedRegions, '其餘全部標成尚未上線');
+  eq(catalog.counts.techniques, curriculum.techniques.length, 'catalog 的技巧數＝curriculum 的技巧數（沒有偷加東西）');
+
+  /* --- id 唯一、區域加總＝技能總數 --- */
+  const ids = catalog.skills.map((s) => s.id);
+  eq(new Set(ids).size, ids.length, '技能 id 互不重複');
+  const sum = catalog.regions.reduce((a, r) => a + r.skillIds.length, 0);
+  eq(sum, catalog.counts.skills, '12 區的技能數加起來剛好等於技能總數（沒有孤兒、沒有重複認領）');
+  for (const r of catalog.regions) {
+    eq(catalog.regionSkills(r.id).length, r.skillIds.length, `[${r.id}] regionSkills() 查得回每一條技能`);
+    ok(nonEmptyStr(r.nameZh) && CJK.test(r.nameZh), `[${r.id}] 有中文區名`, r.nameZh);
+    ok(nonEmptyStr(r.theme) && r.theme.length >= 10, `[${r.id}] 有主題句`);
+    ok(nonEmptyStr(r.landmark), `[${r.id}] 有地標概念`);
+    ok(typeof r.implemented === 'boolean', `[${r.id}] implemented 是布林`);
+    ok(nonEmptyStr(r.gate && r.gate.text), `[${r.id}] 有軟門檻的原句`);
+  }
+
+  /* --- 先修：解得開、而且無環 --- */
+  const byId = new Map(catalog.skills.map((s) => [s.id, s]));
+  for (const s of catalog.skills) {
+    for (const p of s.prereqs) ok(byId.has(p), `[${s.id}] 先修 ${p} 是真的技能`);
+    ok(!s.prereqs.includes(s.id), `[${s.id}] 不會把自己列成先修`);
+  }
+  {
+    // 拓撲排序：排得完 ⇒ 無環
+    const indeg = new Map(catalog.skills.map((s) => [s.id, s.prereqs.length]));
+    const out = new Map(catalog.skills.map((s) => [s.id, []]));
+    for (const s of catalog.skills) for (const p of s.prereqs) out.get(p).push(s.id);
+    const queue = [...indeg].filter(([, n]) => n === 0).map(([id]) => id);
+    let done = 0;
+    while (queue.length) {
+      const id = queue.shift();
+      done += 1;
+      for (const nxt of out.get(id)) {
+        indeg.set(nxt, indeg.get(nxt) - 1);
+        if (indeg.get(nxt) === 0) queue.push(nxt);
+      }
+    }
+    eq(done, catalog.counts.skills, '技能先修圖是有向無環圖（拓撲排得完）');
+  }
+
+  /* --- tier --- */
+  const tierIds = new Set((skillCodexV2.tiers || []).map((t) => t.id));
+  eq([...tierIds].sort().join(','), 'advanced,basic,master', '三個 tier 都有定義');
+  for (const s of catalog.skills) ok(tierIds.has(s.tier), `[${s.id}] tier 合法`, s.tier);
+  for (const t of tierIds) ok(catalog.skillsOfTier(t).length > 0, `tier ${t} 至少有一條技能`);
+
+  /* --- 玩家可見的中文欄位（之後會上畫面） --- */
+  for (const s of catalog.skills) {
+    ok(CJK.test(s.nameZh), `[${s.id}] 中文名是中文`, s.nameZh);
+    ok(s.oneLiner.length >= 8, `[${s.id}] 一句話夠長`, s.oneLiner);
+    ok(/^[\x20-\x7E]+$/.test(s.nameEn), `[${s.id}] 英文短名是純 ASCII`, s.nameEn);
+    ok(!/https?:\/\//.test(`${s.nameZh}${s.oneLiner}`), `[${s.id}] 自撰敘述本身不夾連結（出處只走 sources）`);
+  }
+
+  /* --- 出處：護欄 2 的核心 --------------------------------------- *
+   * 每一條技能的每一個出處都必須真的出現在 master list 對應條目的
+   * 「出處」欄裡。這一條讓「自撰摘要冒充官方引文」在結構上不可能。 */
+  const masterMd = readFileSync(resolve(root, 'docs/prompt-engineering-master-list.md'), 'utf8');
+  const masterEntries = new Map();
+  {
+    let cur = null;
+    let inSources = false;
+    for (const line of masterMd.split('\n')) {
+      const h = /^### (\d+)\. (.+)$/.exec(line);
+      if (h) {
+        cur = { n: Number(h[1]), title: h[2], urls: new Set(), notFound: /找不到/.test(h[2]) };
+        masterEntries.set(cur.n, cur);
+        inSources = false;
+        continue;
+      }
+      if (!cur) continue;
+      if (/^- \*\*出處\*\*[:：]/.test(line)) {
+        inSources = true;
+      } else if (/^- \*\*/.test(line) || /^#{2,3} /.test(line)) {
+        inSources = false;
+      }
+      if (!inSources) continue;
+      for (const m of line.matchAll(/https:\/\/[^\s)*、，]+/g)) cur.urls.add(m[0]);
+      if (/找不到/.test(line)) cur.notFound = true;
+    }
+  }
+  ok(masterEntries.size >= 292, `master list 解析得出 ${masterEntries.size} 個條目`);
+
+  let sourceRows = 0;
+  for (const s of catalog.skills) {
+    for (const n of s.masterRefs) ok(masterEntries.has(n), `[${s.id}] master #${n} 在總表裡真的存在`);
+    for (const src of s.sources) {
+      sourceRows += 1;
+      ok(/^https:\/\//.test(src.url), `[${s.id}] 出處是 https`, src.url);
+      ok(nonEmptyStr(src.vendor), `[${s.id}] 出處標得出廠商`, src.url);
+      ok(s.masterRefs.includes(src.masterRef), `[${s.id}] 出處的 masterRef 在自己的 masterRefs 裡`, String(src.masterRef));
+      const entry = masterEntries.get(src.masterRef);
+      ok(
+        Boolean(entry && entry.urls.has(src.url)),
+        `[${s.id}] 出處逐字取自 master #${src.masterRef} 的「出處」欄（不是自己編的）`,
+        src.url
+      );
+    }
+    /* 護欄 2：沒有可驗證出處 → 一定要誠實寫明 */
+    if (!s.sources.length) {
+      ok(nonEmptyStr(s.sourceNote), `[${s.id}] 沒有出處時寫得出誠實說明`);
+      ok(/找不到/.test(s.sourceNote), `[${s.id}] 的說明把「找不到」講出來`, s.sourceNote);
+    }
+  }
+  ok(sourceRows >= catalog.counts.skills, `${sourceRows} 筆出處，平均每條技能至少一筆`);
+  eq(
+    catalog.counts.skillsWithoutSource,
+    EXPECT.v2SkillsWithoutSource.value,
+    `目前 ${EXPECT.v2SkillsWithoutSource.value} 條技能沒有可驗證出處`
+  );
+  ok(
+    catalog.counts.skillsWithoutSource <= EXPECT.v2SkillsWithoutSource.max,
+    `沒有出處的技能不超過 ${EXPECT.v2SkillsWithoutSource.max} 條（master list 的「找不到」集合上限）`
+  );
+  /* 蒸餾規則 3：總表標「找不到」的條目不得被任何技能引用 */
+  for (const s of catalog.skills) {
+    for (const n of s.masterRefs) {
+      const entry = masterEntries.get(n);
+      if (!entry) continue;
+      ok(!(entry.notFound && entry.urls.size === 0), `[${s.id}] 沒有引用「出處找不到」的 master #${n}`, entry.title);
+    }
+  }
+
+  /* --- 新舊對照（D2 的相容橋） --- */
+  for (const s of catalog.skills) {
+    if (!s.legacyTechniqueId) {
+      eq(s.legacyTechniqueSource, null, `[${s.id}] 沒有祖先時來源欄也是 null`);
+      continue;
+    }
+    ok(techById.has(s.legacyTechniqueId), `[${s.id}] legacyTechniqueId 是 curriculum 裡真的技巧`, s.legacyTechniqueId);
+    ok(
+      ['migration-manifest', 'appendix-c-subset', 'curated'].includes(s.legacyTechniqueSource),
+      `[${s.id}] 說得出這個對照是怎麼來的`,
+      String(s.legacyTechniqueSource)
+    );
+    const back = catalog.skillsForTechnique(s.legacyTechniqueId).map((x) => x.id);
+    ok(back.includes(s.id), `[${s.id}] 反查 skillsForTechnique 找得回自己`);
+    eq(catalog.techniqueForSkill(s.id).id, s.legacyTechniqueId, `[${s.id}] techniqueForSkill 對得起來`);
+  }
+  {
+    /* 遷移 manifest 指定的 v2SkillId 必須真的存在（Phase 0 的 needsV2Catalog 在這裡收尾） */
+    const migration = readJson('docs/design/curriculum-v2-migration.json');
+    for (const row of migration.challenges) {
+      if (!row.v2SkillId) continue;
+      ok(Boolean(catalog.skill(row.v2SkillId)), `遷移 manifest 的 ${row.id} → 技能 ${row.v2SkillId} 真的存在`);
+    }
+    const needs = migration.challenges.filter((r) => r.needsV2Catalog);
+    for (const row of needs) {
+      const skill = catalog.skill(row.v2SkillId);
+      ok(Boolean(skill), `${row.id} 標了 needsV2Catalog，v2 catalog 現在補上了 ${row.v2SkillId}`);
+      ok(
+        skill && (skill.sources || []).length > 0,
+        `${row.v2SkillId} 在 v2 catalog 裡有自己的官方出處（不必再借 curriculum 的技巧）`
+      );
+      ok(
+        skill && skill.legacyTechniqueId === null && nonEmptyStr(skill.legacyNote),
+        `${row.v2SkillId} 誠實記下「舊 68 條裡沒有祖先」`,
+        String(skill && skill.legacyTechniqueId)
+      );
+    }
+    ok(needs.length > 0, '遷移 manifest 裡至少有一關本來就在等 v2 catalog');
+  }
+
+  /* --- 行為中立：已上線的五區列舉結果與舊的一模一樣 --- */
+  eq(
+    catalog.implementedRegionIds().join(','),
+    curriculum.groups.map((g) => g.id).join(','),
+    '已上線的區域＝curriculum.groups（id 與順序都一樣）'
+  );
+  for (const r of catalog.upcomingRegions()) {
+    ok(!curriculum.groups.some((g) => g.id === r.id), `尚未上線的 ${r.id} 不在 curriculum.groups 裡`);
+    eq(
+      challenges.filter((c) => c.region === r.id).length,
+      0,
+      `尚未上線的 ${r.id} 沒有任何關卡（這一期只加資料，不加世界）`
+    );
+  }
+  {
+    const { createContent } = await import('../src/challenges/content.js');
+    const withCatalog = createContent(curriculum, challengeData, null, null, null, null, null, catalog);
+    const legacyOnly = createContent(curriculum, challengeData);
+    eq(
+      JSON.stringify(withCatalog.groupsOrdered()),
+      JSON.stringify(curriculum.groups.slice().sort((a, b) => a.order - b.order)),
+      'content.groupsOrdered() 走 catalog 之後輸出完全沒變'
+    );
+    eq(
+      JSON.stringify(legacyOnly.groupsOrdered()),
+      JSON.stringify(withCatalog.groupsOrdered()),
+      '沒傳 catalog 的舊呼叫端行為也一樣（相容層）'
+    );
+    eq(withCatalog.regionsOrdered().length, catalog.counts.implementedRegions, 'content.regionsOrdered() 只列已上線的區域');
+    eq(withCatalog.skill('clear-golden').regionId, 'foundations', 'content.skill() 查得到 v2 技能');
+  }
+  {
+    /* progression：丟 catalog 與丟 curriculum 的列舉結果一致 */
+    memory.clear();
+    const a = createProgression({ catalog, challenges });
+    const b = createProgression({ curriculum, challenges });
+    eq(a.masteredRegions().join(','), b.masteredRegions().join(','), 'progression：兩種建法的精通列舉一致');
+    eq(
+      JSON.stringify(a.hiddenAchievement()),
+      JSON.stringify(b.hiddenAchievement()),
+      'progression：兩種建法的隱藏成就統計一致'
+    );
+    eq(a.hiddenAchievement().total, catalog.counts.techniques, 'progression：隱藏成就的總數來自 catalog');
+    const { REGION_GATES: GATES } = await import('../src/progression/progression.js');
+    eq(
+      Object.keys(GATES).join(','),
+      catalog.implementedRegionIds().join(','),
+      'REGION_GATES 涵蓋且只涵蓋已上線的區域'
+    );
+    memory.clear();
+  }
+
+  /* --- fail fast：資料壞掉一定丟例外，不安靜降級 --- */
+  const clone = () => JSON.parse(JSON.stringify(skillCodexV2));
+  const throws = (mutate, label) => {
+    const bad = clone();
+    mutate(bad);
+    let threw = false;
+    try {
+      createCatalog({ curriculum, skillCodex: bad, regions: JSON.parse(JSON.stringify(regionsV2)) });
+    } catch {
+      threw = true;
+    }
+    ok(threw, `壞資料會當場丟例外：${label}`);
+  };
+  throws((d) => {
+    d.skills[1].id = d.skills[0].id;
+  }, '重複的技能 id');
+  throws((d) => {
+    d.skills[0].prereqs = ['does-not-exist'];
+  }, '先修指到不存在的技能');
+  throws((d) => {
+    d.skills[0].prereqs = [d.skills[0].id];
+  }, '先修成環');
+  throws((d) => {
+    d.skills[0].tier = 'legendary';
+  }, '不合法的 tier');
+  throws((d) => {
+    d.skills[0].sources[0].url = 'http://example.com';
+  }, '出處不是 https');
+  throws((d) => {
+    d.skills[0].sources = [];
+    delete d.skills[0].sourceNote;
+  }, '既沒有出處也沒有誠實說明');
+  throws((d) => {
+    d.skills[0].legacyTechniqueId = 'not-a-technique';
+  }, 'legacyTechniqueId 不在 curriculum 裡');
+  {
+    const badRegions = JSON.parse(JSON.stringify(regionsV2));
+    badRegions.regions[5].implemented = true; // 把還沒蓋好的 forms 標成已上線
+    let threw = false;
+    try {
+      createCatalog({ curriculum, skillCodex: skillCodexV2, regions: badRegions });
+    } catch {
+      threw = true;
+    }
+    ok(threw, '壞資料會當場丟例外：把還沒蓋好的區域標成已上線');
   }
 }
 

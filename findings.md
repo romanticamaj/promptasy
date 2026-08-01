@@ -174,3 +174,39 @@
 - 工作樹、測試與 build 現況。
 - `curriculum-v2.md` §8 A–K 路線與 Phase A／B 的檔案級契約。
 - `gap-analysis.md` §3 的逐關重複度診斷。
+
+## Phase B step 1 實作發現（catalog bridge · 2026-08-01）
+
+- **`groupsOrdered()` 是整個相容層最危險的一格**。第一版讓 catalog 在「只給 curriculum」時
+  回傳空的區域表，結果 `content.groupsOrdered()` 直接變成 `[]` —— 圖鑑與結果卡會整個空掉。
+  已改成：沒給 `regions-v2` 時就用 `curriculum.groups` **就地合成一份「全部已上線」的區域表**，
+  並加了一條測試逐欄比對「catalog 版 == legacy 版」，之後任何人動這一層都會被擋下來。
+- **`legacyTechniqueId` 是多對一，而且必須允許重複**。`clarity-03` 同時是 `clear-specific`
+  （遷移 manifest 指定）與 `clear-constraint`（附錄 C 子集推導）的祖先 —— 這是「舊課程一條、
+  v2 拆成兩條」的正常結果，不是錯誤。真正要唯一的是**關卡的 `primaryTechniqueId`**（C2），
+  那條約束仍然在 Phase A 的測試裡守著，兩者語意不同不要混為一談。
+- **遷移 manifest 的 `needsV2Catalog` 在這一期收尾了**：`oracle-workshop-36` 的 v2 技能
+  `tool-when-not` 在舊 68 條裡沒有祖先，Phase 0 暫用 `agentic-01` 佔位。現在 `agentic-01`
+  的真正後裔是 `tool-native-field`（「用 API 的 tools 欄位定義工具」逐字對得上），
+  所以 `tool-when-not.legacyTechniqueId` 誠實填 `null` ＋ `legacyNote` 記下理由，
+  並由測試強制「標了 needsV2Catalog 的關卡，其 v2 技能必須有自己的官方出處且誠實記下沒有祖先」。
+- **出處不能用人工重打，要用解析的**。130 條技能的 445 筆出處全部由程式從 master list 的
+  「出處」欄擷取；測試在 CI 裡**重新解析一次 master list 並逐筆回查**。這讓「自撰摘要冒充官方引文」
+  在結構上不可能發生（護欄 2），代價只是測試多跑一次 markdown 解析。
+- **master list 的「出處」欄有兩種寫法**（多行條列、以及單行 `- **出處**：X · Y — url`），
+  還有一種尾巴帶 `**（原文件已標示下架…）**` 的變體。只寫多行版的解析器會漏掉 100 多個條目
+  且完全不報錯 —— 這種「安靜漏掉」比壞掉更危險，所以解析器與測試都同時處理三種形態，
+  並以「零個條目解析不到出處」當成健康度斷言（實際只有 #11 是真的找不到）。
+- **`docs/design/curriculum-v2.md` §1 蒸餾規則 3 已經先把「找不到」的條目排除掉了**，
+  所以 130 條技能實際上**一條都沒有** `sources: []`。任務預期的「≤3 條」上限仍然寫進
+  `scripts/expected-counts.json` 當天花板，超過就代表有人把沒出處的東西寫成教學。
+- **`ranks.json` 的最高階門檻改成 `"all"` 是唯一會動到玩家可見數字的地方**（目前解析成 68／5，
+  完全一樣）。稱號那句話「六十八條刻文全數入冊，五片土地與你同聲」刻意**不動** ——
+  那是世界觀台詞，等課程真的長大時再一起改寫，現在改只會製造無意義的 e2e 差異。
+- **字型語料是保守超集，會被新資料檔拉大**：CJK 1634 → 1664 字、1331.5 → 1348.4 KB，
+  因為掃到了 `skill-codex-v2.json` 裡的中文廠商名（`Qwen（阿里雲百煉）`）、中文文件名與區域主題句。
+  這些字目前一個都還沒上畫面。Phase 6 的建議（「執行期偵測缺字再改成只掃字串字面值」）仍然有效，
+  但在新內容一期一期進來的階段，寧可多切也不要漏字。
+- **e2e 的 6 條環境型 flaky 在 load average 11 的機器上會一起出現**（開場曲自動播放時序、
+  fps 暖機、火盆亮度取樣、設定焦點時序、拖曳 2 條）。第二次跑 1,816 項全過。
+  這一組值得之後照 `AGENTS.md` 全部改成 poll-until —— 目前只有拖曳那一組（Phase A）改過。

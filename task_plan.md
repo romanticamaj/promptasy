@@ -131,7 +131,7 @@ Exit criteria（逐條實測）：
 
 ### Phase B — v2 catalog bridge＋`fix`／`spot`＋foundations 14
 
-狀態：`pending`
+狀態：`in progress` — **step 1（catalog bridge）done（2026-08-01）**，step 2（`fix`／`spot`＋foundations 十座）pending
 
 先做 catalog bridge：
 
@@ -149,6 +149,27 @@ Exit criteria（逐條實測）：
 - `styles.css` 與 e2e：鍵盤、焦點、aria-live、reduced-motion、窄 viewport 可量測。
 
 Exit：foundations 有 14 教學神廟；`fix`／`spot` 各至少一條先紅後綠的完整 e2e；舊三 kind 行為不變；fonts＋rubric＋playtest＋build＋e2e 綠。
+
+#### Step 1 — v2 catalog bridge ✅ done（2026-08-01）
+
+只做「資料 ＋ loader ＋ 去硬編碼」，**玩家看到的東西一個像素都沒變**（新七區只在資料層，`implemented: false`）。
+
+- [x] `src/data/skill-codex-v2.json`：130 條技能（id／中文名／英文短名／tier／區域／先修／`masterRefs`／
+      `sources`／`legacyTechniqueId`／`oneLiner`），445 筆官方出處**逐條解析自 master list 的「出處」欄**
+      （測試逐條回查，自撰摘要在結構上無法冒充官方引文）。
+- [x] `src/data/regions-v2.json`：12 區（既有五區 id／名稱／顏色沿用 curriculum，新七區 `implemented: false`），
+      技能數加總 130；`gate` 是 v2 知識式軟門檻的**規格**，尚未啟用（現行解鎖仍由 `REGION_GATES` 決定）。
+- [x] `src/challenges/catalog.js`：單一 loader，建構時就驗（重複 id／先修不存在／成環／非 https 出處／
+      無出處又無誠實說明／區域加總／已上線區域必須等於 `curriculum.groups`）→ 不合就丟例外，不安靜降級。
+- [x] 去硬編碼：`main.js`、`content.js`、`progression.js`、`ranks.js`、`ranks.json`、`codex.js`、
+      `settings.js`、`achievement.js` —— 區域與技巧的列舉、隱藏成就與稱號門檻全部改由 catalog 現算
+      （`ranks.json` 最高階稱號的 68／5 改成 `"all"`）。
+- [x] 去硬編碼測試：`test-rubric.mjs` 與 `headless-check.mjs` 的 68／5／3 kinds 改成 catalog 推導；
+      真的是契約的數字（27 關、130 技能、12 區、5 區已上線、找不到出處 ≤3）登記進 `scripts/expected-counts.json`。
+- [x] 新增 rubric 區段「課程 v2 runtime catalog」：資料契約 ＋ 出處回查 ＋ 新舊對照 ＋ **行為中立**
+      （catalog 版與 legacy 版的列舉逐欄相同）＋ 8 條 fail-fast 破壞測試。
+- [x] 驗證：`fonts`（語料 58 檔／CJK 1664 字／1348.4 KB）、`test:rubric` 17,705 → **21,393**、
+      `test:playtest` 263（未改）、`build` ✓、`test:e2e` **1,816 項全過、零 console error**。
 
 ### Phase C — `induct`／`tradeoff`＋reasoning 15
 

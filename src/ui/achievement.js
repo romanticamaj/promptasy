@@ -1,5 +1,5 @@
 /**
- * Promptasy — 隱藏成就：68 條技巧全收集 ＋ 四廠徽章全達標
+ * Promptasy — 隱藏成就：全部技巧收集 ＋ 四廠徽章全達標
  *
  * 這是整趟旅程的收尾畫面：不給新的東西，只把玩家做到的事情好好講一次，
  * 並留下四廠官方文件的入口（護欄 2：內容可回溯到出處）。
@@ -63,7 +63,9 @@ export function createAchievement({ content, progression, onClose, onShare = nul
     `;
     overlay.body
       .querySelector('[data-share]')
-      ?.addEventListener('click', () => onShare?.({ kind: 'finale', headline: '68 / 68 全數收集' }));
+      ?.addEventListener('click', () =>
+        onShare?.({ kind: 'finale', headline: `${info.collected} / ${info.total} 全數收集` })
+      );
   }
 
   const api = {

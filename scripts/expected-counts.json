@@ -1,0 +1,32 @@
+{
+  "note": "測試用的「這是契約，不是快照」清單。凡是能從 runtime catalog 或資料檔算出來的數字（技巧數、區域數、技能數、flow 數…），測試一律現算，不寫在這裡；只有『這個數字本身就是當期的驗收目標』才登記在這裡，改動它＝有意識地改變契約。每一格都寫得出為什麼。",
+  "updatedAt": "2026-08-01",
+  "updatedBy": "課程 v2 · Phase B step 1（catalog bridge）",
+  "contract": {
+    "challenges": {
+      "value": 27,
+      "why": "現行關卡數。課程 v2 的終點是 130 教學神廟＋12 應用關；每一期新增神廟時要一起把這個數字往上調（task_plan §3）。"
+    },
+    "flowKinds": {
+      "value": ["choice", "order", "workshop"],
+      "why": "目前上線的刻印題型。Phase B 會加 fix／spot，加的時候要一起改這裡（flows.json 缺 kind 時預設 choice 的相容契約不變）。"
+    },
+    "v2Skills": {
+      "value": 130,
+      "why": "curriculum-v2 §一的技能總表：130 條技能 ↔ 130 座神廟（C1 一關一技巧）。"
+    },
+    "v2Regions": {
+      "value": 12,
+      "why": "curriculum-v2 §二的區域規劃。"
+    },
+    "v2ImplementedRegions": {
+      "value": 5,
+      "why": "世界裡真的蓋好的區域。Phase E（forms）、F（toolcraft／wards）、G（refinery）、H（frugality）、I（sight）、J（divergence）各自上線時 +1。"
+    },
+    "v2SkillsWithoutSource": {
+      "value": 0,
+      "why": "master list 標「出處找不到」的條目（唯一一條是 #11）在蒸餾規則 3 就被排除，所以 130 條技能目前每一條都有 ≥1 個可驗證官方連結。上限是 3；超過就代表有人把沒出處的東西寫成教學（護欄 2）。",
+      "max": 3
+    }
+  }
+}
