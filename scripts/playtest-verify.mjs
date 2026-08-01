@@ -644,6 +644,39 @@ export function runPlaytestVerify({ ok, eq }) {
     }
   }
 
+  /* ------------------------------------------------------------------ *
+   * G：量器坊 14 座（課程 v2 · Phase E）
+   *
+   * 這一區是第一塊新地形，內容量最大，所以另外守三道**這一區自己的**安全閘：
+   *   · 14 座都真的接得上這一區的技能，而且每一座都有第三幕的流程
+   *   · 「照著畫面上的東西做」一定過得了：全部選對每一條檢查滿分
+   *   · 起手的壞寫法一定還沒學到那一條（不然玩家沒有東西可以學）
+   * ------------------------------------------------------------------ */
+  {
+    const forms = challenges.filter((c) => c.region === 'forms');
+    ok(forms.length === 14, `playtest：量器坊有 14 座教學神廟（實際 ${forms.length}）`);
+    const skills = forms.map((c) => c.primarySkillId).filter(Boolean);
+    ok(skills.length === forms.length, 'playtest：量器坊每一關都接上了 v2 技能');
+    ok(new Set(skills).size === skills.length, 'playtest：量器坊的技能一條只教一次');
+    for (const c of forms) {
+      const tag = `[${c.id}]`;
+      const f = flowFile.flows[c.id];
+      ok(!!f, `${tag} playtest：量器坊的神廟有第三幕流程`);
+      if (!f) continue;
+      const picks = f.slots.map((sl) => sl.options.find((o) => o.correct).text).join('\n');
+      const ev = evaluate(c, picks);
+      ok(
+        ev.results.every((r) => r.passed),
+        `${tag} playtest：全部選對時每一條檢查都滿分`,
+        ev.results.filter((r) => !r.passed).map((r) => `${r.check}=${r.earned}/${r.weight}`).join('、')
+      );
+      const primary = c.rubric.find((r) => r.primary);
+      ok(Boolean(primary && primary.skillId === c.primarySkillId), `${tag} playtest：主檢查那一列掛著這一關的技能`);
+      ok(c.rubric.length === 2, `${tag} playtest：收斂成「一條主檢查 ＋ 一條地基」（C1）`, String(c.rubric.length));
+      ok(c.pass === 2, `${tag} playtest：門檻是 2 分`, String(c.pass));
+    }
+  }
+
   /* --- D：檢查器回歸案例 --- */
   for (const cse of CHECK_CASES) {
     const out = runCheck(cse.check, cse.text, cse.options || {});

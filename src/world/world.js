@@ -9,6 +9,7 @@
  *   grounding（脈絡與長文）  東北 · 沉書檔案庫
  *   orchestration（流程與代理）西南 · 齒輪工坊
  *   config（角色與參數）     東南 · 面具劇場
+ *   forms（量器坊）          正南 · 鑄場台階（課程 v2 · Phase E）
  */
 import * as THREE from 'three';
 import { PALETTE } from '../engine/engine.js';
@@ -34,6 +35,15 @@ export const REGION_SITES = Object.freeze([
   { id: 'grounding', x: 95, z: -95, radius: 46, flat: 34 },
   { id: 'orchestration', x: -95, z: 95, radius: 46, flat: 34 },
   { id: 'config', x: 95, z: 95, radius: 46, flat: 34 },
+  /*
+   * 課程 v2 · Phase E：量器坊。正南、單獨一條橋。
+   *
+   * 半徑 44（比其他四片小一點）是**地形網格的邊界**決定的：`buildTerrain()` 的
+   * 平面是 `WORLD_RADIUS * 2 + 40` ＝ 340 公尺見方（±170），把 z 拉到 124 之後
+   * 再多 44 剛好落在 168 —— 再往南就會有一角掉出網格外。
+   * 與東南／西南兩片土地的最近距離 99.3 公尺 > 44 + 46，中間留得出虛空。
+   */
+  { id: 'forms', x: 0, z: 124, radius: 44, flat: 32 },
 ]);
 
 const SITE_BY_ID = new Map(REGION_SITES.map((s) => [s.id, s]));
@@ -149,6 +159,16 @@ export const REGION_ATMOSPHERE = Object.freeze({
     exposure: 1.12,
     motes: 1.1,
   }),
+  // 量器坊：熄了火的鑄場 —— 冷錫色、空氣乾淨、螢火最少（沒有人在這裡走動很久了）
+  forms: Object.freeze({
+    fog: 0x263139,
+    tint: 0xd6dcc4,
+    hemi: 0.56,
+    fogNear: 58,
+    fogFar: 268,
+    exposure: 1.05,
+    motes: 0.62,
+  }),
 });
 
 /** 取得某區的氣氛設定（未知區域退回 foundations）。 */
@@ -226,6 +246,18 @@ function detailFor(site, x, z) {
     case 'config':
       // 面具劇場：往外升高的碗形觀眾席
       return stair(d / 8.5) * 0.9 - 2.2;
+    case 'forms':
+      /*
+       * 量器坊：整片土地就是一把躺著的尺。
+       * 由北（橋頭）往南一階一階降下去的長平台 —— 每一階是一格刻度，
+       * 中央再挖低一階當鑄槽。橫向只有很輕的波紋，剪影才讀得出「一階一階」。
+       */
+      return (
+        3.4 -
+        stair((lz + 34) / 11) * 0.92 -
+        smoothstep(26, 9, d) * 1.1 +
+        Math.cos(lx * 0.09) * 0.14
+      );
     default:
       return detailFoundations(x, z);
   }
@@ -766,6 +798,13 @@ const FLORA = Object.freeze({
     // 細桿 0.24 寬 → 走得過去
     { geo: () => new THREE.CylinderGeometry(0.1, 0.12, 3.2, 5), tint: 0.46, scale: [0.5, 1.1], lift: 1.6, tilt: 0.05 },
   ],
+  // 量器坊：倒模剩下的東西 —— 方的鑄塊、扁的量盤、細細的量針（三種剪影：方 / 圓 / 針）
+  forms: [
+    { geo: () => new THREE.BoxGeometry(1.4, 1.0, 1.4), tint: 0.3, scale: [0.5, 1.2], lift: 0.5, tilt: 0.14, solid: true },
+    { geo: () => new THREE.CylinderGeometry(1.0, 1.0, 0.34, 10), tint: 0.42, scale: [0.5, 1.3], lift: 0.2, tilt: 0.22 },
+    // 量針 0.18 寬 → 走得過去
+    { geo: () => new THREE.CylinderGeometry(0.05, 0.09, 2.8, 4), tint: 0.5, scale: [0.5, 1.2], lift: 1.4, tilt: 0.07 },
+  ],
 });
 
 /**
@@ -1064,6 +1103,71 @@ function buildRegionProps(site, color, quality, keepClear, pedestals = []) {
     poles.userData.solidRadius = 0.7;
     group.add(poles);
     group.add(masks);
+  } else if (site.id === 'forms') {
+    /*
+     * 量器坊（課程 v2 · Phase E）：熄了火的鑄場。
+     *
+     * 兩種東西，都是 InstancedMesh、都不新增光源（§6.1）：
+     *   · 量尺柱 —— 一根根立著、身上刻著格子的柱，成排站在台階邊
+     *   · 鑄槽   —— 躺在地上的長方石框，倒過模的凹槽（矮到跨得過去，不擋路）
+     * 刻度那一格用**自發光**的小方塊（加色混合），遠看就是柱身上的一排亮痕。
+     */
+    const postGeo = new THREE.CylinderGeometry(0.42, 0.52, 5.2, 6);
+    const POST_N = 18;
+    const posts = new THREE.InstancedMesh(postGeo, stoneMat, POST_N);
+    posts.castShadow = shadow;
+    const tickGeo = new THREE.BoxGeometry(1.06, 0.1, 0.1);
+    const TICKS_PER_POST = 4;
+    const ticks = new THREE.InstancedMesh(tickGeo, glowMat, POST_N * TICKS_PER_POST);
+    let postN = 0;
+    let tickN = 0;
+    for (let i = 0; i < POST_N; i += 1) {
+      const { x, z } = place(16, site.radius - 7);
+      const gy = terrainHeight(x, z);
+      const scale = 0.72 + rand() * 0.6;
+      const spin = rand() * Math.PI;
+      p.set(x, gy + 2.6 * scale, z);
+      q.setFromEuler(new THREE.Euler(0, spin, 0));
+      s.set(scale, scale, scale);
+      posts.setMatrixAt(postN, m.compose(p, q, s));
+      postN += 1;
+      // 柱身上的刻度：由下往上等距，越高越短（那是量度，不是裝飾）
+      for (let k = 0; k < TICKS_PER_POST; k += 1) {
+        const t = (k + 1) / (TICKS_PER_POST + 1);
+        p.set(x, gy + 5.2 * scale * t, z);
+        q.setFromEuler(new THREE.Euler(0, spin, 0));
+        const w = (1 - t * 0.45) * scale * 0.9;
+        s.set(w, scale, scale);
+        ticks.setMatrixAt(tickN, m.compose(p, q, s));
+        tickN += 1;
+      }
+    }
+    posts.count = postN;
+    ticks.count = tickN;
+    posts.instanceMatrix.needsUpdate = true;
+    ticks.instanceMatrix.needsUpdate = true;
+    posts.userData.blocksCamera = true;
+    posts.userData.solidRadius = 0.6;
+    group.add(posts);
+    group.add(ticks);
+
+    // 鑄槽：躺在地上的長方石框。0.42 公尺高 —— 跨得過去，所以不登記碰撞。
+    const troughGeo = new THREE.BoxGeometry(5.6, 0.42, 2.4);
+    const TROUGH_N = 14;
+    const troughs = new THREE.InstancedMesh(troughGeo, stoneMat, TROUGH_N);
+    troughs.receiveShadow = shadow;
+    let trN = 0;
+    for (let i = 0; i < TROUGH_N; i += 1) {
+      const { x, z } = place(11, site.radius - 9);
+      p.set(x, terrainHeight(x, z) + 0.21, z);
+      q.setFromEuler(new THREE.Euler(0, Math.round(rand() * 2) * (Math.PI / 2) + (rand() - 0.5) * 0.14, 0));
+      s.set(0.7 + rand() * 0.7, 1, 0.7 + rand() * 0.5);
+      troughs.setMatrixAt(trN, m.compose(p, q, s));
+      trN += 1;
+    }
+    troughs.count = trN;
+    troughs.instanceMatrix.needsUpdate = true;
+    group.add(troughs);
   }
 
   // 每區一盞主色補光：便宜又有效的「氣氛」
@@ -1733,6 +1837,13 @@ export function createWorld({
   curriculum,
   challenges,
   progression,
+  /**
+   * 課程 v2 · Phase E：已上線的區域（`catalog.implementedRegions()`）。
+   * `curriculum.groups` 只有既有五區 —— 之後新蓋的區域（量器坊起）的名稱與主色
+   * 住在 `regions-v2.json`，所以由呼叫端把 catalog 的區域表遞進來。
+   * 沒給也不會壞：查不到的區域退回預設的灰藍色。
+   */
+  regions = null,
   quality = 'high',
   shrine = null,
   /** Phase 22：刻文小語（inscriptions.json 的 entries）。沒給就不蓋，世界照樣成立。 */
@@ -1753,6 +1864,10 @@ export function createWorld({
   scene.add(root);
 
   const groups = new Map((curriculum.groups || []).map((g) => [g.id, g]));
+  for (const r of regions || []) {
+    if (!r || groups.has(r.id)) continue;
+    groups.set(r.id, { id: r.id, name: r.name || r.nameZh, nameEn: r.nameEn, color: r.color });
+  }
   const colorOf = (regionId) => (groups.get(regionId) || {}).color || '#8aa0b4';
   const positions = challenges.map((c) => c.position || [0, 0]);
 

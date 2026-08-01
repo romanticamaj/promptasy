@@ -1,7 +1,7 @@
 {
   "version": 1,
   "authored": "game",
-  "note": "12 區的定義與軟門檻規格（curriculum-v2 §二）。既有五區的 id、名稱與世界地形完全沿用 curriculum.json 的 groups，不得改動；新增七區的 implemented 一律 false —— 它們此刻只存在於資料層，世界、圖鑑與進程都必須忽略。gate 是 v2 的「知識即升級」規格，**尚未啟用**：現行的區域解鎖仍由 progression.js 的 REGION_GATES 決定。",
+  "note": "12 區的定義與軟門檻規格（curriculum-v2 §二）。既有五區的 id、名稱與世界地形完全沿用 curriculum.json 的 groups，不得改動；新增七區依實作進度逐一把 implemented 打開（課程 v2 · Phase E 起：量器坊已上線） —— 它們此刻只存在於資料層，世界、圖鑑與進程都必須忽略。gate 是 v2 的「知識即升級」規格，**尚未啟用**：現行的區域解鎖仍由 progression.js 的 REGION_GATES 決定。",
   "gateSchema": {
     "start": "起點區（序章畢業即開放）。",
     "hard": "true = 硬門檻（不提供「先行前往」）。",
@@ -9,7 +9,8 @@
     "regionSkills": "[{regionId, count}] — 該區至少收集幾條技能。",
     "masteredRegions": "必須完全精通的區域 id。",
     "masteredAnyCount": "任意幾個區域達到精通。",
-    "text": "curriculum-v2 §二「解鎖關係」欄的原句。"
+    "text": "curriculum-v2 §二「解鎖關係」欄的原句。",
+    "color": "這一區的主色（既有五區以 curriculum.json 的 groups 為準，新區寫在這裡）。"
   },
   "regions": [
     {
@@ -193,12 +194,13 @@
       "id": "forms",
       "nameZh": "量器坊",
       "nameEn": "FORMS",
+      "color": "#c2c79f",
       "order": 6,
       "place": "正南 · 新地形",
       "theme": "把神諭的話倒進模子裡定形：輸出格式、長度、語氣、結構化輸出。",
       "landmark": "刻度之柱（一根被刻滿量度的斷柱，柱頂懸著一把不動的尺）",
-      "engineCost": "新地形",
-      "implemented": false,
+      "engineCost": "新地形（Phase E 已上線）",
+      "implemented": true,
       "skillIds": [
         "fmt-specify",
         "fmt-markdown-diet",

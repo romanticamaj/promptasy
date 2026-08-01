@@ -110,14 +110,34 @@ export function createCatalog({ curriculum, skillCodex = null, regions = null, v
     .sort((a, b) => (a.order || 0) - (b.order || 0));
   const regionList = rawRegions.map((r) => {
     const g = groupById.get(r.id) || null;
+    /*
+     * 課程 v2 · Phase E：量器坊起，新上線的區域在 `curriculum.json` 裡**沒有**
+     * 對應的 group（那一檔必須 byte-identical，護欄 2）。所以替它就地合成一個
+     * 形狀完全一樣的 group 物件 —— 圖鑑／結果卡／世界的 `colorOf()` 因此完全
+     * 不必知道「這一區有沒有舊技巧」，只是 `topicIds` 是空的（它教的是 v2 技能）。
+     */
+    const synthesized = g || {
+      id: r.id,
+      legacyId: null,
+      order: r.order || 0,
+      name: r.nameZh,
+      nameEn: r.nameEn,
+      color: r.color || '#8aa0b4',
+      topicIds: [],
+      skillOnly: true,
+    };
     return {
       ...r,
       /* 既有五區的顯示欄位一律以 curriculum.json 為準（名稱、顏色、topicIds 都不重寫） */
-      name: g ? g.name : r.nameZh,
-      nameEn: g ? g.nameEn : r.nameEn,
-      color: g ? g.color : null,
-      topicIds: g ? g.topicIds : [],
-      legacyGroup: g,
+      name: synthesized.name,
+      nameEn: synthesized.nameEn,
+      color: synthesized.color,
+      topicIds: synthesized.topicIds,
+      /** 這一區只教 v2 技能（舊 68 條裡沒有它的主題）。 */
+      skillOnly: !g,
+      /** 資料層有沒有**自己宣告**主色（合成時的預設灰藍不算）。 */
+      colorDeclared: Boolean(r.color),
+      legacyGroup: synthesized,
     };
   });
   const regionById = new Map(regionList.map((r) => [r.id, r]));
@@ -270,11 +290,22 @@ export function createCatalog({ curriculum, skillCodex = null, regions = null, v
     }
     if (claimed.size !== skills.length) fail(`有 ${skills.length - claimed.size} 條技能沒有被任何區域認領`);
 
-    /* --- 相容性：已實作的區域必須「就是」舊的五區（順序也一樣） --- */
-    const implIds = implemented.map((r) => r.id).join(',');
-    const groupIds = groups.map((g) => g.id).join(',');
-    if (implIds !== groupIds) {
-      fail(`已實作的區域與 curriculum.groups 不一致：${implIds} ≠ ${groupIds}`);
+    /* ----------------------------------------------------------------
+     * 相容性：已實作的區域必須「以舊的五區開頭、順序一樣」，
+     * 後面才准接課程 v2 新蓋好的區域（Phase E 的量器坊起）。
+     *
+     * 這條擋的是「把還沒蓋好的區域偷偷標成已上線」——
+     * 舊五區少一個、換順序，或新區插到舊五區中間，都會當場丟例外。
+     * ---------------------------------------------------------------- */
+    const implIds = implemented.map((r) => r.id);
+    const groupIds = groups.map((g) => g.id);
+    const head = implIds.slice(0, groupIds.length).join(',');
+    if (head !== groupIds.join(',')) {
+      fail(`已實作的區域沒有以 curriculum.groups 開頭：${head} ≠ ${groupIds.join(',')}`);
+    }
+    for (const r of implemented.slice(groupIds.length)) {
+      if (groupById.has(r.id)) fail(`區域 ${r.id} 同時出現在 curriculum.groups 與新上線的區域裡`);
+      if (!r.colorDeclared) fail(`新上線的區域 ${r.id} 沒有主色（curriculum.json 裡沒有它，色要寫在 regions-v2）`);
     }
     return api;
   }

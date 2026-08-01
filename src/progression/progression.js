@@ -39,6 +39,24 @@ export const REGION_GATES = Object.freeze({
   grounding: { level: 4, available: true, requires: { region: 'reasoning', cleared: 4 } },
   orchestration: { level: 5, available: true, requires: { region: 'grounding', cleared: 4 } },
   config: { level: 7, available: true, requires: { region: 'orchestration', cleared: 4 } },
+  /*
+   * 課程 v2 · Phase E：量器坊是第一道**知識式**軟門檻（C8「知識即升級」）。
+   * 條件寫的是「你已經會了哪幾條」而不是等級數字 —— 規格逐字取自
+   * `regions-v2.json` 的 `gate`（軟門檻：foundations 的 clear-specific ＋ config 任一座）。
+   *
+   * 「會了」的判定走 `knowsSkill()`：技能本身進了 `skillsV2`，
+   * 或者它的祖先技巧已經在 `collected` 裡（D2 的相容橋還在，Phase J 才拆）。
+   * 等級門檻刻意留在 1 —— 這一區不看等級，看的是你手上有沒有那把尺。
+   */
+  forms: {
+    level: 1,
+    available: true,
+    requires: null,
+    knowledge: {
+      skills: ['clear-specific'],
+      regionSkills: [{ regionId: 'config', count: 1 }],
+    },
+  },
 });
 
 /**
@@ -98,12 +116,50 @@ export function createProgression({ catalog = null, curriculum = null, challenge
     return n;
   }
 
-  /** 這個區域的解鎖條件目前滿足了嗎（等級 ＋ 前一區通關數）。 */
+  /**
+   * 課程 v2：這一條技能「會了嗎」。
+   *
+   * 兩條路都算：技能本身收進了 `skillsV2`（新神廟），或者它的祖先技巧
+   * 已經在舊的 `collected` 裡（D2 的相容橋 —— 清晰之門收的是 `clarity-03`，
+   * 而 `clear-specific` 的祖先正是它）。Phase J 拆掉相容層時只留前面那一條。
+   */
+  function knowsSkill(skillId) {
+    if (state.skillsV2.includes(skillId)) return true;
+    const s = cat.skill(skillId);
+    return Boolean(s && s.legacyTechniqueId && state.collected.includes(s.legacyTechniqueId));
+  }
+
+  /** 這一區已經會了幾條技能（知識式軟門檻用）。 */
+  function knownInRegion(regionId) {
+    return cat.regionSkills(regionId).filter((s) => knowsSkill(s.id)).length;
+  }
+
+  /**
+   * 知識式軟門檻還差什麼（滿足時回空陣列）。
+   * @returns {Array<{kind:string, skillId?:string, regionId?:string, need?:number, have?:number}>}
+   */
+  function knowledgeGaps(regionId) {
+    const gate = REGION_GATES[regionId];
+    const k = gate && gate.knowledge;
+    if (!k) return [];
+    const gaps = [];
+    for (const id of k.skills || []) {
+      if (!knowsSkill(id)) gaps.push({ kind: 'skill', skillId: id });
+    }
+    for (const req of k.regionSkills || []) {
+      const have = knownInRegion(req.regionId);
+      if (have < req.count) gaps.push({ kind: 'regionSkills', regionId: req.regionId, need: req.count, have });
+    }
+    return gaps;
+  }
+
+  /** 這個區域的解鎖條件目前滿足了嗎（等級 ＋ 前一區通關數 ＋ 知識式軟門檻）。 */
   function gateSatisfied(regionId, level) {
     const gate = REGION_GATES[regionId];
     if (!gate) return false;
     if (level < gate.level) return false;
     if (gate.requires && clearedCount(gate.requires.region) < gate.requires.cleared) return false;
+    if (knowledgeGaps(regionId).length) return false;
     return true;
   }
 
@@ -173,11 +229,25 @@ export function createProgression({ catalog = null, curriculum = null, challenge
 
       let text = '已開啟';
       const needs = [];
+      const gaps = knowledgeGaps(regionId);
       if (!unlocked) {
         if (!levelOk) needs.push(`Lv.${gate.level}（目前 Lv.${level}）`);
         if (!requiresOk) {
           const prev = cat.legacyGroups().find((g) => g.id === requires.region);
           needs.push(`${prev ? prev.name : requires.region} 通關 ${clearedNeeded} 關（目前 ${clearedHave}）`);
+        }
+        /*
+         * 知識式軟門檻（C8）：條件講的是「你已經會了哪一條」，不是等級數字。
+         * 講法一律用玩家看得懂的技能中文名與區域名，不露出 id。
+         */
+        for (const g of gaps) {
+          if (g.kind === 'skill') {
+            const s = cat.skill(g.skillId);
+            needs.push(`先學會「${s ? s.nameZh : g.skillId}」`);
+          } else {
+            const r = cat.region(g.regionId);
+            needs.push(`${r ? r.name : g.regionId} 學會 ${g.need} 條（目前 ${g.have}）`);
+          }
         }
         // Phase 29：門檻沒到也走得過去 —— 條件照講，但要讓玩家知道他有得選
         text = needs.length ? `需要 ${needs.join(' ＋ ')}　·　也可以先行前往` : '條件已滿足，通過即可開啟';
@@ -193,6 +263,9 @@ export function createProgression({ catalog = null, curriculum = null, challenge
         clearedNeeded,
         clearedHave,
         requiresOk,
+        /** 知識式軟門檻還差哪幾條（滿足時是空陣列）。 */
+        knowledgeGaps: gaps,
+        knowledgeOk: gaps.length === 0,
         needs,
         text,
       };
@@ -260,12 +333,33 @@ export function createProgression({ catalog = null, curriculum = null, challenge
       return regionIds.filter((id) => api.regionMastery(id).mastered);
     },
 
-    /** 區域完成度（已收集 / 該區技巧總數）。 */
+    /**
+     * 區域完成度（已收集 / 該區技巧總數）。
+     *
+     * 課程 v2 · Phase E：量器坊起的新區域在舊 68 條裡**沒有**技巧，
+     * 完成度改用該區的 v2 技能算（`skillsV2`）。既有五區一個位元都沒變 ——
+     * 它們有 legacy 技巧，走的還是原本那條路（收集不倒退，D2）。
+     */
     regionMastery(regionId) {
       const all = cat.techniques.filter((t) => t.groupId === regionId);
-      const got = all.filter((t) => state.collected.includes(t.id));
-      return { total: all.length, collected: got.length, mastered: all.length > 0 && got.length === all.length };
+      if (all.length) {
+        const got = all.filter((t) => state.collected.includes(t.id));
+        return { total: all.length, collected: got.length, mastered: got.length === all.length, skillBased: false };
+      }
+      const skills = cat.regionSkills(regionId);
+      const got = skills.filter((s) => state.skillsV2.includes(s.id));
+      return {
+        total: skills.length,
+        collected: got.length,
+        mastered: skills.length > 0 && got.length === skills.length,
+        skillBased: true,
+      };
     },
+
+    /** 課程 v2：這一條技能會了嗎（技能本身或它的祖先技巧）。 */
+    knowsSkill,
+    /** 課程 v2：這一區已經會了幾條技能。 */
+    knownInRegion,
 
     /** 該關是否已通關。 */
     isCleared: (challengeId) => Boolean(state.bestGrades[challengeId]),

@@ -903,6 +903,12 @@ export const LANDMARK_SOLIDS = Object.freeze({
     [-5.6, 0, 1.6],
     [5.6, 0, 1.6],
   ],
+  // 刻度之柱：臺座 cyl(4.6, 5.6, 1.3) ＋ 方柱 box(3.2, 15.4, 3.2)。
+  // 柱頂那把尺懸在 20.8 公尺高，走得過去（也走不到），不登記。
+  'gauge-column': [
+    [0, 0, 4.8],
+    [0, 0, 2.3],
+  ],
 });
 
 /* ------------------------------------------------------------------ *
@@ -1137,6 +1143,50 @@ export const STORY_VIGNETTES = Object.freeze([
       ['spot', [-3.8, 0, 2.8], 0, { h: 2.8 }],
     ],
   },
+  /* --- forms：把話倒進模子裡（課程 v2 · Phase E） --- */
+  {
+    id: 'half-poured-mould',
+    region: 'forms',
+    name: '倒到一半的那一模',
+    at: [-24, 112],
+    rot: 0.5,
+    parts: [
+      ['anvil', [0, 0, 0], 0, {}],
+      ['crates', [3.4, 0, 1.8], 0.3, {}],
+      ['tools', [-3.0, 0, 1.4], -0.5, {}],
+      ['slate', [2.2, 0, -2.6], 0.2, { marks: 7 }],
+      ['cairn', [-3.8, 0, -2.2], 0, {}],
+    ],
+  },
+  {
+    id: 'measure-bench',
+    region: 'forms',
+    name: '量過就沒再量的桌',
+    at: [26, 116],
+    rot: -0.9,
+    parts: [
+      ['desk', [0, 0, 0], 0, { light: false }],
+      ['ink', [1.6, 0.4, 0.8], 0.4, {}],
+      ['dial', [-4.2, 0, 1.6], 0.6, {}],
+      ['column', [4.4, 0, -1.8], 0, { h: 2.4 }],
+      ['lamp', [-2.4, 0, -3.4], 0, { h: 3.2, light: false }],
+    ],
+  },
+  {
+    id: 'overflow-trough',
+    region: 'forms',
+    name: '溢出來的那一槽',
+    at: [4, 152],
+    rot: 1.4,
+    parts: [
+      ['pool', [0, 0, 0], 0, { r: 3.0 }],
+      ['column', [-5.2, 0, 1.4], 0.2, { h: 2.8 }],
+      ['slate', [4.6, 0, -1.2], -0.4, { marks: 13 }],
+      ['shard', [3.0, 0, 3.4], 0.8, { len: 3.0, seed: 4 }],
+      ['cairn', [-2.6, 0, -3.8], 0, {}],
+    ],
+  },
+
   {
     id: 'little-stage',
     region: 'config',
@@ -1162,6 +1212,8 @@ export const LANDMARKS = Object.freeze([
   { id: 'great-tree', region: 'grounding', name: '藏書之樹', at: [95, -95], height: 25, clear: 16 },
   { id: 'great-crane', region: 'orchestration', name: '巨臂吊車', at: [-95, 95], height: 27, clear: 16 },
   { id: 'mask-arch', region: 'config', name: '面具拱門', at: [95, 95], height: 22, clear: 16 },
+  // 課程 v2 · Phase E：量器坊的地標（curriculum-v2 §二：「一根被刻滿量度的斷柱，柱頂懸著一把不動的尺」）
+  { id: 'gauge-column', region: 'forms', name: '刻度之柱', at: [0, 124], height: 24, clear: 15 },
 ]);
 
 /** 斷環：一圈立起來的巨石環，缺了一角 —— 「有人試著把話說圓，還差一塊」。 */
@@ -1308,12 +1360,67 @@ function landmarkMaskArch(kit) {
   return grp;
 }
 
+/**
+ * 刻度之柱：一根被刻滿量度的斷柱，柱頂懸著一把不動的尺。
+ *
+ * 抄寫人量過所有東西，最後量到自己頭上 —— 柱子斷在還沒刻完的那一格，
+ * 那把尺卻還停在半空，指著一個沒有人再讀得到的刻度。
+ * 只有臺座與柱身擋人；尺是懸空的（下緣離地 17 公尺，遠高於 FLOAT_MIN）。
+ */
+function landmarkGaugeColumn(kit) {
+  const grp = new THREE.Group();
+  // 臺座
+  put(grp, cyl(4.6, 5.6, 1.3, 8), stone(kit.dark), [0, 0.65, 0]);
+  put(grp, cyl(3.4, 4.0, 0.5, 8), stone(kit.mid), [0, 1.55, 0]);
+
+  // 斷柱：方柱，上緣削掉一角 —— 剪影看得出「斷在半路」
+  const shaft = put(grp, box(3.2, 15.4, 3.2), stone(kit.mid), [0, 9.5, 0]);
+  bulky(shaft);
+  put(grp, box(3.3, 1.4, 1.6), stone(kit.dark), [0, 17.0, 0.85], [0.34, 0, 0]);
+
+  // 柱身上的刻度：一格一格往上，越高越短（instanced —— 重複元素不各自建 mesh）
+  const marks = 15;
+  const tick = new THREE.InstancedMesh(box(3.44, 0.16, 0.18), glow(kit.accent, 1.15), marks * 2);
+  const mtx = new THREE.Matrix4();
+  const q = new THREE.Quaternion();
+  const p = new THREE.Vector3();
+  const s = new THREE.Vector3(1, 1, 1);
+  let n = 0;
+  for (let i = 0; i < marks; i += 1) {
+    const t = (i + 1) / (marks + 1);
+    const y = 2.4 + t * 14.0;
+    const w = 1 - t * 0.5;
+    for (const face of [0, Math.PI / 2]) {
+      p.set(0, y, 0);
+      q.setFromEuler(new THREE.Euler(0, face, 0));
+      s.set(w, 1, 1);
+      tick.setMatrixAt(n, mtx.compose(p, q, s));
+      n += 1;
+    }
+  }
+  tick.count = n;
+  tick.instanceMatrix.needsUpdate = true;
+  grp.add(tick);
+
+  // 柱頂懸著的那把尺：不動、發著微光、比柱子寬很多（所以遠遠就認得出這是量器坊）
+  put(grp, box(14.5, 0.55, 1.1), stone(kit.light), [0, 20.8, 0], [0, 0, 0.035]);
+  put(grp, box(14.6, 0.14, 0.16), glow(kit.accent, 1.5), [0, 20.5, 0.6], [0, 0, 0.035]);
+  for (const side of [-1, 1]) {
+    put(grp, box(0.5, 1.5, 0.5), stone(kit.dark), [side * 6.6, 21.6, 0]);
+  }
+  // 尺尖上的一點暖光 —— 全區唯一的暖金熱點（成就色留給它）
+  put(grp, ico(0.55, 0), glow(PALETTE.warm, 2.0), [0, 22.9, 0]);
+  put(grp, torus(1.9, 0.16, 4, 16), glow(kit.accent, 1.2), [0, 20.8, 0], [Math.PI / 2, 0, 0]);
+  return grp;
+}
+
 const LANDMARK_BUILDERS = {
   'broken-ring': landmarkBrokenRing,
   'endless-stair': landmarkEndlessStair,
   'great-tree': landmarkGreatTree,
   'great-crane': landmarkGreatCrane,
   'mask-arch': landmarkMaskArch,
+  'gauge-column': landmarkGaugeColumn,
 };
 
 /* ------------------------------------------------------------------ *

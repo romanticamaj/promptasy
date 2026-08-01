@@ -631,3 +631,136 @@ region／coverage／四周可站／與所有石座 ≥13 公尺／避開石碑�
   理由逐條記在 `findings.md`；題型換裝時只要換第三幕的資料。
 - 圖鑑仍未列 v2 技能（`skillsV2` 只是把存檔與進度接起來）。
 - 未 commit／push；未動 `CLAUDE.md`、`vite.config.js`、port 5175、`src/data/curriculum.json`（sha256 仍綠）。
+
+
+---
+
+## Phase E — 量器坊（`forms`）：第六區、第一塊新地形（2026-08-02）
+
+狀態：`done`（未 commit／push）
+
+**一句話**：正南長出第六片土地 **量器坊**，14 座教學神廟到齊（新蓋 13 ＋ 擬態之鏡搬家 1），
+第一次上線**知識式軟門檻**（C8），並開了 9 個新檢查器。**這一期不開新題型**——
+地形與內容同一期已經夠重，題型全部沿用既有八種。
+
+### 做了什麼
+
+**14 座神廟**（`order` 4 是搬過來的擬態之鏡，其餘 53–65）
+
+| # | id | 神廟名 | 技能 | 題型 | 主檢查 |
+|---|---|---|---|---|---|
+| 1 | `mimic-mirror-04` | 擬態之鏡（改造＋搬家） | `prefill-completion` | fix | `hasFewShot` |
+| 2 | `gatehouse-gauge-53` | 量器坊的門房 | `fmt-specify` | choice | `specifiesFormat` |
+| 3 | `bullet-wall-54` | 長出圓點的牆 | `fmt-markdown-diet` | fix | 🆕`statesFormatPreference` |
+| 4 | `slippery-answer-55` | 抓不住的答案 | `answer-anchor` | constraint | 🆕`hasFallbackCategory` |
+| 5 | `abacus-count-56` | 數不清的珠算 | `no-counting` | spot | 🆕`avoidsSelfCounting` |
+| 6 | `two-rulers-57` | 兩把尺 | `len-concrete` | constraint | `hasConstraint` |
+| 7 | `cut-summary-58` | 被砍掉重點的摘要 | `len-preserve` | fix | 🆕`saysWhatToPreserve` |
+| 8 | `for-newcomer-59` | 給沒看過的人 | `len-readable` | choice | `hasAudience` |
+| 9 | `empty-adjective-60` | 形容詞的空箱 | `tone-concrete` | fix | 🆕`definesToneConcretely` |
+| 10 | `throat-clearing-61` | 清嗓子的傳令 | `no-preamble` | spot | 🆕`bansFillerPhrases` |
+| 11 | `mould-room-62` | 鑄模房 | `so-basics` | choice | 🆕`definesSchema` |
+| 12 | `two-seals-63` | 兩種印章 | `so-vs-jsonmode` | tradeoff | 🆕`definesSchema` |
+| 13 | `twice-carved-64` | 重複刻的模 | `so-division` | spot | 🆕`noDuplicateSchemaRules` |
+| 14 | `slideless-deck-65` | 沒有圖的簡報 | `doc-design-elements` | fix | 🆕`namesDesignElements` |
+
+每一座：`scenario` / `mission` / `craft` / `material` / `clue` / `starter` / `placeholder` /
+`quickFills` / `sample` ＋ 該題型的第三幕資料 ＋ **石碑刻印後備 `slots`**（相容契約），
+rubric 一律「主檢查 3 ＋ 地基 `assignsTask` 0.5、`pass` 2」（C1），
+`source` 逐條回查 `skill-codex-v2.json` 裡解析自 master list 的真實官方連結。
+**題型序列**：fix・choice・fix・constraint・spot・constraint・fix・choice・fix・spot・choice・tradeoff・spot・fix
+—— 最長連續同型 **1**（C4 的門檻是 ≤2）。
+
+**擬態之鏡的改造＋搬家**（manifest 新增 `phaseE` 區塊）：主題由「用範例展示格式」收斂成
+「寫出開頭讓它接下去」，`specifiesFormat` 依 post-A 條目移除、`region` 改成 `forms`、
+石座搬到 `[-18.7, 98.8]`、題型由 choice 換成 fix。`teaches` 與舊主技巧 `format-03`
+一字未動（收集不倒退，D2）；最後一段刻印刻意停在「輸出：」——那正是 prefill 這一招本身。
+
+**9 個新檢查器**（`src/challenges/checks.js`，規格出自 curriculum-v2 §7.4）。
+三個是**非單調**的（多寫一句會讓它暗回去），合尺才不會退化成「全選就過關」：
+`avoidsSelfCounting`（出現「你自己數一下」就整條歸零）、`saysWhatToPreserve`（必留清單列太長＝等於沒縮）、
+`noDuplicateSchemaRules`（模上寫過的限制在散文裡再寫一次就掉分）。
+兩座合尺神廟各自靠其中一把非單調的尺守住「挑齊會亮、全選一定有一把暗」。
+
+**世界**：`REGION_SITES` 新增 `forms (0, 124) r=44`（半徑上限由 `buildTerrain()` 的
+340 公尺見方網格決定，測試逐區驗證），地貌是「由北往南一階一階降下去的鑄場台階」；
+`REGION_ATMOSPHERE.forms`（冷錫色、螢火最少）、`FLORA.forms`（方鑄塊／扁量盤／細量針三種剪影）、
+`buildRegionProps` 的量尺柱（instanced ＋ emissive 刻度）與鑄槽、
+地標 **刻度之柱**（高 24、留白 15、**零實體光源**）、三組故事小景、橋／閘門／路網全部自動跟上。
+14 座石座落點用隨機重啟的貪婪取樣算出來，再**在 node 裡把世界蓋起來**逐座掃過
+24 個方向 × 4 段距離（高低兩種畫質）。
+
+**知識式軟門檻（C8）**：`REGION_GATES.forms` 新增 `knowledge`（規格逐字取自 `regions-v2.json`），
+`gateSatisfied()` / `gateStatus()` 讀它；「會了嗎」走新的 `knowsSkill()`
+（`skillsV2` 或 D2 相容橋的祖先技巧）。閘門說得出還差哪幾條（中文技能名），
+`skippedGates` 先行前往照樣走得通且一分 XP 都不加。
+
+**runtime 支援第六區**：catalog 的「已實作＝`curriculum.groups`」硬相等改成
+「以既有五區開頭、後面才接新區」，並強制新區自己宣告主色；
+`content.group()` / `groupsOrdered()`、`world` 的 `colorOf`（新增 `regions` 參數）、
+`progression.regionMastery()`（新區改用 v2 技能算完成度）、圖鑑（新增只列技能的區域卡，
+每條附可點的官方出處）全部跟上。
+
+**配樂**：量器坊沒有音檔 → 新增 `SYNTH_ONLY_REGIONS = ['forms']` 誠實登記，
+配一組自己的 `REGION_MOODS.forms`（根音 103.83、大二度堆疊、鐘聲密度 0.3、曲名「量器的餘響」），
+跨區走合成 pad。**刻意不共用別區的音檔**（見 `findings.md`）。
+
+### 驗證
+
+| 指令 | Phase D | Phase E |
+|---|---|---|
+| `npm run fonts` | CJK 1750 字／1399.9 KB | ✓ CJK **1771** 字／**1413.4 KB**（指紋測試綠） |
+| `npm run test:rubric` | 37,108 | ✓ **42,968** |
+| `npm run test:playtest` | 816 | ✓ **1,076** |
+| `npm run build` | ✓ | ✓ |
+| `npm run test:e2e` | 2,157 全過 | ✓ **2,308 項全過、零 console error** |
+
+**世界量測**（在 node 裡把世界蓋起來實測，非引用文件）
+
+| 項目 | Phase D | Phase E | 上限 |
+|---|---:|---:|---:|
+| 三角形（高畫質） | 147,032 | **154,868** | 420,000 |
+| 光源（高畫質） | 26 | **27** | 56 |
+| 碰撞體（高畫質） | 608 | **674** | 1,400 |
+| mesh | 1,374 | **1,528** | — |
+| InstancedMesh／實例 | 42 ／ 754 | **52 ／ 947** | — |
+| 低畫質三角形／燈 | 86,732 ／ 13 | **94,044 ／ 14** | — |
+
+唯一新增的那一盞燈是「每區一盞主色補光」（與其他四片土地同一個模式）；
+**地標本身零實體光源**（e2e 逐一數過）。
+
+### e2e 的三輪（誠實記錄）
+
+① 第一輪：新的量器坊區段 **128 項一次全過**，但露出 10 條**歷史快照型斷言**
+（4 道閘門 → 5、五個地標 → 6、五區植被 → 6、圖鑑 68 條 → 82、配樂 6 首 → 7、
+指南針 5 根針 → 6、世界 62 關 → 75），全部改成由 catalog／`expected-counts` 現算；
+另有 3 條是已登記的拖曳 flaky 家族。
+② 修完快照斷言後重跑：**2,286 項全過、零 console error**（拖曳那一組自己過了）。
+③ 加上「純鍵盤走完量器坊第一座」的區段後做兩輪**先紅**（見下），最後一輪
+**2,308 項全過、零 console error**，零重跑。
+
+### 先紅後綠（逐條實測）
+
+- **rubric（3 次）**：把 `gateSatisfied()` 的知識式判定拿掉 → 1 紅（`量器坊仍鎖住`）；
+  把刻度之柱的高度改成 12 → 2 紅（地標高度階 ＋ 剪影）；
+  把 `regions-v2.json` 的 forms 主色拿掉 → catalog 建構時直接丟例外（fail fast）。
+- **e2e 第一輪破壞（4 紅）**：讓圖鑑不再列新區域的技能 → `量器坊那一張卡列出 14 條技法`、
+  `每一條技法都附得出可點的官方出處`、`出處是可點的 https 連結` ＋ 圖鑑總條數兩條；
+  偷偷在刻度之柱加一盞 `PointLight` → `刻度之柱一盞實體光源都沒加`。
+- **e2e 第二輪破壞（6 紅）**：把 `gatehouse-gauge-53` 第二段的正解換成「格式清楚一點就好」
+  → `全程不碰滑鼠也拿得到 S`（S → A）＋ 該座的 S 斷言；
+  把 `mould-room-62` 第二段的正解換成散文描述 → 該座 `拿不到 S`／`記成通關`／`技能進圖鑑` 三紅
+  ＋ 連帶 `全破之後一條都不再是剪影`／`量器坊蓋上精通封印`／`進程也認定量器坊精通了`。
+  兩輪都還原後即為上表的 2,308 全過。
+- **已知 flaky**：第二輪破壞那一次同時出現拖曳 3 條 ＋ 風鈴擺動 1 條（`AGENTS.md` 登記的
+  動畫時序家族）；最後一輪乾淨機器上全部自己過，**沒有重跑**。
+
+### 未做／留給後續
+
+- **量器坊沒有石碑／刻文小語／會回應的東西／動得了的器物**（那幾層的測試只要求既有五區）。
+  這是刻意的範圍控制：本期把預算花在地形、14 座神廟與 9 個檢查器上。理由記在 `findings.md`。
+- `len-readable` 的 `multi`（Phase G）與 `so-basics` 的 `workshop` 用佔位 kind 上線，
+  換裝時只要換第三幕的資料。
+- 量器坊的 `bgm_forms.m4a` 尚未錄製；補上時只要在 `BGM_TRACKS` 加一行、
+  把 id 從 `SYNTH_ONLY_REGIONS` 移走即可。
+- 未 commit／push；未動 `CLAUDE.md`、`vite.config.js`、port 5175、`src/data/curriculum.json`（sha256 仍綠）。

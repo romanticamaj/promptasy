@@ -138,7 +138,14 @@ export function createContent(
     /** 官方文件網址 → 文件名（找不到就回傳網址本身）。 */
     sourceName: (url) => sourceNameByUrl.get(url) || url,
     topic: (id) => topics.get(id) || null,
-    group: (id) => groups.get(id) || null,
+    /**
+     * 一個區域的顯示資料（名稱、英文短名、主色）。
+     *
+     * 課程 v2 · Phase E：新上線的區域（量器坊起）不在 `curriculum.groups` 裡，
+     * catalog 會替它合成一個形狀一樣的物件 —— 所以查不到就往 catalog 問一次，
+     * HUD／toast／結果卡才不會退回印出區域 id。
+     */
+    group: (id) => groups.get(id) || (catalog.region(id) || {}).legacyGroup || null,
     vendor: (id) => vendors.get(id) || null,
     builderBlock: (id) => builder.get(id) || null,
     challenge: (id) => byChallengeId.get(id) || null,

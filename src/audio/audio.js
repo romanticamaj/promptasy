@@ -109,6 +109,24 @@ export const REGION_MOODS = Object.freeze({
     bellEvery: 9,
     detune: 10,
   }),
+  /*
+   * 量器坊（課程 v2 · Phase E）：熄了火的鑄場。
+   * 大二度堆疊的空心和聲 ＋ 最低的鐘聲密度 —— 像一個量完了、沒有人再說話的地方。
+   * **這一區沒有配樂音檔**（見 SYNTH_ONLY_REGIONS），聽到的就是這段合成 pad。
+   */
+  forms: Object.freeze({
+    id: 'forms',
+    name: '量器的餘響',
+    root: 103.83,
+    scale: Object.freeze([0, 2, 9, 14, 21]),
+    bellScale: Object.freeze([0, 2, 7, 9, 14, 16]),
+    voicing: Object.freeze(['triangle', 'sine', 'sine']),
+    cutoff: 560,
+    lfoRate: 0.028,
+    bellDensity: 0.3,
+    bellEvery: 16,
+    detune: 3,
+  }),
   // 角色與參數：Mixolydian 的暖色，pad 較厚，鐘聲中等
   config: Object.freeze({
     id: 'config',
@@ -297,6 +315,20 @@ export const BGM_TRACKS = Object.freeze({
 });
 
 /**
+ * 目前**還沒有配樂音檔**的區域（課程 v2 · Phase E 起）。
+ *
+ * 護欄 3 早就規定「合成引擎是備援，不是遺跡」——把 `public/audio/` 清空，
+ * 遊戲照樣有聲音。量器坊就是第一個真的走這條路的區域：它有自己的
+ * `REGION_MOODS.forms`（根音、音階、鐘聲密度都跟其他五區不同），
+ * 沒有 `BGM_TRACKS` 條目，所以 `requestBgm()` 直接回 false，合成 pad 接手。
+ *
+ * **刻意不共用別區的音檔**：拿面具劇場那一首來墊，跨橋時聽起來像沒換地方，
+ * 那比誠實地播一段自己的合成 pad 更糟。站長之後補上 `bgm_forms.m4a` 時，
+ * 只要在 `BGM_TRACKS` 加一行、把 id 從這裡移走即可（其餘程式碼一個字都不必動）。
+ */
+export const SYNTH_ONLY_REGIONS = Object.freeze(['forms']);
+
+/**
  * 鄰區：走過一座橋就到得了的地方（中央高原是樞紐，四片土地各自接一條橋）。
  * 只用來決定「先偷偷抓哪一首」的順序，抓的是壓縮檔、不解碼。
  */
@@ -308,6 +340,8 @@ export const REGION_NEIGHBORS = Object.freeze({
   grounding: Object.freeze(['foundations', 'orchestration']),
   orchestration: Object.freeze(['foundations', 'config']),
   config: Object.freeze(['foundations', 'orchestration']),
+  // 量器坊只有一條橋接回中央高原；它自己沒有音檔，所以只預抓回程那一首
+  forms: Object.freeze(['foundations']),
 });
 
 /**

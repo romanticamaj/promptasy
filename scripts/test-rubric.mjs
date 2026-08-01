@@ -767,6 +767,148 @@ const FIXTURES = {
       'Reply to the three letters below; they are stuck together, sort it out yourself.',
     ],
   },
+
+  /* ---- 課程 v2 · Phase E：量器坊的八個新檢查器 ---- */
+
+  statesFormatPreference: {
+    good: [
+      '請用整段散文回覆這份問答，不要用圓點與項目符號，也不要加小標題。\n之後每 10 輪請重申一次這段排版偏好。',
+      'Answer in prose paragraphs. No bullets, no headers. Restate this format preference every 10 turns.',
+    ],
+    weak: [
+      '請用整段散文回覆這份問答，不要用圓點與項目符號，也不要加小標題。',
+      '請不要用圓點回覆這一份問答，謝謝你的幫忙。',
+      '這一份問答不要用那麼多圓點，讀起來很累。',
+    ],
+    bad: [
+      '請幫我把這份問答整理得漂亮一點，你自己看著辦就好。',
+      'Please tidy up this answer so that it looks nicer than before.',
+    ],
+  },
+
+  hasFallbackCategory: {
+    good: [
+      '請把下面六段回覆各自分成「補給」「航路」「天氣」三類。\n最終答案請放在最後一行的「答案：」後面。\n不屬於上述任何一類就標成「其他」。',
+      'Classify each note below. If it fits none of the categories, label it "other". Put the final answer inside the answer field.',
+    ],
+    weak: [
+      '請把下面六段回覆各自歸類。不屬於上述任何一類就標成「其他」。',
+      '請把下面六段回覆分類，答案放在最後一行的框裡；判斷不出是哪一類的時候要講出來。',
+      '請把下面六段回覆整理好，最終答案請放在最後一行的「答案：」後面。',
+    ],
+    bad: [
+      '請看完下面這六段回覆，然後告訴我結論是什麼就好。',
+      'Read the six notes below and then tell me what the conclusion is.',
+    ],
+  },
+
+  avoidsSelfCounting: {
+    good: [
+      '這段原文共 812 字（我已經算好了）。請把它改寫成一段給旅人看的公告。',
+      'Rewrite the source text below as a public notice. The word count is 812, already computed for you.',
+    ],
+    weak: [
+      '請把這段原文改寫成一段公告，字數不用你自己數。',
+      '請把這段原文改寫成一段公告，不要自己去估算長度。',
+    ],
+    bad: [
+      '請把這段原文改寫成公告，順便數一下總共幾個字寫在最後。',
+      '請把這段原文改寫成一段給旅人看的公告就好了。',
+      'Rewrite the notice below and tell me how many words it ends up with.',
+    ],
+  },
+
+  saysWhatToPreserve: {
+    good: [
+      '請把下面這份結案報告壓到 3 句話以內。數字、期限與結論必須保留。',
+      'Shorten the closing report to three sentences. Keep the numbers, the deadline and the conclusion.',
+    ],
+    weak: [
+      '請把下面這份結案報告壓到 3 句話以內。數字、期限、結論、人名、地點、單位、品名都必須保留。',
+      '請把下面這份結案報告縮短一點，重點都要保留。',
+      '請把下面這份結案報告縮短到三句話就可以了。',
+    ],
+    bad: [
+      '請把下面這份結案報告寫得更好讀一些，讓人一看就懂。',
+      'Please rewrite the closing report so that it reads a little better.',
+    ],
+  },
+
+  definesToneConcretely: {
+    good: [
+      '改寫這段告示：不用驚嘆號、不用比喻，每一段不超過 2 句。\n下面那句樣板句只是示意，每次請換一種說法。',
+      'Rewrite the notice with no exclamation marks and no metaphors, each paragraph under 2 sentences. Do not copy the sample sentence verbatim.',
+    ],
+    weak: [
+      '改寫這段告示：不用驚嘆號、不用比喻，每一段不超過 2 句。',
+      '改寫這段告示，不要用驚嘆號就好，其餘照舊。',
+    ],
+    bad: [
+      '請把這段告示寫得溫暖一點，讀起來親切一些。',
+      'Please make this notice sound a bit warmer and friendlier than before.',
+    ],
+  },
+
+  bansFillerPhrases: {
+    good: [
+      '改寫這份公告。以下開場白一律不要出現：「當然！」「以下是」「希望這對你有幫助」。',
+      'Rewrite the notice. Never write "Certainly!" or "Here is" as an opening line.',
+    ],
+    weak: [
+      '改寫這份公告。「當然！」這一句不要出現。',
+      '改寫這份公告，開頭直接講重點，不要寒暄。',
+    ],
+    bad: [
+      '改寫這份公告，寫得越完整越好，謝謝你的幫忙。',
+      'Rewrite this notice and make it as complete as you possibly can.',
+    ],
+  },
+
+  definesSchema: {
+    good: [
+      '請把這張單抽成一個模子：\n品名（字串）\n數量（整數）\n日期（日期）',
+      'Extract into this schema:\nname (string)\ncount (integer)\ndate (date)',
+    ],
+    weak: [
+      '請把這張單抽成一個模子：\n品名（字串）\n數量（整數）',
+      '請把這張單抽成表格，欄位有：\n品名：\n數量：',
+    ],
+    bad: [
+      '請把這張單整理成一個好看的表格就可以了。',
+      'Please turn this delivery note into a nice looking table for me.',
+    ],
+  },
+
+  noDuplicateSchemaRules: {
+    good: [
+      '模子：\n品名（字串）\n數量（整數）\n請把這張單倒進模子裡。塞不進任何欄位的資料就放進備註。',
+      'Schema:\nname (string)\ncount (integer)\nPour the note into the schema. If a value has no matching field, put it in the notes field.',
+    ],
+    weak: [
+      '模子：\n品名（字串）\n數量（整數）\n請把這張單倒進模子裡。',
+      '模子：\n品名（字串）\n數量（整數）\n請把這張單倒進模子裡。記得數量要填整數。',
+      '請把這張單倒進模子裡，記得數量要填整數，品名要填字串。',
+    ],
+    bad: [
+      '請把這張單整理成一份漂亮的清單就好了，謝謝。',
+      'Please arrange this delivery note into a tidy little list for me.',
+    ],
+  },
+
+  namesDesignElements: {
+    good: [
+      '請做一份 6 頁的簡報：每頁一張示意圖，版面左圖右字，主色用深藍。每頁最多 3 個重點，要留白。',
+      'Make a 6 page deck: one diagram per page, layout with image left and text right, deep blue palette, plenty of white space.',
+    ],
+    weak: [
+      '請做一份 6 頁的簡報：每頁一張示意圖，版面左圖右字，主色用深藍。',
+      '請做一份簡報，版面請設計得清楚一點。',
+    ],
+    bad: [
+      '請幫我把這份需求做成一份簡報，內容要完整就好。',
+      'Please turn this requirement document into a presentation for the team.',
+    ],
+  },
 };
 
 console.log('▸ 檢查器 fixtures');
@@ -1170,6 +1312,52 @@ const LEGACY_EN_SOLUTIONS = {
     'Rewrite the outage note below as a notice.\n' +
     'Set temperature to 0 rather than asking for consistency.\n' +
     'Set top_p to 0.1.\nCall the well by the old local name.',
+
+  /* --- 課程 v2 · Phase E（量器坊）：檢查器一樣要吃得下英文寫法 --- */
+  'gatehouse-gauge-53':
+    'Rewrite the packing note below.\n' +
+    'Output format: a bulleted list, one item per line.\n' +
+    'Keep each item under 10 words.',
+  'bullet-wall-54':
+    'Rewrite the wall reply below.\n' +
+    'Answer in prose paragraphs, no bullets and no headers.\n' +
+    'Restate this format preference every 10 turns.',
+  'slippery-answer-55':
+    'Classify each of the six replies below as supply, route or weather.\n' +
+    'Output format: one line per reply, index first.\n' +
+    'If it fits none of the above, label it "other".\n' +
+    'Put the final answer after the answer marker on the last line.',
+  'abacus-count-56':
+    'Rewrite the three drafts below into one notice.\n' +
+    'The word count is 812, already computed for you.',
+  'two-rulers-57':
+    'Rewrite the sailing note below as a public notice.\n' +
+    'Length: no more than 3 sentences, each under 20 words.',
+  'cut-summary-58':
+    'Shorten the closing report below to three sentences.\n' +
+    'Keep the numbers, the deadline and the conclusion.',
+  'for-newcomer-59':
+    'Rewrite the handover note below as one conclusion.\n' +
+    'Write it for a reader who is taking over today and has never read it before.',
+  'empty-adjective-60':
+    'Rewrite the notice below with no exclamation marks and no metaphors, each paragraph under 2 sentences.\n' +
+    'Do not copy the sample sentence verbatim; vary the wording every time.',
+  'throat-clearing-61':
+    'Rewrite the notice below.\n' +
+    'Never open with "Certainly!" or "Here is" or "I hope this helps".',
+  'mould-room-62':
+    'Pour each of the three intake notes below into one schema:\n' +
+    'name (string)\ncount (integer)\ndate (date)',
+  'two-seals-63':
+    'Turn the delivery notes below into one shape:\n' +
+    'name (string)\ncount (integer)\narrival (date)',
+  'twice-carved-64':
+    'Schema:\nname (string)\ncount (integer)\n' +
+    'Pour the notes below into the schema. If a value has no matching field, put it in the notes field.',
+  'slideless-deck-65':
+    'Turn the requirement below into a 6 page deck.\n' +
+    'One diagram per page, layout with image left and text right, deep blue palette.\n' +
+    'At most 3 bullets per slide, keep plenty of white space.',
 };
 for (const c of challenges) {
   const en = LEGACY_EN_SOLUTIONS[c.id];
@@ -1848,12 +2036,16 @@ for (const t of curriculum.techniques) {
 eq(taught.size, curriculum.techniques.length, `關卡 teaches 完整涵蓋 ${curriculum.techniques.length} 條技巧且無多餘 id`);
 
 /* 每個區域都要有夠玩的關卡數，且關卡的 region 是真實區域 -------------- */
-const regionIds = new Set(curriculum.groups.map((g) => g.id));
+/*
+ * 課程 v2 · Phase E：已上線的區域不再等於 curriculum.groups —— 量器坊住在
+ * regions-v2.json（curriculum.json 必須 byte-identical）。所以列舉一律走 catalog。
+ */
+const regionIds = new Set(catalog.implementedRegionIds());
 for (const c of challenges) {
-  ok(regionIds.has(c.region), `[${c.id}] region "${c.region}" 是 curriculum 裡的區域`);
+  ok(regionIds.has(c.region), `[${c.id}] region "${c.region}" 是已上線的區域`);
   ok(Array.isArray(c.position) && c.position.length === 2, `[${c.id}] 有世界座標`);
 }
-for (const g of curriculum.groups) {
+for (const g of catalog.implementedRegions()) {
   const n = challenges.filter((c) => c.region === g.id).length;
   ok(n >= 4, `[${g.id}] 至少有 4 關`, `目前 ${n} 關`);
 }
@@ -1955,6 +2147,8 @@ const stubProgression = {
 };
 const worldOpts = {
   curriculum,
+  // 課程 v2 · Phase E：新上線的區域的名稱與主色住在 regions-v2.json
+  regions: catalog.implementedRegions(),
   challenges,
   progression: stubProgression,
   shrine: prologueForWorld.shrine,
@@ -2277,7 +2471,8 @@ eq(levelFromXp(100).level, 2, '100 XP = Lv.2');
 eq(levelFromXp(260).level, 3, '260 XP = Lv.3');
 
 memory.clear();
-const prog = createProgression({ curriculum, challenges });
+// 課程 v2 · Phase E：量器坊的軟門檻要查得到 v2 技能 → 這一段走 catalog
+const prog = createProgression({ catalog, challenges });
 eq(prog.state.xp, 0, '進程初始 XP 0');
 eq(prog.isRegionUnlocked('foundations'), true, 'foundations 一開始就解鎖');
 eq(prog.isRegionUnlocked('reasoning'), false, 'reasoning 一開始鎖住');
@@ -2346,9 +2541,16 @@ eq(prog.isRegionUnlocked('config'), false, '還沒打 orchestration → config �
 clearRegion('orchestration');
 eq(prog.isRegionUnlocked('config'), true, '全破 orchestration 解鎖 config');
 
+/*
+ * 課程 v2 · Phase E：量器坊是第一道**知識式**軟門檻（C8）——
+ * 條件是「會了 clear-specific ＋ config 任一座」，不是等級數字。
+ */
+eq(prog.isRegionUnlocked('forms'), false, '還沒學會 config 任何一條 → 量器坊仍鎖住（知識式軟門檻）');
 clearRegion('config');
+eq(prog.isRegionUnlocked('forms'), true, '會了那兩件事 → 量器坊自己開了（知識即升級）');
+clearRegion('forms');
 eq(prog.state.collected.length, curriculum.techniques.length, '全破所有關卡 → 68 條技巧全收集');
-for (const g of curriculum.groups) {
+for (const g of catalog.implementedRegions()) {
   eq(prog.regionMastery(g.id).mastered, true, `[${g.id}] 全收集 → 精通`);
 }
 eq(prog.masteredRegions().length, catalog.counts.implementedRegions, '所有已上線的區域全部精通');
@@ -2462,19 +2664,38 @@ const {
   REGION_NEIGHBORS,
 } = Audio;
 
+/*
+ * 課程 v2 · Phase E：已上線的區域不一定都有音檔。
+ * 沒有音檔的區域必須**明確登記**在 `SYNTH_ONLY_REGIONS` 裡（護欄 3：合成是備援，
+ * 不是遺跡），而且照樣要有自己的 REGION_MOODS —— 不准安靜地共用別區那一首。
+ */
+const SYNTH_ONLY = new Set(Audio.SYNTH_ONLY_REGIONS);
+eq(
+  JSON.stringify(Audio.SYNTH_ONLY_REGIONS.slice().sort()),
+  JSON.stringify(EXPECT.synthOnlyRegions.value.slice().sort()),
+  '合成專用的區域就是 expected-counts 登記的那幾個'
+);
 eq(
   Object.keys(BGM_TRACKS).length,
-  catalog.counts.implementedRegions + 1,
-  '每個已上線的區域＋開場各有一首配樂音檔'
+  catalog.counts.implementedRegions + 1 - SYNTH_ONLY.size,
+  '每個「有音檔的」已上線區域＋開場各有一首配樂'
 );
-for (const g of catalog.legacyGroups()) {
+for (const g of catalog.implementedRegions()) {
   const t = BGM_TRACKS[g.id];
+  if (SYNTH_ONLY.has(g.id)) {
+    ok(!t, `[${g.id}] 登記成合成專用，就不該有音檔條目`);
+    ok(Boolean(REGION_MOODS[g.id]), `[${g.id}] 合成專用也要有自己的配樂性格（不共用別區）`);
+    continue;
+  }
   ok(Boolean(t), `[${g.id}] 有對應的配樂音檔`);
   ok(t && /^bgm_[a-z]+\.m4a$/.test(t.file), `[${g.id}] 配樂檔名符合命名規則`, t && t.file);
   ok(t && nonEmptyStr(t.title), `[${g.id}] 配樂有曲名`);
 }
-eq(new Set(Object.values(BGM_TRACKS).map((t) => t.file)).size, 6, '六首配樂各是不同的檔案');
-eq(new Set(Object.values(BGM_TRACKS).map((t) => t.title)).size, 6, '六首配樂曲名各不相同');
+{
+  const n = Object.keys(BGM_TRACKS).length;
+  eq(new Set(Object.values(BGM_TRACKS).map((t) => t.file)).size, n, `${n} 首配樂各是不同的檔案`);
+  eq(new Set(Object.values(BGM_TRACKS).map((t) => t.title)).size, n, `${n} 首配樂曲名各不相同`);
+}
 
 // 檔案要真的在 public/audio/（護欄 5：部署時 Vite 會原封不動搬進 dist/）
 const audioSizes = new Map();
@@ -2553,7 +2774,7 @@ eq(
   catalog.counts.implementedRegions,
   '每個已上線的區域都有氣氛設定（尚未蓋好的七區不該出現在世界資料裡）'
 );
-for (const g of catalog.legacyGroups()) {
+for (const g of catalog.implementedRegions()) {
   const a = REGION_ATMOSPHERE[g.id];
   ok(Boolean(a), `[${g.id}] 有氣氛設定`);
   if (!a) continue;
@@ -2563,8 +2784,16 @@ for (const g of catalog.legacyGroups()) {
   ok(a.exposure > 0.5 && a.exposure < 2, `[${g.id}] 曝光合理`, String(a.exposure));
   ok(a.motes > 0 && a.motes <= 2, `[${g.id}] 螢火密度合理`, String(a.motes));
 }
-eq(new Set(Object.values(REGION_ATMOSPHERE).map((a) => a.fog)).size, 5, '五區霧色各不相同（跨區看得出來）');
-eq(new Set(Object.values(REGION_ATMOSPHERE).map((a) => a.tint)).size, 5, '五區色偏各不相同');
+eq(
+  new Set(Object.values(REGION_ATMOSPHERE).map((a) => a.fog)).size,
+  catalog.counts.implementedRegions,
+  '每一區的霧色各不相同（跨區看得出來）'
+);
+eq(
+  new Set(Object.values(REGION_ATMOSPHERE).map((a) => a.tint)).size,
+  catalog.counts.implementedRegions,
+  '每一區的色偏各不相同'
+);
 eq(atmosphereFor('config').fog, REGION_ATMOSPHERE.config.fog, 'atmosphereFor 取得對應設定');
 eq(atmosphereFor('nope').fog, REGION_ATMOSPHERE.foundations.fog, 'atmosphereFor 未知區域退回 foundations');
 
@@ -4251,7 +4480,7 @@ eq(
  * 還沒改造的那幾關（例如撰寫基本功的清晰之門、擬態之鏡）仍然全是 choice，
  * 它們的題型換裝屬於各自的改造期；改造完就會自動納入這個迴圈。
  */
-for (const g of curriculum.groups) {
+for (const g of catalog.implementedRegions()) {
   const inRegion = challenges.filter((c) => c.region === g.id && c.primarySkillId).map((c) => kindOf(c.id));
   if (inRegion.length < 3) continue;
   let run = 1;
@@ -5047,6 +5276,186 @@ console.log('\n▸ 合尺（課程 v2 · Phase D）');
   }
 }
 
+
+/* ================================================================== */
+/* 課程 v2 · Phase E：量器坊（forms） —— 第六區、第一塊新地形            */
+/*                                                                    */
+/*   守四件事：                                                        */
+/*     1. 14 座教學神廟一對一接上這一區的 14 條技能（C1／C2）           */
+/*     2. 沿用既有題型、整區沒有連續三座同型（C4）                      */
+/*     3. 世界真的長出來了：地形、地標、氣氛、路網、橋與閘門            */
+/*     4. 軟門檻是**知識式**的（C8），而且規格與 regions-v2 逐字對得上   */
+/* ================================================================== */
+console.log('\n▸ 量器坊（課程 v2 · Phase E）');
+
+{
+  const forms = challenges.filter((c) => c.region === 'forms');
+  eq(forms.length, EXPECT.formsShrines.value, `量器坊有 ${EXPECT.formsShrines.value} 座教學神廟`);
+  ok(
+    forms.every((c) => nonEmptyStr(c.primarySkillId)),
+    '量器坊每一關都接上了 v2 技能',
+    forms.filter((c) => !c.primarySkillId).map((c) => c.id).join('、')
+  );
+  {
+    const skills = forms.map((c) => c.primarySkillId);
+    eq(new Set(skills).size, skills.length, '[forms] 每條技能只有一座神廟（C2）');
+    const regionSkillIds = catalog.regionSkills('forms').map((x) => x.id);
+    eq(
+      skills.slice().sort().join(','),
+      regionSkillIds.slice().sort().join(','),
+      '[forms] 這一區的 14 條技能全部有神廟了（一條不多、一條不少）'
+    );
+  }
+  {
+    /* C4：整區都是課程 v2 的神廟，所以整區都適用 */
+    const kinds = forms.map((c) => kindOf(c.id));
+    let run = 1;
+    let worst = 1;
+    for (let i = 1; i < kinds.length; i += 1) {
+      run = kinds[i] === kinds[i - 1] ? run + 1 : 1;
+      if (run > worst) worst = run;
+    }
+    ok(worst <= 2, '[forms] 整區沒有連續三座同一種題型（C4）', kinds.join(','));
+    ok(new Set(kinds).size >= 4, '[forms] 至少用了四種題型', [...new Set(kinds)].join(','));
+    for (const k of kinds) {
+      ok(EXPECT.flowKinds.value.includes(k), `[forms] 題型 ${k} 是已經上線的那幾種（這一期不開新 kind）`);
+    }
+  }
+  {
+    /* 這一期開的九個新檢查器：真的實作了，而且真的被量器坊用到 */
+    const PHASE_E_CHECKS = [
+      'statesFormatPreference',
+      'hasFallbackCategory',
+      'avoidsSelfCounting',
+      'saysWhatToPreserve',
+      'definesToneConcretely',
+      'bansFillerPhrases',
+      'definesSchema',
+      'noDuplicateSchemaRules',
+      'namesDesignElements',
+    ];
+    const usedHere = new Set(
+      forms.flatMap((c) => c.rubric.map((r) => r.check)).concat(
+        forms.flatMap((c) => {
+          const f = flowData.flows[c.id];
+          return f && f.constraintFlow ? f.constraintFlow.gauges.map((g) => g.check) : [];
+        })
+      )
+    );
+    for (const id of PHASE_E_CHECKS) {
+      ok(CHECK_IDS.includes(id), `新檢查器 ${id} 真的實作了`);
+      ok(usedHere.has(id), `新檢查器 ${id} 真的被量器坊用到（不開沒人用的）`);
+      ok(EXPECT.v2CheckersLanded.value.includes(id), `新檢查器 ${id} 登記進 expected-counts`);
+    }
+  }
+
+  /* --- 世界：正南真的長出一片土地 --- */
+  {
+    const site = World.REGION_SITES.find((x) => x.id === 'forms');
+    ok(Boolean(site), '世界資料裡有量器坊這片土地');
+    ok(site.x === 0 && site.z > 0, '量器坊在正南（+Z）', `${site.x},${site.z}`);
+    ok(site.radius > 30 && site.flat < site.radius, '量器坊的半徑與內圈合理', `${site.radius}/${site.flat}`);
+    // 整片土地不能掉出地形網格（buildTerrain 的平面是 WORLD_RADIUS * 2 + 40）
+    const half = World.WORLD_RADIUS + 20;
+    for (const st of World.REGION_SITES) {
+      ok(
+        Math.abs(st.x) + st.radius <= half && Math.abs(st.z) + st.radius <= half,
+        `[${st.id}] 整片土地都在地形網格裡`,
+        `${Math.abs(st.z) + st.radius} / ${half}`
+      );
+    }
+    // 與東南／西南兩片土地之間留得出虛空
+    for (const other of World.REGION_SITES.filter((x) => x.id !== 'forms' && x.id !== 'foundations')) {
+      const d = Math.hypot(site.x - other.x, site.z - other.z);
+      ok(d > site.radius + other.radius, `量器坊與 ${other.id} 之間是虛空`, d.toFixed(1));
+    }
+    ok(World.coverage(site.x, site.z) > 0.9, '量器坊的中心是實地');
+    const corridor = World.CORRIDORS.find((c) => c.region === 'forms');
+    ok(Boolean(corridor), '有一條橋通往量器坊');
+    ok(corridor.gateAt > 0 && corridor.gateAt < corridor.length, '量器坊的閘門在橋中段');
+    // 地貌真的跟別區不一樣（一階一階的鑄場台階）
+    const heights = [];
+    for (let dz = -30; dz <= 30; dz += 6) heights.push(World.terrainHeight(site.x, site.z + dz));
+    ok(Math.max(...heights) - Math.min(...heights) > 2, '量器坊的地貌有起伏（不是一塊平板）', heights.map((h) => h.toFixed(1)).join(','));
+    ok(
+      heights.every((h, i) => i === 0 || h <= heights[i - 1] + 0.4),
+      '量器坊由北往南一階一階降下去（像一把躺著的尺）',
+      heights.map((h) => h.toFixed(1)).join(',')
+    );
+  }
+  {
+    const lm = LANDMARKS_FOR_TEST.find((l) => l.region === 'forms');
+    ok(Boolean(lm), '量器坊有自己的地標');
+    eq(lm.id, 'gauge-column', '量器坊的地標是刻度之柱');
+    ok(lm.height >= 21 && lm.height <= 27, '刻度之柱落在地標的高度階（21–27 公尺）', String(lm.height));
+    ok(lm.clear >= 14, '刻度之柱周圍留白 ≥ 14 公尺', String(lm.clear));
+  }
+  {
+    const a = World.REGION_ATMOSPHERE.forms;
+    ok(Boolean(a), '量器坊有自己的氣氛設定');
+    ok(a.motes < 1, '量器坊的螢火最少（沒有人在這裡走動很久了）', String(a.motes));
+  }
+  {
+    const vign = Props.STORY_VIGNETTES.filter((v) => v.region === 'forms');
+    ok(vign.length >= 2 && vign.length <= 4, '量器坊有 2–4 組故事小景', `n=${vign.length}`);
+  }
+
+  /* --- 軟門檻：知識式（C8），而且與 regions-v2 的規格逐字對得上 --- */
+  {
+    const { REGION_GATES } = await import('../src/progression/progression.js');
+    const spec = (regionsV2.regions.find((r) => r.id === 'forms') || {}).gate || {};
+    const gate = REGION_GATES.forms;
+    ok(Boolean(gate), 'REGION_GATES 上有量器坊');
+    ok(Boolean(gate.knowledge), '量器坊的門檻是知識式的（不是等級數字）');
+    eq(
+      (gate.knowledge.skills || []).join(','),
+      (spec.skills || []).join(','),
+      '量器坊的技能門檻＝regions-v2 的規格'
+    );
+    eq(
+      (gate.knowledge.regionSkills || []).map((r) => `${r.regionId}:${r.count}`).join(','),
+      (spec.regionSkills || []).map((r) => `${r.regionId}:${r.count}`).join(','),
+      '量器坊的區域門檻＝regions-v2 的規格'
+    );
+    eq(gate.requires, null, '量器坊不看「前一區通關幾關」（知識即升級）');
+    for (const id of gate.knowledge.skills) ok(Boolean(catalog.skill(id)), `門檻上的技能 ${id} 真的存在`);
+    for (const r of gate.knowledge.regionSkills) {
+      ok(catalog.isRegionImplemented(r.regionId), `門檻指到的區域 ${r.regionId} 已經上線`);
+    }
+    /* 門檻真的走得到：那條技能一定有某一關教得到（自己的神廟或 legacy teaches） */
+    for (const id of gate.knowledge.skills) {
+      const skill = catalog.skill(id);
+      const reachable =
+        challenges.some((c) => c.primarySkillId === id) ||
+        (skill.legacyTechniqueId && challenges.some((c) => (c.teaches || []).includes(skill.legacyTechniqueId)));
+      ok(reachable, `門檻上的技能 ${id} 真的有關卡教得到（門不會鎖死）`);
+    }
+    /* 先行前往仍然走得通（護欄：知識式門檻沒有把 skippedGates 拆掉） */
+    memory.clear();
+    const skipProg = createProgression({ catalog, challenges });
+    eq(skipProg.isRegionUnlocked('forms'), false, '新存檔時量器坊是鎖著的');
+    const st = skipProg.gateStatus('forms');
+    ok(st.knowledgeGaps.length > 0, '閘門說得出還差哪幾條', JSON.stringify(st.knowledgeGaps));
+    ok(/也可以先行前往/.test(st.text), '量器坊的閘門一樣會問「想先過去看看嗎」', st.text);
+    ok(!/clear-specific|forms|config\b/.test(st.text), '閘門說的是中文技能名，不是資料層的 id', st.text);
+    skipProg.skipGate('forms');
+    eq(skipProg.isRegionUnlocked('forms'), true, '先行前往照樣開得了量器坊的門');
+    eq(skipProg.state.xp, 0, '先行前往一分 XP 都不加');
+    memory.clear();
+  }
+
+  /* --- 配樂：這一區沒有音檔，走合成 pad（護欄 3） --- */
+  {
+    const { REGION_MOODS: MOODS, BGM_TRACKS: TRACKS, SYNTH_ONLY_REGIONS } = await import('../src/audio/audio.js');
+    ok(SYNTH_ONLY_REGIONS.includes('forms'), '量器坊誠實登記成「還沒有配樂音檔」');
+    ok(!TRACKS.forms, '量器坊沒有音檔條目（不假裝有一首）');
+    ok(Boolean(MOODS.forms), '量器坊有自己的合成配樂性格');
+    for (const other of Object.keys(MOODS).filter((k) => k !== 'forms')) {
+      ok(MOODS.forms.root !== MOODS[other].root, `量器坊的根音與 ${other} 不同（不是拿別區的來墊）`);
+    }
+  }
+}
+
 console.log('\n▸ 稱號與分享卡（Phase 21）');
 
 const ranksFile = readJson('src/data/ranks.json');
@@ -5164,11 +5573,21 @@ eq(zeroStats.mastered, 0, 'rankStats：新存檔精通 0 片');
 eq(zeroStats.total, catalog.counts.techniques, 'rankStats：技巧總數正確');
 eq(zeroStats.regions, catalog.counts.implementedRegions, 'rankStats：區域數只算已上線的（不含尚未蓋好的七區）');
 // 舊呼叫端（直接丟 curriculum.json）行為必須完全一樣
-eq(
-  JSON.stringify(rankStats(rankProg, curriculum)),
-  JSON.stringify(rankStats(rankProg, catalog)),
-  'rankStats：丟 curriculum 或丟 catalog 的結果一模一樣（相容層沒有偷偷改行為）'
-);
+/*
+ * 課程 v2 · Phase E 之後這兩邊不再逐欄相同 —— catalog 真的多了量器坊。
+ * 但**只准差在區域數**：舊呼叫端（直接丟 curriculum.json）看到的仍然是既有五區。
+ */
+{
+  const legacyStats = rankStats(rankProg, curriculum);
+  const catalogStats = rankStats(rankProg, catalog);
+  eq(legacyStats.regions, curriculum.groups.length, 'rankStats：丟 curriculum 時只看得到既有五區');
+  eq(catalogStats.regions, catalog.counts.implementedRegions, 'rankStats：丟 catalog 時看得到全部已上線的區域');
+  eq(
+    JSON.stringify({ ...legacyStats, regions: 0, mastered: 0, masteredRegions: [] }),
+    JSON.stringify({ ...catalogStats, regions: 0, mastered: 0, masteredRegions: [] }),
+    'rankStats：除了區域數以外每一欄都一樣（相容層沒有偷偷改行為）'
+  );
+}
 
 for (const c of challenges) {
   rankProg.recordResult({
@@ -6062,7 +6481,8 @@ console.log('\n▸ 先行前往（詢問式閘門）');
   eq(reloaded.state.xp, 0, '重整後 XP 仍然是誠實的 0');
 
   // 之後真的把條件補滿 → 不會再慶祝一次（它已經在 unlockedRegions 裡）
-  const clears = ['gate-of-clarity-01', 'postbox-sprite-02', 'lost-automaton-03', 'mimic-mirror-04'];
+  // 課程 v2 · Phase E：擬態之鏡已經搬去量器坊，這裡要挑四關**還在撰寫基本功**的
+  const clears = ['gate-of-clarity-01', 'postbox-sprite-02', 'lost-automaton-03', 'long-scroll-archive-05'];
   let lastOutcome = null;
   for (const id of clears) {
     const c = challenges.find((x) => x.id === id);
@@ -6445,7 +6865,13 @@ console.log('\n▸ 課程 v2 遷移契約（Phase 0／A）');
       eq(live.primaryTechniqueId, r.primaryTechniqueId, `${r.id} 資料層的 primaryTechniqueId 與 manifest 一致`);
       const primaries = live.rubric.filter((x) => x.primary);
       eq(primaries.length, 1, `${r.id} 的 rubric 恰好一條主檢查（C1）`, primaries.map((x) => x.check).join('、'));
-      const wantMain = r.phaseD ? r.phaseD.mainCheck : r.newChecker ? r.interimMainCheck : r.mainCheck;
+      const wantMain = r.phaseE
+      ? r.phaseE.mainCheck
+      : r.phaseD
+        ? r.phaseD.mainCheck
+        : r.newChecker
+          ? r.interimMainCheck
+          : r.mainCheck;
       eq(primaries[0] && primaries[0].check, wantMain, `${r.id} 的主檢查就是 manifest 指定的 ${wantMain}`);
       ok(primaries[0] && primaries[0].check !== 'assignsTask', `${r.id} 沒有拿 assignsTask 當主教學目標`);
       ok(!(primaries[0] && primaries[0].foundation), `${r.id} 的主檢查不會同時是地基`);
@@ -6473,16 +6899,32 @@ console.log('\n▸ 課程 v2 遷移契約（Phase 0／A）');
      * ---------------------------------------------------------------- */
     const totalLive = live.rubric.reduce((s, x) => s + x.weight, 0);
     eq(r.passAfter, Number((r.passBefore - 0.5).toFixed(2)), `${r.id} 的 passAfter = passBefore − 0.5（D3 literal）`);
-    const wantPass = r.phaseD ? r.phaseD.passAfterD : r.phaseC ? r.phaseC.passAfterC : r.passAfter;
-    const wantTotal = r.phaseD
-      ? r.phaseD.totalWeightAfterD
-      : r.phaseC
-        ? r.phaseC.totalWeightAfterC
-        : r.totalWeightAfter;
+    const wantPass = r.phaseE
+      ? r.phaseE.passAfterE
+      : r.phaseD
+        ? r.phaseD.passAfterD
+        : r.phaseC
+          ? r.phaseC.passAfterC
+          : r.passAfter;
+    const wantTotal = r.phaseE
+      ? r.phaseE.totalWeightAfterE
+      : r.phaseD
+        ? r.phaseD.totalWeightAfterD
+        : r.phaseC
+          ? r.phaseC.totalWeightAfterC
+          : r.totalWeightAfter;
     eq(
       live.pass,
       wantPass,
-      `${r.id} 的 pass 已經落到 ${r.phaseD ? 'passAfterD（Phase D）' : r.phaseC ? 'passAfterC（Phase C）' : 'passAfter（D3）'}`
+      `${r.id} 的 pass 已經落到 ${
+        r.phaseE
+          ? 'passAfterE（Phase E）'
+          : r.phaseD
+            ? 'passAfterD（Phase D）'
+            : r.phaseC
+              ? 'passAfterC（Phase C）'
+              : 'passAfter（D3）'
+      }`
     );
     ok(r.totalWeightAfter > 0 && r.totalWeightAfter <= r.totalWeightBefore, `${r.id} 的 totalWeightAfter 只會持平或變小`);
     eq(totalLive, wantTotal, `${r.id} 現況的 rubric 總權重 = manifest 記的調整後總權重`);
@@ -6496,6 +6938,23 @@ console.log('\n▸ 課程 v2 遷移契約（Phase 0／A）');
       eq(main && main.weight, r.phaseC.mainWeightAfterC, `${r.id} 的主檢查權重升到 ${r.phaseC.mainWeightAfterC}`);
       eq(main && main.skillId, r.phaseC.skillId, `${r.id} 的主檢查那一列掛著 v2 技能`);
       eq(live.rubric.length, 2, `${r.id} 收斂成「一條主檢查 ＋ 一條地基」（C1）`);
+    }
+    if (r.phaseE) {
+      /* Phase E 的一關（擬態之鏡）：收斂成新神廟的形狀、接上 v2 技能，並整座搬進量器坊 */
+      eq(live.primarySkillId, r.phaseE.skillId, `${r.id} 接上 v2 技能 ${r.phaseE.skillId}`);
+      eq(live.primaryTechniqueId, r.primaryTechniqueId, `${r.id} 仍然掛著它真的有的舊主技巧（收集不倒退）`);
+      eq(live.region, r.phaseE.regionAfterE, `${r.id} 已經搬到 ${r.phaseE.regionAfterE} 區`);
+      const mainE = live.rubric.find((x) => x.primary);
+      eq(mainE && mainE.check, r.phaseE.mainCheck, `${r.id} 的主檢查＝manifest 指定的 ${r.phaseE.mainCheck}`);
+      eq(mainE && mainE.weight, r.phaseE.mainWeightAfterE, `${r.id} 的主檢查權重升到 ${r.phaseE.mainWeightAfterE}`);
+      eq(mainE && mainE.skillId, r.phaseE.skillId, `${r.id} 的主檢查那一列掛著 v2 技能`);
+      eq(live.rubric.length, 2, `${r.id} 收斂成「一條主檢查 ＋ 一條地基」（C1）`);
+      eq(
+        flowData.flows[r.id] && (flowData.flows[r.id].kind || 'choice'),
+        r.phaseE.kindAfterE,
+        `${r.id} 的第三幕題型＝manifest 記的 ${r.phaseE.kindAfterE}`
+      );
+      ok(nonEmptyStr(r.phaseE.note) && r.phaseE.note.length >= 20, `${r.id} 的 Phase E 條目有寫下理由`);
     }
     if (r.phaseD) {
       /* Phase D 的十一關：跟 Phase C 一樣收斂成新神廟的形狀，並接上 v2 技能 */
@@ -6518,17 +6977,18 @@ console.log('\n▸ 課程 v2 遷移契約（Phase 0／A）');
     const liveWeights = new Map(live.rubric.map((x) => [x.check, x.weight]));
     for (const e of r.checksToRemoveOrDownweight) {
       ok(['downweight', 'remove', 'replace', 'hold'].includes(e.action), `${r.id} 的 ${e.check} 動作合法`, e.action);
-      ok(['A', 'C', 'D', 'post-A'].includes(e.phase), `${r.id} 的 ${e.check} 有指定期別`, e.phase);
+      ok(['A', 'C', 'D', 'E', 'post-A'].includes(e.phase), `${r.id} 的 ${e.check} 有指定期別`, e.phase);
       ok(nonEmptyStr(e.reason) && e.reason.length >= 10, `${r.id} 的 ${e.check} 有寫理由`);
       if (e.action === 'replace') ok(checkIds.has(e.replaceWith), `${r.id} 的 ${e.check} 換成真的存在的檢查器`);
       const w = liveWeights.get(e.check);
-      if (e.phase === 'C' || e.phase === 'D') {
+      if (e.phase === 'C' || e.phase === 'D' || e.phase === 'E') {
         /*
          * Phase C：主題在這一期搬到自己的神廟了，所以這一條**必須**已經執行完。
          * （manifest 的 phaseC 區塊逐關記著這件事，`addedIn: "C"` 標的是
          *   Phase 0 產生器沒掃到、由 Phase C 補上的兩條移除。）
          */
-        ok(e.phase === 'C' ? r.phaseC : r.phaseD, `${r.id} 標了 Phase ${e.phase} 條目就要有 phase${e.phase} 區塊`);
+        const phaseBlock = e.phase === 'C' ? r.phaseC : e.phase === 'D' ? r.phaseD : r.phaseE;
+        ok(phaseBlock, `${r.id} 標了 Phase ${e.phase} 條目就要有 phase${e.phase} 區塊`);
         if (e.action === 'remove') {
           ok(w === undefined, `${r.id} 的 ${e.check} 已經在 Phase ${e.phase} 移除`, `weight=${w}`);
         } else if (e.action === 'downweight') {
@@ -6543,7 +7003,7 @@ console.log('\n▸ 課程 v2 遷移契約（Phase 0／A）');
       }
       // 同一條檢查如果之後又在 Phase C 被整條移除，Phase A 的降權目標就不再存在
       const removedLater = r.checksToRemoveOrDownweight.find(
-        (x) => x.check === e.check && (x.phase === 'C' || x.phase === 'D') && x.action === 'remove'
+        (x) => x.check === e.check && ['C', 'D', 'E'].includes(x.phase) && x.action === 'remove'
       );
       if (removedLater) {
         ok(
@@ -6563,7 +7023,14 @@ console.log('\n▸ 課程 v2 遷移契約（Phase 0／A）');
          */
         const isPhaseCMain = r.phaseC && r.phaseC.mainCheck === e.check;
         const isPhaseDMain = r.phaseD && r.phaseD.mainCheck === e.check;
-        if (isPhaseDMain) {
+        const isPhaseEMain = r.phaseE && r.phaseE.mainCheck === e.check;
+        if (isPhaseEMain) {
+          eq(
+            w,
+            r.phaseE.mainWeightAfterE,
+            `${r.id} 的 ${e.check} 是 Phase E 的主檢查，權重升到 ${r.phaseE.mainWeightAfterE} 分`
+          );
+        } else if (isPhaseDMain) {
           eq(w, r.phaseD.mainWeightAfterD, `${r.id} 的 ${e.check} 是 Phase D 的主檢查，權重升到 ${r.phaseD.mainWeightAfterD} 分`);
         } else if (isPhaseCMain) {
           eq(
@@ -6579,7 +7046,7 @@ console.log('\n▸ 課程 v2 遷移契約（Phase 0／A）');
       } else if (e.action === 'replace') {
         ok(w === undefined, `${r.id} 的 ${e.check} 已經被換掉`, `weight=${w}`);
         const laterRemoved = r.checksToRemoveOrDownweight.some(
-          (x) => x.check === e.replaceWith && (x.phase === 'C' || x.phase === 'D') && x.action === 'remove'
+          (x) => x.check === e.replaceWith && ['C', 'D', 'E'].includes(x.phase) && x.action === 'remove'
         );
         if (laterRemoved) {
           // 接手那 1 分的檢查在後續期別把主題交給自己的神廟了（例如受眾 → 六面燈籠）
@@ -6623,6 +7090,10 @@ console.log('\n▸ 課程 v2 遷移契約（Phase 0／A）');
     (n, r) => n + r.checksToRemoveOrDownweight.filter((e) => e.phase === 'D' && e.action === 'remove').length,
     0
   );
+  const PHASE_E_ROWS_REMOVED = migration.challenges.reduce(
+    (n, r) => n + r.checksToRemoveOrDownweight.filter((e) => e.phase === 'E' && e.action === 'remove').length,
+    0
+  );
   const PHASE_D_ROWS_ADDED = migration.challenges.filter(
     (r) => r.phaseD && (r.newChecker || r.phaseD.mainCheck !== r.mainCheck)
   ).length;
@@ -6639,8 +7110,8 @@ console.log('\n▸ 課程 v2 遷移契約（Phase 0／A）');
   eq(migration.baseline.rubricRows, 118, 'manifest 記的是 Phase 0 的 rubric 條數基線（118，不是舊文件的 106）');
   eq(
     legacyChallenges.reduce((s, c) => s + c.rubric.length, 0),
-    113 - PHASE_C_ROWS_REMOVED - PHASE_D_ROWS_REMOVED + PHASE_D_ROWS_ADDED,
-    `Phase A 之後 113 條；Phase C 移除 ${PHASE_C_ROWS_REMOVED} 條、Phase D 移除 ${PHASE_D_ROWS_REMOVED} 條並新增 ${PHASE_D_ROWS_ADDED} 條主檢查`
+    113 - PHASE_C_ROWS_REMOVED - PHASE_D_ROWS_REMOVED - PHASE_E_ROWS_REMOVED + PHASE_D_ROWS_ADDED,
+    `Phase A 之後 113 條；Phase C 移除 ${PHASE_C_ROWS_REMOVED} 條、Phase D 移除 ${PHASE_D_ROWS_REMOVED} 條、Phase E 移除 ${PHASE_E_ROWS_REMOVED} 條並新增 ${PHASE_D_ROWS_ADDED} 條主檢查`
   );
   eq(migration.baseline.curriculumTechniques, curriculum.techniques.length, 'manifest 的技巧數基線正確');
   eq(migration.baseline.curriculumSha256, CURRICULUM_SHA256, 'manifest 記的 curriculum 指紋與實檔一致');
@@ -6961,12 +7432,26 @@ console.log('\n▸ 課程 v2 runtime catalog（Phase B step 1）');
     ok(needs.length > 0, '遷移 manifest 裡至少有一關本來就在等 v2 catalog');
   }
 
-  /* --- 行為中立：已上線的五區列舉結果與舊的一模一樣 --- */
+  /* ------------------------------------------------------------------
+   * 行為中立（Phase E 修訂）：已上線的區域必須**以既有五區開頭、順序一樣**，
+   * 後面才接課程 v2 新蓋好的區域。這條擋的是「有人把舊五區換順序／弄丟一個」，
+   * 同時允許世界真的長大（量器坊起）。
+   * ------------------------------------------------------------------ */
+  const legacyRegionIds = curriculum.groups.map((g) => g.id);
   eq(
-    catalog.implementedRegionIds().join(','),
-    curriculum.groups.map((g) => g.id).join(','),
-    '已上線的區域＝curriculum.groups（id 與順序都一樣）'
+    catalog.implementedRegionIds().slice(0, legacyRegionIds.length).join(','),
+    legacyRegionIds.join(','),
+    '已上線的區域以 curriculum.groups 開頭（id 與順序都一樣）'
   );
+  for (const r of catalog.implementedRegions().slice(legacyRegionIds.length)) {
+    ok(!legacyRegionIds.includes(r.id), `新上線的 ${r.id} 不在 curriculum.groups 裡（新內容走 authored 層）`);
+    ok(nonEmptyStr(r.color), `新上線的 ${r.id} 有自己的主色`, r.color);
+    ok(r.skillOnly === true, `新上線的 ${r.id} 只教 v2 技能（舊 68 條裡沒有它的主題）`);
+    ok(
+      challenges.filter((c) => c.region === r.id).length > 0,
+      `新上線的 ${r.id} 世界裡真的有關卡（不是只把旗標打開）`
+    );
+  }
   for (const r of catalog.upcomingRegions()) {
     ok(!curriculum.groups.some((g) => g.id === r.id), `尚未上線的 ${r.id} 不在 curriculum.groups 裡`);
     eq(
@@ -6980,15 +7465,25 @@ console.log('\n▸ 課程 v2 runtime catalog（Phase B step 1）');
     const withCatalog = createContent(curriculum, challengeData, null, null, null, null, null, catalog);
     const legacyOnly = createContent(curriculum, challengeData);
     eq(
-      JSON.stringify(withCatalog.groupsOrdered()),
+      JSON.stringify(withCatalog.groupsOrdered().slice(0, curriculum.groups.length)),
       JSON.stringify(curriculum.groups.slice().sort((a, b) => a.order - b.order)),
-      'content.groupsOrdered() 走 catalog 之後輸出完全沒變'
+      'content.groupsOrdered() 的前五格與 curriculum.groups 逐欄相同（既有五區沒被改寫）'
     );
     eq(
       JSON.stringify(legacyOnly.groupsOrdered()),
-      JSON.stringify(withCatalog.groupsOrdered()),
-      '沒傳 catalog 的舊呼叫端行為也一樣（相容層）'
+      JSON.stringify(curriculum.groups.slice().sort((a, b) => a.order - b.order)),
+      '沒傳 catalog 的舊呼叫端仍然只看得到既有五區（相容層）'
     );
+    eq(
+      withCatalog.groupsOrdered().length,
+      catalog.counts.implementedRegions,
+      'content.groupsOrdered() 把新上線的區域也列進來（圖鑑才看得到）'
+    );
+    {
+      // 新上線的區域也要查得到顯示資料（HUD／toast 不准退回印出區域 id）
+      const g = withCatalog.group('forms');
+      ok(g && g.name === '量器坊' && /^#/.test(g.color), 'content.group() 查得到新上線區域的名稱與主色', JSON.stringify(g));
+    }
     eq(withCatalog.regionsOrdered().length, catalog.counts.implementedRegions, 'content.regionsOrdered() 只列已上線的區域');
     eq(withCatalog.skill('clear-golden').regionId, 'foundations', 'content.skill() 查得到 v2 技能');
   }
@@ -7050,7 +7545,9 @@ console.log('\n▸ 課程 v2 runtime catalog（Phase B step 1）');
   }, 'legacyTechniqueId 不在 curriculum 裡');
   {
     const badRegions = JSON.parse(JSON.stringify(regionsV2));
-    badRegions.regions[5].implemented = true; // 把還沒蓋好的 forms 標成已上線
+    // 挑一個「世界裡真的還沒蓋」的區域（Phase E 之後 forms 已經上線，所以往後找）
+    const notBuilt = badRegions.regions.find((r) => !r.implemented);
+    notBuilt.implemented = true;
     let threw = false;
     try {
       createCatalog({ curriculum, skillCodex: skillCodexV2, regions: badRegions });

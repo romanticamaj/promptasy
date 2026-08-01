@@ -201,6 +201,62 @@ export function createCodex({
     </li>`;
   }
 
+  /**
+   * 課程 v2 · Phase E：只教 v2 技能的區域（量器坊起）在舊 68 條裡沒有主題，
+   * 所以圖鑑改列這一區的技能本身。**顯示規則與舊技巧完全一樣**：
+   * 未收集只留一行剪影，收集了才展開看說明 ＋ 可點的官方出處（護欄 2）。
+   */
+  function skillCard(skill) {
+    const got = progression.isSkillCollected(skill.id);
+    if (!got) {
+      return `<li class="tech tech--locked">
+        <div class="tech__head">
+          <span class="tech__id">${esc(skill.id)}</span>
+          <b class="tech__title">？？？</b>
+        </div>
+      </li>`;
+    }
+    const sources = content.catalog.sourcesForSkill(skill.id);
+    return `<li class="tech">
+      <details>
+        <summary>
+          <span class="tech__id">${esc(skill.id)}</span>
+          <b class="tech__title">${esc(skill.nameZh)}</b>
+          <span class="tech__chips"><span class="chip" style="--c:var(--gold)">${esc(skill.tier)}</span></span>
+        </summary>
+        <div class="tech__body">
+          <p class="tech__tip">${esc(skill.oneLiner)}</p>
+          <ul class="tech__srcs">
+            ${sources
+              .map(
+                (s) =>
+                  `<li><a class="src" href="${esc(s.url)}" target="_blank" rel="noopener">${esc(
+                    s.docName || s.vendor
+                  )} ↗</a>${sourceNoteHtml(content.sourceNote ? content.sourceNote(s.url) : null)}</li>`
+              )
+              .join('')}
+          </ul>
+        </div>
+      </details>
+    </li>`;
+  }
+
+  /** 一整區的技能清單（沒有主題可以分層，所以只有一疊）。 */
+  function skillSection(regionId) {
+    const skills = content.regionSkills(regionId);
+    if (!skills.length) return '';
+    const got = skills.filter((s) => progression.isSkillCollected(s.id)).length;
+    return `<section class="topic">
+      <h4 class="topic__head">
+        <span class="topic__num">✦</span>
+        <span>這片土地上的技法</span>
+        <span class="topic__count">${got}/${skills.length}</span>
+      </h4>
+      <p class="topic__sub">解開這一區的神廟，那一條就會被刻進來。</p>
+      <ul class="techs">${skills.map(skillCard).join('')}</ul>
+    </section>`;
+  }
+
   function render() {
     const collected = progression.state.collected.length;
     const totalTech = content.catalog.counts.techniques;
@@ -212,7 +268,10 @@ export function createCodex({
       .map((g) => {
         const mastery = progression.regionMastery(g.id);
         const pct = mastery.total ? Math.round((mastery.collected / mastery.total) * 100) : 0;
-        const topics = content
+        const unit = mastery.skillBased ? '條技法' : '條技巧';
+        const topics = mastery.skillBased
+          ? skillSection(g.id)
+          : content
           .topicsOf(g.id)
           .map((topic) => {
             const techs = content.techniquesOf(topic.id);
@@ -236,7 +295,7 @@ export function createCodex({
               <h3>${esc(g.name)} <span class="muted">${esc(g.nameEn)}</span></h3>
             </div>
             <div class="region-card__meta">
-              <p class="muted">${mastery.collected} / ${mastery.total} 條技巧${
+              <p class="muted">${mastery.collected} / ${mastery.total} ${unit}${
                 mastery.mastered ? ' · 已全數收集' : ''
               }</p>
               <div class="meter meter--sm"><i style="width:${pct}%"></i></div>

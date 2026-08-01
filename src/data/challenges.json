@@ -212,13 +212,13 @@
     },
     {
       "id": "mimic-mirror-04",
-      "region": "foundations",
+      "region": "forms",
       "order": 4,
       "title": "擬態之鏡",
       "npc": "石鏡 · 擬態",
       "position": [
-        -22,
-        22
+        -18.7,
+        98.8
       ],
       "xp": 50,
       "teaches": [
@@ -226,54 +226,48 @@
         "format-03"
       ],
       "primaryTechniqueId": "format-03",
-      "scenario": "一面立在草坡上的石鏡，鏡面霧濛濛的。你描述了半天要它照出什麼，鏡子只回你一句：「說不清楚。做給我看一次，我就會了。」",
-      "mission": "讓石鏡把昨夜那份守夜紀錄的每一行整理成同一種格式。",
-      "craft": "與其描述格式，不如示範一組「輸入 → 輸出」給它看，它會照抄結構。",
+      "scenario": "一面立在鑄場邊的石鏡，鏡面霧濛濛的。你問它一句，它先客套三句才進正題。鏡面上慢慢浮出一行字：「你先起個頭，我就照著接下去。」",
+      "mission": "讓石鏡照著你起好的頭，把昨夜那份守夜紀錄一行一行接完。",
+      "craft": "先替它把第一組寫好 —— 一行「輸入：」配一行「輸出：」，它會照著那個形狀接完；再補一組，形狀才咬得住。",
       "material": {
         "label": "昨夜的守夜紀錄（未整理）",
         "text": "四點 守夜人開門\n五點半 補燈油\n六點一刻 南橋落石"
       },
-      "clue": "與其描述格式，不如做一次給它看：寫一行「輸入：＿＿」，再寫一行「輸出：＿＿」，鏡子會照抄結構。（想寫成英文 Input:／Output: 也一樣算。）範例要相關、格式要一致。",
-      "placeholder": "例如：請照著下面的範例整理每一行紀錄。\n輸入：＿＿\n輸出：＿＿\n輸出格式：＿＿",
+      "clue": "鏡子說：形狀用描述的它會猜，先做一次給它看它就不猜了。（寫成英文的 Input:／Output: 一樣算。）",
+      "placeholder": "例如：請照著下面起好的頭接完。輸入：＿＿／輸出：＿＿／輸入：＿＿／輸出：",
       "quickFills": [
         {
-          "label": "任務與範例",
-          "text": "請照著下面的範例，把每一行守夜紀錄整理成同一種格式。\n輸入：四點 守夜人開門\n輸出：04:00 — 開門（守夜人）"
+          "label": "交代任務",
+          "text": "請照著下面已經起好的頭，把每一行守夜紀錄接完。"
         },
         {
-          "label": "第二組範例",
+          "label": "起第一組",
+          "text": "輸入：四點 守夜人開門\n輸出：04:00 — 開門（守夜人）"
+        },
+        {
+          "label": "再起一組",
           "text": "輸入：五點半 補燈油\n輸出：05:30 — 補燈油"
-        },
-        {
-          "label": "指定格式",
-          "text": "輸出格式：每筆一行純文字。"
         }
       ],
-      "sample": "請照著下面的範例，把每一行守夜紀錄轉換成同一種格式。\n輸入：四點 守夜人開門\n輸出：04:00 — 開門（守夜人）\n輸入：五點半 補燈油\n輸出：05:30 — 補燈油\n輸出格式：每筆一行純文字。",
+      "sample": "請照著下面已經起好的頭，把每一行守夜紀錄接完。\n輸入：四點 守夜人開門\n輸出：04:00 — 開門（守夜人）\n輸入：五點半 補燈油\n輸出：05:30 — 補燈油\n輸入：六點一刻 南橋落石\n輸出：",
       "rubric": [
         {
           "check": "hasFewShot",
           "weight": 3,
           "primary": true,
           "techniqueId": "format-02",
-          "hint": "至少示範一組成對的「輸入：…」與「輸出：…」（寫成英文 Input:／Output: 也一樣算），只寫「例如」不算。"
-        },
-        {
-          "check": "specifiesFormat",
-          "weight": 2,
-          "techniqueId": "format-01",
-          "hint": "除了範例，也把想要的形狀直接寫出來（JSON / 條列 / 一句話）。"
+          "skillId": "prefill-completion"
         },
         {
           "check": "assignsTask",
           "weight": 0.5,
           "foundation": true,
-          "techniqueId": "clarity-02",
-          "hint": "先講清楚要它對新輸入做什麼，再放範例。"
+          "techniqueId": "clarity-02"
         }
       ],
-      "pass": 2.5,
-      "source": "https://help.openai.com/en/articles/6654000-best-practices-for-prompt-engineering-with-the-openai-api"
+      "pass": 2,
+      "source": "https://ai.google.dev/gemini-api/docs/prompting-strategies#completion",
+      "primarySkillId": "prefill-completion"
     },
     {
       "id": "long-scroll-archive-05",
@@ -3841,6 +3835,747 @@
       ],
       "pass": 2,
       "source": "https://docs.x.ai/developers/tools/web-search#only-search-in-specific-domains"
+    },
+    {
+      "id": "gatehouse-gauge-53",
+      "region": "forms",
+      "order": 53,
+      "title": "量器坊的門房",
+      "npc": "門房 · 空模",
+      "position": [
+        4.8,
+        98.1
+      ],
+      "xp": 40,
+      "teaches": [],
+      "primaryTechniqueId": null,
+      "primarySkillId": "fmt-specify",
+      "scenario": "橋在這裡落地。門房坐在一整排空模子後面，把一張紙推過來：「你要的東西我照做了，形狀是我自己挑的——因為你沒說。」紙上是一整段沒有斷句的話。",
+      "mission": "請門房把這段散文重新交出來，讓值夜的人一眼就數得出今晚要帶幾樣東西。",
+      "craft": "把想要的形狀直接寫出來（條列、每項一行、每項幾個字），而且挑一個對得上素材的形狀——是清單就用條列，不要硬塞成表格。",
+      "material": {
+        "label": "門房交回來的那一段話",
+        "text": "今晚要帶的物品有燈油還有一把備用的火摺子另外記得帶繩子六尺長還有一張油布"
+      },
+      "clue": "門房說：形狀你不說，它就自己挑一個；而且它挑的通常是最長的那一個。",
+      "starter": "你把下面這段交代整理得好看一點。",
+      "placeholder": "例如：請把下面這段交代改寫成＿＿。輸出格式：＿＿，每一項＿＿。",
+      "quickFills": [
+        {
+          "label": "交代任務",
+          "text": "請把下面這段今晚要帶的東西重新寫過。"
+        },
+        {
+          "label": "指定形狀",
+          "text": "輸出格式：條列，每一項一行。"
+        },
+        {
+          "label": "收住長度",
+          "text": "每一項不超過 10 個字。"
+        }
+      ],
+      "sample": "請把下面這段今晚要帶的東西重新寫過。\n輸出格式：條列，每一項一行。\n每一項不超過 10 個字，只寫物品與數量。",
+      "rubric": [
+        {
+          "check": "specifiesFormat",
+          "weight": 3,
+          "primary": true,
+          "techniqueId": "format-01",
+          "skillId": "fmt-specify"
+        },
+        {
+          "check": "assignsTask",
+          "weight": 0.5,
+          "foundation": true,
+          "techniqueId": "clarity-02"
+        }
+      ],
+      "pass": 2,
+      "source": "https://ai.google.dev/gemini-api/docs/prompting-strategies#response-format"
+    },
+    {
+      "id": "bullet-wall-54",
+      "region": "forms",
+      "order": 54,
+      "title": "長出圓點的牆",
+      "npc": "牆前的抄寫人 · 剪不完",
+      "position": [
+        18.3,
+        99.0
+      ],
+      "xp": 40,
+      "teaches": [],
+      "primaryTechniqueId": null,
+      "primarySkillId": "fmt-markdown-diet",
+      "scenario": "一整面牆被圓點蓋滿，三層巢狀，每一點下面又長出三點。牆角擺著一把剪子和一疊被剪下來的紙：有人剪了很久，圓點又長回來了。",
+      "mission": "請把牆上這份回覆重寫成讀得下去的樣子，而且要讓圓點不會再長回來。",
+      "craft": "把排版偏好寫成一小段（不用圓點、不用小標、改成整段散文），再加一句「之後每隔幾輪重申一次」——不重申，聊到第三十輪它就長回來了。",
+      "material": {
+        "label": "牆上那份三層圓點的回覆",
+        "text": "• 井水\n  • 關閉\n    • 三天\n• 備用井\n  • 北門\n    • 全天開放"
+      },
+      "clue": "牆角的字條寫著：剪掉一次只安靜十輪。要它記得，就得每隔幾輪再說一次。",
+      "starter": "這面牆上的回覆圓點太多了，你看著調整一下排版就好。",
+      "placeholder": "例如：請用＿＿回覆，不要用＿＿與＿＿。之後每＿＿輪請＿＿一次。",
+      "quickFills": [
+        {
+          "label": "交代任務",
+          "text": "請把下面這面牆上的回覆重寫一次。"
+        },
+        {
+          "label": "寫成偏好",
+          "text": "請用整段散文回覆，不要用圓點與項目符號，也不要加小標題。"
+        },
+        {
+          "label": "要它重申",
+          "text": "之後每 10 輪請重申一次上面這段排版偏好。"
+        }
+      ],
+      "sample": "請把下面這面牆上的回覆重寫一次。\n請用整段散文回覆，不要用圓點與項目符號，也不要加小標題。\n之後每 10 輪請重申一次上面這段排版偏好。\n內容一個字都不要改（井水關閉三天、北門備用井全天開放），只換排版。",
+      "rubric": [
+        {
+          "check": "statesFormatPreference",
+          "weight": 3,
+          "primary": true,
+          "techniqueId": "format-05",
+          "skillId": "fmt-markdown-diet"
+        },
+        {
+          "check": "assignsTask",
+          "weight": 0.5,
+          "foundation": true,
+          "techniqueId": "clarity-02"
+        }
+      ],
+      "pass": 2,
+      "source": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#control-the-format-of-responses"
+    },
+    {
+      "id": "slippery-answer-55",
+      "region": "forms",
+      "order": 55,
+      "title": "抓不住的答案",
+      "npc": "收單的抄寫人 · 沒有框",
+      "position": [
+        -7.7,
+        106.4
+      ],
+      "xp": 40,
+      "teaches": [],
+      "primaryTechniqueId": null,
+      "primarySkillId": "answer-anchor",
+      "scenario": "檯上攤著六段回覆，每一段都寫得很長，結論埋在第七行的中間。收單的人拿著鑷子，一段一段夾：「我不是讀不懂，我是撈不出來。」",
+      "mission": "請替這六段回覆訂一個抓得出來的位置，讓收單的人不必再用鑷子。",
+      "craft": "把答案規定放進一個固定的框（最後一行的「答案：」後面），再補一個兜底的類別——遇到不屬於任何一類的東西，框裡才有東西可放。",
+      "material": {
+        "label": "檯上那六段回覆（節錄）",
+        "text": "第一段：講了補給，也順帶提了天氣。\n第四段：整段在講一件跟航路無關的舊事。\n第六段：結論埋在第七行的中間。"
+      },
+      "clue": "收單的人說：位置固定了，撈得出來；沒有兜底的格，它就會硬塞一個。",
+      "starter": "請把下面六段回覆看一看，然後告訴我結論是什麼。",
+      "placeholder": "例如：請把下面六段各自分成＿＿。不屬於＿＿就標成＿＿。最終答案請放在＿＿。",
+      "quickFills": [
+        {
+          "label": "交代分類",
+          "text": "請把下面六段回覆各自分成「補給」「航路」「天氣」三類。"
+        },
+        {
+          "label": "兜底的格",
+          "text": "不屬於上述任何一類就標成「其他」。"
+        },
+        {
+          "label": "固定位置",
+          "text": "最終答案請放在最後一行的「答案：」後面。"
+        }
+      ],
+      "sample": "請把下面六段回覆各自分成「補給」「航路」「天氣」三類。\n輸出格式：每段一行，先寫段號再寫類別。\n不屬於上述任何一類就標成「其他」。\n最終答案請放在最後一行的「答案：」後面。",
+      "rubric": [
+        {
+          "check": "hasFallbackCategory",
+          "weight": 3,
+          "primary": true,
+          "techniqueId": "format-01",
+          "skillId": "answer-anchor"
+        },
+        {
+          "check": "assignsTask",
+          "weight": 0.5,
+          "foundation": true,
+          "techniqueId": "clarity-02"
+        }
+      ],
+      "pass": 2,
+      "source": "https://huggingface.co/Qwen/Qwen3-235B-A22B"
+    },
+    {
+      "id": "abacus-count-56",
+      "region": "forms",
+      "order": 56,
+      "title": "數不清的珠算",
+      "npc": "珠算手 · 三個數",
+      "position": [
+        14.8,
+        111.9
+      ],
+      "xp": 40,
+      "teaches": [],
+      "primaryTechniqueId": null,
+      "primarySkillId": "no-counting",
+      "scenario": "珠算手把三份稿並排放好，每一份最後都寫著自己的字數，三個數字沒有一個對得上。他撥了兩下算珠又停下來：「我每次數都不一樣。」",
+      "mission": "請讓珠算手不必再數 —— 把這三份稿合併改寫成一則公告。",
+      "craft": "把數量先算好，當成資料寫進去（「原文共 812 字」），並且把「你自己數一下」那幾句拿掉——它每次數出來的都不一樣。",
+      "material": {
+        "label": "珠算手交回的三份稿",
+        "text": "第一份稿自稱 300 字。\n第二份稿自稱 300 字，卻多了一整段。\n第三份稿自稱 298 字，其實比第一份短。"
+      },
+      "clue": "算盤旁邊刻著一行字：交給它的活，不要包含「算給我看」。",
+      "starter": "請把下面這三份稿改寫成公告，順便數一下總共幾個字。",
+      "placeholder": "例如：請把下面這三份稿合併改寫成＿＿。這段原文共＿＿字（已經算好）。",
+      "quickFills": [
+        {
+          "label": "交代任務",
+          "text": "請把下面這三份稿合併改寫成一則公告。"
+        },
+        {
+          "label": "把數字給它",
+          "text": "這段原文共 812 字（已經算好，直接用）。"
+        },
+        {
+          "label": "收住長度",
+          "text": "公告請壓到 3 句話以內。"
+        }
+      ],
+      "sample": "請把下面這三份稿合併改寫成一則公告。\n這段原文共 812 字（已經算好，直接用）。\n紀錄筆數是 14 筆（已經算好，直接用）。\n公告請壓到 3 句話以內。",
+      "rubric": [
+        {
+          "check": "avoidsSelfCounting",
+          "weight": 3,
+          "primary": true,
+          "techniqueId": "clarity-03",
+          "skillId": "no-counting"
+        },
+        {
+          "check": "assignsTask",
+          "weight": 0.5,
+          "foundation": true,
+          "techniqueId": "clarity-02"
+        }
+      ],
+      "pass": 2,
+      "source": "https://docs.mistral.ai/models/best-practices/prompt-engineering"
+    },
+    {
+      "id": "two-rulers-57",
+      "region": "forms",
+      "order": 57,
+      "title": "兩把尺",
+      "npc": "量繩人 · 兩把",
+      "position": [
+        19.1,
+        125.7
+      ],
+      "xp": 40,
+      "teaches": [],
+      "primaryTechniqueId": null,
+      "primarySkillId": "len-concrete",
+      "scenario": "工坊桌上並排躺著兩把尺。左邊那把光滑得像一根棍子，只在末端刻著一個「短」字；右邊那把每一格都刻著數字。上一份公告是用左邊那把量的。",
+      "mission": "請用右邊那把有刻度的尺，把這份航班說明重寫成一則公告。",
+      "craft": "長度要給得出數字（三句話、每句 20 個字），而且原文的字數先算好再遞進去——想得多不等於說得多，思考的旋鈕不會替你收長度。",
+      "material": {
+        "label": "工坊桌上的兩把尺",
+        "text": "左邊那把沒有刻度，末端只刻著一個「短」字。\n右邊那把每一格都刻著數字，量出來的公告剛好三句話。\n上一份公告用左邊那把量，交回來八百多字。"
+      },
+      "clue": "量繩人說：「短」是感覺，「三句話」才是長度。",
+      "starter": "請把下面這份航班說明改寫成公告，寫得短一些就好。",
+      "placeholder": "例如：請把下面這份航班說明改寫成＿＿。長度：不超過＿＿句話，每句不超過＿＿個字。",
+      "quickFills": [
+        {
+          "label": "交代任務",
+          "text": "請把下面這份航班說明重寫成公告。"
+        },
+        {
+          "label": "給出長度",
+          "text": "長度：不超過 3 句話。"
+        },
+        {
+          "label": "每句上限",
+          "text": "每句不超過 20 個字。"
+        }
+      ],
+      "sample": "請把下面這份航班說明重寫成公告。\n長度：不超過 3 句話，每句不超過 20 個字。\n這份說明原文共 640 字（已經算好，直接用）。",
+      "rubric": [
+        {
+          "check": "hasConstraint",
+          "weight": 3,
+          "primary": true,
+          "techniqueId": "format-06",
+          "skillId": "len-concrete"
+        },
+        {
+          "check": "assignsTask",
+          "weight": 0.5,
+          "foundation": true,
+          "techniqueId": "clarity-02"
+        }
+      ],
+      "pass": 2,
+      "source": "https://developers.openai.com/cookbook/examples/gpt-5/gpt-5-2_prompting_guide"
+    },
+    {
+      "id": "cut-summary-58",
+      "region": "forms",
+      "order": 58,
+      "title": "被砍掉重點的摘要",
+      "npc": "收尾的抄寫人 · 砍太多",
+      "position": [
+        -31.3,
+        126.9
+      ],
+      "xp": 40,
+      "teaches": [],
+      "primaryTechniqueId": null,
+      "primarySkillId": "len-preserve",
+      "scenario": "石台上釘著一份三行摘要，旁邊壓著原本那份結案報告。有人在摘要底下補了一行小字：「短是短了，可是最重要的那一段不見了。」",
+      "mission": "請把這份結案報告重新收成短短的一段，而且不要再把關鍵那幾樣砍掉。",
+      "craft": "要它縮短的同時點名哪幾樣不准丟（數字、期限、結論）；必留清單要很短，列太長就等於沒縮。",
+      "material": {
+        "label": "原本那份結案報告（節錄）",
+        "text": "北橋工程延後兩週，追加預算 4 萬 2 千。\n完工期限改為五月三十日。\n結論：雨季提前是主因。"
+      },
+      "clue": "小字底下還有一行：只說「縮短」，它會先砍掉最長的那一段，而最長的那一段常常就是結論。",
+      "starter": "這份結案報告請你重寫一次，越短越好。",
+      "placeholder": "例如：請把下面這份結案報告改寫成＿＿。＿＿、＿＿與＿＿必須保留。",
+      "quickFills": [
+        {
+          "label": "交代任務",
+          "text": "請把下面這份結案報告改寫成 3 句話以內的摘要。"
+        },
+        {
+          "label": "點名必留",
+          "text": "數字、期限與結論必須保留。"
+        },
+        {
+          "label": "其餘可刪",
+          "text": "其餘背景與過程可以整段拿掉。"
+        }
+      ],
+      "sample": "請把下面這份結案報告改寫成 3 句話以內的摘要。\n數字、期限與結論必須保留。\n其餘背景與過程可以整段拿掉。\n保留的那幾樣不要改寫成別的說法。",
+      "rubric": [
+        {
+          "check": "saysWhatToPreserve",
+          "weight": 3,
+          "primary": true,
+          "techniqueId": "format-06",
+          "skillId": "len-preserve"
+        },
+        {
+          "check": "assignsTask",
+          "weight": 0.5,
+          "foundation": true,
+          "techniqueId": "clarity-02"
+        }
+      ],
+      "pass": 2,
+      "source": "https://developers.openai.com/api/docs/guides/latest-model#prompting-best-practices"
+    },
+    {
+      "id": "for-newcomer-59",
+      "region": "forms",
+      "order": 59,
+      "title": "給沒看過的人",
+      "npc": "接手的人 · 第一天",
+      "position": [
+        32.7,
+        127.1
+      ],
+      "xp": 40,
+      "teaches": [],
+      "primaryTechniqueId": null,
+      "primarySkillId": "len-readable",
+      "scenario": "桌上壓著一份結案筆記，寫得很短、很有效率——如果你是寫它的那個人。今天第一次接手的人站在旁邊，一行都讀不下去。",
+      "mission": "請把這份結案筆記改寫成一段今天第一次接手的人讀得懂的結論。",
+      "craft": "加一句「寫給誰看」，把代號與內部說法換成寫得出來的內容；好讀優先，真的收不住的時候用必留清單控長度。",
+      "material": {
+        "label": "抄寫人留下的內部筆記",
+        "text": "北三線照舊，二號料先擋著。\n上次那批照上次處理。\n細節看老規矩。"
+      },
+      "clue": "接手的人說：他不是讀不懂中文，他是不知道「老規矩」是什麼。",
+      "starter": "請把下面這份結案筆記改寫成一段結論，寫得通順一點。",
+      "placeholder": "例如：請把下面這份結案筆記改寫成＿＿。寫給＿＿看得懂，＿＿都要換成寫得出來的內容。",
+      "quickFills": [
+        {
+          "label": "交代任務",
+          "text": "請把下面這份結案筆記改寫成一段結論。"
+        },
+        {
+          "label": "寫給誰看",
+          "text": "寫給今天第一次接手的人看得懂。"
+        },
+        {
+          "label": "收不住時",
+          "text": "只保留日期與金額，其餘可以刪。"
+        }
+      ],
+      "sample": "請把下面這份結案筆記改寫成一段結論。\n寫給今天第一次接手的人看得懂，「老規矩」「上次那批」這種說法都要換成寫得出來的內容。\n好讀優先；真的收不住的時候，只保留日期與金額，其餘可以刪。",
+      "rubric": [
+        {
+          "check": "hasAudience",
+          "weight": 3,
+          "primary": true,
+          "techniqueId": "clarity-02",
+          "skillId": "len-readable"
+        },
+        {
+          "check": "assignsTask",
+          "weight": 0.5,
+          "foundation": true,
+          "techniqueId": "clarity-02"
+        }
+      ],
+      "pass": 2,
+      "source": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5#strong-instruction-following"
+    },
+    {
+      "id": "empty-adjective-60",
+      "region": "forms",
+      "order": 60,
+      "title": "形容詞的空箱",
+      "npc": "貼標的人 · 三個箱",
+      "position": [
+        -18.1,
+        129.9
+      ],
+      "xp": 40,
+      "teaches": [],
+      "primaryTechniqueId": null,
+      "primarySkillId": "tone-concrete",
+      "scenario": "三個木箱並排擺著，每一個都貼著一張漂亮的標籤：溫暖、專業、親切。掀開來看，三個都是空的。",
+      "mission": "請把這則告示重寫一次，並且把箱子上的形容詞換成裝得進東西的規則。",
+      "craft": "語氣用可驗收的寫作選擇描述（不用驚嘆號、不用比喻、每段兩句），再加一句「樣板句只是示意，每次換一種說法」。",
+      "material": {
+        "label": "貼著形容詞卻空著的三個箱子",
+        "text": "第一個箱子貼著「溫暖」。\n第二個箱子貼著「專業」。\n第三個箱子貼著「親切」，裡面同樣什麼都沒有。"
+      },
+      "clue": "箱子底下刻著：形容詞是給人看的，規則才是給它用的。",
+      "starter": "請把下面這則告示重寫得溫暖一點、親切一點。",
+      "placeholder": "例如：「溫暖」換成看得見的規則：不用＿＿、不用＿＿，每一段不超過＿＿句。",
+      "quickFills": [
+        {
+          "label": "交代任務",
+          "text": "請把下面這則告示重寫一次。"
+        },
+        {
+          "label": "換成規則",
+          "text": "「溫暖」換成看得見的規則：不用驚嘆號、不用比喻，每一段不超過 2 句。"
+        },
+        {
+          "label": "樣板句",
+          "text": "箱子上那句樣板句只是示意，每次請換一種說法。"
+        }
+      ],
+      "sample": "請把下面這則告示重寫一次。\n「溫暖」換成看得見的規則：不用驚嘆號、不用比喻，每一段不超過 2 句。\n箱子上那句樣板句只是示意，每次請換一種說法。\n告示的內容一個字都不要改。",
+      "rubric": [
+        {
+          "check": "definesToneConcretely",
+          "weight": 3,
+          "primary": true,
+          "techniqueId": "format-05",
+          "skillId": "tone-concrete"
+        },
+        {
+          "check": "assignsTask",
+          "weight": 0.5,
+          "foundation": true,
+          "techniqueId": "clarity-02"
+        }
+      ],
+      "pass": 2,
+      "source": "https://developers.openai.com/api/docs/guides/prompt-guidance-gpt-5p6"
+    },
+    {
+      "id": "throat-clearing-61",
+      "region": "forms",
+      "order": 61,
+      "title": "清嗓子的傳令",
+      "npc": "傳令 · 清三次嗓",
+      "position": [
+        -27.0,
+        141.2
+      ],
+      "xp": 40,
+      "teaches": [],
+      "primaryTechniqueId": null,
+      "primarySkillId": "no-preamble",
+      "scenario": "傳令站在階上，每要開口都先清三次嗓：一句客套、一句「以下是」、一句「值得注意的是」。真正的內容排在第四句，而聽的人多半在趕船。",
+      "mission": "請讓傳令把這份公告改寫成一開口就是正文的版本。",
+      "craft": "把要關掉的開場白逐句列成一張禁用片語清單；但有一句看起來像開場白、其實在交代讀的人是誰，那一句要留著。",
+      "material": {
+        "label": "傳令交回來的公告（前三句）",
+        "text": "當然！很高興能幫上忙。\n以下是我為您整理的內容。\n總之呢，值得注意的是，井要關三天。"
+      },
+      "clue": "階上刻著：「不要廢話」它聽不懂，因為它不知道哪幾句算廢話。",
+      "starter": "請把下面這份公告改寫一次，語氣客氣一點。",
+      "placeholder": "例如：以下這幾句開場白一律不要出現：「＿＿」「＿＿」「＿＿」。",
+      "quickFills": [
+        {
+          "label": "交代任務",
+          "text": "請把下面這份公告改寫一次。"
+        },
+        {
+          "label": "禁用清單",
+          "text": "以下這幾句開場白一律不要出現：「當然！」「以下是」。"
+        },
+        {
+          "label": "直接進正文",
+          "text": "第一句就直接進正文。"
+        }
+      ],
+      "sample": "請把下面這份公告改寫一次。\n這份公告會貼在碼頭，讀的人多半在趕船。\n以下這幾句開場白一律不要出現：「當然！」「以下是」「希望這對你有幫助」。",
+      "rubric": [
+        {
+          "check": "bansFillerPhrases",
+          "weight": 3,
+          "primary": true,
+          "techniqueId": "format-06",
+          "skillId": "no-preamble"
+        },
+        {
+          "check": "assignsTask",
+          "weight": 0.5,
+          "foundation": true,
+          "techniqueId": "clarity-02"
+        }
+      ],
+      "pass": 2,
+      "source": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#migrating-away-from-prefilled-responses"
+    },
+    {
+      "id": "mould-room-62",
+      "region": "forms",
+      "order": 62,
+      "title": "鑄模房",
+      "npc": "鑄模匠 · 三種形狀",
+      "position": [
+        -12.7,
+        142.2
+      ],
+      "xp": 40,
+      "teaches": [],
+      "primaryTechniqueId": null,
+      "primarySkillId": "so-basics",
+      "scenario": "鑄模房裡擺著同一件委託回來的三個鑄件：一個高、一個扁、一個少了一角。鑄模匠拿起最扁的那個：「不是手藝差，是沒有模。」",
+      "mission": "請替這三張入庫單做一個模子，讓它們倒出來是同一個形狀。",
+      "craft": "把想要的欄位一格一格刻出來（欄位名加型別），不要用散文描述格式；再補一句「只輸出這個結構」，形狀才不靠運氣。",
+      "material": {
+        "label": "三個形狀不一的鑄件",
+        "text": "第一件：品名在前、數量在後。\n第二件：多了一個沒有名字的欄位。\n第三件：日期寫成一句話。"
+      },
+      "clue": "鑄模匠說：形狀用講的它會猜，刻成一個模它就只能照著倒。",
+      "starter": "請把下面三張入庫單整理成一致的格式就好。",
+      "placeholder": "例如：模子：\n品名（＿＿）\n數量（＿＿）\n日期（＿＿）",
+      "quickFills": [
+        {
+          "label": "交代任務",
+          "text": "請把下面三張入庫單各自倒進同一個模子裡。"
+        },
+        {
+          "label": "刻出模子",
+          "text": "模子：\n品名（字串）\n數量（整數）"
+        },
+        {
+          "label": "補一格",
+          "text": "日期（日期）"
+        }
+      ],
+      "sample": "請把下面三張入庫單各自倒進同一個模子裡。\n模子：\n品名（字串）\n數量（整數）\n日期（日期）\n只輸出這個結構，欄位一個都不能少。",
+      "rubric": [
+        {
+          "check": "definesSchema",
+          "weight": 3,
+          "primary": true,
+          "techniqueId": "format-01",
+          "skillId": "so-basics"
+        },
+        {
+          "check": "assignsTask",
+          "weight": 0.5,
+          "foundation": true,
+          "techniqueId": "clarity-02"
+        }
+      ],
+      "pass": 2,
+      "source": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#migrating-away-from-prefilled-responses"
+    },
+    {
+      "id": "two-seals-63",
+      "region": "forms",
+      "order": 63,
+      "title": "兩種印章",
+      "npc": "掌印的人 · 兩顆",
+      "position": [
+        23.7,
+        138.5
+      ],
+      "xp": 40,
+      "teaches": [],
+      "primaryTechniqueId": null,
+      "primarySkillId": "so-vs-jsonmode",
+      "scenario": "桌上兩顆印章，蓋出來的東西乍看一模一樣。掌印的人把一份難的到貨單推過來：「拿這一份試試看，你就分得出來了。」",
+      "mission": "請替這批到貨單挑一顆印章，並且把模子刻清楚。",
+      "craft": "把欄位與型別刻成模子；用只保證「讀得動」的那一顆時，話裡要出現「以 JSON 回覆」並附一份範例。",
+      "material": {
+        "label": "兩顆刻著不同保證的印章",
+        "text": "左邊那顆刻著：蓋出來一定合乎你刻的模子。\n右邊那顆刻著：蓋出來一定讀得動。\n上一批到貨單用右邊那顆，欄位全跑掉了。"
+      },
+      "clue": "掌印的人說：「讀得動」跟「形狀對」是兩件事，而下游要的是後面那一件。",
+      "starter": "請把下面這批到貨單整理成一份讀得動的資料就好。",
+      "placeholder": "例如：模子：\n品名（＿＿）\n件數（＿＿）\n到貨日（＿＿）",
+      "quickFills": [
+        {
+          "label": "交代任務",
+          "text": "請把下面這批到貨單整理成同一個形狀。"
+        },
+        {
+          "label": "刻出模子",
+          "text": "模子：\n品名（字串）\n件數（整數）"
+        },
+        {
+          "label": "補一格",
+          "text": "到貨日（日期）"
+        }
+      ],
+      "sample": "請把下面這批到貨單整理成同一個形狀。\n模子：\n品名（字串）\n件數（整數）\n到貨日（日期）\n只輸出這個結構，欄位一個都不能少。",
+      "rubric": [
+        {
+          "check": "definesSchema",
+          "weight": 3,
+          "primary": true,
+          "techniqueId": "format-01",
+          "skillId": "so-vs-jsonmode"
+        },
+        {
+          "check": "assignsTask",
+          "weight": 0.5,
+          "foundation": true,
+          "techniqueId": "clarity-02"
+        }
+      ],
+      "pass": 2,
+      "source": "https://developers.openai.com/api/docs/guides/structured-outputs"
+    },
+    {
+      "id": "twice-carved-64",
+      "region": "forms",
+      "order": 64,
+      "title": "重複刻的模",
+      "npc": "刻模的人 · 刻兩次",
+      "position": [
+        17.7,
+        150.7
+      ],
+      "xp": 40,
+      "teaches": [],
+      "primaryTechniqueId": null,
+      "primarySkillId": "so-division",
+      "scenario": "一個模子放在檯上，旁邊壓著一張紙。紙上寫的規矩跟模上刻的一模一樣，只是措詞不同。角落還有一筆貨，模上沒有它的格子。",
+      "mission": "請把這批單子倒進模子裡，並且把紙上那份重複的規矩收乾淨。",
+      "craft": "模子管形狀、話只管任務：模上已經刻死的東西不要在紙上再寫一次；另外補一句「塞不進模子的資料怎麼辦」。",
+      "material": {
+        "label": "模子與紙上那一份",
+        "text": "模上刻著：品名（字串）、件數（整數）。\n紙上又寫了一次：品名要填字串、件數要填整數。\n有一筆貨沒有品名，沒有人交代怎麼辦。"
+      },
+      "clue": "刻模的人說：同一條規矩刻兩次，不一致的那一天沒有人說得準誰贏。",
+      "starter": "請把下面這批單子整理成一份清單就好。",
+      "placeholder": "例如：模子：\n品名（＿＿）\n件數（＿＿）\n塞不進任何欄位的資料請＿＿。",
+      "quickFills": [
+        {
+          "label": "交代任務",
+          "text": "請把下面這批單子倒進模子裡。"
+        },
+        {
+          "label": "刻出模子",
+          "text": "模子：\n品名（字串）\n件數（整數）"
+        },
+        {
+          "label": "例外條款",
+          "text": "塞不進任何欄位的資料請放進備註。"
+        }
+      ],
+      "sample": "請把下面這批單子倒進模子裡。\n模子：\n品名（字串）\n件數（整數）\n塞不進任何欄位的資料請放進備註，不要硬塞。",
+      "rubric": [
+        {
+          "check": "noDuplicateSchemaRules",
+          "weight": 3,
+          "primary": true,
+          "techniqueId": "format-01",
+          "skillId": "so-division"
+        },
+        {
+          "check": "assignsTask",
+          "weight": 0.5,
+          "foundation": true,
+          "techniqueId": "clarity-02"
+        }
+      ],
+      "pass": 2,
+      "source": "https://docs.x.ai/developers/model-capabilities/text/structured-outputs#system-prompt"
+    },
+    {
+      "id": "slideless-deck-65",
+      "region": "forms",
+      "order": 65,
+      "title": "沒有圖的簡報",
+      "npc": "排版的人 · 只有字",
+      "position": [
+        -6.9,
+        155.7
+      ],
+      "xp": 40,
+      "teaches": [],
+      "primaryTechniqueId": null,
+      "primarySkillId": "doc-design-elements",
+      "scenario": "架上立著一份簡報稿：每一頁都只有一行標題，底下是一整段字。沒有圖、沒有版面、沒有人決定過一頁該放幾件事。",
+      "mission": "請把這份需求做成一份真的看得下去的簡報稿。",
+      "craft": "要視覺文件就得點名設計元素（幾頁、每頁要什麼圖、版面怎麼排、主色是什麼），再加一句留白要求，元素才不會把版面塞爆。",
+      "material": {
+        "label": "只有標題沒有版面的簡報稿",
+        "text": "第一頁：北橋工程說明。\n第二頁：進度與預算。\n（沒有圖、沒有版面、沒有頁數規劃。）"
+      },
+      "clue": "架上壓著一張便條：不點名要什麼，拿回來的就只會是一段文字。",
+      "starter": "請把下面這份需求做成一份簡報稿，做得好看一點。",
+      "placeholder": "例如：＿＿頁，每頁一張＿＿，版面＿＿，主色用＿＿。每頁最多＿＿個重點。",
+      "quickFills": [
+        {
+          "label": "交代任務",
+          "text": "請把下面這份需求做成一份簡報稿。"
+        },
+        {
+          "label": "點名元素",
+          "text": "6 頁，每頁一張示意圖，版面左圖右字，主色用深藍。"
+        },
+        {
+          "label": "留白要求",
+          "text": "每頁最多 3 個重點。"
+        }
+      ],
+      "sample": "請把下面這份需求做成一份簡報稿。\n6 頁，每頁一張示意圖，版面左圖右字，主色用深藍。\n每頁最多 3 個重點，其餘留白。\n需求裡的工程名稱與預算數字一個都不要改。",
+      "rubric": [
+        {
+          "check": "namesDesignElements",
+          "weight": 3,
+          "primary": true,
+          "techniqueId": "format-01",
+          "skillId": "doc-design-elements"
+        },
+        {
+          "check": "assignsTask",
+          "weight": 0.5,
+          "foundation": true,
+          "techniqueId": "clarity-02"
+        }
+      ],
+      "pass": 2,
+      "source": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#document-creation"
     }
   ]
 }

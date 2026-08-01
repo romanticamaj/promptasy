@@ -1,10 +1,10 @@
 {
   "note": "測試用的「這是契約，不是快照」清單。凡是能從 runtime catalog 或資料檔算出來的數字（技巧數、區域數、技能數、flow 數…），測試一律現算，不寫在這裡；只有『這個數字本身就是當期的驗收目標』才登記在這裡，改動它＝有意識地改變契約。每一格都寫得出為什麼。",
   "updatedAt": "2026-08-01",
-  "updatedBy": "課程 v2 · Phase D（constraint 題型 ＋ 脈絡與長文／角色與參數補齊到 12 座）",
+  "updatedBy": "課程 v2 · Phase E（量器坊 forms：第六區新地形 ＋ 14 座教學神廟）",
   "contract": {
     "challenges": {
-      "value": 62,
+      "value": 75,
       "why": "現行關卡數＝既有 27 關 ＋ 課程 v2 新蓋的教學神廟。終點是 130 教學神廟＋12 應用關；每一期新增神廟時要一起把這個數字往上調（task_plan §3）。"
     },
     "flowKinds": {
@@ -29,8 +29,8 @@
       "why": "curriculum-v2 §二的區域規劃。"
     },
     "v2ImplementedRegions": {
-      "value": 5,
-      "why": "世界裡真的蓋好的區域。Phase E（forms）、F（toolcraft／wards）、G（refinery）、H（frugality）、I（sight）、J（divergence）各自上線時 +1。"
+      "value": 6,
+      "why": "世界裡真的蓋好的區域。Phase E（forms · 量器坊）已上線；F（toolcraft／wards）、G（refinery）、H（frugality）、I（sight）、J（divergence）各自上線時 +1。"
     },
     "v2SkillsWithoutSource": {
       "value": 0,
@@ -42,8 +42,8 @@
       "why": "docs/design/curriculum-v2-migration.json 管的是「既有 27 關的遷移」。新蓋的神廟（有 primarySkillId）不在它的範圍內，所以 manifest 永遠對這 27 關。"
     },
     "foundationsShrines": {
-      "value": 16,
-      "why": "撰寫基本功這一區的關卡數：14 座教學神廟（curriculum-v2 §3 的 foundations 總表）＋ 1 關應用關（council-envoy-06）＋ 1 關主題已搬家的 mimic-mirror-04（prefill-completion，它的技能屬於量器坊，Phase E 才搬）。"
+      "value": 15,
+      "why": "撰寫基本功這一區的關卡數：14 座教學神廟（curriculum-v2 §3 的 foundations 總表）＋ 1 關應用關（council-envoy-06）。Phase E 已把主題屬於量器坊的 mimic-mirror-04 搬走，所以由 16 降為 15。"
     },
     "v2CheckersLanded": {
       "value": [
@@ -52,24 +52,33 @@
         "asksForRationaleNotTranscript",
         "asksMultipleSamples",
         "avoidsPressureLanguage",
+        "avoidsSelfCounting",
+        "bansFillerPhrases",
         "citesInline",
+        "definesSchema",
+        "definesToneConcretely",
         "diagnosesFailureCause",
         "disambiguatesTerms",
+        "hasFallbackCategory",
         "hasStopRule",
         "justifiesExampleCount",
         "labelsNegativeExample",
         "labelsSources",
         "namesComponents",
+        "namesDesignElements",
         "namesModelClass",
+        "noDuplicateSchemaRules",
         "noUndefinedReference",
         "ranksInstructions",
         "rulesBeforeData",
+        "saysWhatToPreserve",
         "setsRetrievalBudget",
+        "statesFormatPreference",
         "statesScope",
         "usesOneSkeleton",
         "usesRareDelimiter"
       ],
-      "why": "curriculum-v2 §7.4 的 59 個新檢查器只按期開；Phase B 開了撰寫基本功五座用得到的，Phase C 再開示範與推理四座用得到的，Phase D 再開脈絡與長文／角色與參數十二座用得到的（含撰寫基本功欠著的 rulesBeforeData 與 usesRareDelimiter）。清單要跟 checks.js 完全一致，避免有人開了沒有神廟在用的檢查器。"
+      "why": "curriculum-v2 §7.4 的 59 個新檢查器只按期開；Phase B 開了撰寫基本功五座用得到的，Phase C 再開示範與推理四座用得到的，Phase D 再開脈絡與長文／角色與參數十二座用得到的（含撰寫基本功欠著的 rulesBeforeData 與 usesRareDelimiter），Phase E 再開量器坊十四座用得到的九個。清單要跟 checks.js 完全一致，避免有人開了沒有神廟在用的檢查器。"
     },
     "reasoningShrines": {
       "value": 15,
@@ -82,6 +91,16 @@
     "configShrines": {
       "value": 12,
       "why": "角色與參數這一區的關卡數：curriculum-v2 §3 的 config 總表就是 12 座教學神廟（本區的應用關等 Phase J）。"
+    },
+    "formsShrines": {
+      "value": 14,
+      "why": "量器坊這一區的關卡數：curriculum-v2 §3 的 forms 總表就是 14 座教學神廟（含由撰寫基本功搬過來的 mimic-mirror-04；本區的應用關等 Phase J）。"
+    },
+    "synthOnlyRegions": {
+      "value": [
+        "forms"
+      ],
+      "why": "已上線但還沒有配樂音檔的區域 —— 它們走合成 pad（護欄 3：合成引擎是備援，不是遺跡）。站長補上音檔時把 id 從這裡與 audio.js 的 SYNTH_ONLY_REGIONS 移走即可。"
     }
   }
 }

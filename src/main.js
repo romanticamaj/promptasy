@@ -105,6 +105,8 @@ function boot() {
   const world = createWorld({
     engine,
     curriculum,
+    // 課程 v2 · Phase E：新上線的區域（量器坊起）的名稱與主色住在 regions-v2.json
+    regions: catalog.implementedRegions(),
     challenges: content.challenges,
     progression,
     quality,

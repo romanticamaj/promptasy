@@ -466,8 +466,9 @@ async function main() {
     EXPECT.v2ImplementedRegions.value,
     `其中只有 ${EXPECT.v2ImplementedRegions.value} 區已上線（其餘七區只在資料層，畫面看不到）`
   );
-  eq(boot.catalogImplemented, CATALOG.implementedRegionIds().join(','), '已上線的區域就是既有五區');
-  eq(boot.gates, 4, '4 道閘門在世界裡');
+  eq(boot.catalogImplemented, CATALOG.implementedRegionIds().join(','), '已上線的區域就是 catalog 列的那幾區');
+  // 中央高原是樞紐，其餘每一片土地各有一條橋、一道閘門
+  eq(boot.gates, EXPECT.v2ImplementedRegions.value - 1, `${EXPECT.v2ImplementedRegions.value - 1} 道閘門在世界裡`);
   eq(boot.titleOpen, true, '開機先看到標題卡');
   eq(boot.introOpen, false, '標題卡期間教學還沒跳');
   // Phase 33：harness 帶 --autoplay-policy=no-user-gesture-required ＝ 自動播放放行，
@@ -536,9 +537,9 @@ async function main() {
   }
   ok(phase5.partNames.length >= 8, '角色的骨節掛在場景圖上', `parts=${phase5.partNames.length}`);
   ok(phase5.tablets >= 8, '世界裡有世界觀石碑', `n=${phase5.tablets}`);
-  eq(phase5.landmarks, 5, '五個區域各有一個地標剪影');
+  eq(phase5.landmarks, EXPECT.v2ImplementedRegions.value, '每個已上線的區域各有一個地標剪影');
   ok(phase5.vignettes >= 14, '故事小景鋪好了', `n=${phase5.vignettes}`);
-  eq(phase5.flora, 5, '五個區域都有自己的植被原型');
+  eq(phase5.flora, EXPECT.v2ImplementedRegions.value, '每個已上線的區域都有自己的植被原型');
   eq(phase5.terrainColors, true, '地形帶頂點色（走出來的路）');
   ok(phase5.instanced >= 20, '重複的東西用 InstancedMesh', `n=${phase5.instanced}`);
   ok(phase5.tris < 420000, '場景三角形數在預算內', `tris=${phase5.tris}`);
@@ -3438,9 +3439,24 @@ async function main() {
     };
   `);
   eq(codex.open, true, 'C 開啟圖鑑');
-  eq(codex.techs, TECHNIQUE_TOTAL, `圖鑑列出 ${TECHNIQUE_TOTAL} 條技巧`);
+  /*
+   * 課程 v2 · Phase E：圖鑑除了舊 68 條技巧，還會列出「只教 v2 技能」的新區域
+   * （量器坊起）的技法 —— 所以總條數是 68 ＋ 那幾區的技能數。
+   */
+  const CODEX_SKILL_ROWS = CATALOG.implementedRegions()
+    .filter((r) => r.skillOnly)
+    .reduce((n, r) => n + CATALOG.regionSkills(r.id).length, 0);
+  eq(
+    codex.techs,
+    TECHNIQUE_TOTAL + CODEX_SKILL_ROWS,
+    `圖鑑列出 ${TECHNIQUE_TOTAL} 條技巧 ＋ ${CODEX_SKILL_ROWS} 條新區域的技法`
+  );
   ok(codex.collected > 0, '這一輪已經收集了一些技巧', `collected=${codex.collected}`);
-  eq(codex.locked, codex.total - codex.collected, '未收集的技巧顯示為 ???');
+  eq(
+    codex.locked,
+    codex.total - codex.collected + CODEX_SKILL_ROWS,
+    '未收集的技巧與技法都顯示為 ???'
+  );
   eq(codex.inPanel, true, '圖鑑開啟時焦點在面板內（M6 無障礙）');
   await key('Escape', 'Escape', { vk: 27 });
   await sleep(250);
@@ -3627,14 +3643,31 @@ async function main() {
   eq(audioFiles.chain.duck, true, '配樂前面有 duck（過關的頌缽響時把床壓低）');
   eq(audioFiles.chain.bgmBus, true, '音檔配樂有自己的 bus');
   eq(audioFiles.chain.sfxBus, true, '音效有自己的 bus');
-  // 五片土地各一首 ＋ 標題卡的開場曲
-  eq(audioFiles.bgmKeys.length, 6, '五區各有一首配樂音檔，外加標題卡的開場曲');
+  /*
+   * 課程 v2 · Phase E：`debug().bgm` 一區一格（含還沒有音檔的合成專用區），
+   * 所以「有幾首音檔」要看 file 非 null 的那幾格 —— 合成專用區誠實地是 null。
+   */
+  const SYNTH_ONLY_E2E = EXPECT.synthOnlyRegions.value;
+  const withFile = audioFiles.bgmKeys.filter((id, i) => audioFiles.files[i]);
+  eq(
+    withFile.length,
+    EXPECT.v2ImplementedRegions.value + 1 - SYNTH_ONLY_E2E.length,
+    '每個有音檔的區域各一首，外加標題卡的開場曲'
+  );
   ok(audioFiles.bgmKeys.includes('title'), '開場曲也在配樂表上', audioFiles.bgmKeys.join(','));
-  for (const region of ['foundations', 'reasoning', 'grounding', 'orchestration', 'config']) {
-    ok(audioFiles.bgmKeys.includes(region), `${region} 有自己的配樂`);
+  for (const region of CATALOG.implementedRegionIds()) {
+    if (SYNTH_ONLY_E2E.includes(region)) {
+      ok(!withFile.includes(region), `${region} 誠實地沒有音檔（走合成 pad）`);
+      continue;
+    }
+    ok(withFile.includes(region), `${region} 有自己的配樂`);
   }
-  eq(new Set(audioFiles.files).size, 6, '每一首都是不同的檔案');
-  eq(new Set(audioFiles.titles).size, 6, '每一首曲名各不相同');
+  {
+    const files = audioFiles.files.filter(Boolean);
+    const titles = audioFiles.titles.filter(Boolean);
+    eq(new Set(files).size, files.length, '每一首都是不同的檔案');
+    eq(new Set(titles).size, titles.length, '每一首曲名各不相同');
+  }
   eq(audioFiles.sfxSynthFallback, true, '每一支音檔音效都留著合成備援');
   ok(audioFiles.requests > 0, '手勢之後才開始抓音檔', `requests=${audioFiles.requests}`);
   console.log(`  · 這台機器${audioFiles.decodable ? '解得開' : '解不開'} m4a（AAC）`);
@@ -4483,7 +4516,7 @@ async function main() {
     '四個方位刻度都在（北 / 東 / 南 / 西）',
     compass.cards.join('')
   );
-  eq(compass.marks, 5, '五座地標各有一根淡針');
+  eq(compass.marks, EXPECT.v2ImplementedRegions.value, '每一座地標各有一根淡針');
   eq(compass.needleHidden, false, '下一個目標有金針指著');
   ok(/步/.test(compass.label), '指南針下面寫得出還有幾步', compass.label);
   ok(compass.state.objective && compass.state.objective.name, '指南針知道下一個目標是誰', JSON.stringify(compass.state.objective));
@@ -7570,7 +7603,11 @@ async function main() {
     out.constraintIds = Object.entries(flows).filter(([, f]) => f.kind === 'constraint').map(([id]) => id).sort();
     return out;
   `);
-  eq(kinds.total, 62, '世界上有 62 關（課程 v2 · Phase D：脈絡與長文 12＋1、角色與參數 12 座）');
+  eq(
+    kinds.total,
+    EXPECT.challenges.value,
+    `世界上有 ${EXPECT.challenges.value} 關（課程 v2 · Phase E：量器坊 14 座）`
+  );
   eq(kinds.missing.length, 0, '每一關都有流程資料，而且都留著選擇題後備', kinds.missing.join(','));
   /*
    * Phase D：這裡原本寫死了「哪幾關是哪一種題型」（歷史快照）。課程 v2 每一期
@@ -9562,6 +9599,449 @@ async function main() {
   `);
 
   /* ================================================================ */
+  /* ================================================================== */
+  /* 課程 v2 · Phase E：量器坊（forms）                                  */
+  /*   · 知識式軟門檻：條件是「你會了什麼」，先行前往仍然走得通           */
+  /*   · 正南真的長出一片土地：走得進去、HUD／指南針／配樂都跟上          */
+  /*   · 14 座神廟每一座都真的通得了（含九個新檢查器各一座）              */
+  /*   · 圖鑑列得出這一區與它的技能（附可點的官方出處）                   */
+  /* ================================================================== */
+  console.log('\n▸ 量器坊（課程 v2 · Phase E）');
+
+  // 收乾淨上一段留下來的面板
+  await evaluate(`
+    const g = window.__promptasy;
+    g.promptConsole.close();
+    g.codex.close();
+    g.shareCard.close();
+    return 1;
+  `);
+  await sleep(220);
+
+  /* --- 閘門：知識式軟門檻（還沒學會就是鎖著的，但門會問你一句） --- */
+  const fmGateLocked = await evaluate(`
+    const g = window.__promptasy;
+    // 種一份「什麼都還沒學」的存檔
+    localStorage.setItem('promptasy.v1.save', JSON.stringify({
+      version: 1, xp: 0, level: 1,
+      unlockedRegions: ['foundations'],
+      collected: [], skillsV2: [], bestGrades: {},
+      badges: { openai: 0, anthropic: 0, google: 0, xai: 0 },
+      settings: { music: 'ambient-01', volume: 0, muted: true, quality: 'low', preflight: true, promptMode: 'guided' },
+      flags: { prologueDone: true, introSeen: true },
+      prologueSteps: [], guidanceSeen: [], loreRead: [], inscriptionsFound: [], secretsFound: [],
+      handlesUsed: [], skippedGates: []
+    }));
+    return 1;
+  `);
+  eq(fmGateLocked, 1, '種下一份「什麼都還沒學」的存檔');
+  await reloadPage('重新載入（量器坊：什麼都還沒學）');
+  await key('Enter', 'Enter', { vk: 13 });
+  await sleep(500);
+
+  const fmGate = await evaluate(`
+    const g = window.__promptasy;
+    const st = g.progression.gateStatus('forms');
+    return {
+      unlocked: g.progression.isRegionUnlocked('forms'),
+      gaps: st.knowledgeGaps.length,
+      text: st.text,
+      hasGate: !!g.world.gates.find((x) => x.id === 'forms'),
+      corridors: g.world.gates.map((x) => x.id),
+    };
+  `);
+  eq(fmGate.unlocked, false, '什麼都還沒學 → 量器坊鎖著');
+  ok(fmGate.gaps > 0, '閘門說得出還差哪幾條（知識式軟門檻）', String(fmGate.gaps));
+  ok(/也可以先行前往/.test(fmGate.text), '量器坊的門一樣會問「想先過去看看嗎」', fmGate.text);
+  ok(!/[a-z-]{6,}/.test(fmGate.text.replace(/Lv\.\d+/g, '')), '門上寫的是中文技能名，不是資料層的 id', fmGate.text);
+  eq(fmGate.hasGate, true, '正南那條橋上真的有一道閘門');
+  ok(fmGate.corridors.includes('forms'), '世界的閘門清單包含量器坊', fmGate.corridors.join(','));
+
+  /* 鎖著的時候真的走不過去 */
+  const fmBlocked = await evaluate(`
+    const g = window.__promptasy;
+    // 走到閘門後面一點的位置：應該被擋回來
+    const before = { x: 0, z: 60 };
+    g.player.position.set(before.x, g.world.terrainHeight(before.x, before.z), before.z);
+    const got = g.world.clampPosition(0, 90, before.x, before.z);
+    return { z: got.z, blocked: got.z < 80 };
+  `);
+  eq(fmBlocked.blocked, true, '閘門鎖著的時候走不過那座橋', String(fmBlocked.z));
+
+  /* --- 先行前往：門開了，但一分 XP 都不加 --- */
+  const fmSkip = await evaluate(`
+    const g = window.__promptasy;
+    const xpBefore = g.progression.state.xp;
+    const res = g.progression.skipGate('forms');
+    g.world.openGate('forms', true);
+    return {
+      ok: !!res,
+      unlocked: g.progression.isRegionUnlocked('forms'),
+      xp: g.progression.state.xp,
+      xpBefore,
+      skipped: g.progression.state.skippedGates.includes('forms'),
+      cleared: Object.keys(g.progression.state.bestGrades).length,
+    };
+  `);
+  eq(fmSkip.unlocked, true, '先行前往照樣開得了量器坊的門');
+  eq(fmSkip.xp, fmSkip.xpBefore, '先行前往一分 XP 都不加');
+  eq(fmSkip.skipped, true, '存檔記下這道門是被問開的');
+  eq(fmSkip.cleared, 0, '先行前往不會偷偷記下任何一關的評價');
+
+  /* --- 走進去：HUD、指南針、氣氛、配樂都跟著換 --- */
+  const fmEnter = await evaluate(`
+    const g = window.__promptasy;
+    const before = { region: g.hud.region, mood: g.audio.debug().region };
+    g.player.position.set(0, g.world.terrainHeight(0, 124) + 1, 124);
+    await new Promise((r) => setTimeout(r, 900));
+    const here = g.world.regionAt(g.player.position.x, g.player.position.z);
+    return {
+      before,
+      here: here && here.id,
+      hudRegion: g.hud.region,
+      hudLabel: document.querySelector('.hud__region [data-region]')?.textContent.trim() || '',
+      mood: g.audio.debug().region,
+      source: g.audio.debug().source,
+    };
+  `);
+  eq(fmEnter.here, 'forms', '走到正南真的站在量器坊的土地上');
+  eq(fmEnter.hudRegion, 'forms', 'HUD 跟著換到量器坊');
+  ok(/量器坊/.test(fmEnter.hudLabel), 'HUD 上寫的是中文區域名', fmEnter.hudLabel);
+  eq(fmEnter.mood, 'forms', '配樂也切到量器坊');
+  eq(fmEnter.source, 'synth', '量器坊沒有音檔 → 聽到的是合成 pad（護欄 3）');
+
+  /* --- 地標：刻度之柱真的在場景圖上，而且沒有新增光源 --- */
+  const fmWorld = await evaluate(`
+    const g = window.__promptasy;
+    let landmark = null;
+    let markers = 0;
+    let lights = 0;
+    let tris = 0;
+    g.engine.scene.traverse((o) => {
+      if (o.name === 'landmark:gauge-column') landmark = o;
+      if (/^marker:/.test(o.name || '')) markers += 1;
+      if (o.isLight) lights += 1;
+      if (o.isMesh && o.geometry) {
+        const idx = o.geometry.index ? o.geometry.index.count : (o.geometry.attributes.position?.count || 0);
+        tris += (idx / 3) * (o.isInstancedMesh ? o.count : 1);
+      }
+    });
+    let landmarkLights = 0;
+    if (landmark) landmark.traverse((o) => { if (o.isLight) landmarkLights += 1; });
+    return {
+      hasLandmark: !!landmark,
+      landmarkLights,
+      landmarkY: landmark ? Number(landmark.position.z.toFixed(1)) : null,
+      markers,
+      lights,
+      tris: Math.round(tris),
+      formsMarkers: g.world.markers.filter((m) => g.content.challenge(m.id).region === 'forms').length,
+      props: !!g.engine.scene.getObjectByName('props:forms'),
+      flora: !!g.engine.scene.getObjectByName('flora:forms'),
+      vignettes: ['vignette:half-poured-mould', 'vignette:measure-bench', 'vignette:overflow-trough']
+        .filter((n) => !!g.engine.scene.getObjectByName(n)).length,
+    };
+  `);
+  eq(fmWorld.hasLandmark, true, '刻度之柱真的立在場景圖上');
+  eq(fmWorld.landmarkLights, 0, '刻度之柱一盞實體光源都沒加（全部自發光）');
+  eq(fmWorld.formsMarkers, 14, '量器坊有 14 座石座');
+  eq(fmWorld.props, true, '量器坊有自己的造景（量尺柱與鑄槽）');
+  eq(fmWorld.flora, true, '量器坊有自己的植被剪影');
+  eq(fmWorld.vignettes, 3, '量器坊的三組故事小景都在場景圖上', String(fmWorld.vignettes));
+  ok(fmWorld.lights <= 56, '加了第六區之後燈光仍在預算內', `lights=${fmWorld.lights}`);
+  ok(fmWorld.tris < 420000, '加了第六區之後三角形仍在預算內', `tris=${fmWorld.tris}`);
+
+  /* --- 14 座神廟：九個新檢查器各有一座，而且每一座都真的通得了 --- */
+  const fmPlan = await evaluate(`
+    const g = window.__promptasy;
+    const forms = g.content.challenges.filter((c) => c.region === 'forms');
+    return forms.map((c) => ({
+      id: c.id,
+      skill: c.primarySkillId,
+      check: c.rubric.find((r) => r.primary).check,
+      kind: g.promptConsole.flowKindOf(g.content.flow(c.id)),
+    }));
+  `);
+  eq(fmPlan.length, 14, '量器坊有 14 座教學神廟');
+  {
+    const PHASE_E_CHECKS = [
+      'statesFormatPreference',
+      'hasFallbackCategory',
+      'avoidsSelfCounting',
+      'saysWhatToPreserve',
+      'definesToneConcretely',
+      'bansFillerPhrases',
+      'definesSchema',
+      'noDuplicateSchemaRules',
+      'namesDesignElements',
+    ];
+    const used = new Set(fmPlan.map((x) => x.check));
+    for (const id of PHASE_E_CHECKS) ok(used.has(id), `新檢查器 ${id} 真的有一座神廟在教`);
+    const kinds = fmPlan.map((x) => x.kind);
+    let run = 1;
+    let worst = 1;
+    for (let i = 1; i < kinds.length; i += 1) {
+      run = kinds[i] === kinds[i - 1] ? run + 1 : 1;
+      if (run > worst) worst = run;
+    }
+    ok(worst <= 2, '整區沒有連續三座同一種題型（C4）', kinds.join(','));
+  }
+
+  /* --- 純鍵盤走完量器坊的第一座（不碰滑鼠，§3.1 鐵則） --- */
+  {
+    const target = 'gatehouse-gauge-53';
+    const near = await evaluate(`
+      const g = window.__promptasy;
+      const m = g.world.markers.find((x) => x.id === '${target}');
+      // 站到石座旁邊（互動半徑 6.5 之內），剩下的全部用鍵盤
+      g.player.position.set(m.position.x + 3, g.world.terrainHeight(m.position.x + 3, m.position.z + 2), m.position.z + 2);
+      await new Promise((r) => setTimeout(r, 700));
+      const el = document.querySelector('.hud__interact');
+      return { d: Math.hypot(g.player.position.x - m.position.x, g.player.position.z - m.position.z), hint: el && !el.hidden ? el.innerHTML : '' };
+    `);
+    ok(near.d < 6.5, '站到量器坊第一座石座旁', near.d.toFixed(2));
+    ok(/<kbd>E<\/kbd>/.test(near.hint), '走近提示標著 E 這個鍵', near.hint.slice(0, 80));
+
+    await key('KeyE', 'e', { vk: 69 });
+    await sleep(520);
+    const kbOpen = await evaluate(`
+      const g = window.__promptasy;
+      return { open: g.promptConsole.isOpen, id: g.promptConsole.challenge?.id, act: g.promptConsole.act };
+    `);
+    eq(kbOpen.open, true, '按 E 打開了量器坊的神廟');
+    eq(kbOpen.id, target, '打開的就是走過去那一座');
+    eq(kbOpen.act, 1, '從第一幕（委託）開始');
+
+    await key('Enter', 'Enter', { vk: 13 });
+    await sleep(420);
+    const kbGuide = await evaluate(`
+      const g = window.__promptasy;
+      return {
+        act: g.promptConsole.act,
+        glyphs: document.querySelectorAll('#prompt-console [data-guidance] .glyph').length,
+        srcs: document.querySelectorAll('#prompt-console [data-guidance] a.src').length,
+        srcHref: document.querySelector('#prompt-console [data-guidance] a.src')?.getAttribute('href') || '',
+      };
+    `);
+    eq(kbGuide.act, 2, 'Enter 推到第二幕（神諭刻文）');
+    eq(kbGuide.glyphs, 1, '第二幕只放大這一關教的那一條（C1）');
+    eq(kbGuide.srcs, 1, '那一條刻文掛著神諭原典');
+    ok(/^https:\/\//.test(kbGuide.srcHref), '神諭原典是可點的 https 連結', kbGuide.srcHref);
+
+    await evaluate(`document.querySelector('#prompt-console .act--guide').focus(); return 1;`);
+    await key('Enter', 'Enter', { vk: 13 });
+    await sleep(420);
+    const kbCarveStart = await evaluate(`
+      const g = window.__promptasy;
+      return {
+        act: g.promptConsole.act,
+        kind: g.promptConsole.kind,
+        focusedOnOption: document.activeElement?.classList.contains('opt'),
+      };
+    `);
+    eq(kbCarveStart.act, 3, 'Enter 推到第三幕（刻印）');
+    eq(kbCarveStart.kind, 'choice', '這一座是石碑刻印');
+    eq(kbCarveStart.focusedOnOption, true, '一進刻印，焦點就落在第一個選項上');
+
+    const slotCount = await evaluate(`return window.__promptasy.content.flow('${target}').slots.length;`);
+    for (let i = 0; i < slotCount; i += 1) {
+      const idx = await evaluate(`
+        const g = window.__promptasy;
+        const s = g.content.flow('${target}').slots[g.promptConsole.stele.progress.carved];
+        return s ? s.options.findIndex((o) => o.correct) : -1;
+      `);
+      ok(idx >= 0, `量器坊：第 ${i + 1} 段找得到正確選項`);
+      const n = idx + 1;
+      await key(`Digit${n}`, String(n), { vk: 48 + n });
+      await sleep(400);
+    }
+    const kbFull = await evaluate(`
+      const g = window.__promptasy;
+      return {
+        carved: g.promptConsole.stele.progress.carved,
+        act: g.promptConsole.act,
+        palmFocused: document.activeElement === document.querySelector('#prompt-console [data-palm]'),
+      };
+    `);
+    eq(kbFull.carved, slotCount, '用數字鍵把量器坊這一座刻滿');
+    eq(kbFull.act, 4, '刻滿之後鏡頭自己切到手印那一幕');
+    eq(kbFull.palmFocused, true, '焦點自己落在手掌印上');
+
+    await keyDown('Enter', 'Enter', { vk: 13 });
+    await sleep(900);
+    await keyUp('Enter', 'Enter', { vk: 13 });
+    await sleep(800);
+    const kbDone = await evaluate(`
+      const g = window.__promptasy;
+      return {
+        grade: document.querySelector('#prompt-console .grade__mark')?.textContent.trim() || '',
+        cleared: g.progression.isCleared('${target}'),
+        skill: g.progression.isSkillCollected('fmt-specify'),
+        saved: JSON.parse(localStorage.getItem('promptasy.v1.save') || '{}').skillsV2 || [],
+      };
+    `);
+    eq(kbDone.grade, 'S', '全程不碰滑鼠也拿得到 S');
+    eq(kbDone.cleared, true, '量器坊這一座記成通關（純鍵盤）');
+    eq(kbDone.skill, true, '技能「fmt-specify」進了圖鑑');
+    ok(kbDone.saved.includes('fmt-specify'), '而且真的寫進了存檔', kbDone.saved.join(','));
+    await key('Escape', 'Escape', { vk: 27 });
+    await sleep(320);
+  }
+
+  /* 一座一座真的玩過去（用的是各題型自己的把手，跟鍵盤走的是同一條路） */
+  for (const shrine of fmPlan) {
+    const played = await evaluate(`
+      const g = window.__promptasy;
+      const id = '${shrine.id}';
+      const c = g.content.challenge(id);
+      const flow = g.content.flow(id);
+      g.promptConsole.close();
+      await new Promise((r) => setTimeout(r, 140));
+      g.promptConsole.open(c);
+      await new Promise((r) => setTimeout(r, 200));
+      g.promptConsole.goAct(3, { force: true });
+      await new Promise((r) => setTimeout(r, 260));
+      const kind = g.promptConsole.kind;
+      const step = (n) => new Promise((r) => setTimeout(r, n));
+      const carve = async (board) => {
+        for (const slot of flow.slots) {
+          board.pick(slot.options.findIndex((o) => o.correct));
+          await step(90);
+        }
+      };
+      if (kind === 'choice') {
+        await carve(g.promptConsole.stele);
+        g.promptConsole.stele.press();
+      } else if (kind === 'fix') {
+        const b = g.promptConsole.fixBoard;
+        for (const fr of flow.fixFlow.fragments) {
+          if (!fr.weak) continue;
+          b.open(fr.id);
+          await step(70);
+          b.pick(fr.id, fr.options.findIndex((o) => o.correct));
+          await step(90);
+        }
+        b.press();
+      } else if (kind === 'spot') {
+        const b = g.promptConsole.spotBoard;
+        for (const sl of flow.spotFlow.slips) {
+          if (!sl.bad) continue;
+          b.toggle(sl.id);
+          await step(90);
+        }
+        b.press();
+      } else if (kind === 'constraint') {
+        const b = g.promptConsole.constraintBoard;
+        for (const p of flow.constraintFlow.pieces) {
+          if (!p.need) continue;
+          b.toggle(p.id);
+          await step(90);
+        }
+        b.press();
+      } else if (kind === 'tradeoff') {
+        const b = g.promptConsole.tradeoffBoard;
+        for (const r of flow.tradeoffFlow.rounds) {
+          b.weigh(r.favours);
+          await step(220);
+        }
+        await carve(b);
+        b.press();
+      }
+      await new Promise((r) => setTimeout(r, 900));
+      return {
+        kind,
+        grade: document.querySelector('#prompt-console .grade__mark')?.textContent.trim() || '',
+        cleared: g.progression.isCleared(id),
+        skill: g.progression.isSkillCollected(c.primarySkillId),
+        act: g.promptConsole.act,
+        srcs: document.querySelectorAll('#prompt-console [data-result] a.src').length,
+      };
+    `);
+    eq(played.kind, shrine.kind, `[${shrine.id}] 第三幕的題型是 ${shrine.kind}`);
+    eq(played.grade, 'S', `[${shrine.id}] 照著畫面上的東西做就是 S（${shrine.check}）`, JSON.stringify(played));
+    eq(played.cleared, true, `[${shrine.id}] 記成通關`);
+    eq(played.skill, true, `[${shrine.id}] 技能「${shrine.skill}」進了圖鑑（skillsV2）`);
+    ok(played.srcs >= 1, `[${shrine.id}] 結果面板附得出可點的官方出處`, String(played.srcs));
+  }
+
+  await evaluate(`window.__promptasy.promptConsole.close(); return 1;`);
+  await sleep(240);
+
+  /* --- 全破之後：這一區精通、圖鑑列得出它與它的技能 --- */
+  const fmCodex = await evaluate(`
+    const g = window.__promptasy;
+    g.codex.open();
+    await new Promise((r) => setTimeout(r, 420));
+    const cards = [...document.querySelectorAll('#codex .region-card')];
+    const last = cards[cards.length - 1];
+    return {
+      cards: cards.length,
+      title: last.querySelector('h3')?.textContent.trim() || '',
+      mastered: last.classList.contains('is-mastered'),
+      meta: last.querySelector('.region-card__meta .muted')?.textContent.trim() || '',
+      skillRows: last.querySelectorAll('.tech').length,
+      locked: last.querySelectorAll('.tech--locked').length,
+      srcs: last.querySelectorAll('a.src').length,
+      firstSrc: last.querySelector('a.src')?.getAttribute('href') || '',
+      masteryFlag: g.progression.regionMastery('forms').mastered,
+      skillBased: g.progression.regionMastery('forms').skillBased,
+    };
+  `);
+  eq(fmCodex.cards, 6, '圖鑑列出六片土地（量器坊接在最後）');
+  ok(/量器坊/.test(fmCodex.title), '第六張卡就是量器坊', fmCodex.title);
+  eq(fmCodex.skillRows, 14, '量器坊那一張卡列出 14 條技法');
+  eq(fmCodex.locked, 0, '全破之後一條都不再是剪影');
+  eq(fmCodex.mastered, true, '量器坊蓋上精通封印');
+  eq(fmCodex.masteryFlag, true, '進程也認定量器坊精通了');
+  eq(fmCodex.skillBased, true, '量器坊的完成度是用 v2 技能算的（舊 68 條裡沒有它的主題）');
+  ok(/條技法/.test(fmCodex.meta), '量器坊的完成度寫的是「條技法」', fmCodex.meta);
+  ok(fmCodex.srcs >= 14, '每一條技法都附得出可點的官方出處', String(fmCodex.srcs));
+  ok(/^https:\/\//.test(fmCodex.firstSrc), '出處是可點的 https 連結', fmCodex.firstSrc);
+
+  await evaluate(`window.__promptasy.codex.close(); return 1;`);
+  await sleep(220);
+
+  /* --- 窄畫面：量器坊的新題型在 390px 上也讀得完、按得動 --- */
+  await cdp.send(
+    'Emulation.setDeviceMetricsOverride',
+    { width: 390, height: 844, deviceScaleFactor: 1, mobile: false },
+    sessionId
+  );
+  await sleep(320);
+  const fmNarrow = await evaluate(`
+    const g = window.__promptasy;
+    const out = [];
+    for (const id of ['slippery-answer-55', 'twice-carved-64', 'mould-room-62']) {
+      g.promptConsole.close();
+      await new Promise((r) => setTimeout(r, 140));
+      g.promptConsole.open(g.content.challenge(id));
+      await new Promise((r) => setTimeout(r, 200));
+      g.promptConsole.goAct(3, { force: true });
+      await new Promise((r) => setTimeout(r, 320));
+      const panel = document.querySelector('#prompt-console .panel');
+      const tappable = [...document.querySelectorAll('#prompt-console button:not([hidden])')]
+        .filter((b) => b.offsetParent !== null);
+      out.push({
+        id,
+        overflow: panel.scrollWidth - panel.clientWidth,
+        pageOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+        small: tappable.filter((b) => b.getBoundingClientRect().height < 40).length,
+        tappable: tappable.length,
+      });
+    }
+    g.promptConsole.close();
+    return out;
+  `);
+  for (const row of fmNarrow) {
+    eq(row.overflow, 0, `[${row.id}] 390px 下沒有水平溢位`, String(row.overflow));
+    eq(row.pageOverflow, 0, `[${row.id}] 390px 下整頁不會橫向捲動`, String(row.pageOverflow));
+    ok(row.tappable > 0, `[${row.id}] 390px 下真的量得到可按的東西`, String(row.tappable));
+    eq(row.small, 0, `[${row.id}] 390px 下每一顆可按的東西都夠大`, String(row.small));
+  }
+  await cdp.send('Emulation.clearDeviceMetricsOverride', {}, sessionId);
+  await sleep(320);
+  await evaluate(`window.__promptasy.promptConsole.close(); return 1;`);
+
   console.log('\n▸ 改名（Promptasy）與舊存檔搬家（Phase 29）');
 
   const branding = await evaluate(`

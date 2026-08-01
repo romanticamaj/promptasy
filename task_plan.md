@@ -289,13 +289,56 @@ Exit criteria（逐條實測）：
 
 ### Phase E — 量器坊 `forms`（新地形）14 座
 
-狀態：`pending`
+狀態：`done`（2026-08-02）
 
 - 新增第 6 區地形、地標、路網、石座與 soft gate；沿用既有 kind，避免地形與新題型同一期爆量。
 - runtime catalog／progression／codex 支援第六區；回答語言缺口以 `system-uses` 的一拍補上，除非 master list 先有獨立可追溯條目。
 - 世界成本實測，不採文件舊數字；新地標最多 1 盞實體光，其餘 emissive。
 
 Exit：14 座可玩；碰撞／coverage／淨空／三角形／光源預算全過；舊五區無退化。
+
+Exit criteria（逐條實測）：
+
+- [x] **量器坊 14 座教學神廟**：新蓋 13 座 ＋ 由撰寫基本功搬過來的 `mimic-mirror-04`
+      （§3 forms 第 3 列指名的「擬態之鏡」，manifest 新增 `phaseE` 區塊逐欄記錄）。
+      14 條技能一對一、無重複（C2），這一區的 14 條 v2 技能全部有神廟了。
+      撰寫基本功因此由 16 → **15 關**（`expected-counts` 同步改寫並寫明理由）。
+- [x] **沿用既有 kind，不開新題型**（本期指示）：choice 3／fix 4／spot 3／constraint 2／tradeoff 2，
+      **整區最長連續同型 2**（C4），共用 5 種題型。§3 指定但屬於後續期別的兩種
+      （`len-readable` 的 `multi` → Phase G、`so-basics` 的 `workshop`）以佔位 kind 上線，
+      逐條記進 `findings.md` 的 kind-swap backlog。
+- [x] **新地形**：`forms` 落在正南 `(0, 124)`、半徑 44（半徑上限由 `buildTerrain()` 的
+      340 公尺見方網格決定，測試逐區驗「整片土地都在網格裡」）；地貌是「由北往南一階一階降下去的
+      鑄場台階」（`detailFor()` 新增 `forms` 分支，測試驗它真的單調下降且有起伏）；
+      橋、閘門、`BRIDGE_LANES`、路網、`REGION_ATMOSPHERE`、`FLORA`、`buildRegionProps` 全部跟上。
+- [x] **地標「刻度之柱」**（§二逐字：一根被刻滿量度的斷柱，柱頂懸著一把不動的尺）：高 24、留白 15，
+      **一盞實體光源都沒加**（刻度與尺全部 emissive／加色混合，e2e 逐一數過）。
+      三組故事小景（倒到一半的那一模／量過就沒再量的桌／溢出來的那一槽）。
+- [x] **世界成本實測**（不採文件舊數字）：高畫質 147,032 → **154,868 三角形**（上限 420k）、
+      **26 → 27 盞燈**（上限 56；唯一新增的是與其他四片土地相同的「每區一盞主色補光」）、
+      碰撞體 608 → **674**（上限 1,400）、mesh 1,374 → 1,528。14 座石座在高／低兩種畫質下
+      24 個方向 × 4 段距離全部走得到，正南那條橋的主動線整條無阻擋。
+- [x] **知識式軟門檻（C8）上線**：`REGION_GATES.forms` 新增 `knowledge` 欄位，條件逐字取自
+      `regions-v2.json`（`clear-specific` ＋ config 任一座），**不看等級、不看前一區通關數**；
+      「會了嗎」走 `knowsSkill()`（`skillsV2` 或 D2 相容橋的祖先技巧）。
+      閘門說得出還差哪幾條（中文技能名，不露 id），`skippedGates` 先行前往照樣走得通且不給任何進度。
+- [x] **runtime 支援第六區**：catalog 的「已實作＝curriculum.groups」硬相等改成
+      「以既有五區開頭、後面才接新區」，並強制新區必須自己宣告主色（實測破壞會丟例外）；
+      `content.group()`／`groupsOrdered()`、`world` 的 `colorOf`、HUD／toast、
+      `progression.regionMastery()`（新區改用 v2 技能算完成度）、圖鑑（新增只列技能的區域卡）全部跟上。
+- [x] **回答語言缺口**：master list 沒有獨立可追溯條目，依 §附錄 4 的建議留在 `system-uses`
+      （`lintel-words-46`）那一拍，本期不新開技能（理由記在 `findings.md`）。
+- [x] **配樂**：量器坊**沒有**音檔。新增 `SYNTH_ONLY_REGIONS` 誠實登記，配一組自己的
+      `REGION_MOODS.forms`（根音 103.83、大二度堆疊、最低鐘聲密度），跨區走合成 pad
+      （護欄 3）。**刻意不共用別區的音檔**——那會讓過橋聽起來像沒換地方。
+- [x] **9 個新檢查器**（§7.4）：`statesFormatPreference`／`hasFallbackCategory`／`avoidsSelfCounting`／
+      `saysWhatToPreserve`／`definesToneConcretely`／`bansFillerPhrases`／`definesSchema`／
+      `noDuplicateSchemaRules`／`namesDesignElements`，全部結構性偵測 ＋ 中英雙語 ＋
+      good／weak／bad fixture ＋ 反作弊 ＋ `coach.json` 白話教學（實測照著填就會亮）。
+      其中三個是**非單調**的，合尺才不會退化成「全選就過關」。
+- [x] fonts（語料 CJK **1771** 字／1413.4 KB）＋rubric（37,108 → **42,968**）
+      ＋playtest（816 → **1,076**）＋build ＋ **完整 e2e（2,157 → 2,308 項全過、零 console error）** 全綠。
+      新斷言逐條先紅後綠（rubric 3 次、e2e 2 輪共 10 條，逐項記在 `progress.md`）。
 
 ### Phase F — 契約鍛冶場 `toolcraft` 11＋護欄崗 `wards` 5
 

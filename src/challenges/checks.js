@@ -882,6 +882,185 @@ const COMMON_DELIM = [
 ];
 
 /* ------------------------------------------------------------------ *
+ * 課程 v2 · Phase E 的八個新檢查器（規格出自 curriculum-v2 §7.4）
+ *
+ * 量器坊（forms）教的是「把神諭的話倒進模子裡定形」：格式、長度、語氣、
+ * 結構化輸出。跟前面幾期一樣，全部是**結構性偵測** —— 成對出現、相異類別數、
+ * 位置比較、清單長度 —— 而不是關鍵字比對（反作弊原則）。
+ *
+ * 其中三個是**非單調**的（多寫一句會讓它暗回去），合尺（constraint）要靠它們
+ * 才不會變成「全選就過關」：
+ *   · avoidsSelfCounting     —— 只要出現「你自己數一下」就整條歸零
+ *   · saysWhatToPreserve     —— 必留清單列太長 ＝ 等於沒縮
+ *   · noDuplicateSchemaRules —— 模上寫過的限制在散文裡再寫一次就掉分
+ * ------------------------------------------------------------------ */
+
+// --- statesFormatPreference（長出圓點的牆）---------------------------
+/**
+ * 「一段成文的格式偏好」＝ 至少兩條看得出來的排版選擇，而不是單句「不要用條列」。
+ * 每一條各自代表一種排版決定，用**相異條數**判定（堆同一句話不會加分）。
+ */
+const FORMAT_PREF_RULES_ZH = [
+  { id: '少用圓點', re: /(?:不要|不用|別|避免|少用|禁用|不准)[^\n]{0,10}(?:條列|圓點|項目符號|列點|bullet)/i },
+  { id: '少用標題', re: /(?:不要|不用|別|避免|少用|禁用|不准)[^\n]{0,10}(?:標題|小標|井號|粗體|表格)/ },
+  { id: '改寫成散文', re: /(?:寫成|改成|用)[^\n]{0,8}(?:整段|連貫的?)?(?:散文|段落|文章|純文字)|以段落(?:的方式)?(?:呈現|書寫|回覆)/ },
+  { id: '段落長度', re: /(?:每(?:一)?段|一段)[^\n]{0,10}(?:不超過|最多|以內|限)[^\n]{0,6}\d+\s*(?:句|行|字)/ },
+  { id: '只有列點才列點', re: /(?:真的是|確實是|本來就是)?(?:清單|列舉|步驟)[^\n]{0,10}(?:才|再)[^\n]{0,6}(?:用|列)[^\n]{0,6}(?:條列|圓點|列點)/ },
+];
+const FORMAT_PREF_RULES_EN = [
+  { id: '少用圓點', re: /\b(?:no|avoid|do not use|don'?t use)\s+(?:bullet|bullets|bullet points|lists?)\b/i },
+  { id: '少用標題', re: /\b(?:no|avoid|do not use|don'?t use)\s+(?:headers?|headings?|bold|tables?)\b/i },
+  { id: '改寫成散文', re: /\b(?:write|answer|reply|respond)\b[^.\n]{0,20}\bin (?:flowing |plain )?prose\b|\bprose paragraphs?\b/i },
+  { id: '段落長度', re: /\b(?:each|every)\s+paragraph\b[^.\n]{0,24}\b(?:under|at most|no more than)\s+\d+\s+(?:sentences?|lines?|words?)\b/i },
+];
+/** 「而且要一直講」：長對話裡週期性重申格式偏好。 */
+const FORMAT_RESTATE_ZH =
+  /(?:每隔|每過|每|之後每|接下來每|後續每)[^\n]{0,12}(?:幾)?\s*(?:\d+|一|二|兩|三|四|五|六|七|八|九|十|幾)?\s*(?:輪|回|次|則)[^\n]{0,16}(?:重申|再說一次|再提醒|重複|重貼|重新貼|照這段|沿用)|(?:對話|聊)[^\n]{0,10}(?:變長|久了|拉長)[^\n]{0,16}(?:就)?(?:重申|再貼|再說一次|再提醒)/;
+const FORMAT_RESTATE_EN =
+  /\b(?:restate|repeat|re-?state|re-?send)\b[^.\n]{0,30}\b(?:every|each)\s+(?:\d+\s+)?(?:turns?|messages?|replies)\b|\bperiodically (?:restate|repeat|remind)\b/i;
+/** 只寫一句「不要用條列」—— 那不是一段偏好。 */
+const FORMAT_PREF_BARE_ZH = /(?:不要|別|不用)[^\n]{0,6}(?:那麼|太)?(?:多)?(?:條列|圓點|標題)/;
+
+// --- hasFallbackCategory（抓不住的答案）-----------------------------
+/** 兜底類別的名字：被引號、書名號或「標成／歸為」帶出來的一個桶子。 */
+const FALLBACK_NAME_ZH =
+  /(?:標(?:成|為|記為)|歸(?:成|為|到|入)|填|寫成|回)[^\n]{0,6}(?:「|『|"|')?\s*(其他|無法分類|不確定|未知|不詳|無|待確認|無法判斷|none|unknown|other)\s*(?:」|』|"|')?/i;
+const FALLBACK_NAME_EN =
+  /\b(?:label|classify|mark|tag|return|output)\b[^.\n]{0,20}\b(?:as\s+)?["'“]?(?:other|unknown|none|unclassified|n\/a)["'”]?/i;
+/** 觸發兜底的條件（不屬於任何一類 / 判斷不出來時）。 */
+const FALLBACK_COND_ZH =
+  /(?:不屬於|不符合|對不上|不在)[^\n]{0,10}(?:任何|上述|以上|前面)[^\n]{0,8}(?:一)?(?:類|類別|項|選項)|(?:判斷不出|分不出|無法判斷|不確定)[^\n]{0,10}(?:是哪一?類|屬於哪|時)/;
+const FALLBACK_COND_EN =
+  /\b(?:if|when)\b[^.\n]{0,30}\b(?:does not|doesn'?t|not)\s+(?:fit|match|belong)\b|\bnone of the (?:above|categories)\b/i;
+/** 固定位置（把最終答案放進一個抓得出來的框）。 */
+const ANSWER_SLOT_ZH =
+  /(?:最終|最後)?(?:答案|結論)[^\n]{0,14}(?:放|寫|包|填)[^\n]{0,10}(?:在|進|到)[^\n]{0,14}(?:框|欄位|標籤|括號|同一(?:個)?位置|最後一行)|\\boxed\{|「?答案」?\s*[:：]/;
+const ANSWER_SLOT_EN = /\\boxed\{|"answer"\s*:|\bput (?:the )?(?:final )?answer\b[^.\n]{0,24}\b(?:in|inside)\b/i;
+/** 有講到分類／萃取這件事（沒有的話那不是這一關在教的東西）。 */
+const CLASSIFY_CONTEXT = /分類|歸類|類別|標籤|萃取|抽出|欄位|classif|categor|extract|label/i;
+
+// --- avoidsSelfCounting（數不清的珠算）------------------------------
+/** 叫它自己數：一出現就整條歸零（非單調）。 */
+const SELF_COUNT_DEMAND_ZH =
+  /(?:你|請你|自己|順便|幫我|再)[^\n]{0,6}(?:數|算|統計|計算)[^\n]{0,8}(?:一下|看看)?[^\n]{0,6}(?:字數|筆數|個數|總數|幾個|幾筆|幾字|幾則|幾行)|(?:數|算|統計)[^\n]{0,4}(?:一下)?[^\n]{0,4}(?:總共|一共)[^\n]{0,4}(?:有)?(?:幾|多少)/;
+const SELF_COUNT_DEMAND_EN =
+  /\b(?:count|tally|calculate)\b[^.\n]{0,20}\b(?:the\s+)?(?:number of words|word count|characters?|how many)\b|\btell me how many\b/i;
+/** 把數量當成輸入提供（外面算好再餵進去）。 */
+const COUNT_AS_INPUT_ZH =
+  /(?:字數|筆數|總數|數量|則數|行數|項數)[^\n]{0,8}(?:是|＝|=|為|共)?\s*[:：]?\s*\d+|(?:共|總共|一共)\s*\d+\s*(?:字|筆|則|行|項|個)[^\n]{0,12}(?:已(?:經)?(?:算好|數好|統計好)|由(?:程式|系統|我)(?:算|數))|(?:已(?:經)?(?:算好|數好|統計好)|由(?:程式|系統|我)(?:先)?(?:算|數)(?:好)?)[^\n]{0,10}\d+/;
+const COUNT_AS_INPUT_EN =
+  /\b(?:word count|character count|total|number of (?:items|entries|words))\b\s*(?:is|=|:)\s*\d+|\balready counted\b[^.\n]{0,20}\d+/i;
+/** 明講「不用你自己數」。 */
+const NO_SELF_COUNT_ZH =
+  /(?:不(?:用|要|准|必|需)|別|毋須)[^\n]{0,6}(?:你)?(?:自己|自行)?(?:再)?(?:去)?(?:數|算|統計|估)[^\n]{0,10}(?:字數|筆數|數量|個數|總數)?/;
+const NO_SELF_COUNT_EN = /\b(?:do not|don'?t|never)\s+(?:count|tally|estimate)\b/i;
+
+// --- saysWhatToPreserve（被砍掉重點的摘要）--------------------------
+/** 要它縮短。 */
+const SHORTEN_ZH = /(?:縮短|精簡|濃縮|壓縮|摘要|節錄|砍到|縮到|刪到|減到|壓到|壓成|收成|收到)[^\n]{0,10}|(?:改)?寫(?:成|短)[^\n]{0,6}(?:更)?短/;
+const SHORTEN_EN = /\b(?:shorten|condense|compress|summari[sz]e|cut it down|trim)\b/i;
+/**
+ * 「這些不准丟」的子句。中文的必留清單可以擺在動詞前面（「數字與結論必須保留」）
+ * 也可以擺在後面（「請保留：數字、結論」）—— 所以偵測的是**整個子句**，
+ * 再由子句裡的分隔符數出「列了幾樣」（列太長＝等於沒縮，見 run()）。
+ */
+const PRESERVE_VERB = /保留|留下|留著|保住|不(?:准|要|得|能)(?:刪|拿掉|動|漏|砍)|must not (?:drop|remove|cut)|\b(?:keep|preserve|retain)\b/i;
+const PRESERVE_STRIP =
+  /(?:必須|一定要|務必|請|都|要|全部|一律)?(?:保留|留下|留著|保住)|不(?:准|要|得|能)(?:刪|拿掉|動|漏|砍)|\b(?:keep|preserve|retain|must not (?:drop|remove|cut))\b|[：:]/gi;
+/** 把 prompt 切成子句（必留清單一定住在同一個子句裡）。 */
+const CLAUSE_SPLIT = /[\n。；;]+|\.\s+/;
+/** 必留清單裡的項目分隔。 */
+const PRESERVE_ITEM_SPLIT = /[、，,]|與|和|以及|及|\band\b/i;
+/** 必留項目裡的「具體東西」（不是「重點」這種形容）。 */
+const PRESERVE_ITEM_ZH =
+  /數字|金額|日期|期限|結論|人名|地點|時間|欄位|編號|價格|里程|單位|條款|品名|數量/;
+const PRESERVE_ITEM_EN = /\b(?:numbers?|figures?|dates?|deadlines?|conclusions?|names?|prices?|amounts?|totals?)\b/i;
+/** 「重點都要留」這種等於沒說的必留清單。 */
+const PRESERVE_VAGUE_ZH = /(?:重點|重要的|該留的|精華)[^\n]{0,6}(?:都)?(?:要)?(?:保留|留下|留著)/;
+
+// --- definesToneConcretely（形容詞的空箱）---------------------------
+/** 可驗收的寫作選擇（相異條數）。 */
+const TONE_RULES_ZH = [
+  { id: '標點', re: /(?:不(?:用|要|准|加)|別|避免|少用)[^\n]{0,8}(?:驚嘆號|問號|破折號|表情符號|emoji|顏文字)/i },
+  { id: '句段長度', re: /(?:每(?:一)?段|每(?:一)?句|句子)[^\n]{0,10}(?:不超過|最多|以內|限|控制在)[^\n]{0,6}\d+\s*(?:句|字|行)/ },
+  { id: '修辭', re: /(?:不(?:用|要|准)|別|避免)[^\n]{0,8}(?:比喻|譬喻|形容詞|副詞|成語|口號|贅字|客套)/ },
+  { id: '人稱語態', re: /(?:用|改用|一律)[^\n]{0,8}(?:第[一二三]人稱|主動語態|被動語態|直述句|肯定句)/ },
+  { id: '用詞', re: /(?:不(?:用|要|准)|別|避免)[^\n]{0,8}(?:專有名詞|術語|行話|縮寫)|(?:用)[^\n]{0,6}(?:日常|口語|白話)的?(?:詞|說法|字)/ },
+];
+const TONE_RULES_EN = [
+  { id: '標點', re: /\bno (?:exclamation marks?|emoji|em dashes?)\b/i },
+  { id: '句段長度', re: /\b(?:each|every)\s+(?:paragraph|sentence)\b[^.\n]{0,24}\b(?:under|at most|no more than)\s+\d+\b/i },
+  { id: '修辭', re: /\bno (?:metaphors?|adjectives?|adverbs?|clich[eé]s?|filler)\b/i },
+  { id: '人稱語態', re: /\b(?:use|write in)\s+(?:the\s+)?(?:first|second|third)\s+person\b|\bactive voice\b/i },
+  { id: '用詞', re: /\b(?:no|avoid)\s+(?:jargon|acronyms?|technical terms?)\b|\bplain (?:words|language)\b/i },
+];
+/** 只丟形容詞（起的那一拍）。 */
+const TONE_ADJECTIVE_ZH =
+  /(?:請|要|寫得)[^\n]{0,6}(?:專業|溫暖|親切|活潑|正式|輕鬆|有溫度|有質感|自然|生動)(?:一點|一些|些)?/;
+/** 樣板句不要被逐字重複（轉的那一拍）。 */
+const TONE_VARY_ZH =
+  /(?:不(?:要|准|可)|別)[^\n]{0,10}(?:逐字|原封不動|照抄|一字不改)[^\n]{0,10}(?:重複|使用|沿用|抄)|(?:每次|每一次|每則)[^\n]{0,10}(?:換|變化|改寫)[^\n]{0,8}(?:說法|寫法|句子)|(?:樣板句|例句|示範句)[^\n]{0,12}(?:只是|僅供)[^\n]{0,6}(?:參考|示意)/;
+const TONE_VARY_EN =
+  /\b(?:do not|don'?t)\s+(?:copy|reuse|repeat)\b[^.\n]{0,24}\b(?:verbatim|word for word|sample sentence)\b|\bvary the (?:wording|phrasing)\b/i;
+
+// --- bansFillerPhrases（清嗓子的傳令）-------------------------------
+/** 禁用的動作。 */
+const BAN_VERB_ZH = /(?:不(?:要|准|得|能|可)|別|禁用|刪(?:掉|去)|拿掉|去掉|省略|避免)[^\n]{0,8}(?:說|寫|用|加|出現)?/;
+const BAN_VERB_EN = /\b(?:do not|don'?t|never|avoid|omit|drop|remove)\b[^.\n]{0,16}\b(?:say|write|use|start with|open with)\b/i;
+/** 被點名的片語：引號裡的一段（或以頓號列舉的短語）。 */
+const QUOTED_PHRASE = /「([^」\n]{2,20})」|『([^』\n]{2,20})』|"([^"\n]{2,24})"|“([^”\n]{2,24})”/g;
+/** 「直接從第一句開始講重點」這種正面說法。 */
+const NO_PREAMBLE_DIRECT_ZH =
+  /(?:第一句|開頭|一開始)[^\n]{0,10}(?:就)?(?:直接|立刻)[^\n]{0,6}(?:講|進入|寫|給)[^\n]{0,8}(?:重點|結論|正文|內容)|(?:不要|別)[^\n]{0,6}(?:寒暄|客套|鋪陳|清嗓|開場白|前言|說教)/;
+const NO_PREAMBLE_DIRECT_EN =
+  /\b(?:start|begin)\b[^.\n]{0,20}\b(?:directly|straight)\b[^.\n]{0,20}\b(?:with the|answer|content)\b|\bno (?:preamble|pleasantries|filler)\b/i;
+
+// --- definesSchema（鑄模房 / 兩種印章）------------------------------
+/** 一格模子：`欄位名（型別）`、`欄位名：型別`、`"欄位名": "string"`。 */
+const TYPE_WORD = '字串|整數|數字|小數|布林|真假|日期|時間|陣列|清單|物件|列表|string|integer|number|float|boolean|bool|date|datetime|array|list|object|enum|null';
+const SCHEMA_FIELD_ZH = new RegExp(
+  `(?:^|\\n)\\s*[-*•]?\\s*["'「]?([A-Za-z_][\\w-]{0,30}|[\\u4e00-\\u9fff]{2,8})["'」]?\\s*(?:[（(：:]|\\s+)\\s*(?:${TYPE_WORD})`,
+  'gi'
+);
+/** 只有欄位名、沒有型別。 */
+const SCHEMA_NAME_ONLY = /(?:^|\n)\s*[-*•]?\s*(?:欄位|field)?\s*["'「]?([A-Za-z_][\w-]{0,30}|[\u4e00-\u9fff]{2,8})["'」]?\s*[（(：:]/g;
+/** 「一定要照這個模子」的強制宣告。 */
+const SCHEMA_STRICT_ZH =
+  /(?:只|僅)(?:能|准|可以)?(?:輸出|回)[^\n]{0,10}(?:這(?:個|份)|上面(?:這)?(?:個|份)?)?(?:模子|schema|結構|格式|JSON)|(?:必填|一定要有|不得缺少|不可以少)[^\n]{0,12}(?:欄位|格)|嚴格(?:符合|照)[^\n]{0,8}(?:schema|結構|模子)/i;
+const SCHEMA_STRICT_EN =
+  /\b(?:strictly )?(?:conform|adhere|match)\b[^.\n]{0,20}\bschema\b|\ball fields? (?:are|is) required\b|\breturn only (?:the )?json\b/i;
+
+// --- noDuplicateSchemaRules（重複刻的模）----------------------------
+/** 資料塞不進模子時的例外條款（合的那一拍）。 */
+const SCHEMA_OVERFLOW_ZH =
+  /(?:塞不進|放不下|對不上|不符合|超出|多出來)[^\n]{0,12}(?:模子|schema|欄位|結構|格式)[^\n]{0,20}(?:就|請|一律|時)|(?:不屬於(?:任何)?欄位|沒有對應欄位)[^\n]{0,16}(?:的|就)/;
+const SCHEMA_OVERFLOW_EN =
+  /\b(?:if|when)\b[^.\n]{0,30}\b(?:does not fit|cannot fit|has no field|no matching field)\b|\boverflow (?:field|bucket)\b/i;
+/** 散文裡又把模子已經寫死的限制重講一次。 */
+const SCHEMA_ECHO_ZH = new RegExp(
+  `(?:記得|請|務必|一定要|要)[^\\n]{0,12}(?:填|寫|給|回)[^\\n]{0,10}(?:${TYPE_WORD})|(?:欄位|格)[^\\n]{0,8}(?:一定|必須|都)(?:要)?(?:是|填)[^\\n]{0,6}(?:${TYPE_WORD})`,
+  'i'
+);
+const SCHEMA_ECHO_EN =
+  /\b(?:remember|make sure|be sure)\b[^.\n]{0,24}\b(?:string|integer|number|boolean|array|null)\b/i;
+
+// --- namesDesignElements（沒有圖的簡報）-----------------------------
+/** 設計元素的相異類別數。 */
+const DESIGN_ELEMENTS_ZH = [
+  { id: '版面', re: /版面|排版|版型|佈局|欄位配置|layout/i },
+  { id: '配色', re: /配色|色彩|色票|主色|色調|palette/i },
+  { id: '頁數', re: /\d+\s*頁|頁數|幾頁|投影片\s*\d+|slides?\s*\d+/i },
+  { id: '字體', re: /字體|字型|字級|標題級距|typography/i },
+  { id: '動態', re: /動態|轉場|動畫|進場|漸入|animation|transition/i },
+  { id: '圖表', re: /圖表|示意圖|流程圖|插圖|圖示|chart|diagram/i },
+];
+/** 留白／不要塞滿（合的那一拍）。 */
+const DESIGN_WHITESPACE_ZH =
+  /留白|不要塞滿|不(?:要|准|得)(?:太)?(?:擁擠|滿|密)|每頁[^\n]{0,10}(?:不超過|最多)[^\n]{0,6}\d+\s*(?:個|項|點|行)|呼吸(?:感|空間)/;
+const DESIGN_WHITESPACE_EN =
+  /\bwhite ?space\b|\bdo not (?:overcrowd|fill every)\b|\bat most \d+ (?:bullets?|items?) per (?:slide|page)\b/i;
+
+/* ------------------------------------------------------------------ *
  * 檢查器定義
  * ------------------------------------------------------------------ */
 
@@ -2110,6 +2289,288 @@ const definitions = [
         return PART(`「${common}」在內文裡本來就會出現，切點會被吃掉。換成 ### 或 <信A>…</信A> 這種罕見的組合。`);
       }
       return MISS('還沒有分隔符。用 ### 或 <信A>…</信A> 把每一段框起來 —— 挑內文絕對不會出現的字元組合。');
+    },
+  },
+
+  /* ---------------- 課程 v2 · Phase E：量器坊的八個 ---------------- */
+
+  {
+    id: 'statesFormatPreference',
+    label: '寫成一段格式偏好 Format preference',
+    hint: '不要只寫一句「不要用條列」。列兩三條看得出來的排版選擇（不用圓點、不用標題、改成整段散文），再加一句「每隔幾輪重申一次」。',
+    techniqueId: null,
+    run(text) {
+      const t = clean(text);
+      const hit = new Set();
+      for (const r of FORMAT_PREF_RULES_ZH) if (r.re.test(t)) hit.add(r.id);
+      for (const r of FORMAT_PREF_RULES_EN) if (r.re.test(t)) hit.add(r.id);
+      const restate = FORMAT_RESTATE_ZH.test(t) || FORMAT_RESTATE_EN.test(t);
+      const rules = [...hit];
+
+      if (rules.length >= 2 && restate) {
+        return PASS(`寫了 ${rules.length} 條排版偏好（${rules.join('、')}），而且交代了要週期性重申 —— 長對話裡圓點才不會長回來。`);
+      }
+      if (rules.length >= 2) {
+        return MOST(`排版偏好有了（${rules.join('、')}）。再補一句「之後每幾輪重申一次這段偏好」，聊久了才不會失效。`);
+      }
+      if (rules.length === 1) {
+        return PART(`只寫了一條（${rules[0]}）。格式偏好要是一小段，至少兩三條排版選擇疊起來才壓得住。`);
+      }
+      if (FORMAT_PREF_BARE_ZH.test(t)) {
+        return PART('只有一句「不要用條列」。把它寫成一段偏好：不用圓點、不用標題、改成整段散文。');
+      }
+      return MISS('還沒寫格式偏好。寫「請用整段散文回覆，不要用圓點與標題」，再加一句「之後每 10 輪重申一次」。');
+    },
+  },
+
+  {
+    id: 'hasFallbackCategory',
+    label: '留一個兜底的格 Fallback category',
+    hint: '把答案放進固定的位置，再補一句「不屬於任何一類就標成『其他』」—— 沒有兜底的框，它會硬塞一個。',
+    techniqueId: null,
+    run(text) {
+      const t = clean(text);
+      const named = FALLBACK_NAME_ZH.test(t) || FALLBACK_NAME_EN.test(t);
+      const cond = FALLBACK_COND_ZH.test(t) || FALLBACK_COND_EN.test(t);
+      const slot = ANSWER_SLOT_ZH.test(t) || ANSWER_SLOT_EN.test(t);
+      const topic = CLASSIFY_CONTEXT.test(t);
+
+      if (named && cond && slot) {
+        return PASS('答案有固定的位置，而且「不屬於任何一類」的時候有一個兜底的格可以放 —— 它就不必硬塞了。');
+      }
+      if (named && cond) {
+        return MOST(
+          topic
+            ? '兜底類別有了。再指定「最終答案放在最後一行的『答案：』後面」，抓的人才撈得出來。'
+            : '兜底類別有了，但答案還是散在文章裡。指定一個固定位置，抓的人才撈得出來。'
+        );
+      }
+      if (cond && slot) {
+        return MOST('條件與位置都寫了，但沒替兜底那一格取名字。寫成「標成『其他』」，它才知道要放什麼。');
+      }
+      if (named || cond) {
+        return PART('兜底只寫了一半。要兩件事一起：什麼情況算兜底（不屬於上述任何一類），以及那時候填什麼（標成「其他」）。');
+      }
+      if (slot) {
+        return PART('位置固定了，但沒有兜底類別。遇到不屬於任何一類的東西，那個框裡就沒東西可放。');
+      }
+      return MISS('還沒有兜底的格。寫「不屬於上述任何一類就標成『其他』，答案放在最後一行的『答案：』後面」。');
+    },
+  },
+
+  {
+    id: 'avoidsSelfCounting',
+    label: '數字由外面給 No self-counting',
+    hint: '字數、筆數這種事先算好再當資料餵進去（「原文共 812 字」），不要叫它自己數。',
+    techniqueId: null,
+    run(text) {
+      const t = clean(text);
+      const demand = SELF_COUNT_DEMAND_ZH.test(t) || SELF_COUNT_DEMAND_EN.test(t);
+      const supplied = COUNT_AS_INPUT_ZH.test(t) || COUNT_AS_INPUT_EN.test(t);
+      const forbids = NO_SELF_COUNT_ZH.test(t) || NO_SELF_COUNT_EN.test(t);
+
+      // 非單調：只要還留著「你自己數一下」，前面給再多數字都白搭
+      if (demand) {
+        return MISS('裡面還留著「你自己數一下」。它報的數字每次都不一樣 —— 把數量先算好，當成資料寫進去。');
+      }
+      if (supplied) {
+        return PASS('數量是外面算好之後遞進去的（不是叫它自己數）—— 它只負責寫，數字就不會飄。');
+      }
+      if (forbids) {
+        return MOST('說了不要自己數，但沒把算好的數字給它。補一句「原文共 812 字」這種現成的數量。');
+      }
+      return MISS('還沒把數量當成資料給它。寫「這段原文共 812 字（已經算好）」，不要讓它自己去數。');
+    },
+  },
+
+  {
+    id: 'saysWhatToPreserve',
+    label: '點名什麼不准丟 What to preserve',
+    hint: '要它縮短的同時，點名哪幾樣必須留下（數字、結論、期限）—— 但那份清單要很短，列太長就等於沒縮。',
+    techniqueId: null,
+    run(text) {
+      const t = clean(text);
+      const shorten = SHORTEN_ZH.test(t) || SHORTEN_EN.test(t);
+      const clause = t.split(CLAUSE_SPLIT).find((s) => PRESERVE_VERB.test(s)) || '';
+      const m = clause ? [clause] : null;
+      const listed = clause.replace(PRESERVE_STRIP, ' ').trim();
+      const concrete = PRESERVE_ITEM_ZH.test(listed) || PRESERVE_ITEM_EN.test(listed);
+      // 必留清單有幾項（頓號／與／and 分隔）—— 列太長等於沒縮（非單調）
+      const items = listed
+        ? listed.split(PRESERVE_ITEM_SPLIT).map((s) => s.trim()).filter((s) => s.length > 0).length
+        : 0;
+
+      if (shorten && concrete && items > 0 && items <= 4) {
+        return PASS(`要它縮短，同時點名了必留的幾樣（${listed.slice(0, 24)}）—— 短，而且最重要的那一段還在。`);
+      }
+      if (shorten && concrete && items > 4) {
+        return MOST(`必留清單列了 ${items} 樣，幾乎等於沒縮。挑最關鍵的兩三樣就好。`);
+      }
+      if (shorten && m && PRESERVE_VAGUE_ZH.test(t)) {
+        return PART('「重點都要留」等於沒說 —— 它認定的重點跟你不一樣。點名具體的東西：數字、結論、期限。');
+      }
+      if (shorten && m) {
+        return PART('有講到保留，但沒點名是哪幾樣。寫「數字與結論必須保留」這種指得出來的東西。');
+      }
+      if (shorten) {
+        return PART('只說了縮短。它會先砍掉最長的那一段，而那常常就是結論。加一句「這幾樣不准丟」。');
+      }
+      if (m) {
+        return PART('有必留清單，但沒說要縮到多短。兩件事要一起講：縮到幾句，以及哪幾樣不准丟。');
+      }
+      return MISS('還沒說什麼不准丟。寫「壓到 3 句話以內，數字與結論必須保留」。');
+    },
+  },
+
+  {
+    id: 'definesToneConcretely',
+    label: '語氣寫成看得見的規則 Concrete tone',
+    hint: '別寫「請溫暖一點」。改成兩三條驗收得了的寫作選擇：不用驚嘆號、每段兩句、不用比喻。',
+    techniqueId: null,
+    run(text) {
+      const t = clean(text);
+      const hit = new Set();
+      for (const r of TONE_RULES_ZH) if (r.re.test(t)) hit.add(r.id);
+      for (const r of TONE_RULES_EN) if (r.re.test(t)) hit.add(r.id);
+      const rules = [...hit];
+      const vary = TONE_VARY_ZH.test(t) || TONE_VARY_EN.test(t);
+      const adjective = TONE_ADJECTIVE_ZH.test(t);
+
+      if (rules.length >= 2 && vary) {
+        return PASS(`語氣被寫成 ${rules.length} 條看得見的規則（${rules.join('、')}），而且交代了樣板句只是示意 —— 它不會逐字照抄。`);
+      }
+      if (rules.length >= 2) {
+        return MOST(`規則有了（${rules.join('、')}）。再補一句「例句只是示意，每次換一種說法」，不然它會逐字重複那一句。`);
+      }
+      if (rules.length === 1) {
+        return PART(`只有一條（${rules[0]}）。語氣要靠兩三條規則疊出來，一條驗收不了。`);
+      }
+      if (adjective) {
+        return MISS('「請專業一點」這種形容詞驗收不了，它只好自己猜。換成規則：不用驚嘆號、每段兩句、不用比喻。');
+      }
+      return MISS('還沒定義語氣。寫「不用驚嘆號、每段兩句、不用比喻」這種看得見的寫作選擇。');
+    },
+  },
+
+  {
+    id: 'bansFillerPhrases',
+    label: '列出禁用片語 Ban filler phrases',
+    hint: '把要關掉的開場白逐句列出來（「當然！」「以下是」「希望這對你有幫助」），不要只說「不要廢話」。',
+    techniqueId: null,
+    run(text) {
+      const t = clean(text);
+      const ban = BAN_VERB_ZH.test(t) || BAN_VERB_EN.test(t);
+      const quoted = new Set();
+      const re = new RegExp(QUOTED_PHRASE.source, 'g');
+      let m;
+      while ((m = re.exec(t)) !== null) {
+        const phrase = (m[1] || m[2] || m[3] || m[4] || '').trim();
+        if (phrase) quoted.add(phrase);
+      }
+      const direct = NO_PREAMBLE_DIRECT_ZH.test(t) || NO_PREAMBLE_DIRECT_EN.test(t);
+
+      if (ban && quoted.size >= 2) {
+        return PASS(`禁用片語逐句列出來了（${[...quoted].slice(0, 2).join('、')}…共 ${quoted.size} 句）—— 這種清單它關得掉。`);
+      }
+      if (ban && quoted.size === 1) {
+        return MOST(`點名了「${[...quoted][0]}」。再多列一兩句（「以下是」「希望這對你有幫助」），清單才夠用。`);
+      }
+      if (quoted.size >= 2 && direct) {
+        return MOST('片語列出來了，但沒明講要關掉它們。前面加一句「以下這幾句一律不要出現」。');
+      }
+      if (ban || direct) {
+        return PART('只說了「不要廢話」。它不知道哪幾句算廢話 —— 把要關掉的句子逐句抄出來。');
+      }
+      return MISS('還沒有禁用片語清單。寫「以下開場白一律不要出現：「當然！」「以下是」「希望這對你有幫助」」。');
+    },
+  },
+
+  {
+    id: 'definesSchema',
+    label: '把模子刻出來 Define the schema',
+    hint: '用「欄位名（型別）」一格一格寫出來（品名（字串）、數量（整數）、日期（日期）），不要用散文描述格式。',
+    techniqueId: null,
+    run(text) {
+      const t = clean(text);
+      const typed = new Set();
+      const fieldRe = new RegExp(SCHEMA_FIELD_ZH.source, 'gi');
+      let m;
+      while ((m = fieldRe.exec(t)) !== null) typed.add(m[1]);
+      const names = new Set();
+      const nameRe = new RegExp(SCHEMA_NAME_ONLY.source, 'g');
+      while ((m = nameRe.exec(t)) !== null) names.add(m[1]);
+      const strict = SCHEMA_STRICT_ZH.test(t) || SCHEMA_STRICT_EN.test(t);
+
+      if (typed.size >= 3) {
+        return PASS(`${typed.size} 格模子都刻上了欄位名與型別 —— 形狀不再靠運氣，倒進去就是那個樣子。`);
+      }
+      if (typed.size === 2 && strict) {
+        return PASS('兩格模子有欄位名與型別，而且明講了只准照這個模子回 —— 這就是一個模，不是一段描述。');
+      }
+      if (typed.size === 2) {
+        return MOST('兩格有型別了。再刻一格，或補一句「只輸出這個結構，欄位一個都不能少」。');
+      }
+      if (typed.size === 1) {
+        return PART('只有一格寫了型別。模子要一格一格刻：品名（字串）、數量（整數）、日期（日期）。');
+      }
+      if (names.size >= 2) {
+        return PART('欄位名有了，但沒寫型別 —— 沒有型別的模子還是會倒出各種形狀。每一格補上（字串／整數／日期）。');
+      }
+      return MISS('還沒有模子。把想要的欄位寫成「品名（字串）、數量（整數）、日期（日期）」。');
+    },
+  },
+
+  {
+    id: 'noDuplicateSchemaRules',
+    label: '模上寫過的不要再寫 No duplicate rules',
+    hint: '模子已經寫死的東西（欄位型別、必填）不要在話裡再講一次；話只管任務，另外補一句「資料塞不進模子時怎麼辦」。',
+    techniqueId: null,
+    run(text) {
+      const t = clean(text);
+      const typed = new Set();
+      const fieldRe = new RegExp(SCHEMA_FIELD_ZH.source, 'gi');
+      let m;
+      while ((m = fieldRe.exec(t)) !== null) typed.add(m[1]);
+      const echo = SCHEMA_ECHO_ZH.test(t) || SCHEMA_ECHO_EN.test(t);
+      const overflow = SCHEMA_OVERFLOW_ZH.test(t) || SCHEMA_OVERFLOW_EN.test(t);
+
+      if (typed.size >= 2 && !echo && overflow) {
+        return PASS('模子管形狀、話只管任務，而且交代了資料塞不進模子時該怎麼辦 —— 分工清楚，例外也有人管。');
+      }
+      if (typed.size >= 2 && !echo) {
+        return MOST('沒有把模上寫過的規則再講一次，很好。再補一句「有資料塞不進任何欄位時怎麼辦」就完整了。');
+      }
+      if (typed.size >= 2 && echo) {
+        return PART('模子已經寫死型別了，話裡又叮嚀了一次。刪掉重複的那一句 —— 兩份規則不一致的時候誰贏沒人說得準。');
+      }
+      if (echo) {
+        return PART('型別是用講的，不是刻在模子上。先把欄位與型別寫成模子，散文裡就不必再提。');
+      }
+      return MISS('還沒有模子可以分工。先寫出欄位與型別，再補一句「塞不進任何欄位的資料放進備註」。');
+    },
+  },
+
+  {
+    id: 'namesDesignElements',
+    label: '點名設計元素 Name design elements',
+    hint: '要簡報就要點名版面、配色、頁數、圖表這些元素，再加一句留白要求，不然只會拿回一段文字。',
+    techniqueId: null,
+    run(text) {
+      const t = clean(text);
+      const hit = [];
+      for (const e of DESIGN_ELEMENTS_ZH) if (e.re.test(t)) hit.push(e.id);
+      const space = DESIGN_WHITESPACE_ZH.test(t) || DESIGN_WHITESPACE_EN.test(t);
+
+      if (hit.length >= 3 && space) {
+        return PASS(`點名了 ${hit.length} 種設計元素（${hit.join('、')}），而且要求留白 —— 元素點滿卻不留白只會變成塞爆的版面。`);
+      }
+      if (hit.length >= 3) {
+        return MOST(`元素清單有了（${hit.join('、')}）。再加一句留白要求（每頁最多 3 個重點），版面才不會被塞爆。`);
+      }
+      if (hit.length >= 1) {
+        return PART(`只點名了「${hit.join('、')}」。做視覺文件至少要講三種：版面、配色、頁數。`);
+      }
+      return MISS('還沒點名任何設計元素。寫「6 頁，每頁一張示意圖，主色用深藍，每頁最多 3 個重點」。');
     },
   },
 ];

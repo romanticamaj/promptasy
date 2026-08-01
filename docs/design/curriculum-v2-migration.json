@@ -336,8 +336,8 @@
           "weightBefore": 2,
           "action": "remove",
           "weightAfter": 0,
-          "phase": "post-A",
-          "reason": "主題搬去自己的神廟（C1 一關一技巧／C2 只教一次）：從「用範例展示格式」收斂成「寫出開頭讓它接下去」；few-shot 讓給示範迴廊"
+          "phase": "E",
+          "reason": "主題搬去自己的神廟（C1 一關一技巧／C2 只教一次）：從「用範例展示格式」收斂成「寫出開頭讓它接下去」；few-shot 讓給示範迴廊（Phase E 執行：擬態之鏡連同主題一起搬進量器坊）"
         }
       ],
       "passBefore": 3,
@@ -349,7 +349,17 @@
         "format-02",
         "format-03"
       ],
-      "designNote": "從「用範例展示格式」收斂成「寫出開頭讓它接下去」；few-shot 讓給示範迴廊"
+      "designNote": "從「用範例展示格式」收斂成「寫出開頭讓它接下去」；few-shot 讓給示範迴廊",
+      "phaseE": {
+        "skillId": "prefill-completion",
+        "mainCheck": "hasFewShot",
+        "mainWeightAfterE": 3,
+        "totalWeightAfterE": 3.5,
+        "passAfterE": 2,
+        "kindAfterE": "fix",
+        "regionAfterE": "forms",
+        "note": "§3 forms 第 3 列指名「擬態之鏡（保留）」——主題由「用範例展示格式」收斂成「寫出開頭讓它接下去」，石座整座搬到正南的量器坊。收斂成新神廟的形狀（主檢查 3 ＋ 地基 assignsTask 0.5、pass 2），legacy teaches 與舊主技巧 format-03 都保留（收集不倒退，D2）。"
+      }
     },
     {
       "id": "long-scroll-archive-05",
@@ -1864,5 +1874,5 @@
       }
     }
   ],
-  "updatedBy": "課程 v2 · Phase D（constraint 題型 ＋ 脈絡與長文／角色與參數補齊到 12 座）"
+  "updatedBy": "課程 v2 · Phase D（constraint 題型 ＋ 脈絡與長文／角色與參數補齊到 12 座） ／ 課程 v2 · Phase E（量器坊：mimic-mirror-04 執行 post-A 的移除、接上 prefill-completion、搬進 forms 區）"
 }
