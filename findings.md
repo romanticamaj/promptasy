@@ -1,0 +1,62 @@
+# Findings — Promptasy 長時間收尾
+
+## 已確認
+
+- 專案原本沒有 `task_plan.md`、`findings.md`、`progress.md`。
+- `CLAUDE.md`、`WORLD.md`、`HANDOFF.md` 均存在；需完整讀取後才能定案。
+- 從 Windows UNC 路徑直接使用 Git 會觸發 dubious ownership，後續改走 WSL Linux 路徑。
+- `HANDOFF.md` 指定下一件大事為由 27 關／68 技巧／5 區域擴展至 130 技能／12 區域，依 `docs/design/curriculum-v2.md` §8 的 A–K 路線執行。
+- 第一優先是 Phase A「重複度手術」：既有 27 關收斂為 1 個主檢查＋最多 1 個基本功、`assignsTask` 權重降為 0.5 且不再當教學目標、同步下修 pass 門檻。
+- Phase B 是新增 `fix`／`spot` 題型與對應神廟；是否和 A 合併規劃需看設計文件的依賴與風險。
+- 27 關遷移約束為保留 4／改造 21／轉應用關 2，零刪除；59 個新檢查器是主要隱藏成本。
+- Git 當前在 `dev...origin/dev`；三份新規劃檔是唯一未追蹤項目。
+- `CLAUDE.md` 的不可妥協護欄：學習優先、內容與 rubric 忠於官方來源、核心離線、存檔可遷移／重置、每次交付可執行、資產授權乾淨、既有內容不倒退。
+- 核心設計仍是「一關＝一個技巧的實戰」、失敗回饋必須指出缺失並連到官方來源、關卡可重玩提高評價。
+- DoD 要求端到端可玩、無 console error、內容出處可點、存檔相容、最後更新 `CLAUDE.md` changelog。
+- 最近 Phase 34 已達 rubric 16,502／playtest 226／e2e 約 1,786；e2e 尚有滑鼠拖曳時序類 flaky，建議改為 poll-until。
+- 目前明確技術債含行動裝置未支援；它不應偷渡進 Phase A 純資料手術，但 Phase B 新互動必須評估鍵盤與觸控債務。
+- `WORLD.md` 要求所有新題型維持四幕、同一離線評分引擎、同一手掌印結尾、不會失敗，且純鍵盤完整可走；新增 `kind` 必須預設不影響既有關卡。
+- 官方出處必須始終可見；自撰教學資料標 `authored: "game"`，不得在資料層手抄或改寫 `curriculum.json` 的官方欄位。
+- 互動仍只有 `E`；overlay 內要有焦點鎖、roving focus、`Esc` 還原、`aria-live`，文字輸入焦點時單鍵快捷失效。
+- 世界性能硬規則：不新增場景光源（除非納入既有預算）、每幀零配置／平方距離／距離分級；有份量幾何要納入碰撞與淨空稽核。
+- WORLD 維護清單共 29 項，涵蓋世界觀、互動、內容、視覺、效能、碰撞、存檔、rubric/e2e/playtest/build/changelog。
+- 目前 `flows.json` 的向後相容契約是缺少 `kind` 時預設 `choice`；Phase B 的 `fix`／`spot` 應延續此契約。
+- curriculum v2 的九項硬約束 C1–C9：一關一技巧、技巧只教一次、每關四拍、題型變奏、鷹架遞減、環境即題目、不失敗／完全資訊、知識式軟門檻、最佳化目標不擋路。
+- 130 技能拆成 12 區；既有五區／地形全保留，新增七區中只有 `forms`、`toolcraft`、`sight` 需要新地形，其他是既有地形加建。
+- 區內順序自由；跨區門檻應由已掌握技巧決定，不再以等級數字為主，仍可 `skippedGates` 先走。
+- 每座神廟的規格欄包含教學前提、14 種互動型式之一、起承轉合、素材與 rubric；新檢查器必須採結構性偵測，不能靠關鍵字堆砌。
+- 既有關卡收斂時，地基檢查最多 1 條、權重 0.5，且不計入評價門檻；主檢查才代表本關所教技能。
+- curriculum v2 §6 明訂 A–K：A 資料手術；B `fix`/`spot`+foundations；C `induct`/`tradeoff`+reasoning；D `constraint`+grounding/config；E forms 新地形；F toolcraft 新地形+wards；G `multi`+refinery/orchestration；H `sim`+frugality；I sight；J divergence+12 應用關+大師層；K 選配 `disclose`。
+- 最終範圍是 130 教學神廟＋12 應用關＝142 關，59 個新檢查器按期開發；設計明列 `sim` 樣本、新地形、行動裝置為主要風險。
+- `curriculum-v2.md` 的遷移小計是保留 5／改造 20／應用關 2；`HANDOFF.md` 卻寫保留 4／改造 21／應用關 2，存在需在 Phase A 前以實際資料與設計列逐項解決的文件矛盾。
+- 文件中的效能現況數字也有漂移（WORLD 約 143k/44 lights，curriculum v2 風險段寫 125k/47 lights）；實作不能沿用舊數字，需以測試與 runtime 現測為準。
+- Phase A 具體全域改動：26 關 `assignsTask` 降至 0.5、pass 各降 0.5；6 關移除非主題的 `specifiesFormat`、5 關降權 `hasDelimiters`。但需先從現有資料產出精確 manifest，避免依摘要數字盲改。
+- Phase B 預計 foundations 補至 14 座、+10 新神廟；`fix` 是可編輯弱稿，`spot` 是點選有問題句子，兩者需共同支援 token toggle、方向鍵與 Enter。
+- 應用關不教新技巧、跳過第二幕，只針對玩家已學技巧動態組 rubric；新增 `seals[]` 必須 additive 並由 `normalize()` 補預設。
+- v2 尚未提供約 550 段實際關卡文案；內容需分期從 master list 取材、標 `authored: "game"`、綁真實官方來源。
+- level-design references 將 P1–P15 落成可測的關卡原則；最重要的實作含義是：主 rubric 上限、強制「轉」、鷹架由 fix/choice 走向 free、完全資訊、允許多解、技能以配角間隔複習、第一幕資訊量設硬上限。
+- 14 種互動型式的成本分級已足以當 roadmap gate：綠色資料型先做；黃色單一新 kind 要先做失敗測試；紅色跨資料／跨輪／跨世界狀態需要獨立 phase。
+- gap analysis 指出現況內容風險不能只靠重複度手術處理：temperature、顯式自我檢查、xAI 404、system prompt、過度詳細、CoT transcript、effort 等都有時代條件；Phase A 不應順便重寫 `curriculum.json`，需維持 dated-notes 分層。
+- Phase A 要特別確認 `positiveFraming` 的語意：正面要求優先但必要禁令可保留，不能把「全部禁止句改寫」繼續當唯一正解。
+- master list 是 292 條、493 個來源編號的 canonical source；130 技能只涵蓋可教的 prompt 技巧，實作期應以 master 編號回查具體「使用方式／出處」，而不是從設計表一句話擴寫事實。
+- master list 明確標示 68/68 現有技巧都有映射，但 `role-04`、`fewshot-05`、`iterate-04` 僅部分涵蓋；新課程不能把這些未驗證宣稱重新包裝成正式教學。
+- 來源健康度有特殊驗證語意：Meta 對非 JS 客戶端回 400 不是死鏈；OpenAI Help 403 與 xAI 404 不能當可驗證主來源；URL 存活度仍應分期重驗。
+- gap analysis 的 A 手術建議原始基線是 26 關、106 rubric 項；現況已是 27 關，必須用當前 JSON 重算，不可把舊百分比直接當完成驗收。
+- Git 當前 HEAD／origin/dev 是 `86b2d47`（handoff commit）；main 是 `7dd120e`（v2 設計），規劃檔之外沒有既有未提交改動。
+- 實際資料基線：27 challenges／27 flows，kind 分布 choice 24、order 2、workshop 1；118 rubric 項（不是 gap analysis 的 106）。
+- `assignsTask` 現在 27/27（不是舊文件的 26/26）；`specifiesFormat` 14、`hasDelimiters` 12。Phase A 的「26 關受影響」已過期，應明確決定第 27 關 `oracle-workshop-36` 是否同樣降權（依 C1 應該要）。
+- 現有每關 `teaches` 有 2–4 條；只改 rubric 權重不足以達成「一關只教一件事」，Phase A manifest 必須同步定義 `teaches`、rubric `techniqueId`、coach/flow 顯示與收集行為的遷移。
+- 現有 pass 為整數 3–5；若一律減 0.5 會出現小數門檻。需先確認 rubric/playtest/e2e/UI 對 fractional pass 的支援及顯示，不可只改 JSON。
+- runtime 現在把 `curriculum.json` 直接傳進 content/progression/codex/ranks/settings/share/e2e；要擴到 130 技能而保持原檔 byte-identical，必須先新增「v2 catalog merge」邊界，讓舊 68 技巧與新 authored/sourced 技巧合併成 runtime catalog。
+- 建議資料分層：`curriculum.json` 永遠原封不動；新增 `skill-codex-v2.json`（玩家面 id、區域、tier、masterRefs、官方 sources、authored game 說明）與 `regions-v2.json`，由單一 loader 驗證後合併。不得把 master list 的摘要冒充官方引文。
+- 測試目前大量硬編碼 68 技巧／5 區／3 kinds／27 flows 與既有 kind 分布；各 phase 必須把「歷史快照型斷言」改成 schema/invariant 或新明確目標，避免為過測試寫死。
+- `evaluate()` 接受任意 finite number pass，小數門檻在引擎層可運作；UI 會直接插入數字，因此 Phase A 要加小數顯示與差額文案測試。
+
+## 待盤點
+
+- `HANDOFF.md` 的未完成項目、優先級、驗收條件與已知阻塞。
+- `CLAUDE.md` 的北極星、硬護欄與最近變更。
+- `WORLD.md` 的互動、擺放、效能、碰撞規則及 29 項維護清單。
+- 工作樹、測試與 build 現況。
+- `curriculum-v2.md` §8 A–K 路線與 Phase A／B 的檔案級契約。
+- `gap-analysis.md` §3 的逐關重複度診斷。
