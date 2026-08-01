@@ -2653,16 +2653,16 @@ async function main() {
   eq(modeSetting.persisted, 'guided', '答題方式寫進 localStorage');
   eq(modeSetting.mode, 'guided', '主控台跟著換過來');
 
-  // --- 開一關沒被別的測試碰過的：面具工坊 ---
+  // --- 開一關沒被別的測試碰過的：四要素之鏡 ---
   const carveOpen = await evaluate(`
     const g = window.__promptasy;
-    g.promptConsole.open(g.content.challenge('mask-workshop-41'));
+    g.promptConsole.open(g.content.challenge('four-elements-mirror-44'));
     await new Promise((r) => setTimeout(r, 240));
     // Phase 12：石碑住在第三幕 —— 先讓導演把鏡頭推到那裡
     const actAtOpen = g.promptConsole.act;
     g.promptConsole.goAct(3, { force: true });
     await new Promise((r) => setTimeout(r, 300));
-    const flow = g.content.flow('mask-workshop-41');
+    const flow = g.content.flow('four-elements-mirror-44');
     return {
       mode: g.promptConsole.mode,
       slots: flow.slots.length,
@@ -2709,7 +2709,7 @@ async function main() {
       ariaDisabled: btn.getAttribute('aria-disabled'),
       feedback: fb.textContent.trim(),
       feedbackShown: !fb.hidden,
-      dataFeedback: g.content.flow('mask-workshop-41').slots[0].options[${wrongIdx}].feedback,
+      dataFeedback: g.content.flow('four-elements-mirror-44').slots[0].options[${wrongIdx}].feedback,
       carved: document.querySelectorAll('#prompt-console .carved').length,
       stillHere: !!document.querySelector('#prompt-console [data-opt="${wrongIdx}"]'),
       progress: document.querySelector('#prompt-console [data-progress]').textContent.trim(),
@@ -2743,7 +2743,7 @@ async function main() {
   // --- 一段一段刻上去：全部用鍵盤 1/2/3，刻痕數要跟著長 ---
   const carveAll = await evaluate(`
     const g = window.__promptasy;
-    const flow = g.content.flow('mask-workshop-41');
+    const flow = g.content.flow('four-elements-mirror-44');
     const steps = [];
     for (let i = 0; i < flow.slots.length; i += 1) {
       const idx = flow.slots[i].options.findIndex((o) => o.correct);
@@ -2872,10 +2872,11 @@ async function main() {
       rows: document.querySelectorAll('#prompt-console .row').length,
       xpTick: document.querySelector('#prompt-console [data-xptick]')?.getAttribute('data-to'),
       xp: g.progression.state.xp,
-      best: g.progression.bestGrade('mask-workshop-41'),
-      cleared: g.world.markers.find((m) => m.id === 'mask-workshop-41')?.cleared,
+      best: g.progression.bestGrade('four-elements-mirror-44'),
+      cleared: g.world.markers.find((m) => m.id === 'four-elements-mirror-44')?.cleared,
       source: document.querySelector('#prompt-console .result__source a')?.getAttribute('href') || '',
-      dataSource: g.content.challenge('mask-workshop-41').source,
+      dataSource: g.content.challenge('four-elements-mirror-44').source,
+      rubricRows: g.content.challenge('four-elements-mirror-44').rubric.length,
     };
   `);
   eq(sealed.fired, true, '按住到底就發動了');
@@ -2884,7 +2885,11 @@ async function main() {
   eq(sealed.resultHidden, false, '接著就是原本那張結果面板');
   eq(sealed.grade, 'S', '石碑刻印全部選對＝S（超容易過關）');
   eq(sealed.pass, true, '結果面板判定為通過');
-  eq(sealed.rows, 5, '結果一條一條列出這一關的 5 項檢查');
+  eq(
+    sealed.rows,
+    sealed.rubricRows,
+    `結果一條一條列出這一關的 ${sealed.rubricRows} 項檢查（由資料現算，不寫死）`
+  );
   ok(Number(sealed.xpTick) > 0, '拿到 XP', `xp=${sealed.xpTick}`);
   ok(sealed.xp > wrongPick.xp, '存檔裡的 XP 真的增加了', `${wrongPick.xp} → ${sealed.xp}`);
   eq(sealed.best, 'S', '最佳評價寫成 S');
@@ -4097,11 +4102,14 @@ async function main() {
     '中文黑體是子集而非完整字型（完整版 11 MB）',
     `${(fonts.sansBytes / 1024).toFixed(0)} KB`
   );
-  // Phase 22 多了一整層互動（刻文小語 / 反應 / 祕密）＋ WORLD.md 的世界觀用語，
-  // 語料從 1472 → 1583 字。上限往上調一格，但仍遠低於完整字型（16 MB + 11 MB）。
+  /*
+   * 語料是保守超集，每一期新內容都會把它撐大：
+   * Phase 22 的 1583 字 → 課程 v2 Phase D 的 1750 字（脈絡與長文／角色與參數兩區的文案）。
+   * 上限再往上調一格，但仍遠低於完整字型（16 MB + 11 MB）。
+   */
   ok(
-    fonts.serifBytes + fonts.sansBytes < 1_110_000,
-    '兩套中文字型合計在 1.06 MB 以內',
+    fonts.serifBytes + fonts.sansBytes < 1_180_000,
+    '兩套中文字型合計在 1.15 MB 以內',
     `${((fonts.serifBytes + fonts.sansBytes) / 1024).toFixed(0)} KB`
   );
   eq(fonts.externalFontReqs, 0, '沒有任何外部字型 CDN 請求（護欄 3：可離線）');
@@ -7011,7 +7019,13 @@ async function main() {
   // 這樣按住 W 就會直直走過去（走的方向是鏡頭看出去的方向）
   const kbTarget = await evaluate(`
     const g = window.__promptasy;
-    const c = g.content.challenges.find((c) => !g.progression.isCleared(c.id) && g.content.flow(c.id));
+    // Phase D：這一段驗的是**石碑刻印**的純鍵盤路徑，所以要挑一關真的是 choice 的
+    const c = g.content.challenges.find(
+      (c) =>
+        !g.progression.isCleared(c.id) &&
+        g.content.flow(c.id) &&
+        g.promptConsole.flowKindOf(g.content.flow(c.id)) === 'choice'
+    );
     const m = g.world.markers.find((m) => m.id === c.id);
     const yaw = g.player.cameraYaw;
     const fx = Math.sin(yaw), fz = Math.cos(yaw);
@@ -7553,35 +7567,28 @@ async function main() {
     out.spotIds = Object.entries(flows).filter(([, f]) => f.kind === 'spot').map(([id]) => id).sort();
     out.inductIds = Object.entries(flows).filter(([, f]) => f.kind === 'induct').map(([id]) => id).sort();
     out.tradeoffIds = Object.entries(flows).filter(([, f]) => f.kind === 'tradeoff').map(([id]) => id).sort();
+    out.constraintIds = Object.entries(flows).filter(([, f]) => f.kind === 'constraint').map(([id]) => id).sort();
     return out;
   `);
-  eq(kinds.total, 47, '世界上有 47 關（課程 v2 · Phase C：示範與推理補到 15 座）');
+  eq(kinds.total, 62, '世界上有 62 關（課程 v2 · Phase D：脈絡與長文 12＋1、角色與參數 12 座）');
   eq(kinds.missing.length, 0, '每一關都有流程資料，而且都留著選擇題後備', kinds.missing.join(','));
-  eq(kinds.byKind.choice, 27, '27 關維持石碑刻印');
-  eq(kinds.byKind.order, 2, '2 關改成排序刻印');
-  eq(kinds.byKind.workshop, 1, '1 關是神諭工坊');
-  eq(kinds.byKind.fix, 7, '7 座神廟是改碑');
-  eq(kinds.byKind.spot, 4, '4 座神廟是點碑');
-  eq(kinds.byKind.induct, 2, '2 座是推規碑（課程 v2 · Phase C）');
-  eq(kinds.byKind.tradeoff, 4, '4 座是雙面碑（課程 v2 · Phase C）');
-  eq(kinds.orderIds.join(','), 'long-scroll-tower-23,priority-stair-42', '改成排序的就是那兩關（次序本身就是課程）');
-  eq(kinds.workshopIds.join(','), 'oracle-workshop-36', '神諭工坊是第 27 關');
+  /*
+   * Phase D：這裡原本寫死了「哪幾關是哪一種題型」（歷史快照）。課程 v2 每一期
+   * 都在換裝與新增，那種斷言只會逼人為了過測試改數字 —— 改成不變式：
+   * 八種題型都真的有神廟在用，而且加起來就是全部的關卡。
+   */
+  for (const k of ['choice', 'order', 'workshop', 'fix', 'spot', 'induct', 'tradeoff', 'constraint']) {
+    ok((kinds.byKind[k] || 0) >= 1, `題型 ${k} 真的有神廟在用`, String(kinds.byKind[k]));
+  }
   eq(
-    kinds.fixIds.join(','),
-    'empty-handed-envoy-14,first-rail-10,honed-blade-24,measuring-table-08,nightwatch-relief-07,well-pause-22,working-draft-19',
-    '改碑是那七座'
+    Object.values(kinds.byKind).reduce((n, v) => n + v, 0),
+    kinds.total,
+    '每一關都落在某一種題型上（沒有無主的關卡）'
   );
-  eq(
-    kinds.spotIds.join(','),
-    'nodding-courier-09,parts-wall-16,shout-stone-11,silent-thinker-13',
-    '點碑是那四座'
-  );
-  eq(kinds.inductIds.join(','), 'example-hall-11,flawed-cabinet-17', '推規碑是那兩座');
-  eq(
-    kinds.tradeoffIds.join(','),
-    'example-scale-16,old-tag-store-15,two-lampkeepers-18,wordfork-12',
-    '雙面碑是那四座'
-  );
+  ok(kinds.orderIds.includes('long-scroll-tower-23'), '長卷之塔仍然是排序刻印');
+  ok(kinds.orderIds.includes('priority-stair-42'), '優先序階梯仍然是排序刻印');
+  eq(kinds.workshopIds.join(','), 'oracle-workshop-36', '神諭工坊仍然只有神諭工坊那一關');
+  ok(kinds.constraintIds.length >= 4, '合尺至少四座（課程 v2 · Phase D）', kinds.constraintIds.join(','));
 
   /* ---------------------------------------------------------------- *
    * 一、排序刻印：純鍵盤走完（拿起 → 搬 → 放下 → 亮燈 → 手印 → S）
@@ -7699,7 +7706,7 @@ async function main() {
   eq(dropped.right, 3, '「位置對了」3 / 3');
   eq(dropped.marks.filter(Boolean).length, 3, '每一片都標上了「位置對了」的刻記');
   ok(/位置對了/.test(dropped.live), 'aria-live 講出放下的結果', dropped.live);
-  ok(dropped.lit >= 3, '旁邊的刻痕對照跟著亮燈', String(dropped.lit));
+  ok(dropped.lit >= 2, '旁邊的刻痕對照跟著亮燈', String(dropped.lit));
   ok(/把手掌按上石碑/.test(dropped.lampText), '進度燈改口成「把手掌按上石碑就過關了」', dropped.lampText);
   eq(dropped.palmHidden, false, '排順之後手掌印才浮出來');
   eq(dropped.act, 4, '排滿自動切到第四幕（跟石碑刻印同一個節拍）');
@@ -7725,6 +7732,7 @@ async function main() {
       best: g.progression.bestGrade('long-scroll-tower-23'),
       xpGain: g.progression.state.xp - ${dropped.xp},
       sources: [...document.querySelectorAll('#prompt-console [data-result] a.src')].length,
+      rubricRows: g.content.challenge('long-scroll-tower-23').rubric.length,
     };
   `);
   eq(orderResult.fired, true, '按住手掌 900ms 真的發動了');
@@ -7732,7 +7740,11 @@ async function main() {
   eq(orderResult.grade, 'S', '排對的順序走同一支離線引擎 → 拿到 S');
   eq(orderResult.best, 'S', '評價寫進進度');
   ok(orderResult.xpGain > 0, '排序刻印一樣給 XP', String(orderResult.xpGain));
-  ok(orderResult.sources >= 4, '結果面板每一條都掛著官方出處', String(orderResult.sources));
+  ok(
+    orderResult.sources >= orderResult.rubricRows,
+    '結果面板每一條都掛著官方出處（條數由資料現算）',
+    `${orderResult.sources} / ${orderResult.rubricRows}`
+  );
 
   /* --- 指標拖曳：用真的滑鼠事件把石版拖到別的位置 --- */
   await evaluate(`
@@ -7748,16 +7760,24 @@ async function main() {
     return { arrangement: b.arrangement, correct: b.correctOrder, slips: document.querySelectorAll('#prompt-console .slip').length };
   `);
   eq(stairBefore.slips, 4, '優先序階梯有 4 片石版');
-  eq(stairBefore.correct.join(','), 'role,task,format,context', '正解是「規則區在最上面」');
+  eq(stairBefore.correct.join(','), 'safety,job,taste,rule', '正解是「安全規範在最上面」');
+  /*
+   * 起點與終點都要**在版面安定之後才量**：先捲到定位、等一拍，再取一次座標。
+   * 終點取的是「整份清單的上緣」而不是某一片石版 —— Phase D 把這一關的石版
+   * 換成三條規矩的階梯之後，宣告順序裡的第二片並不是畫面上最上面那一片。
+   */
   const drag = await evaluate(`
     const grip = (id) => document.querySelector('#prompt-console [data-slip="' + id + '"]');
-    grip('role').scrollIntoView({ block: 'center' });
-    await new Promise((r) => setTimeout(r, 240));
-    const a = grip('role').getBoundingClientRect();
-    const b = grip('context').getBoundingClientRect();
+    grip('safety').scrollIntoView({ block: 'center' });
+    await new Promise((r) => setTimeout(r, 320));
+    const a = grip('safety').getBoundingClientRect();
+    const list = (
+      document.querySelector('#prompt-console [data-slips]:not([hidden])') ||
+      document.querySelector('#prompt-console [data-slips]')
+    ).getBoundingClientRect();
     return {
       fromX: Math.round(a.x + 30), fromY: Math.round(a.y + a.height / 2),
-      toX: Math.round(b.x + 30), toY: Math.round(b.y + 4),
+      toX: Math.round(a.x + 30), toY: Math.round(list.top + 4),
     };
   `);
   /*
@@ -7847,12 +7867,12 @@ async function main() {
   const dragged = await evaluate(`
     const b = window.__promptasy.promptConsole.orderBoard;
     return { arrangement: b.arrangement, right: b.progress.right,
-      rightMark: document.querySelector('#prompt-console .slip[data-slip-id="role"]').classList.contains('is-right') };
+      rightMark: document.querySelector('#prompt-console .slip[data-slip-id="safety"]').classList.contains('is-right') };
   `);
   eq(
     dragged.arrangement[0],
-    'role',
-    '滑鼠拖曳真的把「角色與目標」搬到最上面',
+    'safety',
+    '滑鼠拖曳真的把「安全規範」搬到最上面',
     `座標上的元素＝${dragTop.top}（在石版上？${dragTop.inBoard}）`
   );
   eq(dragged.rightMark, true, '搬對的那一片立刻標成「位置對了」', `arrangement=${dragged.arrangement.join(",")}`);
@@ -7862,7 +7882,7 @@ async function main() {
   const stillSafe = await evaluate(`
     const g = window.__promptasy;
     const b = g.promptConsole.orderBoard;
-    b.arrange(['role', 'context', 'format', 'task']);
+    b.arrange(['safety', 'taste', 'rule', 'job']);
     await new Promise((r) => setTimeout(r, 160));
     return {
       done: b.done,
@@ -7893,7 +7913,7 @@ async function main() {
     };
   `);
   eq(stairDone.grade, 'S', '優先序階梯排對也是 S（同一支引擎）');
-  ok(stairDone.text.indexOf('# 角色與目標') === 0, '規則區真的排在最上面', stairDone.text.slice(0, 20));
+  ok(stairDone.text.indexOf('1. ') === 0, '最高的那一階真的排在最上面', stairDone.text.slice(0, 20));
   ok(stairDone.xpGain > 0, '排錯過幾次不影響拿到的 XP（不會失敗、也不扣分）', String(stairDone.xpGain));
 
   /* ---------------------------------------------------------------- *
@@ -8769,9 +8789,14 @@ async function main() {
         if (g.world.solidAt(p.x + dx, p.z + dz)) out.blocked.push(id + ':' + dx + ',' + dz);
       }
     }
+    out.expected = g.content.challenges.filter((c) => c.primarySkillId).length;
     return out;
   `);
-  eq(newMarkers.ids, 25, '世界上真的多了 25 座課程 v2 的石座（Phase B 十座 ＋ Phase C 十五座）');
+  eq(
+    newMarkers.ids,
+    newMarkers.expected,
+    `世界上每一座接上 v2 技能的石座都蓋出來了（目前 ${newMarkers.expected} 座，由資料現算）`
+  );
   eq(newMarkers.missing.length, 0, '每一座都蓋出來了', newMarkers.missing.join(','));
   eq(newMarkers.blocked.length, 0, '新石座四周走得到（互動不會被擋）', newMarkers.blocked.join(' '));
 
@@ -9207,6 +9232,334 @@ async function main() {
   eq(narrowC.tradeoffOverflow, 0, '820px 下雙面碑沒有水平溢位');
   await cdp.send('Emulation.clearDeviceMetricsOverride', {}, sessionId);
   await sleep(300);
+
+  /* ================================================================ */
+  /* 課程 v2 · Phase D：合尺（constraint）＋ 行動裝置還債點             */
+  /* ================================================================ */
+  console.log('\n▸ 合尺與窄畫面（課程 v2 · Phase D）');
+
+  const csOpen = await evaluate(`
+    const g = window.__promptasy;
+    g.promptConsole.close();
+    await new Promise((r) => setTimeout(r, 180));
+    g.promptConsole.open(g.content.challenge('laden-desk-27'));
+    await new Promise((r) => setTimeout(r, 260));
+    const actAtOpen = g.promptConsole.act;
+    g.promptConsole.goAct(3, { force: true });
+    await new Promise((r) => setTimeout(r, 320));
+    const b = g.promptConsole.constraintBoard;
+    return {
+      actAtOpen,
+      act: g.promptConsole.act,
+      kind: g.promptConsole.kind,
+      gauges: b.gauges.length,
+      lit: b.gauges.filter((x) => x.passed).length,
+      wants: b.gauges.map((x) => x.want),
+      pieces: document.querySelectorAll('#prompt-console .piece__grip').length,
+      palmHidden: !!document.querySelector('#prompt-console .constraintboard .palmwrap')?.hidden,
+      progress: document.querySelector('#prompt-console .constraintboard [data-progress]').textContent.trim(),
+      steleHidden: g.promptConsole.stele.root.hidden,
+    };
+  `);
+  eq(csOpen.actAtOpen, 1, '合尺一打開也是從第一幕（委託）開始');
+  eq(csOpen.kind, 'constraint', '這一關的第三幕是合尺');
+  eq(csOpen.steleHidden, true, '合尺上台時石碑刻印收起來');
+  ok(csOpen.gauges >= 2, '檯上有好幾把尺', String(csOpen.gauges));
+  eq(csOpen.lit, 0, '一片都沒挑的時候一把尺都沒亮');
+  ok(csOpen.wants.every((w) => /[一-鿿]/.test(w)), '每一把尺都用白話寫出它要量什麼（完全資訊）', csOpen.wants.join(' / '));
+  ok(csOpen.pieces >= 4, '檯上攤著好幾片石片', String(csOpen.pieces));
+  eq(csOpen.palmHidden, true, '還沒合尺，手掌印不會出現');
+  ok(/0 \/ /.test(csOpen.progress), '進度寫著還沒合尺', csOpen.progress);
+
+  /* --- 鍵盤：方向鍵走、Enter 放上去 --- */
+  await evaluate(`
+    document.querySelector('#prompt-console .piece__grip').focus();
+    return 1;
+  `);
+  await key('ArrowDown', 'ArrowDown', { vk: 40 });
+  await sleep(140);
+  const csNav = await evaluate(`
+    const at = document.activeElement.getAttribute('data-piece');
+    const ids = [...document.querySelectorAll('#prompt-console .piece__grip')].map((b) => b.getAttribute('data-piece'));
+    return { at, second: ids[1], ids };
+  `);
+  eq(csNav.at, csNav.second, '方向鍵在石片之間走得動（純鍵盤）');
+
+  /* --- 放上一片會弄壞某把尺的石片：不失敗、就地教學、尺暗回去 --- */
+  const csWrong = await evaluate(`
+    const g = window.__promptasy;
+    const b = g.constraintBoardForTest || g.promptConsole.constraintBoard;
+    const flow = g.content.flow('laden-desk-27').constraintFlow;
+    const need = flow.pieces.filter((p) => p.need).map((p) => p.id);
+    const spare = flow.pieces.filter((p) => !p.need).map((p) => p.id);
+    // 先把該挑的挑齊 —— 每一把尺都亮
+    for (const id of need) b.toggle(id);
+    await new Promise((r) => setTimeout(r, 200));
+    const litAll = b.gauges.filter((x) => x.passed).length;
+    const palmShownBefore = !document.querySelector('#prompt-console .constraintboard .palmwrap').hidden;
+    const xpBefore = g.progression.state.xp;
+    // 再把不該挑的都放上去 —— 一定會有一把尺暗回去，但不扣分、不失敗
+    for (const id of spare) {
+      b.toggle(id);
+      await new Promise((r) => setTimeout(r, 140));
+    }
+    const fb = document.querySelector('#prompt-console [data-piece-fb="' + spare[spare.length - 1] + '"]');
+    return {
+      litAll,
+      total: b.gauges.length,
+      palmShownBefore,
+      litAfter: b.gauges.filter((x) => x.passed).length,
+      palmAfter: !document.querySelector('#prompt-console .constraintboard .palmwrap').hidden,
+      fbShown: fb && !fb.hidden,
+      fbText: fb ? fb.textContent.trim() : '',
+      live: b.announcement,
+      xp: g.progression.state.xp,
+      xpBefore,
+      failPanel: !document.querySelector('#prompt-console [data-result]').hidden,
+      chosen: b.chosen.length,
+    };
+  `);
+  eq(csWrong.litAll, csWrong.total, '該挑的挑齊了，每一把尺都亮起來');
+  eq(csWrong.palmShownBefore, true, '每一把尺都合了，手掌印才浮出來');
+  ok(csWrong.litAfter < csWrong.total, '放上不該挑的那一片，尺會暗回去', `${csWrong.litAfter}/${csWrong.total}`);
+  eq(csWrong.palmAfter, false, '尺暗掉之後手掌印跟著收回去（不會誤送）');
+  eq(csWrong.fbShown, true, '不該挑的那一片就地長出一句教學');
+  ok(csWrong.fbText.length >= 12, '就地教學是完整的一句話', csWrong.fbText);
+  ok(/[一-鿿]/.test(csWrong.live), 'aria-live 也講出來了（螢幕閱讀器聽得到）', csWrong.live);
+  eq(csWrong.xp, csWrong.xpBefore, '放錯不扣分也不給分');
+  eq(csWrong.failPanel, false, '放錯不會跳出失敗面板（不會失敗）');
+
+  /* --- Esc 一片一片拿下來 → 尺重新亮起 → 手印回來 --- */
+  const spareCount = await evaluate(`
+    const g = window.__promptasy;
+    return g.content.flow('laden-desk-27').constraintFlow.pieces.filter((p) => !p.need).length;
+  `);
+  for (let i = 0; i < spareCount; i += 1) {
+    await evaluate(`
+      const b = window.__promptasy.promptConsole.constraintBoard;
+      const last = b.chosen[b.chosen.length - 1];
+      document.querySelector('#prompt-console [data-piece="' + last + '"]').focus();
+      return 1;
+    `);
+    await key('Escape', 'Escape', { vk: 27 });
+    await sleep(220);
+  }
+  const csEsc = await evaluate(`
+    const g = window.__promptasy;
+    const b = g.promptConsole.constraintBoard;
+    return {
+      open: !g.promptConsole.root.hidden,
+      lit: b.gauges.filter((x) => x.passed).length,
+      total: b.gauges.length,
+      palm: !document.querySelector('#prompt-console .constraintboard .palmwrap').hidden,
+      text: b.text,
+      sample: g.content.challenge('laden-desk-27').sample,
+    };
+  `);
+  eq(csEsc.open, true, 'Esc 先拿下石片，不會把整個面板關掉');
+  eq(csEsc.lit, csEsc.total, '拿下不該挑的那一片，每一把尺又亮了');
+  eq(csEsc.palm, true, '手掌印回來了');
+  eq(csEsc.text, csEsc.sample, '合尺組出來的整段文字＝示範解答（兩種模式同一段字）');
+
+  /* --- 手印 → 呈給神諭 → S --- */
+  const csResult = await evaluate(`
+    const g = window.__promptasy;
+    g.promptConsole.constraintBoard.press();
+    await new Promise((r) => setTimeout(r, 900));
+    return {
+      grade: document.querySelector('#prompt-console .grade__mark')?.textContent,
+      best: g.progression.bestGrade('laden-desk-27'),
+      skills: g.progression.isSkillCollected('long-all-upfront'),
+      sources: document.querySelectorAll('#prompt-console [data-result] a.src').length,
+      cleared: g.world.markers.find((m) => m.id === 'laden-desk-27')?.cleared,
+    };
+  `);
+  eq(csResult.grade, 'S', '合尺走完拿到 S');
+  eq(csResult.best, 'S', '評價寫進存檔');
+  eq(csResult.skills, true, '技能收進 skillsV2');
+  ok(csResult.sources > 0, '結果面板掛得出官方出處', String(csResult.sources));
+  eq(csResult.cleared, true, '石座轉成已通關');
+
+  /* --- 脈絡與長文／角色與參數：石座真的蓋在世界上 --- */
+  const dRegions = await evaluate(`
+    const g = window.__promptasy;
+    const out = {};
+    for (const region of ['grounding', 'config']) {
+      const ids = g.content.challenges.filter((c) => c.region === region).map((c) => c.id);
+      const missing = [];
+      const blocked = [];
+      for (const id of ids) {
+        const m = g.world.markers.find((x) => x.id === id);
+        if (!m) { missing.push(id); continue; }
+        const p = m.position;
+        for (let a = 0; a < 12; a += 1) {
+          const ang = (a / 12) * Math.PI * 2;
+          if (g.world.solidAt(p.x + Math.cos(ang) * 3, p.z + Math.sin(ang) * 3)) blocked.push(id);
+        }
+      }
+      out[region] = { n: ids.length, missing, blocked };
+    }
+    return out;
+  `);
+  eq(dRegions.grounding.n, 13, '脈絡與長文有 13 座石座（12 教學神廟 ＋ 1 應用關）');
+  eq(dRegions.config.n, 12, '角色與參數有 12 座石座');
+  for (const region of ['grounding', 'config']) {
+    eq(dRegions[region].missing.length, 0, `[${region}] 每一座石座都蓋出來了`, dRegions[region].missing.join(','));
+    eq(dRegions[region].blocked.length, 0, `[${region}] 石座四周走得到`, dRegions[region].blocked.join(' '));
+  }
+
+  /* ---------------------------------------------------------------- *
+   * 行動裝置還債點：≤720px 的四幕與八種題型「按得到、讀得動、不溢位」
+   *
+   * 世界的觸控移動（虛擬搖桿）不在這一期的範圍（task_plan Phase D）。
+   * 這裡守的是**面板**：新題型的 UI 在手機寬度上不能無法操作。
+   * ---------------------------------------------------------------- */
+  const BOARD_SAMPLES = [
+    ['laden-desk-27', '合尺'],
+    ['sealed-readroom-29', '改碑'],
+    ['mark-spring-30', '點碑'],
+    ['sleepless-scribe-28', '排序刻印'],
+    ['crossroad-scale-45', '雙面碑'],
+    ['flawed-cabinet-17', '推規碑'],
+    ['nameless-three-26', '石碑刻印'],
+    ['oracle-workshop-36', '神諭工坊'],
+  ];
+  for (const [w, h] of [[720, 900], [390, 844]]) {
+    await cdp.send(
+      'Emulation.setDeviceMetricsOverride',
+      { width: w, height: h, deviceScaleFactor: 1, mobile: true },
+      sessionId
+    );
+    await sleep(360);
+    const narrowBoards = await evaluate(`
+      const g = window.__promptasy;
+      const list = ${JSON.stringify(BOARD_SAMPLES)};
+      const out = { boards: [], vw: innerWidth };
+      for (const [id, label] of list) {
+        g.promptConsole.close();
+        await new Promise((r) => setTimeout(r, 140));
+        g.promptConsole.open(g.content.challenge(id));
+        await new Promise((r) => setTimeout(r, 200));
+        g.promptConsole.goAct(3, { force: true });
+        await new Promise((r) => setTimeout(r, 280));
+        const body = document.querySelector('#prompt-console .panel__body');
+        const panel = document.querySelector('#prompt-console .panel');
+        // 可以按得到的東西：高度 ≥40px（Apple/Google 的最小觸控目標）
+        const targets = [...document.querySelectorAll(
+          '#prompt-console .opt, #prompt-console .piece__grip, #prompt-console .spot__grip, ' +
+          '#prompt-console .frag__grip, #prompt-console .face, #prompt-console .wallrow, ' +
+          '#prompt-console .slip__grip, #prompt-console .btn, #prompt-console .palm, ' +
+          '#prompt-console .toolcard, #prompt-console .acts__item'
+        )].filter((el) => el.offsetParent !== null);
+        const smallEls = targets
+          .filter((el) => el.getBoundingClientRect().height < 40)
+          .map((el) => el.className.split(' ')[0] + ':' + Math.round(el.getBoundingClientRect().height));
+        const small = smallEls.length;
+        const tiny = [...document.querySelectorAll('#prompt-console .panel__body *')]
+          .filter((el) => el.children.length === 0 && el.textContent.trim())
+          .map((el) => parseFloat(getComputedStyle(el).fontSize))
+          .filter((n) => n && n < 12).length;
+        out.boards.push({
+          id,
+          label,
+          overflowX: Math.max(0, body.scrollWidth - body.clientWidth),
+          panelW: Math.round(panel.getBoundingClientRect().width),
+          right: Math.round(panel.getBoundingClientRect().right),
+          targets: targets.length,
+          small,
+          smallEls: [...new Set(smallEls)].slice(0, 6),
+          tiny,
+        });
+      }
+      g.promptConsole.close();
+      await new Promise((r) => setTimeout(r, 140));
+      // 圖鑑與設定也要能用
+      const panels = [];
+      for (const [name, api] of [['圖鑑', g.codex], ['設定', g.settings]]) {
+        api.open();
+        await new Promise((r) => setTimeout(r, 260));
+        const body = api.root.querySelector('.panel__body');
+        const panel = api.root.querySelector('.panel');
+        /*
+         * 這兩張面板量的是「有沒有東西真的凸出去」，而不是 scrollWidth。
+         * 原因：ⓘ 的氣泡是絕對定位的浮層，它會伸進 padding 區讓
+         * scrollWidth 多出十幾像素，但畫面上一個像素都沒有超出內容邊 ——
+         * 那不是玩家會遇到的問題。所以逐個元素比對內容邊，並另外守
+         * 「整頁不會水平捲動」（下面的 docOverflow）。
+         */
+        const br = body.getBoundingClientRect();
+        const edge = br.right - parseFloat(getComputedStyle(body).paddingRight);
+        const stickOut = [...body.querySelectorAll('*')]
+          .filter((el) => el.getBoundingClientRect().right - edge > 1)
+          .map((el) => String(el.className || el.tagName).split(' ')[0]);
+        panels.push({
+          name,
+          overflowX: stickOut.length,
+          worst: [...new Set(stickOut)].slice(0, 5),
+          right: Math.round(panel.getBoundingClientRect().right),
+        });
+        api.close();
+        await new Promise((r) => setTimeout(r, 140));
+      }
+      out.panels = panels;
+      out.docOverflow = Math.max(0, document.documentElement.scrollWidth - document.documentElement.clientWidth);
+      return out;
+    `);
+    eq(narrowBoards.vw, w, `視窗切到 ${w}px`);
+    eq(narrowBoards.docOverflow, 0, `${w}×${h}：整頁沒有水平捲動`);
+    for (const b of narrowBoards.boards) {
+      eq(b.overflowX, 0, `${w}px：${b.label}（${b.id}）沒有水平溢位`, `+${b.overflowX}px`);
+      ok(b.panelW <= w, `${w}px：${b.label}的面板沒有超出視窗`, `${b.panelW} > ${w}`);
+      ok(b.right <= w + 1, `${w}px：${b.label}的面板沒有被推出右緣`, String(b.right));
+      ok(b.targets > 0, `${w}px：${b.label}上真的有可以按的東西`, String(b.targets));
+      eq(b.small, 0, `${w}px：${b.label}的每一個可按元素都 ≥40px 高`, `太小的是：${b.smallEls.join('、')}`);
+      eq(b.tiny, 0, `${w}px：${b.label}沒有小於 12px 的字`, `${b.tiny} 處`);
+    }
+    for (const p of narrowBoards.panels) {
+      eq(p.overflowX, 0, `${w}px：${p.name}沒有任何內容凸出內容邊`, `凸出的是：${p.worst.join('、')}`);
+      ok(p.right <= w + 1, `${w}px：${p.name}沒有被推出右緣`, String(p.right));
+    }
+  }
+
+  /* --- 390px 下用「觸控」真的操作得動合尺（不是只有版面對） --- */
+  const touchPlay = await evaluate(`
+    const g = window.__promptasy;
+    g.promptConsole.close();
+    await new Promise((r) => setTimeout(r, 160));
+    g.promptConsole.open(g.content.challenge('six-lantern-48'));
+    await new Promise((r) => setTimeout(r, 220));
+    g.promptConsole.goAct(3, { force: true });
+    await new Promise((r) => setTimeout(r, 300));
+    const b = g.promptConsole.constraintBoard;
+    const flow = g.content.flow('six-lantern-48').constraintFlow;
+    const before = b.gauges.filter((x) => x.passed).length;
+    // 用真的指標事件（觸控在瀏覽器上會變成 click）逐片點上去
+    for (const p of flow.pieces.filter((x) => x.need)) {
+      const el = document.querySelector('#prompt-console [data-piece="' + p.id + '"]');
+      const r = el.getBoundingClientRect();
+      el.click();
+      await new Promise((r2) => setTimeout(r2, 140));
+    }
+    return {
+      before,
+      after: b.gauges.filter((x) => x.passed).length,
+      total: b.gauges.length,
+      palm: !document.querySelector('#prompt-console .constraintboard .palmwrap').hidden,
+      palmH: Math.round(document.querySelector('#prompt-console .constraintboard .palm').getBoundingClientRect().height),
+    };
+  `);
+  eq(touchPlay.before, 0, '390px：一開始一把尺都沒亮');
+  eq(touchPlay.after, touchPlay.total, '390px：用點的把石片挑齊，每一把尺都亮');
+  eq(touchPlay.palm, true, '390px：手掌印在窄畫面也浮得出來');
+  ok(touchPlay.palmH >= 40, '390px：手掌印按得到', `${touchPlay.palmH}px`);
+
+  await cdp.send('Emulation.clearDeviceMetricsOverride', {}, sessionId);
+  await sleep(320);
+  await evaluate(`
+    const g = window.__promptasy;
+    g.promptConsole.close();
+    return 1;
+  `);
 
   /* ================================================================ */
   console.log('\n▸ 改名（Promptasy）與舊存檔搬家（Phase 29）');

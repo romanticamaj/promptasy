@@ -216,7 +216,7 @@
           "weightBefore": 2,
           "action": "remove",
           "weightAfter": 0,
-          "phase": "post-A",
+          "phase": "D",
           "reason": "主題搬去自己的神廟（C1 一關一技巧／C2 只教一次）：主題改成分隔符本身；第三幕由 choice 換成 order（把三封信排進三個標籤）"
         },
         {
@@ -224,8 +224,17 @@
           "weightBefore": 1,
           "action": "remove",
           "weightAfter": 0,
-          "phase": "post-A",
+          "phase": "D",
           "reason": "主題搬去自己的神廟（C1 一關一技巧／C2 只教一次）：主題改成分隔符本身；第三幕由 choice 換成 order（把三封信排進三個標籤）"
+        },
+        {
+          "check": "hasDelimiters",
+          "weightBefore": 2,
+          "action": "remove",
+          "weightAfter": 0,
+          "phase": "D",
+          "reason": "「有沒有分隔符」是 struct-xml（舊標籤的倉庫）與 cot-separate-answer（思考室）的主題；這一關教的是「挑一個內文絕對不會出現的分隔符」，由新檢查器 usesRareDelimiter 承接（C1／C2）。",
+          "addedIn": "D"
         }
       ],
       "passBefore": 3,
@@ -239,7 +248,16 @@
         "structure-01",
         "structure-02"
       ],
-      "designNote": "主題改成分隔符本身；第三幕由 choice 換成 order（把三封信排進三個標籤）"
+      "designNote": "主題改成分隔符本身；第三幕由 choice 換成 order（把三封信排進三個標籤）",
+      "phaseD": {
+        "skillId": "struct-delimiters",
+        "mainCheck": "usesRareDelimiter",
+        "mainWeightAfterD": 3,
+        "totalWeightAfterD": 3.5,
+        "passAfterD": 2,
+        "kindAfterD": "order",
+        "note": "Phase D 實作了 §7.4 的 usesRareDelimiter。它比 hasDelimiters 更貼這一關的「轉」（內文自己就有 ---，切點被吃掉），而且 hasDelimiters 已經是另外兩座神廟的主檢查，所以主檢查由它接手；manifest 原本記的 mainCheck（hasDelimiters）保留為歷史值。"
+      }
     },
     {
       "id": "lost-automaton-03",
@@ -373,7 +391,7 @@
           "weightBefore": 2,
           "action": "remove",
           "weightAfter": 0,
-          "phase": "post-A",
+          "phase": "D",
           "reason": "主題搬去自己的神廟（C1 一關一技巧／C2 只教一次）：主題改成「規則放最前面／結尾的話會贏」，長文定位交給長卷之塔"
         },
         {
@@ -381,8 +399,17 @@
           "weightBefore": 1,
           "action": "remove",
           "weightAfter": 0,
-          "phase": "post-A",
+          "phase": "D",
           "reason": "主題搬去自己的神廟（C1 一關一技巧／C2 只教一次）：主題改成「規則放最前面／結尾的話會贏」，長文定位交給長卷之塔"
+        },
+        {
+          "check": "hasDelimiters",
+          "weightBefore": 2,
+          "action": "remove",
+          "weightAfter": 0,
+          "phase": "D",
+          "reason": "Phase A 的 hold 理由是「它當時頂著主檢查」；rulesBeforeData 實作之後主題回到「規則的位置」，分隔符本身屬於郵箱精靈的分揀台（C2）。",
+          "addedIn": "D"
         }
       ],
       "passBefore": 3,
@@ -395,7 +422,16 @@
         "structure-01",
         "structure-05"
       ],
-      "designNote": "主題改成「規則放最前面／結尾的話會贏」，長文定位交給長卷之塔"
+      "designNote": "主題改成「規則放最前面／結尾的話會贏」，長文定位交給長卷之塔",
+      "phaseD": {
+        "skillId": "pos-rules-first",
+        "mainCheck": "rulesBeforeData",
+        "mainWeightAfterD": 3,
+        "totalWeightAfterD": 3.5,
+        "passAfterD": 2,
+        "kindAfterD": "order",
+        "note": "Phase D 實作了 §7.4 的 rulesBeforeData（manifest 早就指定它是主檢查，interimMainCheck 是 hasDelimiters）。"
+      }
     },
     {
       "id": "council-envoy-06",
@@ -809,7 +845,7 @@
           "weightBefore": 2,
           "action": "remove",
           "weightAfter": 0,
-          "phase": "post-A",
+          "phase": "D",
           "reason": "主題搬去自己的神廟（C1 一關一技巧／C2 只教一次）：只留「先引用再作答」；引用格式獨立成標記之泉"
         },
         {
@@ -817,7 +853,7 @@
           "weightBefore": 1,
           "action": "remove",
           "weightAfter": 0,
-          "phase": "post-A",
+          "phase": "D",
           "reason": "主題搬去自己的神廟（C1 一關一技巧／C2 只教一次）：只留「先引用再作答」；引用格式獨立成標記之泉"
         }
       ],
@@ -830,7 +866,16 @@
         "grounding-01",
         "grounding-04"
       ],
-      "designNote": "只留「先引用再作答」；引用格式獨立成標記之泉"
+      "designNote": "只留「先引用再作答」；引用格式獨立成標記之泉",
+      "phaseD": {
+        "skillId": "ground-quote-first",
+        "mainCheck": "asksToCiteSources",
+        "mainWeightAfterD": 3,
+        "totalWeightAfterD": 3.5,
+        "passAfterD": 2,
+        "kindAfterD": "fix",
+        "note": "Phase D（脈絡與長文／角色與參數各 12 座）執行本列的 post-A 條目，並把 rubric 收斂成「主檢查 3 分 ＋ 地基 assignsTask 0.5 分、pass 2」——與課程 v2 新蓋的神廟同一個形狀（C1）。primaryTechniqueId 保留（它真的有祖先，收集不倒退），另外新增 primarySkillId 指向 v2 技能。"
+      }
     },
     {
       "id": "well-of-unknowing-22",
@@ -863,7 +908,7 @@
           "weightBefore": 2,
           "action": "remove",
           "weightAfter": 0,
-          "phase": "post-A",
+          "phase": "D",
           "reason": "主題搬去自己的神廟（C1 一關一技巧／C2 只教一次）：只降權 assignsTask／positiveFraming"
         },
         {
@@ -871,7 +916,7 @@
           "weightBefore": 1,
           "action": "remove",
           "weightAfter": 0,
-          "phase": "post-A",
+          "phase": "D",
           "reason": "主題搬去自己的神廟（C1 一關一技巧／C2 只教一次）：只降權 assignsTask／positiveFraming"
         }
       ],
@@ -884,7 +929,16 @@
         "grounding-02",
         "grounding-03"
       ],
-      "designNote": "只降權 assignsTask／positiveFraming"
+      "designNote": "只降權 assignsTask／positiveFraming",
+      "phaseD": {
+        "skillId": "ground-out",
+        "mainCheck": "givesOutForUncertainty",
+        "mainWeightAfterD": 3,
+        "totalWeightAfterD": 3.5,
+        "passAfterD": 2,
+        "kindAfterD": "choice",
+        "note": "Phase D（脈絡與長文／角色與參數各 12 座）執行本列的 post-A 條目，並把 rubric 收斂成「主檢查 3 分 ＋ 地基 assignsTask 0.5 分、pass 2」——與課程 v2 新蓋的神廟同一個形狀（C1）。primaryTechniqueId 保留（它真的有祖先，收集不倒退），另外新增 primarySkillId 指向 v2 技能。"
+      }
     },
     {
       "id": "long-scroll-tower-23",
@@ -925,8 +979,17 @@
           "weightBefore": 1,
           "action": "remove",
           "weightAfter": 0,
-          "phase": "post-A",
+          "phase": "D",
           "reason": "主題搬去自己的神廟（C1 一關一技巧／C2 只教一次）：order 型式與資料完全沿用，加一拍「頭尾各一次」的轉"
+        },
+        {
+          "check": "hasDelimiters",
+          "weightBefore": 2,
+          "action": "remove",
+          "weightAfter": 0,
+          "phase": "D",
+          "reason": "分隔符是郵箱精靈的分揀台的主題；這一關收斂成「資料在前、問題在後」之後它就不再計分（C1）。",
+          "addedIn": "D"
         }
       ],
       "passBefore": 4,
@@ -939,7 +1002,16 @@
         "longcontext-02",
         "longcontext-03"
       ],
-      "designNote": "order 型式與資料完全沿用，加一拍「頭尾各一次」的轉"
+      "designNote": "order 型式與資料完全沿用，加一拍「頭尾各一次」的轉",
+      "phaseD": {
+        "skillId": "long-query-last",
+        "mainCheck": "putsQuestionLast",
+        "mainWeightAfterD": 3,
+        "totalWeightAfterD": 3.5,
+        "passAfterD": 2,
+        "kindAfterD": "order",
+        "note": "Phase D（脈絡與長文／角色與參數各 12 座）執行本列的 post-A 條目，並把 rubric 收斂成「主檢查 3 分 ＋ 地基 assignsTask 0.5 分、pass 2」——與課程 v2 新蓋的神廟同一個形狀（C1）。primaryTechniqueId 保留（它真的有祖先，收集不倒退），另外新增 primarySkillId 指向 v2 技能。"
+      }
     },
     {
       "id": "verify-spring-24",
@@ -972,7 +1044,7 @@
           "weightBefore": 2,
           "action": "remove",
           "weightAfter": 0,
-          "phase": "post-A",
+          "phase": "D",
           "reason": "主題搬去自己的神廟（C1 一關一技巧／C2 只教一次）：併入「沒證據不准說做完了」與跨來源查證，rubric 由 5 條降為 2 條"
         },
         {
@@ -980,8 +1052,17 @@
           "weightBefore": 1,
           "action": "remove",
           "weightAfter": 0,
-          "phase": "post-A",
+          "phase": "D",
           "reason": "主題搬去自己的神廟（C1 一關一技巧／C2 只教一次）：併入「沒證據不准說做完了」與跨來源查證，rubric 由 5 條降為 2 條"
+        },
+        {
+          "check": "groundsInContext",
+          "weightBefore": null,
+          "action": "remove",
+          "weightAfter": 0,
+          "phase": "D",
+          "reason": "「只根據給的資料作答」是封了口的閱覽室（ground-strict）的主題；這一關收斂成「先讀完、有依據、重算核對」（C1／C2）。它仍然是合尺舞台上的一把尺，只是不計分。",
+          "addedIn": "D"
         }
       ],
       "passBefore": 4,
@@ -993,7 +1074,16 @@
         "grounding-05",
         "grounding-06"
       ],
-      "designNote": "併入「沒證據不准說做完了」與跨來源查證，rubric 由 5 條降為 2 條"
+      "designNote": "併入「沒證據不准說做完了」與跨來源查證，rubric 由 5 條降為 2 條",
+      "phaseD": {
+        "skillId": "ground-read-first",
+        "mainCheck": "asksToVerify",
+        "mainWeightAfterD": 3,
+        "totalWeightAfterD": 3.5,
+        "passAfterD": 2,
+        "kindAfterD": "constraint",
+        "note": "Phase D（脈絡與長文／角色與參數各 12 座）執行本列的 post-A 條目，並把 rubric 收斂成「主檢查 3 分 ＋ 地基 assignsTask 0.5 分、pass 2」——與課程 v2 新蓋的神廟同一個形狀（C1）。primaryTechniqueId 保留（它真的有祖先，收集不倒退），另外新增 primarySkillId 指向 v2 技能。"
+      }
     },
     {
       "id": "archive-seal-25",
@@ -1440,7 +1530,7 @@
           "weightBefore": 1,
           "action": "remove",
           "weightAfter": 0,
-          "phase": "post-A",
+          "phase": "D",
           "reason": "主題搬去自己的神廟（C1 一關一技巧／C2 只教一次）：併入「角色不要綁太死」當作轉的那一拍；specifiesFormat 移除"
         },
         {
@@ -1448,8 +1538,17 @@
           "weightBefore": 1,
           "action": "remove",
           "weightAfter": 0,
-          "phase": "post-A",
+          "phase": "D",
           "reason": "主題搬去自己的神廟（C1 一關一技巧／C2 只教一次）：併入「角色不要綁太死」當作轉的那一拍；specifiesFormat 移除"
+        },
+        {
+          "check": "hasAudience",
+          "weightBefore": null,
+          "action": "remove",
+          "weightAfter": 0,
+          "phase": "D",
+          "reason": "Phase A 讓它承接 specifiesFormat 那 1 分（權重中性的替換）；受眾是六面燈籠（skeleton-six-elements）的主題，這一關收斂成角色本身（C1）。",
+          "addedIn": "D"
         }
       ],
       "passBefore": 4,
@@ -1462,7 +1561,16 @@
         "role-03",
         "role-04"
       ],
-      "designNote": "併入「角色不要綁太死」當作轉的那一拍；specifiesFormat 移除"
+      "designNote": "併入「角色不要綁太死」當作轉的那一拍；specifiesFormat 移除",
+      "phaseD": {
+        "skillId": "role-basics",
+        "mainCheck": "hasRole",
+        "mainWeightAfterD": 3,
+        "totalWeightAfterD": 3.5,
+        "passAfterD": 2,
+        "kindAfterD": "fix",
+        "note": "Phase D（脈絡與長文／角色與參數各 12 座）執行本列的 post-A 條目，並把 rubric 收斂成「主檢查 3 分 ＋ 地基 assignsTask 0.5 分、pass 2」——與課程 v2 新蓋的神廟同一個形狀（C1）。primaryTechniqueId 保留（它真的有祖先，收集不倒退），另外新增 primarySkillId 指向 v2 技能。"
+      }
     },
     {
       "id": "priority-stair-42",
@@ -1495,7 +1603,7 @@
           "weightBefore": 3,
           "action": "remove",
           "weightAfter": 0,
-          "phase": "post-A",
+          "phase": "D",
           "reason": "主題搬去自己的神廟（C1 一關一技巧／C2 只教一次）：order 型式沿用；structure-03 讓給抄寫人的長桌"
         },
         {
@@ -1503,8 +1611,17 @@
           "weightBefore": 1,
           "action": "remove",
           "weightAfter": 0,
-          "phase": "post-A",
+          "phase": "D",
           "reason": "主題搬去自己的神廟（C1 一關一技巧／C2 只教一次）：order 型式沿用；structure-03 讓給抄寫人的長桌"
+        },
+        {
+          "check": "hasRole",
+          "weightBefore": null,
+          "action": "remove",
+          "weightAfter": 0,
+          "phase": "D",
+          "reason": "它是 ranksInstructions 還沒實作時的 interimMainCheck；新檢查器上線後由它交棒，角色本身是面具工坊的主題（C2）。",
+          "addedIn": "D"
         }
       ],
       "passBefore": 4,
@@ -1517,7 +1634,16 @@
         "structure-03",
         "framework-02"
       ],
-      "designNote": "order 型式沿用；structure-03 讓給抄寫人的長桌"
+      "designNote": "order 型式沿用；structure-03 讓給抄寫人的長桌",
+      "phaseD": {
+        "skillId": "hierarchy",
+        "mainCheck": "ranksInstructions",
+        "mainWeightAfterD": 3,
+        "totalWeightAfterD": 3.5,
+        "passAfterD": 2,
+        "kindAfterD": "order",
+        "note": "Phase D 實作了 §7.4 的 ranksInstructions（manifest 早就指定它是主檢查）。第三幕的排序刻印沿用 order 型式，但石版換成「三條規矩的階梯」。"
+      }
     },
     {
       "id": "dial-room-43",
@@ -1550,7 +1676,7 @@
           "weightBefore": 2,
           "action": "remove",
           "weightAfter": 0,
-          "phase": "post-A",
+          "phase": "D",
           "reason": "主題搬去自己的神廟（C1 一關一技巧／C2 只教一次）：第三幕改成 sim；params-03（effort）讓給火力熔爐"
         },
         {
@@ -1558,7 +1684,7 @@
           "weightBefore": 1,
           "action": "remove",
           "weightAfter": 0,
-          "phase": "post-A",
+          "phase": "D",
           "reason": "主題搬去自己的神廟（C1 一關一技巧／C2 只教一次）：第三幕改成 sim；params-03（effort）讓給火力熔爐"
         }
       ],
@@ -1573,7 +1699,16 @@
         "params-03",
         "params-04"
       ],
-      "designNote": "第三幕改成 sim；params-03（effort）讓給火力熔爐"
+      "designNote": "第三幕改成 sim；params-03（effort）讓給火力熔爐",
+      "phaseD": {
+        "skillId": "knob-temperature",
+        "mainCheck": "mentionsParameters",
+        "mainWeightAfterD": 3,
+        "totalWeightAfterD": 3.5,
+        "passAfterD": 2,
+        "kindAfterD": "choice",
+        "note": "Phase D（脈絡與長文／角色與參數各 12 座）執行本列的 post-A 條目，並把 rubric 收斂成「主檢查 3 分 ＋ 地基 assignsTask 0.5 分、pass 2」——與課程 v2 新蓋的神廟同一個形狀（C1）。primaryTechniqueId 保留（它真的有祖先，收集不倒退），另外新增 primarySkillId 指向 v2 技能。"
+      }
     },
     {
       "id": "four-elements-mirror-44",
@@ -1606,7 +1741,7 @@
           "weightBefore": 1,
           "action": "remove",
           "weightAfter": 0,
-          "phase": "post-A",
+          "phase": "D",
           "reason": "主題搬去自己的神廟（C1 一關一技巧／C2 只教一次）：rubric 由 6 條降為 2 條，只留四要素本身"
         },
         {
@@ -1614,7 +1749,7 @@
           "weightBefore": 1,
           "action": "remove",
           "weightAfter": 0,
-          "phase": "post-A",
+          "phase": "D",
           "reason": "主題搬去自己的神廟（C1 一關一技巧／C2 只教一次）：rubric 由 6 條降為 2 條，只留四要素本身"
         },
         {
@@ -1622,8 +1757,17 @@
           "weightBefore": 1,
           "action": "remove",
           "weightAfter": 0,
-          "phase": "post-A",
+          "phase": "D",
           "reason": "主題搬去自己的神廟（C1 一關一技巧／C2 只教一次）：rubric 由 6 條降為 2 條，只留四要素本身"
+        },
+        {
+          "check": "specifiesFormat",
+          "weightBefore": null,
+          "action": "remove",
+          "weightAfter": 0,
+          "phase": "D",
+          "reason": "manifest 原本把它記為地基；C1 之後既有 27 關的地基一律收斂成 assignsTask（一關只有一條地基），格式本身則是量器坊的主題。",
+          "addedIn": "D"
         }
       ],
       "passBefore": 4,
@@ -1636,7 +1780,16 @@
         "clarity-01",
         "format-05"
       ],
-      "designNote": "rubric 由 6 條降為 2 條，只留四要素本身"
+      "designNote": "rubric 由 6 條降為 2 條，只留四要素本身",
+      "phaseD": {
+        "skillId": "skeleton-ptcf",
+        "mainCheck": "hasRole",
+        "mainWeightAfterD": 3,
+        "totalWeightAfterD": 3.5,
+        "passAfterD": 2,
+        "kindAfterD": "choice",
+        "note": "Phase D（脈絡與長文／角色與參數各 12 座）執行本列的 post-A 條目，並把 rubric 收斂成「主檢查 3 分 ＋ 地基 assignsTask 0.5 分、pass 2」——與課程 v2 新蓋的神廟同一個形狀（C1）。primaryTechniqueId 保留（它真的有祖先，收集不倒退），另外新增 primarySkillId 指向 v2 技能。"
+      }
     },
     {
       "id": "crossroad-scale-45",
@@ -1669,7 +1822,7 @@
           "weightBefore": 2,
           "action": "remove",
           "weightAfter": 0,
-          "phase": "post-A",
+          "phase": "D",
           "reason": "主題搬去自己的神廟（C1 一關一技巧／C2 只教一次）：主題明確化為「挑哪一台」；keepsPromptLean 讓給減法之庭"
         },
         {
@@ -1677,8 +1830,17 @@
           "weightBefore": 2,
           "action": "remove",
           "weightAfter": 0,
-          "phase": "post-A",
+          "phase": "D",
           "reason": "主題搬去自己的神廟（C1 一關一技巧／C2 只教一次）：主題明確化為「挑哪一台」；keepsPromptLean 讓給減法之庭"
+        },
+        {
+          "check": "keepsPromptLean",
+          "weightBefore": null,
+          "action": "remove",
+          "weightAfter": 0,
+          "phase": "D",
+          "reason": "它是 namesModelClass 還沒實作時的 interimMainCheck；「寫得精簡」是減法之庭（Phase H）的主題，這一關收斂成「挑哪一台」（C2）。",
+          "addedIn": "D"
         }
       ],
       "passBefore": 4,
@@ -1690,7 +1852,17 @@
         "framework-03",
         "params-03"
       ],
-      "designNote": "主題明確化為「挑哪一台」；keepsPromptLean 讓給減法之庭"
+      "designNote": "主題明確化為「挑哪一台」；keepsPromptLean 讓給減法之庭",
+      "phaseD": {
+        "skillId": "model-pick",
+        "mainCheck": "namesModelClass",
+        "mainWeightAfterD": 3,
+        "totalWeightAfterD": 3.5,
+        "passAfterD": 2,
+        "kindAfterD": "tradeoff",
+        "note": "Phase D 實作了 §7.4 的 namesModelClass（manifest 早就指定它是主檢查）。"
+      }
     }
-  ]
+  ],
+  "updatedBy": "課程 v2 · Phase D（constraint 題型 ＋ 脈絡與長文／角色與參數補齊到 12 座）"
 }

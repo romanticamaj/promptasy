@@ -247,13 +247,45 @@ Exit criteria（逐條實測）：
 
 ### Phase D — `constraint`＋grounding/config 補齊＋行動版還債點
 
-狀態：`pending`
+狀態：`done`（2026-08-01）— 這是 **R2 release checkpoint**
 
 - 把即時預檢升格為 `constraint` 舞台，不複製 rubric 引擎。
 - grounding 與 config 各補到 12 座，完成既有五區課程遷移。
 - 此期結束設一個 release checkpoint：評估並實作 ≤720px 的四幕與已上線 kinds 基本版面；不一定做世界觸控移動，但不能讓新題型 UI 無法操作。
 
 Exit：既有五區均符合一關一技巧；constraint 完全資訊；鍵盤與窄 viewport 都走得完；舊 27 關遷移相容層完成第一次清理。
+
+Exit criteria（逐條實測）：
+
+- [x] **合尺（`constraint`）＝把即時預檢升格成舞台，不是第二套引擎**：`src/prompt/constraint.js` 的
+      `measure()` 直接呼叫 rubric 在用的 `runCheck()`（測試把註解剝掉之後驗，改壞會紅）；
+      每一把尺用白話寫出它要量什麼（P9 完全資訊）、放錯只會「尺暗回去 ＋ 就地教學」（不扣分、不失敗、
+      手掌印跟著收回去）、每一把尺都合了手掌印才浮出來。
+      **資料層強制「合尺是取捨不是全選」**：全部石片挑上去一定有一把尺是暗的（rubric ＋ playtest 各守一次）。
+- [x] **脈絡與長文 12 座教學神廟**（＋1 應用關 `archive-seal-25` ＝ 13 關）：既有 4 關照 manifest 改造
+      （`citation-desk-21`／`well-of-unknowing-22`／`long-scroll-tower-23`／`verify-spring-24`）＋ 新蓋 8 座。
+- [x] **角色與參數 12 座教學神廟**：既有 5 關改造（`mask-workshop-41`／`priority-stair-42`／`dial-room-43`／
+      `four-elements-mirror-44`／`crossroad-scale-45`）＋ 新蓋 7 座。
+- [x] **撰寫基本功欠著的兩座補上**：`long-scroll-archive-05`（規則牆 · 🆕`rulesBeforeData`）與
+      `postbox-sprite-02`（🆕`usesRareDelimiter`），兩者都換裝成 `order`。
+      **既有五區的 v2 化到此完成**（orchestration 依路線圖留到 Phase G）。
+- [x] **12 個新檢查器**（§7.4）：`labelsSources`／`anchorsToSection`／`citesInline`／`setsRetrievalBudget`／
+      `diagnosesFailureCause`／`allowsNullField`／`ranksInstructions`／`hasStopRule`／`usesOneSkeleton`／
+      `namesModelClass`／`rulesBeforeData`／`usesRareDelimiter`，全部結構性偵測 ＋ 中英雙語 ＋
+      good／weak／bad fixture ＋ 反作弊 ＋ `coach.json` 白話教學。
+- [x] **C1**：11 關改造後一律收斂成「主檢查 3 ＋ 地基 assignsTask 0.5、pass 2」，rubric 上沒有雜項。
+- [x] **C4**：脈絡與長文（fix／choice／order／constraint／choice／constraint／order／fix／spot／choice／spot／fix）
+      與角色與參數（fix／order／choice／choice／tradeoff／spot／fix／constraint／order／tradeoff／constraint／tradeoff）
+      都沒有連續三座同型（最長連續 2）。
+- [x] **行動裝置還債點**：`≤720px` 與 `≤430px` 兩段版面規則上線；e2e 在 **720×900 與 390×844** 兩個
+      viewport 逐一開八種題型的第三幕，量到「零水平溢位、可按元素一律 ≥40px 高、沒有 <12px 的字」，
+      並在 390px 用真的指標事件把合尺玩到手掌印出現。**世界的觸控移動（虛擬搖桿）明確不做**，理由與
+      範圍記在 `findings.md`。
+- [x] **manifest 誠實更新**：11 關的 `post-A` 條目改成 `phase: "D"`，Phase 0／A 沒掃到的移除以
+      `addedIn: "D"` 標記並逐條寫理由；新增 `phaseD` 區塊（`skillId`／`mainCheck`／`mainWeightAfterD`／
+      `totalWeightAfterD`／`passAfterD`／`kindAfterD`／`note`），沿用 Phase C 的 `passAfterC` 慣例。
+- [x] fonts（語料 CJK 1750 字／1399.9 KB）＋rubric（29,846 → **37,108**）＋playtest（554 → **816**）
+      ＋build＋**完整 e2e（2,010 → 2,157 項全過、零 console error）** 全綠。
 
 ### Phase E — 量器坊 `forms`（新地形）14 座
 
@@ -340,7 +372,7 @@ Exit：跨世界素材有 reload/reset/e2e；或有一份明確的「不實作�
 ## 5. Release checkpoints
 
 - **R1（A）**：重複度手術在 dev 穩定；是否上 main 取決於 legacy collection 體驗是否無退化。
-- **R2（D）**：既有五區 v2 化完成，適合第一次公開發布。
+- **R2（D）**：既有五區 v2 化完成，適合第一次公開發布。**已於 2026-08-01 抵達**（見 Phase D exit criteria 與 `progress.md` 的 release-readiness 數字）。
 - **R3（F）**：8 區、工具與護欄線完成。
 - **R4（J）**：12 區／142 關／130 技能正式完成。
 - **R5（K optional）**：探索與關卡真正接起來。

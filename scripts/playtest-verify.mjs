@@ -589,6 +589,61 @@ export function runPlaytestVerify({ ok, eq }) {
     eq(ev.grade, 'S', `${tag} playtest：兩面都秤過、刻對了就是 S`);
   }
 
+  /* --- F4：課程 v2 · Phase D 的合尺（constraint） ---
+   *
+   * 合尺沒有自己的判準（它量的就是 rubric 那一支引擎），所以這裡守的是
+   * 「舞台上的尺與送出後的評分不會分岔」，外加兩道它自己的安全閘：
+   *   · 該挑的挑齊 → 每一把尺都亮、每一條檢查都滿分、拿 S
+   *   · 全部挑上去 → 一定有一把尺是暗的（「全選」不是解法）
+   */
+  const constraintIds = [];
+  for (const [id, f] of Object.entries(flowFile.flows)) {
+    if (f.kind === 'constraint' && f.constraintFlow) constraintIds.push(id);
+  }
+  ok(constraintIds.length >= 1, 'playtest：至少有一關是合尺', constraintIds.join(','));
+
+  for (const id of constraintIds) {
+    const tag = `[${id}]`;
+    const c = byId.get(id);
+    const cf = flowFile.flows[id].constraintFlow;
+    const compose = (ids) => cf.pieces.filter((p) => ids.has(p.id)).map((p) => p.text).join('\n');
+    const needIds = new Set(cf.pieces.filter((p) => p.need).map((p) => p.id));
+    const needText = compose(needIds);
+
+    const right = evaluate(c, needText);
+    ok(
+      right.results.every((r) => r.passed),
+      `${tag} playtest：挑齊時每一條檢查都滿分（挑對就是完美）`,
+      right.results.filter((r) => !r.passed).map((r) => `${r.check}=${r.earned}/${r.weight}`).join('、')
+    );
+    eq(right.grade, 'S', `${tag} playtest：挑齊了就是 S`);
+    eq(needText, c.sample, `${tag} playtest：挑齊之後的整段文字就是示範解答（兩種模式同一段字）`);
+
+    /* 每一把尺都亮 —— 而且亮的依據就是送出時會跑的那一支引擎 */
+    for (const g of cf.gauges) {
+      const out = runCheck(g.check, needText);
+      ok(out.passed, `${tag} playtest：挑齊時「${g.want}」這把尺是亮的`, `${g.check}=${out.score}｜${out.evidence}`);
+    }
+
+    /* 全部挑上去一定有一把暗的 —— 不然玩家全選就過關，這一關就白做了 */
+    const allText = compose(new Set(cf.pieces.map((p) => p.id)));
+    ok(
+      cf.gauges.some((g) => !runCheck(g.check, allText).passed),
+      `${tag} playtest：全部挑上去一定有一把尺暗掉（合尺是取捨，不是全選）`
+    );
+
+    /* 少挑任何一片都還沒合尺（每一片都真的在承擔某一把尺） */
+    for (const p of cf.pieces.filter((x) => x.need)) {
+      const short = new Set([...needIds].filter((x) => x !== p.id));
+      const ev = evaluate(c, compose(short));
+      ok(
+        ev.earned <= right.earned,
+        `${tag} playtest：少挑「${p.id}」不會比挑齊更高分`,
+        `earned=${ev.earned} vs ${right.earned}`
+      );
+    }
+  }
+
   /* --- D：檢查器回歸案例 --- */
   for (const cse of CHECK_CASES) {
     const out = runCheck(cse.check, cse.text, cse.options || {});

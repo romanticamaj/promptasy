@@ -581,6 +581,192 @@ const FIXTURES = {
         'apprentices who can only work mornings, and the paperwork the guild wants before the frost.',
     ],
   },
+
+  /* --- 課程 v2 · Phase D 的十二個新檢查器 --- */
+  labelsSources: {
+    good: [
+      '請根據下面三份卷宗回答北倉的缺口。\n文件 A：北倉入庫帳（三月）\n文件 B：南橋領料單（三月）\n文件 C：巡糧人的手記',
+      'Answer using the three files below.\nDocument A: north store intake ledger\nDocument B: south bridge issue slips\nDocument C: warden field notes',
+    ],
+    weak: [
+      '請根據下面三份卷宗回答北倉的缺口，資料用 JSON 包起來：\n文件 A：北倉入庫帳\n文件 B：南橋領料單',
+      '請根據下面的卷宗回答北倉的缺口。\n文件 A：北倉入庫帳（三月）\n另外兩疊也一起看。',
+      '請根據下面三疊抄本回答北倉的缺口，每一份都要標上來源編號再引用。',
+    ],
+    bad: [
+      '請根據下面這幾疊抄本回答北倉的缺口，看完再說。',
+      'Read the piles below and tell me where the shortfall is.',
+    ],
+  },
+
+  anchorsToSection: {
+    good: [
+      '請先列出這本抄本的章節大綱，之後每一句結論都要標明出自第幾節。',
+      'First produce an outline of the sections, then make sure every claim cites the section it came from.',
+    ],
+    weak: [
+      '請把每個結論都標出出自第幾節，答案才跑不掉。',
+      '請先列出這本抄本的章節大綱，再依大綱回答我的問題。',
+    ],
+    bad: [
+      '請讀完這本厚抄本，然後回答北倉在哪一年改建的。',
+      'Read the whole codex and answer when the north store was rebuilt.',
+    ],
+  },
+
+  citesInline: {
+    good: [
+      '請整理這三份報告的結論。每一句的句尾直接標上出處編號，沒有出處的句子就不要寫。',
+      'Summarise the three reports. Put the citation at the end of each sentence, and if there is no source for a claim, leave it out.',
+    ],
+    weak: [
+      '請整理這三份報告的結論，每一句的句尾直接標上出處編號。',
+      '請整理這三份報告的結論，每一個主張都要有出處。',
+      '請整理這三份報告的結論，所有出處統一放在最後。',
+    ],
+    bad: [
+      '請把這三份報告整理成一段話，寫得清楚一點就好。',
+      'Turn the three reports into one tidy paragraph for me.',
+    ],
+  },
+
+  setsRetrievalBudget: {
+    good: [
+      '請查出北倉三月的缺口。只有在兩份帳對不起來時才再查一次，最多查 3 次；湊齊三個來源就停。',
+      'Find the March shortfall. Only search again if two ledgers disagree, at most 3 searches; once you have three sources, stop searching.',
+    ],
+    weak: [
+      '請查出北倉三月的缺口。只有在兩份帳對不起來時才再查一次，最多查 3 次。',
+      '請查出北倉三月的缺口，最多查 3 次。',
+    ],
+    bad: [
+      '請查出北倉三月的缺口，資料不夠就多找一點。',
+      'Find the March shortfall, dig around until you are happy with it.',
+    ],
+  },
+
+  diagnosesFailureCause: {
+    good: [
+      '請替這三段回覆各標出病因：第一段是資料裡沒有給；第二段是問題超出它知道的範圍；第三段是表格每一格都必須填，格式逼它硬填。',
+      'Label the cause of each answer: the first is not in the context, the second is out of scope, and the third is because required fields force it to fill something in.',
+    ],
+    weak: [
+      '請替這三段回覆各標出病因：第一段是資料裡沒有給，第二段是問題超出它知道的範圍。',
+      '請說出這一段的病因是什麼：卷宗裡根本沒有給這個數字。',
+    ],
+    bad: [
+      '請看看這三段回覆，把寫錯的地方改掉就好。',
+      'Look at these three replies and clean them up a bit.',
+    ],
+  },
+
+  allowsNullField: {
+    good: [
+      '請把下面這張單抽成表格：品名、數量、日期。資料裡沒有寫到的欄位一律填 null，不准自己猜。',
+      'Extract name, count and date into a table. If a field is not stated in the source, use null; do not guess.',
+    ],
+    weak: [
+      '請把下面這張單抽成表格：品名、數量、日期。沒有寫到的欄位一律填 null。',
+      '請把下面這張單抽成表格：品名、數量、日期，不准自己猜。',
+    ],
+    bad: [
+      '請把下面這張單抽成一張表格，欄位是品名、數量、日期。',
+      'Extract the name, count and date from the slip below into a table.',
+    ],
+  },
+
+  ranksInstructions: {
+    good: [
+      '請照這條階梯做事：\n1. 安全規範\n2. 本次委託的要求\n3. 我個人的偏好\n三者互相牴觸時，一律以排在前面的那條為準。',
+      'Follow this ladder:\n1. safety rules\n2. this request\n3. my personal taste\nIf they conflict, the higher one takes precedence over the lower one.',
+    ],
+    weak: [
+      '請照這條階梯做事：\n1. 安全規範\n2. 本次委託的要求\n3. 我個人的偏好\n排在前面的優先於後面的。',
+      '請注意：安全規範優先於我的個人偏好。',
+      '請照這三條做事：\n1. 安全規範\n2. 本次委託的要求\n3. 我個人的偏好',
+    ],
+    bad: [
+      '請把這三條規矩都放在心上，做出一份告示給我。',
+      'Keep all three rules in mind and write the notice for me.',
+    ],
+  },
+
+  hasStopRule: {
+    good: [
+      '請依序把三個欄位填好。三個欄位都填好就停下來回報，不要再往下做。',
+      'Fill the three fields in order. Stop once all three are filled and report back.',
+    ],
+    weak: [
+      '請依序把三個欄位填好，做到好為止。',
+      'Fill the three fields in order, keep going until you are happy with it.',
+    ],
+    bad: [
+      '請依序把這三個欄位填好，格式照上面那張表。',
+      'Fill in the three fields in the order given, following the table above.',
+    ],
+  },
+
+  usesOneSkeleton: {
+    good: [
+      '這一份從頭到尾只用角括號標籤。\n<角色>抄寫人</角色>\n<資料>北倉三月的帳</資料>',
+      'This prompt uses only one convention throughout.\n<role>scribe</role>\n<data>the march ledger</data>',
+    ],
+    weak: [
+      '<角色>抄寫人</角色>\n<資料>北倉三月的帳</資料>\n請照這份委託做事。',
+      '<角色>抄寫人</角色>\n## 資料\n北倉三月的帳',
+    ],
+    bad: [
+      '你是抄寫人，請把北倉三月的帳整理成一段話給我。',
+      'You are the scribe; tidy the March ledger into one paragraph for me.',
+    ],
+  },
+
+  namesModelClass: {
+    good: [
+      '這一件請交給推理型模型，因為它要一路比對三份帳才判斷得出缺口。',
+      'Send this one to a reasoning model, because it has to compare three ledgers before it can judge.',
+    ],
+    weak: [
+      '這一件的委託請交給推理型模型來做。',
+      'Send this one to a reasoning model, thanks.',
+    ],
+    bad: [
+      '這一件請幫我做完，做得好一點。',
+      'Just get this one done for me, and do it well.',
+    ],
+  },
+
+  rulesBeforeData: {
+    good: [
+      '規則：\n只根據下面的資料作答，沒有就說沒有。\n\n資料：\n北倉三月入庫 120 袋，領出 96 袋。',
+      'Rules:\nAnswer only from the data below.\n\nData:\nThe north store took in 120 sacks and issued 96 in March.',
+    ],
+    weak: [
+      '資料：\n北倉三月入庫 120 袋，領出 96 袋。\n\n規則：\n只根據上面的資料作答。',
+      '規則：\n只根據下面的資料作答。\n\n資料：\n北倉三月入庫 120 袋。\n不過剛剛那條規矩可以先別管。',
+      '規則：\n只根據我給你的東西作答，沒有就說沒有，不要自己補。',
+    ],
+    bad: [
+      '北倉三月入庫 120 袋，領出 96 袋，請算出差多少並且只用我給的數字。',
+      'The north store took in 120 sacks and issued 96 in March, work out the gap using only that.',
+    ],
+  },
+
+  usesRareDelimiter: {
+    good: [
+      '請分別回覆下面三封信。\n<信A>\n明天的船班取消了。\n</信A>\n<信B>\n北門的燈換好了。\n</信B>',
+      'Reply to each letter below.\n###\nThe ferry is cancelled tomorrow.\n###\nThe north lamp is fixed.\n###',
+    ],
+    weak: [
+      '請分別回覆下面三封信。\n<信A>\n明天的船班取消了。\n</信A>\n---\n北門的燈換好了。',
+      '請分別回覆下面三封信。\n###\n明天的船班取消了。\n北門的燈換好了。',
+      '請分別回覆下面三封信。\n---\n明天的船班取消了。\n---\n北門的燈換好了。',
+    ],
+    bad: [
+      '請分別回覆下面這三封信，它們黏在一起了，你自己看著分。',
+      'Reply to the three letters below; they are stuck together, sort it out yourself.',
+    ],
+  },
 };
 
 console.log('▸ 檢查器 fixtures');
@@ -705,9 +891,9 @@ const LEGACY_EN_SOLUTIONS = {
     'Input: lantern refilled at 0530\nOutput: 05:30 — lantern refilled\n' +
     'Output format: one line per entry, plain text.',
   'long-scroll-archive-05':
-    'Answer the question using ONLY the scroll inside <context>. Do not use outside knowledge.\n' +
-    '<context>\nThe harvest ledger for the third season.\n</context>\n' +
-    'List the findings in at most 5 bullet points.',
+    'Rules:\nAnswer only from the data below and do not use outside knowledge.\n\n' +
+    'Data:\nThird season: 42 sacks in, 9 lost to rain, 4 traded for salt.\n\n' +
+    'List how many sacks left the store this season.',
   'council-envoy-06':
     'You are writing on behalf of the council. Draft the commission letter for the ferryman, ' +
     'who has never read a council document before.\n' +
@@ -827,14 +1013,9 @@ const LEGACY_EN_SOLUTIONS = {
     "Explain tonight's crossing to the new ferry crew.\n" +
     'Output format: 5 bullet points, each under 15 words.',
   'priority-stair-42':
-    '# Role and Objective\n' +
-    "You are the harbour's duty officer writing the night briefing.\n" +
-    '# Instructions\n' +
-    'Summarize the three incidents below for the incoming shift.\n' +
-    '# Output Format\n' +
-    'A markdown table with columns: time, incident, action.\n' +
-    '# Context\n' +
-    'The shift changes at midnight.',
+    '1. house safety rules\n2. this commission\n3. my personal taste\n' +
+    'If they conflict, the higher one takes precedence over the lower one; ' +
+    'rewrite the north gate notice in three lines.',
   'dial-room-43':
     'Generate ten sign slogans for the harbour market.\n' +
     'Run it with temperature = 0.2 and top_p = 0.8, because we need repeatable wording for the printer.\n' +
@@ -846,8 +1027,9 @@ const LEGACY_EN_SOLUTIONS = {
     'Context: the market moves to the north pier next week because the south pier is being rebuilt.\n' +
     'Format: three short plain-text paragraphs, no more than 90 words in total.',
   'crossroad-scale-45':
-    'Choose the safest of the three ferry routes, with effort = high and verbosity = low.\n' +
-    'Success criteria: under 60 words, names one route, lists 2 risks.',
+    'Choose the safest of the three ferry routes.\n' +
+    'Send this one to a reasoning model, because it has to compare the risks of three routes ' +
+    'before it can judge.\nSuccess criteria: under 60 words, names one route, lists 2 risks.',
 
   /* --- 課程 v2 · Phase B：撰寫基本功的十座新神廟 --- */
   'nightwatch-relief-07':
@@ -930,6 +1112,64 @@ const LEGACY_EN_SOLUTIONS = {
     'Task: rewrite the outage note below as a public announcement\n' +
     'Data: the well is closed for three days, the backup well is at the north gate\n' +
     'Format: three bullets, each under 20 words',
+
+  /* --- 課程 v2 · Phase D 的十五座新神廟 --- */
+  'nameless-three-26':
+    'Answer using the three files below.\n' +
+    'Document A: north store intake ledger\nDocument B: south bridge issue slips\n' +
+    'Document C: warden field notes\nSay which document each answer came from.',
+  'laden-desk-27':
+    'Here is the whole file, not a summary:\nSection 1 intake 120 sacks.\nSection 2 issued 96 sacks.\n' +
+    'Answer using only the data above, and say so if it is not written there.\n' +
+    'Question: how many sacks were left in March?',
+  'sleepless-scribe-28':
+    'Here is the codex:\nChapter 1 building\nChapter 2 rebuilding\nChapter 3 moving\n' +
+    'First produce an outline of the sections, then make sure every claim cites the section it came from.\n' +
+    'Question: after which rebuild did the store move?',
+  'sealed-readroom-29':
+    'Answer using only the data below and nothing outside this file.\n' +
+    'If it is not written in the file, say the file does not mention it.\n' +
+    'File: intake 120 sacks, issued 96 sacks.\nQuestion: how many sacks were left?',
+  'mark-spring-30':
+    'Summarise the three reports below.\n' +
+    'Put the citation at the end of each sentence instead of piling them up at the end.\n' +
+    'If there is no source for a claim, leave it out.',
+  'prospect-log-31':
+    'Find the March shortfall.\nOnly search again if two ledgers disagree.\n' +
+    'At most 3 searches; once you have three sources, stop searching.',
+  'three-mirrors-32':
+    'Label the cause of each of the three answers below.\n' +
+    'The first one is not in the context.\nThe second one is out of scope.\n' +
+    'The third one happens because required fields force it to fill something in.',
+  'extract-bench-33':
+    'Extract name, count and date into a table.\n' +
+    'If a field is not stated in the source, use null.\nDo not guess.',
+  'lintel-words-46':
+    'You are a town notice scribe.\nAlways reply in traditional Chinese.\n' +
+    'Do not mention anything other than the ferry schedule.\n' +
+    'Write today outage notice in three lines.',
+  'one-slot-window-47':
+    'You are a town notice scribe.\nRewrite the content block below as a public notice.\n' +
+    '###\nContent: the well is closed for three days, the backup well is at the north gate.\n###',
+  'six-lantern-48':
+    'You are a town notice scribe.\nRewrite the outage note below as 3 bullet points.\n' +
+    'Write it for first-time visitors who have never been here.\nKeep the tone calm.',
+  'scribe-longtable-49':
+    'You are a town notice scribe.\nRewrite the outage note below as a three line notice.\n' +
+    'Data: the well is closed for three days.\n' +
+    'Stop once all three lines are written and report back.',
+  'two-grammar-hall-50':
+    'This prompt uses only one convention throughout.\n' +
+    'Rewrite the outage note in the data block as three lines.\n' +
+    '<role>town notice scribe</role>\n<data>the well is closed for three days</data>',
+  'sluice-gate-51':
+    'Finish the water notice below.\nSet max output tokens to 600.\n' +
+    'Set the stop sequence to "(end)".\n' +
+    'Leave room for its thinking and keep the body under 3 lines.',
+  'wish-pool-52':
+    'Rewrite the outage note below as a notice.\n' +
+    'Set temperature to 0 rather than asking for consistency.\n' +
+    'Set top_p to 0.1.\nCall the well by the old local name.',
 };
 for (const c of challenges) {
   const en = LEGACY_EN_SOLUTIONS[c.id];
@@ -3981,43 +4221,35 @@ const kindOf = (id) => flowKind(flowData.flows[id]);
 const byKind = Object.fromEntries(FLOW_KINDS.map((k) => [k, []]));
 for (const c of challenges) byKind[kindOf(c.id)].push(c.id);
 eq(challenges.length, EXPECT.challenges.value, `關卡數＝目前的契約（${EXPECT.challenges.value} 關）`);
-eq(byKind.order.length, 2, '兩關改成排序刻印（次序本身就是那一關的課程）');
-eq(byKind.workshop.length, 1, '一關是神諭工坊');
-eq(byKind.fix.length, 7, '七座神廟是改碑（Phase B 四座 ＋ Phase C 三座）');
-eq(byKind.spot.length, 4, '四座神廟是點碑（Phase B 三座 ＋ Phase C 一座）');
-eq(byKind.induct.length, 2, '兩座是推規碑（課程 v2 · Phase C）');
-eq(byKind.tradeoff.length, 4, '四座是雙面碑（示範與推理兩座 ＋ 撰寫基本功換裝兩座）');
+/*
+ * Phase D：這裡原本寫死了「哪幾關是哪一種題型」的 id 清單（歷史快照）。
+ * 課程 v2 每一期都在換裝與新增，那種斷言只會逼人為了過測試而改數字，
+ * 所以改成**不變式**：每一種上線的題型都真的有神廟在用、宣告的 kind
+ * 都通過該題型的資料契約（否則 flowKind 會把它退回石碑刻印）。
+ */
+for (const k of FLOW_KINDS) {
+  ok(byKind[k].length >= 1, `題型 ${k} 真的有神廟在用（不留沒人用的題型）`, `n=${byKind[k].length}`);
+}
+for (const [id, f] of Object.entries(flowData.flows)) {
+  const declared = f.kind || 'choice';
+  eq(
+    kindOf(id),
+    declared,
+    `[${id}] 宣告的題型 ${declared} 通過它自己的資料契約（不合就會被退回石碑刻印）`
+  );
+}
 eq(
   byKind.choice.length,
   challenges.length - FLOW_KINDS.filter((k) => k !== 'choice').reduce((n, k) => n + byKind[k].length, 0),
-  `其餘 ${
-    challenges.length - FLOW_KINDS.filter((k) => k !== 'choice').reduce((n, k) => n + byKind[k].length, 0)
-  } 關維持石碑刻印`
+  '其餘的關卡維持石碑刻印'
 );
-eq(byKind.order.sort().join(','), 'long-scroll-tower-23,priority-stair-42', '改成排序的是那兩關');
-eq(byKind.workshop.join(','), 'oracle-workshop-36', '神諭工坊是那一關');
-eq(
-  byKind.fix.slice().sort().join(','),
-  'empty-handed-envoy-14,first-rail-10,honed-blade-24,measuring-table-08,nightwatch-relief-07,well-pause-22,working-draft-19',
-  '改碑是那七座'
-);
-eq(
-  byKind.spot.slice().sort().join(','),
-  'nodding-courier-09,parts-wall-16,shout-stone-11,silent-thinker-13',
-  '點碑是那四座'
-);
-eq(byKind.induct.slice().sort().join(','), 'example-hall-11,flawed-cabinet-17', '推規碑是那兩座');
-eq(
-  byKind.tradeoff.slice().sort().join(','),
-  'example-scale-16,old-tag-store-15,two-lampkeepers-18,wordfork-12',
-  '雙面碑是那四座'
-);
+
 /*
  * C4（題型要變奏）：同一區裡不得連續三座用同一種題型。
  *
- * 只對**課程 v2 新蓋的神廟**成立 —— 既有 27 關的題型換裝（例如 §4 指定
- * postbox-sprite-02 由 choice 換成 order）屬於各關自己的改造，不在這一期的範圍，
- * 那六關目前仍然全是 choice。等它們改造完就把這裡放開成整區。
+ * 只對**已經接上 v2 技能的神廟**成立（有 primarySkillId）。既有 27 關裡
+ * 還沒改造的那幾關（例如撰寫基本功的清晰之門、擬態之鏡）仍然全是 choice，
+ * 它們的題型換裝屬於各自的改造期；改造完就會自動納入這個迴圈。
  */
 for (const g of curriculum.groups) {
   const inRegion = challenges.filter((c) => c.region === g.id && c.primarySkillId).map((c) => kindOf(c.id));
@@ -4707,6 +4939,114 @@ if (normalizeMode) {
 /*   · 每一個稱號都「走得到」：用真的進程系統跑一次全 C 通關的路徑，       */
 /*     八個稱號必須依序全部出現過（不能有稱號被自己的門檻跳過）           */
 /* ================================================================== */
+/* ================================================================== */
+/* 課程 v2 · Phase D：合尺（constraint）                               */
+/*                                                                    */
+/*   這一種題型把「即時預檢」升格成舞台，所以它守的第一件事就是         */
+/*   **沒有第二套評分邏輯**：尺上的燈是 checks.js 的 runCheck 跑出來的。 */
+/*   另外三件：                                                        */
+/*     · 完全資訊（P9）：每一把尺都用白話寫出它要量什麼                 */
+/*     · 該挑的挑齊了 → 每一把尺都亮 ＝ 資料層的示範解答               */
+/*     · 全部挑上去 → 一定有一把尺是暗的（不然「全選」就過關了）        */
+/* ================================================================== */
+console.log('\n▸ 合尺（課程 v2 · Phase D）');
+
+{
+  const { isConstraintFlow, composeConstraintText } = await import('../src/prompt/constraint.js');
+  const constraintSrc = readFileSync(resolve(root, 'src/prompt/constraint.js'), 'utf8');
+
+  /* 相容契約：缺資料一律退回石碑刻印（跟其他新題型同一條規則） */
+  eq(flowKind({ kind: 'constraint' }), 'choice', '宣告了 constraint 卻沒有 constraintFlow → 退回石碑刻印');
+  eq(
+    flowKind({ kind: 'constraint', constraintFlow: flowData.flows['laden-desk-27'].constraintFlow }),
+    'choice',
+    '合尺少了刻印段落（slots）也要退回石碑刻印'
+  );
+  {
+    const good = {
+      kind: 'constraint',
+      constraintFlow: JSON.parse(JSON.stringify(flowData.flows['laden-desk-27'].constraintFlow)),
+      slots: flowData.flows['laden-desk-27'].slots,
+    };
+    eq(flowKind(good), 'constraint', 'constraint ＋ 合法資料 → 合尺');
+    const noSpare = JSON.parse(JSON.stringify(good));
+    for (const p of noSpare.constraintFlow.pieces) p.need = true;
+    eq(flowKind(noSpare), 'choice', '每一片都是「該挑的」→ 資料不合契約，退回石碑刻印');
+    const oneGauge = JSON.parse(JSON.stringify(good));
+    oneGauge.constraintFlow.gauges = oneGauge.constraintFlow.gauges.slice(0, 1);
+    eq(flowKind(oneGauge), 'choice', '只有一把尺 → 那不是合尺，退回石碑刻印');
+  }
+
+  /* 護欄 3：合尺沒有自己的判準，量尺用的就是 rubric 那一支引擎 */
+  // 註解裡也會提到 runCheck，所以要先把註解剝掉再驗（不然改壞了測試也不會紅）
+  const constraintCode = constraintSrc.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  ok(
+    /from '\.\.\/challenges\/checks\.js'/.test(constraintCode) && /runCheck\(/.test(constraintCode),
+    '合尺的尺是用 checks.js 的 runCheck 量的（沒有第二套評分邏輯）'
+  );
+  ok(!/score\s*[><=]/.test(constraintCode), '合尺自己不算分數（分數一律回 rubric 引擎）');
+
+  for (const id of byKind.constraint) {
+    const tag = `[${id}]`;
+    const c = challenges.find((x) => x.id === id);
+    const cf = flowData.flows[id].constraintFlow;
+    ok(isConstraintFlow(cf), `${tag} 合尺資料合契約`);
+    if (!isConstraintFlow(cf)) continue;
+
+    ok(nonEmptyStr(cf.ask) && cf.ask.length <= 44, `${tag} 合尺的問題一眼讀得完`, cf.ask);
+    ok(CJK.test(cf.ask) && !ENGLISH(cf.ask), `${tag} 合尺的問題是中文`, cf.ask);
+
+    /* --- 尺：真的檢查器 ＋ 完全資訊 --- */
+    ok(cf.gauges.length >= 2 && cf.gauges.length <= 5, `${tag} 檯上有 2–5 把尺`, `n=${cf.gauges.length}`);
+    eq(new Set(cf.gauges.map((g) => g.check)).size, cf.gauges.length, `${tag} 同一把尺沒有量兩次`);
+    for (const g of cf.gauges) {
+      ok(CHECK_IDS.includes(g.check), `${tag} 尺「${g.check}」是真的離線檢查器`);
+      ok(nonEmptyStr(g.want) && g.want.length >= 6 && g.want.length <= 40, `${tag} 尺「${g.check}」寫明它要量什麼（P9 完全資訊）`, g.want);
+      ok(CJK.test(g.want) && !ENGLISH(g.want), `${tag} 尺「${g.check}」的說明是中文`, g.want);
+      ok(!/https?:\/\//.test(g.want), `${tag} 尺「${g.check}」不自帶連結（出處只在刻文與圖鑑）`);
+    }
+    const primary = c.rubric.find((r) => r.primary);
+    ok(
+      cf.gauges.some((g) => g.check === primary.check),
+      `${tag} 這一關教的那一條（${primary.check}）就在尺上（不會做完卻不知道學了什麼）`
+    );
+
+    /* --- 石片 --- */
+    ok(cf.pieces.length >= 4 && cf.pieces.length <= 9, `${tag} 檯上有 4–9 片石片`, `n=${cf.pieces.length}`);
+    eq(new Set(cf.pieces.map((p) => p.id)).size, cf.pieces.length, `${tag} 石片的 id 沒有重複`);
+    const need = cf.pieces.filter((p) => p.need);
+    const spare = cf.pieces.filter((p) => !p.need);
+    ok(need.length >= 2, `${tag} 至少兩片是「該挑的」`, `n=${need.length}`);
+    ok(spare.length >= 1, `${tag} 一定有不該挑的（不然全部挑起來就過關了）`, `n=${spare.length}`);
+    for (const p of cf.pieces) {
+      ok(nonEmptyStr(p.text), `${tag} 石片「${p.id}」有內容`);
+      ok(!/https?:\/\//.test(p.text), `${tag} 石片「${p.id}」不自帶連結`);
+      ok(!ENGLISH(p.text), `${tag} 石片「${p.id}」沒有英文句子`, ENGLISH(p.text) || '');
+      if (p.need) continue;
+      // 不該挑的那幾片：挑上去不會失敗，但一定要就地教人為什麼
+      ok(String(p.why || '').trim().length >= 12, `${tag} 石片「${p.id}」挑上去有白話教學`, p.why);
+      ok(CJK.test(p.why) && !ENGLISH(p.why), `${tag} 石片「${p.id}」的教學是中文`, p.why);
+      ok(!/https?:\/\//.test(p.why), `${tag} 石片「${p.id}」的教學不自帶連結`);
+    }
+
+    /* --- 量尺：該挑的挑齊 → 全亮；全部挑上去 → 一定有一把暗的 --- */
+    const needText = composeConstraintText(cf, need.map((p) => p.id));
+    const dark = cf.gauges.filter((g) => !runCheck(g.check, needText).passed);
+    eq(dark.length, 0, `${tag} 該挑的挑齊了，每一把尺都亮`, dark.map((g) => g.check).join('、'));
+    eq(needText, c.sample, `${tag} 挑齊之後組出來的整段文字＝示範解答（兩種模式同一段字）`);
+    const allText = composeConstraintText(cf, cf.pieces.map((p) => p.id));
+    ok(
+      cf.gauges.some((g) => !runCheck(g.check, allText).passed),
+      `${tag} 全部挑上去一定有一把尺暗掉（合尺是取捨，不是「全選」）`
+    );
+    // 一片都沒挑的時候手掌印不會出現
+    ok(
+      cf.gauges.some((g) => !runCheck(g.check, '').passed),
+      `${tag} 一片都沒挑的時候還沒合尺（手掌印不會出現）`
+    );
+  }
+}
+
 console.log('\n▸ 稱號與分享卡（Phase 21）');
 
 const ranksFile = readJson('src/data/ranks.json');
@@ -6042,16 +6382,36 @@ console.log('\n▸ 課程 v2 遷移契約（Phase 0／A）');
       /* 主檢查要嘛今天就在這一關的 rubric 裡，要嘛是 §7.4 有規格的新檢查器 */
       const liveChecks = new Set(live.rubric.map((x) => x.check));
       if (r.newChecker) {
-        ok(!checkIds.has(r.mainCheck), `${r.id} 的主檢查 ${r.mainCheck} 確實還不存在（標成 newChecker）`);
         ok(
           V2_NEW_CHECKERS.has(r.mainCheck),
           `${r.id} 的新主檢查 ${r.mainCheck} 在 curriculum-v2 §7.4 的 59 個新檢查器清單裡`
         );
-        ok(
-          nonEmptyStr(r.interimMainCheck) && liveChecks.has(r.interimMainCheck),
-          `${r.id} 在新檢查器實作之前，有一條現有的 interimMainCheck 頂著`,
-          String(r.interimMainCheck)
-        );
+        if (r.phaseD) {
+          /*
+           * Phase D：這一關的改造做完了，新檢查器也一起實作了 ——
+           * 過渡用的 interimMainCheck 就此交棒（它必須已經從 rubric 上退場）。
+           */
+          ok(checkIds.has(r.mainCheck), `${r.id} 的新主檢查 ${r.mainCheck} 已經在 Phase D 實作`);
+          ok(
+            !liveChecks.has(r.interimMainCheck),
+            `${r.id} 過渡用的 ${r.interimMainCheck} 已經交棒下台`,
+            String(r.interimMainCheck)
+          );
+        } else {
+          ok(!checkIds.has(r.mainCheck), `${r.id} 的主檢查 ${r.mainCheck} 確實還不存在（標成 newChecker）`);
+          ok(
+            nonEmptyStr(r.interimMainCheck) && liveChecks.has(r.interimMainCheck),
+            `${r.id} 在新檢查器實作之前，有一條現有的 interimMainCheck 頂著`,
+            String(r.interimMainCheck)
+          );
+        }
+      } else if (r.phaseD && r.phaseD.mainCheck !== r.mainCheck) {
+        /*
+         * Phase D 換過主檢查的那一關（郵箱精靈的分揀台）：manifest 原本記的
+         * mainCheck 是歷史值，現況以 phaseD.mainCheck 為準，理由寫在 phaseD.note。
+         */
+        ok(checkIds.has(r.phaseD.mainCheck), `${r.id} 的 Phase D 主檢查 ${r.phaseD.mainCheck} 真的實作了`);
+        ok(nonEmptyStr(r.phaseD.note) && r.phaseD.note.length >= 20, `${r.id} 換掉主檢查有寫下理由`);
       } else {
         ok(liveChecks.has(r.mainCheck), `${r.id} 的主檢查 ${r.mainCheck} 今天就在它的 rubric 裡`);
         eq(r.interimMainCheck, null, `${r.id} 的主檢查已經存在，不需要過渡用的 interim`);
@@ -6062,8 +6422,8 @@ console.log('\n▸ 課程 v2 遷移契約（Phase 0／A）');
          * manifest 早期寫的 foundationCheck（例如思考室的 hasStepByStep）在那一期
          * 已經被移到它自己的神廟，所以只對還沒進 Phase C 的關卡驗。
          */
-        if (r.phaseC) {
-          ok(liveChecks.has('assignsTask'), `${r.id} 進 Phase C 之後地基收斂成 assignsTask`);
+        if (r.phaseC || r.phaseD) {
+          ok(liveChecks.has('assignsTask'), `${r.id} 進 Phase ${r.phaseC ? 'C' : 'D'} 之後地基收斂成 assignsTask`);
         } else {
           ok(
             liveChecks.has(r.foundationCheck),
@@ -6085,7 +6445,7 @@ console.log('\n▸ 課程 v2 遷移契約（Phase 0／A）');
       eq(live.primaryTechniqueId, r.primaryTechniqueId, `${r.id} 資料層的 primaryTechniqueId 與 manifest 一致`);
       const primaries = live.rubric.filter((x) => x.primary);
       eq(primaries.length, 1, `${r.id} 的 rubric 恰好一條主檢查（C1）`, primaries.map((x) => x.check).join('、'));
-      const wantMain = r.newChecker ? r.interimMainCheck : r.mainCheck;
+      const wantMain = r.phaseD ? r.phaseD.mainCheck : r.newChecker ? r.interimMainCheck : r.mainCheck;
       eq(primaries[0] && primaries[0].check, wantMain, `${r.id} 的主檢查就是 manifest 指定的 ${wantMain}`);
       ok(primaries[0] && primaries[0].check !== 'assignsTask', `${r.id} 沒有拿 assignsTask 當主教學目標`);
       ok(!(primaries[0] && primaries[0].foundation), `${r.id} 的主檢查不會同時是地基`);
@@ -6113,9 +6473,17 @@ console.log('\n▸ 課程 v2 遷移契約（Phase 0／A）');
      * ---------------------------------------------------------------- */
     const totalLive = live.rubric.reduce((s, x) => s + x.weight, 0);
     eq(r.passAfter, Number((r.passBefore - 0.5).toFixed(2)), `${r.id} 的 passAfter = passBefore − 0.5（D3 literal）`);
-    const wantPass = r.phaseC ? r.phaseC.passAfterC : r.passAfter;
-    const wantTotal = r.phaseC ? r.phaseC.totalWeightAfterC : r.totalWeightAfter;
-    eq(live.pass, wantPass, `${r.id} 的 pass 已經落到 ${r.phaseC ? 'passAfterC（Phase C）' : 'passAfter（D3）'}`);
+    const wantPass = r.phaseD ? r.phaseD.passAfterD : r.phaseC ? r.phaseC.passAfterC : r.passAfter;
+    const wantTotal = r.phaseD
+      ? r.phaseD.totalWeightAfterD
+      : r.phaseC
+        ? r.phaseC.totalWeightAfterC
+        : r.totalWeightAfter;
+    eq(
+      live.pass,
+      wantPass,
+      `${r.id} 的 pass 已經落到 ${r.phaseD ? 'passAfterD（Phase D）' : r.phaseC ? 'passAfterC（Phase C）' : 'passAfter（D3）'}`
+    );
     ok(r.totalWeightAfter > 0 && r.totalWeightAfter <= r.totalWeightBefore, `${r.id} 的 totalWeightAfter 只會持平或變小`);
     eq(totalLive, wantTotal, `${r.id} 現況的 rubric 總權重 = manifest 記的調整後總權重`);
     ok(wantPass > 0 && wantPass < wantTotal, `${r.id} 調整後仍然是「拿得到但要做對事」的門檻`);
@@ -6129,26 +6497,42 @@ console.log('\n▸ 課程 v2 遷移契約（Phase 0／A）');
       eq(main && main.skillId, r.phaseC.skillId, `${r.id} 的主檢查那一列掛著 v2 技能`);
       eq(live.rubric.length, 2, `${r.id} 收斂成「一條主檢查 ＋ 一條地基」（C1）`);
     }
+    if (r.phaseD) {
+      /* Phase D 的十一關：跟 Phase C 一樣收斂成新神廟的形狀，並接上 v2 技能 */
+      eq(live.primarySkillId, r.phaseD.skillId, `${r.id} 接上 v2 技能 ${r.phaseD.skillId}`);
+      eq(live.primaryTechniqueId, r.primaryTechniqueId, `${r.id} 仍然掛著它真的有的舊主技巧（收集不倒退）`);
+      const mainRow = live.rubric.find((x) => x.primary);
+      eq(mainRow && mainRow.check, r.phaseD.mainCheck, `${r.id} 的主檢查＝manifest 指定的 ${r.phaseD.mainCheck}`);
+      eq(mainRow && mainRow.weight, r.phaseD.mainWeightAfterD, `${r.id} 的主檢查權重升到 ${r.phaseD.mainWeightAfterD}`);
+      eq(mainRow && mainRow.skillId, r.phaseD.skillId, `${r.id} 的主檢查那一列掛著 v2 技能`);
+      eq(live.rubric.length, 2, `${r.id} 收斂成「一條主檢查 ＋ 一條地基」（C1）`);
+      eq(
+        flowData.flows[r.id] && (flowData.flows[r.id].kind || 'choice'),
+        r.phaseD.kindAfterD,
+        `${r.id} 的第三幕題型＝manifest 記的 ${r.phaseD.kindAfterD}`
+      );
+      ok(nonEmptyStr(r.phaseD.note) && r.phaseD.note.length >= 20, `${r.id} 的 Phase D 條目有寫下理由`);
+    }
 
     /* 移除／降權清單：Phase A 的做完了，post-A 的一個都不准動 */
     const liveWeights = new Map(live.rubric.map((x) => [x.check, x.weight]));
     for (const e of r.checksToRemoveOrDownweight) {
       ok(['downweight', 'remove', 'replace', 'hold'].includes(e.action), `${r.id} 的 ${e.check} 動作合法`, e.action);
-      ok(['A', 'C', 'post-A'].includes(e.phase), `${r.id} 的 ${e.check} 有指定期別`, e.phase);
+      ok(['A', 'C', 'D', 'post-A'].includes(e.phase), `${r.id} 的 ${e.check} 有指定期別`, e.phase);
       ok(nonEmptyStr(e.reason) && e.reason.length >= 10, `${r.id} 的 ${e.check} 有寫理由`);
       if (e.action === 'replace') ok(checkIds.has(e.replaceWith), `${r.id} 的 ${e.check} 換成真的存在的檢查器`);
       const w = liveWeights.get(e.check);
-      if (e.phase === 'C') {
+      if (e.phase === 'C' || e.phase === 'D') {
         /*
          * Phase C：主題在這一期搬到自己的神廟了，所以這一條**必須**已經執行完。
          * （manifest 的 phaseC 區塊逐關記著這件事，`addedIn: "C"` 標的是
          *   Phase 0 產生器沒掃到、由 Phase C 補上的兩條移除。）
          */
-        ok(r.phaseC, `${r.id} 標了 Phase C 條目就要有 phaseC 區塊`);
+        ok(e.phase === 'C' ? r.phaseC : r.phaseD, `${r.id} 標了 Phase ${e.phase} 條目就要有 phase${e.phase} 區塊`);
         if (e.action === 'remove') {
-          ok(w === undefined, `${r.id} 的 ${e.check} 已經在 Phase C 移除`, `weight=${w}`);
+          ok(w === undefined, `${r.id} 的 ${e.check} 已經在 Phase ${e.phase} 移除`, `weight=${w}`);
         } else if (e.action === 'downweight') {
-          eq(w, e.weightAfter, `${r.id} 的 ${e.check} 已經在 Phase C 降到 ${e.weightAfter} 分`);
+          eq(w, e.weightAfter, `${r.id} 的 ${e.check} 已經在 Phase ${e.phase} 降到 ${e.weightAfter} 分`);
         }
         continue;
       }
@@ -6158,11 +6542,15 @@ console.log('\n▸ 課程 v2 遷移契約（Phase 0／A）');
         continue;
       }
       // 同一條檢查如果之後又在 Phase C 被整條移除，Phase A 的降權目標就不再存在
-      const removedInC = r.checksToRemoveOrDownweight.some(
-        (x) => x.check === e.check && x.phase === 'C' && x.action === 'remove'
+      const removedLater = r.checksToRemoveOrDownweight.find(
+        (x) => x.check === e.check && (x.phase === 'C' || x.phase === 'D') && x.action === 'remove'
       );
-      if (removedInC) {
-        ok(w === undefined, `${r.id} 的 ${e.check} 在 Phase A 降權、Phase C 整條移除`, `weight=${w}`);
+      if (removedLater) {
+        ok(
+          w === undefined,
+          `${r.id} 的 ${e.check} 在 Phase A 處理過、Phase ${removedLater.phase} 整條移除`,
+          `weight=${w}`
+        );
         continue;
       }
       if (e.action === 'downweight') {
@@ -6174,7 +6562,10 @@ console.log('\n▸ 課程 v2 遷移契約（Phase 0／A）');
          * 這條 hold 的檢查如果正好就是它的主檢查，權重會跟著主檢查走（3 分）。
          */
         const isPhaseCMain = r.phaseC && r.phaseC.mainCheck === e.check;
-        if (isPhaseCMain) {
+        const isPhaseDMain = r.phaseD && r.phaseD.mainCheck === e.check;
+        if (isPhaseDMain) {
+          eq(w, r.phaseD.mainWeightAfterD, `${r.id} 的 ${e.check} 是 Phase D 的主檢查，權重升到 ${r.phaseD.mainWeightAfterD} 分`);
+        } else if (isPhaseCMain) {
           eq(
             w,
             r.phaseC.mainWeightAfterC,
@@ -6187,10 +6578,18 @@ console.log('\n▸ 課程 v2 遷移契約（Phase 0／A）');
         ok(w === undefined, `${r.id} 的 ${e.check} 已經從 rubric 移除`, `weight=${w}`);
       } else if (e.action === 'replace') {
         ok(w === undefined, `${r.id} 的 ${e.check} 已經被換掉`, `weight=${w}`);
-        ok(
-          liveWeights.has(e.replaceWith),
-          `${r.id} 的 ${e.check} 權重轉給了 ${e.replaceWith}（權重中性的替換）`
+        const laterRemoved = r.checksToRemoveOrDownweight.some(
+          (x) => x.check === e.replaceWith && (x.phase === 'C' || x.phase === 'D') && x.action === 'remove'
         );
+        if (laterRemoved) {
+          // 接手那 1 分的檢查在後續期別把主題交給自己的神廟了（例如受眾 → 六面燈籠）
+          ok(!liveWeights.has(e.replaceWith), `${r.id} 接手的 ${e.replaceWith} 後來也把主題交出去了`);
+        } else {
+          ok(
+            liveWeights.has(e.replaceWith),
+            `${r.id} 的 ${e.check} 權重轉給了 ${e.replaceWith}（權重中性的替換）`
+          );
+        }
       }
     }
     // assignsTask 全域降權：27 關一關都不能漏，而且一律標成地基
@@ -6216,6 +6615,17 @@ console.log('\n▸ 課程 v2 遷移契約（Phase 0／A）');
     (n, r) => n + r.checksToRemoveOrDownweight.filter((e) => e.phase === 'C' && e.action === 'remove').length,
     0
   );
+  /*
+   * Phase D 又移除了一批（脈絡與長文／角色與參數十一關）；另外有三關的主檢查是新實作的檢查器，
+   * 它們是「新增一列」而不是移除，所以要加回來。
+   */
+  const PHASE_D_ROWS_REMOVED = migration.challenges.reduce(
+    (n, r) => n + r.checksToRemoveOrDownweight.filter((e) => e.phase === 'D' && e.action === 'remove').length,
+    0
+  );
+  const PHASE_D_ROWS_ADDED = migration.challenges.filter(
+    (r) => r.phaseD && (r.newChecker || r.phaseD.mainCheck !== r.mainCheck)
+  ).length;
 
   /* 全域統計：manifest 記的基線要跟現況資料對得上 */
   eq(migration.baseline.challenges, legacyChallenges.length, 'manifest 的關卡數基線正確（既有 27 關）');
@@ -6229,8 +6639,8 @@ console.log('\n▸ 課程 v2 遷移契約（Phase 0／A）');
   eq(migration.baseline.rubricRows, 118, 'manifest 記的是 Phase 0 的 rubric 條數基線（118，不是舊文件的 106）');
   eq(
     legacyChallenges.reduce((s, c) => s + c.rubric.length, 0),
-    113 - migration.challenges.filter((r) => r.phaseC).length * 0 - PHASE_C_ROWS_REMOVED,
-    `Phase A 之後 113 條；Phase C 又移除 ${PHASE_C_ROWS_REMOVED} 條（示範與推理五關收斂成「主檢查 ＋ 地基」）`
+    113 - PHASE_C_ROWS_REMOVED - PHASE_D_ROWS_REMOVED + PHASE_D_ROWS_ADDED,
+    `Phase A 之後 113 條；Phase C 移除 ${PHASE_C_ROWS_REMOVED} 條、Phase D 移除 ${PHASE_D_ROWS_REMOVED} 條並新增 ${PHASE_D_ROWS_ADDED} 條主檢查`
   );
   eq(migration.baseline.curriculumTechniques, curriculum.techniques.length, 'manifest 的技巧數基線正確');
   eq(migration.baseline.curriculumSha256, CURRICULUM_SHA256, 'manifest 記的 curriculum 指紋與實檔一致');

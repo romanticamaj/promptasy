@@ -710,6 +710,178 @@ function zhConstraintCandidates(text) {
 }
 
 /* ------------------------------------------------------------------ *
+ * 課程 v2 · Phase D 的十二個新檢查器（規格出自 curriculum-v2 §7.4）
+ *
+ * 六個給脈絡與長文、四個給角色與參數，另外兩個補上撰寫基本功欠著的兩座
+ * （規則牆的 rulesBeforeData、郵箱精靈的分揀台的 usesRareDelimiter）。
+ * 全部是**結構性偵測**：位置比較、成對出現、區間判定、相異數 ——
+ * 不是關鍵字比對（反作弊原則）。
+ * ------------------------------------------------------------------ */
+
+// --- labelsSources（三疊無名的卷）------------------------------------
+/** 一份文件的來源標籤：`文件 A：`、`來源：北倉帳`、`<doc id="1">`、`[文件 2]`… */
+const SOURCE_LABEL_ZH =
+  /(?:^|\n)\s*(?:[【\[〈]\s*)?(?:文件|文獻|卷|抄本|來源|出處|資料來源|檔案|報告|附件)\s*(?:編號)?\s*(?:[A-Za-z0-9一二三四五六七八九十]{1,3})?\s*[：:）)\]】〉]/g;
+const SOURCE_LABEL_EN =
+  /(?:^|\n)\s*(?:\[|<)?\s*(?:document|doc|source|file|report|exhibit)\s*(?:id\s*=\s*"?)?\s*[A-Za-z0-9]{1,3}\s*(?:[:：\]>"]|\s)/gi;
+/** 「請標上來源」這種**要求**（自己沒有標，但有交代要標）。 */
+const SOURCE_ASK_ZH = /(?:標(?:上|明|出)|附上|註明|寫上)[^\n]{0,10}(?:來源|出處|文件編號|檔名)/;
+const SOURCE_ASK_EN = /\b(?:label|tag|mark|number)\s+(?:each|every)\s+(?:document|doc|source|file)\b/i;
+/** JSON 包長資料：官方明說既傷準度又貴（#83／#292）。 */
+const JSON_WRAP =
+  /```json|\{\s*"(?:documents?|docs?|sources?|files?)"\s*:\s*\[|用\s*JSON\s*(?:包|裝|包起來|格式)/i;
+
+// --- anchorsToSection（無眠的抄寫員）--------------------------------
+/** 「每個主張要標出出自哪一節」：主張／結論 ＋ 標出 ＋ 章節／段落／頁。 */
+const ANCHOR_ZH =
+  /(?:每(?:一)?(?:句|段|條|個)?[^\n]{0,8}(?:主張|結論|說法|重點|答案|論點)|所有(?:主張|結論|說法))[^\n]{0,24}(?:標(?:出|上|明|注)|註明|指出|附上|寫出)[^\n]{0,12}(?:第?\s*[幾哪]?\s*(?:章|節|段|頁|條)|章節|段落|出自哪)/;
+const ANCHOR_ZH_ALT =
+  /(?:標(?:出|上|明)|註明|附上)[^\n]{0,10}(?:出自(?:哪|第)|來自(?:哪|第)|引自(?:哪|第))[^\n]{0,6}(?:章|節|段|頁)/;
+const ANCHOR_EN =
+  /\b(?:each|every|all)\s+(?:claim|statement|point|conclusion|finding)s?\b[^.\n]{0,40}\b(?:cites?|labels?|tags?|marks?|points? to|references?|indicates?)\b[^.\n]{0,30}\b(?:section|chapter|paragraph|heading|page)\b/i;
+/** 先要一份大綱（承的那一拍）。 */
+const OUTLINE_ZH = /(?:先|首先)[^\n]{0,12}(?:列出|做出|寫出|給我|產出)[^\n]{0,8}(?:大綱|目錄|章節表|架構)|大綱[^\n]{0,6}(?:先|再)/;
+const OUTLINE_EN = /\b(?:first|start by)\b[^.\n]{0,30}\b(?:outline|table of contents|section list)\b/i;
+
+// --- citesInline（標記之泉）-----------------------------------------
+/** 就地標註的要求：把出處標在**那一句**的句尾／同一句裡。 */
+const INLINE_CITE_ZH =
+  /(?:出處|來源|引用|標註|編號)[^\n]{0,14}(?:標|放|寫|附|接)[^\n]{0,10}(?:在)?[^\n]{0,6}(?:該|那|每)?(?:一)?(?:句|段|行)(?:的)?(?:句尾|結尾|後面|末尾|旁邊|之後)|(?:每(?:一)?句|逐句)[^\n]{0,10}(?:後面|句尾|末尾)[^\n]{0,8}(?:標|附|加|寫)[^\n]{0,6}(?:出處|來源|編號)/;
+const INLINE_CITE_EN =
+  /\b(?:cite|citation|source|reference)s?\b[^.\n]{0,40}\b(?:inline|at the end of (?:each|that|the) (?:sentence|claim|line)|after each (?:sentence|claim)|next to (?:the|each) (?:sentence|claim))\b/i;
+/** 全部堆在文末（起的那一拍，明確是壞寫法）。 */
+const CITE_AT_END_ZH = /(?:全部|所有|統一|一起)[^\n]{0,10}(?:放|列|附|寫)[^\n]{0,6}(?:在)?(?:文|最)(?:末|後)|(?:文末|最後)[^\n]{0,6}(?:統一|一次|一起)[^\n]{0,6}(?:列出|附上|放)/;
+const CITE_AT_END_EN = /\b(?:all|every)\s+(?:the\s+)?(?:sources?|citations?|references?)\b[^.\n]{0,24}\b(?:at the (?:end|bottom)|in a list at the end)\b/i;
+/** 沒有出處就不要寫（合的那一拍）。 */
+const NO_CITE_NO_CLAIM_ZH =
+  /(?:沒有|找不到|查不到|無)(?:出處|來源|依據|引文)[^\n]{0,12}(?:就)?(?:不要|不准|別|不能|請勿)(?:寫|說|列|放|下|給)|(?:每(?:一)?句|每(?:一)?個主張)[^\n]{0,10}(?:都)?(?:要|必須)(?:有|附)(?:出處|來源)/;
+const NO_CITE_NO_CLAIM_EN =
+  /\b(?:if|when)\b[^.\n]{0,24}\bno (?:source|citation|reference)\b[^.\n]{0,24}\b(?:do not|don'?t|omit|leave it out)\b|\bevery (?:claim|sentence) (?:must|needs to) (?:have|carry) a (?:source|citation)\b/i;
+
+// --- setsRetrievalBudget（不肯收工的探勘隊）--------------------------
+/** 「什麼情況才再查」：條件句 ＋ 查詢動作。 */
+const RETRIEVE_VERB_ZH = '再查|再搜|再找|再檢索|再翻|補查|加查|重查|多查|搜尋|查詢|檢索';
+const RETRIEVE_COND_ZH = new RegExp(
+  `(?:只有|只在|唯有|如果|若|當|除非|一旦)[^\n]{0,26}(?:才|就)?[^\n]{0,10}(?:${RETRIEVE_VERB_ZH})|(?:${RETRIEVE_VERB_ZH})[^\n]{0,14}(?:之前|以前)[^\n]{0,10}(?:先|要)`
+);
+const RETRIEVE_COND_EN =
+  /\b(?:only|if|when|unless)\b[^.\n]{0,40}\b(?:search|look up|query|retrieve|re-?search|check again)\b/i;
+/** 次數上限：最多查 n 次。 */
+const RETRIEVE_CAP_ZH = new RegExp(
+  `(?:最多|上限|不超過|不得超過|至多)[^\n]{0,8}(\\d+|${'一|二|兩|三|四|五|六|七|八|九|十'})\\s*(?:次|輪|回|趟)[^\n]{0,8}(?:${RETRIEVE_VERB_ZH})?|(?:${RETRIEVE_VERB_ZH})[^\n]{0,8}(?:最多|不超過|上限)[^\n]{0,4}(\\d+|${'一|二|兩|三|四|五|六|七|八|九|十'})\\s*(?:次|輪|回|趟)`
+);
+const RETRIEVE_CAP_EN =
+  /\b(?:at most|no more than|maximum of|limit of|up to)\s+(\d+|one|two|three|four|five|six|seven|eight|nine|ten)\s+(?:searches?|lookups?|queries|retrievals?|rounds?)\b/i;
+/** 停止條件：什麼時候收工。 */
+const RETRIEVE_STOP_ZH =
+  /(?:找到|拿到|湊齊|查到)[^\n]{0,16}(?:就|即)(?:停|收工|停手|不要再|別再|結束)|(?:停止|收工|不再)(?:查|搜|找|檢索)[^\n]{0,10}(?:的條件|的時機)|(?:什麼時候|何時)(?:該)?(?:停|收工)/;
+const RETRIEVE_STOP_EN =
+  /\bstop (?:searching|looking|retrieving)\b[^.\n]{0,30}\b(?:once|when|after)\b|\bonce you (?:have|find)\b[^.\n]{0,30}\bstop\b/i;
+
+// --- diagnosesFailureCause（三面破鏡）-------------------------------
+/** 三種病因：資料沒給 / 問題超綱 / 格式逼它硬填。 */
+const CAUSE_MISSING_ZH = /(?:資料|卷宗|文件|脈絡|背景)(?:裡)?(?:沒有|沒給|沒提供|缺|漏|查不到|找不到)|沒有(?:給|附)(?:資料|依據|來源)/;
+const CAUSE_OUTOFSCOPE_ZH = /(?:超出|超過|不在)[^\n]{0,10}(?:範圍|所學|知識|訓練|涵蓋)|(?:問題|題目)[^\n]{0,6}超綱|(?:它|模型)[^\n]{0,8}(?:本來就)?不知道/;
+const CAUSE_FORMAT_ZH = /(?:格式|模板|表格|欄位|schema)[^\n]{0,14}(?:逼|強迫|要求)[^\n]{0,8}(?:它|模型)?[^\n]{0,6}(?:硬)?(?:填|補|湊|生)|(?:每一?格|欄位)[^\n]{0,10}(?:都)?(?:一定|必須)(?:要)?(?:填滿|填)/;
+const CAUSE_MISSING_EN = /\b(?:not|no|missing|absent)\b[^.\n]{0,20}\bin the (?:context|document|source|data)\b|\bthe (?:context|data) (?:does not|doesn'?t) (?:contain|include)\b/i;
+const CAUSE_OUTOFSCOPE_EN = /\b(?:out of scope|beyond (?:its|the) (?:knowledge|training)|it simply does not know)\b/i;
+const CAUSE_FORMAT_EN = /\b(?:the (?:format|template|schema)|required fields?)\b[^.\n]{0,30}\b(?:forces?|forced|pushes?|makes? it)\b[^.\n]{0,20}\b(?:fill|invent|make up)\b/i;
+/** 「先說清楚是哪一種病因」的動作詞。 */
+const DIAGNOSE_VERB_ZH = /(?:標|指|說|寫|判)(?:出|明|清楚)?[^\n]{0,8}(?:病因|原因|成因|是哪一種|屬於哪)|分類(?:成|為)[^\n]{0,8}(?:三種|哪一種)/;
+const DIAGNOSE_VERB_EN = /\b(?:classify|label|identify|name)\b[^.\n]{0,24}\b(?:cause|failure mode|reason)\b/i;
+
+// --- allowsNullField（萃取台）---------------------------------------
+/** 缺欄位的處置：填 null／留空／標未知／不准猜。 */
+const NULL_FIELD_ZH =
+  /(?:沒有|找不到|查不到|未提及|沒提到|缺)[^\n]{0,16}(?:的)?(?:欄位|項目|格|值)?[^\n]{0,8}(?:就)?(?:一律)?(?:填|寫|標|留)(?:上|成|為)?\s*(?:null|NULL|空|空白|未知|不詳|N\/A)|(?:欄位|格)[^\n]{0,10}(?:沒有|查不到|缺)[^\n]{0,8}(?:就)?(?:填|留)\s*(?:null|空|未知)/i;
+const NULL_FIELD_EN =
+  /\b(?:if|when)\b[^.\n]{0,30}\b(?:not (?:present|found|stated)|missing|unavailable)\b[^.\n]{0,30}\b(?:use|set|write|leave|put)\b[^.\n]{0,14}\b(?:null|empty|unknown|n\/a)\b|\buse null (?:for|when)\b/i;
+const NO_GUESS_ZH =
+  /不(?:准|要|得|可以?|能)(?:自己|自行|擅自)?(?:猜|臆測|推測|亂編|編造|編)|(?:不(?:准|要|得|能))(?:自己|自行)(?:填|補)|請勿(?:猜|臆測|推測)/;
+const NO_GUESS_EN = /\b(?:do not|don'?t|never)\s+(?:guess|infer|invent|make up|fabricate)\b/i;
+
+// --- ranksInstructions（優先序階梯）---------------------------------
+/** 誰壓過誰：優先序的成對比較。 */
+const RANK_OVER_ZH =
+  /(?:優先(?:於|過)|大於|壓過|蓋過|勝過|高於|凌駕)[^\n]{0,12}|(?:以)[^\n]{0,10}(?:為準|優先)|(?:先聽|先照|先以)[^\n]{0,10}(?:的|再)/;
+const RANK_OVER_EN =
+  /\b(?:takes? precedence over|overrides?|outranks?|wins? over|has priority over|comes? before)\b|\bin case of conflict\b/i;
+/** 排出階序（1. 2. 3. 或 A > B > C）。 */
+const RANK_ORDER_LIST = /(?:^|\n)\s*(?:第?\s*)?[1-3][.)、]\s*\S[\s\S]{0,120}?(?:\n)\s*(?:第?\s*)?[2-4][.)、]\s*\S/;
+const RANK_CHAIN = /[^\s\n]{2,20}\s*(?:>|＞|>>|→)\s*[^\s\n]{2,20}\s*(?:>|＞|>>|→)\s*[^\s\n]{2,20}/;
+/** 衝突時怎麼辦（沒有這一句就只是排了個順序）。 */
+const RANK_CONFLICT_ZH = /(?:互相|彼此)?(?:牴觸|抵觸|衝突|打架|不一致|相反)[^\n]{0,14}(?:時|的時候|就|請|一律)|(?:兩條|兩個|規矩)[^\n]{0,8}(?:衝突|打架)/;
+const RANK_CONFLICT_EN = /\b(?:if|when|where)\b[^.\n]{0,20}\b(?:conflict|contradict|disagree)\b/i;
+
+// --- hasStopRule（抄寫人的長桌）-------------------------------------
+/** 「什麼時候該停」：完成條件／停止條件／收工訊號。 */
+const STOP_RULE_ZH =
+  /(?:做到|完成到|處理到|寫到|跑到)[^\n]{0,16}(?:就|即)[^\n]{0,4}(?:停|收工|結束|停手|回報)|(?:填好|填完|寫好|寫完|做好|做完|完成|處理完|湊齊|集滿|達到|滿足|看到|遇到)[^\n]{0,12}(?:就|即|便)[^\n]{0,6}(?:停|收工|結束|停手|回報|交回)|(?:停止|收工|結束|交件)(?:條件|時機|訊號)[^\n]{0,4}[：:是]|(?:什麼時候|何時)(?:算)?(?:做完|完成|該停|收工)/;
+const STOP_RULE_EN =
+  /\bstop (?:when|once|after|as soon as)\b|\b(?:you'?re|it is) done when\b|\bstopping (?:rule|condition|criteria)\b|\bend the (?:task|turn) (?:when|once)\b/i;
+/** 「一直做到好為止」這種沒有邊界的收工規則（弱寫法）。 */
+const STOP_VAGUE_ZH = /(?:做到好|做到滿意|做完為止|一直做|盡量做完|做到不能再)/;
+const STOP_VAGUE_EN = /\b(?:until (?:it'?s|it is|you'?re|you are) (?:done|satisfied|happy)|keep going forever)\b/i;
+
+// --- usesOneSkeleton（兩種文法的殿）---------------------------------
+/** 三種分段語法：角括號標籤、井號標題、方括號／【】。 */
+const SKEL_TAG = /<([A-Za-z\u4e00-\u9fff][\w\u4e00-\u9fff-]{0,30})(?:\s[^>]*)?>[\s\S]*?<\/\1>/g;
+const SKEL_HEAD = /(?:^|\n)#{1,6}\s*\S/g;
+const SKEL_BRACKET = /(?:^|\n)\s*(?:\[[^\]\n]{1,20}\]|【[^】\n]{1,20}】)\s*(?:\n|：|:)/g;
+/** 「整份只用一種」的宣告（說得出為什麼挑這一種）。 */
+const SKEL_PICK_ZH =
+  /(?:整份|全部|從頭到尾|一律)[^\n]{0,12}(?:只)?(?:用|走|沿用|採用)[^\n]{0,14}(?:一種|同一種|標籤|井號|角括號|#\s*標題)|(?:挑|選)(?:一種|了)[^\n]{0,14}(?:就)?(?:走到底|用到底|貫徹)/;
+const SKEL_PICK_EN =
+  /\b(?:uses? (?:only )?one (?:consistent )?(?:format|convention|style|syntax)|stick to (?:one|the same) (?:format|convention|syntax))\b/i;
+
+// --- namesModelClass（抉擇之秤）-------------------------------------
+/** 指名一類模型：推理型／一般型／小型快模。 */
+const MODEL_CLASS_ZH =
+  /(?:推理型|思考型|推理模型|思考模型|reasoning\s*模型|一般型|通用型|一般模型|快模|輕量型|小型模型|旗艦(?:型|模型))/i;
+const MODEL_CLASS_EN =
+  /\b(?:reasoning|thinking|frontier|flagship|lightweight|small|fast|general[- ]purpose)\s+model\b|\bo-?series\b/i;
+/** 挑它的理由（不是「因為比較好」，要接得上任務性質）。 */
+const MODEL_REASON_ZH =
+  /(?:因為|原因是|由於|理由是)[^\n]{0,40}|(?:這件事|這一題|這個任務)[^\n]{0,20}(?:需要|要|吃|靠)[^\n]{0,16}(?:推理|思考|判斷|規劃|速度|便宜|成本|量大)/;
+const MODEL_REASON_EN = /\bbecause\b[^.\n]{0,60}|\bthis task (?:needs|requires|is)\b[^.\n]{0,40}/i;
+
+// --- rulesBeforeData（規則牆）---------------------------------------
+/** 規則區塊的開頭（規矩／規則／注意事項／守則）。 */
+const RULE_BLOCK_ZH =
+  /(?:^|\n)\s*(?:#{1,6}\s*)?(?:[【\[〈<]\s*)?(?:規則|規矩|守則|注意事項|作業規範|限制|要求|指示|指令)\s*(?:[】\]〉>：:]|\n)/;
+const RULE_BLOCK_EN = /(?:^|\n)\s*(?:\[|<|#{1,3}\s*)?(?:rules?|instructions?|constraints?|guidelines?)\s*(?:[:：\]>]|\n)/i;
+/** 資料區塊的開頭。 */
+const DATA_BLOCK_ZH =
+  /(?:^|\n)\s*(?:#{1,6}\s*)?(?:[【\[〈<]\s*)?(?:資料|內容|原文|文件|卷宗|素材|以下(?:內容|資料|文字)|待處理(?:的)?(?:內容|文字))\s*(?:[】\]〉>：:]|\n)/;
+const DATA_BLOCK_EN = /(?:^|\n)\s*(?:\[|<|#{1,3}\s*)?(?:data|content|document|text|source material|input)\s*(?:[:：\]>]|\n)/i;
+/** 結尾又冒出一句相反的話（轉的那一拍）—— 有這種句子就扣分。 */
+const TAIL_OVERRIDE_ZH = /(?:不過|但是|另外|其實|話說回來)[^\n]{0,20}(?:剛剛|上面|前面)[^\n]{0,14}(?:那條|規矩|規則)[^\n]{0,10}(?:可以|不用|不必|先別|忽略)/;
+
+// --- usesRareDelimiter（郵箱精靈的分揀台）---------------------------
+/**
+ * 罕見分隔符：自然語言裡不會出現的字元組合，而且**內文自己沒有用過**。
+ * 官方（OpenAI／Anthropic 都寫過）的建議是 `###`、`<tag>`、`«««`、`===`
+ * 這種在散文裡不會撞到的東西 —— 這一關的轉正是「內文自己就有 `---`」。
+ */
+const RARE_DELIM_CANDIDATES = [
+  { re: /(?:^|\n)\s*={3,}\s*(?:\n|$)/g, name: '===' },
+  { re: /(?:^|\n)\s*#{3,}\s*\S*\s*(?:\n|$)/g, name: '###' },
+  { re: /«{2,}|»{2,}/g, name: '«««' },
+  { re: /\|{3,}/g, name: '|||' },
+  { re: /~{3,}/g, name: '~~~' },
+  { re: /\+{3,}/g, name: '+++' },
+  { re: /@{3,}/g, name: '@@@' },
+  { re: /\$\$\$+/g, name: '$$$' },
+  { re: /%{3,}/g, name: '%%%' },
+];
+/** 常見到會撞的分隔符（散文裡真的會出現）。 */
+const COMMON_DELIM = [
+  { re: /(?:^|\n)\s*-{3,}\s*(?:\n|$)/g, name: '---' },
+  { re: /(?:^|\n)\s*\*{3,}\s*(?:\n|$)/g, name: '***' },
+  { re: /(?:^|\n)\s*_{3,}\s*(?:\n|$)/g, name: '___' },
+];
+
+/* ------------------------------------------------------------------ *
  * 檢查器定義
  * ------------------------------------------------------------------ */
 
@@ -1579,6 +1751,365 @@ const definitions = [
         return PART('說了取多數，但沒說要跑幾次 —— 只跑一次沒有多數可以取。先寫「同一題請跑 3 次」。');
       }
       return MISS('還沒有多跑幾次。寫一句「同一題請跑 3 次，取多數的答案；三個都不同就說不確定」。');
+    },
+  },
+
+  /* ================================================================ *
+   * 課程 v2 · Phase D 的十二個新檢查器
+   * ================================================================ */
+
+  {
+    id: 'labelsSources',
+    label: '每份文件要有名字 Label sources',
+    hint: '替每一份資料標上來源：「文件 A：北倉入庫帳」「文件 B：南橋領料單」。長資料不要用 JSON 包起來。',
+    techniqueId: null,
+    run(text) {
+      const t = clean(text);
+      const zh = t.match(SOURCE_LABEL_ZH) || [];
+      const en = t.match(SOURCE_LABEL_EN) || [];
+      const labels = [...zh, ...en].map((s) => s.trim());
+      const distinct = new Set(labels.map((s) => s.replace(/\s+/g, '')));
+      const asked = SOURCE_ASK_ZH.test(t) || SOURCE_ASK_EN.test(t);
+      const jsonWrap = JSON_WRAP.test(t);
+
+      if (distinct.size >= 2 && !jsonWrap) {
+        return PASS(`每一份都有自己的名字（「${snip(labels[0], 12)}」…共 ${distinct.size} 份），引用時指得回去。`);
+      }
+      if (distinct.size >= 2 && jsonWrap) {
+        return MOST('文件都標了名字，但整份用 JSON 包起來 —— 官方實測這樣既傷準度又比較貴。改用標籤或直線分隔就好。');
+      }
+      if (distinct.size === 1) {
+        return PART(`只有一份標了名字（「${snip(labels[0], 12)}」）。其他幾份也要各給一個編號，它才分得出誰是誰。`);
+      }
+      if (asked) {
+        return PART('有交代要標來源，但資料本身還沒掛上編號。直接寫「文件 A：＿＿」「文件 B：＿＿」給它看。');
+      }
+      return MISS('三疊卷還沒有名字。每一份前面加一行「文件 A：（來源）」，它才引用得回去。');
+    },
+  },
+
+  {
+    id: 'anchorsToSection',
+    label: '主張要錨回章節 Anchor to section',
+    hint: '先要一份大綱，再要求「每個主張都標出出自哪一節」。例如「請先列出章節大綱，之後每一句結論後面標明第幾節」。',
+    techniqueId: null,
+    run(text) {
+      const t = clean(text);
+      const anchored = ANCHOR_ZH.test(t) || ANCHOR_ZH_ALT.test(t) || ANCHOR_EN.test(t);
+      const outline = OUTLINE_ZH.test(t) || OUTLINE_EN.test(t);
+      if (anchored && outline) {
+        return PASS('先要大綱、再要求每個主張標出章節 —— 兩步都在，答案就跑不到別章去了。');
+      }
+      if (anchored) {
+        return MOST('主張要標章節，這一條有了。再加一句「先列出章節大綱」，它才知道有哪些節可以指。');
+      }
+      if (outline) {
+        return PART('有先要大綱，但沒有要求把每個主張標回章節 —— 大綱對了，內文還是可能抓錯段。');
+      }
+      return MISS('還沒有錨點。寫「請先列出章節大綱，之後每個結論後面標明出自第幾節」。');
+    },
+  },
+
+  {
+    id: 'citesInline',
+    label: '出處要就地標 Inline citations',
+    hint: '要求把出處標在那一句的句尾，而不是全部堆在文末；再加一句「沒有出處的話就不要寫」。',
+    techniqueId: null,
+    run(text) {
+      const t = clean(text);
+      const inline = INLINE_CITE_ZH.test(t) || INLINE_CITE_EN.test(t);
+      const piled = CITE_AT_END_ZH.test(t) || CITE_AT_END_EN.test(t);
+      const noCiteNoClaim = NO_CITE_NO_CLAIM_ZH.test(t) || NO_CITE_NO_CLAIM_EN.test(t);
+      const mentions = CITE_WEAK.test(t);
+
+      if (inline && piled) {
+        return PART('同時寫了「就地標」跟「統一放文末」，兩句打架。留下就地標的那一句就好。');
+      }
+      if (inline && noCiteNoClaim) {
+        return PASS('出處就標在那一句旁邊，而且「沒出處就不要寫」也講了 —— 這樣才對得回去。');
+      }
+      if (inline) {
+        return MOST('就地標註這一條有了。再補一句「沒有出處的句子就不要寫」，才不會漏掉沒依據的那一句。');
+      }
+      if (noCiteNoClaim) {
+        return PART('說了每句都要有出處，但沒說標在哪裡。補一句「標在該句的句尾」，不然它會全部堆在最後。');
+      }
+      if (piled) {
+        return PART('全部堆在文末，讀的人對不回去是哪一句的依據。改成「每一句的句尾直接標上出處編號」。');
+      }
+      if (mentions) {
+        return PART('有提到出處，但沒說要標在哪裡。寫清楚：「出處標在該句的句尾」。');
+      }
+      return MISS('還沒有規定出處怎麼標。寫一句「每一句的句尾直接標上出處編號，沒有出處就不要寫」。');
+    },
+  },
+
+  {
+    id: 'setsRetrievalBudget',
+    label: '查到什麼時候 Retrieval budget',
+    hint: '寫出三件事：什麼情況才再查一次、最多查幾次、什麼時候可以收工。',
+    techniqueId: null,
+    run(text) {
+      const t = clean(text);
+      const cond = RETRIEVE_COND_ZH.test(t) || RETRIEVE_COND_EN.test(t);
+      const cap = RETRIEVE_CAP_ZH.test(t) || RETRIEVE_CAP_EN.test(t);
+      const stop = RETRIEVE_STOP_ZH.test(t) || RETRIEVE_STOP_EN.test(t);
+      const have = [cond && '條件', cap && '上限', stop && '停止條件'].filter(Boolean);
+
+      if (have.length >= 3) {
+        return PASS('什麼情況才再查、最多幾次、什麼時候收工 —— 三件事都寫了，探勘隊回得了家。');
+      }
+      if (have.length === 2) {
+        const missing = ['條件', '上限', '停止條件'].find((x) => !have.includes(x));
+        return MOST(`已經有${have.join('與')}。再補上「${missing}」就收得住了。`);
+      }
+      if (have.length === 1) {
+        return PART(`只寫了${have[0]}。三件事要湊齊：什麼情況才再查、最多幾次、什麼時候收工。`);
+      }
+      return MISS('還沒給查詢的預算。寫「只有在資料互相矛盾時才再查一次，最多查 3 次；湊齊三個來源就停」。');
+    },
+  },
+
+  {
+    id: 'diagnosesFailureCause',
+    label: '先分辨病因 Diagnose cause',
+    hint: '把錯誤分成三類再對症下藥：資料裡沒給、問題超出它知道的範圍、格式逼它硬填。',
+    techniqueId: null,
+    run(text) {
+      const t = clean(text);
+      const causes = [
+        (CAUSE_MISSING_ZH.test(t) || CAUSE_MISSING_EN.test(t)) && '資料沒給',
+        (CAUSE_OUTOFSCOPE_ZH.test(t) || CAUSE_OUTOFSCOPE_EN.test(t)) && '超出範圍',
+        (CAUSE_FORMAT_ZH.test(t) || CAUSE_FORMAT_EN.test(t)) && '格式逼它填',
+      ].filter(Boolean);
+      const asked = DIAGNOSE_VERB_ZH.test(t) || DIAGNOSE_VERB_EN.test(t);
+
+      if (causes.length >= 3) {
+        return PASS('三種病因都點名了（資料沒給／超出範圍／格式逼它填）—— 這三種的修法本來就不一樣。');
+      }
+      if (causes.length === 2) {
+        return MOST(`點出了「${causes.join('」與「')}」。還差一種 —— 三面破鏡各照一種病。`);
+      }
+      if (causes.length === 1 && asked) {
+        return PART(`要它說出病因，但只點名了「${causes[0]}」一種。三種各寫一句，藥才下得對。`);
+      }
+      if (causes.length === 1) {
+        return PART(`只講到「${causes[0]}」。另外兩種（超出範圍、格式逼它硬填）也要分開講。`);
+      }
+      if (asked) {
+        return PART('有要它說病因，但沒有給它可以選的類別。把三種寫出來：資料沒給／超出範圍／格式逼它填。');
+      }
+      return MISS('還沒分辨病因。同樣一段胡說，有可能是資料沒給、問題超綱，或是格式逼它硬填 —— 三種修法完全不同。');
+    },
+  },
+
+  {
+    id: 'allowsNullField',
+    label: '沒有就填 null Null for missing',
+    hint: '寫一句「資料裡沒有的欄位一律填 null」，再加一句「不准自己猜」。',
+    techniqueId: null,
+    run(text) {
+      const t = clean(text);
+      const nullRule = NULL_FIELD_ZH.test(t) || NULL_FIELD_EN.test(t);
+      const noGuess = NO_GUESS_ZH.test(t) || NO_GUESS_EN.test(t);
+      if (nullRule && noGuess) {
+        return PASS('缺欄位一律填 null，而且明講不准猜 —— 表格裡就不會再冒出編出來的格子。');
+      }
+      if (nullRule) {
+        return MOST('缺欄位的處置寫了。再補一句「不准自己猜」，它才不會把空格填得很像真的。');
+      }
+      if (noGuess) {
+        return PART('說了不准猜，但沒說「那格該填什麼」。補上「沒有寫到的欄位一律填 null」，它才有地方放。');
+      }
+      return MISS('還沒有交代缺欄位怎麼辦。寫一句「資料裡沒有的欄位一律填 null，不准自己猜」。');
+    },
+  },
+
+  {
+    id: 'ranksInstructions',
+    label: '規矩排出高低 Rank instructions',
+    hint: '把規矩排成有高低的一條線，並寫清楚衝突時聽誰的。例如「1. 安全規範 2. 本次委託 3. 個人偏好；互相牴觸時一律以上面那條為準」。',
+    techniqueId: null,
+    run(text) {
+      const t = clean(text);
+      const over = RANK_OVER_ZH.test(t) || RANK_OVER_EN.test(t);
+      const ordered = RANK_ORDER_LIST.test(t) || RANK_CHAIN.test(t);
+      const conflict = RANK_CONFLICT_ZH.test(t) || RANK_CONFLICT_EN.test(t);
+
+      if (over && ordered && conflict) {
+        return PASS('規矩排成了一條有高低的線，而且講明了牴觸時聽哪一條 —— 這樣它才不會照到不該照的那條。');
+      }
+      if (over && ordered) {
+        return MOST('高低排出來了。再補一句「兩條牴觸時一律以上面那條為準」，遇到打架才有依據。');
+      }
+      if (ordered && conflict) {
+        return PART('列了順序也講了會牴觸，但沒說誰壓過誰。補一句「第 1 條優先於第 2 條」。');
+      }
+      if (over) {
+        return PART('有講到誰優先，但規矩沒有排成一條線。把它們編號寫成 1. 2. 3.，高低才看得出來。');
+      }
+      if (ordered) {
+        return PART('規矩列出來了，但沒有高低之分 —— 對它來說那只是三條並排的話。補上「誰壓過誰」。');
+      }
+      return MISS('三條規矩還是平的。寫成「1.＿＿ 2.＿＿ 3.＿＿；互相牴觸時一律以排在前面的那條為準」。');
+    },
+  },
+
+  {
+    id: 'hasStopRule',
+    label: '什麼時候該停 Stop rule',
+    hint: '在最後補一條收工規則：「三個欄位都填好就停下來回報，不要再往下做」。',
+    techniqueId: null,
+    run(text) {
+      const t = clean(text);
+      if (STOP_RULE_ZH.test(t) || STOP_RULE_EN.test(t)) {
+        const m = t.match(STOP_RULE_ZH) || t.match(STOP_RULE_EN);
+        return PASS(`收工規則寫了（「${snip(m[0], 20)}」）—— 它才知道做到哪裡算完成。`);
+      }
+      if (STOP_VAGUE_ZH.test(t) || STOP_VAGUE_EN.test(t)) {
+        return PART('「做到好為止」不是收工規則 —— 好不好是它說了算。改成看得到的訊號：「三個欄位都填好就停」。');
+      }
+      return MISS('最後還缺一條「什麼時候該停」。補一句「＿＿完成就停下來回報，不要再往下做」。');
+    },
+  },
+
+  {
+    id: 'usesOneSkeleton',
+    label: '分段語法只挑一種 One skeleton',
+    hint: '標籤（<資料>）、井號標題（## 資料）、方括號（【資料】）挑一種走到底，並說一句為什麼挑它。',
+    techniqueId: null,
+    run(text) {
+      const t = clean(text);
+      const used = [];
+      SKEL_TAG.lastIndex = 0;
+      if ((t.match(SKEL_TAG) || []).length) used.push('角括號標籤');
+      SKEL_HEAD.lastIndex = 0;
+      if ((t.match(SKEL_HEAD) || []).length) used.push('井號標題');
+      SKEL_BRACKET.lastIndex = 0;
+      if ((t.match(SKEL_BRACKET) || []).length) used.push('方括號');
+      const declared = SKEL_PICK_ZH.test(t) || SKEL_PICK_EN.test(t);
+
+      if (used.length === 1 && declared) {
+        return PASS(`整份只用了${used[0]}，而且說得出為什麼挑它 —— 混用才是最糟的那一種。`);
+      }
+      if (used.length === 1) {
+        return MOST(`整份都是${used[0]}，一致了。再補一句「這一份從頭到尾只用＿＿」，換人接手才知道規矩。`);
+      }
+      if (used.length >= 2) {
+        return PART(`同一份裡混用了${used.join('與')}。挑一種改寫到底，它才不會把某一段當成內容。`);
+      }
+      return MISS('還沒有分段語法。挑一種（<資料>＿＿</資料> 或 ## 資料）把每一段框起來，整份走到底。');
+    },
+  },
+
+  {
+    id: 'namesModelClass',
+    label: '指名要哪一台 Name the model class',
+    hint: '指名一類模型並說出理由：「這件事交給推理型模型，因為要做多步判斷」。',
+    techniqueId: null,
+    run(text) {
+      const t = clean(text);
+      const cls = t.match(MODEL_CLASS_ZH) || t.match(MODEL_CLASS_EN);
+      const reason = t.match(MODEL_REASON_ZH) || t.match(MODEL_REASON_EN);
+      if (cls && reason) {
+        return PASS(`指名了「${snip(cls[0], 14)}」，而且說得出為什麼是這件事該找它。`);
+      }
+      if (cls) {
+        return MOST(`挑了「${snip(cls[0], 14)}」，但沒說為什麼。補一句「因為這一題要多步判斷」。`);
+      }
+      if (/模型|model|這一台|那一台|機器/i.test(t)) {
+        return PART('有提到要換一台，但沒說是哪一類。寫「推理型模型」或「一般型模型」，再加一句理由。');
+      }
+      return MISS('還沒說要用哪一類模型。寫「這件事交給推理型模型，因為要做多步判斷」。');
+    },
+  },
+
+  {
+    id: 'rulesBeforeData',
+    label: '規則排在資料前面 Rules first',
+    hint: '把規則寫成一個區塊放最前面，資料接在後面；結尾不要再冒出一句相反的話。',
+    techniqueId: null,
+    run(text) {
+      const t = clean(text);
+      const ruleAt = (() => {
+        const a = t.search(RULE_BLOCK_ZH);
+        const b = t.search(RULE_BLOCK_EN);
+        return [a, b].filter((n) => n >= 0).sort((x, y) => x - y)[0] ?? -1;
+      })();
+      const dataAt = (() => {
+        const a = t.search(DATA_BLOCK_ZH);
+        const b = t.search(DATA_BLOCK_EN);
+        return [a, b].filter((n) => n >= 0).sort((x, y) => x - y)[0] ?? -1;
+      })();
+      const tailOverride = TAIL_OVERRIDE_ZH.test(t);
+
+      if (ruleAt >= 0 && dataAt >= 0 && ruleAt < dataAt) {
+        if (tailOverride) {
+          return PART('規則的確排在資料前面，但結尾又補了一句相反的話 —— 那一句會贏。把它拿掉。');
+        }
+        return PASS('規則排在資料前面，而且結尾沒有再冒出相反的話 —— 它照的就是你寫的那一條。');
+      }
+      if (ruleAt >= 0 && dataAt >= 0) {
+        return PART('規則被埋在資料後面了。把整個規則區塊搬到最前面，它才會先讀到規矩再讀內容。');
+      }
+      if (ruleAt >= 0) {
+        return PART('規則區塊有了，但資料沒有另外框起來 —— 兩者黏在一起就分不出誰先誰後。加一個「資料：」的區塊。');
+      }
+      if (dataAt >= 0) {
+        return PART('只有資料區塊。前面補一個「規則：」區塊，把規矩全部集中在最上面。');
+      }
+      return MISS('規則跟資料還混在一起。分成兩塊：最上面「規則：＿＿」，下面「資料：＿＿」。');
+    },
+  },
+
+  {
+    id: 'usesRareDelimiter',
+    label: '分隔符要挑罕見的 Rare delimiter',
+    hint: '挑一個內文絕對不會出現的分隔符（###、<信A>…</信A>、===），不要用內文裡本來就有的 ---。',
+    techniqueId: null,
+    run(text) {
+      const t = clean(text);
+      let rare = null;
+      let rareCount = 0;
+      for (const cand of RARE_DELIM_CANDIDATES) {
+        cand.re.lastIndex = 0;
+        const n = (t.match(cand.re) || []).length;
+        if (n > rareCount) {
+          rareCount = n;
+          rare = cand.name;
+        }
+      }
+      // 成對的角括號標籤也是罕見分隔符（自然語言裡不會撞到）
+      const tags = new Set();
+      const tagRe = new RegExp(SKEL_TAG.source, 'g');
+      let m;
+      while ((m = tagRe.exec(t)) !== null) tags.add(m[1]);
+      if (tags.size && tags.size * 2 > rareCount) {
+        rareCount = tags.size * 2;
+        rare = `<${[...tags][0]}>`;
+      }
+      let common = null;
+      for (const cand of COMMON_DELIM) {
+        cand.re.lastIndex = 0;
+        if ((t.match(cand.re) || []).length) {
+          common = cand.name;
+          break;
+        }
+      }
+
+      if (rareCount >= 2 && !common) {
+        return PASS(`用了「${rare}」切段 —— 這種字元組合內文裡不會自己冒出來，切點才咬得住。`);
+      }
+      if (rareCount >= 2 && common) {
+        return MOST(`「${rare}」挑得好，但同一份裡還留著「${common}」—— 內文自己就可能出現它。統一成一種。`);
+      }
+      if (rareCount === 1) {
+        return PART(`只出現一次「${rare}」，切不出段落。分隔符要成對出現，把每一段都框起來。`);
+      }
+      if (common) {
+        return PART(`「${common}」在內文裡本來就會出現，切點會被吃掉。換成 ### 或 <信A>…</信A> 這種罕見的組合。`);
+      }
+      return MISS('還沒有分隔符。用 ### 或 <信A>…</信A> 把每一段框起來 —— 挑內文絕對不會出現的字元組合。');
     },
   },
 ];

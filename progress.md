@@ -486,3 +486,148 @@ region／coverage／四周可站／與所有石座 ≥13 公尺／避開石碑�
 - 行動裝置（≤720px 的兩種新題型版面、觸控）仍未做；本期只驗到 820px 無水平溢位。
 - 圖鑑仍未列 v2 技能（`skillsV2` 只是把存檔與進度接起來）。
 - 未 commit／push；未動 `CLAUDE.md`、`vite.config.js`、port 5175、`src/data/curriculum.json`（sha256 仍綠）。
+
+
+---
+
+## Phase D — 合尺（`constraint`）＋ 脈絡與長文／角色與參數各 12 座 ＋ 行動裝置還債點（2026-08-01）
+
+狀態：`done`（未 commit／push）· **這是 R2 release checkpoint**
+
+**一句話**：脈絡與長文與角色與參數各補到 **12 座教學神廟**，撰寫基本功欠著的兩座也補上 ——
+**既有五區的課程 v2 化到此完成**（orchestration 依路線圖留到 Phase G）；
+同時上線第八種題型 **合尺（`constraint`）**，以及行動裝置的第一次還債（面板在 390px 上真的按得動）。
+
+### 做了什麼
+
+**合尺（`constraint`）**——WORLD.md §3.3b 的第八種，唯一一種把「即時預檢」搬到台前的題型
+
+- `src/prompt/constraint.js`（新）：委託人給你幾把**尺**，每一把用白話寫著它要量什麼（P9 完全資訊）；
+  檯上的石片挑上去，尺**當場**亮或暗。亮的依據是 `checks.js` 的 `runCheck()` ——
+  **沒有第二套評分邏輯**（護欄 3）。放錯只會「尺暗回去 ＋ 就地教學」，不扣分、不失敗；
+  每一把尺都合了手掌印才浮出來，放錯一片手掌印會**收回去**。
+  鍵位：`↑` `↓` 走、`Enter` 放上／拿下、`Esc` 拿下最後一片（檯上空的才冒泡收面板）。
+- `src/prompt/console.js`：`FLOW_KINDS` 7 → 8、`KIND_LABEL`／`KIND_EN`、board lifecycle、舞台切換、
+  `constraintBoard` 把手。**相容契約未變**：缺 kind／未知 kind／宣告了 kind 卻沒有合法資料
+  （含沒有 `slots`、只有一把尺、每一片都是「該挑的」）→ 一律退回石碑刻印。
+- `src/styles.css`：`.constraintboard` / `.gauges` / `.gauge` / `.pieces` / `.piece`，沿用既有的
+  `.stele` / `.carve` 語言；暖金只給亮起來的尺與挑上去的石片，沒有紅字。
+
+**脈絡與長文 12 座（＋1 應用關 ＝ 13 關）**
+
+| # | id | 技能 | 題型 | 主檢查 |
+|---|---|---|---|---|
+| 1 | `citation-desk-21` 引文閱覽台（改造） | `ground-quote-first` | fix | `asksToCiteSources` |
+| 2 | `well-of-unknowing-22` 不知之井（改造） | `ground-out` | choice | `givesOutForUncertainty` |
+| 3 | `long-scroll-tower-23` 長卷之塔（改造） | `long-query-last` | order | `putsQuestionLast` |
+| 4 | `verify-spring-24` 查證之泉（改造） | `ground-read-first` | constraint | `asksToVerify` |
+| 5 | `nameless-three-26` 三疊無名的卷 | `long-doc-structure` | choice | 🆕`labelsSources` |
+| 6 | `laden-desk-27` 滿載的閱覽台 | `long-all-upfront` | constraint | `groundsInContext` |
+| 7 | `sleepless-scribe-28` 無眠的抄寫員 | `long-outline-anchor` | order | 🆕`anchorsToSection` |
+| 8 | `sealed-readroom-29` 封了口的閱覽室 | `ground-strict` | fix | `groundsInContext` |
+| 9 | `mark-spring-30` 標記之泉 | `cite-format` | spot | 🆕`citesInline` |
+| 10 | `prospect-log-31` 不肯收工的探勘隊 | `retrieval-budget` | choice | 🆕`setsRetrievalBudget` |
+| 11 | `three-mirrors-32` 三面破鏡 | `halluc-causes` | spot | 🆕`diagnosesFailureCause` |
+| 12 | `extract-bench-33` 萃取台 | `extract-spec` | fix | 🆕`allowsNullField` |
+
+**角色與參數 12 座**
+
+| # | id | 技能 | 題型 | 主檢查 |
+|---|---|---|---|---|
+| 1 | `mask-workshop-41` 面具工坊（改造） | `role-basics` | fix | `hasRole` |
+| 2 | `priority-stair-42` 優先序階梯（改造） | `hierarchy` | order | 🆕`ranksInstructions` |
+| 3 | `dial-room-43` 刻度儀之室（改造） | `knob-temperature` | choice | `mentionsParameters` |
+| 4 | `four-elements-mirror-44` 四要素之鏡（改造） | `skeleton-ptcf` | choice | `hasRole` |
+| 5 | `crossroad-scale-45` 抉擇之秤（改造） | `model-pick` | tradeoff | 🆕`namesModelClass` |
+| 6 | `lintel-words-46` 刻在門楣上的話 | `system-uses` | spot | `hasRole` |
+| 7 | `one-slot-window-47` 只有一格的窗口 | `no-system-field` | fix | `hasDelimiters` |
+| 8 | `six-lantern-48` 六面燈籠 | `skeleton-six-elements` | constraint | `hasAudience` |
+| 9 | `scribe-longtable-49` 抄寫人的長桌 | `skeleton-dev-message` | order | 🆕`hasStopRule` |
+| 10 | `two-grammar-hall-50` 兩種文法的殿 | `skeleton-consistency` | tradeoff | 🆕`usesOneSkeleton` |
+| 11 | `sluice-gate-51` 截流閘 | `knob-limits` | constraint | `mentionsParameters` |
+| 12 | `wish-pool-52` 許願池與旋鈕 | `param-not-plead` | tradeoff | `mentionsParameters` |
+
+**撰寫基本功欠著的兩座**（Phase B 記在 findings 的那兩個 🆕）
+
+| id | 技能 | 題型 | 主檢查 |
+|---|---|---|---|
+| `postbox-sprite-02` 郵箱精靈的分揀台（改造） | `struct-delimiters` | order | 🆕`usesRareDelimiter` |
+| `long-scroll-archive-05` 規則牆（改造） | `pos-rules-first` | order | 🆕`rulesBeforeData` |
+
+11 關改造照 `curriculum-v2-migration.json` 執行（`post-A` → `phase: "D"`，Phase 0／A 沒掃到的移除以
+`addedIn: "D"` 標記並逐條寫理由），全部收斂成新神廟的形狀：**主檢查 3 分 ＋ 地基 assignsTask 0.5 分、pass 2**。
+`source` 改成回查得到 v2 技能的官方連結；`primaryTechniqueId` 保留（收集不倒退，D2）。
+
+**十二個新檢查器**（`src/challenges/checks.js`，規格出自 curriculum-v2 §7.4）：
+`labelsSources`／`anchorsToSection`／`citesInline`／`setsRetrievalBudget`／`diagnosesFailureCause`／
+`allowsNullField`／`ranksInstructions`／`hasStopRule`／`usesOneSkeleton`／`namesModelClass`／
+`rulesBeforeData`／`usesRareDelimiter`。全部結構性偵測（位置比較、成對出現、區間判定、相異數、
+罕見字元組合），中英雙語，各有 good／weak／bad fixture ＋ 反作弊，並補上 `coach.json` 白話教學。
+
+**世界**：15 座新石座（隨機重啟的貪婪取樣，最小間距 13.6 公尺，避開石碑／小景／地標／刻文／祕密／
+器物／橋的主動線，並**在 node 裡把世界蓋起來**用 `solidAt()` 逐座掃 24 個方向 × 4 個距離）。
+石座燈仍是 Phase B 的常數 8 盞燈池 —— 燈數不隨關卡數成長。
+
+**行動裝置還債點**（task_plan Phase D 的出口條件）
+
+- `src/styles.css` 新增 `≤720px` 與 `≤430px` 兩段：面板貼齊視窗、長內容一律 `overflow-wrap: anywhere`、
+  所有可按元素 `min-height: 40px`、輸入框 `font-size ≥ 16px`（iOS 才不會自動放大）、
+  第三幕的石碑與對照上下疊、390px 下按鈕整行、圖鑑收成一欄。
+- **世界的觸控移動（虛擬搖桿）明確不做**，理由與範圍記在 `findings.md`。
+
+### 驗證
+
+| 指令 | Phase C | Phase D |
+|---|---|---|
+| `npm run fonts` | 語料 63 檔／CJK 1721 字／1381.5 KB | ✓ CJK **1750** 字／**1399.9 KB**（指紋測試綠） |
+| `npm run test:rubric` | 29,846 | ✓ **37,108** |
+| `npm run test:playtest` | 554 | ✓ **816** |
+| `npm run build` | ✓ | ✓（CSS 121.72 KB / gzip 22.82 KB；JS 1,706.89 KB / gzip 488.05 KB） |
+| `npm run test:e2e` | 2,010 全過 | ✓ **2,157 項全過、零 console error** |
+
+**e2e 誠實記錄（五輪）**
+
+① 第一輪在「石碑刻印」段就整支中斷 —— 那一段開的是面具工坊，而它這一期換成了改碑；
+順帶露出三個**歷史快照型斷言**（結果面板 5 條檢查、`byKind` 的 id 清單、25 座新石座）。
+② 第二輪撞到自己留下的孤兒 dev server（port 5199 被佔住，測到的是舊頁面）——
+`pkill -f headless-check` 只殺了包裝殼，Vite 還活著。
+③ 第三輪 26 紅：其中 4 條是**環境**（load average 12、34 個孤兒 chrome，序章那一段的進度亂掉；
+清乾淨之後同一份程式碼完全乾淨），其餘是真的要修的（合尺的干擾片、觸控目標、
+拖曳的終點座標、圖鑑窄畫面溢位）。
+④ 第四輪只剩 4 紅（拖曳 3 ＋ 圖鑑溢位 1）。
+⑤ 修完之後 **2,157 項全過、零 console error**。
+
+其中「圖鑑在 390px 溢位 140px」是用一支獨立的 CDP 探針當場量出來的
+（種一份全收集存檔 → 開圖鑑 → 逐個元素比對右緣）：元凶是 `.tech__chips`
+（廠家礦籤那一排 `flex: none` ＋ `margin-left: auto`）。詳見 `findings.md`。
+
+**先紅後綠（逐條實測）**
+
+- rubric：把 `laden-desk-27` 的一片干擾片標成「該挑的」→ 2 紅
+  （「該挑的挑齊了每一把尺都亮」「挑齊之後＝示範解答」）；把 `constraint.js` 的 `runCheck()` 換成
+  自己算的假結果 → 1 紅（「合尺的尺是用 checks.js 的 runCheck 量的」）。兩次還原後回綠。
+  （第一次寫這條斷言時它**不會紅** —— 因為檔頭註解裡就有 `runCheck()`；改成先剝註解才真的守得住。）
+
+### R2 release checkpoint · 發布就緒的數字（全部本次實測）
+
+| 項目 | 數字 |
+|---|---|
+| 關卡 | **62 關**（撰寫基本功 16／示範與推理 15／脈絡與長文 13／流程與代理 6／角色與參數 12） |
+| 接上 v2 技能的教學神廟 | **51 座**（Phase B 10 ＋ Phase C 15 ＋ Phase D 15 ＋ 改造 11） |
+| 既有五區 v2 化 | foundations 14／15、reasoning 15／15、grounding 12／12、config 12／12 完成；orchestration 依路線圖留到 Phase G |
+| 題型 | **8 種**（choice／order／workshop／fix／spot／induct／tradeoff／constraint） |
+| 離線檢查器 | 22 既有 ＋ **21 個 §7.4 新檢查器已上線**（Phase B 5／C 4／D 12） |
+| 舊 68 條技巧 | 收得滿 68（收集不倒退，D2） |
+| 世界（高畫質實測） | 147,032 三角形（上限 420k）／**26 盞燈**（上限 56）／1,374 mesh／608 個碰撞體 |
+| 建置 | CSS 122.9 KB（gzip 22.9）／JS 1,706.9 KB（gzip 488.1）／字型 1,399.9 KB |
+| 存檔 | `promptasy.v1.save`；這一期**沒有新增欄位**（合尺沿用 `bestGrades` / `skillsV2`），舊存檔零遷移風險 |
+| 行動裝置 | 面板（四幕 ＋ 八種題型 ＋ 結果 ＋ 圖鑑 ＋ 設定）在 720×900 與 390×844 可操作；**世界觸控移動未做** |
+
+### 未做／留給後續
+
+- **世界的觸控移動仍未做**（虛擬搖桿、相機、HUD 版面）；這一期只還了面板的債。
+- `three-wells-25`／`well-pause-22`／`effort-forge-15`／`prospect-log-31`／`extract-bench-33` 等
+  幾座沒有照 §3 指定的 `workshop`／`multi`／`sim` 型式（那幾種 kind 屬於後續期別，或資料形狀不合），
+  理由逐條記在 `findings.md`；題型換裝時只要換第三幕的資料。
+- 圖鑑仍未列 v2 技能（`skillsV2` 只是把存檔與進度接起來）。
+- 未 commit／push；未動 `CLAUDE.md`、`vite.config.js`、port 5175、`src/data/curriculum.json`（sha256 仍綠）。

@@ -41,6 +41,7 @@ import { createSpotBoard, isSpotFlow } from './spot.js';
 import { createInductBoard, isInductFlow } from './induct.js';
 import { isSlotList } from './slots.js';
 import { createTradeoffBoard, isTradeoffFlow } from './tradeoff.js';
+import { createConstraintBoard, isConstraintFlow } from './constraint.js';
 
 const GRADE_LABEL = { S: '完美', A: '優秀', B: '良好', C: '通過' };
 
@@ -124,9 +125,13 @@ export const PROMPT_MODES = Object.freeze(['guided', 'free']);
  *   spot      點碑：一疊石籤，你自己看出哪幾句有問題並點起來（教「自己找出毛病」）
  *   induct    推規碑：牆上的對照一組一組浮出來，你要先看出規律再刻（教「規律怎麼來的」）
  *   tradeoff  雙面碑：兩個都可行的做法，換一張卡就換一個贏家（教「什麼時候用哪一面」）
+ *   constraint 合尺：委託人給你幾把尺，挑石片拼出同時合尺的委託（教「一次滿足好幾條規格」）
  *
- * 七種都住在第三幕，結尾都是同一隻手掌印，送出的都是同一段文字、
+ * 八種都住在第三幕，結尾都是同一隻手掌印，送出的都是同一段文字、
  * 走同一支離線評分引擎（護欄 3）。
+ *
+ * 合尺（Phase D）是唯一一種把**即時預檢升格成舞台**的題型：尺上的燈就是
+ * 真的檢查器跑出來的結果，所以它沒有自己的判準，只是把同一支引擎搬到台前。
  *
  * 推規碑與雙面碑是**石碑刻印的變體**（課程 v2 Phase C）：前面多一段
  * 「先想通一件事」的舞台，想通之後回到同一組 `slots` 刻印 —— 所以它們
@@ -140,6 +145,7 @@ export const FLOW_KINDS = Object.freeze([
   'spot',
   'induct',
   'tradeoff',
+  'constraint',
 ]);
 
 /**
@@ -158,6 +164,7 @@ export function flowKind(flow) {
   // 推規碑 / 雙面碑還要求「刻印那一段」也在（它們共用同一份 slots）
   if (k === 'induct' && isInductFlow(flow.inductFlow) && isSlotList(flow.slots)) return 'induct';
   if (k === 'tradeoff' && isTradeoffFlow(flow.tradeoffFlow) && isSlotList(flow.slots)) return 'tradeoff';
+  if (k === 'constraint' && isConstraintFlow(flow.constraintFlow) && isSlotList(flow.slots)) return 'constraint';
   return 'choice';
 }
 
@@ -170,6 +177,7 @@ export const KIND_LABEL = Object.freeze({
   spot: '點碑',
   induct: '推規碑',
   tradeoff: '雙面碑',
+  constraint: '合尺',
 });
 
 /** 對應的 Latin meta label（版面上那一行小字）。 */
@@ -181,6 +189,7 @@ export const KIND_EN = Object.freeze({
   spot: 'Spot',
   induct: 'Induce',
   tradeoff: 'Weigh',
+  constraint: 'Fit',
 });
 
 /** 正規化模式字串（未知值一律回到預設的石碑刻印）。 */
@@ -549,6 +558,29 @@ export function createPromptConsole({
   });
   steleSlot.appendChild(tradeoffBoard.root);
 
+  /* ---------------------------------------------------------------- *
+   * 合尺（課程 v2 · Phase D）
+   *
+   * 委託人的每一把尺都把要求寫在臉上（完全資訊）；檯上的石片挑上去，
+   * 尺就當場亮或暗 —— 亮的依據是**真的離線檢查器**，不是另一套判準。
+   * 放錯不扣分、不前進，只會在那一片旁邊寫出哪一把尺暗了。
+   * ---------------------------------------------------------------- */
+  const constraintBoard = createConstraintBoard({
+    onPlace: ({ lit, total }) => {
+      runPreflight();
+      onCarve?.({ index: lit, total });
+    },
+    onReject: ({ feedback }) => onReject?.({ feedback }),
+    onRestore: () => runPreflight({ silent: true }),
+    onComplete: () => {
+      onSeal?.();
+      goAct(4, { force: true });
+    },
+    onPress: ({ text }) => submit(text),
+    onTap: () => onTap?.(),
+  });
+  steleSlot.appendChild(constraintBoard.root);
+
   /** 這一關的引導式題型（choice / order / workshop / fix / spot / induct / tradeoff）。 */
   function kind() {
     return flowKind(currentFlow);
@@ -563,6 +595,7 @@ export function createPromptConsole({
     if (k === 'spot') return spotBoard;
     if (k === 'induct') return inductBoard;
     if (k === 'tradeoff') return tradeoffBoard;
+    if (k === 'constraint') return constraintBoard;
     return stele;
   }
 
@@ -606,6 +639,7 @@ export function createPromptConsole({
     spotBoard.root.hidden = !guided || k !== 'spot';
     inductBoard.root.hidden = !guided || k !== 'induct';
     tradeoffBoard.root.hidden = !guided || k !== 'tradeoff';
+    constraintBoard.root.hidden = !guided || k !== 'constraint';
     const zhLabel = guidedLabel.querySelector('.zh');
     if (zhLabel) zhLabel.textContent = KIND_LABEL[k];
     const enLabel = guidedLabel.querySelector('.en');
@@ -1658,6 +1692,9 @@ export function createPromptConsole({
       return inductBoard;
     },
     /** 雙面碑的把手（測試與除錯用）。 */
+    get constraintBoard() {
+      return constraintBoard;
+    },
     get tradeoffBoard() {
       return tradeoffBoard;
     },
@@ -1755,6 +1792,7 @@ export function createPromptConsole({
       spotBoard.load(k === 'spot' ? currentFlow.spotFlow : null);
       inductBoard.load(k === 'induct' ? currentFlow.inductFlow : null, currentFlow.slots);
       tradeoffBoard.load(k === 'tradeoff' ? currentFlow.tradeoffFlow : null, currentFlow.slots);
+      constraintBoard.load(k === 'constraint' ? currentFlow.constraintFlow : null);
       mode = normalizeMode(progression.state.settings.promptMode);
       if (!currentFlow) mode = 'free';
       applyMode();

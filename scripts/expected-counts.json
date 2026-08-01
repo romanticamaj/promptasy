@@ -1,10 +1,10 @@
 {
   "note": "測試用的「這是契約，不是快照」清單。凡是能從 runtime catalog 或資料檔算出來的數字（技巧數、區域數、技能數、flow 數…），測試一律現算，不寫在這裡；只有『這個數字本身就是當期的驗收目標』才登記在這裡，改動它＝有意識地改變契約。每一格都寫得出為什麼。",
   "updatedAt": "2026-08-01",
-  "updatedBy": "課程 v2 · Phase C（induct／tradeoff 題型 ＋ 示範與推理 15 座）",
+  "updatedBy": "課程 v2 · Phase D（constraint 題型 ＋ 脈絡與長文／角色與參數補齊到 12 座）",
   "contract": {
     "challenges": {
-      "value": 47,
+      "value": 62,
       "why": "現行關卡數＝既有 27 關 ＋ 課程 v2 新蓋的教學神廟。終點是 130 教學神廟＋12 應用關；每一期新增神廟時要一起把這個數字往上調（task_plan §3）。"
     },
     "flowKinds": {
@@ -15,9 +15,10 @@
         "fix",
         "spot",
         "induct",
-        "tradeoff"
+        "tradeoff",
+        "constraint"
       ],
-      "why": "目前上線的刻印題型。Phase B 加了 fix（改碑）與 spot（點碑），Phase C 加了 induct（推規碑）與 tradeoff（雙面碑）；之後每加一種都要一起改這裡（flows.json 缺 kind 時預設 choice 的相容契約不變）。"
+      "why": "目前上線的刻印題型。Phase B 加了 fix（改碑）與 spot（點碑），Phase C 加了 induct（推規碑）與 tradeoff（雙面碑），Phase D 加了 constraint（合尺）；之後每加一種都要一起改這裡（flows.json 缺 kind 時預設 choice 的相容契約不變）。"
     },
     "v2Skills": {
       "value": 130,
@@ -46,21 +47,41 @@
     },
     "v2CheckersLanded": {
       "value": [
+        "allowsNullField",
+        "anchorsToSection",
         "asksForRationaleNotTranscript",
         "asksMultipleSamples",
         "avoidsPressureLanguage",
+        "citesInline",
+        "diagnosesFailureCause",
         "disambiguatesTerms",
+        "hasStopRule",
         "justifiesExampleCount",
         "labelsNegativeExample",
+        "labelsSources",
         "namesComponents",
+        "namesModelClass",
         "noUndefinedReference",
-        "statesScope"
+        "ranksInstructions",
+        "rulesBeforeData",
+        "setsRetrievalBudget",
+        "statesScope",
+        "usesOneSkeleton",
+        "usesRareDelimiter"
       ],
-      "why": "curriculum-v2 §7.4 的 59 個新檢查器只按期開；Phase B 開了撰寫基本功五座用得到的，Phase C 再開示範與推理四座用得到的。清單要跟 checks.js 完全一致，避免有人開了沒有神廟在用的檢查器。"
+      "why": "curriculum-v2 §7.4 的 59 個新檢查器只按期開；Phase B 開了撰寫基本功五座用得到的，Phase C 再開示範與推理四座用得到的，Phase D 再開脈絡與長文／角色與參數十二座用得到的（含撰寫基本功欠著的 rulesBeforeData 與 usesRareDelimiter）。清單要跟 checks.js 完全一致，避免有人開了沒有神廟在用的檢查器。"
     },
     "reasoningShrines": {
       "value": 15,
       "why": "示範與推理這一區的關卡數：curriculum-v2 §3 的 reasoning 總表就是 15 座教學神廟（本區的應用關等 Phase J）。"
+    },
+    "groundingShrines": {
+      "value": 13,
+      "why": "脈絡與長文這一區的關卡數：curriculum-v2 §3 的 grounding 總表 12 座教學神廟 ＋ 1 關應用關（archive-seal-25）。"
+    },
+    "configShrines": {
+      "value": 12,
+      "why": "角色與參數這一區的關卡數：curriculum-v2 §3 的 config 總表就是 12 座教學神廟（本區的應用關等 Phase J）。"
     }
   }
 }

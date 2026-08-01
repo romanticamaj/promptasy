@@ -5521,6 +5521,162 @@ select option:disabled {
 }
 
 /* ================================================================
+   合尺（課程 v2 · Phase D）—— 委託人的尺 ＋ 檯上的石片
+
+   這一種題型把「即時預檢」搬到台前：每一把尺上寫著它要量什麼，
+   石片挑上去，尺當場亮或暗。亮起來的尺是暖金（成就熱點），
+   暗回去的只是回到安靜的冷色 —— 一樣沒有紅字、沒有叉叉。
+   ================================================================ */
+.constraintboard[hidden] {
+  display: none;
+}
+.gauges {
+  margin-bottom: var(--s4);
+  padding: var(--s3) var(--s3) var(--s2);
+  border: 1px solid var(--rule);
+  background: linear-gradient(180deg, rgba(16, 23, 33, 0.72), rgba(9, 12, 18, 0.86));
+}
+.gauges__eyebrow {
+  margin: 0 0 var(--s2);
+  font-family: var(--font-ui);
+  font-size: var(--t-nano);
+  letter-spacing: 0.16em;
+  color: var(--paper-4);
+  text-transform: none;
+}
+.gauges__list {
+  display: grid;
+  gap: var(--s2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.gauge {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  align-items: start;
+  gap: var(--s3);
+  padding-bottom: var(--s2);
+  border-bottom: 1px solid var(--rule);
+  font-size: var(--t-micro);
+  line-height: 1.75;
+  color: var(--paper-3);
+  animation: opt-in var(--d-mid) var(--e-out) both;
+  animation-delay: calc(var(--i, 0) * 42ms);
+}
+.gauge:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+.gauge__mark {
+  color: var(--paper-4);
+  transition: color var(--d-mid) var(--e-out);
+}
+.gauge__want {
+  display: block;
+  color: var(--paper-2);
+}
+.gauge__note {
+  display: block;
+  margin-top: 2px;
+  font-size: var(--t-nano);
+  line-height: 1.7;
+  color: var(--paper-4);
+}
+.gauge.is-half .gauge__mark {
+  color: rgba(230, 199, 155, 0.62);
+}
+.gauge.is-lit .gauge__mark {
+  color: var(--gold);
+}
+.gauge.is-lit .gauge__want {
+  color: #f2ead9;
+}
+.pieces {
+  display: grid;
+  gap: var(--s2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.piece {
+  position: relative;
+}
+.piece__grip {
+  --cut: 8px;
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  align-items: start;
+  gap: var(--s3);
+  width: 100%;
+  padding: var(--s2) var(--s3);
+  border: 0;
+  color: var(--paper-2);
+  font-family: var(--font-input);
+  font-size: var(--t-micro);
+  line-height: 1.85;
+  text-align: left;
+  cursor: pointer;
+  background: linear-gradient(180deg, rgba(19, 27, 38, 0.94), rgba(8, 11, 17, 0.96));
+  box-shadow: inset 0 1px 0 rgba(214, 232, 244, 0.08), inset 0 0 0 1px var(--rule);
+  clip-path: polygon(
+    var(--cut) 0,
+    100% 0,
+    100% calc(100% - var(--cut)),
+    calc(100% - var(--cut)) 100%,
+    0 100%,
+    0 var(--cut)
+  );
+  animation: opt-in var(--d-mid) var(--e-out) both;
+  animation-delay: calc(var(--i, 0) * 38ms);
+}
+.piece__grip:hover {
+  color: #eef4fa;
+  box-shadow: inset 0 1px 0 rgba(214, 232, 244, 0.14), inset 0 0 0 1px rgba(196, 220, 236, 0.3);
+}
+.piece__grip:focus-visible {
+  outline: 2px solid rgba(230, 199, 155, 0.9);
+  outline-offset: 2px;
+}
+.piece__mark {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  margin-top: 3px;
+  font-size: var(--t-micro);
+  color: var(--paper-4);
+}
+.piece__text {
+  display: block;
+  min-width: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.piece.is-on .piece__grip {
+  color: #f2ead9;
+  box-shadow: inset 0 1px 0 rgba(230, 199, 155, 0.22), inset 0 0 0 1px var(--rule-gold);
+}
+.piece.is-on .piece__mark {
+  color: var(--gold);
+}
+.piece__fb {
+  display: block;
+  margin: var(--s2) 0 0 var(--s4);
+  padding-left: var(--s3);
+  border-left: 1px solid var(--rule-gold);
+  font-size: var(--t-micro);
+  line-height: 1.8;
+  color: var(--paper-3);
+}
+@media (prefers-reduced-motion: reduce) {
+  .gauge,
+  .piece__grip {
+    animation: none;
+  }
+}
+
+/* ================================================================
    神諭工坊（Phase 27）—— 工具牌 / 參數格 / 值石
 
    一次只有一步擁有畫面（WORLD.md §3.3）；挑錯放錯只會就地長出一句
@@ -7195,4 +7351,226 @@ select option:disabled {
   outline: 2px solid var(--gold);
   outline-offset: 3px;
   color: var(--gold);
+}
+
+/* ================================================================
+   行動裝置還債點（課程 v2 · Phase D）
+
+   task_plan.md 的 Phase D 出口條件：「不一定做世界觸控移動，但不能讓
+   新題型 UI 無法操作」。所以這一段管的是**面板**——四幕、八種題型的
+   石碑、結果、圖鑑、設定，在 720px 與 390px 都要：
+     · 沒有水平溢位（面板不會被推出畫面）
+     · 可以按得到（互動元素的高度 ≥ 40px，Apple/Google 的最小觸控目標）
+     · 讀得動（字級往下收一階，但不小於 13px）
+
+   **世界的觸控移動（虛擬搖桿）刻意不做** —— 它是另一件事（相機、碰撞、
+   HUD 版面），成本與風險都不屬於這一期，誠實記在 task_plan／findings。
+   ================================================================ */
+@media (max-width: 720px) {
+  /* --- 版面：面板貼齊視窗，不留會產生水平捲動的邊 --- */
+  .overlay {
+    padding: var(--s3);
+  }
+  .panel {
+    width: 100%;
+    max-height: 96vh;
+    border-radius: var(--radius-sm);
+  }
+  .panel__body {
+    padding: var(--s4);
+  }
+  .panel__head {
+    padding: var(--s4) var(--s4) var(--s3);
+  }
+  /* 長內容（素材、碑文、示範解答）一律自己斷行，不撐寬版面 */
+  .console__scenario,
+  .material__text,
+  .carve__text,
+  .opt,
+  .piece__text,
+  .spot__text,
+  .frag__text,
+  .slip__text,
+  .gauge__want {
+    overflow-wrap: anywhere;
+  }
+
+  /* --- 觸控目標：一律至少 44px 高（Apple HIG 的建議值；e2e 量 ≥40px 留一點餘裕） --- */
+  .opt,
+  .piece__grip,
+  .spot__grip,
+  .frag__grip,
+  .fill,
+  .block,
+  .face,
+  .wallrow,
+  .slip,
+  .btn,
+  .modeswitch,
+  .acts__item,
+  .coach__fill,
+  .tech summary,
+  .panel__close {
+    min-height: 44px;
+  }
+  .btn,
+  .modeswitch {
+    padding-block: 10px;
+  }
+  .panel__close {
+    min-width: 44px;
+  }
+
+  /* --- 第三幕：石碑與對照上下疊（900px 就已經疊了，這裡再收邊距） --- */
+  .carvestage {
+    gap: var(--s5);
+  }
+  .carvestage__main {
+    padding-right: 0;
+  }
+  .rail {
+    padding-left: 0;
+  }
+  /* 合尺：尺與石片都是整行，字級收一階但仍讀得動 */
+  .gauges {
+    padding: var(--s3) var(--s3) var(--s2);
+  }
+  .gauge,
+  .piece__grip {
+    font-size: max(13px, var(--t-nano));
+  }
+  /* 雙面碑：兩面在窄畫面本來就疊起來，這裡讓判詞不要縮排太深 */
+  .tradelog {
+    margin-left: var(--s2);
+  }
+  /* 排序刻印：拖曳在觸控上不好用 —— 把鍵盤／按鈕那條路留得夠明顯 */
+  .slip__grip {
+    min-height: 44px;
+  }
+  /* 自由書寫的輸入框在小螢幕給足高度（iOS 會自動聚焦放大，16px 以上才不會） */
+  .prompt-input {
+    min-height: 128px;
+    font-size: max(16px, var(--t-micro));
+  }
+}
+
+@media (max-width: 430px) {
+  /* 390px（iPhone 直式）：把水平留白壓到最小，並且讓每一列都能整行呈現 */
+  .overlay {
+    padding: var(--s2);
+  }
+  .panel__body,
+  .panel__head {
+    padding: var(--s3);
+  }
+  .console__actions {
+    flex-wrap: wrap;
+    gap: var(--s3);
+  }
+  .console__actions .spacer {
+    display: none;
+  }
+  .console__actions .btn,
+  .console__actions .modeswitch {
+    flex: 1 1 100%;
+  }
+  .acts {
+    flex-wrap: wrap;
+    row-gap: var(--s2);
+  }
+  /* 材料卡／碑文的引文縮排在 390px 會吃掉太多寬度 */
+  .material {
+    padding-left: var(--s3);
+  }
+  .spot__fb,
+  .piece__fb,
+  .frag__fb {
+    margin-left: var(--s2);
+  }
+  /* 圖鑑的兩欄在這個寬度一定要收成一欄 */
+  .codex__grid,
+  .badges__list {
+    grid-template-columns: 1fr;
+  }
+  /*
+   * 圖鑑真正會撐寬版面的是**官方出處那條長網址**（沒有斷行機會的一長串字元），
+   * 設定頁則是那幾列「標籤 ＋ 滑桿 ＋ 數值」不換行。兩者都是讓它們斷得開就好，
+   * 不是把溢位藏起來。
+   */
+  .panel__body a,
+  .panel__body code,
+  .tech,
+  .topic,
+  .region-card {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    min-width: 0;
+  }
+  .settings__row {
+    flex-wrap: wrap;
+    row-gap: var(--s2);
+  }
+  .settings__row label {
+    min-width: 0;
+    flex: 1 1 100%;
+  }
+  .settings__row input[type='range'],
+  .settings__row select {
+    flex: 1 1 100%;
+    width: 100%;
+    min-width: 0;
+  }
+  .rank,
+  .rankbar,
+  .badge {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  /*
+   * 圖鑑裡還有一種會撐寬版面的東西：官方範例那塊等寬字的 <pre>。
+   * 它本來就有 overflow: auto，但 flex/grid 子項的預設 min-width: auto
+   * 會讓它先把容器撐開才輪到自己捲動。這幾條把「先撐開容器」這條路堵掉。
+   */
+  #codex .panel__body *,
+  #settings .panel__body * {
+    max-width: 100%;
+  }
+  .tech__ex,
+  .tech__head,
+  .tech__body,
+  .tech__chips,
+  .region-card {
+    min-width: 0;
+  }
+  /*
+   * 真正的元凶量出來了：`.tech__chips`（廠家礦籤那一排）是 `flex: none` ＋
+   * `margin-left: auto`，在 390px 上會被推出容器右緣（實測整份圖鑑溢位 140px）。
+   * 讓標頭與礦籤都換行，並解掉 flex: none。
+   */
+  .tech__head,
+  .tech summary,
+  .tech__chips {
+    flex-wrap: wrap;
+  }
+  .tech__chips {
+    flex: 0 1 auto;
+    margin-left: 0;
+    width: 100%;
+  }
+  /*
+   * ⓘ 的氣泡是絕對定位、`left: 50%` ＋ `translate(-50%)`。在 390px 上它會伸出
+   * 容器右緣（實測讓圖鑑多出 16px 的水平溢位）。窄畫面改成「靠左展開 ＋ 收窄」，
+   * 內容照樣讀得到（`visibility` 的顯示邏輯完全不動）。
+   */
+  .infotip__bubble {
+    left: auto;
+    right: 0;
+    max-width: min(26ch, 74vw);
+    transform: translate(0, 4px);
+  }
+  .infotip.is-open .infotip__bubble,
+  .infotip:hover .infotip__bubble,
+  .infotip:focus-within .infotip__bubble {
+    transform: translate(0, 0);
+  }
 }
