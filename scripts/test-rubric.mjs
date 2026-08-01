@@ -5032,9 +5032,9 @@ console.log('\n▸ 改名與存檔搬家');
 }
 
 /* ================================================================== */
-/* 課程 v2 · Phase 0：curriculum.json 不可變 ＋ 27 關遷移 manifest      */
+/* 課程 v2 · Phase 0／A：curriculum.json 不可變 ＋ 27 關遷移 manifest    */
 /* ================================================================== */
-console.log('\n▸ 課程 v2 遷移契約（Phase 0）');
+console.log('\n▸ 課程 v2 遷移契約（Phase 0／A）');
 
 {
   /* ---------------------------------------------------------------- */
@@ -5108,6 +5108,13 @@ console.log('\n▸ 課程 v2 遷移契約（Phase 0）');
     if (r.disposition === 'application') {
       eq(r.primaryTechniqueId, null, `${r.id}（應用關）不教新技巧，主技巧為 null`);
       eq(r.mainCheck, null, `${r.id}（應用關）沒有單一主檢查（它本來就是綜合題）`);
+      /* Phase A：應用關暫時維持現況（真正的應用關型式等 Phase J）——
+         但它一樣不准在畫面上宣稱「這一關教某一條技巧」。 */
+      eq(live.primaryTechniqueId, null, `${r.id}（應用關）資料層的 primaryTechniqueId 也是 null`);
+      ok(
+        !live.rubric.some((x) => x.primary),
+        `${r.id}（應用關）沒有任何一條被標成主教學目標`
+      );
     } else {
       ok(
         typeof r.primaryTechniqueId === 'string' && techIds.has(r.primaryTechniqueId),
@@ -5161,6 +5168,26 @@ console.log('\n▸ 課程 v2 遷移契約（Phase 0）');
       if (r.foundationNewChecker) {
         ok(V2_NEW_CHECKERS.has(r.foundationCheck), `${r.id} 的新地基 ${r.foundationCheck} 也在 §7.4 清單裡`);
       }
+
+      /* ------------------------------------------------------------ *
+       * Phase A · C1：資料層上「這一關教的只有一條」
+       *
+       * primaryTechniqueId 是玩家面唯一的教學目標（第二幕的刻文與第三幕的
+       * 對照都只放大它）；rubric 上剛好一列標 primary，就是 manifest 的
+       * mainCheck（新檢查器還沒實作時＝interimMainCheck）。
+       * ------------------------------------------------------------ */
+      eq(live.primaryTechniqueId, r.primaryTechniqueId, `${r.id} 資料層的 primaryTechniqueId 與 manifest 一致`);
+      const primaries = live.rubric.filter((x) => x.primary);
+      eq(primaries.length, 1, `${r.id} 的 rubric 恰好一條主檢查（C1）`, primaries.map((x) => x.check).join('、'));
+      const wantMain = r.newChecker ? r.interimMainCheck : r.mainCheck;
+      eq(primaries[0] && primaries[0].check, wantMain, `${r.id} 的主檢查就是 manifest 指定的 ${wantMain}`);
+      ok(primaries[0] && primaries[0].check !== 'assignsTask', `${r.id} 沒有拿 assignsTask 當主教學目標`);
+      ok(!(primaries[0] && primaries[0].foundation), `${r.id} 的主檢查不會同時是地基`);
+      ok(
+        primaries[0] && primaries[0].weight >= 1,
+        `${r.id} 的主檢查權重不會比地基還輕`,
+        `weight=${primaries[0] && primaries[0].weight}`
+      );
     }
 
     /* D2：teaches 原封不動保留為 legacy 收集清單 */
@@ -5171,35 +5198,77 @@ console.log('\n▸ 課程 v2 遷移契約（Phase 0）');
     );
     for (const t of r.teachesLegacy) ok(techIds.has(t), `${r.id} 的 legacy 技巧 ${t} 真的存在`);
 
-    /* D3：literal −0.5，逐關記錄 */
-    const totalBefore = live.rubric.reduce((s, x) => s + x.weight, 0);
-    eq(r.passBefore, live.pass, `${r.id} 的 passBefore 就是現況的 pass`);
+    /* ----------------------------------------------------------------
+     * Phase A 已落地：以下全部改成「現況必須等於 manifest 的 after 值」。
+     *
+     * Phase 0 時這裡比對的是 before（那時資料還沒動）；Phase A 之後
+     * before 只剩下歷史紀錄的意義，真正要守的是「手術有沒有照 manifest 做完、
+     * 而且沒有多做」—— 所以 post-A 的條目必須原封不動，一個都不准提前搬。
+     * ---------------------------------------------------------------- */
+    const totalLive = live.rubric.reduce((s, x) => s + x.weight, 0);
     eq(r.passAfter, Number((r.passBefore - 0.5).toFixed(2)), `${r.id} 的 passAfter = passBefore − 0.5（D3 literal）`);
-    eq(r.totalWeightBefore, totalBefore, `${r.id} 的 totalWeightBefore 由現況 rubric 加總得出`);
-    ok(r.totalWeightAfter > 0 && r.totalWeightAfter <= totalBefore, `${r.id} 的 totalWeightAfter 只會持平或變小`);
+    eq(live.pass, r.passAfter, `${r.id} 的 pass 已經照 D3 落到 passAfter`);
+    ok(r.totalWeightAfter > 0 && r.totalWeightAfter <= r.totalWeightBefore, `${r.id} 的 totalWeightAfter 只會持平或變小`);
+    eq(totalLive, r.totalWeightAfter, `${r.id} 現況的 rubric 總權重 = manifest 的 totalWeightAfter`);
     ok(r.passAfter > 0 && r.passAfter < r.totalWeightAfter, `${r.id} 調整後仍然是「拿得到但要做對事」的門檻`);
 
-    /* 移除／降權清單：每一條都要指得到現況真的存在的檢查 */
+    /* 移除／降權清單：Phase A 的做完了，post-A 的一個都不准動 */
     const liveWeights = new Map(live.rubric.map((x) => [x.check, x.weight]));
     for (const e of r.checksToRemoveOrDownweight) {
-      ok(liveWeights.has(e.check), `${r.id} 的 ${e.check} 今天真的在 rubric 裡（不能對不存在的東西降權）`);
-      eq(e.weightBefore, liveWeights.get(e.check), `${r.id} 的 ${e.check} 現況權重記對了`);
       ok(['downweight', 'remove', 'replace', 'hold'].includes(e.action), `${r.id} 的 ${e.check} 動作合法`, e.action);
       ok(['A', 'post-A'].includes(e.phase), `${r.id} 的 ${e.check} 有指定期別`, e.phase);
       ok(nonEmptyStr(e.reason) && e.reason.length >= 10, `${r.id} 的 ${e.check} 有寫理由`);
       if (e.action === 'replace') ok(checkIds.has(e.replaceWith), `${r.id} 的 ${e.check} 換成真的存在的檢查器`);
+      const w = liveWeights.get(e.check);
+      if (e.phase !== 'A') {
+        // post-A：主題還沒搬家，這一條必須原封不動（B–J 才動它）
+        eq(w, e.weightBefore, `${r.id} 的 ${e.check} 是 post-A 項目，Phase A 不准提前動它`);
+        continue;
+      }
+      if (e.action === 'downweight') {
+        eq(w, e.weightAfter, `${r.id} 的 ${e.check} 已經降到 ${e.weightAfter} 分`);
+      } else if (e.action === 'hold') {
+        // 兩份設計文件衝突、manifest 已裁決不動它 —— 不准被「順手」降權
+        eq(w, e.weightBefore, `${r.id} 的 ${e.check} 依裁決保持 ${e.weightBefore} 分（hold）`);
+      } else if (e.action === 'remove') {
+        ok(w === undefined, `${r.id} 的 ${e.check} 已經從 rubric 移除`, `weight=${w}`);
+      } else if (e.action === 'replace') {
+        ok(w === undefined, `${r.id} 的 ${e.check} 已經被換掉`, `weight=${w}`);
+        ok(
+          liveWeights.has(e.replaceWith),
+          `${r.id} 的 ${e.check} 權重轉給了 ${e.replaceWith}（權重中性的替換）`
+        );
+      }
     }
-    // assignsTask 全域降權：27 關一關都不能漏
+    // assignsTask 全域降權：27 關一關都不能漏，而且一律標成地基
     const at = r.checksToRemoveOrDownweight.find((e) => e.check === 'assignsTask');
     ok(at && at.phase === 'A' && at.weightAfter === 0.5, `${r.id} 的 assignsTask 在 Phase A 降為 0.5（地基）`);
+    const atLive = live.rubric.find((x) => x.check === 'assignsTask');
+    ok(atLive, `${r.id} 的 assignsTask 還在（它是前提，不是刪掉）`);
+    eq(atLive && atLive.weight, 0.5, `${r.id} 的 assignsTask 現況權重 0.5`);
+    eq(atLive && atLive.foundation, true, `${r.id} 的 assignsTask 標成地基（不是「這一關教的東西」）`);
+    ok(!(atLive && atLive.primary), `${r.id} 的 assignsTask 不是主教學目標`);
+
+    /* C1：現況資料上「恰好 1 主檢查、地基 ≤1、地基一律 0.5」 */
+    const foundations = live.rubric.filter((x) => x.foundation);
+    eq(foundations.length, 1, `${r.id} 地基恰好一條（≤1，目前就是 assignsTask）`);
+    for (const f of foundations) eq(f.weight, 0.5, `${r.id} 的地基 ${f.check} 權重 0.5`);
   }
 
   /* 全域統計：manifest 記的基線要跟現況資料對得上 */
   eq(migration.baseline.challenges, challenges.length, 'manifest 的關卡數基線正確');
+  /*
+   * baseline 是 Phase 0 的快照（118 條），Phase A 之後現況會少：
+   *   −1  silent-thinker-13 的 specifiesFormat 直接移除
+   *   −5  5 關的 specifiesFormat 被換成該關真正的主檢查
+   *   +1  面具工坊新增 hasAudience 承接那 1 分（權重中性的替換）
+   * ＝ 113 條。數字對不上就是有人偷偷加／刪了 rubric 列。
+   */
+  eq(migration.baseline.rubricRows, 118, 'manifest 記的是 Phase 0 的 rubric 條數基線（118，不是舊文件的 106）');
   eq(
-    migration.baseline.rubricRows,
     challenges.reduce((s, c) => s + c.rubric.length, 0),
-    'manifest 的 rubric 條數基線正確（118，不是舊文件的 106）'
+    113,
+    'Phase A 之後現況是 113 條 rubric（118 − 1 移除 − 5 替換 + 1 承接）'
   );
   eq(migration.baseline.curriculumTechniques, curriculum.techniques.length, 'manifest 的技巧數基線正確');
   eq(migration.baseline.curriculumSha256, CURRICULUM_SHA256, 'manifest 記的 curriculum 指紋與實檔一致');
@@ -5218,6 +5287,110 @@ console.log('\n▸ 課程 v2 遷移契約（Phase 0）');
     !/https?:\/\//.test(JSON.stringify(migration)),
     'manifest 不自帶官方連結（出處一律回 curriculum.json，避免二手抄寫）'
   );
+}
+
+/* ================================================================== */
+/* Phase A：小數門檻的顯示 ＋ 「畫面上只教一條」                        */
+/*                                                                    */
+/*   assignsTask 降成 0.5 的地基之後，權重與門檻都會出現 0.5 這一階；   */
+/*   數字一路要走 formatScore()，不能讓玩家看到 3.4000000000000004     */
+/*   或是「3.0 分」這種東西。                                          */
+/* ================================================================== */
+console.log('\n▸ 小數門檻的顯示與「一關只教一條」（Phase A）');
+
+{
+  const { formatScore } = await import('../src/challenges/rubric.js');
+
+  eq(formatScore(3), '3', '整數不拖小數尾巴');
+  eq(formatScore(3.5), '3.5', '一半就寫一半');
+  eq(formatScore(0.5), '0.5', '地基的 0.5 分寫得出來');
+  eq(formatScore(2.0), '2', '2.0 顯示成 2');
+  eq(formatScore(4.25), '4.25', '四分之一分也保留');
+  eq(formatScore(3.4000000000000004), '3.4', '浮點加總的雜訊不會漏到畫面上');
+  eq(formatScore(5.5 - 1.1), '4.4', '直接算出來的浮點也乾淨');
+  eq(formatScore(0), '0', '0 分就是 0');
+  eq(formatScore(NaN), '0', '算壞了也不會印出 NaN');
+
+  // 真的跑一次評分：門檻與權重確實是小數，而且每個數字都印得出乾淨的字串
+  const half = challenges.find((c) => c.pass === 2.5);
+  ok(half, '至少有一關的門檻是 2.5 分（D3 literal −0.5）');
+  const halfEval = evaluate(half, half.sample);
+  eq(formatScore(halfEval.pass), '2.5', '結果面板上的通過門檻寫成 2.5');
+  ok(
+    halfEval.results.every((r) => !/e[+-]|\.\d{3,}/.test(formatScore(r.earned))),
+    '每一條檢查的得分都印得出乾淨的數字'
+  );
+  ok(
+    challenges.every((c) => /^\d+(\.\d{1,2})?$/.test(formatScore(c.pass))),
+    '27 關的門檻都印得出乾淨的數字'
+  );
+  ok(
+    challenges.some((c) => c.rubric.some((r) => r.weight === 0.5)),
+    '地基的 0.5 分真的存在於資料裡'
+  );
+
+  // 顯示層：分數一律走 formatScore（改回裸值就會紅）
+  for (const [rel, src] of [
+    ['src/prompt/console.js', consoleSrc],
+    ['src/prompt/practice.js', srcOf('src/prompt/practice.js')],
+  ]) {
+    ok(/formatScore/.test(src), `${rel} 用 formatScore 印分數`);
+    ok(
+      !/\$\{evaluation\.earned\}|\$\{evaluation\.pass\}|\$\{row\.weight\} 分/.test(src),
+      `${rel} 沒有把原始浮點數直接塞進畫面`
+    );
+  }
+
+  /* --- 一關只教一條：第二幕與第三幕的側頁籤只放大主教學目標 --- */
+  ok(/glyph--primary/.test(consoleSrc), '第二幕有一段「這一關教的」主刻文');
+  ok(/function guidancePrimary\(/.test(consoleSrc), '主刻文取自 rubric 上標了 primary 的那一列');
+  ok(
+    /challenge\.primaryTechniqueId/.test(consoleSrc),
+    '主刻文掛的是這一關的 primaryTechniqueId（不是隨便一條 rubric 的技巧）'
+  );
+  ok(/EXTRA_LABEL/.test(consoleSrc), '其餘的檢查只用一行「順手會用到」帶過');
+  const { EXTRA_LABEL } = await import('../src/prompt/console.js');
+  ok(CJK.test(EXTRA_LABEL), '「順手會用到」是中文', EXTRA_LABEL);
+  ok(
+    /is-primary|is-foundation|is-minor/.test(consoleSrc) && /checklist__tag/.test(consoleSrc),
+    '刻痕對照把主檢查與地基分成兩種位階'
+  );
+  const cssSrc = srcOf('src/styles.css');
+  ok(/\.checklist li\.is-foundation/.test(cssSrc), '地基那一列在樣式上真的比較安靜');
+  ok(/\.extras\b/.test(cssSrc), '「順手會用到」那一行有自己的（安靜的）樣式');
+
+  /* --- D2：收集仍然由 legacy teaches 驅動（舊存檔的已收集技巧不減少） --- */
+  ok(
+    /teaches: Array\.isArray\(challenge\.teaches\)/.test(srcOf('src/challenges/rubric.js')),
+    '評分結果帶出去的收集清單仍然是 legacy teaches（D2：收集不倒退）'
+  );
+  ok(
+    /順手收進圖鑑/.test(consoleSrc),
+    '結算面板把 legacy 收集放在「順手收進圖鑑」的次要位階（D2 的 uiRule）'
+  );
+  {
+    // 27 關全破 → 68 條技巧一條都不少（收集面完全沒有退化）
+    const collected = new Set(challenges.flatMap((c) => c.teaches));
+    eq(collected.size, curriculum.techniques.length, 'Phase A 之後 27 關的 teaches 仍然收得滿 68 條');
+    for (const c of challenges) {
+      ok(c.teaches.length > 0, `[${c.id}] 仍然有 legacy 收集清單`);
+      if (c.primaryTechniqueId) {
+        ok(
+          techById.has(c.primaryTechniqueId),
+          `[${c.id}] primaryTechniqueId 是 curriculum 裡真的技巧`,
+          c.primaryTechniqueId
+        );
+        ok(
+          (techById.get(c.primaryTechniqueId).sources || []).length > 0,
+          `[${c.id}] 主技巧有官方出處（第二幕的神諭原典連得出去）`
+        );
+      }
+    }
+    // 主技巧彼此不重複（C2：一條技巧只教一次）
+    const primaries = challenges.map((c) => c.primaryTechniqueId).filter(Boolean);
+    eq(new Set(primaries).size, primaries.length, '25 條主技巧互不重複（C2）');
+    eq(primaries.length, 25, '25 關有主技巧、2 關應用關沒有');
+  }
 }
 
 /* ------------------------------------------------------------------ */

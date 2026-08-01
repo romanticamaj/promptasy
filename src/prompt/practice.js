@@ -21,7 +21,7 @@
  * 必須通過該課的 rubric —— 這件事由測試強制驗證，不是靠人工目視。
  */
 import { bindInfoTips, createOverlay, esc, infoTip, on, safeRich } from '../ui/dom.js';
-import { evaluate } from '../challenges/rubric.js';
+import { evaluate, formatScore } from '../challenges/rubric.js';
 import { CHECKS } from '../challenges/checks.js';
 import { createStele } from './stele.js';
 import { ACTS, GUIDE_TITLE, SOURCE_LABEL, SOURCE_NOTE } from './console.js';
@@ -423,7 +423,7 @@ export function createPractice({
             }
             ${r && !r.passed && showHints && r.hint ? `<em class="checklist__hint">${esc(r.hint)}</em>` : ''}
           </span>
-          <span class="checklist__w">${row.weight} 分</span>
+          <span class="checklist__w">${formatScore(row.weight)} 分</span>
           ${src ? `<a class="src" href="${esc(src.url)}" target="_blank" rel="noopener">出處 ↗</a>` : ''}
         </li>`;
       })
@@ -450,7 +450,7 @@ export function createPractice({
     lampEl.classList.toggle('is-ready', ready);
     lampTextEl.textContent = ready
       ? `已達通過門檻 —— 把手掌按上石碑就過關了（做到 ${done} / ${evaluation.results.length} 項）`
-      : `再刻幾段就夠了（目前 ${evaluation.earned} / 需要 ${evaluation.pass} 分）`;
+      : `再刻幾段就夠了（目前 ${formatScore(evaluation.earned)} / 需要 ${formatScore(evaluation.pass)} 分）`;
   }
 
   /* ------------------------------------------------------- 第四幕：手印 */
@@ -480,9 +480,9 @@ export function createPractice({
             evaluation.tooShort ? '太短了' : '再刻一次'
           }</span></div>
           <div class="result__meter">
-            <p class="result__scoreline"><b>${evaluation.earned}</b> / ${evaluation.total} · 通過門檻 ${
-              evaluation.pass
-            }</p>
+            <p class="result__scoreline"><b>${formatScore(evaluation.earned)}</b> / ${formatScore(
+              evaluation.total
+            )} · 通過門檻 ${formatScore(evaluation.pass)}</p>
             <div class="meter"><i style="width:${Math.round(
               (evaluation.earned / evaluation.total) * 100
             )}%"></i><u style="left:${Math.round((evaluation.pass / evaluation.total) * 100)}%"></u></div>
@@ -523,9 +523,9 @@ export function createPractice({
           <span class="grade__label">${GRADE_LABEL[evaluation.grade]}</span>
         </div>
         <div class="result__meter">
-          <p class="result__scoreline"><b>${evaluation.earned}</b> / ${evaluation.total} · 通過門檻 ${
-            evaluation.pass
-          }</p>
+          <p class="result__scoreline"><b>${formatScore(evaluation.earned)}</b> / ${formatScore(
+            evaluation.total
+          )} · 通過門檻 ${formatScore(evaluation.pass)}</p>
           <div class="meter"><i style="width:${Math.round(
             (evaluation.earned / evaluation.total) * 100
           )}%"></i><u style="left:${Math.round((evaluation.pass / evaluation.total) * 100)}%"></u></div>

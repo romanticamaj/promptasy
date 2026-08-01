@@ -100,6 +100,59 @@
   現況實測占比是 `assignsTask` 27 ＋ `specifiesFormat` 14 ＋ `hasDelimiters` 12 = 53/118 = **44.9%**
   （`gap-analysis.md` 寫的 49% 是 26 關／106 項那版的數字）。
 
+## Phase A 實作發現（2026-08-01）
+
+- **manifest 的 `techniqueIdRealign` 是描述欄，不是動作**：它標的是「主檢查那一列目前掛的 `techniqueId`
+  與 `primaryTechniqueId` 不同」（實測 27 行逐條吻合）。Phase A **沒有**改任何 rubric 列的 `techniqueId`
+  ——那不在 `checksToRemoveOrDownweight` 裡，改了會連動結果面板的出處。改的只有顯示層：
+  第二幕與刻痕對照的主檢查那一列改掛 `primaryTechniqueId`（例如火力熔爐顯示的是 `params-03` 與 GPT-5 guide）。
+- **`primary` / `foundation` 是新的 rubric 欄位**：runtime 需要知道「哪一列是主教學目標」，而 `primaryTechniqueId`
+  推不出來（`effort-forge-15` 的 `params-03` 與 `oracle-workshop-36` 的 `agentic-01` 都不在自己 rubric 的
+  `techniqueId` 裡）。所以主檢查那一列標 `primary: true`（＝manifest 的 `mainCheck`／`interimMainCheck`），
+  `assignsTask` 標 `foundation: true`。兩個欄位都是 additive，舊資料沒有也不會壞。
+- **權重中性的 replace 有一關要新增列**：`mask-workshop-41` 原本沒有 `hasAudience`，所以那 1 分是新增一列
+  （`techniqueId: role-04`，沿用被換掉那一列的技巧）承接；其餘 4 關（subtask／draft／tool／echo）的
+  `replaceWith` 本來就在 rubric 裡，直接加權重。因此 rubric 條數 118 → **113**（−1 移除 −5 替換 +1 承接）。
+- **flow 收斂會動到「全部選對＝每條滿分」這條地基**：`mask-workshop-41` 拿掉格式那一段之後，
+  原本的任務句「請向…說明」點不亮 `hasAudience`（檢查器認的是「說明給＿＿看」這類句型），
+  所以把該段的正確選項改寫成「請說明這趟航次要注意什麼，寫給今晚第一次上船的擺渡船員看。」
+  —— **改的是關卡文案，不是檢查器**（不放寬引擎）。
+- **`silent-thinker-13` 的格式段落不能只是刪掉**：刪掉之後 `hasConstraint` 只剩 0.5 分（「500 枚硬幣」拿不到滿分），
+  全部選對就不再是滿分。改成整段換掉：問「怎麼讓它知道做到哪裡算完成？」，正解是
+  「成功條件：3 個階段、總共不超過 200 個字。」——那正好就是 `reasoning-02` 教的「非常具體的成功標準」，
+  比原本的格式段更貼這一關的主題。
+- **小數門檻真的會漏到畫面上**：`assignsTask` 0.5 ＋ pass −0.5 之後，進度燈與結果面板都會出現 `2.5`；
+  部分分數相乘還會生出 `0.375` 這種值。新增 `formatScore()`（四捨五入到 2 位、整數不拖尾巴）
+  並在 console／practice 兩支 UI 全面套用，測試同時守「不准把裸浮點塞進畫面」。
+- **e2e 在 Phase A 之前就已經是紅的（不是這一期弄壞的）**：`scripts/headless-check.mjs` 還留著
+  Phase 34.5 撤掉的打字機標題卡斷言（`.title__typed`／`.title__caret`／`[data-typed="tag"]`），
+  第 6 個斷言之後就 `TypeError: reading 'textContent' of null` **整支中斷**，後面一項都沒跑到。
+  Phase 0 只在 `test-rubric.mjs` 重建了那 12 條、e2e 當期跳過，所以沒被發現。
+  Phase A 依同一個做法把 e2e 的兩個標題卡區段改成斷言「今天的設計」（文字第一幀就完整、揭示由 CSS 延遲驅動、
+  按下去直接進場），否則 Phase A 的四幕改動根本驗不到。
+  修好之後又露出第二個既有問題：`reloadPage()` 在換頁的尾巴上，下一個 CDP 呼叫會撞到
+  「Inspected target navigated or closed」**讓整支中斷**（不是某一條斷言紅）。已補一次
+  `document.readyState === 'complete'` 的輪詢等頁面穩定（不是加長固定 sleep）。
+- **e2e 有兩條寫死「第 1 / 4 段」**：面具工坊收斂成 3 段之後會假性失敗。改成由資料的段數推導
+  （`第 1 / ${slots} 段`）—— 這種「歷史快照型斷言」正是 `task_plan.md` §4 要求改成 invariant 的那一類。
+- **e2e 的入場門區段也還在量已經不存在的 `.entrygate__hint`**（同樣是 Phase 34.5 的殘留）：
+  `getComputedStyle(null)` 讓最後一段整個中斷。改成斷言今天的門面（呼吸燈 ＋ 一句話 ＋ sr-only 提示）。
+- **已知 flaky 家族「拖曳」**：`priority-stair-42` 的滑鼠拖曳原本用固定 sleep（140／90／360ms），
+  在 200ms/幀 的軟體渲染上「抓起來」與「放下」會撞在同一幀。依 `AGENTS.md` 改成 poll-until：
+  等 `.slip.is-dragging` 出現才開始移動、輪詢等 `arrangement[0]` 真的變成目標（每輪補一次微小移動）、
+  放開後再等拖曳狀態收乾淨。
+  **另外用獨立的 CDP 腳本在同一份工作樹上單獨重現過**：把入場門／標題卡／序章收乾淨之後，
+  同一組滑鼠事件會讓 `arrangement` 從 `context,format,role,task` 變成 `role,context,format,task`
+  —— 拖曳機制本身是好的，長跑到那一段失敗是「有東西疊在上面吃掉指標事件」這一類的狀態問題，
+  **與 Phase A 無關**（`priority-stair-42` 的 `orderFlow` 一個字都沒改）。
+  因此又加了兩件事：拖曳前先把可能還開著的分享卡／圖鑑／設定收掉，並把
+  `elementFromPoint` 的結果寫進失敗訊息，下次再紅時一眼看得出是誰擋住的。
+- **入場門呼吸燈的透明度是來回擺盪的**：原本單點取樣 `opacity > 0.4`，剛好取到最暗那一格就紅
+  （實測 0.3511）。改成併進既有的輪詢條件（等它擺到亮的那一段再取樣）。
+- **應用關的第二幕維持原樣**：`council-envoy-06`／`archive-seal-25` 沒有主技巧（`primaryTechniqueId: null`），
+  UI 就退回 Phase 12 的「每條檢查各一段刻文＋各自的原典」——它們本來就不是「一次教四條」，
+  而是「把學過的四條用出來」。真正的應用關型式（跳過第二幕、動態組 rubric）等 Phase J。
+
 ## 文件勘誤（dated errata · 2026-08-01，不改歷史文件）
 
 | 文件 | 寫的 | 現況實測 | 處置 |

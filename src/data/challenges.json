@@ -18,6 +18,7 @@
         "clarity-03",
         "format-01"
       ],
+      "primaryTechniqueId": "clarity-03",
       "scenario": "石造拱門下坐著一位守門人。他手裡拿著空白的通行證，抬頭看你：「旅人，我聽得懂話，但我聽不懂『大概』。你要我幫你寫什麼？寫給誰看？要多長？長什麼樣子？——你講不清楚，我就寫不出來。」",
       "mission": "寫一段 prompt，請模型把守門人手上這張含糊的告示，改寫成第一次來訪的旅人看得懂的說明。",
       "craft": "把「情境、對象、長度、格式」四樣都講明，模糊的形容詞換成可量化的規格。",
@@ -50,7 +51,8 @@
       "rubric": [
         {
           "check": "assignsTask",
-          "weight": 1,
+          "weight": 0.5,
+          "foundation": true,
           "techniqueId": "clarity-02",
           "hint": "用動詞開頭直接說要做什麼：「請把下面這張告示改寫成…」。只丟一個主題它不知道要幹嘛。"
         },
@@ -63,6 +65,7 @@
         {
           "check": "hasConstraint",
           "weight": 2,
+          "primary": true,
           "techniqueId": "clarity-03",
           "hint": "把「短一點」換成可量化的規格，例如「用 3 到 5 句話」「3 個重點」。"
         },
@@ -73,7 +76,7 @@
           "hint": "說清楚寫給誰看（新手 / 主管 / 小學生），深度與語氣才會對。"
         }
       ],
-      "pass": 3,
+      "pass": 2.5,
       "source": "https://help.openai.com/en/articles/6654000-best-practices-for-prompt-engineering-with-the-openai-api"
     },
     {
@@ -93,6 +96,7 @@
         "structure-01",
         "structure-02"
       ],
+      "primaryTechniqueId": "structure-01",
       "scenario": "一隻小精靈坐在歪斜的郵箱上，四周散落著被退回的信。「我不是不肯送啊，」牠嘆氣，「是我分不出哪裡是『你要我做的事』、哪裡是『要處理的內容』。它們全黏在一起了。你能把它們用記號隔開嗎？」",
       "mission": "把精靈手上這團黏在一起的字，重寫成一段讀得懂的 prompt。",
       "craft": "指令放最前面，要處理的信件內容用分隔符包起來，並指定回覆要裝進哪一種格式。",
@@ -122,6 +126,7 @@
         {
           "check": "hasDelimiters",
           "weight": 2,
+          "primary": true,
           "techniqueId": "clarity-04",
           "hint": "用 ###、三引號 \"\"\"、或成對的 <context></context> 把指令與內容切開。"
         },
@@ -139,12 +144,13 @@
         },
         {
           "check": "assignsTask",
-          "weight": 1,
+          "weight": 0.5,
+          "foundation": true,
           "techniqueId": "clarity-02",
           "hint": "第一行就寫出動詞開頭的任務，別讓精靈在信裡找指令。"
         }
       ],
-      "pass": 3,
+      "pass": 2.5,
       "source": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices"
     },
     {
@@ -162,6 +168,7 @@
         "positive-01",
         "clarity-05"
       ],
+      "primaryTechniqueId": "positive-01",
       "scenario": "一台生鏽的自動機在原地打轉。它的胸口有一塊刻著指令的鐵板，上面全是「不要往左」「不要停」「不要走快」。「我知道所有不該做的事，」它用平板的聲音說，「但沒有人告訴過我，該做什麼。」",
       "mission": "把自動機胸口那串「不要」全部改寫成「要做什麼」的正面指令。",
       "craft": "改完再告訴它為什麼要這樣做——它才推得出你真正的用意。",
@@ -191,12 +198,14 @@
         {
           "check": "positiveFraming",
           "weight": 3,
+          "primary": true,
           "techniqueId": "positive-01",
           "hint": "用「請做 Y」取代「不要做 X」。禁止清單容易漏、也容易被鑽漏洞。"
         },
         {
           "check": "assignsTask",
-          "weight": 1,
+          "weight": 0.5,
+          "foundation": true,
           "techniqueId": "clarity-02",
           "hint": "動詞開頭，把它該執行的動作講出來。"
         },
@@ -210,7 +219,7 @@
           }
         }
       ],
-      "pass": 3,
+      "pass": 2.5,
       "source": "https://help.openai.com/en/articles/6654000-best-practices-for-prompt-engineering-with-the-openai-api"
     },
     {
@@ -228,6 +237,7 @@
         "format-02",
         "format-03"
       ],
+      "primaryTechniqueId": "format-03",
       "scenario": "一面立在草坡上的石鏡，鏡面霧濛濛的。你描述了半天要它照出什麼，鏡子只回你一句：「說不清楚。做給我看一次，我就會了。」",
       "mission": "讓石鏡把昨夜那份守夜紀錄的每一行整理成同一種格式。",
       "craft": "與其描述格式，不如示範一組「輸入 → 輸出」給它看，它會照抄結構。",
@@ -256,6 +266,7 @@
         {
           "check": "hasFewShot",
           "weight": 3,
+          "primary": true,
           "techniqueId": "format-02",
           "hint": "至少示範一組成對的「輸入：…」與「輸出：…」（寫成英文 Input:／Output: 也一樣算），只寫「例如」不算。"
         },
@@ -267,12 +278,13 @@
         },
         {
           "check": "assignsTask",
-          "weight": 1,
+          "weight": 0.5,
+          "foundation": true,
           "techniqueId": "clarity-02",
           "hint": "先講清楚要它對新輸入做什麼，再放範例。"
         }
       ],
-      "pass": 3,
+      "pass": 2.5,
       "source": "https://help.openai.com/en/articles/6654000-best-practices-for-prompt-engineering-with-the-openai-api"
     },
     {
@@ -291,6 +303,7 @@
         "structure-01",
         "structure-05"
       ],
+      "primaryTechniqueId": "clarity-04",
       "scenario": "檔案室裡堆滿了長到看不見盡頭的卷軸。抄寫員頭也不抬：「我可以讀，但我會邊讀邊忘。你要我依據哪一卷？你要不要我只看那一卷？——先把卷子攤給我，任務寫在卷子後面，我讀到最後剛好看見它。」",
       "mission": "要求抄寫員回答「這一季有多少袋穀物離開了倉庫」。",
       "craft": "把那一卷帳包進分隔符裡並命名它，明說只根據這一卷回答。",
@@ -320,6 +333,7 @@
         {
           "check": "hasDelimiters",
           "weight": 2,
+          "primary": true,
           "techniqueId": "clarity-04",
           "hint": "用 <context></context>、\"\"\" 或 ### 把長資料整段包起來。"
         },
@@ -331,7 +345,8 @@
         },
         {
           "check": "assignsTask",
-          "weight": 1,
+          "weight": 0.5,
+          "foundation": true,
           "techniqueId": "clarity-02",
           "hint": "動詞開頭寫出任務。長資料這一關的順序是「先貼資料、任務寫在資料後面」（想更保險，前後各寫一次也行）。"
         },
@@ -342,7 +357,7 @@
           "hint": "給抄寫員一個可量化的輸出上限，例如「條列 5 點以內」。"
         }
       ],
-      "pass": 3,
+      "pass": 2.5,
       "source": "https://developers.openai.com/cookbook/examples/gpt4-1_prompting_guide"
     },
     {
@@ -362,6 +377,7 @@
         "format-06",
         "positive-01"
       ],
+      "primaryTechniqueId": null,
       "scenario": "通往下一片土地的橋前站著議會的信使。「橋另一頭的人不會給你第二次機會，」他說，「所以這次我要你把整份委託寫好：做什麼、寫給誰、多長、什麼形狀、為什麼這樣要求，最後——請你自己再檢查一遍。」",
       "mission": "把議會這張便條寫成一份能直接交出去的完整委託。",
       "craft": "任務、對象、格式、可量化長度、理由都要有，最後請它自己再檢查一遍。",
@@ -394,7 +410,8 @@
       "rubric": [
         {
           "check": "assignsTask",
-          "weight": 1,
+          "weight": 0.5,
+          "foundation": true,
           "techniqueId": "clarity-02",
           "hint": "動詞開頭的明確任務。"
         },
@@ -438,7 +455,7 @@
           "hint": "結尾加一句自我檢查：「完成前，對照需求逐項確認並修正。」"
         }
       ],
-      "pass": 4,
+      "pass": 3.5,
       "source": "https://developers.openai.com/cookbook/examples/gpt-5/gpt-5_prompting_guide"
     },
     {
@@ -457,6 +474,7 @@
         "fewshot-02",
         "structure-04"
       ],
+      "primaryTechniqueId": "fewshot-01",
       "scenario": "迴廊的牆會複誦你留下的東西。你說了半天「我要什麼樣的答案」，牆只是嗡嗡作響。直到你留下一組真正的示範，迴音才第一次咬字清楚——原來它不聽描述，只學樣本。",
       "mission": "讓迴廊替牆上留著的那三張旅人留言，各標上一個心情。",
       "craft": "用 <example> 標籤示範兩組「留言 → 心情」的判讀給它照著做。",
@@ -489,12 +507,13 @@
         {
           "check": "hasFewShot",
           "weight": 3,
+          "primary": true,
           "techniqueId": "fewshot-01",
           "hint": "至少示範一組成對的「輸入：…／輸出：…」（英文 Input:／Output: 也算）；放 3 到 5 組最穩。"
         },
         {
           "check": "hasDelimiters",
-          "weight": 2,
+          "weight": 1,
           "techniqueId": "fewshot-02",
           "hint": "把每組範例包進 <example></example>（多組再用 <examples>），和指令明確分開。"
         },
@@ -506,12 +525,13 @@
         },
         {
           "check": "assignsTask",
-          "weight": 1,
+          "weight": 0.5,
+          "foundation": true,
           "techniqueId": "clarity-02",
           "hint": "先用動詞說清楚要它對新輸入做什麼，再放範例。"
         }
       ],
-      "pass": 4,
+      "pass": 3.5,
       "source": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices"
     },
     {
@@ -529,6 +549,7 @@
         "fewshot-03",
         "fewshot-04"
       ],
+      "primaryTechniqueId": "fewshot-03",
       "scenario": "一整排提燈掛在迴廊側牆，每盞的掛法都不一樣：有的用繩、有的用鉤、有的歪著。掌燈人苦笑：「我照你的示範掛的啊。你的範例長得不一樣，我掛出來當然也不一樣。」",
       "mission": "讓掌燈人把今晚燈務日誌的每一筆轉成同一種狀態行。",
       "craft": "寫出三組結構完全一致的範例：同樣欄位、同樣分隔、同樣換行。",
@@ -553,6 +574,7 @@
         {
           "check": "hasFewShot",
           "weight": 3,
+          "primary": true,
           "techniqueId": "fewshot-03",
           "hint": "至少給一組成對示範；Google 官方說沒有範例的 prompt 通常較無效。"
         },
@@ -570,12 +592,13 @@
         },
         {
           "check": "assignsTask",
-          "weight": 1,
+          "weight": 0.5,
+          "foundation": true,
           "techniqueId": "clarity-02",
           "hint": "動詞開頭寫出任務，別讓掌燈人自己猜要掛成什麼樣。"
         }
       ],
-      "pass": 4,
+      "pass": 3.5,
       "source": "https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/prompts/few-shot-examples"
     },
     {
@@ -594,6 +617,7 @@
         "reasoning-01",
         "reasoning-02"
       ],
+      "primaryTechniqueId": "reasoning-01",
       "scenario": "台階上坐著一個一動也不動的身影。你越詳細地教它「先想這個、再想那個」，它就越慢；旁邊的石碑寫著：「它已經在裡面想完了。你只需要告訴它：要什麼，以及怎樣算成功。」",
       "mission": "對台階上的推理者寫一段委託，請它處理桌上那張委託單上的石橋。",
       "craft": "保持短而直接——只講要什麼與成功標準，不要加任何「一步一步想」的鷹架。",
@@ -623,6 +647,7 @@
         {
           "check": "keepsPromptLean",
           "weight": 3,
+          "primary": true,
           "techniqueId": "reasoning-01",
           "hint": "拿掉「一步一步想／解釋你的推理」這類鷹架，並把 prompt 壓到只剩任務本身。"
         },
@@ -634,18 +659,13 @@
         },
         {
           "check": "assignsTask",
-          "weight": 1,
+          "weight": 0.5,
+          "foundation": true,
           "techniqueId": "clarity-02",
           "hint": "一句動詞開頭的指令就夠了。"
-        },
-        {
-          "check": "specifiesFormat",
-          "weight": 1,
-          "techniqueId": "format-01",
-          "hint": "簡短不代表模糊——輸出形狀還是要指定。"
         }
       ],
-      "pass": 4,
+      "pass": 3.5,
       "source": "https://developers.openai.com/api/docs/guides/reasoning-best-practices"
     },
     {
@@ -664,6 +684,7 @@
         "cot-02",
         "cot-03"
       ],
+      "primaryTechniqueId": "cot-02",
       "scenario": "房間中央有兩個石槽，一個刻著「思」、一個刻著「答」。抄思人把所有東西都倒進「答」裡，草稿與結論糊成一團：「沒有人教過我，想的過程要放哪一邊。」",
       "mission": "要求抄思人判讀那兩盞燈的熄滅紀錄，而且先想再答。",
       "craft": "把推理放進 <thinking>、答案放進 <answer>，並示範一組給它看。",
@@ -698,6 +719,7 @@
         {
           "check": "hasDelimiters",
           "weight": 2,
+          "primary": true,
           "techniqueId": "cot-02",
           "hint": "用 <thinking></thinking> 與 <answer></answer> 把推理與結論分開。"
         },
@@ -709,12 +731,13 @@
         },
         {
           "check": "assignsTask",
-          "weight": 1,
+          "weight": 0.5,
+          "foundation": true,
           "techniqueId": "clarity-02",
           "hint": "先講清楚要它判斷什麼。"
         }
       ],
-      "pass": 4,
+      "pass": 3.5,
       "source": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices"
     },
     {
@@ -734,6 +757,7 @@
         "reasoning-04",
         "reasoning-05"
       ],
+      "primaryTechniqueId": "params-03",
       "scenario": "熔爐前掛著三個牌子：低火、中火、高火。爐守遞給你一份帳目：「要我燒多久，你得說。出爐前我還會請你自己驗一次貨——這爐子燒壞過太多次了。」",
       "mission": "叫爐守把手上那本帳算出差額，看帳面結餘對不對。",
       "craft": "指定它要燒多大的火（思考火力 reasoning_effort），並要求出爐前對照原帳自我驗算。",
@@ -764,6 +788,7 @@
         {
           "check": "mentionsParameters",
           "weight": 2,
+          "primary": true,
           "techniqueId": "reasoning-03",
           "hint": "把思考火力寫出來：「reasoning_effort 設為 high」——等級是 low／medium／high（低／中／高）。",
           "checkOptions": {
@@ -783,12 +808,13 @@
         },
         {
           "check": "assignsTask",
-          "weight": 1,
+          "weight": 0.5,
+          "foundation": true,
           "techniqueId": "clarity-02",
           "hint": "動詞開頭寫出要算什麼。"
         }
       ],
-      "pass": 4,
+      "pass": 3.5,
       "source": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices"
     },
     {
@@ -806,6 +832,7 @@
         "grounding-01",
         "grounding-04"
       ],
+      "primaryTechniqueId": "grounding-04",
       "scenario": "閱覽台上攤著一本厚厚的收成帳。館員推了推眼鏡：「我可以回答你，但我最近常常『記得』一些帳上沒寫的事。你先要我把支持答案的那幾行抄出來，我就不會再飄了。」",
       "mission": "要求館員只從這本收成帳裡取答，不要憑記憶補。",
       "craft": "把帳目包進分隔符裡界定清楚，並要求回答前先把支持答案的原文引出來。",
@@ -834,6 +861,7 @@
         {
           "check": "asksToCiteSources",
           "weight": 3,
+          "primary": true,
           "techniqueId": "grounding-04",
           "hint": "寫「回答前，請先引用資料裡支持你答案的那幾句原文」——先給依據，再給結論。"
         },
@@ -851,12 +879,13 @@
         },
         {
           "check": "assignsTask",
-          "weight": 1,
+          "weight": 0.5,
+          "foundation": true,
           "techniqueId": "clarity-02",
           "hint": "動詞開頭寫出你要它回答什麼。"
         }
       ],
-      "pass": 4,
+      "pass": 3.5,
       "source": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices"
     },
     {
@@ -874,6 +903,7 @@
         "grounding-02",
         "grounding-03"
       ],
+      "primaryTechniqueId": "grounding-02",
       "scenario": "井裡的聲音有問必答——問題是它「什麼都答得出來」，包括根本沒人告訴過它的事。井壁上有人刻了一行字：「給它一條可以說『我不知道』的路，它就不必編。」",
       "mission": "要求井靈只依井邊那塊告示牌回答旅人的問題。",
       "craft": "給它一條出路——牌上沒寫的就直說沒寫，或者反問旅人。",
@@ -903,6 +933,7 @@
         {
           "check": "givesOutForUncertainty",
           "weight": 3,
+          "primary": true,
           "techniqueId": "grounding-02",
           "hint": "給出路：「找不到就回答『資料中沒有提到』」；缺少資訊時「就回頭問我，不要自己補」。"
         },
@@ -920,12 +951,13 @@
         },
         {
           "check": "assignsTask",
-          "weight": 1,
+          "weight": 0.5,
+          "foundation": true,
           "techniqueId": "clarity-02",
           "hint": "動詞開頭寫出任務。"
         }
       ],
-      "pass": 4,
+      "pass": 3.5,
       "source": "https://developers.openai.com/cookbook/examples/gpt4-1_prompting_guide"
     },
     {
@@ -944,6 +976,7 @@
         "longcontext-02",
         "longcontext-03"
       ],
+      "primaryTechniqueId": "longcontext-01",
       "scenario": "塔裡的卷軸從天花板垂到地板。塔守把你的問題貼在最上面那一卷的封面上，然後嘆氣：「讀到最後我就忘了你要問什麼。把問題放到最後面來，我一路讀下去，讀完剛好看見它。」",
       "mission": "讓塔守讀完垂到地板的那兩卷收成帳，回答你要問的那件事。",
       "craft": "把兩卷資料放到 prompt 的最上面、用標籤包好，最後一行才問問題。",
@@ -972,12 +1005,13 @@
         {
           "check": "putsQuestionLast",
           "weight": 3,
+          "primary": true,
           "techniqueId": "longcontext-01",
           "hint": "把資料放最上面、問題放到整段 prompt 的最後面。"
         },
         {
           "check": "hasDelimiters",
-          "weight": 2,
+          "weight": 1,
           "techniqueId": "longcontext-02",
           "hint": "用 <documents> / <document index=\"1\"> / <source> / <document_content> 把每份文件包好。"
         },
@@ -989,12 +1023,13 @@
         },
         {
           "check": "assignsTask",
-          "weight": 1,
+          "weight": 0.5,
+          "foundation": true,
           "techniqueId": "clarity-02",
           "hint": "最後那一段要有明確的問題或動詞開頭的任務。"
         }
       ],
-      "pass": 4,
+      "pass": 3.5,
       "source": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices"
     },
     {
@@ -1012,6 +1047,7 @@
         "grounding-05",
         "grounding-06"
       ],
+      "primaryTechniqueId": "grounding-05",
       "scenario": "泉水只映出你真正讀過的東西。泉守把一疊沒拆封的筆記推到你面前：「先讀，再說。還有——你上次算的那筆數字，是用猜的吧？」",
       "mission": "要求泉守讀完那三張還沒拆封的筆記，再告訴你該走哪一條路。",
       "craft": "先讀完再下結論、只用讀到的內容作答、里程用計算工具重算一次，沒寫的就說沒紀錄。",
@@ -1056,6 +1092,7 @@
         {
           "check": "asksToVerify",
           "weight": 1,
+          "primary": true,
           "techniqueId": "grounding-06",
           "hint": "要算數字的時候，請它用計算工具重新算一次，並核對總和對不對。"
         },
@@ -1067,12 +1104,13 @@
         },
         {
           "check": "assignsTask",
-          "weight": 1,
+          "weight": 0.5,
+          "foundation": true,
           "techniqueId": "clarity-02",
           "hint": "動詞開頭寫出任務。"
         }
       ],
-      "pass": 4,
+      "pass": 3.5,
       "source": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices"
     },
     {
@@ -1092,6 +1130,7 @@
         "longcontext-01",
         "longcontext-03"
       ],
+      "primaryTechniqueId": null,
       "scenario": "檔案庫最深處有一道封印，上面沒有謎題，只有一句話：「把你在這裡學到的一次做對：資料界定清楚、只依它作答、先引用再回答、不知道就直說、問題放最後。」",
       "mission": "把封印下那兩季的地窖帳一次算對，回答封印要問的那件事。",
       "craft": "用標籤包好、只依它作答、先引用再回答、沒寫的就直說，問題留到最後一行。",
@@ -1153,12 +1192,13 @@
         },
         {
           "check": "assignsTask",
-          "weight": 1,
+          "weight": 0.5,
+          "foundation": true,
           "techniqueId": "clarity-02",
           "hint": "把要它做的事寫成一句明確指令。"
         }
       ],
-      "pass": 5,
+      "pass": 4.5,
       "source": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices"
     },
     {
@@ -1177,6 +1217,7 @@
         "decompose-02",
         "decompose-04"
       ],
+      "primaryTechniqueId": "decompose-01",
       "scenario": "工作台上堆著一件「整修整座水道」的委託單，工頭連碰都不想碰：「一口氣做完？不可能。你把它拆成幾件我做得完的小事，我就一件一件交給你——而且每件做完我會回報一次。」",
       "mission": "把工作台上那張「整修整座水道」的大委託交給工頭做完。",
       "craft": "先拆成他做得完的子任務，逐一完成並回報，最後確認每一件都真的做完了。",
@@ -1208,7 +1249,8 @@
       "rubric": [
         {
           "check": "decomposesTask",
-          "weight": 3,
+          "weight": 4,
+          "primary": true,
           "techniqueId": "decompose-01",
           "hint": "寫「請把這件事拆成所有必要的子任務」——或直接列出 1. 2. 3. 的子任務。"
         },
@@ -1219,12 +1261,6 @@
           "hint": "拆完還有後半段：「並確認每一項都完成了」——逐項確認才算做完。"
         },
         {
-          "check": "specifiesFormat",
-          "weight": 1,
-          "techniqueId": "decompose-02",
-          "hint": "講清楚每一步要交出什麼，下一步才接得上——前一步的答案，就是下一步的材料。"
-        },
-        {
           "check": "hasConstraint",
           "weight": 1,
           "techniqueId": "decompose-04",
@@ -1232,12 +1268,13 @@
         },
         {
           "check": "assignsTask",
-          "weight": 1,
+          "weight": 0.5,
+          "foundation": true,
           "techniqueId": "clarity-02",
           "hint": "動詞開頭寫出整體任務。"
         }
       ],
-      "pass": 4,
+      "pass": 3.5,
       "source": "https://developers.openai.com/api/docs/guides/prompt-engineering"
     },
     {
@@ -1255,6 +1292,7 @@
         "decompose-03",
         "iterate-01"
       ],
+      "primaryTechniqueId": "decompose-03",
       "scenario": "一座三格的轉輪：草稿、審查、修訂。校準師轉了一格給你看：「大部分人只轉第一格就走了。你要是肯把標準寫下來，我就能自己轉完三格。」",
       "mission": "請校準師寫出那則「水井停用三天」的公告。",
       "craft": "讓它先寫草稿、對照轉輪旁那三條標準審查，再依審查結果修訂一次。",
@@ -1287,7 +1325,8 @@
       "rubric": [
         {
           "check": "asksToRefine",
-          "weight": 3,
+          "weight": 4,
+          "primary": true,
           "techniqueId": "decompose-03",
           "hint": "三步都要寫出來：先寫草稿 → 對照標準檢查 → 再依檢查結果改寫一次。"
         },
@@ -1304,19 +1343,14 @@
           "hint": "標準要可量化（字數、必含欄位），才檢驗得動。"
         },
         {
-          "check": "specifiesFormat",
-          "weight": 1,
-          "techniqueId": "format-01",
-          "hint": "指定最後交付的形狀。"
-        },
-        {
           "check": "assignsTask",
-          "weight": 1,
+          "weight": 0.5,
+          "foundation": true,
           "techniqueId": "clarity-02",
           "hint": "動詞開頭寫出要產出什麼。"
         }
       ],
-      "pass": 4,
+      "pass": 3.5,
       "source": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices"
     },
     {
@@ -1335,6 +1369,7 @@
         "agentic-02",
         "agentic-07"
       ],
+      "primaryTechniqueId": "agentic-02",
       "scenario": "鍛匠打出一把沒有名字、沒有說明、也不知道要塞幾根手指的鑰匙。「你只在信裡『描述』了它，」他聳肩，「沒有把規格交給我。規格要走正式的那條路——名字、用途、每個參數，一樣都不能少。」",
       "mission": "把鍛匠手上那把「水閘鑰匙」的空白規格單填完。",
       "craft": "工具名、說明、每個參數的型別與用途都要寫清楚，並指定輸出要是符合規格的 JSON。",
@@ -1362,15 +1397,10 @@
       "rubric": [
         {
           "check": "definesTools",
-          "weight": 3,
+          "weight": 5,
+          "primary": true,
           "techniqueId": "agentic-02",
           "hint": "寫出「工具名 / 說明 / 參數」三個欄位，每個參數都說明型別與用途。"
-        },
-        {
-          "check": "specifiesFormat",
-          "weight": 2,
-          "techniqueId": "agentic-07",
-          "hint": "用結構化輸出把形狀綁死：寫「輸出格式：符合上面規格的 JSON，前後不要有其他文字」。"
         },
         {
           "check": "hasDelimiters",
@@ -1380,12 +1410,13 @@
         },
         {
           "check": "assignsTask",
-          "weight": 1,
+          "weight": 0.5,
+          "foundation": true,
           "techniqueId": "clarity-02",
           "hint": "先說清楚你要它做什麼。"
         }
       ],
-      "pass": 4,
+      "pass": 3.5,
       "source": "https://developers.openai.com/cookbook/examples/gpt4-1_prompting_guide"
     },
     {
@@ -1405,6 +1436,7 @@
         "agentic-05",
         "agentic-06"
       ],
+      "primaryTechniqueId": "agentic-06",
       "scenario": "門上有兩把鎖：一把寫著「別半途停下」，一把寫著「別一路衝過頭」。閘官把兩把鑰匙都放在你手上：「做到完全解決才交還，但碰到拆不回來的事——先問我。」",
       "mission": "叫閘官自己動手做完門上那張今日工單的三件事。",
       "craft": "做到完全解決才交還，但刪除日誌這種拆不回來的事，一定要先問過你。",
@@ -1443,6 +1475,7 @@
         {
           "check": "requiresConfirmation",
           "weight": 2,
+          "primary": true,
           "techniqueId": "agentic-06",
           "hint": "可逆的操作放手做；刪除／force push／動到共享系統前先問過。"
         },
@@ -1454,12 +1487,13 @@
         },
         {
           "check": "assignsTask",
-          "weight": 1,
+          "weight": 0.5,
+          "foundation": true,
           "techniqueId": "agentic-04",
           "hint": "想要它動手就直說「請直接動手完成下面這幾件事」；只問「可以建議一下嗎」它就只會給建議。"
         }
       ],
-      "pass": 4,
+      "pass": 3.5,
       "source": "https://developers.openai.com/cookbook/examples/gpt4-1_prompting_guide"
     },
     {
@@ -1479,6 +1513,7 @@
         "iterate-04",
         "iterate-05"
       ],
+      "primaryTechniqueId": "iterate-02",
       "scenario": "工坊中央擺著一台會複述你 prompt 的機器。它遞回一張紙條：「你上次的委託我做壞了——但你沒告訴我壞在哪。要不要，讓我幫你把委託本身改寫一次？」",
       "mission": "請回音把上一版那段寫壞的公告 prompt 本身改寫得更好。",
       "craft": "順便說明上一版是哪裡失敗、為什麼要改成這樣。",
@@ -1511,7 +1546,8 @@
       "rubric": [
         {
           "check": "asksToRefine",
-          "weight": 3,
+          "weight": 4,
+          "primary": true,
           "techniqueId": "iterate-03",
           "hint": "直接請它改進 prompt 本身：「請把下面這段 prompt 改寫得更好」。"
         },
@@ -1531,19 +1567,14 @@
           "hint": "把每次都一樣的內容放最前面、用分隔符固定住，之後重跑會更快也更省（這就是 prompt 快取）。"
         },
         {
-          "check": "specifiesFormat",
-          "weight": 1,
-          "techniqueId": "iterate-02",
-          "hint": "換個措辭、把開放題改成選擇題、調整排列順序——都會改變輸出，值得多試幾種。"
-        },
-        {
           "check": "assignsTask",
-          "weight": 1,
+          "weight": 0.5,
+          "foundation": true,
           "techniqueId": "clarity-02",
           "hint": "動詞開頭寫出你要它做的事。"
         }
       ],
-      "pass": 4,
+      "pass": 3.5,
       "source": "https://developers.openai.com/cookbook/examples/gpt-5/gpt-5_prompting_guide"
     },
     {
@@ -1563,6 +1594,7 @@
         "decompose-02",
         "grounding-03"
       ],
+      "primaryTechniqueId": "agentic-01",
       "scenario": "派工檯上壓著一張旅人的委託。管事把兩把工具牌推到你面前：「神諭哪裡也去不了，它只會照著我們遞過去的工具牌動手。牌上沒寫的它不會，格子沒填的它就自己編一個。」",
       "mission": "把旅人的委託變成一張派工單：挑出用得到的工具，把值填進參數格，再排出呼叫順序。",
       "craft": "兩把工具都寫出名字、說明與每個參數；照相依順序編號呼叫；最後補一句「參數找不到就反問」。",
@@ -1595,6 +1627,7 @@
         {
           "check": "definesTools",
           "weight": 3,
+          "primary": true,
           "techniqueId": "agentic-02",
           "hint": "每一把工具都要寫出「工具名 / 說明 / 參數」三欄，參數還要講型別與用途。"
         },
@@ -1612,12 +1645,13 @@
         },
         {
           "check": "assignsTask",
-          "weight": 1,
+          "weight": 0.5,
+          "foundation": true,
           "techniqueId": "clarity-02",
           "hint": "第一句要用動詞把你要它做的事講出來。"
         }
       ],
-      "pass": 4,
+      "pass": 3.5,
       "source": "https://developers.openai.com/cookbook/examples/gpt4-1_prompting_guide"
     },
     {
@@ -1636,6 +1670,7 @@
         "role-03",
         "role-04"
       ],
+      "primaryTechniqueId": "role-01",
       "scenario": "牆上掛滿了面具，每一副都寫著一句話。面具師把一副空白的遞給你：「不用寫長篇大論。一句『你是誰』就能改變它說話的樣子——但你得先寫上去。」",
       "mission": "請面具工坊裡的它，向新來的擺渡船員說明今晚的航次。",
       "craft": "在 prompt 最前面用一句話寫下「你是誰」，一句就夠。",
@@ -1664,6 +1699,7 @@
         {
           "check": "hasRole",
           "weight": 3,
+          "primary": true,
           "techniqueId": "role-01",
           "hint": "給一個有專業領域的身分（「你是一位在這片海岸待了三十年的港務長。」），別只寫「你是 AI 助手」。"
         },
@@ -1674,25 +1710,26 @@
           "hint": "把身分與規則放在最前面自成一段（例如「## 角色」）——最前面那一段就是規則區，優先度最高。"
         },
         {
-          "check": "specifiesFormat",
-          "weight": 1,
-          "techniqueId": "role-04",
-          "hint": "任務、期望與輸出的形狀都寫清楚，回答才不會走鐘。"
-        },
-        {
           "check": "hasConstraint",
           "weight": 1,
           "techniqueId": "role-04",
           "hint": "把邊界寫成可量化的規格（幾點、幾個字），角色才不會自由發揮。"
         },
         {
-          "check": "assignsTask",
+          "check": "hasAudience",
           "weight": 1,
+          "techniqueId": "role-04",
+          "hint": "講出這段話是說給誰聽的（「向今晚第一次上船的擺渡船員說明」），面具才知道要講多細。"
+        },
+        {
+          "check": "assignsTask",
+          "weight": 0.5,
+          "foundation": true,
           "techniqueId": "clarity-02",
           "hint": "戴上面具之後，還是要說清楚要它做什麼。"
         }
       ],
-      "pass": 4,
+      "pass": 3.5,
       "source": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices"
     },
     {
@@ -1711,6 +1748,7 @@
         "structure-03",
         "framework-02"
       ],
+      "primaryTechniqueId": "role-02",
       "scenario": "階梯每一階都刻著一個段落名：角色與目標、指令、輸出格式、範例、脈絡。階梯守說：「照這個次序上來，我一階都不會漏。你把它們全揉成一段丟給我，我就只記得最後一句。」",
       "mission": "把值夜官桌上那三則事件整理成一份交班簡報。",
       "craft": "照階梯上的骨架把 prompt 分段：角色與目標／指令／輸出格式／脈絡。",
@@ -1745,6 +1783,7 @@
         {
           "check": "hasRole",
           "weight": 2,
+          "primary": true,
           "techniqueId": "role-02",
           "hint": "最前面那一段是規則區，優先度最高——把身分與最重要的規則放在「# 角色與目標」那一段。"
         },
@@ -1756,12 +1795,13 @@
         },
         {
           "check": "assignsTask",
-          "weight": 1,
+          "weight": 0.5,
+          "foundation": true,
           "techniqueId": "clarity-02",
           "hint": "「# 指令」那一段裡要有動詞開頭的任務。"
         }
       ],
-      "pass": 4,
+      "pass": 3.5,
       "source": "https://developers.openai.com/cookbook/examples/gpt4-1_prompting_guide"
     },
     {
@@ -1781,6 +1821,7 @@
         "params-03",
         "params-04"
       ],
+      "primaryTechniqueId": "params-01",
       "scenario": "四面牆上各有一個刻度盤：亂度、取樣、火力、長度。調律師轉了轉最左邊那個：「同一句話，轉到這邊每次都一樣，轉到那邊每次都不同。你要哪一種？寫下來，別讓我猜。」",
       "mission": "向調律師要十句市集招牌標語，而且每次印出來都要一模一樣。",
       "craft": "把四個刻度盤的數值寫進 prompt——亂度、取樣、長度上限，並說明為什麼這樣設。",
@@ -1814,6 +1855,7 @@
         {
           "check": "mentionsParameters",
           "weight": 3,
+          "primary": true,
           "techniqueId": "params-01",
           "hint": "把參數與數值寫出來：「temperature 設為 0」（要每次完全一樣就設 0）、「思考火力設為高」。"
         },
@@ -1834,12 +1876,13 @@
         },
         {
           "check": "assignsTask",
-          "weight": 1,
+          "weight": 0.5,
+          "foundation": true,
           "techniqueId": "clarity-02",
           "hint": "參數之外，任務本身還是要講清楚。"
         }
       ],
-      "pass": 4,
+      "pass": 3.5,
       "source": "https://ai.google.dev/gemini-api/docs/prompting-strategies"
     },
     {
@@ -1858,6 +1901,7 @@
         "clarity-01",
         "format-05"
       ],
+      "primaryTechniqueId": "framework-01",
       "scenario": "一面四折的鏡子，四片鏡面分別映著：人設、任務、脈絡、格式。你只寫了一句話，鏡子只亮了一片：「官方統計最有效的委託平均約 21 個字，多數人只寫不到 9 個。你才寫了幾個？」",
       "mission": "把鏡子裡那句只有 9 個字的市集公告委託補完整。",
       "craft": "補成四要素齊全的 prompt——人設、任務、脈絡、格式。",
@@ -1887,6 +1931,7 @@
         {
           "check": "hasRole",
           "weight": 2,
+          "primary": true,
           "techniqueId": "framework-01",
           "hint": "P＝Persona：先給它一個人設。"
         },
@@ -1898,7 +1943,8 @@
         },
         {
           "check": "assignsTask",
-          "weight": 1,
+          "weight": 0.5,
+          "foundation": true,
           "techniqueId": "framework-01",
           "hint": "T＝Task：用動詞把任務講出來。"
         },
@@ -1924,7 +1970,7 @@
           "hint": "讓 prompt 自己的排版接近你要的輸出：分段清楚的 prompt，輸出也會分段清楚。"
         }
       ],
-      "pass": 4,
+      "pass": 3.5,
       "source": "https://blog.google/products-and-platforms/products/workspace/google-gemini-workspace-ai-prompt-tips/"
     },
     {
@@ -1942,6 +1988,7 @@
         "framework-03",
         "params-03"
       ],
+      "primaryTechniqueId": "framework-03",
       "scenario": "旅途的最後一站是一座天秤：一端放著「想得深」，另一端放著「跑得快」。秤守把兩張委託單推過來：「兩邊都對，但你得選一邊——然後用選了那一邊的寫法把委託寫完。」",
       "mission": "在秤上那三條航線裡選出一條，把委託寫完交給秤守。",
       "craft": "選「想得深」這一端：寫短、直接、給明確成功標準，再轉好 effort 與 verbosity。",
@@ -1970,6 +2017,7 @@
         {
           "check": "keepsPromptLean",
           "weight": 2,
+          "primary": true,
           "techniqueId": "framework-03",
           "hint": "既然交給推理模型，就把 prompt 壓短、拿掉逐步思考的鷹架。"
         },
@@ -1987,12 +2035,13 @@
         },
         {
           "check": "assignsTask",
-          "weight": 1,
+          "weight": 0.5,
+          "foundation": true,
           "techniqueId": "clarity-02",
           "hint": "一句動詞開頭的指令。"
         }
       ],
-      "pass": 4,
+      "pass": 3.5,
       "source": "https://developers.openai.com/api/docs/guides/reasoning-best-practices"
     }
   ]

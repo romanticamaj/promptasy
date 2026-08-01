@@ -31,7 +31,7 @@ import {
   rovingList,
   sourceNoteHtml,
 } from '../ui/dom.js';
-import { evaluate, nextGradeTarget } from '../challenges/rubric.js';
+import { evaluate, formatScore, nextGradeTarget } from '../challenges/rubric.js';
 import { CHECKS } from '../challenges/checks.js';
 import { createStele } from './stele.js';
 import { createOrderBoard } from './order.js';
@@ -51,6 +51,14 @@ export const ACTS = Object.freeze([
 export const GUIDE_TITLE = '神諭刻文';
 /** 官方出處在畫面上的說法 —— 換皮但不說謊：後面一定接真正的文件名。 */
 export const SOURCE_LABEL = '神諭原典';
+/**
+ * Phase A：一關只教一條技巧。
+ *
+ * 石碑上仍然會驗到別的東西（每一關都要的地基「說清楚要做什麼」，加上還沒
+ * 搬去自己神廟的舊項目），但它們**不是這一關教的**——所以只留一行名字，
+ * 不給它們自己的刻文與原典，畫面上不會假裝一次教了好幾條。
+ */
+export const EXTRA_LABEL = '順手會用到';
 /**
  * 「神諭原典到底是什麼」的解釋。
  *
@@ -215,6 +223,7 @@ export function createPromptConsole({
         })}</p>
         <p class="craft reveal d2" data-craft hidden></p>
         <ol class="glyphs" data-guidance></ol>
+        <p class="extras reveal" data-guidance-extra hidden></p>
         <details class="clue reveal">
           <summary>還想要一點線索 · Clue<kbd>L</kbd></summary>
           <p data-clue></p>
@@ -330,6 +339,7 @@ export function createPromptConsole({
   const actBtns = Array.from(overlay.body.querySelectorAll('[data-act-go]'));
   const craftEl = overlay.body.querySelector('[data-craft]');
   const guidanceEl = overlay.body.querySelector('[data-guidance]');
+  const guidanceExtraEl = overlay.body.querySelector('[data-guidance-extra]');
   const guidanceCompactEl = overlay.body.querySelector('[data-guidance-compact]');
   const guideTabEl = overlay.body.querySelector('[data-guidetab]');
   const carveKickerEl = overlay.body.querySelector('[data-carve-kicker]');
@@ -587,69 +597,159 @@ export function createPromptConsole({
    * ＋ 該技巧的**真正官方出處**。標籤換成世界觀的說法（「神諭原典」），
    * 但後面一定接得出真實文件名與可點連結 —— 換皮，不說謊（護欄 2）。
    * ---------------------------------------------------------------- */
-  function guidanceRows(challenge) {
-    return challenge.rubric.map((row) => {
-      const entry = content.coach(row.check);
-      const def = CHECKS[row.check];
-      const tech = content.technique(row.techniqueId);
-      // 退回官方 tip 時也走中文譯寫層（Phase 14：畫面上不出現整句英文）
-      const view = content.displayTechnique(row.techniqueId);
-      const src = content.sourceFor(row.techniqueId);
-      return {
-        check: row.check,
-        title: (entry && entry.title) || (def && def.label) || row.check,
-        tech: tech ? tech.title : '',
-        what: (entry && entry.what) || (view && view.tip) || '',
-        how: (entry && entry.how) || row.hint || (def && def.hint) || '',
-        src,
-        /** Phase 26：官方建議在新一代模型上變了 → 補一句有日期的查核備註。 */
-        dated: (view && view.dated) || null,
-        /** 這個出處本身的狀態（已下架 / 官方已標示即將移除）。 */
-        srcNote: src && content.sourceNote ? content.sourceNote(src.url) : null,
-      };
-    });
+  function guidanceRow(row, { techniqueId = null } = {}) {
+    const entry = content.coach(row.check);
+    const def = CHECKS[row.check];
+    // 主教學目標用的是這一關的 primaryTechniqueId（Phase A：一關只教一條）；
+    // 其他列仍然掛自己的 techniqueId，只是不再有自己的教學段落。
+    const techId = techniqueId || row.techniqueId;
+    const tech = content.technique(techId);
+    // 退回官方 tip 時也走中文譯寫層（Phase 14：畫面上不出現整句英文）
+    const view = content.displayTechnique(techId);
+    const src = content.sourceFor(techId);
+    return {
+      check: row.check,
+      title: (entry && entry.title) || (def && def.label) || row.check,
+      tech: tech ? tech.title : '',
+      what: (entry && entry.what) || (view && view.tip) || '',
+      how: (entry && entry.how) || row.hint || (def && def.hint) || '',
+      src,
+      /** Phase 26：官方建議在新一代模型上變了 → 補一句有日期的查核備註。 */
+      dated: (view && view.dated) || null,
+      /** 這個出處本身的狀態（已下架 / 官方已標示即將移除）。 */
+      srcNote: src && content.sourceNote ? content.sourceNote(src.url) : null,
+    };
+  }
+
+  /**
+   * 這一關的主教學目標（Phase A · C1：一關只教一條技巧）。
+   *
+   * rubric 上標了 `primary` 的那一列就是它；沒有標的（例如綜合型的應用關）
+   * 回傳 null —— 那種關卡本來就不宣稱教某一條新技巧。
+   */
+  function primaryRow(challenge) {
+    return (challenge.rubric || []).find((r) => r.primary) || null;
+  }
+
+  /**
+   * 第二幕要放大的那一段刻文。
+   * @returns {object|null}
+   */
+  function guidancePrimary(challenge) {
+    const row = primaryRow(challenge);
+    if (!row) return null;
+    return guidanceRow(row, { techniqueId: challenge.primaryTechniqueId || row.techniqueId });
+  }
+
+  /** 其餘的檢查：地基與還沒搬家的舊項目 —— 只留名字，不給它們自己的教學段落。 */
+  function guidanceAside(challenge) {
+    const primary = primaryRow(challenge);
+    return challenge.rubric
+      .filter((row) => row !== primary)
+      .map((row) => {
+        const entry = content.coach(row.check);
+        const def = CHECKS[row.check];
+        return {
+          check: row.check,
+          title: (entry && entry.title) || (def && def.label) || row.check,
+          foundation: Boolean(row.foundation),
+        };
+      });
   }
 
   function renderGuidance(challenge) {
-    const rows = guidanceRows(challenge);
+    const primary = guidancePrimary(challenge);
+    const aside = guidanceAside(challenge);
     craftEl.hidden = !challenge.craft;
     craftEl.textContent = challenge.craft || '';
-    guidanceEl.innerHTML = rows
-      .map(
-        (r, i) => `<li class="glyph reveal" style="--i:${i + 3}">
-          <span class="glyph__mark" aria-hidden="true">${i + 1}</span>
+    guidanceEl.innerHTML = primary
+      ? `<li class="glyph glyph--primary reveal" style="--i:3">
+          <span class="glyph__mark" aria-hidden="true">✦</span>
           <div class="glyph__body">
-            <h5 class="glyph__title">${esc(r.title)}${r.tech ? `<i>${esc(r.tech)}</i>` : ''}</h5>
-            ${r.what ? `<p class="glyph__what">${esc(r.what)}</p>` : ''}
-            ${r.how ? `<p class="glyph__how">${esc(r.how)}</p>` : ''}
-            ${datedNoteHtml(r.dated)}
+            <h5 class="glyph__title">${esc(primary.title)}${
+              primary.tech ? `<i>${esc(primary.tech)}</i>` : ''
+            }</h5>
+            ${primary.what ? `<p class="glyph__what">${esc(primary.what)}</p>` : ''}
+            ${primary.how ? `<p class="glyph__how">${esc(primary.how)}</p>` : ''}
+            ${datedNoteHtml(primary.dated)}
             ${
-              r.src
-                ? `<a class="src" href="${esc(r.src.url)}" target="_blank" rel="noopener">${esc(
+              primary.src
+                ? `<a class="src" href="${esc(primary.src.url)}" target="_blank" rel="noopener">${esc(
                     SOURCE_LABEL
-                  )}：${esc(r.src.name)} ↗</a>${sourceNoteHtml(r.srcNote)}`
+                  )}：${esc(primary.src.name)} ↗</a>${sourceNoteHtml(primary.srcNote)}`
                 : ''
             }
           </div>
         </li>`
-      )
-      .join('');
-    // 第三幕的側頁籤：同一份刻文，壓成一行一條（不是一牆文字）
-    guidanceCompactEl.innerHTML = `<ul class="guidetab__list">${rows
-      .map(
-        (r) => `<li>
-          <b>${esc(r.title)}</b>
-          ${r.how ? `<span>${esc(r.how)}</span>` : ''}
+      : /*
+         * 沒有主教學目標的關卡＝應用關（不教新技巧，只考已經學過的東西）。
+         * 它們維持 Phase 12 的樣子：每一條檢查各一段刻文 ＋ 各自的原典 ——
+         * 因為那本來就不是「一次教四條」，而是「把四條學過的用出來」。
+         * 真正的應用關型式（跳過第二幕）等 Phase J。
+         */
+        challenge.rubric
+          .map((row) => guidanceRow(row))
+          .map(
+            (r, i) => `<li class="glyph reveal" style="--i:${i + 3}">
+              <span class="glyph__mark" aria-hidden="true">${i + 1}</span>
+              <div class="glyph__body">
+                <h5 class="glyph__title">${esc(r.title)}${r.tech ? `<i>${esc(r.tech)}</i>` : ''}</h5>
+                ${r.what ? `<p class="glyph__what">${esc(r.what)}</p>` : ''}
+                ${r.how ? `<p class="glyph__how">${esc(r.how)}</p>` : ''}
+                ${datedNoteHtml(r.dated)}
+                ${
+                  r.src
+                    ? `<a class="src" href="${esc(r.src.url)}" target="_blank" rel="noopener">${esc(
+                        SOURCE_LABEL
+                      )}：${esc(r.src.name)} ↗</a>${sourceNoteHtml(r.srcNote)}`
+                    : ''
+                }
+              </div>
+            </li>`
+          )
+          .join('');
+    // 順手會用到的舊工法：一行帶過，不假裝這一關同時在教它們（護欄：一關一技巧）
+    guidanceExtraEl.hidden = !primary || aside.length === 0;
+    guidanceExtraEl.innerHTML =
+      primary && aside.length
+        ? `<span class="extras__label">${esc(EXTRA_LABEL)}</span>${aside
+            .map(
+              (r) =>
+                `<span class="extras__item${r.foundation ? ' is-foundation' : ''}">${esc(r.title)}</span>`
+            )
+            .join('')}`
+        : '';
+    // 第三幕的側頁籤：同一段刻文，壓成一行（其餘的只列名字）
+    const compact = primary
+      ? `<li>
+          <b>${esc(primary.title)}</b>
+          ${primary.how ? `<span>${esc(primary.how)}</span>` : ''}
           ${
-            r.src
-              ? `<a class="src" href="${esc(r.src.url)}" target="_blank" rel="noopener">${esc(
+            primary.src
+              ? `<a class="src" href="${esc(primary.src.url)}" target="_blank" rel="noopener">${esc(
                   SOURCE_LABEL
                 )} ↗</a>`
               : ''
           }
-        </li>`
-      )
-      .join('')}</ul>`;
+        </li>${aside.map((r) => `<li class="is-quiet"><b>${esc(r.title)}</b></li>`).join('')}`
+      : // 應用關：維持每一條各一行（含各自的原典）
+        challenge.rubric
+          .map((row) => guidanceRow(row))
+          .map(
+            (r) => `<li>
+              <b>${esc(r.title)}</b>
+              ${r.how ? `<span>${esc(r.how)}</span>` : ''}
+              ${
+                r.src
+                  ? `<a class="src" href="${esc(r.src.url)}" target="_blank" rel="noopener">${esc(
+                      SOURCE_LABEL
+                    )} ↗</a>`
+                  : ''
+              }
+            </li>`
+          )
+          .join('');
+    guidanceCompactEl.innerHTML = `<ul class="guidetab__list">${compact}</ul>`;
     if (guideTabEl) guideTabEl.open = false;
   }
 
@@ -884,20 +984,28 @@ export function createPromptConsole({
     const freshSet = new Set(fresh);
     checklistEl.innerHTML = challenge.rubric
       .map((row, i) => {
-        const src = content.sourceFor(row.techniqueId);
+        // 主檢查掛的是這一關真正教的那條技巧（Phase A），其餘掛自己的
+        const techId = (row.primary && challenge.primaryTechniqueId) || row.techniqueId;
+        const src = content.sourceFor(techId);
         const def = CHECKS[row.check];
-        const tech = content.technique(row.techniqueId);
+        const tech = content.technique(techId);
         const r = evaluation ? evaluation.results[i] : null;
         const state = r ? (r.passed ? 'pass' : r.partial ? 'part' : 'miss') : null;
         const icon = r ? (r.passed ? '✓' : r.partial ? '◐' : '·') : '';
         const justLit = r && freshSet.has(r.check) ? ' is-justlit' : '';
-        return `<li class="${state ? `checklist__row is-${state}${justLit}` : ''}">
+        /*
+         * Phase A：主教學目標放大，地基與還沒搬家的舊項目降到次要位階
+         * （還是看得到、還是算分，但不會跟主角搶「這一關在教什麼」）。
+         */
+        const tier = row.primary ? ' is-primary' : row.foundation ? ' is-foundation' : ' is-minor';
+        return `<li class="${state ? `checklist__row is-${state}${justLit}` : ''}${tier}">
           <span class="checklist__dot">${icon}</span>
           <span class="checklist__text">
             <b>${esc(def ? def.label : row.check)}</b>
+            ${row.primary ? '<em class="checklist__tag">這一關教的</em>' : ''}
             ${tech ? `<i>${esc(tech.title)}</i>` : ''}
           </span>
-          <span class="checklist__w">${row.weight} 分</span>
+          <span class="checklist__w">${formatScore(row.weight)} 分</span>
           ${src ? `<a class="src" href="${esc(src.url)}" target="_blank" rel="noopener">出處 ↗</a>` : ''}
         </li>`;
       })
@@ -966,12 +1074,14 @@ export function createPromptConsole({
             : '再刻幾段就夠了';
       lampTextEl.textContent = ready
         ? `已達通過門檻 —— 把手掌按上石碑就過關了（做到 ${done} / ${evaluation.results.length} 項）`
-        : `${todo}（目前 ${evaluation.earned} / 需要 ${evaluation.pass} 分）`;
+        : `${todo}（目前 ${formatScore(evaluation.earned)} / 需要 ${formatScore(evaluation.pass)} 分）`;
       return;
     }
     lampTextEl.textContent = ready
       ? `已達通過門檻 —— 按「${SUBMIT_LABEL}」就過關了（做到 ${done} / ${evaluation.results.length} 項）`
-      : `再完成 ${items} 項就能過關（目前 ${evaluation.earned} / 需要 ${evaluation.pass} 分）`;
+      : `再完成 ${items} 項就能過關（目前 ${formatScore(evaluation.earned)} / 需要 ${formatScore(
+          evaluation.pass
+        )} 分）`;
   }
 
   /* ---------------------------------------------------------------- *
@@ -1196,7 +1306,7 @@ export function createPromptConsole({
           <div class="row__main">
             <div class="row__head">
               <b>${esc(r.label)}</b>
-              <span class="row__score">${r.earned} / ${r.weight}</span>
+              <span class="row__score">${formatScore(r.earned)} / ${formatScore(r.weight)}</span>
             </div>
             ${r.evidence ? `<p class="row__evidence">${esc(r.evidence)}</p>` : ''}
             ${!r.passed && r.hint ? `<p class="row__hint">${esc(r.hint)}</p>` : ''}
@@ -1232,7 +1342,9 @@ export function createPromptConsole({
         </div>
         <div class="result__meter">
           <p class="result__scoreline">
-            <b>${evaluation.earned}</b> / ${evaluation.total} · 通過門檻 ${evaluation.pass}
+            <b>${formatScore(evaluation.earned)}</b> / ${formatScore(
+              evaluation.total
+            )} · 通過門檻 ${formatScore(evaluation.pass)}
           </p>
           <div class="meter"><i style="width:${Math.round((evaluation.earned / evaluation.total) * 100)}%"></i>
             <u style="left:${Math.round((evaluation.pass / evaluation.total) * 100)}%"></u></div>
@@ -1247,13 +1359,13 @@ export function createPromptConsole({
                 }${outcome.xpGain === 0 ? '（本關已拿過更高評價）' : ''}</p>`
               : `<p class="gain gain--none">再修一次就好——下面列出你缺了什麼。</p>`
           }
-          ${next ? `<p class="muted">距離 ${next.grade} 還差 ${next.need} 分。</p>` : ''}
+          ${next ? `<p class="muted">距離 ${next.grade} 還差 ${formatScore(next.need)} 分。</p>` : ''}
         </div>
       </div>
       <ul class="rows">${rows}</ul>
       ${
         collected
-          ? `<div class="collected" style="--i:${tail}"><h4><span class="zh">✦ 收進圖鑑</span><span class="en">Collected</span></h4><ul>${collected}</ul></div>`
+          ? `<div class="collected" style="--i:${tail}"><h4><span class="zh">✦ 順手收進圖鑑</span><span class="en">Collected</span></h4><ul>${collected}</ul></div>`
           : ''
       }
       ${

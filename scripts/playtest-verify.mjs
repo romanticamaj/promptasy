@@ -320,6 +320,36 @@ export function runPlaytestVerify({ ok, eq }) {
       ok(!weak.passed, `${tag} playtest：起手的壞寫法仍然不過關`, `earned=${weak.earned}/${weak.total}`);
     }
 
+    /* --- Phase A：這一關教的那一條，示範解答一定要真的做到 ---
+     *
+     * C1 收斂之後，`primary` 那一列就是玩家看到的「這一關教什麼」。
+     * 如果示範解答連它都拿不到滿分，那這一關其實沒有在教它。
+     * 反過來，起手的壞寫法不准剛好就把它做到（不然玩家沒有東西可以學）。
+     */
+    const primary = (c.rubric || []).find((r) => r.primary);
+    if (primary) {
+      const hit = sample.results.find((r) => r.check === primary.check);
+      ok(
+        hit && hit.passed,
+        `${tag} playtest：示範解答把「這一關教的」那一條做到滿分（${primary.check}）`,
+        `score=${hit ? hit.score : 'n/a'}`
+      );
+      if ('starter' in c) {
+        const weakPrimary = evaluate(c, c.starter).results.find((r) => r.check === primary.check);
+        ok(
+          weakPrimary && !weakPrimary.passed,
+          `${tag} playtest：起手的壞寫法還沒做到「這一關教的」那一條（${primary.check}）`,
+          `score=${weakPrimary ? weakPrimary.score : 'n/a'}`
+        );
+      }
+    } else {
+      ok(
+        c.primaryTechniqueId === null,
+        `${tag} playtest：沒有主檢查的關卡（應用關）也不宣稱教某一條技巧`,
+        String(c.primaryTechniqueId)
+      );
+    }
+
     /* --- E：石碑刻印（預設玩法）的門檻 --- */
     const flow = flowFile.flows[c.id];
     ok(!!flow, `${tag} playtest：有石碑刻印流程（預設玩法）`);

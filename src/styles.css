@@ -1686,6 +1686,34 @@ a.src:hover {
   justify-self: start;
 }
 
+/* Phase A：一關只教一條 —— 主教學目標亮起來，地基與還沒搬家的舊項目退到次要位階。
+   （它們還是看得到、還是算分，只是不再跟主角搶「這一關在教什麼」。） */
+.checklist__tag {
+  display: inline-block;
+  margin-left: var(--s2);
+  padding: 1px 6px;
+  border: 1px solid var(--rule-gold);
+  border-radius: 2px;
+  font-family: var(--font-ui);
+  font-size: var(--t-micro);
+  font-style: normal;
+  letter-spacing: var(--tr-cjk);
+  color: var(--gold, #e6c79b);
+  vertical-align: 1px;
+}
+.checklist li.is-primary .checklist__text b {
+  color: #f4e7d2;
+}
+.checklist li.is-foundation,
+.checklist li.is-minor {
+  opacity: 0.72;
+}
+.checklist li.is-foundation .checklist__text b,
+.checklist li.is-minor .checklist__text b {
+  font-weight: 400;
+  color: var(--paper-2);
+}
+
 /* 技巧積木（Phase 18）：貼著書寫檯下緣的一條工具列。
    以前是右欄的雙欄卡片（名稱 ＋ 說明 ＋ 中文片段 ＋ 收起來的英文），
    離輸入框很遠又很佔位；現在壓成一行一片的小石籤（quiet 階），
@@ -5699,6 +5727,41 @@ select option:disabled {
 }
 .glyph__how {
   color: rgba(230, 220, 201, 0.9);
+}
+/* Phase A：第二幕只放大這一關真正教的那一條 */
+.glyph--primary .glyph__mark {
+  color: var(--gold, #e6c79b);
+}
+.glyph--primary .glyph__title {
+  font-size: var(--t-h2, var(--t-h3));
+}
+/* 「順手會用到」：只留名字的一行，沒有自己的刻文與原典（不假裝一次教多條） */
+.extras {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--s2) var(--s3);
+  margin: var(--s4) 0 0;
+  padding-top: var(--s3);
+  border-top: 1px solid var(--rule);
+  font-size: var(--t-micro);
+  color: var(--paper-4);
+}
+.extras__label {
+  font-family: var(--font-ui);
+  letter-spacing: var(--tr-cjk);
+  color: var(--paper-4);
+}
+.extras__item {
+  font-family: var(--font-ui);
+  letter-spacing: var(--tr-cjk);
+  color: var(--paper-3);
+}
+.extras__item.is-foundation {
+  opacity: 0.8;
+}
+.guidetab__list li.is-quiet {
+  opacity: 0.7;
 }
 
 /* ---------------------------------------------------------------- 第三幕舞台 */

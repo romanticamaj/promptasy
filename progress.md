@@ -117,3 +117,72 @@
 - `scripts/playtest-verify.mjs` 本期未改（Phase 0 不動關卡資料）；Phase A 才加「主檢查唯一、地基 ≤1、小數 pass 顯示」等 invariant。
 - 未 commit／push（依指示由 orchestrator 統一做 changelog ＋ commit）；未動 `CLAUDE.md`、`vite.config.js`、port 5175、`src/data/curriculum.json`。
 - 未跑 `npm run fonts`：本期沒有動 `index.html`／`src/**`，字型語料指紋不受影響（rubric 的指紋測試已綠證實）。
+
+## 2026-08-01 · Phase A（重複度手術）· `done`
+
+### 做了什麼
+
+1. **`src/data/challenges.json` 逐關照 manifest 執行**（27 關，零偏離）：
+   - `assignsTask` 27 關 1 → **0.5** 並標 `foundation: true`；
+   - `hasDelimiters` 只降 `example-hall-11`／`long-scroll-tower-23`（2→1），3 個 `hold`（`postbox-sprite-02`／
+     `long-scroll-archive-05`／`thinking-chamber-14`）一分未動；
+   - `silent-thinker-13` 的 `specifiesFormat` 直接移除；5 關的 `specifiesFormat` 權重中性替換
+     （`subtask-workbench-31`→`decomposesTask`、`draft-review-wheel-32`／`echo-workshop-35`→`asksToRefine`、
+     `tool-forge-33`→`definesTools`、`mask-workshop-41`→新增 `hasAudience` 承接 1 分）；
+   - `pass` 全部 = `passAfter`（D3 literal −0.5，範圍 2.5–4.5）；
+   - 新增 `primaryTechniqueId`（25 條互不重複、2 關應用關 `null`）與 rubric 上唯一的 `primary: true`。
+   - 結果：rubric 118 → **113** 條，每關總權重與 manifest 的 `totalWeightAfter` 逐關相符。
+2. **`src/data/flows.json` 第三幕收斂**：6 份 flow 不再教已經不計分的東西 —— 5 段格式段落移除
+   （subtask／draft／tool／echo／mask）、`silent-thinker-13` 那段整段換成 `reasoning-02` 的「明確成功條件」；
+   `mask-workshop-41` 的任務段改寫成「說明…寫給今晚第一次上船的擺渡船員看」讓 `hasAudience` 真的被刻進碑文；
+   收起段落後的段落編號一併對齊。27 份 flow **全部選對仍然每一條檢查滿分（27/27 拿 S）**。
+3. **顯示層手術**（`src/prompt/console.js`＋`src/styles.css`）：第二幕只放大**一條**刻文
+   （主技巧的白話刻文 ＋ 它的神諭原典連結），其餘檢查降成一行「順手會用到」——沒有自己的教學段落、
+   沒有自己的原典；第三幕的刻痕對照分成「這一關教的（金色標記）／地基／其他」三種位階，
+   側頁籤同樣只有主刻文掛原典。收集仍由 legacy `teaches` 驅動，結算面板改寫成「✦ 順手收進圖鑑」（D2 的 uiRule）。
+4. **小數門檻的顯示**：`src/challenges/rubric.js` 新增 `formatScore()`，
+   `console.js`／`practice.js` 的進度燈、結果面板、每條檢查的得分與權重全部走它。
+5. **測試**：`test-rubric.mjs` 的遷移契約區段從「比對 before」改寫成「比對 after」
+   （phase-A 的四種動作逐條驗、**post-A 的一條都不准提前搬**、C1 的主檢查唯一與地基 ≤1、
+   rubric 條數 113）；新增「小數門檻顯示 ＋ 一關只教一條 ＋ 收集不倒退」整個區段。
+   `playtest-verify.mjs` 新增「示範解答一定做到主檢查、起手壞寫法一定還沒做到主檢查」。
+6. **順手修掉 e2e 的既有紅燈**（不是這期弄壞的，見 `findings.md`）：
+   (a) `headless-check.mjs` 還在斷言 Phase 34.5 撤掉的打字機標題卡，`[data-typed="tag"]` 為 null
+   直接讓整支 e2e 在第 69 個斷言就中斷 —— 照 Phase 0 對 `test-rubric` 的做法改成斷言今天的設計；
+   (b) `reloadPage()` 在換頁尾巴上會撞到「Inspected target navigated or closed」讓整支中斷，
+   補一次 `readyState === 'complete'` 的輪詢（不是加長固定 sleep）；
+   (c) 入場門區段還在量已經移除的 `.entrygate__hint`，`getComputedStyle(null)` 讓最後一段中斷 ——
+   改成斷言今天的門面（呼吸燈 ＋ 一句話 ＋ sr-only 提示）；
+   (d) 兩條寫死「第 1 / 4 段」的斷言改成由資料段數推導；
+   (e) 已知 flaky 家族「拖曳」改成 poll-until（`AGENTS.md` 指定的根治方式）＋ 拖曳前先收掉可能還開著的
+   分享卡／圖鑑／設定 ＋ 失敗訊息帶上 `elementFromPoint`；入場門呼吸燈改成等它擺到亮的那一段再取樣。
+7. **應用關維持現況**：兩關 `primaryTechniqueId: null`，第二幕就退回 Phase 12 的多條刻文
+   （每條各有自己的原典）——「把學過的用出來」不是「一次教四條」。真正的應用關型式等 Phase J。
+
+### 本次實跑
+
+| 指令 | Phase 0 baseline | Phase A |
+|---|---|---|
+| `npm run fonts` | 未跑 | ✓ 語料 55 檔／CJK **1634** 字／1331.5 KB（指紋測試綠） |
+| `npm run test:rubric` | 17,479 | ✓ **17,705** |
+| `npm run test:playtest` | 226 | ✓ **263** |
+| `npm run build` | ✓ | ✓ |
+| `npm run test:e2e` | 跳過（Phase 0 零產品碼改動） | ✓ **1,811 項檢查全過、零 console error** |
+
+**e2e 的三次歷程（誠實記錄）**：第一次在第 69 個斷言就 `TypeError` 中斷（Phase 34.5 撤掉打字機之後
+e2e 一直沒跑過，殘留舊斷言）；修好之後第二次跑到 799 個斷言時又被 `reloadPage()` 的換頁競態中斷；
+第三次跑完全程但有 5 條紅（拖曳 3 條、分享取消 1 條、入場門呼吸燈 1 條）——
+拖曳那一組另外用獨立 CDP 腳本在同一份工作樹上重現過：把疊在上面的面板收乾淨之後，
+同一組滑鼠事件會正確地把石版搬到最上面，所以是「有東西擋住指標」而不是 Phase A 的退化。
+第四次（拖曳前先收掉分享卡／圖鑑／設定 ＋ 呼吸燈改成等它擺到亮的那一段）**全綠**。
+
+新測試都先確認會紅：把 `dial-room-43` 的 `primary` 移到別條 → 紅（`主檢查就是 manifest 指定的 mentionsParameters`）；
+把進度燈改回裸浮點 → 紅（`沒有把原始浮點數直接塞進畫面`）。
+
+### 未做／留給後續
+
+- **沒有**改任何 rubric 列的 `techniqueId`（`techniqueIdRealign` 是描述欄，不是 Phase A 的動作），
+  也沒有改 `challenge.source`；教學面的收斂只走 `primaryTechniqueId` 這一條路。
+- `effort-forge-15` 的第二幕教 `params-03`，但通關收集的仍是它自己的 legacy `teaches`
+  （`params-03` 由刻度儀之室收集）—— manifest 已裁決的過渡狀態，Phase J 移除相容層時一併收斂。
+- 未 commit／push；未動 `CLAUDE.md`、`vite.config.js`、port 5175、`src/data/curriculum.json`（sha256 測試仍綠）。

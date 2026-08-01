@@ -93,7 +93,7 @@ Exit criteria：
 
 ### Phase A — 重複度手術
 
-狀態：`pending`
+狀態：`done`（2026-08-01）
 
 目標：現有 27 關在玩家面只教一件事，先消除重複感，不新增題型。
 
@@ -110,6 +110,24 @@ Exit criteria：
 - `scripts/playtest-verify.mjs`：27 關 sample ≥ A、全選對必過、weak starter 必不過、已知誤判不回歸。
 
 Exit：27 關全部符合 C1；玩家看到的教學重點只有一條；舊存檔與已收集技巧不減少；rubric＋playtest＋build 全綠。
+
+Exit criteria（逐條實測）：
+
+- [x] 27 關逐關照 manifest 的 `phase: "A"` 條目執行完畢：`assignsTask` 27 關降到 0.5 並標 `foundation`、
+      `hasDelimiters` 只降 `example-hall-11`／`long-scroll-tower-23` 兩關（3 個 `hold` 一個都沒動）、
+      `silent-thinker-13` 的 `specifiesFormat` 直接移除、5 關的 `specifiesFormat` 權重中性地換成該關真正的主檢查、
+      `pass` 全部 = `passAfter`。零偏離（測試逐條比對 manifest）。
+- [x] 27 關新增 `primaryTechniqueId`（25 條互不重複，2 關應用關為 `null`），rubric 上恰好一列標 `primary`
+      ＝ manifest 的 `mainCheck`（新檢查器未實作時＝`interimMainCheck`）。
+- [x] 玩家看到的教學重點只有一條：第二幕只放大主技巧的刻文＋它的神諭原典，其餘檢查降到一行「順手會用到」
+      （沒有自己的教學段落、沒有自己的原典）；第三幕的刻痕對照分成「這一關教的／地基／其他」三種位階。
+- [x] 第三幕不再教已經不計分的東西：6 份 flow 的格式段落收斂（5 段移除、`silent-thinker-13` 那段改成
+      reasoning-02 的「明確成功條件」），27 份 flow 全部選對仍然每一條檢查滿分。
+- [x] 收集不倒退：收集照舊由 legacy `teaches` 驅動，27 關的 `teaches` 一字未改，仍然收得滿 68 條。
+- [x] 小數門檻在畫面上讀得順：新增 `formatScore()`，進度燈／結果面板／刻痕對照／序章練習台全部走它。
+- [x] `npm run fonts`（中文有變）＋`test:rubric`（17,705）＋`test:playtest`（263）＋`build` 全綠；
+      `test:e2e` **1,811 項全綠、零 console error**（過程中修掉三個 Phase A 之前就存在的 e2e 中斷／紅燈，
+      逐條記在 `findings.md`）。
 
 ### Phase B — v2 catalog bridge＋`fix`／`spot`＋foundations 14
 
