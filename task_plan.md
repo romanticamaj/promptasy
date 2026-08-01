@@ -35,41 +35,61 @@
 
 ## 2. 先解決的三個規格矛盾
 
-### D1 — 27 關遷移數字
+### D1 — 27 關遷移數字 ✅ 已裁決（Phase 0）
 
-`HANDOFF.md` 寫 4 保留／21 改造／2 應用，`curriculum-v2.md` 逐表小計是 **5／20／2**。以逐關表為準，Phase A 前用機器產生 27 行 manifest，並補文件勘誤；不憑摘要數字改資料。
+`HANDOFF.md` 寫 4 保留／21 改造／2 應用，`curriculum-v2.md` 逐表小計是 **5／20／2**。
+Phase 0 已把 §4 逐關表 27 行逐一點名重算：**保留 5／改造 20／轉應用關 2 = 27**，與 §4 小計一致，
+`HANDOFF.md` 的 4／21／2 是摘要漂移（文件勘誤，記在 `findings.md`，不改歷史文件、不改資料）。
+保留的 5 關：`lost-automaton-03`、`well-of-unknowing-22`、`long-scroll-tower-23`、`oracle-workshop-36`、`priority-stair-42`。
+轉應用關的 2 關：`council-envoy-06`、`archive-seal-25`。
+機器產生的逐關 manifest：`docs/design/curriculum-v2-migration.json`（由 `test:rubric` 逐行驗證）。
 
-### D2 — `teaches` 兼具教學與收集語意
+### D2 — `teaches` 兼具教學與收集語意 ✅ 已裁決（Phase 0）
 
 目前 `teaches` 同時控制 UI 教學目標、官方來源、通關收集與 68 技巧覆蓋；直接縮成一條會讓尚未搬家的技巧暫時不可收集。
 
-推薦做法：
+**裁決（照原推薦做法定案）**：
 
 - 新增單一 `primaryTechniqueId`，Phase A 立刻讓 UI／rubric／教練只顯示主技巧。
-- 暫時保留舊 `teaches` 作相容收集清單，但更名路徑與測試明確標成 legacy；不得在畫面上假裝一次教了多條。
+  27 關的主技巧已在 manifest 逐關指定，且**彼此不重複**（25 條，2 關應用關為 `null`），測試強制驗證。
+- 暫時保留舊 `teaches` 作相容收集清單（manifest 的 `teachesLegacy` 逐字快照），但路徑與測試明確標成 legacy；不得在畫面上假裝一次教了多條。
 - B–J 每當新神廟接手一條技巧，就從舊關的 legacy list 移走；到 J 結束完全移除相容層。
 - 已完成舊關的存檔保留既有 `collected`，不回收、不倒退。
 
-### D3 — pass 降權公式
+### D3 — pass 降權公式 ✅ 已裁決（Phase 0）
 
-設計同時寫「每關 pass -0.5」與「總權重 50% 規則不變」，兩者不是完全等價。Phase A 先輸出 literal `-0.5` 與依總權重重算兩份矩陣。推薦遵照明確遷移規格採 **pass -0.5**，再以「弱起手仍不過、快速填入必過、sample ≥ A」作實際安全門，而非只看百分比。
+設計同時寫「每關 pass -0.5」與「總權重 50% 規則不變」，兩者不是完全等價。
+
+**裁決**：採 **literal −0.5**（manifest 的 `passAfter`，逐關記錄），並同時輸出依總權重重算的 `passAfterByWeightRule` 供比對。
+兩份矩陣在「權重同時被下修」的關卡上分岔，最大 +0.75 分（`example-hall-11`／`silent-thinker-13`／`long-scroll-tower-23`）。
+真正的驗收門不是百分比，而是 playtest 的三道安全閘：**弱起手（starter）仍不過、快速填入／全選對必過、sample ≥ A**；
+分岔的那幾關以安全閘實測為準，必要時個別再調，不整批套百分比。
 
 ## 3. 分期路線
 
 ### Phase 0 — 基線與契約鎖定
 
-狀態：`pending`
+狀態：`done`（2026-08-01）
 
-產出：
+產出（全部完成）：
 
 - 產生 27 關 migration manifest：主技巧、主檢查、地基檢查、移除／降權項、before/after total/pass、`teaches` 相容處置。
 - 記錄目前 challenge/flow/kind/checker/region/save/performance 基線，修正文件內已漂移的數字。
 - 把 `curriculum.json` hash 加成不可變測試；新增資料不得寫回它。
-- 跑一次未修改產品碼的 baseline：`test:rubric`、`test:playtest`、`build`；e2e 是否跑由使用者依成本策略決定。
+- 跑一次未修改產品碼的 baseline：`test:rubric`、`test:playtest`、`build`；e2e 依成本策略本期不跑。
 
-主要檔案：`scripts/test-rubric.mjs`、`scripts/playtest-verify.mjs`、新建 migration manifest（建議 `docs/design/curriculum-v2-migration.json`）。
+主要檔案：`scripts/test-rubric.mjs`、`docs/design/curriculum-v2-migration.json`（新建）、`findings.md`、`progress.md`。
+`scripts/playtest-verify.mjs` 本期未改（Phase 0 不動關卡資料，既有 226 個斷言即是 baseline）。
 
-Exit：27 關逐行決策無缺漏；D1–D3 有可執行答案；baseline 結果寫進 `progress.md`。
+Exit criteria：
+
+- [x] 27 關逐行決策無缺漏（manifest 27 行，id 與 `challenges.json` 逐一對齊含順序，測試強制）。
+- [x] D1 有可執行答案：逐關表點名重算 = 保留 5／改造 20／應用 2（`HANDOFF.md` 的 4／21／2 記為勘誤）。
+- [x] D2 有可執行答案：`primaryTechniqueId`（27 關逐關指定、彼此不重複）＋ `teaches` 降為 legacy 收集清單。
+- [x] D3 有可執行答案：literal −0.5 逐關記錄，並附依總權重重算的對照欄與三道 playtest 安全閘。
+- [x] `curriculum.json` byte-immutability 測試上線（sha256 釘死，實測破壞會紅）。
+- [x] 12 個既有開場斷言重建成「今天的設計」的斷言，`test:rubric` 全綠。
+- [x] baseline 結果（rubric／playtest／build／資料／效能）寫進 `progress.md`，e2e 跳過的理由也寫進去。
 
 ### Phase A — 重複度手術
 
@@ -79,7 +99,11 @@ Exit：27 關逐行決策無缺漏；D1–D3 有可執行答案；baseline 結�
 
 變更：
 
-- `src/data/challenges.json`：27 關 `assignsTask` 降到 0.5 且標成地基；6 關移除／替換非主題 `specifiesFormat`；5 關 `hasDelimiters` 2→1；pass 依 D3 調整；加入 `primaryTechniqueId`。
+- `src/data/challenges.json`：**一律照 `docs/design/curriculum-v2-migration.json` 的 `phase: "A"` 條目執行**——
+  27 關 `assignsTask` 降到 0.5 且標成地基；6 關移除／替換非主題 `specifiesFormat`（5 關換成該關真正的主檢查、`silent-thinker-13` 直接移除）；
+  `hasDelimiters` 2→1 **只做 2 關**（`example-hall-11`、`long-scroll-tower-23`）——
+  `postbox-sprite-02`／`long-scroll-archive-05`／`thinking-chamber-14` 的分隔符在 v2 逐關表裡正是那一關的主檢查，manifest 已裁決 `hold`；
+  pass 依 D3 literal −0.5；加入 `primaryTechniqueId`。
 - `src/data/flows.json`：刻印段落與 feedback 同步收斂，不能 rubric 已移除但第三幕仍反覆教它。
 - `src/prompt/console.js`、`src/challenges/content.js`、`src/progression/progression.js`：拆開主教學目標與 legacy collection 語意。
 - `scripts/test-rubric.mjs`：新增「恰好 1 主檢查、地基 ≤1、assignsTask 不列為主教學、fractional pass 正確顯示」invariants。
@@ -251,6 +275,6 @@ Exit：跨世界素材有 reload/reset/e2e；或有一份明確的「不實作�
 | WSL 無 `node` | 1 | 改用 Windows Node |
 | 首次假設 JSON 根為陣列 | 1 | 先讀 schema，再使用 `.challenges`／`.flows` |
 | Windows `npm` 經 `cmd.exe` 無法使用 UNC cwd，錯到 `C:\Windows` 找測試腳本 | 1 | 不重跑相同命令；改以 Windows Node 直接執行測試腳本與 Vite CLI |
-| rubric baseline 有 12 個既有開場斷言失敗（entrygate/title 舊結構） | 1 | 規劃文件未觸及產品碼；不擴大 PR 修復，於 PR 明列 16,490 pass／12 fail，留 Phase 0 重建 baseline |
+| rubric baseline 有 12 個既有開場斷言失敗（entrygate/title 舊結構） | 1 | 規劃文件未觸及產品碼；不擴大 PR 修復，於 PR 明列 16,490 pass／12 fail，留 Phase 0 重建 baseline。**Phase 0 已修**：12 條全部改寫成 Phase 34.5 現行設計的斷言（不是刪掉），並實測破壞會紅 |
 | Windows Node 搭配 Linux `node_modules` 執行 Vite，缺 `@rollup/rollup-win32-x64-msvc` | 1 | 不刪 lockfile/node_modules、不改依賴；先找 WSL 既有 Node，沒有則標記 build 為環境未執行 |
 | PowerShell 再次展開 bash status 變數，合併命令結尾無法回傳正確 code | 1 | 不再依賴合併變數；以各工具明確輸出判定：rubric 12 fail、Vite build passed |

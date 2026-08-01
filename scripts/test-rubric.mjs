@@ -4352,11 +4352,16 @@ const gateCss = readFileSync(resolve(root, 'src/styles.css'), 'utf8');
 
 /* --- 文案：一盞燈 ＋ 一句話 ＋ 一行小小的提示（Phase 34：極簡化） --- */
 ok(/推開夜色之門/.test(gateSrc), '門上寫著「推開夜色之門」');
-ok(/點擊進入⋯/.test(gateSrc), '底下一行安靜的「點擊進入⋯」');
+// Phase 34.5（站長定稿）：門上只剩呼吸燈 ＋ 一句話 ＋ sr-only 的提示，
+// 原本第三樣東西（`.entrygate__hint` 的「點擊進入⋯」）連同樣式整組撤掉。
+ok(
+  !/entrygate__hint/.test(gateSrc) && !/\.entrygate__hint/.test(gateCss),
+  '「點擊進入⋯」那行提示已整組移除（原始碼與樣式都沒有殘留）'
+);
 ok(/entrygate__orb/.test(gateSrc), '門上有一盞呼吸燈（不再是印記＋外框的按鈕）');
 ok(!/entrygate__seal|entrygate__glyph|>enter</.test(gateSrc), 'Phase 33 的印記／外框／enter 已整組移除');
-// 鍵盤的人看不到「點一下」也要知道按什麼 —— 用 sr-only 補一句
-ok(/sr-only">或按任意鍵/.test(gateSrc), '螢幕閱讀器聽得到「或按任意鍵」（視覺上收起來）');
+// 看不到「點一下」的人也要知道按什麼 —— 用 sr-only 把兩種操作一起講完
+ok(/sr-only">點擊或按任意鍵進入</.test(gateSrc), '螢幕閱讀器聽得到「點擊或按任意鍵進入」（視覺上收起來）');
 // 護欄 2：入口不是課程，不准放官方出處或技巧宣稱
 ok(!/https?:\/\//.test(gateSrc.replace(/^[\s\S]*?\*\//, '')), '入場門不放任何連結（它是世界的入口，不是課程）');
 
@@ -4414,13 +4419,12 @@ ok(
   veilBlock.trim().slice(0, 120)
 );
 /*
- * 門上的三樣東西全部延遲 ≥0.3s 才出現 —— 探測到「其實可以自動播放」時我們會在
+ * 門上的兩樣東西都延遲 ≥0.3s 才出現 —— 探測到「其實可以自動播放」時我們會在
  * 220ms 內撤掉這道門，那條路上不能有任何字閃過去。
  */
 for (const [cls, next] of [
   ['.entrygate__orb', '@keyframes gate-fade'],
-  ['.entrygate__line', '.entrygate__hint'],
-  ['.entrygate__hint', '.entrygate__enter:hover'],
+  ['.entrygate__line', '.entrygate__enter:hover'],
 ]) {
   const block = gateCss.slice(gateCss.indexOf(`${cls} {`), gateCss.indexOf(next));
   const delay = Number((block.match(/animation:[^;]*?var\(--e-out\) ([\d.]+)s forwards/) || [])[1]);
@@ -4431,10 +4435,17 @@ const orbBlock = gateCss.slice(gateCss.indexOf('.entrygate__orb {'), gateCss.ind
 const breathe = Number((orbBlock.match(/entrygate-breathe ([\d.]+)s/) || [])[1]);
 ok(breathe >= 4, `呼吸燈慢慢呼吸（${breathe}s 一次，比心跳慢一半）`, String(breathe));
 ok(/entrygate-breathe [\d.]+s ease-in-out [\d.]+s infinite/.test(orbBlock), '呼吸是持續的，不是閃一下就停');
+// 整道門就是一顆按鈕：不畫 focus 框（站長定稿），鍵盤的人靠 sr-only 那句知道要按什麼
+ok(
+  /\.entrygate__enter:focus-visible \{\s*outline: none;/.test(gateCss),
+  '門上那顆按鈕不畫 focus 框（畫面上只留那幾個字）'
+);
 const reduceBlock = gateCss.slice(gateCss.indexOf('@media (prefers-reduced-motion: reduce)'));
-for (const cls of ['.entrygate__inner', '.entrygate__orb', '.entrygate__line', '.entrygate__hint']) {
+for (const cls of ['.entrygate__inner', '.entrygate__orb', '.entrygate__line']) {
   ok(reduceBlock.includes(cls), `prefers-reduced-motion 下 ${cls} 仍然看得見（不靠動畫收尾）`);
 }
+// 名字是「從模糊裡對焦」進來的：動畫被關掉時模糊也要一起解除，不然會停在糊的那一幀
+ok(/\.title__name \{\s*filter: none;/.test(reduceBlock), 'reduce 下名字的模糊一起解除（不會停在糊掉的那一幀）');
 
 /* ------------------------------------------------------------------ */
 /* Phase 34 · 黑幕：按下開始之前，世界一眼都不准被看到                 */
@@ -4461,26 +4472,54 @@ ok(
 );
 
 /* ------------------------------------------------------------------ */
-/* Phase 34 · 標題卡：名字整個淡入 ＋ 兩句話用打字機打出來             */
+/* Phase 34.5（站長定稿）· 標題卡：名字整個從模糊裡對焦 ＋ 兩句話一行  */
+/* 一行淡入。打字機（Phase 34）整組撤掉 —— 節奏改由 CSS 的延遲決定，   */
+/* 所以任何時候按下去都是「直接進場」，不會有半句話被打斷。            */
 /* ------------------------------------------------------------------ */
 ok(!/title__ch|stageName/.test(titleSrc), '分字揭示（每個字彈一下）已整組移除');
 ok(!/title__foot/.test(titleSrc) && !/title__foot/.test(gateCss), '底部那行統計數字已移除（連樣式一起）');
 ok(!/68 條技巧/.test(titleSrc), '標題卡不再列統計數字');
-ok(/title__typed/.test(titleSrc) && /title__caret/.test(titleSrc), '兩句話是打出來的（有游標）');
-ok(/\[\.\.\.text\]/.test(titleSrc), '打字用展開運算子切字元（中文一個字算一個，不會切壞）');
-ok(/const TYPE_CJK = \d+/.test(titleSrc) && /const TYPE_LATIN = \d+/.test(titleSrc), '中英各有自己的打字速度');
-const latinPer = Number((titleSrc.match(/const TYPE_LATIN = (\d+)/) || [])[1]);
-const cjkPer = Number((titleSrc.match(/const TYPE_CJK = (\d+)/) || [])[1]);
-ok(cjkPer > latinPer, `中文打得比英文慢（${cjkPer}ms > ${latinPer}ms／字）`);
-ok(/prefers-reduced-motion/.test(titleSrc), 'reduce 下不打字（直接顯示）');
-ok(/function finishTyping\(\)/.test(titleSrc), '有「一次補完」的那一支');
+ok(!/title__typed|title__caret/.test(titleSrc), '打字機（游標）已整組移除（Phase 34.5 改成一行一行淡入）');
+ok(
+  /title__tag">\$\{esc\(subtitle\)\}<\/p>/.test(titleSrc) && /title__zh">/.test(titleSrc),
+  '兩句話各自是一個完整節點（定位句 ＋ 中文那句），不再逐字塞進去'
+);
+ok(
+  /title__zh">\$\{esc\(ZH_LINE_A\)\}<br \/>\$\{esc\(ZH_LINE_B\)\}/.test(titleSrc),
+  '中文那句的換行是寫死的 <br />（斷句由設計決定，不靠視窗寬度）'
+);
+ok(!/TYPE_CJK|TYPE_LATIN/.test(titleSrc), '中英打字速度的常數已移除（沒有打字機就不需要速度）');
+// 揭示節奏改由 CSS 延遲決定：定位句 → 中文兩行 → 開始鍵，一路往後排
+// `.title__start` 在檔案裡出現兩次（前面是石牌的共用階），這裡只看標題卡那一段
+const titleCssFrom = gateCss.indexOf('.title__tag {');
+const delayOf = (cls, next) => {
+  const from = gateCss.indexOf(`${cls} {`, titleCssFrom);
+  const block = gateCss.slice(from, gateCss.indexOf(next, from));
+  return Number((block.match(/animation: gate-fade [\d.]+s var\(--e-out\) ([\d.]+)s forwards/) || [])[1]);
+};
+const tagDelay = delayOf('.title__tag', '.title__zh {');
+const zhDelay = delayOf('.title__zh', '/* 開始鍵');
+ok(tagDelay > 0 && zhDelay > tagDelay, `兩句話一行一行淡入（定位句 ${tagDelay}s → 中文 ${zhDelay}s）`);
+ok(
+  ['.title__tag', '.title__zh'].every((cls) => reduceBlock.includes(cls)),
+  'reduce 下兩句話仍然看得見（不靠動畫收尾）'
+);
+ok(/finishTyping\(\) \{\}/.test(titleSrc), 'finishTyping 只剩相容用的空殼（沒有東西可以補完）');
+ok(
+  /get isTyping\(\) \{\s*\n\s*return false;/.test(titleSrc),
+  '舊 API isTyping 永遠回 false（呼叫端不必知道打字機沒了）'
+);
 const startFn = titleSrc.slice(titleSrc.indexOf('function start()'), titleSrc.indexOf('function onKey'));
-ok(/finishTyping\(\);/.test(startFn), '打到一半被按下去 → 同一拍補完，不會有半句話淡出去');
-ok(/sr-only">\$\{esc\(subtitle\)\}/.test(titleSrc), '完整的定位句一開始就在（螢幕閱讀器不會念到半句話）');
+ok(!/finishTyping/.test(startFn), '按下開始就直接離場（不再需要先把半句話補完）');
 const nameBlock = gateCss.slice(gateCss.indexOf('.title__name {'), gateCss.indexOf('.title__accent {'));
 ok(/filter: blur\(\d+px\)/.test(nameBlock), '名字從模糊裡對焦（整個一起，不是一個字一個字）');
 ok(!/@keyframes ch-in/.test(gateCss), 'ch-in 的關鍵影格也清掉了');
-ok(/\.title\.is-ready \.title__start \{\s*opacity: 1;/.test(gateCss), '開始鍵等兩句話打完才浮出（is-ready）');
+const startDelay = delayOf('.title__start', '/* 呼吸的光沿著石牌');
+ok(startDelay > zhDelay, `開始鍵等兩句話淡完才浮出（純 CSS 延遲 ${startDelay}s > ${zhDelay}s）`);
+ok(
+  /\.title\.is-ready \.title__start::before \{\s*animation: title-breathe/.test(gateCss),
+  'is-ready 現在只負責開始鍵的呼吸光（不再是「打完字才顯示」的開關）'
+);
 
 console.log('\n▸ 字型子集與授權');
 
@@ -4990,6 +5029,195 @@ console.log('\n▸ 改名與存檔搬家');
   }
   // 存檔那一支是唯一還准提舊名的地方（遷移用）
   ok(/promptarcade\.v1\.save/.test(srcOf('src/save/save.js')), '存檔模組留著舊 key（遷移需要）');
+}
+
+/* ================================================================== */
+/* 課程 v2 · Phase 0：curriculum.json 不可變 ＋ 27 關遷移 manifest      */
+/* ================================================================== */
+console.log('\n▸ 課程 v2 遷移契約（Phase 0）');
+
+{
+  /* ---------------------------------------------------------------- */
+  /* (1) curriculum.json 必須 byte-identical（CLAUDE.md 護欄 2）        */
+  /*                                                                  */
+  /* 68 條技巧的文字與官方連結是一手引文，任何「補充／翻譯／新技能」    */
+  /* 都必須走獨立的 authored 資料層（curriculum-zh.json、coach.json、   */
+  /* dated-notes.json、之後的 skill-codex-v2.json…），不得回寫原檔。    */
+  /* 這裡把它的 sha256 釘死，改一個位元組就會紅。                       */
+  /* ---------------------------------------------------------------- */
+  const { createHash } = await import('node:crypto');
+  const CURRICULUM_SHA256 = '53b0ca60917f763e82aec256bc3dc07cb809e07607415a3907e9e8d408b39062';
+  const actualSha = createHash('sha256')
+    .update(readFileSync(resolve(root, 'src/data/curriculum.json')))
+    .digest('hex');
+  ok(
+    actualSha === CURRICULUM_SHA256,
+    'curriculum.json 必須 byte-identical——新內容走 authored 資料層（src/data/curriculum-zh.json、coach.json、skill-codex-v2.json…），不要回寫這一檔',
+    `expected ${CURRICULUM_SHA256}\n        actual   ${actualSha}`
+  );
+
+  /* ---------------------------------------------------------------- */
+  /* (2) 27 關遷移 manifest（docs/design/curriculum-v2-migration.json） */
+  /* ---------------------------------------------------------------- */
+  const migration = readJson('docs/design/curriculum-v2-migration.json');
+  const rows = migration.challenges;
+
+  eq(rows.length, 27, 'manifest 有 27 關（一關都不能少）');
+  eq(migration.authored, 'game', 'manifest 標成遊戲自撰（它是實作契約，不是官方引文）');
+
+  // id 與現況資料逐一對得起來（順序也一樣）
+  const liveIds = challenges.map((c) => c.id);
+  eq(rows.map((r) => r.id).join(','), liveIds.join(','), 'manifest 的 id 與 challenges.json 完全一致（含順序）');
+
+  // D1：處置分佈 —— 逐關表算出來的真實數字是 5 保留／20 改造／2 應用關
+  const tally = rows.reduce((acc, r) => ((acc[r.disposition] = (acc[r.disposition] || 0) + 1), acc), {});
+  eq(tally.keep, 5, 'D1：保留 5 關（逐關表逐行點名，不是摘要數字）');
+  eq(tally.rework, 20, 'D1：改造 20 關');
+  eq(tally.application, 2, 'D1：轉為應用關 2 關');
+  eq(tally.keep + tally.rework + tally.application, rows.length, 'D1：三種處置加起來剛好 27，沒有漏關也沒有重複');
+  for (const r of rows) {
+    ok(['keep', 'rework', 'application'].includes(r.disposition), `${r.id} 的處置是三種之一`, r.disposition);
+  }
+
+  // 護欄 7：一關都不准刪
+  ok(
+    rows.every((r) => liveIds.includes(r.id)),
+    'manifest 沒有憑空多出來的關卡（零刪除、零新增）'
+  );
+
+  const techIds = new Set(curriculum.techniques.map((t) => t.id));
+  const checkIds = new Set(CHECK_IDS);
+  const seenPrimary = new Set();
+
+  /* §7.4 的新檢查器清單直接從設計書解析出來（不手抄一份會漂掉的副本） */
+  const v2doc = readFileSync(resolve(root, 'docs/design/curriculum-v2.md'), 'utf8');
+  const specBlock = v2doc.slice(v2doc.indexOf('### 7.4 檢查器'), v2doc.indexOf('### 7.5'));
+  const V2_NEW_CHECKERS = new Set(
+    [...specBlock.matchAll(/^\| `([A-Za-z][A-Za-z0-9]*)` \|/gm)].map((m) => m[1])
+  );
+  eq(V2_NEW_CHECKERS.size, 59, 'curriculum-v2 §7.4 列出 59 個新檢查器');
+  ok(
+    [...V2_NEW_CHECKERS].every((id) => !checkIds.has(id)),
+    '§7.4 的新檢查器沒有一個是既有的 22 個（清單沒有重疊）'
+  );
+
+  for (const r of rows) {
+    const live = challenges.find((c) => c.id === r.id);
+
+    /* D2：primaryTechniqueId —— 每關恰好一條主技巧，且必須是真的技巧 id */
+    if (r.disposition === 'application') {
+      eq(r.primaryTechniqueId, null, `${r.id}（應用關）不教新技巧，主技巧為 null`);
+      eq(r.mainCheck, null, `${r.id}（應用關）沒有單一主檢查（它本來就是綜合題）`);
+    } else {
+      ok(
+        typeof r.primaryTechniqueId === 'string' && techIds.has(r.primaryTechniqueId),
+        `${r.id} 的 primaryTechniqueId 對得到 curriculum 裡真的技巧`,
+        String(r.primaryTechniqueId)
+      );
+      ok(!seenPrimary.has(r.primaryTechniqueId), `${r.id} 的主技巧沒有跟別關撞號（C2：一條技巧只教一次）`);
+      seenPrimary.add(r.primaryTechniqueId);
+      eq(
+        r.primaryTechniqueTitle,
+        curriculum.techniques.find((t) => t.id === r.primaryTechniqueId).title,
+        `${r.id} 的主技巧標題與 curriculum 一字不差`
+      );
+
+      /* C1：恰好 1 條主檢查 ＋ 至多 1 條地基 */
+      ok(nonEmptyStr(r.mainCheck), `${r.id} 有且只有一條主檢查`);
+      ok(
+        r.foundationCheck === null || nonEmptyStr(r.foundationCheck),
+        `${r.id} 的地基檢查至多一條（沒有就是 null）`
+      );
+      ok(
+        r.mainCheck !== r.foundationCheck,
+        `${r.id} 的主檢查與地基不是同一條`
+      );
+      // assignsTask 是及格線不是技巧 —— 不准當主檢查（gap-analysis §3 建議 1）
+      ok(r.mainCheck !== 'assignsTask', `${r.id} 沒有拿 assignsTask 當「這一關教什麼」`);
+
+      /* 主檢查要嘛今天就在這一關的 rubric 裡，要嘛是 §7.4 有規格的新檢查器 */
+      const liveChecks = new Set(live.rubric.map((x) => x.check));
+      if (r.newChecker) {
+        ok(!checkIds.has(r.mainCheck), `${r.id} 的主檢查 ${r.mainCheck} 確實還不存在（標成 newChecker）`);
+        ok(
+          V2_NEW_CHECKERS.has(r.mainCheck),
+          `${r.id} 的新主檢查 ${r.mainCheck} 在 curriculum-v2 §7.4 的 59 個新檢查器清單裡`
+        );
+        ok(
+          nonEmptyStr(r.interimMainCheck) && liveChecks.has(r.interimMainCheck),
+          `${r.id} 在新檢查器實作之前，有一條現有的 interimMainCheck 頂著`,
+          String(r.interimMainCheck)
+        );
+      } else {
+        ok(liveChecks.has(r.mainCheck), `${r.id} 的主檢查 ${r.mainCheck} 今天就在它的 rubric 裡`);
+        eq(r.interimMainCheck, null, `${r.id} 的主檢查已經存在，不需要過渡用的 interim`);
+      }
+      if (r.foundationCheck && !r.foundationNewChecker) {
+        ok(
+          liveChecks.has(r.foundationCheck),
+          `${r.id} 的地基 ${r.foundationCheck} 今天就在它的 rubric 裡`
+        );
+      }
+      if (r.foundationNewChecker) {
+        ok(V2_NEW_CHECKERS.has(r.foundationCheck), `${r.id} 的新地基 ${r.foundationCheck} 也在 §7.4 清單裡`);
+      }
+    }
+
+    /* D2：teaches 原封不動保留為 legacy 收集清單 */
+    eq(
+      r.teachesLegacy.join(','),
+      live.teaches.join(','),
+      `${r.id} 的 teachesLegacy 與現況 teaches 逐字相同（收集不倒退）`
+    );
+    for (const t of r.teachesLegacy) ok(techIds.has(t), `${r.id} 的 legacy 技巧 ${t} 真的存在`);
+
+    /* D3：literal −0.5，逐關記錄 */
+    const totalBefore = live.rubric.reduce((s, x) => s + x.weight, 0);
+    eq(r.passBefore, live.pass, `${r.id} 的 passBefore 就是現況的 pass`);
+    eq(r.passAfter, Number((r.passBefore - 0.5).toFixed(2)), `${r.id} 的 passAfter = passBefore − 0.5（D3 literal）`);
+    eq(r.totalWeightBefore, totalBefore, `${r.id} 的 totalWeightBefore 由現況 rubric 加總得出`);
+    ok(r.totalWeightAfter > 0 && r.totalWeightAfter <= totalBefore, `${r.id} 的 totalWeightAfter 只會持平或變小`);
+    ok(r.passAfter > 0 && r.passAfter < r.totalWeightAfter, `${r.id} 調整後仍然是「拿得到但要做對事」的門檻`);
+
+    /* 移除／降權清單：每一條都要指得到現況真的存在的檢查 */
+    const liveWeights = new Map(live.rubric.map((x) => [x.check, x.weight]));
+    for (const e of r.checksToRemoveOrDownweight) {
+      ok(liveWeights.has(e.check), `${r.id} 的 ${e.check} 今天真的在 rubric 裡（不能對不存在的東西降權）`);
+      eq(e.weightBefore, liveWeights.get(e.check), `${r.id} 的 ${e.check} 現況權重記對了`);
+      ok(['downweight', 'remove', 'replace', 'hold'].includes(e.action), `${r.id} 的 ${e.check} 動作合法`, e.action);
+      ok(['A', 'post-A'].includes(e.phase), `${r.id} 的 ${e.check} 有指定期別`, e.phase);
+      ok(nonEmptyStr(e.reason) && e.reason.length >= 10, `${r.id} 的 ${e.check} 有寫理由`);
+      if (e.action === 'replace') ok(checkIds.has(e.replaceWith), `${r.id} 的 ${e.check} 換成真的存在的檢查器`);
+    }
+    // assignsTask 全域降權：27 關一關都不能漏
+    const at = r.checksToRemoveOrDownweight.find((e) => e.check === 'assignsTask');
+    ok(at && at.phase === 'A' && at.weightAfter === 0.5, `${r.id} 的 assignsTask 在 Phase A 降為 0.5（地基）`);
+  }
+
+  /* 全域統計：manifest 記的基線要跟現況資料對得上 */
+  eq(migration.baseline.challenges, challenges.length, 'manifest 的關卡數基線正確');
+  eq(
+    migration.baseline.rubricRows,
+    challenges.reduce((s, c) => s + c.rubric.length, 0),
+    'manifest 的 rubric 條數基線正確（118，不是舊文件的 106）'
+  );
+  eq(migration.baseline.curriculumTechniques, curriculum.techniques.length, 'manifest 的技巧數基線正確');
+  eq(migration.baseline.curriculumSha256, CURRICULUM_SHA256, 'manifest 記的 curriculum 指紋與實檔一致');
+
+  /* D1–D3 的裁決要寫在檔案裡（讓後續期別讀得到，不必回頭翻對話） */
+  for (const key of ['D1', 'D2', 'D3']) {
+    ok(migration.decisions?.[key]?.ruling?.length > 20, `manifest 寫明 ${key} 的裁決`);
+  }
+  // 已知的文件矛盾要逐條留痕，不能默默吞掉
+  ok(migration.conflicts.length >= 3, 'manifest 逐條記下比對時發現的文件矛盾與裁決');
+  for (const c of migration.conflicts) {
+    ok(nonEmptyStr(c.kind) && nonEmptyStr(c.resolution), `矛盾「${c.id}」有寫清楚是什麼、怎麼裁決`);
+  }
+  // 護欄 2：這份 manifest 是實作契約，不是課程內容 —— 不放官方連結（出處一律回 curriculum）
+  ok(
+    !/https?:\/\//.test(JSON.stringify(migration)),
+    'manifest 不自帶官方連結（出處一律回 curriculum.json，避免二手抄寫）'
+  );
 }
 
 /* ------------------------------------------------------------------ */

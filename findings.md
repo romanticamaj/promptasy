@@ -52,6 +52,67 @@
 - 測試目前大量硬編碼 68 技巧／5 區／3 kinds／27 flows 與既有 kind 分布；各 phase 必須把「歷史快照型斷言」改成 schema/invariant 或新明確目標，避免為過測試寫死。
 - `evaluate()` 接受任意 finite number pass，小數門檻在引擎層可運作；UI 會直接插入數字，因此 Phase A 要加小數顯示與差額文案測試。
 
+## D1–D3 最終裁決（Phase 0 · 2026-08-01）
+
+三個規格矛盾都已用**現況資料 ＋ 逐關表逐行比對**定案，寫進
+`docs/design/curriculum-v2-migration.json` 的 `decisions` 區塊，並由 `npm run test:rubric` 逐行守住。
+
+### D1 — 27 關遷移數字 → **保留 5／改造 20／轉應用關 2**
+
+- 逐關點名（不是引用小計）：`curriculum-v2.md` §4 表格 27 行，處置欄「保留」出現 5 次、
+  「改造」20 次、「轉為應用關」2 次，加總 27，與該節小計一致。
+- 保留 5：`lost-automaton-03`、`well-of-unknowing-22`、`long-scroll-tower-23`、`oracle-workshop-36`、`priority-stair-42`。
+- 轉應用關 2：`council-envoy-06`、`archive-seal-25`。
+- `HANDOFF.md` 的「保留 4／改造 21／應用 2」是摘要漂移，屬文件勘誤（見下），資料一律以逐關表為準。
+
+### D2 — `teaches` 拆成「教學」與「收集」兩種語意
+
+- 新增 `primaryTechniqueId`：27 關逐關指定，**25 條互不重複**（2 關應用關為 `null`，因為應用關不教新技巧）。
+  測試強制：必須是 `curriculum.json` 裡真的技巧 id、標題逐字相同、不得與別關撞號（C2）。
+- `teaches` 原封不動保留為 **legacy collection list**（manifest 的 `teachesLegacy` 是逐字快照），
+  只餵圖鑑／徽章／收集，不再出現在「這一關教什麼」的畫面上。B–J 逐條移走，Phase J 移除相容層。
+- 唯一一條 `primaryTechniqueId` 不在該關現有 `teaches` 裡的是 `effort-forge-15` 的 `params-03`
+  —— 那是 §4 明訂「由刻度儀之室讓過來」，manifest 已標成 conflict 並記下處置。
+- `oracle-workshop-36` 的 v2 技能 `tool-when-not` 在 68 條裡**沒有**對應條目：暫用 `agentic-01`
+  並標 `needsV2Catalog: true`，真正的條目要等 Phase B 的 `skill-codex-v2.json`（authored 層），**不得改寫 `curriculum.json`**。
+
+### D3 — pass 降權採 literal −0.5
+
+- manifest 逐關同時記 `passAfter`（literal −0.5）與 `passAfterByWeightRule`（調整後總權重 × 50%）。
+- 27 關全部分岔（因為 `assignsTask` 一律 −0.5 讓總權重變成小數）；多數只差 ±0.25，
+  但 `example-hall-11`、`silent-thinker-13`、`long-scroll-tower-23` 三關差 **+0.75**（literal 較嚴），
+  原因是它們同時還被移除／降權了另一條檢查。
+- 驗收門不是百分比：以 playtest 三道安全閘（弱起手仍不過／快速填入必過／sample ≥ A）實測為準，
+  分岔的那幾關個別再調，不整批套百分比。
+
+### Phase A 的實際改動面（用現況資料重算，取代舊文件的摘要數字）
+
+- `assignsTask` 1→0.5：**27 關**（不是舊文件的 26 關）。
+- 非主題 `specifiesFormat`：**6 關**（`tool-forge-33`→definesTools 加權、`subtask-workbench-31`→decomposesTask、
+  `echo-workshop-35`／`draft-review-wheel-32`→asksToRefine、`mask-workshop-41`→hasAudience、`silent-thinker-13` 直接移除）。
+  前 5 關是權重中性的替換，只有 `silent-thinker-13` 讓總權重 −1。
+- `hasDelimiters` 2→1：`gap-analysis.md` §3 建議 3 列了 5 關，但其中 **3 關的分隔符在 v2 逐關表裡正是那一關的主檢查**
+  （`postbox-sprite-02` = `struct-delimiters`、`long-scroll-archive-05` = `pos-rules-first` 的過渡主檢查、
+  `thinking-chamber-14` = `cot-separate-answer`）。依 task_plan §2「以逐關表為準」裁決 **hold**，
+  Phase A 實際只降 **2 關**（`example-hall-11`、`long-scroll-tower-23`）。
+- 因此「前三名檢查器占比 49%→25%」這個預期效果**不會**只靠 Phase A 達成：
+  Phase A 之後 `hasDelimiters` 仍然出現在 12 關（權重才變），真正的分散要等 B–J 把主題搬去各自的神廟。
+  現況實測占比是 `assignsTask` 27 ＋ `specifiesFormat` 14 ＋ `hasDelimiters` 12 = 53/118 = **44.9%**
+  （`gap-analysis.md` 寫的 49% 是 26 關／106 項那版的數字）。
+
+## 文件勘誤（dated errata · 2026-08-01，不改歷史文件）
+
+| 文件 | 寫的 | 現況實測 | 處置 |
+|---|---|---|---|
+| `HANDOFF.md` 邊界條件 | 27 關遷移「保留 4／改造 21／轉應用關 2」 | 逐關表點名為 **5／20／2** | 以 `curriculum-v2.md` §4 逐關表為準（D1）；`HANDOFF.md` 不改寫，本表留痕 |
+| `docs/promptbooks/gap-analysis.md` §3 | 「26 關 × 4–7 條 ＝ 106 條檢查項」、`assignsTask` 26/26、前三名合計 49% | **27 關／118 條**；`assignsTask` 27/27、`specifiesFormat` 14、`hasDelimiters` 12、前三名合計 **44.9%** | 建議數字全部用現況重算；舊百分比不可直接當驗收門 |
+| `docs/promptbooks/gap-analysis.md` §3 建議 3 | 5 關 `hasDelimiters` 2→1 | 其中 3 關的分隔符是 v2 的主檢查 | Phase A 只降 2 關，其餘 `hold`（manifest 已記 conflict 與理由） |
+| `curriculum-v2.md` §4 `gate-of-clarity-01` 列 | 「拆掉 hasAudience／assignsTask」 | 同節「全域改動」寫 `assignsTask` 一律降為 0.5 | Phase A 一律降權（D3 的 −0.5 在算術上正是這一步）；整條移除等 §3 foundations #5「只會點頭的信差」上線，屬 post-A |
+| `curriculum-v2.md` §3 foundations #14 | 「規則牆」沒有標（改造） | §4 明指 `long-scroll-archive-05` 遷入 `pos-rules-first` | 視為同一座神廟（長卷檔案室 → 規則牆），§3 漏標 |
+| `curriculum-v2.md` §3 神廟名的「（保留）」 | 多座與 §4 的「改造」看似矛盾 | 兩者語意不同 | §3 的「（保留）」＝沿用既有石座與資料；§4 的處置欄＝主題是否收斂。`disposition` 一律取自 §4 |
+| `WORLD.md` 效能現況 | 約 143k 三角形／44 盞燈 | 本次實測 **142,664 三角形／45 盞燈**（高畫質） | 數字接近，仍以每期實測為準，不引用文件舊值 |
+| `curriculum-v2.md` §7.6 風險段 | 125k 三角形／47 盞燈 | 同上，已過期 | 同上 |
+
 ## 待盤點
 
 - `HANDOFF.md` 的未完成項目、優先級、驗收條件與已知阻塞。
