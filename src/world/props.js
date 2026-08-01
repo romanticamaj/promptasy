@@ -1187,6 +1187,79 @@ export const STORY_VIGNETTES = Object.freeze([
     ],
   },
 
+  /* --- toolcraft：替神諭打造它的手（課程 v2 · Phase F） --- */
+  {
+    id: 'nameless-tools',
+    region: 'toolcraft',
+    name: '沒有人替它取名字的那一把',
+    at: [-108, -22],
+    rot: 0.6,
+    parts: [
+      ['anvil', [0, 0, 0], 0, {}],
+      ['tools', [3.2, 0, 1.6], -0.4, {}],
+      ['slate', [-2.8, 0, 2.2], 0.3, { marks: 5 }],
+      ['crates', [-3.6, 0, -2.4], 0.2, {}],
+      ['cairn', [3.0, 0, -3.2], 0, {}],
+    ],
+  },
+  {
+    id: 'crowded-bench',
+    region: 'toolcraft',
+    name: '擺到放不下的那張檯',
+    at: [-140, 20],
+    rot: -1.1,
+    parts: [
+      ['drafttable', [0, 0, 0], 0, {}],
+      ['tools', [-3.4, 0, 1.2], 0.5, {}],
+      ['crates', [3.6, 0, 0.8], -0.2, {}],
+      ['cart', [1.4, 0, -4.0], 0.7, {}],
+      ['lamp', [-4.2, 0, -2.6], 0, { h: 3.4, light: false }],
+    ],
+  },
+  {
+    id: 'untouched-machine',
+    region: 'toolcraft',
+    name: '沒有人敢動的那一台',
+    at: [-124, 32],
+    rot: 2.3,
+    parts: [
+      ['machine', [0, 0, 0], 0, {}],
+      ['pipes', [3.8, 0, 1.4], 0.4, {}],
+      ['signpost', [-4.0, 0, 1.8], -0.5, {}],
+      ['firepit', [-2.2, 0, -3.6], 0, { light: false }],
+      ['column', [4.2, 0, -2.8], 0, { h: 2.6 }],
+    ],
+  },
+  /* --- wards：外面來的字也是指令（課程 v2 · Phase F） --- */
+  {
+    id: 'opened-letters',
+    region: 'wards',
+    name: '被拆開讀過的那幾封',
+    at: [106.9, -129.3],
+    rot: 0.8,
+    parts: [
+      ['desk', [0, 0, 0], 0, { light: false }],
+      ['scrolls', [3.0, 0, 1.2], -0.3, {}],
+      ['ink', [1.2, 0.4, 0.6], 0.5, {}],
+      ['seat', [-2.6, 0, 1.8], 0.2, {}],
+      ['lamp', [-3.4, 0, -2.4], 0, { h: 3.0, light: false }],
+    ],
+  },
+  {
+    id: 'unwatched-post',
+    region: 'wards',
+    name: '沒有人在的那個崗',
+    at: [90.3, -133],
+    rot: -0.7,
+    parts: [
+      ['signpost', [0, 0, 0], 0, {}],
+      ['cairn', [3.2, 0, 1.6], 0, {}],
+      ['stele', [-3.0, 0, 1.4], 0.2, { h: 2.8, seed: 9, tilt: 0.08 }],
+      ['firepit', [0.6, 0, -3.4], 0, { light: false }],
+      ['column', [-3.8, 0, -2.6], 0, { h: 2.2 }],
+    ],
+  },
+
   {
     id: 'little-stage',
     region: 'config',
@@ -1214,6 +1287,10 @@ export const LANDMARKS = Object.freeze([
   { id: 'mask-arch', region: 'config', name: '面具拱門', at: [95, 95], height: 22, clear: 16 },
   // 課程 v2 · Phase E：量器坊的地標（curriculum-v2 §二：「一根被刻滿量度的斷柱，柱頂懸著一把不動的尺」）
   { id: 'gauge-column', region: 'forms', name: '刻度之柱', at: [0, 124], height: 24, clear: 15 },
+  // 課程 v2 · Phase F：契約鍛冶場（§二：「半空中一圈懸浮的鑰匙，每一把都沒有刻名字」）
+  { id: 'nameless-keys', region: 'toolcraft', name: '未命名的工具', at: [-124, 0], height: 23, clear: 15 },
+  // 課程 v2 · Phase F：護欄崗（§二：「一道永遠留一條縫的雙層門」）
+  { id: 'ajar-doors', region: 'wards', name: '不會關上的門', at: [101, -142], height: 19, clear: 13 },
 ]);
 
 /** 斷環：一圈立起來的巨石環，缺了一角 —— 「有人試著把話說圓，還差一塊」。 */
@@ -1414,6 +1491,111 @@ function landmarkGaugeColumn(kit) {
   return grp;
 }
 
+/**
+ * 未命名的工具：半空中一圈懸浮的鑰匙，每一把都沒有刻名字。
+ *
+ * 抄寫人替神諭打了一整圈的手，卻沒有一把寫得出「什麼時候該用我」——
+ * 所以它們就一直懸在那裡，誰也不知道該伸手拿哪一把。
+ * 只有臺座與中央的柱擋人；鑰匙全部懸空（下緣離地 11 公尺以上）。
+ * **零實體光源**：刻痕與鑰匙齒都是自發光（WORLD.md §6.1）。
+ */
+function landmarkNamelessKeys(kit) {
+  const grp = new THREE.Group();
+  // 臺座 ＋ 中央那根沒有刻字的短柱
+  put(grp, cyl(5.0, 6.2, 1.3, 8), stone(kit.dark), [0, 0.65, 0]);
+  put(grp, cyl(3.6, 4.2, 0.5, 8), stone(kit.mid), [0, 1.55, 0]);
+  const pillar = put(grp, cyl(1.5, 1.9, 9.4, 8), stone(kit.mid), [0, 6.5, 0]);
+  bulky(pillar);
+  // 柱頂那一圈空的名牌（每一片都留白）
+  put(grp, torus(4.6, 0.22, 5, 22), glow(kit.accent, 1.15), [0, 11.6, 0], [Math.PI / 2, 0, 0]);
+
+  // 懸浮的鑰匙：一圈 9 把，每一把＝一根桿 ＋ 一個環 ＋ 兩顆齒（instanced）
+  const KEYS = 9;
+  const shafts = new THREE.InstancedMesh(box(0.26, 3.4, 0.26), stone(kit.light), KEYS);
+  const bows = new THREE.InstancedMesh(torus(0.62, 0.16, 4, 12), glow(kit.accent, 1.0), KEYS);
+  const teeth = new THREE.InstancedMesh(box(0.9, 0.24, 0.24), stone(kit.light), KEYS * 2);
+  const mtx = new THREE.Matrix4();
+  const q = new THREE.Quaternion();
+  const p = new THREE.Vector3();
+  const one = new THREE.Vector3(1, 1, 1);
+  let t = 0;
+  for (let i = 0; i < KEYS; i += 1) {
+    const a = (i / KEYS) * Math.PI * 2;
+    const r = 7.2;
+    const x = Math.cos(a) * r;
+    const z = Math.sin(a) * r;
+    const y = 13.4 + Math.sin(a * 2) * 1.6;
+    const tilt = Math.sin(a * 3) * 0.35;
+    q.setFromEuler(new THREE.Euler(tilt, -a, 0.12));
+    shafts.setMatrixAt(i, mtx.compose(p.set(x, y, z), q, one));
+    bows.setMatrixAt(i, mtx.compose(p.set(x, y + 2.0, z), q, one));
+    for (const k of [0, 1]) {
+      const off = -1.0 - k * 0.6;
+      teeth.setMatrixAt(t, mtx.compose(p.set(x + Math.sin(-a) * 0.42, y + off, z + Math.cos(-a) * 0.42), q, one));
+      t += 1;
+    }
+  }
+  shafts.instanceMatrix.needsUpdate = true;
+  bows.instanceMatrix.needsUpdate = true;
+  teeth.count = t;
+  teeth.instanceMatrix.needsUpdate = true;
+  grp.add(shafts);
+  grp.add(bows);
+  grp.add(teeth);
+
+  // 那一圈鑰匙下面的一點暖光 —— 全區唯一的暖金熱點
+  put(grp, ico(0.5, 0), glow(PALETTE.warm, 2.0), [0, 12.3, 0]);
+  put(grp, torus(7.6, 0.12, 4, 26), glow(kit.accent, 1.25), [0, 14.6, 0], [Math.PI / 2, 0, 0]);
+  return grp;
+}
+
+/**
+ * 不會關上的門：一道永遠留一條縫的雙層門。
+ *
+ * 哨所的門是兩層的：外面那一層擋得住莽撞的人，裡面那一層只擋得住自己人。
+ * 兩層都關不上 —— 中間那條縫是刻意留的，人要進得來、話要傳得出去。
+ * 門框與門扇擋人；縫裡那道光是自發光的。**零實體光源**。
+ */
+function landmarkAjarDoors(kit) {
+  const grp = new THREE.Group();
+  put(grp, box(13.5, 0.9, 7.0), stone(kit.dark), [0, 0.45, 0]);
+
+  // 兩層門：外層高、內層矮一點，各自留一條縫
+  const layers = [
+    { z: 2.0, h: 16.5, w: 4.6, gap: 1.05, mat: kit.mid },
+    { z: -2.0, h: 12.5, w: 3.9, gap: 0.7, mat: kit.dark },
+  ];
+  for (const L of layers) {
+    for (const side of [-1, 1]) {
+      bulky(put(grp, box(1.5, L.h, 1.5), stone(L.mat), [side * (L.w + L.gap + 0.75), L.h / 2 + 0.9, L.z]));
+      // 門扇：向外開了一點點，所以永遠合不起來
+      const leaf = put(
+        grp,
+        box(L.w, L.h - 1.6, 0.55),
+        stone(L.mat),
+        [side * (L.gap + L.w / 2 + 0.1), (L.h - 1.6) / 2 + 0.9, L.z + side * 0.5],
+        [0, side * -0.16, 0]
+      );
+      bulky(leaf);
+      // 門扇上的橫閂（合不起來的那一根）
+      put(grp, box(L.w * 0.86, 0.3, 0.2), glow(kit.accent, 0.9), [
+        side * (L.gap + L.w / 2 + 0.1),
+        L.h * 0.52,
+        L.z + side * 0.5 + 0.35,
+      ]);
+    }
+    put(grp, box(L.w * 2 + L.gap * 2 + 3.0, 1.4, 1.8), stone(L.mat), [0, L.h + 0.9, L.z]);
+  }
+
+  // 兩道縫裡透出來的光（自發光的薄片，不是燈）
+  put(grp, box(0.55, 14.0, 0.5), glow(kit.accent, 1.5), [0, 8.0, 2.0]);
+  put(grp, box(0.4, 10.5, 0.4), glow(kit.accent, 1.2), [0, 6.4, -2.0]);
+  // 門楣上那一點暖光 —— 有人還在守著
+  put(grp, ico(0.46, 0), glow(PALETTE.warm, 2.0), [0, 18.4, 2.0]);
+  put(grp, torus(1.5, 0.14, 4, 16), glow(kit.accent, 1.1), [0, 18.4, 2.0], [0, 0, 0]);
+  return grp;
+}
+
 const LANDMARK_BUILDERS = {
   'broken-ring': landmarkBrokenRing,
   'endless-stair': landmarkEndlessStair,
@@ -1421,6 +1603,8 @@ const LANDMARK_BUILDERS = {
   'great-crane': landmarkGreatCrane,
   'mask-arch': landmarkMaskArch,
   'gauge-column': landmarkGaugeColumn,
+  'nameless-keys': landmarkNamelessKeys,
+  'ajar-doors': landmarkAjarDoors,
 };
 
 /* ------------------------------------------------------------------ *

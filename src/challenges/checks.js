@@ -1061,6 +1061,191 @@ const DESIGN_WHITESPACE_EN =
   /\bwhite ?space\b|\bdo not (?:overcrowd|fill every)\b|\bat most \d+ (?:bullets?|items?) per (?:slide|page)\b/i;
 
 /* ------------------------------------------------------------------ *
+ * 契約鍛冶場 / 護欄崗（課程 v2 · Phase F）
+ * ------------------------------------------------------------------ *
+ *
+ * 契約鍛冶場（toolcraft）教的是「工具是宣告出來的」：說明、命名、時機、
+ * 順序、預算；護欄崗（wards）教的是「外面來的字也是指令」。
+ *
+ * 九個檢查器全部是**結構性偵測**：抓的是「兩件事同時出現」「位置關係」
+ * 「數字＋單位」，不是關鍵字。其中三個是**非單調**的
+ * （`requiresPreamble` 要求那句話用 JSON 就掉分、`limitsToolSurface`
+ * 一邊限制一邊又把工具全攤開就掉分、`prefersToolOverMentalMath`
+ * 又叫它心算就整條歸零）——「多寫一句」不會自動變高分。
+ *
+ * **安全題的誠實界線**：`reshapesToLowRisk` 與 `includesAdversarialCase`
+ * 判定的是「有沒有把任務改成本來就不危險的形狀」「有沒有納入惡意輸入的處置」，
+ * 而**不是**「有沒有寫一句拜託它別上當的話」——那句話從來就不是安全邊界。
+ */
+
+// --- toolNamesDistinct（兩把同名的鑰匙）-----------------------------
+/** 一行工具宣告裡的名字：`工具名：archive_search`、`- archive_search（…）`。 */
+const TOOL_NAME_CAPTURE =
+  /(?:^|\n)\s*(?:[-*•]\s*)?(?:tool[_ ]?name|工具名稱|工具名|函式名稱|函式名|name)\s*[:：]\s*([A-Za-z0-9_.\u4e00-\u9fff-]{2,40})/gi;
+/** 名字之間的共同前綴（`archive_` / `檔案_` / `檔案·`）。 */
+const NAME_SPLIT = /[_.·\-–—]/;
+/** 參數改成列舉（非法狀態寫不出來）。 */
+const ENUM_PARAM_ZH =
+  /(?:只(?:能|准|可以)|限|限定)(?:是|填|選)?\s*[「"'（(]?[^\n]{0,24}(?:、|\/|｜|\|)[^\n]{0,24}[」"'）)]?(?:其中之一|之一)?|列舉|enum\b|(?:可(?:選|填)(?:值|項))\s*[:：]|\bonly\b\s+[A-Za-z0-9_]+(?:\s*,\s*[A-Za-z0-9_]+)*\s+or\s+[A-Za-z0-9_]+/i;
+/** 兩份說明是不是幾乎一樣（重疊率）。 */
+function descOverlap(a, b) {
+  const toks = (s) =>
+    new Set(
+      clean(s)
+        .toLowerCase()
+        .replace(/[^\w\u4e00-\u9fff]+/g, ' ')
+        .split(/\s+/)
+        .flatMap((w) => (/[\u4e00-\u9fff]/.test(w) ? w.split('') : [w]))
+        .filter((w) => w.length > 0)
+    );
+  const A = toks(a);
+  const B = toks(b);
+  if (!A.size || !B.size) return 0;
+  let hit = 0;
+  for (const w of A) if (B.has(w)) hit += 1;
+  return hit / Math.min(A.size, B.size);
+}
+/** 抓出每一把工具的「名字 → 說明」。 */
+function toolEntries(text) {
+  const out = [];
+  let current = null;
+  for (const raw of lines(text)) {
+    const line = raw.trim();
+    const nameM = line.match(/^(?:[-*•]\s*)?(?:tool[_ ]?name|工具名稱|工具名|函式名稱|函式名|name)\s*[:：]\s*(.+)$/i);
+    if (nameM) {
+      current = { name: nameM[1].trim(), desc: '' };
+      out.push(current);
+      continue;
+    }
+    const descM = line.match(/^(?:[-*•]\s*)?(?:description|desc|說明|描述)\s*[:：]\s*(.+)$/i);
+    if (descM && current) current.desc = descM[1].trim();
+  }
+  return out;
+}
+
+// --- limitsToolSurface（擺滿的工作檯）-------------------------------
+/** 「檯面上只留 n 把」：數字 ＋ 工具的單位。 */
+const TOOL_COUNT_LIMIT_ZH =
+  /(?:只|僅|最多|不超過|限)\s*(?:留|給|擺|開放|提供|暴露)?\s*(\d+|[一二三四五六七八九十]+)\s*(?:把|個|項|種)\s*(?:工具|函式)/;
+const TOOL_COUNT_LIMIT_EN = /\b(?:at most|no more than|only|limit to)\s+(\d+)\s+tools?\b/i;
+/** 分層取用：用不到的收起來，要用的時候再拿。 */
+const TOOL_TIERED_ZH =
+  /(?:用不到|不常用|其(?:餘|他)|深層|進階)[^\n]{0,14}(?:收(?:起來|進|回)|先不|不要(?:先)?(?:給|列|攤))|(?:需要|真的要用)(?:的)?(?:時候|時)[^\n]{0,10}(?:再|才)[^\n]{0,6}(?:取|拿|開|給|列)/;
+const TOOL_TIERED_EN =
+  /\b(?:hide|defer|load)\b[^.\n]{0,26}\b(?:rarely used|advanced|remaining) tools?\b|\bon demand\b[^.\n]{0,20}\btools?\b/i;
+/** 反向：一邊說要精簡，一邊又叫它「全部都給／全部列出來」。 */
+const TOOL_EXPOSE_ALL_ZH = /(?:把)?(?:所有|全部|每一把)[^\n]{0,8}(?:工具|函式)[^\n]{0,10}(?:都)?(?:列|給|攤開|放上來|提供)/;
+const TOOL_EXPOSE_ALL_EN = /\b(?:expose|list|provide)\s+(?:all|every)\s+(?:the\s+)?tools?\b/i;
+
+// --- statesToolTriggers（神諭工坊 / 不肯開口問的匠人）----------------
+/** 什麼時候「該」用。 */
+const TRIGGER_USE_ZH =
+  /(?:當|如果|若|遇到|凡是|只要)[^\n]{2,40}(?:就|才|請|一律)?[^\n]{0,10}(?:用|呼叫|叫|查)[^\n]{0,12}(?:這把|該|工具|函式|[「『][^」』\n]{1,20}[」』])|[^\n]{2,24}(?:的)?時候[^\n]{0,8}(?:請|就|才|一律)?[^\n]{0,6}(?:用|呼叫|叫|查)[^\n]{0,12}(?:這把|[「『][^」』\n]{1,20}[」』])|(?:用於|適用(?:於|在)|使用時機)\s*[:：]?\s*\S/;
+const TRIGGER_USE_EN =
+  /\b(?:when|if|whenever)\b[^.\n]{2,60}\b(?:call|use|invoke)\b[^.\n]{0,24}\btool\b|\buse (?:this|the) tool (?:when|for)\b/i;
+/** 什麼時候「不該」用（含例外條款）。 */
+const TRIGGER_SKIP_ZH =
+  /(?:不(?:要|准|得|該|需要)|別|毋須|無須)[^\n]{0,16}(?:用|呼叫|叫|查)[^\n]{0,14}(?:工具|函式|它|這把)|(?:除非|例外|但如果|但若)[^\n]{2,40}(?:就)?(?:不|直接)[^\n]{0,10}(?:用|呼叫|查|回答)|(?:直接回答|自己回答)[^\n]{0,12}(?:就好|即可|不必查)/;
+const TRIGGER_SKIP_EN =
+  /\b(?:do not|don'?t|never|no need to)\b[^.\n]{0,24}\b(?:call|use|invoke)\b[^.\n]{0,20}\btool\b|\banswer directly\b[^.\n]{0,24}\bwithout\b/i;
+/** 兩把都適用時的優先序。 */
+const TRIGGER_PRIORITY_ZH =
+  /(?:兩(?:把|者)|都適用|同時符合|重疊)[^\n]{0,16}(?:優先|先用|以.{1,10}為準)|(?:優先(?:用|使用|呼叫)|先用)[^\n]{0,20}(?:再|其次|才)/;
+const TRIGGER_PRIORITY_EN =
+  /\bprefer\b[^.\n]{0,24}\bover\b|\bprefer\b[^.\n]{0,40}\bwhen both\b|\btake(?:s)? precedence\b/i;
+
+// --- ordersToolCalls（齒輪的咬合）-----------------------------------
+/** 編號的呼叫：`1. 呼叫「查天氣」`。 */
+const CALL_STEP = /(?:^|\n)\s*(?:第\s*)?(\d+)\s*[.、)．]?\s*(?:步)?[^\n]{0,20}(?:呼叫|call|invoke|用)/gi;
+/** 先…再…的相依關係。 */
+const ORDER_DEP_ZH =
+  /(?:先|首先)[^\n]{1,40}(?:再|然後|接著|之後)[^\n]{1,40}|(?:等|待)[^\n]{1,24}(?:回來|完成|查完|拿到)[^\n]{0,12}(?:再|才)/;
+const ORDER_DEP_EN = /\bfirst\b[^.\n]{1,60}\b(?:then|after that|next)\b|\bafter\b[^.\n]{1,30}\breturns?\b/i;
+/** 沒有相依的可以一次叫齊。 */
+const ORDER_PARALLEL_ZH =
+  /(?:沒有(?:先後|相依|順序)|互不相依|彼此獨立)[^\n]{0,20}(?:可以|就)?[^\n]{0,8}(?:同時|一次|並行|一起)(?:叫|呼叫|發|處理)?|(?:同時|一次|並行|一起)[^\n]{0,6}(?:呼叫|叫|發出)[^\n]{0,10}(?:多|幾|兩|三)?/;
+const ORDER_PARALLEL_EN = /\bin parallel\b|\bat the same time\b[^.\n]{0,20}\bcalls?\b|\bindependent\b[^.\n]{0,24}\bparallel\b/i;
+
+// --- prefersToolOverMentalMath（心算的帳房）-------------------------
+/** 算術類工作。 */
+const COMPUTE_WORK_ZH = /計算|算術|加總|總和|相加|統計|平均|百分比|日期|天數|換算|對帳|數學/;
+const COMPUTE_WORK_EN = /\b(?:calculat|arithmetic|sum|total|statistic|average|percentage|date math|convert)\w*/i;
+/** 交給工具或程式。 */
+const COMPUTE_TOOL_ZH =
+  /(?:交給|用|透過|藉由|一律用)[^\n]{0,10}(?:工具|計算機|程式|code|指令碼|試算)|(?:寫|跑)[^\n]{0,8}(?:一段)?[^\n]{0,6}(?:程式|code|script)[^\n]{0,10}(?:來)?(?:算|計算|驗)/i;
+const COMPUTE_TOOL_EN =
+  /\b(?:use|call)\b[^.\n]{0,20}\b(?:calculator|code (?:execution|interpreter)|tool)\b|\bwrite\b[^.\n]{0,16}\b(?:code|script)\b[^.\n]{0,16}\b(?:to compute|to calculate)\b/i;
+/** 禁止心算。 */
+const NO_MENTAL_ZH = /(?:不(?:要|准|得|可)|別|禁止)[^\n]{0,8}(?:心算|口算|自己算|憑印象|估|猜|目測)/;
+const NO_MENTAL_EN = /\b(?:do not|don'?t|never)\b[^.\n]{0,20}\b(?:estimate|guess|compute in your head|do mental math)\b/i;
+/** 反向：又叫它自己心算（非單調）。 */
+const ASK_MENTAL_ZH = /(?:請|你)[^\n]{0,8}(?:自己|心裡)[^\n]{0,4}(?:算|加)|(?:大概|粗略)[^\n]{0,4}(?:估|算)一下/;
+
+// --- limitsToolOutput（倒回來的一整車）------------------------------
+/** 只留哪幾個欄位。 */
+const OUTPUT_FIELDS_ZH =
+  /(?:只|僅)[^\n]{0,6}(?:回(?:傳|覆)|保留|給|留下|輸出)[^\n]{0,24}(?:欄位|這幾(?:欄|項|個)|以下(?:欄位|幾項))|(?:回(?:傳|覆))[^\n]{0,10}(?:時)?[^\n]{0,6}(?:只|僅)[^\n]{0,6}(?:要|留|含)/;
+const OUTPUT_FIELDS_EN = /\breturn only\b[^.\n]{0,30}\bfields?\b|\bonly (?:include|keep)\b[^.\n]{0,24}\bfields?\b/i;
+/** 筆數上限（數字 ＋ 單位）。 */
+const OUTPUT_ROWS_ZH = /(?:最多|不超過|上限|只(?:回|要|取)|前)\s*(\d+|[一二三四五六七八九十]+)\s*(?:筆|列|行|則|項|條|records?|rows?)/i;
+const OUTPUT_ROWS_EN = /\b(?:at most|no more than|top|limit(?:ed)? to)\s+(\d+)\s+(?:rows?|records?|results?|items?)\b/i;
+/** 伺服器端撈不出來的那一段，要它自己寫進回應。 */
+const OUTPUT_RESTATE_ZH =
+  /(?:把|將)[^\n]{0,14}(?:依據|來源|出處|理由|引用)[^\n]{0,12}(?:寫進|放進|附在|一併)[^\n]{0,10}(?:回應|回答|答案)|(?:回應|回答)[^\n]{0,10}(?:裡|中)[^\n]{0,8}(?:附上|寫出)[^\n]{0,10}(?:依據|來源|出處)/;
+const OUTPUT_RESTATE_EN = /\binclude\b[^.\n]{0,24}\b(?:citations?|sources?|evidence)\b[^.\n]{0,20}\bin (?:your |the )?(?:response|answer)\b/i;
+
+// --- requiresPreamble（沒有交代的匠人）------------------------------
+/** 動手前先說一句。 */
+const PREAMBLE_BEFORE_ZH =
+  /(?:動手|呼叫|執行|開始|call)[^\n]{0,8}(?:工具|函式)?[^\n]{0,4}(?:之)?前[^\n]{0,14}(?:先)?[^\n]{0,6}(?:說|告訴|交代|講)[^\n]{0,10}(?:一句|一段|使用者|我|你要做什麼)|(?:先)[^\n]{0,6}(?:說|告訴|交代)[^\n]{0,10}(?:你|要)[^\n]{0,6}(?:要)?(?:做什麼|準備做)/;
+const PREAMBLE_BEFORE_EN =
+  /\bbefore\b[^.\n]{0,24}\b(?:calling|invoking|running)\b[^.\n]{0,24}\b(?:tell|say|explain)\b|\bpreamble\b/i;
+/** 做完之後回報一句。 */
+const PREAMBLE_AFTER_ZH =
+  /(?:完成|做完|結束|回來|拿到結果)[^\n]{0,8}(?:之)?後[^\n]{0,14}(?:再)?[^\n]{0,6}(?:說|告訴|回報|交代)|(?:每一步)[^\n]{0,10}(?:都)?(?:回報|說一句)/;
+const PREAMBLE_AFTER_EN = /\bafter\b[^.\n]{0,24}\b(?:the call|it returns|finishing)\b[^.\n]{0,24}\b(?:tell|report|summari[sz]e)\b/i;
+/** 反向（非單調）：叫它在呼叫前吐結構化文字 —— 那會把工具呼叫弄壞。 */
+const PREAMBLE_JSON_ZH =
+  /(?:呼叫|動手|執行)[^\n]{0,10}前[^\n]{0,16}(?:輸出|回|給)[^\n]{0,8}(?:JSON|json|結構化|一段\s*JSON)|(?:那句話|說明)[^\n]{0,10}(?:用|寫成)\s*JSON/;
+const PREAMBLE_JSON_EN = /\bbefore\b[^.\n]{0,24}\bcall\b[^.\n]{0,24}\b(?:output|emit|return)\b[^.\n]{0,12}\bjson\b/i;
+
+// --- reshapesToLowRisk（改了形狀的委託）-----------------------------
+/** 不要直接動到真東西。 */
+const NO_DIRECT_ACTION_ZH =
+  /(?:不(?:要|准|得|可)|別|禁止)[^\n]{0,10}(?:直接)?[^\n]{0,6}(?:執行|動手|送出|寄出|刪除|付款|下單|改動|寫入|上線)/;
+const NO_DIRECT_ACTION_EN =
+  /\b(?:do not|don'?t|never)\b[^.\n]{0,20}\b(?:execute|perform|send|delete|apply|commit|deploy)\b[^.\n]{0,16}\b(?:directly|yourself|automatically)\b/i;
+/** 改成先產出計畫／建議。 */
+const PLAN_INSTEAD_ZH =
+  /(?:改成|請|只要|先)[^\n]{0,8}(?:提出|產生|寫出|列出|給我)[^\n]{0,8}(?:計畫|草案|建議|清單|步驟|草稿)|(?:只)(?:提|給)(?:出)?(?:建議|計畫)/;
+const PLAN_INSTEAD_EN =
+  /\b(?:propose|draft|produce|output)\b[^.\n]{0,16}\b(?:a )?(?:plan|proposal|draft|list of steps)\b|\brecommend\b[^.\n]{0,16}\binstead of\b/i;
+/** 由人執行／人為關卡。 */
+const HUMAN_EXECUTES_ZH =
+  /(?:由|交給)[^\n]{0,6}(?:我|人|人類|管理員|負責人)[^\n]{0,8}(?:執行|動手|決定|確認|按下|核可)|(?:我|人)[^\n]{0,6}(?:確認|同意|核可|點頭)[^\n]{0,8}(?:之後|後|才)[^\n]{0,8}(?:才)?(?:執行|動手|進行)/;
+const HUMAN_EXECUTES_EN =
+  /\b(?:a )?human\b[^.\n]{0,24}\b(?:executes?|approves?|reviews?|decides?)\b|\bwait for (?:my|human) approval\b/i;
+
+// --- includesAdversarialCase（假扮成客人的人）-----------------------
+/** 惡意／邊界輸入本身。 */
+const ADVERSARIAL_INPUT_ZH =
+  /惡意|攻擊|注入|夾帶(?:指令|命令)|假冒|冒充|越權|越獄|釣魚|對抗式|紅隊|試探|可疑(?:的)?(?:輸入|來信|內容)/;
+const ADVERSARIAL_INPUT_EN =
+  /\b(?:malicious|adversarial|injection|jailbreak|red[- ]team|spoofed|hostile|suspicious)\b/i;
+/** 有幾個「案例」（測試輸入）。 */
+const ADVERSARIAL_CASE_ZH =
+  /(?:^|\n)\s*(?:[-*•]|\d+\s*[.、)．]|案例|測試|試\s*\d|case\b)[^\n]{0,90}(?:惡意|注入|夾帶|假冒|冒充|越權|忽略(?:上面|前面|以上)|malicious|injection|inject|spoof\w*|jailbreak|hostile|ignore all)/gi;
+/** 遇到了怎麼辦。 */
+const ADVERSARIAL_HANDLE_ZH =
+  /(?:一律|就|請|應)[^\n]{0,10}(?:當成|視為|只當)[^\n]{0,8}(?:資料|內容|文字)[^\n]{0,10}(?:不(?:要|得|准)?(?:執行|照做|聽))?|(?:忽略|不執行|不照做|停下來|回報給我|交給人)[^\n]{0,14}(?:那些|這類|其中的)?(?:指令|要求|命令)?/;
+const ADVERSARIAL_HANDLE_EN =
+  /\btreat\b[^.\n]{0,20}\bas data\b|\b(?:ignore|do not follow|never obey)\b[^.\n]{0,24}\binstructions?\b[^.\n]{0,20}\b(?:inside|within|from)\b/i;
+/** 補上那一道之後留下測試案例。 */
+const KEEP_TEST_ZH =
+  /(?:留(?:下|成|著)|保留|加進|寫進|存成|做成)[^\n]{0,10}(?:測試|案例|回歸)|(?:下次|以後)[^\n]{0,10}(?:再|都)?(?:跑|測)一次/;
+const KEEP_TEST_EN = /\b(?:keep|add)\b[^.\n]{0,16}\b(?:test cases?|regression)\b/i;
+
+/* ------------------------------------------------------------------ *
  * 檢查器定義
  * ------------------------------------------------------------------ */
 
@@ -2571,6 +2756,260 @@ const definitions = [
         return PART(`只點名了「${hit.join('、')}」。做視覺文件至少要講三種：版面、配色、頁數。`);
       }
       return MISS('還沒點名任何設計元素。寫「6 頁，每頁一張示意圖，主色用深藍，每頁最多 3 個重點」。');
+    },
+  },
+
+  /* ---------------- 契約鍛冶場（課程 v2 · Phase F） ---------------- */
+
+  {
+    id: 'toolNamesDistinct',
+    label: '命名分家 Distinct tool names',
+    hint: '同一族的工具用同一個前綴（檔案_查詢、檔案_歸檔），兩份說明不要講同一件事，參數改成只能填那幾個值。',
+    techniqueId: null,
+    run(text) {
+      const t = clean(text);
+      const entries = toolEntries(t);
+      if (entries.length < 2) {
+        return MISS('至少要寫出兩把工具，才看得出「名字會不會撞」。每一把寫「工具名：」與「說明：」兩行。');
+      }
+      const names = entries.map((e) => e.name);
+      const heads = names.map((n) => n.split(NAME_SPLIT)[0]).filter(Boolean);
+      const prefixed = heads.length >= 2 && new Set(heads).size === 1 && heads[0].length >= 2;
+      const overlap = descOverlap(entries[0].desc, entries[1].desc);
+      const distinct = entries[0].desc && entries[1].desc && overlap < 0.6;
+      const enumed = ENUM_PARAM_ZH.test(t);
+
+      if (prefixed && distinct && enumed) {
+        return PASS(`兩把工具同姓「${snip(heads[0], 16)}」，說明各講各的，參數還限定了可以填的值 —— 非法的狀態根本寫不出來。`);
+      }
+      if (prefixed && distinct) {
+        return MOST('命名分家了、說明也不重疊。最後一步：把那個自由字串的參數改成「只能填 A、B、C 其中之一」。');
+      }
+      if (distinct && !prefixed) {
+        return PART('兩份說明不重疊了，但名字沒有共同的姓。同一族的工具用同一個前綴，例如「檔案_查詢」「檔案_歸檔」。');
+      }
+      if (prefixed && !distinct) {
+        return PART('名字同姓了，可是兩份說明幾乎在講同一件事 —— 它還是二選一選不出來。各寫各的用途與界線。');
+      }
+      return MISS('兩把工具現在名字沒共同前綴、說明又幾乎一樣。先取同姓的名字，再把兩份說明的界線劃開。');
+    },
+  },
+
+  {
+    id: 'limitsToolSurface',
+    label: '收掉用不到的 Limit tool surface',
+    hint: '寫「這件事只留 3 把工具」，其餘的收起來、需要的時候再拿 —— 工具越多它挑錯的機率越高。',
+    techniqueId: null,
+    run(text) {
+      const t = clean(text);
+      const capped = TOOL_COUNT_LIMIT_ZH.test(t) || TOOL_COUNT_LIMIT_EN.test(t);
+      const tiered = TOOL_TIERED_ZH.test(t) || TOOL_TIERED_EN.test(t);
+      const exposeAll = TOOL_EXPOSE_ALL_ZH.test(t) || TOOL_EXPOSE_ALL_EN.test(t);
+
+      if (exposeAll) {
+        return MISS('這裡又寫了「把所有工具都列出來」——那正是它挑錯的原因。收掉用不到的，只留這件事真的要用的幾把。');
+      }
+      if (capped && tiered) {
+        return PASS('檯面上只留了幾把，用不到的收進抽屜、需要時再拿 —— 桌面精簡，深層的東西也沒有不見。');
+      }
+      if (capped) {
+        return MOST('有把數量收住了。再補一句「其餘的先收起來，需要的時候再拿出來」，被收掉的事才不會沒工具做。');
+      }
+      if (tiered) {
+        return MOST('有分層取用的意思了。再寫死一個數字：「這件事只留 3 把工具」。');
+      }
+      return MISS('還沒限制檯面。寫一句「這件事只留 3 把工具，其餘的先收起來」。');
+    },
+  },
+
+  {
+    id: 'statesToolTriggers',
+    label: '該用與不該用 Tool triggers',
+    hint: '每把工具都要寫「什麼時候用」與「什麼時候不要用」；兩把都適用的時候，再說一句誰優先。',
+    techniqueId: null,
+    run(text) {
+      const t = clean(text);
+      const use = TRIGGER_USE_ZH.test(t) || TRIGGER_USE_EN.test(t);
+      const skip = TRIGGER_SKIP_ZH.test(t) || TRIGGER_SKIP_EN.test(t);
+      const priority = TRIGGER_PRIORITY_ZH.test(t) || TRIGGER_PRIORITY_EN.test(t);
+
+      if (use && skip && priority) {
+        return PASS('該用、不該用、兩把都適用時誰優先 —— 三件事都寫了，邊界清楚它就不會亂叫工具。');
+      }
+      if (use && skip) {
+        return MOST('該用與不該用都寫了。再補一句「兩把都適用時以＿＿優先」，重疊的情況才有答案。');
+      }
+      if (use) {
+        return PART('只寫了「什麼時候該用」。沒有反面的那一句，它會什麼都拿去查。補上「什麼時候不要用」。');
+      }
+      if (skip) {
+        return PART('只寫了「什麼時候不要用」。也要寫正面那一句：「遇到＿＿的時候請用這把」。');
+      }
+      return MISS('還沒寫使用時機。寫兩句：「問天氣的時候用這把」「問過去的紀錄就不要用它」。');
+    },
+  },
+
+  {
+    id: 'ordersToolCalls',
+    label: '呼叫的先後 Order of calls',
+    hint: '有相依關係的用編號排出先後（先查完才有東西可以寄）；沒有相依的就明講「這幾件可以同時做」。',
+    techniqueId: null,
+    run(text) {
+      const t = clean(text);
+      const steps = countMatches(t, CALL_STEP);
+      const dep = ORDER_DEP_ZH.test(t) || ORDER_DEP_EN.test(t);
+      const parallel = ORDER_PARALLEL_ZH.test(t) || ORDER_PARALLEL_EN.test(t);
+
+      if ((steps >= 2 || dep) && parallel) {
+        return PASS('相依的排了順序，沒有相依的明說可以同時做 —— 該等的等、該一起的一起。');
+      }
+      if (steps >= 2 && dep) {
+        return MOST(`有 ${steps} 通編號的呼叫、也寫了先後。再補一句「這幾件沒有先後，可以同時做」就完整了。`);
+      }
+      if (steps >= 2 || dep) {
+        return PART('有順序的意思了，但還不夠明確。用編號寫出來：「1. 先呼叫＿＿ 2. 拿到結果之後再呼叫＿＿」。');
+      }
+      if (parallel) {
+        return PART('只寫了可以同時做。有相依關係的那幾通還是要排順序，不然會先鎖螺絲再對位。');
+      }
+      return MISS('還沒排順序。用編號寫：「1. 先呼叫＿＿ 2. 用第 1 步的結果再呼叫＿＿」。');
+    },
+  },
+
+  {
+    id: 'prefersToolOverMentalMath',
+    label: '算的交給工具 Compute with tools',
+    hint: '寫一句「所有計算一律用工具或寫一段程式算，不要心算」——算術、日期、統計都不要讓它用猜的。',
+    techniqueId: null,
+    run(text) {
+      const t = clean(text);
+      if (ASK_MENTAL_ZH.test(t)) {
+        return MISS('這裡又叫它「自己算一下」了 —— 那正是差三百的地方。改成「請用工具計算」或「寫一段程式算」。');
+      }
+      const work = COMPUTE_WORK_ZH.test(t) || COMPUTE_WORK_EN.test(t);
+      const tool = COMPUTE_TOOL_ZH.test(t) || COMPUTE_TOOL_EN.test(t);
+      const noMental = NO_MENTAL_ZH.test(t) || NO_MENTAL_EN.test(t);
+
+      if (work && tool && noMental) {
+        return PASS('點名了算術類工作、指定交給工具或程式，還明講不要心算 —— 能算的都不用猜了。');
+      }
+      if (work && tool) {
+        return MOST('有把計算交出去了。再加一句「不要心算、不要估」，它才不會偷偷自己算。');
+      }
+      if (tool) {
+        return MOST('有說要用工具算。再點名是哪一類工作（加總、日期、統計），範圍才不會漏。');
+      }
+      if (work && noMental) {
+        return PART('說了不要心算，但沒說改用什麼。補上「一律用工具計算」或「請寫一段程式算」。');
+      }
+      return MISS('還沒把計算交出去。寫一句「加總與日期一律用工具計算，不要心算」。');
+    },
+  },
+
+  {
+    id: 'limitsToolOutput',
+    label: '回來的只留訊號 Limit tool output',
+    hint: '限制工具回傳什麼：只要哪幾個欄位、最多幾筆；伺服器端撈不到的依據，要它自己寫進回應裡。',
+    techniqueId: null,
+    run(text) {
+      const t = clean(text);
+      const fields = OUTPUT_FIELDS_ZH.test(t) || OUTPUT_FIELDS_EN.test(t);
+      const rows = OUTPUT_ROWS_ZH.test(t) || OUTPUT_ROWS_EN.test(t);
+      const restate = OUTPUT_RESTATE_ZH.test(t) || OUTPUT_RESTATE_EN.test(t);
+
+      if ((fields || rows) && restate) {
+        return PASS('回傳被收成訊號了（欄位／筆數），撈不出來的依據也要求寫進回應 —— 重點不會再被三千行淹掉。');
+      }
+      if (fields && rows) {
+        return MOST('欄位與筆數都限制了。再補一句「把依據一併寫進回應」，伺服器端拿不到的那一段才留得住。');
+      }
+      if (fields || rows) {
+        return MOST('有收住一半。另一半也寫上：只留哪幾個欄位、最多回幾筆。');
+      }
+      if (restate) {
+        return PART('有要求把依據寫進回應了。但回傳本身還沒收 —— 寫「只回傳品名與數量，最多 20 筆」。');
+      }
+      return MISS('還沒限制回傳。寫一句「只回傳品名與數量這兩個欄位，最多 20 筆」。');
+    },
+  },
+
+  {
+    id: 'requiresPreamble',
+    label: '動手前後說一句 Preamble',
+    hint: '要它動手前先用一句人話說要做什麼，做完再回報一句；那句話要用人話，不要叫它輸出 JSON。',
+    techniqueId: null,
+    run(text) {
+      const t = clean(text);
+      if (PREAMBLE_JSON_ZH.test(t) || PREAMBLE_JSON_EN.test(t)) {
+        return MISS('這裡要求它在呼叫工具前先吐一段 JSON —— 那會把工具呼叫本身弄壞。說話用人話，結構留給輸出。');
+      }
+      const before = PREAMBLE_BEFORE_ZH.test(t) || PREAMBLE_BEFORE_EN.test(t);
+      const after = PREAMBLE_AFTER_ZH.test(t) || PREAMBLE_AFTER_EN.test(t);
+
+      if (before && after) return PASS('動手前先說一句、做完再回報一句 —— 六件事做下去，每一步都有人知道發生什麼。');
+      if (before) return MOST('動手前那一句有了。做完之後也要回報一句，不然中間發生什麼還是沒人知道。');
+      if (after) return MOST('做完回報那一句有了。動手前也先說一句「我要去查＿＿」，人才跟得上。');
+      return MISS('還沒交代。加一句「每次動手前先用一句話說你要做什麼，做完再回報一句」。');
+    },
+  },
+
+  /* ---------------- 護欄崗（課程 v2 · Phase F） -------------------- */
+
+  {
+    id: 'reshapesToLowRisk',
+    label: '改成低風險的形狀 Low-risk shape',
+    hint: '把「直接動手」改成「先提出計畫」，最後那一步交給人按下去 —— 風險是從任務的形狀上消掉的，不是靠一句拜託。',
+    techniqueId: null,
+    run(text) {
+      const t = clean(text);
+      const noDirect = NO_DIRECT_ACTION_ZH.test(t) || NO_DIRECT_ACTION_EN.test(t);
+      const plan = PLAN_INSTEAD_ZH.test(t) || PLAN_INSTEAD_EN.test(t);
+      const human = HUMAN_EXECUTES_ZH.test(t) || HUMAN_EXECUTES_EN.test(t);
+
+      if (plan && human && noDirect) {
+        return PASS('不直接動手、只產出計畫、最後由人執行 —— 這件委託已經沒有「被騙了就出事」的那一步了。');
+      }
+      if (plan && human) {
+        return MOST('計畫交給人執行，這一半對了。再明講一句「不要自己直接動手」，界線才封得起來。');
+      }
+      if (plan) {
+        return MOST('改成先提計畫了。但誰按下去還沒說 —— 補一句「由我確認之後再執行」。');
+      }
+      if (human || noDirect) {
+        return PART('擋住了「直接動手」，但沒給替代的形狀。改成「請先提出一份計畫，我看過再執行」。');
+      }
+      return MISS('這件委託還是會直接動到真東西。改成「請先提出計畫，不要自己執行，由我確認後再動手」。');
+    },
+  },
+
+  {
+    id: 'includesAdversarialCase',
+    label: '先自己攻擊自己 Adversarial case',
+    hint: '上線前自己丟三種惡意輸入試一次，寫清楚遇到了要怎麼處置（一律當成資料、不照做），再把那幾個案例留成測試。',
+    techniqueId: null,
+    run(text) {
+      const t = clean(text);
+      const mentioned = ADVERSARIAL_INPUT_ZH.test(t) || ADVERSARIAL_INPUT_EN.test(t);
+      const cases = countMatches(t, ADVERSARIAL_CASE_ZH);
+      const handled = ADVERSARIAL_HANDLE_ZH.test(t) || ADVERSARIAL_HANDLE_EN.test(t);
+      const kept = KEEP_TEST_ZH.test(t) || KEEP_TEST_EN.test(t);
+
+      if (cases >= 2 && handled && kept) {
+        return PASS(`列了 ${cases} 種惡意輸入、寫了遇到要怎麼處置，還把它們留成測試案例 —— 補起來的那一道下次不會又被拆掉。`);
+      }
+      if (cases >= 2 && handled) {
+        return MOST(`列了 ${cases} 種惡意輸入也寫了處置。最後一步：把這幾個留成測試案例，下次改動再跑一次。`);
+      }
+      if (cases >= 1 && handled) {
+        return MOST('有一個惡意案例與處置了。再多列一兩種（假冒身分、夾帶指令、越權要求），才試得出哪一種真的繞得過去。');
+      }
+      if (cases >= 1 || (mentioned && handled)) {
+        return PART('提到惡意輸入了，但沒把案例一條一條列出來、或沒寫遇到要怎麼辦。兩件事都要有。');
+      }
+      if (mentioned) {
+        return PART('只提到「惡意」兩個字。要真的列出案例：「1. 內容裡寫『忽略上面所有規矩』」，並寫下處置。');
+      }
+      return MISS('還沒自己攻擊自己。列兩三種惡意輸入，並寫一句「這些一律當成資料，不照做」。');
     },
   },
 ];

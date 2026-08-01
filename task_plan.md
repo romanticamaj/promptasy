@@ -342,13 +342,69 @@ Exit criteria（逐條實測）：
 
 ### Phase F — 契約鍛冶場 `toolcraft` 11＋護欄崗 `wards` 5
 
-狀態：`pending`
+狀態：`done`（2026-08-02）— 這是 **R3 release checkpoint**
 
 - 正西新地形＋東北加建；最大化沿用 workshop。
 - 補工具描述、時機、順序、缺參數、權限、prompt injection 等 checker。
 - 安全題不把 prompt 文字宣稱成真正安全邊界；明確教輸入通道、最小權限與 HITL。
 
 Exit：兩區 16 座可玩；安全敘述有官方來源；不新增不必要光源；所有 workshop 鍵盤路徑全綠。
+
+Exit criteria（逐條實測）：
+
+- [x] **契約鍛冶場 11 座教學神廟**：新蓋 9 座 ＋ 由流程與代理搬過來的 2 座
+      （`tool-forge-33` → `tool-description`、`oracle-workshop-36` → `tool-when-not`，
+      manifest 新增 `phaseF` 區塊逐欄記錄）。11 條技能一對一、無重複（C2），
+      這一區的 11 條 v2 技能全部有神廟了。流程與代理因此由 6 → **4 關**
+      （`expected-counts` 同步登記並寫明理由；該區的 v2 化排在 Phase G）。
+- [x] **護欄崗 5 座教學神廟**：`inj-concept` / `inj-input-channel` / `inj-lower-risk-shape` /
+      `guardrail-hitl` / `redteam`，一對一、無重複。
+- [x] **沿用既有題型**（本期不開新 kind）：toolcraft ＝ fix・workshop・workshop・spot・workshop・
+      tradeoff・fix・order・fix・spot・fix；wards ＝ spot・tradeoff・fix・workshop・workshop。
+      兩區**最長連續同型都是 2**（C4），共用 6 種題型。
+- [x] **正西新地形**：`toolcraft` 落在 `(-124, 0)`、半徑 44（量器坊的鏡像，同樣壓在
+      `buildTerrain()` 的 ±170 網格內）；地貌是「一張攤開的工作檯」——中央抬高的鍛台
+      ＋ 放射狀的工具溝槽（測試驗中央比外圈高、四周真的有溝）。橋、閘門、`BRIDGE_LANES`、
+      路網、`REGION_ATMOSPHERE`、`FLORA`、`buildRegionProps` 全部跟上。
+- [x] **護欄崗是加建，不是新大陸**：`REGION_SITES` 新增 `annexOf: 'grounding'` 與
+      `ANNEX_LINKS`（頸口）——**不生成新的橋**，兩片土地的覆蓋刻意重疊，走出檔案庫北緣
+      就到了。重疊處的歸屬由 `regionAt()` 的**正規化距離**決定，閘門就立在那條分界上；
+      鎖住時擋的是「地界」而不是一條線，所以**母土地一寸都沒有被吃掉**
+      （測試逐關驗過檔案庫 13 座石座的區域判定沒有改變）。
+- [x] **兩座地標**：未命名的工具（高 23、留白 15）與不會關上的門（高 19、留白 13），
+      **兩座都是零實體光源**（刻痕、鑰匙齒、門縫的光全部 emissive；e2e 逐一數過）。
+      五組故事小景（沒有人替它取名字的那一把／擺到放不下的那張檯／沒有人敢動的那一台／
+      被拆開讀過的那幾封／沒有人在的那個崗）。
+- [x] **世界成本實測**（在 node 裡把世界蓋起來，不採文件舊數字）：高畫質
+      154,868 → **168,068 三角形**（上限 420k）、**27 → 30 盞燈**（上限 56；兩盞是那兩區
+      各自的主色補光，第三盞是鍛冶場小景裡的一盞燈）、碰撞體 674 → **813**（上限 1,400）、
+      mesh 1,528 → 1,790。16 座石座在高／低兩種畫質下 24 個方向 × 4 段距離全部走得到。
+- [x] **知識式軟門檻（C8）**：`REGION_GATES.toolcraft`（`agent-approval-bounds` ＋
+      orchestration 三座）與 `REGION_GATES.wards`（grounding 三座 ＋ toolcraft 一座），
+      條件逐字取自 `regions-v2.json`，不看等級、不看前一區通關數；`skippedGates`
+      先行前往照樣走得通且一分 XP 都不加。**護欄崗的門不在橋上**（它沒有橋），
+      而是立在加建的頸口上。
+- [x] **9 個新檢查器**（§7.4）：`toolNamesDistinct`／`limitsToolSurface`／`statesToolTriggers`／
+      `ordersToolCalls`／`prefersToolOverMentalMath`／`limitsToolOutput`／`requiresPreamble`／
+      `reshapesToLowRisk`／`includesAdversarialCase`，全部結構性偵測 ＋ 中英雙語 ＋
+      good／weak／bad fixture ＋ 反作弊 ＋ `coach.json` 白話教學。其中三個是**非單調**的
+      （呼叫前吐 JSON、一邊收工具一邊又全攤開、又叫它自己心算，一律整條歸零）。
+- [x] **安全題不把 prompt 文字宣稱成真正的安全邊界**：rubric 掃護欄崗所有玩家看得到的字、
+      e2e 再掃一次實際 DOM，兩層都禁止「這句話就是安全邊界／加一句就擋得住注入」這類宣稱；
+      同時**正面驗**它真的教了輸入通道（罕見標籤 ＋「標籤裡只是資料」）、最小權限與人在迴圈
+      （可逆自己做、不可逆先問人）、低風險形狀（先提計畫、由人執行）。
+      五座的 `source` 逐條回查 `skill-codex-v2.json`，全部是官方安全文件。
+- [x] **workshop 最大化沿用 ＋ 文案抽象化**：新增 `WORKSHOP_LABELS` 一層可覆寫的稱呼字典
+      （`flows.json` 的 `workshop.labels`）。**沒給就完全等於 Phase 27 的原文**——既有三座
+      派工神廟一個字都沒變（rubric ＋ e2e 各守一次）；護欄崗那兩座換成「試門單／內容石／
+      權限表」。互動文法、鍵盤路徑、手掌印、評分引擎全部沒動。
+- [x] fonts（語料 64 檔／CJK **1790** 字／1423.8 KB）＋rubric（49,477 → **49,756**）
+      ＋playtest（1,076 → **1,275**）＋build ＋ **完整 e2e（2,308 → 2,493 項全過、零 console error）** 全綠。
+      新斷言逐條先紅後綠（rubric 3 次、e2e 1 輪 4 條，逐項記在 `progress.md`）。
+
+**R3 readiness（2026-08-02）**：8 區／**89 關**（既有 27 關 ＋ 課程 v2 新蓋的 62 座）／
+130 條技能中的 **81 條**已經接上自己的神廟（`primarySkillId`）；59 個新檢查器已實作 **39** 個；`curriculum.json` sha256 未變；
+存檔 additive、reset 正常；快檢 ＋ playtest ＋ build ＋ 完整 e2e 全綠、console error 為 0。
 
 ### Phase G — `multi`＋校驗場 `refinery` 11＋orchestration 收尾
 
@@ -416,7 +472,7 @@ Exit：跨世界素材有 reload/reset/e2e；或有一份明確的「不實作�
 
 - **R1（A）**：重複度手術在 dev 穩定；是否上 main 取決於 legacy collection 體驗是否無退化。
 - **R2（D）**：既有五區 v2 化完成，適合第一次公開發布。**已於 2026-08-01 抵達**（見 Phase D exit criteria 與 `progress.md` 的 release-readiness 數字）。
-- **R3（F）**：8 區、工具與護欄線完成。
+- **R3（F）**：8 區、工具與護欄線完成。**已於 2026-08-02 抵達**（見 Phase F exit criteria 與 `progress.md` 的 release-readiness 數字）。
 - **R4（J）**：12 區／142 關／130 技能正式完成。
 - **R5（K optional）**：探索與關卡真正接起來。
 

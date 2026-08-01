@@ -764,3 +764,138 @@ rubric 一律「主檢查 3 ＋ 地基 `assignsTask` 0.5、`pass` 2」（C1）�
 - 量器坊的 `bgm_forms.m4a` 尚未錄製；補上時只要在 `BGM_TRACKS` 加一行、
   把 id 從 `SYNTH_ONLY_REGIONS` 移走即可。
 - 未 commit／push；未動 `CLAUDE.md`、`vite.config.js`、port 5175、`src/data/curriculum.json`（sha256 仍綠）。
+
+## Phase F — 契約鍛冶場（`toolcraft`）＋ 護欄崗（`wards`）：第七、八區（2026-08-02）
+
+狀態：`done`（未 commit／push）— **R3 release checkpoint**
+
+**一句話**：正西長出第七片土地 **契約鍛冶場**（11 座），沉書檔案庫北緣加建出 **護欄崗**（5 座）——
+第一次做出**沒有橋的加建院落**，並開了 9 個工具／護欄的檢查器。
+派工檯（workshop）是這一期的主場題型，順手把它的稱呼抽象化成一層可覆寫的字典。
+
+### 做了什麼
+
+**契約鍛冶場 11 座**（新蓋 9 ＋ 搬家改造 2）
+
+| # | id | 神廟名 | 技能 | 題型 | 主檢查 |
+|---|---|---|---|---|---|
+| 1 | `forge-door-66` | 契約鍛冶場的門 | `tool-native-field` | workshop | `definesTools` |
+| 2 | `tool-forge-33` | 工具鍛造間（改造＋搬家） | `tool-description` | fix | `definesTools` |
+| 3 | `two-keys-67` | 兩把同名的鑰匙 | `tool-naming` | spot | 🆕`toolNamesDistinct` |
+| 4 | `crowded-bench-68` | 擺滿的工作檯 | `tool-fewer` | workshop | 🆕`limitsToolSurface` |
+| 5 | `oracle-workshop-36` | 神諭工坊（改造＋搬家） | `tool-when-not` | workshop | 🆕`statesToolTriggers` |
+| 6 | `unasking-smith-69` | 不肯開口問的匠人 | `tool-trigger-push` | tradeoff | 🆕`statesToolTriggers` |
+| 7 | `blank-order-70` | 空白的委託單 | `tool-ask-missing` | fix | `givesOutForUncertainty` |
+| 8 | `gear-mesh-71` | 齒輪的咬合 | `tool-order` | order | 🆕`ordersToolCalls` |
+| 9 | `mental-ledger-72` | 心算的帳房 | `tool-prefer-compute` | fix | 🆕`prefersToolOverMentalMath` |
+| 10 | `cartload-back-73` | 倒回來的一整車 | `tool-result-signal` | spot | 🆕`limitsToolOutput` |
+| 11 | `silent-smith-74` | 沒有交代的匠人 | `tool-preamble` | fix | 🆕`requiresPreamble` |
+
+**護欄崗 5 座**
+
+| # | id | 神廟名 | 技能 | 題型 | 主檢查 |
+|---|---|---|---|---|---|
+| 1 | `speaking-letter-75` | 會說話的來信 | `inj-concept` | spot | `hasDelimiters` |
+| 2 | `two-slots-76` | 兩道口 | `inj-input-channel` | tradeoff | `usesRareDelimiter` |
+| 3 | `reshaped-order-77` | 改了形狀的委託 | `inj-lower-risk-shape` | fix | 🆕`reshapesToLowRisk` |
+| 4 | `unclosing-door-78` | 不會關上的門 | `guardrail-hitl` | workshop | `requiresConfirmation` |
+| 5 | `guest-in-disguise-79` | 假扮成客人的人 | `redteam` | workshop | 🆕`includesAdversarialCase` |
+
+每一座：`scenario` / `mission` / `craft` / `material` / `clue` / `starter` / `placeholder` /
+`quickFills` / `sample` ＋ 該題型的第三幕資料 ＋ **石碑刻印後備 `slots`**，
+rubric 一律「主檢查 3 ＋ 地基 `assignsTask` 0.5、`pass` 2」（C1），
+`source` 逐條回查 `skill-codex-v2.json` 裡解析自 master list 的真實官方連結。
+**題型序列**：toolcraft ＝ fix・workshop・workshop・spot・workshop・tradeoff・fix・order・fix・spot・fix；
+wards ＝ spot・tradeoff・fix・workshop・workshop —— 兩區最長連續同型都是 **2**（C4 的門檻是 ≤2）。
+
+**兩座搬家的舊神廟**（manifest 新增 `phaseF` 區塊）：`tool-forge-33` 由分段建構換成**改碑**
+（起：說明只有一行 → 承：補上用途與參數 → 轉：全篇 CRITICAL 讓它每次都硬叫 → 合：規則在前、
+語氣放平、附一個例子），`oracle-workshop-36` **沿用整套派工檯資料**、只把最後那條規矩由
+「缺參數就問」換成「該用／不該用／誰優先」（缺參數那一題搬去了 `blank-order-70`，C2 不重教）。
+兩座的 `teaches` 與舊主技巧一字未動（收集不倒退，D2）；流程與代理因此由 6 → **4 關**。
+
+**9 個新檢查器**（`src/challenges/checks.js`，規格出自 curriculum-v2 §7.4）。
+三個是**非單調**的：`requiresPreamble`（要求呼叫前吐 JSON → 整條歸零）、
+`limitsToolSurface`（一邊收工具一邊又「全部列出來」→ 歸零）、
+`prefersToolOverMentalMath`（又叫它「自己算一下」→ 歸零）。
+`toolNamesDistinct` 是唯一需要**跨行結構**的一個：先把文字解析成「工具名 → 說明」的表，
+再比共同前綴與兩份說明的字元重疊率（< 0.6 才算分家）。
+
+**世界**：`REGION_SITES` 新增 `toolcraft (-124, 0) r=44`（量器坊的鏡像）與
+`wards (101, -142) r=26, annexOf: 'grounding'`；`ANNEX_LINKS`（頸口）是這一期的新概念——
+加建**不生成橋**，靠兩片土地的覆蓋重疊直接走過去，閘門立在 `regionAt()` 的正規化距離分界上。
+地貌：鍛冶場是「一張攤開的工作檯」（中央鍛台 ＋ 放射狀工具溝），哨所是「比檔案庫高一階的平台
+＋ 一道門檻般的矮脊」。`REGION_ATMOSPHERE`（鍛冶場暖褐、火星最多；哨所最冷、看得最遠）、
+`FLORA`、`buildRegionProps`（工具架 ＋ 鐵砧／崗柱 ＋ 矮牆，全部 InstancedMesh）、
+兩座地標（**未命名的工具**：一圈懸空的鑰匙，每一把都沒有刻名字；**不會關上的門**：兩層門、
+兩道關不上的縫）、五組故事小景、路網全部跟上。16 座石座落點用隨機重啟的貪婪取樣算出來，
+再在 node 裡把世界蓋起來逐座掃過 24 個方向 × 4 段距離（高低兩種畫質）。
+
+**派工檯的稱呼抽象化**：新增 `WORKSHOP_LABELS` ＋ `flows.json` 的 `workshop.labels`。
+**沒給就完全等於 Phase 27 的原文**，所以既有三座派工神廟一個字都沒變；
+護欄崗那兩座換成「試門單／內容石」與「權限表」。互動文法、鍵盤路徑、手掌印、
+評分引擎全部沒動（Phase E 記在 backlog 的「workshop 待文案抽象化」這一半解決了，見 `findings.md`）。
+
+**安全題的誠實界線**：rubric 掃護欄崗**所有玩家看得到的字**、e2e 再掃一次實際 DOM，
+兩層都禁止「這句話就是安全邊界／加一句就擋得住注入」這類宣稱；同時**正面驗**它教的是
+輸入通道（罕見標籤 ＋「標籤裡只是資料」）、最小權限與人在迴圈（可逆自己做、不可逆先問人）、
+低風險形狀（先提計畫、由人執行）。五座的出處全部是官方安全文件（Google Gemini
+safety-guidance／agents security-best-practices），逐條回查 `skill-codex-v2.json`。
+
+### 驗證
+
+| 指令 | Phase E | Phase F |
+|---|---|---|
+| `npm run fonts` | CJK 1771 字／1413.4 KB | ✓ CJK **1790** 字／**1423.8 KB**（指紋測試綠） |
+| `npm run test:rubric` | 42,968 | ✓ **49,756** |
+| `npm run test:playtest` | 1,076 | ✓ **1,275** |
+| `npm run build` | ✓ | ✓ |
+| `npm run test:e2e` | 2,308 全過 | ✓ **2,493 項全過、零 console error** |
+
+（rubric 的 42,968 → 49,756 之間還含 Phase E 之後補進來的既有斷言；本期新增的是
+「契約鍛冶場與護欄崗」那一整段 ＋ 9 個檢查器的 fixtures ＋ 14 份英文對照解答。）
+
+**世界量測**（在 node 裡把世界蓋起來實測，非引用文件）
+
+| 項目 | Phase E | Phase F | 上限 |
+|---|---:|---:|---:|
+| 三角形（高畫質） | 154,868 | **168,068** | 420,000 |
+| 光源（高畫質） | 27 | **30** | 56 |
+| 碰撞體（高畫質） | 674 | **813** | 1,400 |
+| mesh | 1,528 | **1,790** | — |
+| InstancedMesh／實例 | 52 ／ 947 | **66 ／ 1,199** | — |
+| 低畫質三角形／燈 | 94,044 ／ 14 | **106,440 ／ 16** | — |
+
+新增的三盞燈：兩盞是那兩區各自的「每區一盞主色補光」（與其他五片土地同一個模式），
+第三盞是鍛冶場那組小景（擺到放不下的那張檯）裡的一盞燈。
+**兩座地標本身零實體光源**（e2e 逐一數過）。
+
+### e2e 的三輪（誠實記錄）
+
+① 第一輪：**25 項失敗**——其中 5 條是既有 Phase 27 派工段落的斷言（`oracle-workshop-36`
+改造後文案與燈數變了）、7 條是導航閃爍提示（知識式軟門檻在那個時間點替玩家開了新土地，
+「＿＿已開啟」那一則把提示的冷卻推起來，蓋掉要驗的迷路提示）、3 條是入場門的固定 `sleep(900)`
+在忙碌機器上賭輸、4 條是我自己新斷言的選擇器寫錯（`.stele__eyebrow` 沒有限定在 `.workshop` 裡）、
+3 條是 `AGENTS.md` 登記的拖曳 flaky 家族。
+② 第二輪（**先紅**）：把稱呼字典的覆寫關掉 → 護欄崗那四條斷言**如預期全紅**
+（試門單 → 派工單、內容石 → 值石、無障礙標籤、畫面上不該冒出「派工單」）。
+③ 第三輪（還原後）：**2,493 項全過、零 console error，零重跑**。
+入場門那三條改成輪詢式斷言（`waitFor`，不是固定 sleep）——那是 `AGENTS.md` 早就寫著的規則，
+本期把它補上；拖曳那三條在後兩輪都自己過了。
+
+### 先紅後綠（逐條實測）
+
+- **rubric（3 次）**：在護欄崗的線索裡塞一句「這句話就是安全邊界」→ 1 紅
+  （`護欄崗的文案沒有把 prompt 文字宣稱成真正的安全邊界`）；把 `wards` 的 `annexOf` 拿掉
+  （讓它變成一片普通的土地）→ **19 紅**（頸口不見了、閘門跑到橋上、母土地兩座石座的
+  互動半徑被閘門柱擋住）；把 `unclosing-door-78` 的 `workshop.labels` 刪掉 → 2 紅。
+- **e2e（1 輪 4 條）**：見上面的第二輪。
+
+### 未做／留給後續
+
+- **契約鍛冶場與護欄崗沒有石碑／刻文小語／會回應的東西／動得了的器物**（與 Phase E 的量器坊同樣的
+  範圍控制；那四層的測試只要求既有五區）。理由記在 `findings.md`。
+- 兩區的 `bgm_toolcraft.m4a` / `bgm_wards.m4a` 尚未錄製；補上時只要在 `BGM_TRACKS` 加一行、
+  把 id 從 `SYNTH_ONLY_REGIONS` 移走即可。
+- 流程與代理（orchestration）剩下 4 關，它的 v2 化排在 Phase G。
+- 未 commit／push；未動 `CLAUDE.md`、`vite.config.js`、port 5175、`src/data/curriculum.json`（sha256 仍綠）。

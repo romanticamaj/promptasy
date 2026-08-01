@@ -1305,8 +1305,8 @@
           "weightBefore": 1,
           "action": "remove",
           "weightAfter": 0,
-          "phase": "post-A",
-          "reason": "主題搬去自己的神廟（C1 一關一技巧／C2 只教一次）：搬到契約鍛冶場；specifiesFormat 換成 definesTools 加權"
+          "phase": "F",
+          "reason": "主題搬去自己的神廟（C1 一關一技巧／C2 只教一次）：搬到契約鍛冶場；specifiesFormat 換成 definesTools 加權（Phase F 執行：整座搬進契約鍛冶場，題型換成改碑）"
         }
       ],
       "passBefore": 4,
@@ -1319,7 +1319,17 @@
         "agentic-02",
         "agentic-07"
       ],
-      "designNote": "搬到契約鍛冶場；specifiesFormat 換成 definesTools 加權"
+      "designNote": "搬到契約鍛冶場；specifiesFormat 換成 definesTools 加權",
+      "phaseF": {
+        "skillId": "tool-description",
+        "mainCheck": "definesTools",
+        "mainWeightAfterF": 3,
+        "totalWeightAfterF": 3.5,
+        "passAfterF": 2,
+        "kindAfterF": "fix",
+        "regionAfterF": "toolcraft",
+        "note": "§3 toolcraft 第 2 列指名「工具鍛造間（保留）」——主題收斂成「工具說明是最重要的一件事」，石座整座搬到正西的契約鍛冶場，題型由分段建構換成改碑。收斂成新神廟的形狀（主檢查 3 ＋ 地基 assignsTask 0.5、pass 2），legacy teaches 與舊主技巧 agentic-02 都保留（收集不倒退，D2）。"
+      }
     },
     {
       "id": "irreversible-gate-34",
@@ -1474,16 +1484,16 @@
           "weightBefore": 2,
           "action": "remove",
           "weightAfter": 0,
-          "phase": "post-A",
-          "reason": "主題搬去自己的神廟（C1 一關一技巧／C2 只教一次）：workshop 型式與 27 關資料沿用，主題明確化為「該用與不該用」"
+          "phase": "F",
+          "reason": "主題搬去自己的神廟（C1 一關一技巧／C2 只教一次）：workshop 型式與 27 關資料沿用，主題明確化為「該用與不該用」（Phase F 執行：整座搬進契約鍛冶場，主檢查換成新寫的 statesToolTriggers）"
         },
         {
           "check": "givesOutForUncertainty",
           "weightBefore": 1,
           "action": "remove",
           "weightAfter": 0,
-          "phase": "post-A",
-          "reason": "主題搬去自己的神廟（C1 一關一技巧／C2 只教一次）：workshop 型式與 27 關資料沿用，主題明確化為「該用與不該用」"
+          "phase": "F",
+          "reason": "主題搬去自己的神廟（C1 一關一技巧／C2 只教一次）：workshop 型式與 27 關資料沿用，主題明確化為「該用與不該用」（Phase F 執行：整座搬進契約鍛冶場，主檢查換成新寫的 statesToolTriggers）"
         }
       ],
       "passBefore": 4,
@@ -1497,7 +1507,17 @@
         "decompose-02",
         "grounding-03"
       ],
-      "designNote": "workshop 型式與 27 關資料沿用，主題明確化為「該用與不該用」"
+      "designNote": "workshop 型式與 27 關資料沿用，主題明確化為「該用與不該用」",
+      "phaseF": {
+        "skillId": "tool-when-not",
+        "mainCheck": "statesToolTriggers",
+        "mainWeightAfterF": 3,
+        "totalWeightAfterF": 3.5,
+        "passAfterF": 2,
+        "kindAfterF": "workshop",
+        "regionAfterF": "toolcraft",
+        "note": "§3 toolcraft 第 5 列指名「神諭工坊（保留 · workshop）」——派工檯的四步資料沿用，主題明確化為「該用與不該用」；manifest 早就標好的新檢查器 statesToolTriggers 在這一期實作，過渡用的 definesTools 就此交棒。石座整座搬到正西的契約鍛冶場。"
+      }
     },
     {
       "id": "mask-workshop-41",
@@ -1874,5 +1894,5 @@
       }
     }
   ],
-  "updatedBy": "課程 v2 · Phase D（constraint 題型 ＋ 脈絡與長文／角色與參數補齊到 12 座） ／ 課程 v2 · Phase E（量器坊：mimic-mirror-04 執行 post-A 的移除、接上 prefill-completion、搬進 forms 區）"
+  "updatedBy": "課程 v2 · Phase D（constraint 題型 ＋ 脈絡與長文／角色與參數補齊到 12 座） ／ 課程 v2 · Phase E（量器坊：mimic-mirror-04 執行 post-A 的移除、接上 prefill-completion、搬進 forms 區） ／ 課程 v2 · Phase F（契約鍛冶場：tool-forge-33 與 oracle-workshop-36 執行 post-A 的移除、接上 tool-description／tool-when-not、搬進 toolcraft 區）"
 }

@@ -44,14 +44,36 @@ export const REGION_SITES = Object.freeze([
    * 與東南／西南兩片土地的最近距離 99.3 公尺 > 44 + 46，中間留得出虛空。
    */
   { id: 'forms', x: 0, z: 124, radius: 44, flat: 32 },
+  /*
+   * 課程 v2 · Phase F：契約鍛冶場。正西、單獨一條橋 —— 量器坊的鏡像。
+   * 半徑 44 同樣是地形網格（±170）決定的：124 + 44 = 168。
+   * 與西北／西南兩片土地的最近距離 99.3 公尺 > 44 + 46，中間留得出虛空。
+   */
+  { id: 'toolcraft', x: -124, z: 0, radius: 44, flat: 32 },
+  /*
+   * 課程 v2 · Phase F：護欄崗。**加建**，不是新大陸（curriculum-v2 §二：🟡 既有地形加建）。
+   *
+   * 它是沉書檔案庫北緣長出去的一座哨所：`annexOf` 指名它的母土地，
+   * 所以 **不生成新的橋**（`CORRIDORS` 會跳過它），而是靠兩片土地的覆蓋重疊
+   * 直接走過去 —— 走出檔案庫北邊的書架就到了，中間沒有虛空。
+   * 半徑 26、中心 (101, -142)：142 + 26 = 168，同樣壓在網格邊界內。
+   * 中心刻意往東偏 6 公尺 —— 檔案庫西北角那座「抄書人的桌」（`extract-bench-33`）
+   * 才不會被算進哨所的地界（`regionAt` 的正規化距離逐點驗過）。
+   */
+  { id: 'wards', x: 101, z: -142, radius: 26, flat: 18, annexOf: 'grounding' },
 ]);
 
 const SITE_BY_ID = new Map(REGION_SITES.map((s) => [s.id, s]));
 const HUB = REGION_SITES[0];
 
+/** 加建的院落（沒有自己的橋，接在母土地上）。 */
+export const ANNEX_SITES = Object.freeze(REGION_SITES.filter((s) => s.annexOf));
+
 /** 連接橋：從中央高原通往每片土地，中段有一道閘門。 */
 export const CORRIDORS = Object.freeze(
-  REGION_SITES.slice(1).map((site) => {
+  REGION_SITES.slice(1)
+    .filter((site) => !site.annexOf)
+    .map((site) => {
     const dx = site.x - HUB.x;
     const dz = site.z - HUB.z;
     const len = Math.hypot(dx, dz);
@@ -89,6 +111,37 @@ export const BRIDGE_LANES = Object.freeze(
       az: c.from.z + c.dir.z * a,
       bx: c.from.x + c.dir.x * b,
       bz: c.from.z + c.dir.z * b,
+    });
+  })
+);
+
+/**
+ * 加建院落的「頸口」（課程 v2 · Phase F）。
+ *
+ * 沒有橋，所以沒有 `CORRIDORS` 條目 —— 這裡只算三件事：
+ *   · 閘門立在哪（`gate`）：兩片土地的**歸屬分界**上（見 `regionAt` 的正規化距離），
+ *     所以人被擋下來的那一步，正好就是拱門底下。
+ *   · 往哪個方向（`dir`）：閘門的朝向與路網的走向。
+ *   · 母土地是誰（`host`）：走出母土地的邊緣就到了。
+ */
+export const ANNEX_LINKS = Object.freeze(
+  ANNEX_SITES.map((site) => {
+    const host = SITE_BY_ID.get(site.annexOf);
+    const dx = site.x - host.x;
+    const dz = site.z - host.z;
+    const len = Math.hypot(dx, dz);
+    const dir = { x: dx / len, z: dz / len };
+    // 分界點：d/host.radius === (len - d)/site.radius
+    const gateAt = (len * host.radius) / (host.radius + site.radius);
+    return Object.freeze({
+      region: site.id,
+      host: host.id,
+      from: { x: host.x, z: host.z },
+      to: { x: site.x, z: site.z },
+      dir,
+      length: len,
+      gateAt,
+      gate: { x: host.x + dir.x * gateAt, z: host.z + dir.z * gateAt },
     });
   })
 );
@@ -168,6 +221,26 @@ export const REGION_ATMOSPHERE = Object.freeze({
     fogFar: 268,
     exposure: 1.05,
     motes: 0.62,
+  }),
+  // 契約鍛冶場：爐子還溫著 —— 空氣裡有金屬屑與火星，霧偏暖褐、螢火最多
+  toolcraft: Object.freeze({
+    fog: 0x35262a,
+    tint: 0xe8c3ac,
+    hemi: 0.5,
+    fogNear: 46,
+    fogFar: 232,
+    exposure: 1.04,
+    motes: 1.28,
+  }),
+  // 護欄崗：哨所的夜 —— 最冷、看得最遠（守望的人要看得到有誰來），螢火少
+  wards: Object.freeze({
+    fog: 0x1b2733,
+    tint: 0xb4c6dc,
+    hemi: 0.44,
+    fogNear: 80,
+    fogFar: 330,
+    exposure: 0.98,
+    motes: 0.55,
   }),
 });
 
@@ -258,6 +331,29 @@ function detailFor(site, x, z) {
         smoothstep(26, 9, d) * 1.1 +
         Math.cos(lx * 0.09) * 0.14
       );
+    case 'toolcraft': {
+      /*
+       * 契約鍛冶場（課程 v2 · Phase F）：整片土地就是一張攤開的工作檯。
+       * 中央一塊抬高的鍛台，四周放射狀的溝槽 —— 那是收工具的槽，一格一把。
+       * 溝槽在中心會擠成一團，所以靠近中心時把它淡掉（只留鍛台）。
+       */
+      const ang = Math.atan2(lz, lx);
+      const groove = Math.pow(Math.abs(Math.sin(ang * 7)), 8) * smoothstep(7, 19, d);
+      return 2.4 + smoothstep(29, 12, d) * 2.3 - groove * 0.95 + Math.sin(d * 0.19) * 0.22;
+    }
+    case 'wards':
+      /*
+       * 護欄崗（課程 v2 · Phase F）：檔案庫北緣的哨所。
+       * 一塊比檔案庫高一階的平台，靠檔案庫那一側有一道門檻般的矮脊 ——
+       * 走出書架、跨過門檻，就到了守望的地方。
+       * 基準高度刻意貼近檔案庫（2.3 上下），兩片土地重疊處才不會出現斷崖。
+       */
+      return (
+        2.55 +
+        smoothstep(23, 9, d) * 0.85 +
+        Math.exp(-Math.pow((lz + 17) / 3.4, 2)) * 0.55 +
+        Math.cos(lx * 0.15) * 0.1
+      );
     default:
       return detailFoundations(x, z);
   }
@@ -324,9 +420,24 @@ export function coverage(x, z) {
  * @returns {{id:string, onBridge:boolean}|null}
  */
 export function regionAt(x, z) {
+  /*
+   * 課程 v2 · Phase F：加建的院落（護欄崗）與母土地（沉書檔案庫）**刻意重疊** ——
+   * 那是「走出去就到了」的代價。重疊處誰說了算？比的是**正規化距離** `d / radius`：
+   * 離自己中心越近（相對於自己的大小）的那一片贏。
+   *
+   * 沒有重疊時這條規則與舊寫法完全等價（只有一片土地含得住那個點），
+   * 所以既有五區加量器坊的每一個點都還是原來那一區（測試逐點比對）。
+   */
+  let owner = null;
+  let bestRatio = Infinity;
   for (const site of REGION_SITES) {
-    if (Math.hypot(x - site.x, z - site.z) <= site.radius) return { id: site.id, onBridge: false };
+    const ratio = Math.hypot(x - site.x, z - site.z) / site.radius;
+    if (ratio <= 1 && ratio < bestRatio) {
+      bestRatio = ratio;
+      owner = site;
+    }
   }
+  if (owner) return { id: owner.id, onBridge: false };
   let best = null;
   let bestD = Infinity;
   for (const c of CORRIDORS) {
@@ -805,6 +916,20 @@ const FLORA = Object.freeze({
     // 量針 0.18 寬 → 走得過去
     { geo: () => new THREE.CylinderGeometry(0.05, 0.09, 2.8, 4), tint: 0.5, scale: [0.5, 1.2], lift: 1.4, tilt: 0.07 },
   ],
+  // 契約鍛冶場：打壞的東西 —— 歪掉的楔形鐵砧、堆起來的料塊、細細的鑽桿（三種剪影：楔 / 塊 / 桿）
+  toolcraft: [
+    { geo: () => new THREE.ConeGeometry(0.9, 1.5, 4), tint: 0.3, scale: [0.5, 1.3], lift: 0.7, tilt: 0.26, solid: true },
+    { geo: () => new THREE.BoxGeometry(1.2, 0.7, 0.8), tint: 0.4, scale: [0.5, 1.2], lift: 0.35, tilt: 0.12, solid: true },
+    // 鑽桿 0.22 寬 → 走得過去
+    { geo: () => new THREE.CylinderGeometry(0.07, 0.11, 3.4, 5), tint: 0.52, scale: [0.5, 1.2], lift: 1.7, tilt: 0.1 },
+  ],
+  // 護欄崗：哨所外的東西 —— 矮的拒馬、圓的警石、細的旗桿（三種剪影：叉 / 球 / 桿）
+  wards: [
+    { geo: () => new THREE.TetrahedronGeometry(0.85, 0), tint: 0.32, scale: [0.5, 1.2], lift: 0.5, tilt: 0.5, solid: true },
+    { geo: () => new THREE.IcosahedronGeometry(0.8, 0), tint: 0.26, scale: [0.4, 1.0], lift: 0.35, tilt: 0.4, solid: true },
+    // 旗桿 0.2 寬 → 走得過去
+    { geo: () => new THREE.CylinderGeometry(0.06, 0.1, 3.8, 5), tint: 0.5, scale: [0.5, 1.1], lift: 1.9, tilt: 0.04 },
+  ],
 });
 
 /**
@@ -1168,6 +1293,122 @@ function buildRegionProps(site, color, quality, keepClear, pedestals = []) {
     troughs.count = trN;
     troughs.instanceMatrix.needsUpdate = true;
     group.add(troughs);
+  } else if (site.id === 'toolcraft') {
+    /*
+     * 契約鍛冶場（課程 v2 · Phase F）：還熱著的工坊。
+     *
+     * 兩種東西，都是 InstancedMesh、都不新增光源（§6.1）：
+     *   · 工具架 —— 一格一格的方架，架上一排自發光的「刻痕」（那是工具名，只是沒人刻上去）
+     *   · 鐵砧   —— 蹲在地上的方塊，矮到跨得過去，不擋路
+     */
+    const rackGeo = new THREE.BoxGeometry(1.5, 4.6, 0.7);
+    const RACK_N = 20;
+    const racks = new THREE.InstancedMesh(rackGeo, stoneMat, RACK_N);
+    racks.castShadow = shadow;
+    const slotGeo = new THREE.BoxGeometry(1.02, 0.12, 0.76);
+    const SLOTS_PER_RACK = 3;
+    const slots = new THREE.InstancedMesh(slotGeo, glowMat, RACK_N * SLOTS_PER_RACK);
+    let rackN = 0;
+    let slotN = 0;
+    for (let i = 0; i < RACK_N; i += 1) {
+      const { x, z } = place(15, site.radius - 7);
+      const gy = terrainHeight(x, z);
+      const scale = 0.75 + rand() * 0.6;
+      const spin = rand() * Math.PI;
+      p.set(x, gy + 2.3 * scale, z);
+      q.setFromEuler(new THREE.Euler(0, spin, 0));
+      s.set(scale, scale, scale);
+      racks.setMatrixAt(rackN, m.compose(p, q, s));
+      rackN += 1;
+      for (let k = 0; k < SLOTS_PER_RACK; k += 1) {
+        const t = (k + 1) / (SLOTS_PER_RACK + 1);
+        p.set(x, gy + 4.6 * scale * t, z);
+        q.setFromEuler(new THREE.Euler(0, spin, 0));
+        s.set(scale * 0.92, scale, scale);
+        slots.setMatrixAt(slotN, m.compose(p, q, s));
+        slotN += 1;
+      }
+    }
+    racks.count = rackN;
+    slots.count = slotN;
+    racks.instanceMatrix.needsUpdate = true;
+    slots.instanceMatrix.needsUpdate = true;
+    racks.userData.blocksCamera = true;
+    racks.userData.solidRadius = 0.78;
+    group.add(racks);
+    group.add(slots);
+
+    // 鐵砧：0.9 公尺高的方塊。跨得過去，所以不登記碰撞。
+    const anvilGeo = new THREE.BoxGeometry(2.2, 0.9, 1.1);
+    const ANVIL_N = 12;
+    const anvils = new THREE.InstancedMesh(anvilGeo, stoneMat, ANVIL_N);
+    anvils.receiveShadow = shadow;
+    let anN = 0;
+    for (let i = 0; i < ANVIL_N; i += 1) {
+      const { x, z } = place(10, site.radius - 9);
+      p.set(x, terrainHeight(x, z) + 0.45, z);
+      q.setFromEuler(new THREE.Euler(0, rand() * Math.PI, 0));
+      s.set(0.75 + rand() * 0.6, 1, 0.75 + rand() * 0.5);
+      anvils.setMatrixAt(anN, m.compose(p, q, s));
+      anN += 1;
+    }
+    anvils.count = anN;
+    anvils.instanceMatrix.needsUpdate = true;
+    group.add(anvils);
+  } else if (site.id === 'wards') {
+    /*
+     * 護欄崗（課程 v2 · Phase F）：檔案庫外的哨所。
+     *
+     * 兩種東西，都是 InstancedMesh、都不新增光源（§6.1）：
+     *   · 崗柱 —— 一根根立著的界柱，頂上一圈自發光的環（那是「看著你」的意思）
+     *   · 矮牆 —— 一段一段沒有接起來的牆（護欄從來就不是一道密不透風的牆）
+     */
+    const postGeo = new THREE.CylinderGeometry(0.32, 0.46, 3.6, 5);
+    const POST_N = 16;
+    const posts = new THREE.InstancedMesh(postGeo, stoneMat, POST_N);
+    posts.castShadow = shadow;
+    const eyeGeo = new THREE.TorusGeometry(0.4, 0.08, 4, 12);
+    const eyes = new THREE.InstancedMesh(eyeGeo, glowMat, POST_N);
+    let postN = 0;
+    for (let i = 0; i < POST_N; i += 1) {
+      const { x, z } = place(11, site.radius - 5);
+      const gy = terrainHeight(x, z);
+      const scale = 0.8 + rand() * 0.5;
+      p.set(x, gy + 1.8 * scale, z);
+      q.setFromEuler(new THREE.Euler(0, rand() * Math.PI, 0));
+      s.set(scale, scale, scale);
+      posts.setMatrixAt(postN, m.compose(p, q, s));
+      p.set(x, gy + 3.7 * scale, z);
+      q.setFromEuler(new THREE.Euler(Math.PI / 2, 0, 0));
+      eyes.setMatrixAt(postN, m.compose(p, q, s));
+      postN += 1;
+    }
+    posts.count = postN;
+    eyes.count = postN;
+    posts.instanceMatrix.needsUpdate = true;
+    eyes.instanceMatrix.needsUpdate = true;
+    posts.userData.blocksCamera = true;
+    posts.userData.solidRadius = 0.52;
+    group.add(posts);
+    group.add(eyes);
+
+    // 矮牆：0.8 公尺高的段落，一段一段沒接起來。跨得過去，所以不登記碰撞。
+    const wallGeo = new THREE.BoxGeometry(4.4, 0.8, 0.6);
+    const WALL_N = 10;
+    const walls = new THREE.InstancedMesh(wallGeo, stoneMat, WALL_N);
+    walls.receiveShadow = shadow;
+    let wN = 0;
+    for (let i = 0; i < WALL_N; i += 1) {
+      const { x, z } = place(9, site.radius - 6);
+      p.set(x, terrainHeight(x, z) + 0.4, z);
+      q.setFromEuler(new THREE.Euler(0, rand() * Math.PI, 0));
+      s.set(0.7 + rand() * 0.6, 1, 1);
+      walls.setMatrixAt(wN, m.compose(p, q, s));
+      wN += 1;
+    }
+    walls.count = wN;
+    walls.instanceMatrix.needsUpdate = true;
+    group.add(walls);
   }
 
   // 每區一盞主色補光：便宜又有效的「氣氛」
@@ -1872,7 +2113,7 @@ export function createWorld({
   const positions = challenges.map((c) => c.position || [0, 0]);
 
   // 走出來的路（只染地面顏色，不動高度場）
-  const pathSegs = buildPathNetwork(REGION_SITES, CORRIDORS, challenges);
+  const pathSegs = buildPathNetwork(REGION_SITES, [...CORRIDORS, ...ANNEX_LINKS], challenges);
   root.add(buildTerrain(quality, colorOf, pathSegs));
 
   /**
@@ -2019,7 +2260,12 @@ export function createWorld({
     return marker;
   });
 
-  const gates = CORRIDORS.map((corridor) => {
+  /*
+   * 閘門：四條橋 ＋ 正南那條 ＋ 加建院落的頸口（課程 v2 · Phase F）。
+   * 加建的那一道立在兩片土地的歸屬分界上，`buildGate()` 只需要 `gate` 與 `dir`，
+   * 所以連結表與橋共用同一個形狀，一行程式都不必分岔。
+   */
+  const gates = [...CORRIDORS, ...ANNEX_LINKS].map((corridor) => {
     const region = groups.get(corridor.region) || { id: corridor.region, name: corridor.region, nameEn: '' };
     const status = progression.gateStatus(corridor.region);
     const gate = buildGate(corridor, region, colorOf(corridor.region), status.unlocked, status.text);
@@ -2040,6 +2286,17 @@ export function createWorld({
       const along = (x - c.from.x) * c.dir.x + (z - c.from.z) * c.dir.z;
       const lateral = distToSegment(x, z, c.from.x, c.from.z, c.to.x, c.to.z);
       if (along > c.gateAt - 1.4 && lateral < c.half + 4) return false;
+    }
+    /*
+     * 加建的院落（課程 v2 · Phase F）：沒有橋，所以擋的不是一條線，而是**地界**。
+     * 「這個點屬於護欄崗嗎」＝ `regionAt()` 的正規化距離判定 —— 與閘門立的位置
+     * 是同一條界線，所以人被擋下來的那一步正好在拱門底下，而母土地
+     * （沉書檔案庫）一寸都沒有被吃掉。
+     */
+    for (const a of ANNEX_LINKS) {
+      if (isUnlocked(a.region)) continue;
+      const here = regionAt(x, z);
+      if (here && here.id === a.region) return false;
     }
     return true;
   }
@@ -2259,6 +2516,9 @@ export function createWorld({
     regionAt,
     isWalkable,
     atmosphereFor,
+    /** 橋與加建的頸口（測試與除錯用）。 */
+    corridors: CORRIDORS,
+    annexLinks: ANNEX_LINKS,
 
     /** 玩家移動用：走不過去就沿牆滑，不會被卡死。 */
     clampPosition(nextX, nextZ, prevX, prevZ) {

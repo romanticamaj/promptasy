@@ -127,6 +127,42 @@ export const REGION_MOODS = Object.freeze({
     bellEvery: 16,
     detune: 3,
   }),
+  /*
+   * 契約鍛冶場（課程 v2 · Phase F）：還熱著的工坊。
+   * 小三度 ＋ 純四度的鐵味和聲、sawtooth 被濾得很暗、鐘聲最密（那是敲打聲）。
+   * **這一區沒有配樂音檔**（見 SYNTH_ONLY_REGIONS）。
+   */
+  toolcraft: Object.freeze({
+    id: 'toolcraft',
+    name: '鍛冶場的餘溫',
+    root: 87.31,
+    scale: Object.freeze([0, 3, 8, 15, 20]),
+    bellScale: Object.freeze([0, 3, 8, 12, 15, 20]),
+    voicing: Object.freeze(['sawtooth', 'sine', 'triangle']),
+    cutoff: 390,
+    lfoRate: 0.072,
+    bellDensity: 0.72,
+    bellEvery: 7,
+    detune: 12,
+  }),
+  /*
+   * 護欄崗（課程 v2 · Phase F）：守夜的哨所。
+   * 五度空心和聲、幾乎不動的長音、鐘聲很稀但每一聲都拉得很長 —— 像有人在遠處守著。
+   * **這一區沒有配樂音檔**（見 SYNTH_ONLY_REGIONS）。
+   */
+  wards: Object.freeze({
+    id: 'wards',
+    name: '不會關上的門',
+    root: 123.47,
+    scale: Object.freeze([0, 7, 12, 19, 26]),
+    bellScale: Object.freeze([0, 7, 12, 14, 19, 24]),
+    voicing: Object.freeze(['sine', 'triangle', 'sine']),
+    cutoff: 520,
+    lfoRate: 0.021,
+    bellDensity: 0.26,
+    bellEvery: 18,
+    detune: 2,
+  }),
   // 角色與參數：Mixolydian 的暖色，pad 較厚，鐘聲中等
   config: Object.freeze({
     id: 'config',
@@ -326,7 +362,7 @@ export const BGM_TRACKS = Object.freeze({
  * 那比誠實地播一段自己的合成 pad 更糟。站長之後補上 `bgm_forms.m4a` 時，
  * 只要在 `BGM_TRACKS` 加一行、把 id 從這裡移走即可（其餘程式碼一個字都不必動）。
  */
-export const SYNTH_ONLY_REGIONS = Object.freeze(['forms']);
+export const SYNTH_ONLY_REGIONS = Object.freeze(['forms', 'toolcraft', 'wards']);
 
 /**
  * 鄰區：走過一座橋就到得了的地方（中央高原是樞紐，四片土地各自接一條橋）。
@@ -342,6 +378,10 @@ export const REGION_NEIGHBORS = Object.freeze({
   config: Object.freeze(['foundations', 'orchestration']),
   // 量器坊只有一條橋接回中央高原；它自己沒有音檔，所以只預抓回程那一首
   forms: Object.freeze(['foundations']),
+  // 契約鍛冶場同樣只有一條橋接回中央高原
+  toolcraft: Object.freeze(['foundations']),
+  // 護欄崗沒有橋 —— 它是走出沉書檔案庫北緣就到的加建院落，回程那一首是檔案庫的
+  wards: Object.freeze(['grounding']),
 });
 
 /**

@@ -57,6 +57,33 @@ export const REGION_GATES = Object.freeze({
       regionSkills: [{ regionId: 'config', count: 1 }],
     },
   },
+  /*
+   * 課程 v2 · Phase F：契約鍛冶場與護欄崗，同樣是知識式軟門檻（C8）。
+   * 規格逐字取自 `regions-v2.json` 的 `gate`：
+   *   · toolcraft —— 軟門檻：orchestration 三座（含 agent-approval-bounds）
+   *   · wards     —— 軟門檻：grounding 三座 ＋ toolcraft 一座
+   * 護欄崗是「工具的下一站」：先會宣告一把手，才談得上替它畫界線。
+   */
+  toolcraft: {
+    level: 1,
+    available: true,
+    requires: null,
+    knowledge: {
+      skills: ['agent-approval-bounds'],
+      regionSkills: [{ regionId: 'orchestration', count: 3 }],
+    },
+  },
+  wards: {
+    level: 1,
+    available: true,
+    requires: null,
+    knowledge: {
+      regionSkills: [
+        { regionId: 'grounding', count: 3 },
+        { regionId: 'toolcraft', count: 1 },
+      ],
+    },
+  },
 });
 
 /**

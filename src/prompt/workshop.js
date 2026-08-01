@@ -32,6 +32,33 @@ export { PALM_HOLD_MS };
 /** 四個步驟的內部名字（畫面上顯示的是資料裡的中文問句）。 */
 export const WORKSHOP_STAGES = Object.freeze(['tools', 'params', 'order', 'rule']);
 
+/**
+ * 派工檯的稱呼（課程 v2 · Phase F）。
+ *
+ * 這一塊互動的**文法**是通用的：挑幾張牌 → 把值填進格子 → 排先後 → 立一條規矩。
+ * 但它原本的稱呼全是派工的行話（工具牌 / 值石 / 派工單），拿去教「權限分級」
+ * 或「先自己攻擊自己」就會把玩家教成「權限是一種工具」。
+ *
+ * 所以稱呼抽出來變成一層可覆寫的字典：**沒給就完全等於 Phase 27 的原文**
+ * （既有三座派工神廟一個字都沒有變，e2e 有守），要換皮的關卡在
+ * `flows.json` 的 `workshop.labels` 自己寫一份。
+ */
+export const WORKSHOP_LABELS = Object.freeze({
+  board: '寫到一半的派工單',
+  empty: '派工單還是空的。先看看檯上有哪幾把工具。',
+  cards: '工具',
+  tray: '值石',
+  trayLabel: '值石托盤',
+  done: '派工單寫好了',
+  palmLead: '派工單寫好了。把手掌按上去，讓神諭聽見。',
+  reject: '工坊不收',
+});
+
+/** 這一關的稱呼（資料沒給就用預設）。 */
+function labelsOf(ws) {
+  return { ...WORKSHOP_LABELS, ...((ws && ws.labels) || {}) };
+}
+
 function prefersReduced() {
   return typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 }
@@ -86,9 +113,9 @@ export function createWorkshop({ onTake, onReject, onStage, onComplete, onPress 
       <span class="stele__vein stele__vein--a" aria-hidden="true"></span>
       <span class="stele__vein stele__vein--b" aria-hidden="true"></span>
       <span class="stele__crack" aria-hidden="true"></span>
-      <p class="stele__eyebrow">寫到一半的派工單</p>
+      <p class="stele__eyebrow" data-eyebrow>${WORKSHOP_LABELS.board}</p>
       <ol class="stele__lines" data-dispatch aria-live="polite"></ol>
-      <p class="stele__empty" data-empty>派工單還是空的。先看看檯上有哪幾把工具。</p>
+      <p class="stele__empty" data-empty>${WORKSHOP_LABELS.empty}</p>
       <span class="stele__dust" data-dust aria-hidden="true"></span>
     </div>
 
@@ -101,7 +128,11 @@ export function createWorkshop({ onTake, onReject, onStage, onComplete, onPress 
     <p class="sr-only" data-live aria-live="polite"></p>
   `;
 
+  /** 這一關的稱呼（setFlow 時更新）。 */
+  let L = { ...WORKSHOP_LABELS };
+
   const steleEl = root.querySelector('[data-stele]');
+  const eyebrowEl = root.querySelector('[data-eyebrow]');
   const slipEl = root.querySelector('[data-dispatch]');
   const emptyEl = root.querySelector('[data-empty]');
   const dustEl = root.querySelector('[data-dust]');
@@ -123,7 +154,7 @@ export function createWorkshop({ onTake, onReject, onStage, onComplete, onPress 
   });
 
   const palm = createPalm({
-    lead: '派工單寫好了。把手掌按上去，讓神諭聽見。',
+    lead: WORKSHOP_LABELS.palmLead,
     ready: () => isDone(),
     onFire: () => onPress?.({ text: text() }),
   });
@@ -270,8 +301,8 @@ export function createWorkshop({ onTake, onReject, onStage, onComplete, onPress 
       .join('');
     return `<div class="paramwork">
       <ol class="pslots" data-pslots>${slots}</ol>
-      <div class="stonetray" data-stonetray role="group" aria-label="值石托盤">
-        <span class="stonetray__label">值石</span>
+      <div class="stonetray" data-stonetray role="group" aria-label="${esc(L.trayLabel)}">
+        <span class="stonetray__label">${esc(L.tray)}</span>
         <div class="stonetray__row" data-stones>${tray}</div>
       </div>
     </div>`;
@@ -290,8 +321,8 @@ export function createWorkshop({ onTake, onReject, onStage, onComplete, onPress 
   }
 
   const TIPS = [
-    '挑錯不會失敗 —— 工坊只是不收，旁邊會告訴你為什麼。',
-    '停在一顆值石上按 <kbd>Enter</kbd> 拿起來，<kbd>↑</kbd> <kbd>↓</kbd> 換格子，再按 <kbd>Enter</kbd> 放下。也可以直接用滑鼠拖。',
+    null, // 第一步的提示要用這一關的稱呼，改在 render() 裡組
+    null,
     '停在一片石版上按 <kbd>Enter</kbd> 拿起來，<kbd>↑</kbd> <kbd>↓</kbd> 搬位置，再按 <kbd>Enter</kbd> 放下。',
     '按 <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> 也可以選。選錯不會失敗。',
   ];
@@ -299,10 +330,15 @@ export function createWorkshop({ onTake, onReject, onStage, onComplete, onPress 
   function render() {
     if (!ws) return;
     progressEl.textContent = isDone()
-      ? `派工單寫好了（共 ${WORKSHOP_STAGES.length} 步）`
+      ? `${L.done}（共 ${WORKSHOP_STAGES.length} 步）`
       : `第 ${stage + 1} / ${WORKSHOP_STAGES.length} 步`;
     askEl.textContent = isDone() ? '' : ws.stages[stage].ask;
-    tipEl.innerHTML = isDone() ? '' : TIPS[stage];
+    tipEl.innerHTML = isDone()
+      ? ''
+      : TIPS[stage] ||
+        (stage === 0
+          ? `挑錯不會失敗 —— ${L.reject}，旁邊會告訴你為什麼。`
+          : `停在一顆${L.tray}上按 <kbd>Enter</kbd> 拿起來，<kbd>↑</kbd> <kbd>↓</kbd> 換格子，再按 <kbd>Enter</kbd> 放下。也可以直接用滑鼠拖。`);
     if (isDone()) {
       bodyEl.innerHTML = '';
       renderSlip();
@@ -412,7 +448,7 @@ export function createWorkshop({ onTake, onReject, onStage, onComplete, onPress 
     } catch {
       target?.focus?.();
     }
-    announce(`拿起值石：${s.text}。用上下鍵挑一格，再按 Enter 放下。`);
+    announce(`拿起${L.tray}：${s.text}。用上下鍵挑一格，再按 Enter 放下。`);
     return true;
   }
 
@@ -462,7 +498,7 @@ export function createWorkshop({ onTake, onReject, onStage, onComplete, onPress 
     usedStones.delete(entry.param.stone);
     delete values[key];
     render();
-    announce(`把 ${entry.param.label} 那一格的值石收回托盤了。`);
+    announce(`把 ${entry.param.label} 那一格的${L.tray}收回托盤了。`);
     return true;
   }
 
@@ -500,7 +536,7 @@ export function createWorkshop({ onTake, onReject, onStage, onComplete, onPress 
     if (heldStone === id) {
       heldStone = null;
       render();
-      announce('把值石放回托盤了。');
+      announce(`把${L.tray}放回托盤了。`);
       return;
     }
     liftStone(id);
@@ -566,7 +602,7 @@ export function createWorkshop({ onTake, onReject, onStage, onComplete, onPress 
       e.stopPropagation();
       heldStone = null;
       render();
-      announce('把值石放回托盤了。');
+      announce(`把${L.tray}放回托盤了。`);
       return;
     }
     if (stage === 3) {
@@ -673,6 +709,11 @@ export function createWorkshop({ onTake, onReject, onStage, onComplete, onPress 
         nextWs.order &&
         Array.isArray(nextWs.order.sequence);
       ws = okWs ? nextWs : null;
+      // 這一關的稱呼（資料沒給就是 Phase 27 的原文）
+      L = labelsOf(ws);
+      eyebrowEl.textContent = L.board;
+      emptyEl.textContent = L.empty;
+      palm.setLead(L.palmLead);
       stage = 0;
       chosen = [];
       values = {};
