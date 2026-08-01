@@ -38,6 +38,9 @@ import { createOrderBoard } from './order.js';
 import { createWorkshop } from './workshop.js';
 import { createFixBoard, isFixFlow } from './fix.js';
 import { createSpotBoard, isSpotFlow } from './spot.js';
+import { createInductBoard, isInductFlow } from './induct.js';
+import { isSlotList } from './slots.js';
+import { createTradeoffBoard, isTradeoffFlow } from './tradeoff.js';
 
 const GRADE_LABEL = { S: '完美', A: '優秀', B: '良好', C: '通過' };
 
@@ -119,11 +122,25 @@ export const PROMPT_MODES = Object.freeze(['guided', 'free']);
  *   workshop  神諭工坊：挑工具 → 填參數 → 排呼叫 → 立規矩（教工具使用 / function calling）
  *   fix       改碑：抄寫人留下一份壞草稿，你把畫線的那幾句換掉（教「這一句哪裡壞了」）
  *   spot      點碑：一疊石籤，你自己看出哪幾句有問題並點起來（教「自己找出毛病」）
+ *   induct    推規碑：牆上的對照一組一組浮出來，你要先看出規律再刻（教「規律怎麼來的」）
+ *   tradeoff  雙面碑：兩個都可行的做法，換一張卡就換一個贏家（教「什麼時候用哪一面」）
  *
- * 五種都住在第三幕，結尾都是同一隻手掌印，送出的都是同一段文字、
+ * 七種都住在第三幕，結尾都是同一隻手掌印，送出的都是同一段文字、
  * 走同一支離線評分引擎（護欄 3）。
+ *
+ * 推規碑與雙面碑是**石碑刻印的變體**（課程 v2 Phase C）：前面多一段
+ * 「先想通一件事」的舞台，想通之後回到同一組 `slots` 刻印 —— 所以它們
+ * 用的是同一份資料的 `slots`，退回石碑刻印時玩家一格內容都不會少。
  */
-export const FLOW_KINDS = Object.freeze(['choice', 'order', 'workshop', 'fix', 'spot']);
+export const FLOW_KINDS = Object.freeze([
+  'choice',
+  'order',
+  'workshop',
+  'fix',
+  'spot',
+  'induct',
+  'tradeoff',
+]);
 
 /**
  * 一份流程資料是哪一種題型。
@@ -138,6 +155,9 @@ export function flowKind(flow) {
   if (k === 'workshop' && flow.workshop) return 'workshop';
   if (k === 'fix' && isFixFlow(flow.fixFlow)) return 'fix';
   if (k === 'spot' && isSpotFlow(flow.spotFlow)) return 'spot';
+  // 推規碑 / 雙面碑還要求「刻印那一段」也在（它們共用同一份 slots）
+  if (k === 'induct' && isInductFlow(flow.inductFlow) && isSlotList(flow.slots)) return 'induct';
+  if (k === 'tradeoff' && isTradeoffFlow(flow.tradeoffFlow) && isSlotList(flow.slots)) return 'tradeoff';
   return 'choice';
 }
 
@@ -148,6 +168,8 @@ export const KIND_LABEL = Object.freeze({
   workshop: '神諭工坊',
   fix: '改碑',
   spot: '點碑',
+  induct: '推規碑',
+  tradeoff: '雙面碑',
 });
 
 /** 對應的 Latin meta label（版面上那一行小字）。 */
@@ -157,6 +179,8 @@ export const KIND_EN = Object.freeze({
   workshop: 'Dispatch',
   fix: 'Mend',
   spot: 'Spot',
+  induct: 'Induce',
+  tradeoff: 'Weigh',
 });
 
 /** 正規化模式字串（未知值一律回到預設的石碑刻印）。 */
@@ -475,7 +499,57 @@ export function createPromptConsole({
   });
   steleSlot.appendChild(spotBoard.root);
 
-  /** 這一關的引導式題型（choice / order / workshop / fix / spot）。 */
+  /* ---------------------------------------------------------------- *
+   * 推規碑（課程 v2 · Phase C）
+   *
+   * 牆上的對照一組一組浮出來，你要先看出規律；最後一組是真的在**驗證**
+   * 你的規律（只看前兩組推出來的那條順手規律在那裡會答錯）。猜錯只會
+   * 「牆不回應 ＋ 就地教學」，想通之後才回到同一組 slots 刻印。
+   * ---------------------------------------------------------------- */
+  const inductBoard = createInductBoard({
+    onGuess: ({ round: r, total }) => {
+      onCarve?.({ index: r, total });
+    },
+    onCarve: ({ index, total }) => {
+      runPreflight();
+      onCarve?.({ index, total });
+    },
+    onReject: ({ feedback }) => onReject?.({ feedback }),
+    onComplete: () => {
+      onSeal?.();
+      goAct(4, { force: true });
+    },
+    onPress: ({ text }) => submit(text),
+    onTap: () => onTap?.(),
+  });
+  steleSlot.appendChild(inductBoard.root);
+
+  /* ---------------------------------------------------------------- *
+   * 雙面碑（課程 v2 · Phase C）
+   *
+   * 兩個都可行的做法。倒向哪一面都會前進，但兩面都會誠實說出這一張卡上
+   * 買到什麼、付出什麼；換一張卡，贏的那一面會翻過來 —— 玩家學到的是
+   * 「什麼時候用哪一面」，不是「哪一面比較好」。
+   * ---------------------------------------------------------------- */
+  const tradeoffBoard = createTradeoffBoard({
+    onWeigh: ({ round: r, total }) => {
+      onCarve?.({ index: r + 1, total });
+    },
+    onCarve: ({ index, total }) => {
+      runPreflight();
+      onCarve?.({ index, total });
+    },
+    onReject: ({ feedback }) => onReject?.({ feedback }),
+    onComplete: () => {
+      onSeal?.();
+      goAct(4, { force: true });
+    },
+    onPress: ({ text }) => submit(text),
+    onTap: () => onTap?.(),
+  });
+  steleSlot.appendChild(tradeoffBoard.root);
+
+  /** 這一關的引導式題型（choice / order / workshop / fix / spot / induct / tradeoff）。 */
   function kind() {
     return flowKind(currentFlow);
   }
@@ -487,6 +561,8 @@ export function createPromptConsole({
     if (k === 'workshop') return workshop;
     if (k === 'fix') return fixBoard;
     if (k === 'spot') return spotBoard;
+    if (k === 'induct') return inductBoard;
+    if (k === 'tradeoff') return tradeoffBoard;
     return stele;
   }
 
@@ -522,12 +598,14 @@ export function createPromptConsole({
     freeWrap.hidden = guided;
     freeLabel.hidden = guided;
     guidedLabel.hidden = !guided;
-    // 五種題型共用一個舞台，一次只有一種在上面
+    // 七種題型共用一個舞台，一次只有一種在上面
     stele.root.hidden = !guided || k !== 'choice';
     orderBoard.root.hidden = !guided || k !== 'order';
     workshop.root.hidden = !guided || k !== 'workshop';
     fixBoard.root.hidden = !guided || k !== 'fix';
     spotBoard.root.hidden = !guided || k !== 'spot';
+    inductBoard.root.hidden = !guided || k !== 'induct';
+    tradeoffBoard.root.hidden = !guided || k !== 'tradeoff';
     const zhLabel = guidedLabel.querySelector('.zh');
     if (zhLabel) zhLabel.textContent = KIND_LABEL[k];
     const enLabel = guidedLabel.querySelector('.en');
@@ -1575,13 +1653,25 @@ export function createPromptConsole({
     get spotBoard() {
       return spotBoard;
     },
-    /** 現在台上是哪一種題型（choice / order / workshop / fix / spot）。 */
+    /** 推規碑的把手（測試與除錯用）。 */
+    get inductBoard() {
+      return inductBoard;
+    },
+    /** 雙面碑的把手（測試與除錯用）。 */
+    get tradeoffBoard() {
+      return tradeoffBoard;
+    },
+    /** 現在台上是哪一種題型（七種其一）。 */
     get kind() {
       return kind();
     },
     /** 任意一份流程資料是哪一種題型（測試用；缺 kind 一律回到石碑刻印）。 */
     flowKindOf: (flow) => flowKind(flow),
-    /** 現在台上的那一塊石碑（五種題型共用同一組介面）。 */
+    /** 目前上線的題型清單（測試用；別在別處硬編碼這幾個字串）。 */
+    get flowKinds() {
+      return FLOW_KINDS;
+    },
+    /** 現在台上的那一塊石碑（七種題型共用同一組介面）。 */
     get board() {
       return board();
     },
@@ -1663,6 +1753,8 @@ export function createPromptConsole({
       workshop.load(k === 'workshop' ? currentFlow.workshop : null);
       fixBoard.load(k === 'fix' ? currentFlow.fixFlow : null);
       spotBoard.load(k === 'spot' ? currentFlow.spotFlow : null);
+      inductBoard.load(k === 'induct' ? currentFlow.inductFlow : null, currentFlow.slots);
+      tradeoffBoard.load(k === 'tradeoff' ? currentFlow.tradeoffFlow : null, currentFlow.slots);
       mode = normalizeMode(progression.state.settings.promptMode);
       if (!currentFlow) mode = 'free';
       applyMode();

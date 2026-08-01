@@ -5286,6 +5286,241 @@ select option:disabled {
 }
 
 /* ================================================================
+   推規碑與雙面碑（課程 v2 · Phase C）
+
+   兩者都是石碑刻印的變體：前面多一段舞台（猜規律／秤兩面），
+   想通之後回到同一塊石碑刻印。所以視覺語言完全沿用既有的
+   .stele / .carve / .opt —— 這裡只加「牆」與「兩面」自己的部分。
+   暖金一樣只給成就熱點（刻上去、贏的那一面），沒有紅字。
+   ================================================================ */
+.inductboard[hidden],
+.tradeboard[hidden],
+.slotstage[hidden] {
+  display: none;
+}
+.inductboard,
+.tradeboard {
+  display: grid;
+  gap: var(--s4);
+}
+
+/* --- 推規碑：牆上的對照一組一組浮出來 --- */
+.wall {
+  padding: var(--s3);
+  border-left: 1px solid var(--rule);
+  background: linear-gradient(180deg, rgba(19, 27, 38, 0.6), rgba(8, 11, 17, 0.4));
+}
+.wall__eyebrow {
+  margin: 0 0 var(--s2);
+  font-size: var(--t-micro);
+  letter-spacing: 0.02em;
+  color: var(--paper-4);
+}
+.wall__rows {
+  display: grid;
+  gap: var(--s2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.wallrow {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  align-items: start;
+  gap: var(--s3);
+  padding: var(--s2) var(--s3);
+  font-family: var(--font-input);
+  font-size: var(--t-micro);
+  line-height: 1.85;
+  color: var(--paper-2);
+  box-shadow: inset 0 1px 0 rgba(214, 232, 244, 0.06), inset 0 0 0 1px var(--rule);
+}
+.wallrow.is-hidden {
+  color: var(--paper-4);
+  box-shadow: inset 0 0 0 1px rgba(214, 232, 244, 0.07);
+}
+.wallrow.is-fresh {
+  color: #f2ead9;
+  box-shadow: inset 0 1px 0 rgba(230, 199, 155, 0.2), inset 0 0 0 1px var(--rule-gold);
+  animation: opt-in var(--d-mid) var(--e-out) both;
+}
+.wallrow__n {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  margin-top: 3px;
+  font-size: var(--t-micro);
+  color: var(--paper-4);
+}
+.wallrow__body {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--s2);
+  min-width: 0;
+}
+.wallrow__in,
+.wallrow__out {
+  overflow-wrap: anywhere;
+}
+.wallrow__out {
+  color: #f2ead9;
+}
+.wallrow__arrow {
+  color: var(--paper-4);
+}
+.wallrow.is-bounce {
+  animation: spot-bounce 320ms var(--e-out);
+}
+.wall__rule {
+  margin: var(--s3) 0 0;
+  padding-left: var(--s3);
+  border-left: 1px solid var(--rule-gold);
+  font-size: var(--t-micro);
+  line-height: 1.8;
+  color: var(--paper-3);
+}
+
+/* --- 雙面碑：一張卡，兩個都走得下去的面 --- */
+.twoface {
+  display: grid;
+  gap: var(--s3);
+}
+.twoface__eyebrow {
+  margin: 0;
+  font-size: var(--t-micro);
+  letter-spacing: 0.02em;
+  color: var(--paper-4);
+}
+.twoface__card {
+  margin: 0;
+  padding: var(--s2) var(--s3);
+  border-left: 1px solid var(--rule);
+  font-family: var(--font-input);
+  font-size: var(--t-micro);
+  line-height: 1.85;
+  color: var(--paper-2);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.twoface__sides {
+  display: grid;
+  gap: var(--s2);
+}
+@media (min-width: 720px) {
+  .twoface__sides {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+.face {
+  --cut: 8px;
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  align-items: start;
+  gap: var(--s3);
+  width: 100%;
+  padding: var(--s2) var(--s3);
+  border: 0;
+  color: var(--paper-2);
+  font-family: var(--font-input);
+  font-size: var(--t-micro);
+  line-height: 1.85;
+  text-align: left;
+  cursor: pointer;
+  background: linear-gradient(180deg, rgba(19, 27, 38, 0.94), rgba(8, 11, 17, 0.96));
+  box-shadow: inset 0 1px 0 rgba(214, 232, 244, 0.08), inset 0 0 0 1px var(--rule);
+  clip-path: polygon(
+    var(--cut) 0,
+    100% 0,
+    100% calc(100% - var(--cut)),
+    calc(100% - var(--cut)) 100%,
+    0 100%,
+    0 var(--cut)
+  );
+  animation: opt-in var(--d-mid) var(--e-out) both;
+  animation-delay: calc(var(--i, 0) * 38ms);
+}
+.face:hover {
+  color: #eef4fa;
+  box-shadow: inset 0 1px 0 rgba(214, 232, 244, 0.14), inset 0 0 0 1px rgba(196, 220, 236, 0.3);
+}
+.face:focus-visible {
+  outline: 2px solid rgba(230, 199, 155, 0.9);
+  outline-offset: 2px;
+}
+.face__key {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  margin-top: 3px;
+  font-size: var(--t-micro);
+  color: var(--paper-4);
+}
+.face__title {
+  display: block;
+  color: #eef4fa;
+}
+.face__gist {
+  display: block;
+  color: var(--paper-4);
+}
+.face__verdict {
+  display: block;
+  margin-top: var(--s2);
+  padding-left: var(--s3);
+  border-left: 1px solid var(--rule-gold);
+  color: var(--paper-3);
+}
+/* 這一張卡上划算的那一面：暖金（成就熱點）。另一面只是安靜地留著判詞 —— 沒有紅字。 */
+.face.is-win {
+  color: #f2ead9;
+  box-shadow: inset 0 1px 0 rgba(230, 199, 155, 0.22), inset 0 0 0 1px var(--rule-gold);
+}
+.face.is-win .face__key {
+  color: var(--gold);
+}
+.face.is-cost {
+  box-shadow: inset 0 1px 0 rgba(214, 232, 244, 0.08), inset 0 0 0 1px rgba(196, 220, 236, 0.24);
+}
+.twoface__log {
+  display: grid;
+  gap: var(--s2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.tradelog {
+  display: grid;
+  gap: 2px;
+  padding-left: var(--s3);
+  border-left: 1px solid var(--rule);
+  font-size: var(--t-micro);
+  line-height: 1.8;
+  color: var(--paper-3);
+  animation: opt-in var(--d-mid) var(--e-out) both;
+  animation-delay: calc(var(--i, 0) * 38ms);
+}
+.tradelog.is-win {
+  border-left-color: var(--rule-gold);
+}
+.tradelog__card {
+  color: var(--paper-4);
+}
+.tradelog__side {
+  color: #eef4fa;
+}
+@media (prefers-reduced-motion: reduce) {
+  .wallrow.is-fresh,
+  .wallrow.is-bounce,
+  .face,
+  .tradelog {
+    animation: none;
+  }
+}
+
+/* ================================================================
    神諭工坊（Phase 27）—— 工具牌 / 參數格 / 值石
 
    一次只有一步擁有畫面（WORLD.md §3.3）；挑錯放錯只會就地長出一句

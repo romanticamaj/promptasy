@@ -563,7 +563,107 @@ const COMPONENT_LABELS = Object.freeze([
   ['對象', /^[ \t>*\-–—•·]*(?:對象|讀者|audience)[ \t]*[:：][ \t]*\S[^\n]{1,}/i],
 ]);
 
-// --- keepsPromptLean（reasoning-01 / reasoning-02） ---------------------
+/* ------------------------------------------------------------------ *
+ * 課程 v2 · Phase C 的四個新檢查器（示範與推理）
+ * （規格：docs/design/curriculum-v2.md §7.4）
+ *
+ * 四個都是**結構性偵測**：數得出來的數量、成對出現的標記與理由、
+ * 「要依據」與「要逐字過程」的對立、次數＋裁決規則的成對出現。
+ * 光把關鍵詞堆上去一個都不會滿分（反作弊 fixture 在 test-rubric 裡守著）。
+ * ------------------------------------------------------------------ */
+
+// --- justifiesExampleCount（fewshot-count / fewshot-when） ---------------
+/**
+ * 「用 3 組範例」這種**明講的組數**。中文數字一起認（一般人會寫「三組」）。
+ * 只認「數字＋範例類名詞」，「3 個重點」不算 —— 那是輸出規格不是範例數。
+ */
+const EXAMPLE_COUNT_ZH =
+  /(?<![第每哪這那某另])(\d+|一|二|兩|三|四|五|六|七|八|九|十)\s*(?:[-–~到至]\s*(?:\d+|一|二|兩|三|四|五|六|七|八|九|十)\s*)?(?:組|個|則|筆|份)?\s*(?:範例|示範|例子|樣本|樣品|對照)/g;
+const EXAMPLE_COUNT_EN =
+  /\b(\d+|one|two|three|four|five|six|seven|eight|nine|ten)\s*(?:-\s*\d+\s*)?(?:shot|examples?|samples?|demos?)\b/gi;
+/** 「一個都不放」也是一種明講的數量決定（fewshot-when 的正解）。 */
+const EXAMPLE_ZERO_ZH =
+  /(?:不(?:放|給|附|加)|沒有|零|先不用|這一次不用|不需要)\s*(?:任何)?\s*(?:範例|示範|例子|樣本)|零樣本/;
+const EXAMPLE_ZERO_EN = /\bzero[-\s]?shot\b|\bno examples?\b|\bwithout examples?\b/i;
+/** 交代「為什麼是這個數量」的理由句。 */
+const COUNT_REASON_ZH =
+  /因為|原因是|理由是|由於|以免|避免|才不會|不然|否則|這樣才|夠(?:用|了)|足夠|太多|太少|會照抄|會學走|會偏|節省|省下|再多也/;
+const COUNT_REASON_EN =
+  /\bbecause\b|\bso that\b|\bto avoid\b|\botherwise\b|\benough to\b|\btoo many\b|\btoo few\b|\boverfit\w*\b/i;
+const ZH_DIGIT = { 一: 1, 二: 2, 兩: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9, 十: 10 };
+const EN_DIGIT = {
+  one: 1,
+  two: 2,
+  three: 3,
+  four: 4,
+  five: 5,
+  six: 6,
+  seven: 7,
+  eight: 8,
+  nine: 9,
+  ten: 10,
+};
+function toCount(token) {
+  const t = String(token || '').toLowerCase();
+  if (/^\d+$/.test(t)) return Number(t);
+  if (ZH_DIGIT[token] !== undefined) return ZH_DIGIT[token];
+  if (EN_DIGIT[t] !== undefined) return EN_DIGIT[t];
+  return NaN;
+}
+
+// --- labelsNegativeExample（fewshot-negative） ---------------------------
+/** 反例的標記：文字標籤或符號。**必須是標記**，光說「不好」不算。 */
+const NEG_MARK_ZH = /反例|壞例子|壞的例子|錯誤示範|不良示範|負面範例|錯的例子|不該這樣寫|✗|✘|❌/;
+const NEG_MARK_EN = /\b(?:bad|negative|counter)[-\s]?examples?\b/i;
+/** 「錯在哪」的理由句。 */
+const NEG_REASON_ZH =
+  /錯在|問題(?:是|在|出在)|因為|原因(?:是|在於)|少了|漏了|沒有(?:說|寫|給|標|指名)|太(?:長|短|模糊|籠統)|不夠|會讓|導致|所以才/;
+const NEG_REASON_EN = /\bbecause\b|\bthe problem is\b|\bit (?:misses|lacks|omits)\b|\bwhy it'?s wrong\b/i;
+/** 正例的標記（好的那一組也要看得出來，否則模型分不清哪一組要學）。 */
+const POS_MARK_ZH = /正例|好例子|好的例子|正確示範|正面範例|✓|✔/;
+const POS_MARK_EN = /\b(?:good|positive)[-\s]?examples?\b/i;
+
+// --- asksForRationaleNotTranscript（reason-no-transcript） ---------------
+/** 「把腦子裡的過程原封不動吐出來」—— 這正是官方說會被拒絕的要求。 */
+const TRANSCRIPT_ZH =
+  /(?:原封不動|逐字|一字不漏|完整|全部)[^\n]{0,10}(?:思考(?:過程|內容)|推理(?:過程|內容)|內心|腦(?:子|袋)裡)|(?:把|將)[^\n]{0,10}(?:思考|推理)(?:過程|內容)[^\n]{0,10}(?:原封不動|逐字|照抄|印出來|全部(?:寫|輸出|列)出來|寫出來)|(?:輸出|印出|列出|寫出|給我)[^\n]{0,6}(?:你的)?(?:內部|原始)(?:思考|推理)/;
+const TRANSCRIPT_EN =
+  /\b(?:verbatim|raw|internal|hidden)\s+(?:chain[- ]of[- ]thought|reasoning|thoughts?)\b|\b(?:print|output|show|reveal)\s+(?:me\s+)?your\s+(?:raw|internal|hidden|full)\s+(?:reasoning|thoughts?|chain)\b/i;
+/** 要的是「結論的依據」：理由、根據、摘要，而不是過程本身。 */
+const RATIONALE_ZH =
+  /(?:結論|判斷|答案|決定)[^\n]{0,10}(?:依據|理由|根據)|(?:給|說明|列出|寫出|附上|提供|說出)[^\n]{0,10}(?:依據|理由|根據|判準|判斷標準)|為什麼(?:這樣|會)?(?:判斷|選|決定)|(?:推理|思考)摘要|官方(?:的)?摘要/;
+const RATIONALE_EN =
+  /\breason(?:s|ing)?\s+for\s+(?:the|your)\s+(?:answer|conclusion|decision)\b|\b(?:justify|justification|rationale)\b|\breasoning summary\b/i;
+
+// --- asksMultipleSamples（self-consistency） -----------------------------
+/** 「跑 3 次」「同一題問三次」—— 次數要接在「跑／問／試／取樣」這類動作上。 */
+const SAMPLE_RUN_ZH = new RegExp(
+  '(?:跑|問|試|抽|取樣|生成|產生|重複|各|做)\\s*(\\d+|一|二|兩|三|四|五|六|七|八|九|十)\\s*(?:次|遍|回|輪|組)|' +
+    '(\\d+|一|二|兩|三|四|五|六|七|八|九|十)\\s*(?:次|遍|回|輪)\\s*(?:獨立)?\\s*(?:作答|回答|取樣|生成|結果)',
+  'g'
+);
+const SAMPLE_RUN_EN =
+  /\b(?:run|sample|generate|ask|repeat)\b[^.\n]{0,24}?\b(\d+|three|five|seven)\s*(?:times|runs|samples)\b/gi;
+/** 裁決規則：多數決。 */
+const SAMPLE_VOTE_ZH = /取多數|多數決|多數(?:的)?(?:那個|答案|結果)|出現最多次|最常出現|過半|投票/;
+const SAMPLE_VOTE_EN = /\bmajority\b|\bmost common\b|\bvote\b|\bself[-\s]?consistency\b/i;
+/** 平手怎麼辦（這一條是「真的想過」與「抄一句多數決」的分水嶺）。 */
+const SAMPLE_TIE_ZH =
+  /平手|打平|一樣多|各執一詞|沒有(?:過半|多數)|(?:三|3)(?:個|次)(?:答案)?都(?:不同|不一樣)|都不一樣(?:時|就|的話)?|不一致(?:時|就|的話)/;
+const SAMPLE_TIE_EN =
+  /\btie\b|\bno majority\b|\bif they disagree\b|\bif all (?:\d+|three|five)?\s*(?:answers?\s*)?differ\b/i;
+
+// --- keepsPromptLean（reasoning-01 / reasoning-02 / overthinking-remove） ---
+/**
+ * 「請盡量完整、盡量徹底、愈詳細愈好」這一類**鼓勵徹底**的鷹架。
+ * 官方（Anthropic「overthinking and excessive thoroughness」）明說：新模型碰到這種句子
+ * 會想過頭；該刪的是這幾句，不是它的能力。所以它和「一步一步想」同屬鷹架。
+ */
+const THOROUGH_SCAFFOLD_ZH =
+  /盡量(?:完整|徹底|詳細|周到|全面|深入)|愈(?:詳細|完整|多)愈好|越(?:詳細|完整|多)越好|(?:非常|極為|務必)(?:詳細|完整|徹底)|鉅細靡遺|面面俱到|(?:仔細|完整|周到)[、，,][^\n]{0,6}(?:徹底|周到|完整|詳細)/;
+const THOROUGH_SCAFFOLD_EN =
+  /\b(?:as (?:thorough|detailed|complete|exhaustive) as possible|be (?:extremely|very) (?:thorough|detailed|exhaustive)|leave no stone unturned)\b/i;
+
 const CJK_RE = /[\u4e00-\u9fff]/g;
 
 // --- explainsWhy -----------------------------------------------------
@@ -1302,6 +1402,10 @@ const definitions = [
     techniqueId: 'reasoning-01',
     run(text) {
       const t = clean(text);
+      const thorough = THOROUGH_SCAFFOLD_ZH.test(t) || THOROUGH_SCAFFOLD_EN.test(t);
+      if (thorough) {
+        return MISS('出現了「盡量徹底／愈詳細愈好」這類鷹架 —— 它換來的是長度不是品質。刪掉它，改寫一條可以驗收的條件。');
+      }
       const scaffold =
         STEP_EN.test(t) || STEP_TAG.test(t) || STEP_ZH.test(t) || countMatches(t, STEP_NUMBERED) >= 2;
       if (scaffold) {
@@ -1314,6 +1418,167 @@ const definitions = [
       if (w <= 65) return PASS(`約 ${w} 字重、沒有多餘的鋪陳 —— 這樣剛剛好。`);
       if (w <= 110) return MOST(`約 ${w} 字重，稍微長了一點。只留任務和「怎樣算成功」就好。`);
       return MISS(`約 ${w} 字重，太囉嗦了。砍到只剩任務與成功標準（例如「不超過 60 字、指名一條路」）。`);
+    },
+  },
+
+  {
+    id: 'justifiesExampleCount',
+    label: '範例幾組要說得出理由 Example count',
+    hint: '寫出你要幾組範例，並附一句理由。例如「用 3 組範例就好，因為再多它會照抄範例裡的內容」。',
+    techniqueId: 'fewshot-04',
+    run(text) {
+      const t = clean(text);
+      const counts = [];
+      EXAMPLE_COUNT_ZH.lastIndex = 0;
+      let m;
+      while ((m = EXAMPLE_COUNT_ZH.exec(t)) !== null) counts.push({ n: toCount(m[1]), said: m[0].trim() });
+      EXAMPLE_COUNT_EN.lastIndex = 0;
+      while ((m = EXAMPLE_COUNT_EN.exec(t)) !== null) counts.push({ n: toCount(m[1]), said: m[0].trim() });
+      const zero = EXAMPLE_ZERO_ZH.test(t) || EXAMPLE_ZERO_EN.test(t);
+      const reason = t.match(COUNT_REASON_ZH) || t.match(COUNT_REASON_EN);
+
+      if (zero && reason) {
+        return PASS('「這一次不放範例」也是一個數量決定，而且你說得出理由 —— 這就是這一關要的。');
+      }
+      if (counts.length) {
+        // 落在合理區間（2–5 組）才是「挑過的數量」；1 組學不到、超過 8 組開始照抄
+        const best = counts.reduce((a, b) => (a.n >= 2 && a.n <= 5 ? a : b));
+        const inRange = best.n >= 2 && best.n <= 5;
+        if (inRange && reason) {
+          return PASS(`挑了「${best.said}」，而且說得出為什麼（「${snip(reason[0], 16)}…」）。`);
+        }
+        if (inRange) {
+          return MOST(`挑了「${best.said}」，數量剛好。再補一句理由（「因為再多它會照抄」）就滿分了。`);
+        }
+        if (reason) {
+          return PART(
+            `有理由，但「${best.said}」偏離了實測好用的區間。3 到 5 組最穩：1 組學不到規律，太多會讓它照抄範例內容。`
+          );
+        }
+        return PART(`只寫了「${best.said}」，沒說為什麼。而且 3 到 5 組才是實測最穩的區間。`);
+      }
+      if (zero) {
+        return MOST('說了這一次不放範例，但沒說為什麼。補一句理由（例如「先讓它自己想，範例反而會框住它」）。');
+      }
+      if (reason) {
+        return PART('有理由，但沒說要幾組。先把數字寫出來：「用 3 組範例」。');
+      }
+      return MISS('還沒決定要幾組範例。寫一句「用 3 組範例就好，因為＿＿」—— 數量要挑過，也要說得出理由。');
+    },
+  },
+
+  {
+    id: 'labelsNegativeExample',
+    label: '反例要說錯在哪 Label negatives',
+    hint: '標出哪一組是反例，並在同一段寫出它錯在哪。例如「反例：（原句）——錯在沒有指名是哪一站」。',
+    techniqueId: null,
+    run(text) {
+      const t = clean(text);
+      const negMark = t.match(NEG_MARK_ZH) || t.match(NEG_MARK_EN);
+      const posMark = t.match(POS_MARK_ZH) || t.match(POS_MARK_EN);
+      if (!negMark) {
+        const reasonOnly = NEG_REASON_ZH.test(t) || NEG_REASON_EN.test(t);
+        if (reasonOnly) {
+          return PART('有講到哪裡不好，但沒有把它標成反例。加一個「反例：」的標籤，它才知道那一組不要學。');
+        }
+        return MISS('還沒有標出反例。寫「反例：（壞寫法）」，下一句再說它錯在哪 —— 沒說原因的反例會被學走。');
+      }
+      /*
+       * 「反例配了它的理由」＝ 理由跟那個反例**黏在一起**：同一行，或緊接的下一行。
+       * 用整段（空行分段）判會太鬆 —— 沒有空行的 prompt 會變成一整塊，
+       * 正例的理由就會被算到反例頭上。
+       */
+      const ls = lines(t).filter((l) => l.trim());
+      let paired = false;
+      for (let i = 0; i < ls.length; i += 1) {
+        if (!(NEG_MARK_ZH.test(ls[i]) || NEG_MARK_EN.test(ls[i]))) continue;
+        const near = `${ls[i]}\n${ls[i + 1] || ''}`;
+        if (NEG_REASON_ZH.test(near) || NEG_REASON_EN.test(near)) {
+          paired = true;
+          break;
+        }
+      }
+      if (paired && posMark) {
+        return PASS(`反例標出來了（「${snip(negMark[0], 12)}」），旁邊配了「錯在哪」，而且好的那一組也標了名。`);
+      }
+      if (paired) {
+        return MOST('反例配上了理由。再把好的那一組標成「正例：」，它才分得出哪一組要學。');
+      }
+      if (NEG_REASON_ZH.test(t) || NEG_REASON_EN.test(t)) {
+        return PART('反例與理由離太遠了。把「錯在哪」寫在那個反例的同一段裡，兩者要黏在一起。');
+      }
+      return PART(`標了反例（「${snip(negMark[0], 12)}」），但沒說它錯在哪 —— 沒有理由的反例反而會被學走。`);
+    },
+  },
+
+  {
+    id: 'asksForRationaleNotTranscript',
+    label: '要依據不要逐字過程 Rationale only',
+    hint: '不要叫它「把思考過程原封不動寫出來」（會被回絕）。改成要結論的依據：「請說出你這樣判斷的依據」。',
+    techniqueId: null,
+    run(text) {
+      const t = clean(text);
+      const transcript = t.match(TRANSCRIPT_ZH) || t.match(TRANSCRIPT_EN);
+      const rationale = t.match(RATIONALE_ZH) || t.match(RATIONALE_EN);
+      if (transcript && rationale) {
+        return PART(
+          `有問到依據，但還留著「${snip(transcript[0], 18)}」這種要求 —— 把那一句刪掉，只留「請說出判斷的依據」。`
+        );
+      }
+      if (transcript) {
+        return MISS(
+          `「${snip(transcript[0], 20)}」是要它交出腦子裡的東西，官方說這種要求會被回絕。改問結論的依據就好。`
+        );
+      }
+      if (rationale) {
+        return PASS(`要的是結論的依據（「${snip(rationale[0], 20)}」），不是逐字的思考過程 —— 這樣它才給得出來。`);
+      }
+      return MISS('還沒問到依據。寫一句「請說出你這樣判斷的依據」，不要要求它把思考過程原封不動寫出來。');
+    },
+  },
+
+  {
+    id: 'asksMultipleSamples',
+    label: '多跑幾次再裁決 Multiple samples',
+    hint: '寫出要跑幾次，再寫裁決規則。例如「同一題請跑 3 次，取多數的答案；三個都不同就說不確定」。',
+    techniqueId: null,
+    run(text) {
+      const t = clean(text);
+      let runs = 0;
+      SAMPLE_RUN_ZH.lastIndex = 0;
+      let m;
+      let said = '';
+      while ((m = SAMPLE_RUN_ZH.exec(t)) !== null) {
+        const n = toCount(m[1] || m[2]);
+        if (n >= 2) {
+          runs = Math.max(runs, n);
+          if (!said) said = m[0].trim();
+        }
+      }
+      SAMPLE_RUN_EN.lastIndex = 0;
+      while ((m = SAMPLE_RUN_EN.exec(t)) !== null) {
+        const n = toCount(m[1]);
+        if (n >= 2) {
+          runs = Math.max(runs, n);
+          if (!said) said = m[0].trim();
+        }
+      }
+      const vote = SAMPLE_VOTE_ZH.test(t) || SAMPLE_VOTE_EN.test(t);
+      const tie = SAMPLE_TIE_ZH.test(t) || SAMPLE_TIE_EN.test(t);
+
+      if (runs >= 2 && vote && tie) {
+        return PASS(`跑 ${runs} 次、取多數，連平手要怎麼辦都寫了 —— 這一套才真的裁決得下去。`);
+      }
+      if (runs >= 2 && vote) {
+        return MOST(`「${said}」＋取多數，規則有了。再補一句「平手就說不確定」，遇到三個都不同才不會卡住。`);
+      }
+      if (runs >= 2) {
+        return PART(`只寫了「${said}」，沒說幾個答案不一樣時要聽誰的。補一句「取多數的那個答案」。`);
+      }
+      if (vote) {
+        return PART('說了取多數，但沒說要跑幾次 —— 只跑一次沒有多數可以取。先寫「同一題請跑 3 次」。');
+      }
+      return MISS('還沒有多跑幾次。寫一句「同一題請跑 3 次，取多數的答案；三個都不同就說不確定」。');
     },
   },
 ];

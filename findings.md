@@ -284,3 +284,84 @@
 - **`快速填入不是直接給答案` 這條既有斷言擋下了六座新神廟**：一開始圖省事讓每一顆快速填入
   剛好等於示範解答的一行，串起來就是整份答案卷。已改成「零件」（把其中一顆改成通用版本）。
   這條斷言值得記下來 —— 它守的是 P3 鷹架遞減，不是格式潔癖。
+
+
+## Phase C 實作發現（`induct`／`tradeoff` ＋ 示範與推理 15 座 · 2026-08-01）
+
+### 決策
+
+- **兩種新題型真的只是「石碑刻印的變體」，不是新框架。** 推規碑與雙面碑各自只多一段
+  「先想通一件事」的舞台（猜規律／秤兩面），想通之後**回到同一份 `flows.json` 的 `slots`** 刻印。
+  為此抽出 `src/prompt/slots.js`（刻印段落：DOM、選項狀態、石屑、焦點、組出來的文字），
+  由 induct／tradeoff 兩支共用；**`src/prompt/stele.js` 一個字都沒改** ——
+  它是 Phase 11 就在跑的預設路徑，沒有理由為了少幾行程式碼冒回歸的險（跟 Phase 27 抽 `palm.js` 時同一個判斷）。
+  相容契約也因此多一條：`induct` / `tradeoff` 除了自己的資料，**還要有合法的 `slots`**，
+  否則一律退回石碑刻印（rubric ＋ e2e 各守一次）。
+- **「第四例真的驗證規則」是資料結構的事，不是文案宣稱。** `isInductFlow()` 硬性要求：
+  最後一輪 `validates: true` 且 `reveal === examples.length - 1`（＝牆上剛好露出「除了它以外」的全部）。
+  再加三條 rubric 不變式把教學意義釘死：**第一輪的正解 `follows: 'both'`**（只看前兩組推不出是哪一條規律）、
+  **驗證輪的正解 `follows: 'true'`**、**驗證輪一定放著一個 `follows: 'naive'` 的選項且它不是正解、
+  並帶 ≥20 字的回饋**。少了第一條，規律在第一輪就分出來了，第四例就只是第三個練習題。
+- **雙面碑刻意做成「沒有正解」。** 每一輪是一張卡，兩面都會前進；差別只在碑說了什麼。
+  「不把取捨教成假通則」落成一條可執行的不變式：**整關的 `favours` 必須兩面都出現過**
+  （換一張卡贏家就翻面）。另外測試禁止輸的那一面被寫成「錯」（`你錯了|答錯|不可以用|絕對不能…`）——
+  它只是在這一張卡上比較貴。第一版那條正則寫成 `絕對不`，把
+  「你得先挑一個內文**絕對不會**出現的標籤名」誤判成責備語 —— 改成 `絕對不(?:能|要|可)`。
+- **兩座神廟共用同一個主檢查是設計指定的，不是偷懶。** `justifiesExampleCount` 同時是
+  「秤例之台」（幾組才夠）與「兩位掌燈人」（什麼時候不放）的主檢查；`mentionsParameters` 同時是
+  「火力熔爐」與「兩段式的鐘」的主檢查 —— curriculum-v2 §3 就是這樣分派的。
+  C2 管的是**技能只教一次**（`primarySkillId` 不重複），不是檢查器不重複。
+- **改造的 5 關同時掛 `primaryTechniqueId` 與 `primarySkillId`。** 它們真的有祖先技巧
+  （`fewshot-01` / `fewshot-03` / `reasoning-01` / `cot-02` / `params-03`），收集不能倒退（D2），
+  所以兩邊各寫各的：`teaches` → `collected`，`primarySkillId` → `skillsV2`。
+  Phase B 那條「課程 v2 的神廟不掛舊 68 條主技巧」的斷言因此改成**分兩種**：
+  在遷移 manifest 裡的 → 必須等於 manifest 指定的那一條；不在 manifest 裡的（新蓋的）→ 必須是 `null`。
+
+### 卡住 / 需要改到別處的事（誠實記錄）
+
+- **`legacyChallenges` 的判準壞在 Phase C 的第一分鐘。** 遷移 manifest 的驗證迴圈原本用
+  「沒有 `primarySkillId`」來認那 27 關；示範與推理五關拿到 `primarySkillId` 之後，
+  它們會**安靜地掉出迴圈**（27 → 22），而且是「測試變少」不是「測試變紅」——最危險的那一種。
+  改成以 manifest 的 id 為準（`manifestIds`），並保留原本的 27 筆數字斷言把它釘死。
+- **manifest 有兩條 Phase 0 沒掃到的移除。** `example-hall-11` 的 `hasDelimiters`
+  （主題屬於郵箱精靈的分揀台）與 `thinking-chamber-14` 的 `hasStepByStep`
+  （主題屬於這一期新蓋的「一步一階的橋」）——留著就違反 C1／C2，但 §4 逐關表沒有列。
+  處置：以 `addedIn: "C"` 標在 manifest 上並寫下理由，**不改寫既有條目**；
+  `passAfter` / `totalWeightAfter` 保留 Phase A 的歷史值，Phase C 之後的現況另記 `passAfterC` / `totalWeightAfterC`。
+  測試也跟著多一條：同一條檢查如果 Phase A 降權、Phase C 又整條移除，Phase A 的降權目標就不再存在。
+- **`keepsPromptLean` 原本抓不到「盡量徹底」。** 「磨過頭的刀」（`overthinking-remove`）的起手弱寫法
+  就是官方那句 "overthinking and excessive thoroughness" 講的鷹架，但它又短又有動詞 ——
+  舊的 `keepsPromptLean` 會給它滿分，起手弱寫法就變成正解了。
+  補上 `THOROUGH_SCAFFOLD_ZH/EN`（盡量完整／盡量徹底／愈詳細愈好／as thorough as possible…）
+  並與「一步一步想」同列為鷹架。這是**檢查器變嚴**，不是為了關卡放寬。
+- **`labelsNegativeExample` 的「同段落」不能用空行判。** 第一版用空行切段，
+  沒有空行的 prompt 會變成一整塊 —— 正例的理由會被算到反例頭上。
+  改成「反例的標記與理由要在**同一行或緊接的下一行**」，這才是真的結構偵測。
+- **英文寫法有兩處要補**：`SAMPLE_RUN_EN` 原本要求數字緊接在動詞後面（"Run the same question 3 times"
+  就中不了），改成允許中間隔一小段；`SAMPLE_TIE_EN` 補上 "if all three differ"。
+  另外一條是**改測試不是改檢查器**：`well-pause-22` 的英文對照解答原本用 "decide whether…"
+  （`decide` 不在任務動詞表裡），改寫成 "Review … and answer whether …" —— 那是 fixture 的用字問題，
+  不值得為了一句 fixture 放寬 `assignsTask`。
+- **石座落點在示範與推理這一區真的很擠。** 15 座石座 ＋ 石碑／小景／地標／刻文／祕密／反應物件／器物
+  的淨空圈，貪婪的 farthest-point 取樣最多只排得下 8 座。改成**隨機重啟的貪婪**
+  （4000 次、最小間距 13.4 公尺）才排得下 10 座。
+  另外 `example-scale-16` 第一版落在 `(-98,-60)`，通過所有資料層門檻卻**被真的道具擋住**
+  （石座周圍 4–5 公尺有實體）—— 落點掃描一定要把「在 node 裡真的把世界蓋起來、用 `solidAt()` 掃一圈」
+  這一步算進去，光靠資料層的距離表不夠。
+- **`three-wells-25` 沒有照 §3 用 `workshop`。** 神諭工坊的資料形狀是
+  「挑工具 → 填參數 → 排呼叫 → 立規矩」，而三口井教的是「同一題跑幾次、怎麼裁決」——
+  硬套會變成一道假的工具題。這一期用 `choice`（三段刻印剛好對上「跑幾次／取多數／平手怎麼辦」），
+  題型換裝時只要換第三幕的資料，關卡文案、rubric、出處都不必動。
+  同理，`well-pause-22`（§3 指定 `multi`，Phase G）用 `fix`、`effort-forge-15`（§3 指定 `sim`，Phase H）維持 `choice`。
+- **`priority-stair-42` 的拖曳終於查出根因（Phase A 起被登記為 flaky）**：`order.js` 的重排帶 FLIP 動畫
+  （`withSlide()`：搬完先把每一列 `translate` 回原位，下一個 animation frame 才歸零）。
+  軟體渲染下一幀要 160 ms 以上，那段時間裡 `getBoundingClientRect()` 讀到的還是**搬之前**的版面，
+  `indexAtY()` 於是算出「跟現在一樣的位置」，`moveTo()` 的 `to !== 現在` 守衛就把後續移動全部擋掉 ——
+  石版停在只搬了一格（`context,role,format,task`）。三次跑都一樣，所以它不是時序抖動，是**確定性**的。
+  修的是測試端（每一輪重新量清單上緣、由下往上分三步掃、每步之間留 70 ms 讓影格追得上），
+  產品碼一個字都沒改：真的玩家的滑鼠本來就會連續移動，而且不會在 168 ms/幀 的軟體渲染上玩。
+- **CDP 的原始按鍵不保證會變成按鈕的預設 `click`。** 推規碑第一次跑的時候，`Enter` 在選項上完全沒有反應
+  （6 條紅）。改碑與點碑當初自己接 `Enter`／空白鍵不是多此一舉 —— 那是唯一可靠的做法。
+  已在 `induct.js` / `tradeoff.js` / `slots.js` 三支補上，順帶也讓真的鍵盤玩家更穩。
+- **e2e 的注入字串裡不能直接寫 `'\n'`**：它在樣板字面值裡會被當成真的換行，送進頁面就是未結束的字串
+  （`SyntaxError`）。既有的區段寫的是 `'\\n'`，照抄就對了。

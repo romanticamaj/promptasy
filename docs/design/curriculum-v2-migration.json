@@ -55,7 +55,8 @@
       "question": "設計同時寫「每關 pass −0.5」與「門檻＝總權重 50% 規則不變」，兩者在權重也改動的關卡上不等價。",
       "ruling": "採 literal −0.5（本表 `passAfter`），並同時記錄依總權重重算的 `passAfterByWeightRule` 供比對。真正的驗收門不是百分比，而是 playtest 的三道安全閘：弱起手（starter）仍然不過、快速填入／全選對必過、sample 解答仍 ≥ A。",
       "divergence": "兩份矩陣在「權重同時被下修」的關卡上會分岔（最大 +0.75 分，出現在 example-hall-11／silent-thinker-13／long-scroll-tower-23）。分岔的那幾關以安全閘實測為準，必要時個別再調，不整批套百分比。"
-    }
+    },
+    "D4_phaseC": "Phase C（2026-08-01）：示範與推理五關的 post-A 條目在本期執行完畢，逐關記在 phaseC 區塊。兩條 manifest 原本沒有列到的移除（example-hall-11 的 hasDelimiters、thinking-chamber-14 的 hasStepByStep）以 addedIn: \"C\" 標記並寫下理由 —— 它們的主題在本期各自有了自己的神廟，留著就違反 C1／C2。passAfter / totalWeightAfter 保留 Phase A 的歷史值不覆寫；Phase C 之後的現況值另記在 passAfterC / totalWeightAfterC。"
   },
   "conventions": {
     "disposition": "keep = 型式與資料沿用；rework = 收斂主題／可能換型式；application = 轉為不教新技巧的應用關（P11）",
@@ -475,8 +476,17 @@
           "weightBefore": 1,
           "action": "remove",
           "weightAfter": 0,
-          "phase": "post-A",
+          "phase": "C",
           "reason": "主題搬去自己的神廟（C1 一關一技巧／C2 只教一次）：第三幕改成 induct（猜規則）：先推出規律再挑第四個例子"
+        },
+        {
+          "check": "hasDelimiters",
+          "weightBefore": 1,
+          "action": "remove",
+          "weightAfter": 0,
+          "phase": "C",
+          "reason": "分隔符是 struct-delimiters 那一座神廟（郵箱精靈的分揀台）的主題，這一關收斂成「範例的基本功」之後它就不再計分（C1 一關一技巧）。",
+          "addedIn": "C"
         }
       ],
       "passBefore": 4,
@@ -489,7 +499,16 @@
         "fewshot-02",
         "structure-04"
       ],
-      "designNote": "第三幕改成 induct（猜規則）：先推出規律再挑第四個例子"
+      "designNote": "第三幕改成 induct（猜規則）：先推出規律再挑第四個例子",
+      "phaseC": {
+        "skillId": "fewshot-basics",
+        "mainCheck": "hasFewShot",
+        "mainWeightAfterC": 3,
+        "totalWeightAfterC": 3.5,
+        "passAfterC": 2,
+        "kindAfterC": "induct",
+        "note": "Phase C（示範與推理 15 座）執行本列的 post-A 條目，並把 rubric 收斂成「主檢查 3 分 ＋ 地基 assignsTask 0.5 分、pass 2」——與課程 v2 新蓋的神廟同一個形狀（C1）。primaryTechniqueId 保留（它真的有祖先，收集不倒退），另外新增 primarySkillId 指向 v2 技能。"
+      }
     },
     {
       "id": "lantern-rows-12",
@@ -522,7 +541,7 @@
           "weightBefore": 2,
           "action": "remove",
           "weightAfter": 0,
-          "phase": "post-A",
+          "phase": "C",
           "reason": "主題搬去自己的神廟（C1 一關一技巧／C2 只教一次）：主題收斂成「格式一致＋範例要配指令」；hasConstraint 移除"
         },
         {
@@ -530,7 +549,7 @@
           "weightBefore": 1,
           "action": "remove",
           "weightAfter": 0,
-          "phase": "post-A",
+          "phase": "C",
           "reason": "主題搬去自己的神廟（C1 一關一技巧／C2 只教一次）：主題收斂成「格式一致＋範例要配指令」；hasConstraint 移除"
         }
       ],
@@ -543,7 +562,16 @@
         "fewshot-03",
         "fewshot-04"
       ],
-      "designNote": "主題收斂成「格式一致＋範例要配指令」；hasConstraint 移除"
+      "designNote": "主題收斂成「格式一致＋範例要配指令」；hasConstraint 移除",
+      "phaseC": {
+        "skillId": "fewshot-consistent",
+        "mainCheck": "hasFewShot",
+        "mainWeightAfterC": 3,
+        "totalWeightAfterC": 3.5,
+        "passAfterC": 2,
+        "kindAfterC": "choice",
+        "note": "Phase C（示範與推理 15 座）執行本列的 post-A 條目，並把 rubric 收斂成「主檢查 3 分 ＋ 地基 assignsTask 0.5 分、pass 2」——與課程 v2 新蓋的神廟同一個形狀（C1）。primaryTechniqueId 保留（它真的有祖先，收集不倒退），另外新增 primarySkillId 指向 v2 技能。"
+      }
     },
     {
       "id": "silent-thinker-13",
@@ -586,7 +614,7 @@
           "weightBefore": 2,
           "action": "remove",
           "weightAfter": 0,
-          "phase": "post-A",
+          "phase": "C",
           "reason": "主題搬去自己的神廟（C1 一關一技巧／C2 只教一次）：移除 specifiesFormat（Phase 26 已建議），第三幕改成 spot（點掉多餘鷹架）"
         }
       ],
@@ -600,7 +628,16 @@
         "reasoning-01",
         "reasoning-02"
       ],
-      "designNote": "移除 specifiesFormat（Phase 26 已建議），第三幕改成 spot（點掉多餘鷹架）"
+      "designNote": "移除 specifiesFormat（Phase 26 已建議），第三幕改成 spot（點掉多餘鷹架）",
+      "phaseC": {
+        "skillId": "reason-keep-simple",
+        "mainCheck": "keepsPromptLean",
+        "mainWeightAfterC": 3,
+        "totalWeightAfterC": 3.5,
+        "passAfterC": 2,
+        "kindAfterC": "spot",
+        "note": "Phase C（示範與推理 15 座）執行本列的 post-A 條目，並把 rubric 收斂成「主檢查 3 分 ＋ 地基 assignsTask 0.5 分、pass 2」——與課程 v2 新蓋的神廟同一個形狀（C1）。primaryTechniqueId 保留（它真的有祖先，收集不倒退），另外新增 primarySkillId 指向 v2 技能。"
+      }
     },
     {
       "id": "thinking-chamber-14",
@@ -642,8 +679,17 @@
           "weightBefore": 2,
           "action": "remove",
           "weightAfter": 0,
-          "phase": "post-A",
+          "phase": "C",
           "reason": "主題搬去自己的神廟（C1 一關一技巧／C2 只教一次）：從三條技巧收斂成一條；hasFewShot 讓給 fewshot-thinking"
+        },
+        {
+          "check": "hasStepByStep",
+          "weightBefore": 3,
+          "action": "remove",
+          "weightAfter": 0,
+          "phase": "C",
+          "reason": "「一步一步想」是 cot-explicit 的主題，Phase C 已經蓋了它自己的神廟（一步一階的橋），依 C2 一條技巧只教一次，這一關不再計分。manifest 原本沒有列它，是 Phase 0 產生器只掃了 §4 逐關表的漏網。",
+          "addedIn": "C"
         }
       ],
       "passBefore": 4,
@@ -656,7 +702,16 @@
         "cot-02",
         "cot-03"
       ],
-      "designNote": "從三條技巧收斂成一條；hasFewShot 讓給 fewshot-thinking"
+      "designNote": "從三條技巧收斂成一條；hasFewShot 讓給 fewshot-thinking",
+      "phaseC": {
+        "skillId": "cot-separate-answer",
+        "mainCheck": "hasDelimiters",
+        "mainWeightAfterC": 3,
+        "totalWeightAfterC": 3.5,
+        "passAfterC": 2,
+        "kindAfterC": "choice",
+        "note": "Phase C（示範與推理 15 座）執行本列的 post-A 條目，並把 rubric 收斂成「主檢查 3 分 ＋ 地基 assignsTask 0.5 分、pass 2」——與課程 v2 新蓋的神廟同一個形狀（C1）。primaryTechniqueId 保留（它真的有祖先，收集不倒退），另外新增 primarySkillId 指向 v2 技能。"
+      }
     },
     {
       "id": "effort-forge-15",
@@ -689,7 +744,7 @@
           "weightBefore": 3,
           "action": "remove",
           "weightAfter": 0,
-          "phase": "post-A",
+          "phase": "C",
           "reason": "主題搬去自己的神廟（C1 一關一技巧／C2 只教一次）：第三幕換成 sim（轉旋鈕看離線輸出樣本），這是 sim 型式的首發關；params-03（effort）由刻度儀之室讓過來"
         },
         {
@@ -697,7 +752,7 @@
           "weightBefore": 1,
           "action": "remove",
           "weightAfter": 0,
-          "phase": "post-A",
+          "phase": "C",
           "reason": "主題搬去自己的神廟（C1 一關一技巧／C2 只教一次）：第三幕換成 sim（轉旋鈕看離線輸出樣本），這是 sim 型式的首發關；params-03（effort）由刻度儀之室讓過來"
         }
       ],
@@ -712,7 +767,16 @@
         "reasoning-04",
         "reasoning-05"
       ],
-      "designNote": "第三幕換成 sim（轉旋鈕看離線輸出樣本），這是 sim 型式的首發關；params-03（effort）由刻度儀之室讓過來"
+      "designNote": "第三幕換成 sim（轉旋鈕看離線輸出樣本），這是 sim 型式的首發關；params-03（effort）由刻度儀之室讓過來",
+      "phaseC": {
+        "skillId": "knob-effort",
+        "mainCheck": "mentionsParameters",
+        "mainWeightAfterC": 3,
+        "totalWeightAfterC": 3.5,
+        "passAfterC": 2,
+        "kindAfterC": "choice",
+        "note": "Phase C（示範與推理 15 座）執行本列的 post-A 條目，並把 rubric 收斂成「主檢查 3 分 ＋ 地基 assignsTask 0.5 分、pass 2」——與課程 v2 新蓋的神廟同一個形狀（C1）。primaryTechniqueId 保留（它真的有祖先，收集不倒退），另外新增 primarySkillId 指向 v2 技能。"
+      }
     },
     {
       "id": "citation-desk-21",

@@ -517,6 +517,78 @@ export function runPlaytestVerify({ ok, eq }) {
     }
   }
 
+  /* --- F3：課程 v2 · Phase C 的兩種新題型（推規碑 / 雙面碑） ---
+   *
+   * 兩者都是石碑刻印的變體：想通前面那件事之後，刻的是**同一組 slots**。
+   * 所以「做對＝完美」的門檻和石碑刻印完全一樣，這裡另外守兩件它們自己的事：
+   *   推規碑：驗證輪真的驗證得到規律（照「順手的規律」答會答錯，而且答錯有教學）
+   *   雙面碑：兩面都收得到誠實的判詞，而且贏家在整關裡兩面都出現過
+   *           —— 不把取捨教成假通則
+   */
+  const inductIds = [];
+  const tradeoffIds = [];
+  for (const [id, f] of Object.entries(flowFile.flows)) {
+    if (f.kind === 'induct' && f.inductFlow) inductIds.push(id);
+    if (f.kind === 'tradeoff' && f.tradeoffFlow) tradeoffIds.push(id);
+  }
+  ok(inductIds.length >= 1, 'playtest：至少有一關是推規碑', inductIds.join(','));
+  ok(tradeoffIds.length >= 1, 'playtest：至少有一關是雙面碑', tradeoffIds.join(','));
+
+  for (const id of inductIds) {
+    const tag = `[${id}]`;
+    const c = byId.get(id);
+    const inf = flowFile.flows[id].inductFlow;
+    /* 猜完規律之後刻出來的整段文字＝把 slots 全部選對（同一支引擎、同一段字） */
+    const carved = flowFile.flows[id].slots.map((s) => s.options.find((o) => o.correct).text).join('\n');
+    const ev = evaluate(c, carved);
+    ok(
+      ev.results.every((r) => r.passed),
+      `${tag} playtest：想通規律再刻完，每一條檢查都滿分`,
+      ev.results.filter((r) => !r.passed).map((r) => `${r.check}=${r.earned}/${r.weight}`).join('、')
+    );
+    /* 驗證輪：照「順手的規律」答一定不是正解，而且答錯有東西可以學 */
+    const last = inf.rounds[inf.rounds.length - 1];
+    ok(last.validates === true, `${tag} playtest：最後一輪是驗證輪`);
+    const naive = last.options.filter((o) => o.follows === 'naive');
+    ok(naive.length >= 1, `${tag} playtest：驗證輪上看得到「順手的規律」會給的那個答案`);
+    for (const o of naive) {
+      ok(!o.correct, `${tag} playtest：照順手的規律答會答錯（第四例真的在驗證）`);
+      ok(String(o.feedback || '').length >= 20, `${tag} playtest：答錯的人拿到的是教學，不是運氣`, o.feedback);
+    }
+    /* 第一輪的正解要「兩條規律都成立」—— 不然規律在第一輪就分出來了，驗證輪白做 */
+    const first = inf.rounds[0].options.find((o) => o.correct);
+    eq(first.follows, 'both', `${tag} playtest：第一輪還分不出是哪一條規律`);
+  }
+
+  for (const id of tradeoffIds) {
+    const tag = `[${id}]`;
+    const c = byId.get(id);
+    const tf = flowFile.flows[id].tradeoffFlow;
+    const ids = tf.sides.map((s) => s.id);
+    /* 兩面都要贏過至少一次 —— 這一條就是「不把取捨教成假通則」 */
+    const favoured = new Set(tf.rounds.map((r) => r.favours));
+    eq(favoured.size, 2, `${tag} playtest：兩面各贏過至少一張卡（不是通則）`, [...favoured].join(','));
+    for (const [i, r] of tf.rounds.entries()) {
+      for (const sid of ids) {
+        const v = r.verdicts[sid];
+        ok(v && String(v.text || '').trim().length >= 12, `${tag} playtest：第 ${i + 1} 張卡的「${sid}」有誠實判詞`, v && v.text);
+      }
+      ok(
+        r.verdicts[ids[0]].text.trim() !== r.verdicts[ids[1]].text.trim(),
+        `${tag} playtest：第 ${i + 1} 張卡的兩面判詞不一樣（真的分得出來）`
+      );
+    }
+    /* 倒向哪一面都走得下去：刻出來的還是同一段字、同一個評價 */
+    const carved = flowFile.flows[id].slots.map((s) => s.options.find((o) => o.correct).text).join('\n');
+    const ev = evaluate(c, carved);
+    ok(
+      ev.results.every((r) => r.passed),
+      `${tag} playtest：秤完兩面再刻完，每一條檢查都滿分`,
+      ev.results.filter((r) => !r.passed).map((r) => `${r.check}=${r.earned}/${r.weight}`).join('、')
+    );
+    eq(ev.grade, 'S', `${tag} playtest：兩面都秤過、刻對了就是 S`);
+  }
+
   /* --- D：檢查器回歸案例 --- */
   for (const cse of CHECK_CASES) {
     const out = runCheck(cse.check, cse.text, cse.options || {});

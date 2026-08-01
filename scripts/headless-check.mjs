@@ -4028,7 +4028,7 @@ async function main() {
   ok(crossing.regionText.includes('示範與推理'), 'HUD 區域名跟著更新', crossing.regionText);
   ok(crossing.fogBefore !== crossing.fogAfter, '跨區時霧色平滑漂移（M4 轉場）',
     `${crossing.fogBefore.toString(16)} → ${crossing.fogAfter.toString(16)}`);
-  eq(crossing.markersHere, 5, 'reasoning 區有 5 座石座');
+  eq(crossing.markersHere, 15, 'reasoning 區有 15 座石座（課程 v2 · Phase C）');
 
   /* ================================================================ */
   console.log('\n▸ 鏡頭避障（Phase 3 已知問題）');
@@ -7539,7 +7539,7 @@ async function main() {
   const kinds = await evaluate(`
     const g = window.__promptasy;
     const flows = g.content.flowFile.flows;
-    const out = { total: g.content.challenges.length, byKind: { choice: 0, order: 0, workshop: 0, fix: 0, spot: 0 }, missing: [] };
+    const out = { total: g.content.challenges.length, byKind: Object.fromEntries(g.promptConsole.flowKinds.map((k) => [k, 0])), missing: [] };
     for (const c of g.content.challenges) {
       const f = flows[c.id];
       if (!f) { out.missing.push(c.id); continue; }
@@ -7551,23 +7551,37 @@ async function main() {
     out.workshopIds = Object.entries(flows).filter(([, f]) => f.kind === 'workshop').map(([id]) => id).sort();
     out.fixIds = Object.entries(flows).filter(([, f]) => f.kind === 'fix').map(([id]) => id).sort();
     out.spotIds = Object.entries(flows).filter(([, f]) => f.kind === 'spot').map(([id]) => id).sort();
+    out.inductIds = Object.entries(flows).filter(([, f]) => f.kind === 'induct').map(([id]) => id).sort();
+    out.tradeoffIds = Object.entries(flows).filter(([, f]) => f.kind === 'tradeoff').map(([id]) => id).sort();
     return out;
   `);
-  eq(kinds.total, 37, '世界上有 37 關（課程 v2 · Phase B：撰寫基本功新增十座神廟）');
+  eq(kinds.total, 47, '世界上有 47 關（課程 v2 · Phase C：示範與推理補到 15 座）');
   eq(kinds.missing.length, 0, '每一關都有流程資料，而且都留著選擇題後備', kinds.missing.join(','));
-  eq(kinds.byKind.choice, 27, '27 關維持原本的石碑刻印（零行為變化）');
+  eq(kinds.byKind.choice, 27, '27 關維持石碑刻印');
   eq(kinds.byKind.order, 2, '2 關改成排序刻印');
   eq(kinds.byKind.workshop, 1, '1 關是神諭工坊');
-  eq(kinds.byKind.fix, 4, '4 座新神廟是改碑');
-  eq(kinds.byKind.spot, 3, '3 座新神廟是點碑');
+  eq(kinds.byKind.fix, 7, '7 座神廟是改碑');
+  eq(kinds.byKind.spot, 4, '4 座神廟是點碑');
+  eq(kinds.byKind.induct, 2, '2 座是推規碑（課程 v2 · Phase C）');
+  eq(kinds.byKind.tradeoff, 4, '4 座是雙面碑（課程 v2 · Phase C）');
   eq(kinds.orderIds.join(','), 'long-scroll-tower-23,priority-stair-42', '改成排序的就是那兩關（次序本身就是課程）');
   eq(kinds.workshopIds.join(','), 'oracle-workshop-36', '神諭工坊是第 27 關');
   eq(
     kinds.fixIds.join(','),
-    'empty-handed-envoy-14,first-rail-10,measuring-table-08,nightwatch-relief-07',
-    '改碑是那四座'
+    'empty-handed-envoy-14,first-rail-10,honed-blade-24,measuring-table-08,nightwatch-relief-07,well-pause-22,working-draft-19',
+    '改碑是那七座'
   );
-  eq(kinds.spotIds.join(','), 'nodding-courier-09,parts-wall-16,shout-stone-11', '點碑是那三座');
+  eq(
+    kinds.spotIds.join(','),
+    'nodding-courier-09,parts-wall-16,shout-stone-11,silent-thinker-13',
+    '點碑是那四座'
+  );
+  eq(kinds.inductIds.join(','), 'example-hall-11,flawed-cabinet-17', '推規碑是那兩座');
+  eq(
+    kinds.tradeoffIds.join(','),
+    'example-scale-16,old-tag-store-15,two-lampkeepers-18,wordfork-12',
+    '雙面碑是那四座'
+  );
 
   /* ---------------------------------------------------------------- *
    * 一、排序刻印：純鍵盤走完（拿起 → 搬 → 放下 → 亮燈 → 手印 → S）
@@ -7775,21 +7789,57 @@ async function main() {
     await mouse('mouseMoved', drag.fromX, Math.round(drag.fromY + (drag.toY - drag.fromY) * t));
     await sleep(90);
   }
-  // 重排是發生在 pointermove 上（不是放開的時候）—— 輪詢等它真的搬到最上面，
-  // 每一輪再補一下微小的移動（掉幀時 indexAtY 可能還沒吃到上一個座標）。
+  /*
+   * 重排是發生在 pointermove 上（不是放開的時候）—— 輪詢等它真的搬到最上面。
+   *
+   * 每一輪再往上多推一點：拖曳過程中其他石版會跟著讓位，原本量到的
+   * 「最上面那一片的頂端 + 4」在讓位之後可能已經落進第二格的判定帶裡
+   * （實測會停在 context,role,… 差一格）。所以不是重送同一個座標，
+   * 而是每一輪往上再走 10px，直到真的站上第一格為止。
+   */
+  let dropY = drag.toY;
   await waitFor(
     async () => {
-      const ok0 = await evaluate(
-        `return window.__promptasy.promptConsole.orderBoard.arrangement[0] === 'role';`
-      ).catch(() => false);
-      if (ok0) return true;
-      await mouse('mouseMoved', drag.toX, drag.toY - 2);
-      await mouse('mouseMoved', drag.toX, drag.toY);
+      const probe = await evaluate(`
+        const b = window.__promptasy.promptConsole.orderBoard;
+        // 目標 Y **每一輪重新量**：拖曳過程中其他石版會讓位，開場量到的座標會過期
+        /*
+         * 目標 Y 取「整份清單的上緣」——被拖著的那一片會被 --lift 位移，
+         * 拿它自己的 rect 當基準會追著自己跑；清單容器的上緣一定在
+         * 每一列的中線之上，indexAtY() 必定回 0。
+         */
+        const list = document.querySelector('#prompt-console [data-slips]:not([hidden])')
+          || document.querySelector('#prompt-console [data-slips]');
+        const r = list ? list.getBoundingClientRect() : null;
+        return {
+          ok: b.arrangement[0] === 'role',
+          y: r ? Math.round(r.top + 2) : null,
+          h: r ? Math.round(r.height) : 0,
+        };
+      `).catch(() => ({ ok: false, y: null }));
+      if (probe.ok) return true;
+      if (probe.y != null) dropY = Math.max(4, probe.y);
+      /*
+       * 不是重送同一個座標，而是每一輪**重新掃一次**：由下往上分幾步走到清單上緣，
+       * 每一步之間留一點時間。
+       *
+       * 為什麼要這樣：order.js 的重排帶 FLIP 動畫（withSlide），搬完之後每一列會先被
+       * translate 回原位、下一個 animation frame 才歸零。軟體渲染下一幀要 160 ms 以上，
+       * 在那段時間內 getBoundingClientRect() 讀到的還是**搬之前**的版面，
+       * indexAtY() 因此算出「跟現在一樣的位置」，`to !== 現在` 這個守衛就把後續的移動擋掉，
+       * 石版會停在只搬了一格的地方（實測 context,role,… 差一格）。
+       * 所以要給它「真的有位移的下一步 ＋ 讓影格追得上的時間」。
+       */
+      for (const k of [0.55, 0.25, 0]) {
+        const y = Math.max(4, Math.round(dropY + (probe.h || 0) * k));
+        await mouse('mouseMoved', drag.toX, y);
+        await sleep(70);
+      }
       return false;
     },
     { timeout: 8000, every: 120, label: '石版被拖到最上面' }
   ).catch(() => null);
-  await mouse('mouseReleased', drag.toX, drag.toY);
+  await mouse('mouseReleased', drag.toX, dropY);
   await waitFor(
     () => evaluate(`return !document.querySelector('#prompt-console .slip.is-dragging');`).catch(() => false),
     { timeout: 6000, every: 100, label: '放開之後拖曳狀態收乾淨' }
@@ -8721,7 +8771,7 @@ async function main() {
     }
     return out;
   `);
-  eq(newMarkers.ids, 10, '世界上真的多了十座石座');
+  eq(newMarkers.ids, 25, '世界上真的多了 25 座課程 v2 的石座（Phase B 十座 ＋ Phase C 十五座）');
   eq(newMarkers.missing.length, 0, '每一座都蓋出來了', newMarkers.missing.join(','));
   eq(newMarkers.blocked.length, 0, '新石座四周走得到（互動不會被擋）', newMarkers.blocked.join(' '));
 
@@ -8754,6 +8804,407 @@ async function main() {
   `);
   eq(narrowB.fixOverflow, 0, '820px 下改碑沒有水平溢位');
   eq(narrowB.spotOverflow, 0, '820px 下點碑沒有水平溢位');
+  await cdp.send('Emulation.clearDeviceMetricsOverride', {}, sessionId);
+  await sleep(300);
+
+  /* ================================================================ */
+  console.log('\n▸ 推規碑與雙面碑（課程 v2 · Phase C）');
+
+  await evaluate(`
+    const g = window.__promptasy;
+    g.promptConsole.close(); g.codex.close(); g.settings.close();
+    g.promptConsole.setMode('guided');
+    return 1;
+  `);
+  await sleep(220);
+
+  /* ---------------------------------------------------------------- *
+   * 一、推規碑：純鍵盤走完
+   *    （牆只露兩組 → 猜錯不失敗 → 猜對牆多刻一組 → 驗證輪照「順手的
+   *      規律」答會答錯並拿到教學 → 猜對 → 刻印開放 → 手印 → S）
+   * ---------------------------------------------------------------- */
+  const indOpen = await evaluate(`
+    const g = window.__promptasy;
+    g.promptConsole.open(g.content.challenge('flawed-cabinet-17'));
+    await new Promise((r) => setTimeout(r, 260));
+    const actAtOpen = g.promptConsole.act;
+    g.promptConsole.goAct(3, { force: true });
+    await new Promise((r) => setTimeout(r, 320));
+    const b = g.promptConsole.inductBoard;
+    const rows = [...document.querySelectorAll('#prompt-console .wallrow')];
+    return {
+      actAtOpen,
+      act: g.promptConsole.act,
+      kind: g.promptConsole.kind,
+      label: document.querySelector('#prompt-console [data-guided-label] .zh').textContent.trim(),
+      shown: !document.querySelector('#prompt-console .inductboard').hidden,
+      steleHidden: document.querySelector('#prompt-console .stele-stage').hidden,
+      tradeHidden: document.querySelector('#prompt-console .tradeboard').hidden,
+      rows: rows.length,
+      hidden: rows.filter((r) => r.classList.contains('is-hidden')).length,
+      revealed: b.revealed,
+      carveHidden: document.querySelector('#prompt-console .inductboard [data-carve]').hidden,
+      palmHidden: document.querySelector('#prompt-console .inductboard .palmwrap').hidden,
+      ruleHidden: document.querySelector('#prompt-console .wall__rule').hidden,
+      ask: b.ask,
+      text: b.text,
+      done: b.done,
+    };
+  `);
+  eq(indOpen.actAtOpen, 1, '推規碑一樣從第一幕開始（四幕分鏡沒有變）');
+  eq(indOpen.act, 3, '推規碑住在第三幕');
+  eq(indOpen.kind, 'induct', '這一關的題型是推規碑');
+  eq(indOpen.label, '推規碑', '版面上寫的是「推規碑」');
+  eq(indOpen.shown, true, '台上是那面刻著對照的牆');
+  eq(indOpen.steleHidden, true, '選擇題的石碑收起來了');
+  eq(indOpen.tradeHidden, true, '雙面碑不會亂入（一次只有一種在台上）');
+  eq(indOpen.rows, 4, '牆上一共四組對照');
+  eq(indOpen.revealed, 2, '一開始只露出兩組（規律還推不出來）');
+  eq(indOpen.hidden, 2, '後面兩組還蓋著');
+  eq(indOpen.carveHidden, true, '還沒想通規律，刻印區是鎖著的');
+  eq(indOpen.palmHidden, true, '手掌印當然還沒出現（送不出去）');
+  eq(indOpen.ruleHidden, true, '規律還沒揭曉');
+  eq(indOpen.done, false, '這一關還沒完成');
+  eq(indOpen.text, '', '石碑上還是空的');
+
+  // 純鍵盤：焦點停在第一個選項 → 猜錯只會「牆不回應 ＋ 就地教學」
+  const indWrongIdx = await evaluate(`
+    const f = window.__promptasy.content.flow('flawed-cabinet-17').inductFlow;
+    return f.rounds[0].options.findIndex((o) => !o.correct);
+  `);
+  await evaluate(`document.querySelector('#prompt-console [data-guess-opt="${indWrongIdx}"]').focus(); return 1;`);
+  await key('Enter', 'Enter', { vk: 13 });
+  await sleep(280);
+  const indWrong = await evaluate(`
+    const g = window.__promptasy;
+    const btn = document.querySelector('#prompt-console [data-guess-opt="${indWrongIdx}"]');
+    return {
+      marked: btn.classList.contains('is-wrong'),
+      disabled: btn.getAttribute('aria-disabled'),
+      feedback: btn.querySelector('[data-opt-fb]')?.textContent || '',
+      fbHidden: btn.querySelector('[data-opt-fb]')?.hidden,
+      dataFeedback: g.content.flow('flawed-cabinet-17').inductFlow.rounds[0].options[${indWrongIdx}].feedback,
+      revealed: g.promptConsole.inductBoard.revealed,
+      round: g.promptConsole.inductBoard.progress.round,
+      verdictHidden: document.querySelector('#prompt-console .act--verdict').hidden,
+      xp: g.progression.state.xp,
+      live: g.promptConsole.inductBoard.announcement,
+    };
+  `);
+  eq(indWrong.marked, true, '猜錯的那一片留在原地，標成「牆不收」');
+  eq(indWrong.disabled, 'true', '不收的那一片按不下去了');
+  eq(indWrong.fbHidden, false, '就地長出一句教學回饋');
+  eq(indWrong.feedback, indWrong.dataFeedback, '回饋逐字來自資料層（不是臨時編的）');
+  eq(indWrong.revealed, 2, '猜錯不會多刻一組出來（不前進）');
+  eq(indWrong.round, 0, '猜錯不算過一輪');
+  eq(indWrong.verdictHidden, true, '猜錯不會跳結果面板（不會失敗）');
+  ok(indWrong.live.length > 0, 'aria-live 把回饋唸出來', indWrong.live);
+
+  // 猜對 → 牆上多刻一組
+  const indRight1 = await evaluate(`
+    const f = window.__promptasy.content.flow('flawed-cabinet-17').inductFlow;
+    return f.rounds[0].options.findIndex((o) => o.correct);
+  `);
+  await evaluate(`document.querySelector('#prompt-console [data-guess-opt="${indRight1}"]').focus(); return 1;`);
+  await key('Enter', 'Enter', { vk: 13 });
+  await waitFor(() => evaluate(`return window.__promptasy.promptConsole.inductBoard.revealed === 3;`), {
+    label: '牆上多刻出第三組',
+  });
+  const indRound2 = await evaluate(`
+    const g = window.__promptasy;
+    return {
+      revealed: g.promptConsole.inductBoard.revealed,
+      round: g.promptConsole.inductBoard.progress.round,
+      progress: document.querySelector('#prompt-console .inductboard [data-guess-progress]').textContent.trim(),
+      ask: g.promptConsole.inductBoard.ask,
+      focusOpt: document.activeElement?.getAttribute('data-guess-opt'),
+      carveHidden: document.querySelector('#prompt-console .inductboard [data-carve]').hidden,
+    };
+  `);
+  eq(indRound2.revealed, 3, '第三組刻出來了');
+  eq(indRound2.round, 1, '進到第二輪推敲');
+  ok(/驗證/.test(indRound2.progress), '畫面上寫明這一組會驗證你的規律', indRound2.progress);
+  eq(indRound2.focusOpt, '0', '焦點自動跟到下一輪的第一個選項（鍵盤玩家不會掉焦點）');
+  eq(indRound2.carveHidden, true, '規律還沒確定，刻印區仍然鎖著');
+
+  // ★ 驗證輪：照「只看前面推出來的那條順手規律」答 → 一定答錯 ＋ 拿到教學
+  const naiveIdx = await evaluate(`
+    const f = window.__promptasy.content.flow('flawed-cabinet-17').inductFlow;
+    const last = f.rounds[f.rounds.length - 1];
+    return last.options.findIndex((o) => o.follows === 'naive');
+  `);
+  ok(naiveIdx >= 0, '驗證輪上真的放著「順手的規律」會給的那個答案');
+  await evaluate(`document.querySelector('#prompt-console [data-guess-opt="${naiveIdx}"]').focus(); return 1;`);
+  await key('Enter', 'Enter', { vk: 13 });
+  await sleep(280);
+  const indNaive = await evaluate(`
+    const g = window.__promptasy;
+    const btn = document.querySelector('#prompt-console [data-guess-opt="${naiveIdx}"]');
+    return {
+      wrong: btn.classList.contains('is-wrong'),
+      feedback: btn.querySelector('[data-opt-fb]')?.textContent || '',
+      revealed: g.promptConsole.inductBoard.revealed,
+      round: g.promptConsole.inductBoard.progress.round,
+      carveHidden: document.querySelector('#prompt-console .inductboard [data-carve]').hidden,
+    };
+  `);
+  eq(indNaive.wrong, true, '照順手的規律答 —— 牆不收（第四例真的在驗證規則）');
+  ok(indNaive.feedback.length >= 20, '答錯的人拿到的是教學，不是運氣', indNaive.feedback);
+  eq(indNaive.revealed, 3, '答錯不會把答案掀開');
+  eq(indNaive.round, 1, '答錯不前進');
+  eq(indNaive.carveHidden, true, '答錯不會開放刻印');
+
+  // 猜對驗證輪 → 規律揭曉、牆全開、刻印開放
+  const indRight2 = await evaluate(`
+    const f = window.__promptasy.content.flow('flawed-cabinet-17').inductFlow;
+    const last = f.rounds[f.rounds.length - 1];
+    return last.options.findIndex((o) => o.correct);
+  `);
+  await evaluate(`document.querySelector('#prompt-console [data-guess-opt="${indRight2}"]').focus(); return 1;`);
+  await key('Enter', 'Enter', { vk: 13 });
+  await waitFor(() => evaluate(`return window.__promptasy.promptConsole.inductBoard.progress.guessed === true;`), {
+    label: '規律想通了',
+  });
+  const indSolved = await evaluate(`
+    const g = window.__promptasy;
+    const rows = [...document.querySelectorAll('#prompt-console .wallrow')];
+    return {
+      revealed: g.promptConsole.inductBoard.revealed,
+      hidden: rows.filter((r) => r.classList.contains('is-hidden')).length,
+      ruleHidden: document.querySelector('#prompt-console .wall__rule').hidden,
+      ruleText: document.querySelector('#prompt-console .wall__rule').textContent.trim(),
+      dataRule: g.content.flow('flawed-cabinet-17').inductFlow.rule.true,
+      guessHidden: document.querySelector('#prompt-console .inductboard [data-guess]').hidden,
+      carveHidden: document.querySelector('#prompt-console .inductboard [data-carve]').hidden,
+      focusOpt: document.activeElement?.getAttribute('data-slot-opt'),
+    };
+  `);
+  eq(indSolved.revealed, 4, '牆全部掀開了');
+  eq(indSolved.hidden, 0, '沒有一組還蓋著');
+  eq(indSolved.ruleHidden, false, '規律揭曉');
+  ok(indSolved.ruleText.includes(indSolved.dataRule), '揭曉的就是資料層寫的那一條規律', indSolved.ruleText);
+  eq(indSolved.guessHidden, true, '推敲區收起來了（一次只有一件事）');
+  eq(indSolved.carveHidden, false, '刻印區開放了');
+  eq(indSolved.focusOpt, '0', '焦點自動落到第一段刻印的第一個選項');
+
+  // 一段一段刻上去 → 手印 → S
+  const indCarved = await evaluate(`
+    const g = window.__promptasy;
+    const flow = g.content.flow('flawed-cabinet-17');
+    for (const slot of flow.slots) {
+      g.promptConsole.inductBoard.pick(slot.options.findIndex((o) => o.correct));
+      await new Promise((r) => setTimeout(r, 120));
+    }
+    return {
+      text: g.promptConsole.inductBoard.text,
+      want: flow.slots.map((s) => s.options.find((o) => o.correct).text).join('\\n'),
+      done: g.promptConsole.inductBoard.done,
+      act: g.promptConsole.act,
+      palmHidden: document.querySelector('#prompt-console .inductboard .palmwrap').hidden,
+      lines: document.querySelectorAll('#prompt-console .inductboard .carved').length,
+    };
+  `);
+  eq(indCarved.text, indCarved.want, '刻出來的文字＝把每一段的正解串起來');
+  eq(indCarved.done, true, '刻完了');
+  eq(indCarved.act, 4, '刻滿自動切到第四幕（手印）');
+  eq(indCarved.palmHidden, false, '手掌印出現了');
+  eq(indCarved.lines, 3, '石碑上三道刻痕');
+
+  const indResult = await evaluate(`
+    const g = window.__promptasy;
+    g.promptConsole.inductBoard.press();
+    await new Promise((r) => setTimeout(r, 520));
+    return {
+      grade: document.querySelector('#prompt-console .grade__mark')?.textContent.trim() || '',
+      best: g.progression.bestGrade('flawed-cabinet-17'),
+      skills: g.progression.state.skillsV2.includes('fewshot-negative'),
+      cleared: g.world.markers.find((m) => m.id === 'flawed-cabinet-17')?.cleared,
+      sources: [...document.querySelectorAll('#prompt-console .act--verdict a[href^="https://"]')].length,
+    };
+  `);
+  eq(indResult.grade, 'S', '推規碑走完拿到 S');
+  eq(indResult.best, 'S', '評價寫進存檔');
+  eq(indResult.skills, true, '技能收進 skillsV2');
+  eq(indResult.cleared, true, '石座轉成已通關');
+  ok(indResult.sources > 0, '結果面板照樣掛得出官方出處', String(indResult.sources));
+
+  /* ---------------------------------------------------------------- *
+   * 二、雙面碑：純鍵盤走完
+   *    （兩面都走得下去 → 倒向哪一面都會前進並拿到誠實判詞 →
+   *      換一張卡贏家翻面 → 刻印 → 手印 → S）
+   * ---------------------------------------------------------------- */
+  await evaluate(`window.__promptasy.promptConsole.close(); return 1;`);
+  await sleep(220);
+  const trOpen = await evaluate(`
+    const g = window.__promptasy;
+    g.promptConsole.open(g.content.challenge('example-scale-16'));
+    await new Promise((r) => setTimeout(r, 260));
+    g.promptConsole.goAct(3, { force: true });
+    await new Promise((r) => setTimeout(r, 320));
+    const tf = g.content.flow('example-scale-16').tradeoffFlow;
+    return {
+      kind: g.promptConsole.kind,
+      label: document.querySelector('#prompt-console [data-guided-label] .zh').textContent.trim(),
+      shown: !document.querySelector('#prompt-console .tradeboard').hidden,
+      inductHidden: document.querySelector('#prompt-console .inductboard').hidden,
+      faces: document.querySelectorAll('#prompt-console .face').length,
+      card: document.querySelector('#prompt-console .twoface__card').textContent.trim(),
+      dataCard: tf.rounds[0].card.text,
+      progress: document.querySelector('#prompt-console .tradeboard [data-weigh-progress]').textContent.trim(),
+      carveHidden: document.querySelector('#prompt-console .tradeboard [data-carve]').hidden,
+      palmHidden: document.querySelector('#prompt-console .tradeboard .palmwrap').hidden,
+      favours: tf.rounds.map((r) => r.favours),
+      sides: tf.sides.map((s) => s.id),
+    };
+  `);
+  eq(trOpen.kind, 'tradeoff', '這一關的題型是雙面碑');
+  eq(trOpen.label, '雙面碑', '版面上寫的是「雙面碑」');
+  eq(trOpen.shown, true, '台上是那塊兩面的碑');
+  eq(trOpen.inductHidden, true, '推規碑收起來了（一次只有一種在台上）');
+  eq(trOpen.faces, 2, '碑上剛好兩面');
+  eq(trOpen.card, trOpen.dataCard, '卡上的字逐字來自資料層');
+  ok(/第 1 \/ 2 張卡/.test(trOpen.progress), '第一張卡', trOpen.progress);
+  eq(trOpen.carveHidden, true, '還沒秤過，刻印區鎖著');
+  eq(trOpen.palmHidden, true, '手掌印還沒出現');
+  eq(new Set(trOpen.favours).size, 2, '整關兩面各贏過一次（不把取捨教成通則）');
+
+  // ★ 倒向「這一張卡上比較貴」的那一面 —— 一樣前進，而且拿到誠實的判詞
+  const losing = trOpen.sides.find((id) => id !== trOpen.favours[0]);
+  await evaluate(`document.querySelector('#prompt-console [data-face="${losing}"]').focus(); return 1;`);
+  await key('Enter', 'Enter', { vk: 13 });
+  await waitFor(() => evaluate(`return window.__promptasy.promptConsole.tradeoffBoard.progress.round === 1;`), {
+    label: '第一張卡秤完了',
+  });
+  const trFirst = await evaluate(`
+    const g = window.__promptasy;
+    const tf = g.content.flow('example-scale-16').tradeoffFlow;
+    const log = [...document.querySelectorAll('#prompt-console .tradelog')];
+    return {
+      picks: g.promptConsole.tradeoffBoard.picks,
+      wantVerdict: tf.rounds[0].verdicts['${losing}'].text,
+      logText: log.map((n) => n.textContent).join(' '),
+      logCost: log.filter((n) => n.classList.contains('is-cost')).length,
+      round: g.promptConsole.tradeoffBoard.progress.round,
+      card: document.querySelector('#prompt-console .twoface__card').textContent.trim(),
+      dataCard2: tf.rounds[1].card.text,
+      verdictHidden: document.querySelector('#prompt-console .act--verdict').hidden,
+      carveHidden: document.querySelector('#prompt-console .tradeboard [data-carve]').hidden,
+      live: g.promptConsole.tradeoffBoard.announcement,
+    };
+  `);
+  eq(trFirst.round, 1, '倒向比較貴的那一面照樣前進（取捨沒有「答錯」）');
+  eq(trFirst.picks[0].wins, false, '碑記下了這一面在這一張卡上是要付代價的');
+  ok(trFirst.logText.includes(trFirst.wantVerdict), '判詞逐字來自資料層', trFirst.wantVerdict);
+  eq(trFirst.logCost, 1, '判詞用的是「代價」而不是「錯」的語言');
+  eq(trFirst.verdictHidden, true, '不會跳結果面板（不會失敗）');
+  eq(trFirst.card, trFirst.dataCard2, '換到第二張卡了');
+  eq(trFirst.carveHidden, true, '兩張卡都秤過才開放刻印');
+  ok(trFirst.live.length > 0, 'aria-live 把判詞唸出來', trFirst.live);
+
+  // 第二張卡：贏家翻面 —— 這一次倒向它，判詞就是「贏」
+  const trSecond = await evaluate(`
+    const g = window.__promptasy;
+    const tf = g.content.flow('example-scale-16').tradeoffFlow;
+    const win2 = tf.rounds[1].favours;
+    document.querySelector('#prompt-console [data-face="' + win2 + '"]').focus();
+    return { win2, flipped: win2 !== tf.rounds[0].favours };
+  `);
+  eq(trSecond.flipped, true, '第二張卡上贏的是另一面（換一張卡就翻面）');
+  await key('Enter', 'Enter', { vk: 13 });
+  await waitFor(() => evaluate(`return window.__promptasy.promptConsole.tradeoffBoard.progress.settled === true;`), {
+    label: '兩張卡都秤完了',
+  });
+  const trSettled = await evaluate(`
+    const g = window.__promptasy;
+    return {
+      picks: g.promptConsole.tradeoffBoard.picks,
+      logWin: document.querySelectorAll('#prompt-console .tradelog.is-win').length,
+      carveHidden: document.querySelector('#prompt-console .tradeboard [data-carve]').hidden,
+      focusOpt: document.activeElement?.getAttribute('data-slot-opt'),
+      settledAsk: document.querySelector('#prompt-console .tradeboard [data-weigh-ask]').textContent.trim(),
+    };
+  `);
+  eq(trSettled.picks[1].wins, true, '第二次倒向的是這一張卡上划算的那一面');
+  eq(trSettled.logWin, 1, '兩次判詞一勝一負（兩面都學到了）');
+  eq(trSettled.carveHidden, false, '秤完兩張卡，刻印區開放');
+  eq(trSettled.focusOpt, '0', '焦點自動落到第一段刻印的第一個選項');
+  ok(trSettled.settledAsk.length > 0, '收尾那一句提醒「要說得出這一次為什麼」', trSettled.settledAsk);
+
+  const trResult = await evaluate(`
+    const g = window.__promptasy;
+    const flow = g.content.flow('example-scale-16');
+    for (const slot of flow.slots) {
+      g.promptConsole.tradeoffBoard.pick(slot.options.findIndex((o) => o.correct));
+      await new Promise((r) => setTimeout(r, 120));
+    }
+    const text = g.promptConsole.tradeoffBoard.text;
+    const act = g.promptConsole.act;
+    g.promptConsole.tradeoffBoard.press();
+    await new Promise((r) => setTimeout(r, 520));
+    return {
+      text,
+      want: flow.slots.map((s) => s.options.find((o) => o.correct).text).join('\\n'),
+      act,
+      grade: document.querySelector('#prompt-console .grade__mark')?.textContent.trim() || '',
+      best: g.progression.bestGrade('example-scale-16'),
+      skills: g.progression.state.skillsV2.includes('fewshot-count'),
+      sources: [...document.querySelectorAll('#prompt-console .act--verdict a[href^="https://"]')].length,
+    };
+  `);
+  eq(trResult.text, trResult.want, '刻出來的文字＝把每一段的正解串起來');
+  eq(trResult.act, 4, '刻滿自動切到第四幕（手印）');
+  eq(trResult.grade, 'S', '雙面碑走完拿到 S');
+  eq(trResult.best, 'S', '評價寫進存檔');
+  eq(trResult.skills, true, '技能收進 skillsV2');
+  ok(trResult.sources > 0, '結果面板掛得出官方出處', String(trResult.sources));
+
+  /* --- 示範與推理：15 座石座真的蓋在世界上 --- */
+  const rsn = await evaluate(`
+    const g = window.__promptasy;
+    const ids = g.content.challenges.filter((c) => c.region === 'reasoning').map((c) => c.id);
+    const out = { ids: ids.length, missing: [], blocked: [] };
+    for (const id of ids) {
+      const m = g.world.markers.find((x) => x.id === id);
+      if (!m) { out.missing.push(id); continue; }
+      const p = m.position;
+      for (let a = 0; a < 12; a += 1) {
+        const ang = (a / 12) * Math.PI * 2;
+        if (g.world.solidAt(p.x + Math.cos(ang) * 3, p.z + Math.sin(ang) * 3)) out.blocked.push(id);
+      }
+    }
+    return out;
+  `);
+  eq(rsn.ids, 15, '示範與推理有 15 座石座');
+  eq(rsn.missing.length, 0, '每一座都蓋出來了', rsn.missing.join(','));
+  eq(rsn.blocked.length, 0, '新石座四周走得到（互動不會被擋）', rsn.blocked.join(' '));
+
+  /* --- 窄畫面不溢位 --- */
+  await cdp.send('Emulation.setDeviceMetricsOverride', { width: 820, height: 760, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await sleep(320);
+  const narrowC = await evaluate(`
+    const g = window.__promptasy;
+    const out = {};
+    g.promptConsole.close();
+    await new Promise((r) => setTimeout(r, 200));
+    g.promptConsole.open(g.content.challenge('flawed-cabinet-17'));
+    await new Promise((r) => setTimeout(r, 240));
+    g.promptConsole.goAct(3, { force: true });
+    await new Promise((r) => setTimeout(r, 300));
+    const b1 = document.querySelector('#prompt-console .panel__body');
+    out.inductOverflow = Math.max(0, b1.scrollWidth - b1.clientWidth);
+    g.promptConsole.close();
+    await new Promise((r) => setTimeout(r, 200));
+    g.promptConsole.open(g.content.challenge('example-scale-16'));
+    await new Promise((r) => setTimeout(r, 240));
+    g.promptConsole.goAct(3, { force: true });
+    await new Promise((r) => setTimeout(r, 300));
+    const b2 = document.querySelector('#prompt-console .panel__body');
+    out.tradeoffOverflow = Math.max(0, b2.scrollWidth - b2.clientWidth);
+    g.promptConsole.close();
+    return out;
+  `);
+  eq(narrowC.inductOverflow, 0, '820px 下推規碑沒有水平溢位');
+  eq(narrowC.tradeoffOverflow, 0, '820px 下雙面碑沒有水平溢位');
   await cdp.send('Emulation.clearDeviceMetricsOverride', {}, sessionId);
   await sleep(300);
 

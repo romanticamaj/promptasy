@@ -207,7 +207,7 @@ Exit criteria（逐條實測）：
 
 ### Phase C — `induct`／`tradeoff`＋reasoning 15
 
-狀態：`pending`
+狀態：`done`（2026-08-01）
 
 - 以 choice 變體實作推規與雙面碑，不另造重型架構。
 - 正解可依模型卡／素材加權，但兩個可行答案都必須收到誠實回饋。
@@ -215,6 +215,35 @@ Exit criteria（逐條實測）：
 - 新 checker 只開本期所需，全部有反作弊 fixture。
 
 Exit：reasoning 15 座、同區不得連三座同型、推規的第四例真的驗證規則、tradeoff 不把取捨教成假通則。
+
+Exit criteria（逐條實測）：
+
+- [x] **示範與推理 15 座教學神廟**：既有 5 關照 manifest 改造（`example-hall-11`／`lantern-rows-12`／
+      `silent-thinker-13`／`thinking-chamber-14`／`effort-forge-15` → `fewshot-basics`／`fewshot-consistent`／
+      `reason-keep-simple`／`cot-separate-answer`／`knob-effort`）＋ 新蓋 10 座；
+      15 條技能一對一、無重複（C2），且這一區的 15 條 v2 技能全部有神廟了。
+- [x] **`induct`（推規碑）**：`src/prompt/induct.js` —— 牆上的對照一組一組浮出來，猜錯只會
+      「牆不回應 ＋ 就地教學」，想通之後回到**同一份資料的 `slots`** 刻印（＝石碑刻印的變體，
+      共用 `src/prompt/slots.js` ＋ `palm.js`，沒有另造框架）。
+- [x] **推規的第四例真的驗證規則**（資料層強制）：第一輪的正解必須 `follows: 'both'`
+      （只看前面推不出是哪一條規律）、最後一輪必須 `validates: true` 且 `reveal === examples.length - 1`、
+      驗證輪的正解 `follows: 'true'`、且**一定有一個 `follows: 'naive'` 的選項在畫面上、不是正解、
+      並帶 ≥20 字的教學回饋** —— 猜錯的人拿到的是教學，不是運氣。
+- [x] **`tradeoff`（雙面碑）**：`src/prompt/tradeoff.js` —— 兩面都會前進，兩面都收到誠實判詞；
+      沒被選中的那一面只講「這一張卡上要付什麼代價」，測試禁止它被寫成「錯」。
+- [x] **不把取捨教成假通則**：每一關的 `favours` 必須**兩面都出現過**（換一張卡就翻面），
+      每張卡的兩面判詞都存在、≥12 字、且彼此不同（`isTradeoffFlow` ＋ rubric ＋ playtest 三層守）。
+- [x] **同區不得連三座同型（C4）**：示範與推理整區 15 座逐一檢查（induct／choice／spot／choice／choice／
+      tradeoff／induct／tradeoff／fix／choice／choice／fix／choice／fix／choice，最長連續 2），並用了 5 種題型。
+- [x] **撰寫基本功兩座 `choice` 佔位換成真的雙面碑**：`wordfork-12`（換詞 vs 補定義）、
+      `old-tag-store-15`（標籤 vs 井號標題），只換第三幕資料，rubric／出處／文案一字未動。
+- [x] **4 個新檢查器**（§7.4）：`justifiesExampleCount`／`labelsNegativeExample`／
+      `asksForRationaleNotTranscript`／`asksMultipleSamples`，全部結構性偵測 ＋ 中英雙語 ＋
+      good／weak／bad fixture ＋ 反作弊 ＋ `coach.json` 白話教學（實測照著填就會亮）。
+- [x] **D2 語意**：改造的 5 關同時給 legacy 技巧（`teaches` → `collected`）與 `skillsV2`；
+      新蓋的 10 座只給 `skillsV2`（舊 68 條沒有祖先）。收集不倒退。
+- [x] fonts（語料 63 檔／CJK 1721 字）＋rubric（25,877 → **29,846**）＋playtest（396 → **554**）
+      ＋build＋**完整 e2e（1,920 → 2,010 項全過、零 console error）** 全綠。
 
 ### Phase D — `constraint`＋grounding/config 補齊＋行動版還債點
 

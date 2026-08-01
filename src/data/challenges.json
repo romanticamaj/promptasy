@@ -1063,13 +1063,13 @@
       "primaryTechniqueId": "fewshot-01",
       "scenario": "迴廊的牆會複誦你留下的東西。你說了半天「我要什麼樣的答案」，牆只是嗡嗡作響。直到你留下一組真正的示範，迴音才第一次咬字清楚——原來它不聽描述，只學樣本。",
       "mission": "讓迴廊替牆上留著的那三張旅人留言，各標上一個心情。",
-      "craft": "用 <example> 標籤示範兩組「留言 → 心情」的判讀給它照著做。",
+      "craft": "先看出牆上那幾組對照到底照什麼規律走，再挑兩組講同一件事的示範放進去。",
       "material": {
         "label": "牆上留著的三張旅人留言",
         "text": "橋斷了，但有個陌生人划船載我過河。\n連下三天雨，燈油也用完了。\n山口的風很大，我還是走完了。"
       },
-      "clue": "留 3–5 組範例，每組用 <example></example> 包起來；每一段先標好「輸入：」「輸出：」（寫成英文 Input:／Output: 也一樣算），並讓範例涵蓋邊界案例，別讓迴廊學到你沒打算教的規律。",
-      "placeholder": "例如：請照著範例替每張留言標上心情。\n<example>\n輸入：＿＿\n輸出：＿＿\n</example>\n輸出格式：＿＿",
+      "clue": "牆只學它看得到的樣本。挑三組講同一件事的示範，比講一整段規則有效得多。",
+      "placeholder": "例如：請照著範例替每張留言標上心情。\n<example>\n輸入：＿＿\n輸出：＿＿\n</example>",
       "quickFills": [
         {
           "label": "寫出任務",
@@ -1082,43 +1082,28 @@
         {
           "label": "第二組範例",
           "text": "<example>\n輸入：連下三天雨，燈油也用完了。\n輸出：灰暗\n</example>"
-        },
-        {
-          "label": "指定格式",
-          "text": "輸出格式：每張留言一行。"
         }
       ],
-      "sample": "請照著下面的範例，替每一張旅人留言標上心情。\n<example>\n輸入：橋斷了，但有個陌生人划船載我過河。\n輸出：帶著希望\n</example>\n<example>\n輸入：連下三天雨，燈油也用完了。\n輸出：灰暗\n</example>\n輸出格式：每張留言一行。",
+      "sample": "請照著下面的範例，替每一張旅人留言標上心情。\n<example>\n輸入：橋斷了，但有個陌生人划船載我過河。\n輸出：帶著希望\n</example>\n<example>\n輸入：連下三天雨，燈油也用完了。\n輸出：灰暗\n</example>",
       "rubric": [
         {
           "check": "hasFewShot",
           "weight": 3,
           "primary": true,
           "techniqueId": "fewshot-01",
+          "skillId": "fewshot-basics",
           "hint": "至少示範一組成對的「輸入：…／輸出：…」（英文 Input:／Output: 也算）；放 3 到 5 組最穩。"
-        },
-        {
-          "check": "hasDelimiters",
-          "weight": 1,
-          "techniqueId": "fewshot-02",
-          "hint": "把每組範例包進 <example></example>（多組再用 <examples>），和指令明確分開。"
-        },
-        {
-          "check": "specifiesFormat",
-          "weight": 1,
-          "techniqueId": "structure-04",
-          "hint": "在最後留一個輸出開頭（例如「輸出：」），它會沿著你留的欄位接下去寫；這個收尾不算一組範例，是留給它接寫的。"
         },
         {
           "check": "assignsTask",
           "weight": 0.5,
           "foundation": true,
-          "techniqueId": "clarity-02",
-          "hint": "先用動詞說清楚要它對新輸入做什麼，再放範例。"
+          "techniqueId": "clarity-02"
         }
       ],
-      "pass": 3.5,
-      "source": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices"
+      "pass": 2,
+      "source": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#use-examples-effectively",
+      "primarySkillId": "fewshot-basics"
     },
     {
       "id": "lantern-rows-12",
@@ -1138,12 +1123,12 @@
       "primaryTechniqueId": "fewshot-03",
       "scenario": "一整排提燈掛在迴廊側牆，每盞的掛法都不一樣：有的用繩、有的用鉤、有的歪著。掌燈人苦笑：「我照你的示範掛的啊。你的範例長得不一樣，我掛出來當然也不一樣。」",
       "mission": "讓掌燈人把今晚燈務日誌的每一筆轉成同一種狀態行。",
-      "craft": "寫出三組結構完全一致的範例：同樣欄位、同樣分隔、同樣換行。",
+      "craft": "寫出三組結構完全一致的範例：同樣欄位、同樣分隔、同樣換行，而且範例前面要有一句指令。",
       "material": {
         "label": "今晚的燈務日誌",
         "text": "4 號燈 黃昏時閃爍\n7 號燈 整夜穩定\n2 號燈 中午起就是暗的"
       },
-      "clue": "沒有範例的 prompt 通常比較不靈；而且所有範例的結構、標籤、空白、換行、分隔符都要一模一樣，否則會誤導輸出格式。要幾組靠試——先明講你要幾組。",
+      "clue": "沒有範例的委託通常比較不靈；而且每一組範例的結構、標籤、空白、換行都要一模一樣，否則它學走的是不一樣的規律。範例前面也一定要留一句指令。",
       "placeholder": "例如：請照著下面 3 組範例的格式轉換每一筆日誌。\n輸入：＿＿\n輸出：＿＿｜＿＿｜＿＿",
       "quickFills": [
         {
@@ -1155,37 +1140,26 @@
           "text": "輸出格式：每盞燈一行，欄位用直線分隔。"
         }
       ],
-      "sample": "請照著下面 3 組範例的格式，把今晚每一筆燈務日誌轉成一行狀態。\n輸入：4 號燈 黃昏時閃爍\n輸出：4 號燈 | 黃昏 | 閃爍\n輸入：7 號燈 整夜穩定\n輸出：7 號燈 | 整夜 | 穩定\n輸入：2 號燈 中午起就是暗的\n輸出：2 號燈 | 中午 | 暗\n輸出格式：每盞燈一行，欄位用直線分隔。",
+      "sample": "請照著下面 3 組範例的格式，把今晚每一筆燈務日誌轉成一行狀態。\n輸入：4 號燈 黃昏時閃爍\n輸出：4 號燈 | 黃昏 | 閃爍\n輸入：7 號燈 整夜穩定\n輸出：7 號燈 | 整夜 | 穩定\n輸入：2 號燈 中午起就是暗的\n輸出：2 號燈 | 中午 | 暗",
       "rubric": [
         {
           "check": "hasFewShot",
           "weight": 3,
           "primary": true,
           "techniqueId": "fewshot-03",
-          "hint": "至少給一組成對示範；Google 官方說沒有範例的 prompt 通常較無效。"
-        },
-        {
-          "check": "specifiesFormat",
-          "weight": 2,
-          "techniqueId": "fewshot-03",
-          "hint": "所有範例的標籤與換行要一致，並把目標格式再明講一次（每行一筆／欄位用 | 分隔…）。"
-        },
-        {
-          "check": "hasConstraint",
-          "weight": 1,
-          "techniqueId": "fewshot-04",
-          "hint": "範例要幾組靠試出來，太多反而會讓它只會照抄。先用可量化的規格講明「用 3 組範例」。"
+          "skillId": "fewshot-consistent",
+          "hint": "至少給一組成對示範，而且每一組的標籤、分隔、換行都要一模一樣。"
         },
         {
           "check": "assignsTask",
           "weight": 0.5,
           "foundation": true,
-          "techniqueId": "clarity-02",
-          "hint": "動詞開頭寫出任務，別讓掌燈人自己猜要掛成什麼樣。"
+          "techniqueId": "clarity-02"
         }
       ],
-      "pass": 3.5,
-      "source": "https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/prompts/few-shot-examples"
+      "pass": 2,
+      "source": "https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/prompts/few-shot-examples",
+      "primarySkillId": "fewshot-consistent"
     },
     {
       "id": "silent-thinker-13",
@@ -1206,12 +1180,12 @@
       "primaryTechniqueId": "reasoning-01",
       "scenario": "台階上坐著一個一動也不動的身影。你越詳細地教它「先想這個、再想那個」，它就越慢；旁邊的石碑寫著：「它已經在裡面想完了。你只需要告訴它：要什麼，以及怎樣算成功。」",
       "mission": "對台階上的推理者寫一段委託，請它處理桌上那張委託單上的石橋。",
-      "craft": "保持短而直接——只講要什麼與成功標準，不要加任何「一步一步想」的鷹架。",
+      "craft": "把多餘的鷹架一句一句挑掉；刪過頭的地方用一條看得見的成功條件補回來。",
       "material": {
         "label": "桌上的委託單",
         "text": "北路那座石橋壞了。可動用的預算是 500 枚硬幣。"
       },
-      "clue": "對推理模型（o 系列）：別再叫它「一步一步想」、也別要它大量規劃——那些在內部已經發生。保持 prompt 簡短直接、先 zero-shot 不放範例，並給非常具體的成功標準（例如「預算低於 500」）。",
+      "clue": "這一台已經在裡面想完了。別再叫它「一步一步想」，也別堆角色與鋪陳——留任務、留成功條件，其他都刪掉。",
       "starter": "請先一步一步思考這座橋的狀況，再列出你的修復計畫，並說明每一步的理由。",
       "placeholder": "例如：請寫出＿＿，＿＿控制在＿＿以內。輸出格式：＿＿",
       "quickFills": [
@@ -1228,31 +1202,26 @@
           "text": "輸出格式：3 個條列重點，一個階段一點。"
         }
       ],
-      "sample": "請寫出北路石橋的修復計畫，預算控制在 500 枚硬幣以內。\n輸出格式：3 個條列重點，一個階段一點。",
+      "sample": "請寫出北路石橋的修復計畫。\n成功條件：3 個階段，總共不超過 200 個字。\n預算控制在 500 枚硬幣以內。",
       "rubric": [
         {
           "check": "keepsPromptLean",
           "weight": 3,
           "primary": true,
           "techniqueId": "reasoning-01",
-          "hint": "拿掉「一步一步想／解釋你的推理」這類鷹架，並把 prompt 壓到只剩任務本身。"
-        },
-        {
-          "check": "hasConstraint",
-          "weight": 2,
-          "techniqueId": "reasoning-02",
-          "hint": "給非常具體的成功條件（「3 個選項」「預算 500 以內」），模型才知道推理到哪裡算完成。"
+          "skillId": "reason-keep-simple",
+          "hint": "拿掉「一步一步想／解釋你的推理」這類鷹架，並把委託壓到只剩任務與成功條件。"
         },
         {
           "check": "assignsTask",
           "weight": 0.5,
           "foundation": true,
-          "techniqueId": "clarity-02",
-          "hint": "一句動詞開頭的指令就夠了。"
+          "techniqueId": "clarity-02"
         }
       ],
-      "pass": 3.5,
-      "source": "https://developers.openai.com/api/docs/guides/reasoning-best-practices"
+      "pass": 2,
+      "source": "https://developers.openai.com/api/docs/guides/reasoning-best-practices",
+      "primarySkillId": "reason-keep-simple"
     },
     {
       "id": "thinking-chamber-14",
@@ -1272,59 +1241,44 @@
       ],
       "primaryTechniqueId": "cot-02",
       "scenario": "房間中央有兩個石槽，一個刻著「思」、一個刻著「答」。抄思人把所有東西都倒進「答」裡，草稿與結論糊成一團：「沒有人教過我，想的過程要放哪一邊。」",
-      "mission": "要求抄思人判讀那兩盞燈的熄滅紀錄，而且先想再答。",
-      "craft": "把推理放進 <thinking>、答案放進 <answer>，並示範一組給它看。",
+      "mission": "要求抄思人判讀那兩盞燈的熄滅紀錄，而且說得出他是怎麼判斷的。",
+      "craft": "指定推理放進 <thinking>、答案放進 <answer>，兩格都要留，答案放最後。",
       "material": {
         "label": "兩盞燈的熄滅紀錄",
         "text": "2 號燈：中午就暗了。\n5 號燈：黃昏才暗。"
       },
-      "clue": "對沒有內建思考鏈的模型，可以誘導它「先想再答」；把推理放 <thinking>、最終答案放 <answer>，輸出乾淨也方便你檢查。範例寫成兩行最清楚（「輸入：…」換行「輸出：…」），擠在同一行、中間用句號隔開也算。",
-      "placeholder": "例如：請判斷＿＿，回答前先一步一步想。\n把推理放進 <thinking></thinking>，答案放進 <answer></answer>。\n輸入：＿＿\n輸出：＿＿",
+      "clue": "要它解釋，就要指定推理放哪、答案放哪，不然兩者會黏成一團。只留答案那一格，理由沒地方放又會開始亂寫。",
+      "placeholder": "例如：請判斷＿＿，並說明你怎麼判斷的。\n把推理放進 <thinking></thinking>，答案放進 <answer></answer>。",
       "quickFills": [
         {
-          "label": "先想再答",
-          "text": "回答前請先一步一步想過再下結論。"
+          "label": "寫出任務",
+          "text": "請判斷下面哪一盞燈先熄滅，並說明你怎麼判斷的。"
         },
         {
-          "label": "分開思考與答案",
+          "label": "分開兩格",
           "text": "把推理過程放進 <thinking></thinking>，最後的答案放進 <answer></answer>。"
-        },
-        {
-          "label": "示範一組",
-          "text": "輸入：2 號燈中午暗、5 號燈黃昏暗\n輸出：<thinking>中午在黃昏之前</thinking><answer>2 號燈</answer>"
         }
       ],
-      "sample": "請判斷下面哪一盞燈先熄滅，回答前先一步一步想過再下結論。\n把推理過程放進 <thinking></thinking>，最後的答案放進 <answer></answer>。\n請照著這組範例的樣子回答：\n輸入：2 號燈中午暗、5 號燈黃昏暗\n輸出：<thinking>中午在黃昏之前</thinking><answer>2 號燈</answer>\n紀錄：2 號燈中午就暗了；5 號燈黃昏才暗。",
+      "sample": "請判斷下面哪一盞燈先熄滅，並說明你怎麼判斷的。\n把推理過程放進 <thinking></thinking>，最後的答案放進 <answer></answer>。\n紀錄：2 號燈中午就暗了；5 號燈黃昏才暗。",
       "rubric": [
         {
-          "check": "hasStepByStep",
-          "weight": 3,
-          "techniqueId": "cot-01",
-          "hint": "加一句「請一步一步想過再回答」——對沒有內建思考的模型，這一句就有效。"
-        },
-        {
           "check": "hasDelimiters",
-          "weight": 2,
+          "weight": 3,
           "primary": true,
           "techniqueId": "cot-02",
-          "hint": "用 <thinking></thinking> 與 <answer></answer> 把推理與結論分開。"
-        },
-        {
-          "check": "hasFewShot",
-          "weight": 2,
-          "techniqueId": "cot-03",
-          "hint": "在範例裡也示範一次推理過程：一行「輸入：…」、一行「輸出：<thinking>…</thinking><answer>…</answer>」（同一行寫完也算）。"
+          "skillId": "cot-separate-answer",
+          "hint": "用 <thinking></thinking> 與 <answer></answer> 把推理與結論分開放。"
         },
         {
           "check": "assignsTask",
           "weight": 0.5,
           "foundation": true,
-          "techniqueId": "clarity-02",
-          "hint": "先講清楚要它判斷什麼。"
+          "techniqueId": "clarity-02"
         }
       ],
-      "pass": 3.5,
-      "source": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices"
+      "pass": 2,
+      "source": "https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/prompts/explain-reasoning",
+      "primarySkillId": "cot-separate-answer"
     },
     {
       "id": "effort-forge-15",
@@ -1346,36 +1300,31 @@
       "primaryTechniqueId": "params-03",
       "scenario": "熔爐前掛著三個牌子：低火、中火、高火。爐守遞給你一份帳目：「要我燒多久，你得說。出爐前我還會請你自己驗一次貨——這爐子燒壞過太多次了。」",
       "mission": "叫爐守把手上那本帳算出差額，看帳面結餘對不對。",
-      "craft": "指定它要燒多大的火（思考火力 reasoning_effort），並要求出爐前對照原帳自我驗算。",
+      "craft": "把「認真一點」換成真的旋鈕：指定它要燒多大的火（思考火力 reasoning_effort）。",
       "material": {
         "label": "爐守遞來的帳目",
         "text": "入庫 42 袋，雨損 9 袋，換鹽 4 袋，給擺渡人 2 袋。帳面結餘寫 28 袋。"
       },
-      "clue": "新一代模型用「思考火力」（reasoning_effort／effort）決定要想多久，可以填 low／medium／high（低／中／高）。內建思考的模型，加一句「請非常仔細地想」也換得到更多思考時間。最後別忘了要它自己驗一次貨。※ 2026-07 查核：自我驗算這一招也要看模型 —— Claude Opus 5 本來就會自己驗一次，官方建議換到它時把這種句子刪掉而不是改寫。",
-      "placeholder": "例如：請算出＿＿。請把 reasoning_effort 設為＿＿。完成前請＿＿。",
+      "clue": "爐邊那幾塊牌子就是旋鈕的等級：思考火力（reasoning_effort／effort）可以填 low／medium／high（低／中／高）。「請認真一點」不是旋鈕，它調不動。※ 2026-07 查核：關到最小時，原本靠它自己想通的事就要在委託裡寫明。",
+      "placeholder": "例如：請算出＿＿。請把 reasoning_effort 設為＿＿。",
       "quickFills": [
         {
-          "label": "指定火力",
-          "text": "請把 reasoning_effort 設為 high，先逐步算過再給結論。"
+          "label": "寫出任務",
+          "text": "請算出下面這本收成帳的差額，用一句話回報。"
         },
         {
-          "label": "自我驗算",
-          "text": "完成前，請對照原帳核對每一個數字，發現對不上就修正。"
+          "label": "指定火力",
+          "text": "請把 reasoning_effort 設為 high，讓它多花一點力氣算。"
         }
       ],
-      "sample": "請算出下面這本收成帳的差額，用一句話回報。\n帳目：入庫 42 袋，雨損 9 袋，換鹽 4 袋，給擺渡人 2 袋，帳面結餘寫 28 袋。\n請把 reasoning_effort 設為 high，先逐步算過再給結論。\n完成前，請對照原帳核對每一個數字，發現對不上就修正。",
+      "sample": "請算出下面這本收成帳的差額，用一句話回報。\n帳目：入庫 42 袋，雨損 9 袋，換鹽 4 袋，給擺渡人 2 袋，帳面結餘寫 28 袋。\n請把 reasoning_effort 設為 high，讓它多花一點力氣算。",
       "rubric": [
         {
-          "check": "asksToVerify",
-          "weight": 3,
-          "techniqueId": "cot-04",
-          "hint": "結尾要求它對照原帳驗證答案：「完成前，請核對每一個數字，對不上就修正」。"
-        },
-        {
           "check": "mentionsParameters",
-          "weight": 2,
+          "weight": 3,
           "primary": true,
           "techniqueId": "reasoning-03",
+          "skillId": "knob-effort",
           "hint": "把思考火力寫出來：「reasoning_effort 設為 high」——等級是 low／medium／high（低／中／高）。",
           "checkOptions": {
             "synonyms": [
@@ -1387,21 +1336,555 @@
           }
         },
         {
-          "check": "hasStepByStep",
-          "weight": 1,
-          "techniqueId": "reasoning-04",
-          "hint": "內建思考的模型，加一句「請非常仔細地想過再回答」就能換到更多思考時間。"
+          "check": "assignsTask",
+          "weight": 0.5,
+          "foundation": true,
+          "techniqueId": "clarity-02"
+        }
+      ],
+      "pass": 2,
+      "source": "https://developers.openai.com/api/docs/guides/reasoning",
+      "primarySkillId": "knob-effort"
+    },
+    {
+      "id": "example-scale-16",
+      "region": "reasoning",
+      "order": 16,
+      "title": "秤例之台",
+      "npc": "秤官 · 銅衡",
+      "position": [
+        -70,
+        -74
+      ],
+      "xp": 70,
+      "teaches": [],
+      "primaryTechniqueId": null,
+      "primarySkillId": "fewshot-count",
+      "scenario": "迴廊盡頭立著一座天秤，兩端各壓著一疊範例卡。秤官把手按在秤桿上：「左邊只有一張，右邊四十張。兩邊都秤過了，兩邊都不對——難的從來不是多或少，是你說不說得出為什麼是這個數。」",
+      "mission": "替倉房這批入庫紀錄的改寫委託，挑一個範例的組數，並把理由一起寫進去。",
+      "craft": "先寫任務，再寫「這一次用幾組」，最後補一句「為什麼是這個數」——數量要挑過，不是隨手放。",
+      "material": {
+        "label": "秤上兩疊範例卡",
+        "text": "左盤：1 張示範，改出來的結存欄位每次都不一樣。\n右盤：40 張示範，改出來的結存把示範卡上的貨名也一起抄了進去。"
+      },
+      "clue": "秤官說：三到五組是實測最穩的一段。少了它學不到規律，多了它連範例裡的內容都一起學走。",
+      "starter": "請照著範例改寫入庫紀錄，範例愈多愈好，你自己看著放。",
+      "placeholder": "例如：請照著範例，把＿＿改寫成＿＿。這一次用＿＿組範例就好，因為＿＿。",
+      "quickFills": [
+        {
+          "label": "寫出任務",
+          "text": "請照著範例，把每一則入庫紀錄改寫成一行結存。"
+        },
+        {
+          "label": "挑一個數量",
+          "text": "這一次用 3 組範例就好，因為再多它會照抄範例裡的貨名。"
+        }
+      ],
+      "sample": "請照著範例，把每一則入庫紀錄改寫成一行結存。\n這一次用 3 組範例就好，因為再多它會照抄範例裡的貨名。\n三組請各挑一種不同的情況：整袋入庫、雨損、換物。",
+      "rubric": [
+        {
+          "check": "justifiesExampleCount",
+          "weight": 3,
+          "primary": true,
+          "skillId": "fewshot-count"
         },
         {
           "check": "assignsTask",
           "weight": 0.5,
           "foundation": true,
-          "techniqueId": "clarity-02",
-          "hint": "動詞開頭寫出要算什麼。"
+          "techniqueId": "clarity-02"
         }
       ],
-      "pass": 3.5,
-      "source": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices"
+      "pass": 2,
+      "source": "https://ai.google.dev/gemini-api/docs/prompting-strategies#number-examples"
+    },
+    {
+      "id": "flawed-cabinet-17",
+      "region": "reasoning",
+      "order": 17,
+      "title": "壞掉的樣品櫃",
+      "npc": "櫃管 · 木榫",
+      "position": [
+        -66,
+        -87
+      ],
+      "xp": 70,
+      "teaches": [],
+      "primaryTechniqueId": null,
+      "primarySkillId": "fewshot-negative",
+      "scenario": "一整櫃的交班紙，有的蓋了收、有的蓋了退。櫃管把櫃門推開：「退掉的那幾張，我從來沒寫過為什麼。所以下一個人照著抄，抄的正好是被退的那一張。」",
+      "mission": "替櫃子寫一份判斷委託，正例與反例各給一張，而且反例要說出錯在哪。",
+      "craft": "好的那一張標成「正例」，被退的那一張標成「反例」，並在同一行接一句「錯在＿＿」。",
+      "material": {
+        "label": "櫃子裡蓋了退的那一張",
+        "text": "巡北門、巡南橋、巡糧倉。（退）"
+      },
+      "clue": "櫃管說：沒有寫原因的反例，跟正例長得一樣像範本——它會照著抄。",
+      "starter": "請照著櫃子裡的樣品判斷，被退掉的那幾張不要學。",
+      "placeholder": "例如：請判斷每一張＿＿要收還是退。\n正例：＿＿——收，＿＿。\n反例：＿＿——退，錯在＿＿。",
+      "quickFills": [
+        {
+          "label": "寫出任務",
+          "text": "請判斷每一張交班紙要收還是退。"
+        },
+        {
+          "label": "放一張正例",
+          "text": "正例：巡北門，停 20 分鐘，回來寫一行紀錄。——收，交班時有東西可以驗收。"
+        },
+        {
+          "label": "放一張反例",
+          "text": "反例：巡北門、巡南橋、巡糧倉。——退，錯在只寫了要去哪裡，沒有一件回來要交的東西。"
+        }
+      ],
+      "sample": "請照著下面的樣品，判斷每一張交班紙要收還是退。\n正例：巡北門，停 20 分鐘，回來寫一行紀錄。——收，交班時有東西可以驗收。\n反例：巡北門、巡南橋、巡糧倉。——退，錯在只寫了要去哪裡，沒有一件回來要交的東西。",
+      "rubric": [
+        {
+          "check": "labelsNegativeExample",
+          "weight": 3,
+          "primary": true,
+          "skillId": "fewshot-negative"
+        },
+        {
+          "check": "assignsTask",
+          "weight": 0.5,
+          "foundation": true,
+          "techniqueId": "clarity-02"
+        }
+      ],
+      "pass": 2,
+      "source": "https://docs.cohere.com/docs/advanced-prompt-engineering-techniques"
+    },
+    {
+      "id": "two-lampkeepers-18",
+      "region": "reasoning",
+      "order": 18,
+      "title": "兩位掌燈人",
+      "npc": "掌燈人 · 雙影",
+      "position": [
+        -66,
+        -113
+      ],
+      "xp": 75,
+      "teaches": [],
+      "primaryTechniqueId": null,
+      "primarySkillId": "fewshot-when",
+      "scenario": "兩塊石板背對背立著，各刻一句相反的守則。一位掌燈人說：「幾乎每一次都該給它看範例。」另一位說：「這一台你先什麼都別給，讓它自己想。」兩個人都沒有說謊——他們手上的燈，不是同一種。",
+      "mission": "替熔爐旁那本收成帳的委託，決定這一次放不放範例，並寫出理由。",
+      "craft": "先寫任務，再寫「這一次放／不放範例」，最後補一句「為什麼這一台適合這樣」。",
+      "material": {
+        "label": "兩塊刻著相反守則的石板",
+        "text": "左板：幾乎每一次都該先給它看範例。\n右板：這一台會自己想，先什麼都別給。"
+      },
+      "clue": "掌燈人說：會自己想的那一台，你先給它範例，反而會把它的路子框死。",
+      "starter": "請算一下這本帳，範例我等一下再補給你。",
+      "placeholder": "例如：請＿＿。這一次＿＿範例，因為＿＿。",
+      "quickFills": [
+        {
+          "label": "寫出任務",
+          "text": "請根據下面的帳目算出差額，並用一句話回報。"
+        },
+        {
+          "label": "這一次不放",
+          "text": "這一次不放範例，因為爐邊這一台是會自己想的那種，範例反而會框住它的路子。"
+        }
+      ],
+      "sample": "請根據下面的帳目算出差額，並用一句話回報。\n這一次不放範例，因為爐邊這一台是會自己想的那種，範例反而會框住它的路子。\n只要說清楚怎樣算完成：差額寫成一個數字，並附一句話說明怎麼算的。",
+      "rubric": [
+        {
+          "check": "justifiesExampleCount",
+          "weight": 3,
+          "primary": true,
+          "skillId": "fewshot-when"
+        },
+        {
+          "check": "assignsTask",
+          "weight": 0.5,
+          "foundation": true,
+          "techniqueId": "clarity-02"
+        }
+      ],
+      "pass": 2,
+      "source": "https://ai.google.dev/gemini-api/docs/prompting-strategies#few-shot"
+    },
+    {
+      "id": "working-draft-19",
+      "region": "reasoning",
+      "order": 19,
+      "title": "留著算式的草稿",
+      "npc": "帳房 · 擦痕",
+      "position": [
+        -77,
+        -122
+      ],
+      "xp": 75,
+      "teaches": [],
+      "primaryTechniqueId": null,
+      "primarySkillId": "fewshot-thinking",
+      "scenario": "帳房桌上攤著一張草稿，答案還在，算式被擦得乾乾淨淨。他苦笑：「我以為只留答案比較清爽。結果後面那一批帳，它也只給我答案——連算錯了都看不出來。」",
+      "mission": "把帳房這份委託改好，讓示範裡連「怎麼算的」也一起示範出來。",
+      "craft": "在範例的輸出裡留一段短短的算式，再要求它照著示範一步一步算；思路要短，太長它連囉唆也學走。",
+      "material": {
+        "label": "被擦掉算式的草稿",
+        "text": "輸入：入庫 42 袋，雨損 9 袋\n輸出：33 袋"
+      },
+      "clue": "帳房說：範例裡留什麼，它就學什麼。只留答案，它學到的就是「不用交代」。",
+      "placeholder": "例如：請照著下面的示範＿＿。\n輸入：＿＿\n輸出：＿＿（連算式一起）",
+      "quickFills": [
+        {
+          "label": "寫出任務",
+          "text": "請照著下面的示範，替每一筆帳算出結存，並在算式裡留下過程。"
+        },
+        {
+          "label": "示範連算式",
+          "text": "輸入：入庫 42 袋，雨損 9 袋\n輸出：先扣掉雨損 9 袋，42 − 9 = 33 袋"
+        }
+      ],
+      "sample": "請照著下面的示範，替每一筆帳算出結存，並在算式裡留下過程。\n輸入：入庫 42 袋，雨損 9 袋\n輸出：先扣掉雨損 9 袋，42 − 9 = 33 袋\n回答前請照著示範一步一步算過再寫結論。",
+      "rubric": [
+        {
+          "check": "hasFewShot",
+          "weight": 3,
+          "primary": true,
+          "skillId": "fewshot-thinking"
+        },
+        {
+          "check": "hasStepByStep",
+          "weight": 0.5,
+          "foundation": true,
+          "techniqueId": "cot-01"
+        }
+      ],
+      "pass": 2,
+      "source": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#leverage-thinking--interleaved-thinking-capabilities"
+    },
+    {
+      "id": "step-bridge-20",
+      "region": "reasoning",
+      "order": 20,
+      "title": "一步一階的橋",
+      "npc": "橋工 · 石階",
+      "position": [
+        -84,
+        -110
+      ],
+      "xp": 70,
+      "teaches": [],
+      "primaryTechniqueId": null,
+      "primarySkillId": "cot-explicit",
+      "scenario": "橋的中段被沖走了，只剩下一階一階的石墩。橋工把一本算錯的帳攤在墩上：「一口氣跨過去的人，都掉下去了。你得叫它一階一階踩。」",
+      "mission": "替橋工這本運糧帳寫一段委託，讓它先把每一段路走過一次再給結論。",
+      "craft": "在任務後面加一句「回答前先一步一步列出來，再寫結論」——沒有內建思考的那一種，你不開口它不會想。",
+      "material": {
+        "label": "橋墩上那本運糧帳",
+        "text": "出發 60 袋。過北坡灑落 4 袋，渡河濕損 7 袋，山口分給哨站 5 袋。"
+      },
+      "clue": "橋工說：一階一階踩，最後才落地。步驟先列出來，結論才站得住。",
+      "starter": "請直接告訴我這批貨過了北坡、渡河與山口之後還剩幾袋。",
+      "placeholder": "例如：請算出＿＿。回答前請先一步一步＿＿，再寫結論。",
+      "quickFills": [
+        {
+          "label": "寫出任務",
+          "text": "請算出這批貨過了北坡、渡河與山口之後，走到糧倉時還剩幾袋。"
+        },
+        {
+          "label": "一步一步",
+          "text": "回答前請先一步一步列出每一段路的耗損，再寫結論。"
+        }
+      ],
+      "sample": "請算出這批貨過了北坡、渡河與山口之後，走到糧倉時還剩幾袋。\n回答前請先一步一步列出每一段路的耗損，再寫結論。\n每一步請寫成一行，最後一行才寫結論。",
+      "rubric": [
+        {
+          "check": "hasStepByStep",
+          "weight": 3,
+          "primary": true,
+          "techniqueId": "cot-01",
+          "skillId": "cot-explicit"
+        },
+        {
+          "check": "assignsTask",
+          "weight": 0.5,
+          "foundation": true,
+          "techniqueId": "clarity-02"
+        }
+      ],
+      "pass": 2,
+      "source": "https://developers.openai.com/cookbook/examples/gpt4-1_prompting_guide"
+    },
+    {
+      "id": "silent-brooder-21",
+      "region": "reasoning",
+      "order": 21,
+      "title": "不肯開口的沉思者",
+      "npc": "沉思者 · 閉唇",
+      "position": [
+        -88,
+        -130
+      ],
+      "xp": 75,
+      "teaches": [],
+      "primaryTechniqueId": null,
+      "primarySkillId": "reason-no-transcript",
+      "scenario": "石座上坐著一個從不開口的身影，腳邊散著三張被回絕的請求紙。你看得懂那三張都在要同一件事：把腦子裡想過的每一句都原封不動交出來。它沒有生氣，只是不給。",
+      "mission": "把水樣的判讀委託重寫一次，改成它給得出來的那一種要求。",
+      "craft": "不要它的思考過程，要它「結論的依據」——一句話講得出來的那種理由。",
+      "material": {
+        "label": "被回絕的第三張請求紙",
+        "text": "請把你判斷時想過的每一句話，原封不動寫出來給我看。"
+      },
+      "clue": "石碑刻著：你要的其實不是它的草稿，是「這個結論站不站得住」。",
+      "starter": "請把你判斷這三份水樣時的思考過程，完整寫出來給我看。",
+      "placeholder": "例如：請判斷＿＿。請說出你這樣判斷的＿＿。",
+      "quickFills": [
+        {
+          "label": "寫出任務",
+          "text": "請判斷這三份水樣裡哪一份不能喝。"
+        },
+        {
+          "label": "要依據",
+          "text": "請說出你這樣判斷的依據，一句話就好。"
+        }
+      ],
+      "sample": "請判斷這三份水樣裡哪一份不能喝。\n請說出你這樣判斷的依據，一句話就好。\n如果我想看過程，我會自己去讀官方的推理摘要。",
+      "rubric": [
+        {
+          "check": "asksForRationaleNotTranscript",
+          "weight": 3,
+          "primary": true,
+          "skillId": "reason-no-transcript"
+        },
+        {
+          "check": "assignsTask",
+          "weight": 0.5,
+          "foundation": true,
+          "techniqueId": "clarity-02"
+        }
+      ],
+      "pass": 2,
+      "source": "https://developers.openai.com/api/docs/guides/reasoning"
+    },
+    {
+      "id": "well-pause-22",
+      "region": "reasoning",
+      "order": 22,
+      "title": "取水之後的停頓",
+      "npc": "汲水人 · 麻繩",
+      "position": [
+        -97,
+        -67
+      ],
+      "xp": 75,
+      "teaches": [],
+      "primaryTechniqueId": null,
+      "primarySkillId": "think-after-tool",
+      "scenario": "井邊擺著兩桶水樣紀錄，兩張紙上的數字互相打架。汲水人把繩子放下：「第一桶打上來我就下了結論。第二桶打上來，我才發現我早就該回頭看一次。」",
+      "mission": "把汲水人這份取水委託改好，讓它每打上一桶就回頭核對一次。",
+      "craft": "把「直接下結論」那幾句換成「拿到結果先對照前一份核對，對不上就改計畫再繼續」。",
+      "material": {
+        "label": "兩桶水樣的紀錄",
+        "text": "第一桶：清澈，井底無異味。\n第二桶：偏濁，井底有鐵鏽味。"
+      },
+      "clue": "井邊刻著：東西拿回來的那一刻，就是回頭看一次的時候。",
+      "placeholder": "例如：請根據＿＿判斷＿＿。每打上一桶，先＿＿核對一次。",
+      "quickFills": [
+        {
+          "label": "寫出任務",
+          "text": "請根據井邊的水樣紀錄，判斷這口井今晚能不能取水。"
+        },
+        {
+          "label": "拿到就核對",
+          "text": "每打上一桶，先對照前一桶的紀錄核對一次；第二桶和第一桶對不上就修正計畫再繼續。"
+        }
+      ],
+      "sample": "請根據井邊的水樣紀錄，判斷這口井今晚能不能取水。\n每打上一桶，先對照前一桶的紀錄核對一次；第二桶和第一桶對不上就修正計畫再繼續。\n最後給一句結論。",
+      "rubric": [
+        {
+          "check": "asksToVerify",
+          "weight": 3,
+          "primary": true,
+          "techniqueId": "cot-04",
+          "skillId": "think-after-tool"
+        },
+        {
+          "check": "assignsTask",
+          "weight": 0.5,
+          "foundation": true,
+          "techniqueId": "clarity-02"
+        }
+      ],
+      "pass": 2,
+      "source": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#leverage-thinking--interleaved-thinking-capabilities"
+    },
+    {
+      "id": "two-toll-bell-23",
+      "region": "reasoning",
+      "order": 23,
+      "title": "兩段式的鐘",
+      "npc": "鐘守 · 雙敲",
+      "position": [
+        -124,
+        -114
+      ],
+      "xp": 75,
+      "teaches": [],
+      "primaryTechniqueId": null,
+      "primarySkillId": "think-control",
+      "scenario": "鐘座上刻著兩行不同語法的咒文，鐘守輪流敲給你聽：「同一口鐘，兩種敲法。有的鐘你只要說一句『先想一下』它就會想；有的鐘得把開關撥過去它才動。你得先知道自己面前是哪一口。」",
+      "mission": "替今晚這批貨的放行判斷寫一段委託，並把「想多久」這件事說死。",
+      "craft": "把「認真一點」換成真的旋鈕：開啟深度思考，或把 reasoning_effort 設成一個等級。",
+      "material": {
+        "label": "今晚的放行單",
+        "text": "三車貨，其中一車的封條與清單對不上，押運人說是路上換過箱。"
+      },
+      "clue": "鐘守說：「請認真一點」不是旋鈕，它調不動。旋鈕有名字，也有等級。",
+      "starter": "請認真一點判斷今晚要不要放行這批貨，其中一車的封條與清單對不上。",
+      "placeholder": "例如：請判斷＿＿。請把＿＿設為＿＿。",
+      "quickFills": [
+        {
+          "label": "寫出任務",
+          "text": "請判斷今晚要不要放行這批貨。"
+        },
+        {
+          "label": "撥開關",
+          "text": "這一台請開啟深度思考再回答。"
+        },
+        {
+          "label": "轉旋鈕",
+          "text": "如果換成不吃這個開關的那一台，就改成把 reasoning_effort 設為 high。"
+        }
+      ],
+      "sample": "請判斷今晚要不要放行這批貨——其中一車的封條與清單對不上。\n這一台請開啟深度思考再回答。\n如果換成不吃這個開關的那一台，就改成把 reasoning_effort 設為 high。",
+      "rubric": [
+        {
+          "check": "mentionsParameters",
+          "weight": 3,
+          "primary": true,
+          "techniqueId": "params-03",
+          "skillId": "think-control",
+          "checkOptions": {
+            "synonyms": [
+              "深度思考"
+            ],
+            "example": "reasoning_effort 設為 high"
+          }
+        },
+        {
+          "check": "assignsTask",
+          "weight": 0.5,
+          "foundation": true,
+          "techniqueId": "clarity-02"
+        }
+      ],
+      "pass": 2,
+      "source": "https://help.aliyun.com/zh/model-studio/deep-thinking"
+    },
+    {
+      "id": "honed-blade-24",
+      "region": "reasoning",
+      "order": 24,
+      "title": "磨過頭的刀",
+      "npc": "磨刀匠 · 薄鋒",
+      "position": [
+        -131,
+        -95
+      ],
+      "xp": 75,
+      "teaches": [],
+      "primaryTechniqueId": null,
+      "primarySkillId": "overthinking-remove",
+      "scenario": "磨刀匠手上那把刀只剩一半寬。桌上壓著一份四千字的回覆，沒有人讀完過。「我每次都寫『請盡量完整、盡量徹底』，」他說，「磨壞的不是它，是我一直加上去的那些話。」",
+      "mission": "把磨刀匠這份委託瘦下來，只留任務和一條看得見的驗收條件。",
+      "craft": "把「盡量徹底」這類鷹架整句拿掉；刪過頭的地方用一條可以驗收的條件補回來，不要用形容詞。",
+      "material": {
+        "label": "那份四千字回覆的委託",
+        "text": "請盡量完整、盡量徹底地寫出這把刀的修復計畫，愈詳細愈好。"
+      },
+      "clue": "磨刀匠說：該刪的是你的鷹架，不是它的能力。",
+      "starter": "請盡量完整、盡量徹底地寫出這把刀的修復計畫，愈詳細愈好。",
+      "placeholder": "例如：請寫出＿＿。＿＿控制在＿＿以內。",
+      "quickFills": [
+        {
+          "label": "寫出任務",
+          "text": "請寫出這把刀的修復計畫。"
+        },
+        {
+          "label": "補一條驗收",
+          "text": "預算控制在 200 枚硬幣以內，寫完就停。"
+        }
+      ],
+      "sample": "請寫出這把刀的修復計畫。\n這把刀的柄不用動。\n預算控制在 200 枚硬幣以內，寫完就停。",
+      "rubric": [
+        {
+          "check": "keepsPromptLean",
+          "weight": 3,
+          "primary": true,
+          "techniqueId": "reasoning-01",
+          "skillId": "overthinking-remove"
+        },
+        {
+          "check": "assignsTask",
+          "weight": 0.5,
+          "foundation": true,
+          "techniqueId": "clarity-02"
+        }
+      ],
+      "pass": 2,
+      "source": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#overthinking-and-excessive-thoroughness"
+    },
+    {
+      "id": "three-wells-25",
+      "region": "reasoning",
+      "order": 25,
+      "title": "三口井",
+      "npc": "井官 · 三繩",
+      "position": [
+        -127,
+        -82
+      ],
+      "xp": 80,
+      "teaches": [],
+      "primaryTechniqueId": null,
+      "primarySkillId": "self-consistency",
+      "scenario": "三口井排在階地上，水位各不相同。井官只記了一次帳：「那一次量到多少，我就寫多少。後來三口井說法都不一樣，我也分不出誰對了——因為我只問過一次。」",
+      "mission": "替井官這本水帳寫一段委託，讓同一題被問過不只一次，並訂出誰說了算。",
+      "craft": "寫出要跑幾次、幾個答案不一樣時聽誰的，還要寫「都不一樣的時候怎麼辦」。",
+      "material": {
+        "label": "井官只記了一次的水帳",
+        "text": "第一口井 12 桶，第二口井 9 桶，第三口井 11 桶。這一季總數只量過一次。"
+      },
+      "clue": "井官說：只問一次的答案，你沒有辦法知道它是不是剛好猜對。",
+      "starter": "請根據三口井的水位紀錄，算出這一季總共取了多少水。",
+      "placeholder": "例如：請＿＿。同一題請跑＿＿次，取＿＿。＿＿就說不確定。",
+      "quickFills": [
+        {
+          "label": "寫出任務",
+          "text": "請根據三口井的水位紀錄，算出這一季總共取了多少水。"
+        },
+        {
+          "label": "跑幾次",
+          "text": "同一題請跑 3 次，取多數的那個答案。"
+        },
+        {
+          "label": "平手怎麼辦",
+          "text": "三個答案都不同就說不確定。"
+        }
+      ],
+      "sample": "請根據三口井的水位紀錄，算出這一季總共取了多少水。\n同一題請跑 3 次，取多數的那個答案。\n三個答案都不同就直說不確定，不要硬給一個數字。",
+      "rubric": [
+        {
+          "check": "asksMultipleSamples",
+          "weight": 3,
+          "primary": true,
+          "skillId": "self-consistency"
+        },
+        {
+          "check": "assignsTask",
+          "weight": 0.5,
+          "foundation": true,
+          "techniqueId": "clarity-02"
+        }
+      ],
+      "pass": 2,
+      "source": "https://developer.meta.com/ai/docs/how-to-guides/prompting/"
     },
     {
       "id": "citation-desk-21",

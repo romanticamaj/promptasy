@@ -373,3 +373,116 @@ region／coverage／四周可站／與所有石座 ≥13 公尺／避開石碑�
 - 行動裝置（≤720px 的兩種新題型版面、觸控）仍未做；本期只驗到 820px 無水平溢位。
 - 圖鑑還沒列 v2 技能（`skillsV2` 只是先把存檔與進度接起來）。
 - 未 commit／push；未動 `CLAUDE.md`、`vite.config.js`、port 5175、`src/data/curriculum.json`（sha256 仍綠）。
+
+
+---
+
+## Phase C — `induct`／`tradeoff` 題型 ＋ 示範與推理 15 座（2026-08-01）
+
+狀態：`done`（未 commit／push）
+
+**一句話**：示範與推理這一區從 5 關長到 **15 座教學神廟**（curriculum-v2 §3 的 reasoning 總表到齊），
+並上線兩種新題型 —— **推規碑（`induct`）** 與 **雙面碑（`tradeoff`）**。
+兩者都是**石碑刻印的變體**：前面多一段「先想通一件事」的舞台，想通之後回到同一份 `slots` 刻印。
+
+### 做了什麼
+
+**兩種新題型**（WORLD.md §3.3b 的第六、第七種；共用同一組 board 介面、同一隻手掌印、同一支離線引擎）
+
+- `src/prompt/slots.js`（新）— **刻印段落**：DOM、選項狀態、石屑、焦點、組出來的文字。
+  由推規碑與雙面碑共用；`stele.js` 一個字都沒改（它是預設路徑，不為了少幾行程式碼冒回歸的險）。
+- `src/prompt/induct.js`（新）— **推規碑**：牆上的對照一組一組浮出來，你要先看出規律。
+  猜錯只會「牆不回應 ＋ 就地教學」（不扣分、不前進）；**最後一組是真的在驗證你的規律** ——
+  只看前面推出來的那條「順手的規律」在那裡會答錯，而且那個選項就攤在眼前。
+  想通了規律才開放刻印，刻滿 → 手印 → 呈給神諭。
+- `src/prompt/tradeoff.js`（新）— **雙面碑**：一張卡、兩個都走得下去的面。
+  **倒向哪一面都會前進**，但兩面都會誠實說出「這一張卡上買到什麼、付出什麼」；
+  換一張卡，划算的那一面會**翻過來**。秤完兩張卡才開放刻印。
+- `src/prompt/console.js`：`FLOW_KINDS` 5 → 7、`KIND_LABEL`／`KIND_EN`、board lifecycle、
+  舞台切換、把手（`inductBoard` / `tradeoffBoard`）。**相容契約未變**：缺 kind／未知 kind／
+  宣告了 kind 卻沒有合法資料（含**沒有 `slots`**）→ 一律回到石碑刻印。
+
+**示範與推理 15 座**
+
+| # | id | 技能 | 題型 | 主檢查 |
+|---|---|---|---|---|
+| 1 | `example-hall-11` 示範迴廊（改造） | `fewshot-basics` | induct | `hasFewShot` |
+| 2 | `lantern-rows-12` 一致的燈列（改造） | `fewshot-consistent` | choice | `hasFewShot` |
+| 3 | `silent-thinker-13` 靜默的推理者（改造） | `reason-keep-simple` | spot | `keepsPromptLean` |
+| 4 | `thinking-chamber-14` 思考室（改造） | `cot-separate-answer` | choice | `hasDelimiters` |
+| 5 | `effort-forge-15` 火力熔爐（改造） | `knob-effort` | choice | `mentionsParameters` |
+| 6 | `example-scale-16` 秤例之台 | `fewshot-count` | tradeoff | 🆕`justifiesExampleCount` |
+| 7 | `flawed-cabinet-17` 壞掉的樣品櫃 | `fewshot-negative` | induct | 🆕`labelsNegativeExample` |
+| 8 | `two-lampkeepers-18` 兩位掌燈人 | `fewshot-when` | tradeoff | 🆕`justifiesExampleCount` |
+| 9 | `working-draft-19` 留著算式的草稿 | `fewshot-thinking` | fix | `hasFewShot` |
+| 10 | `step-bridge-20` 一步一階的橋 | `cot-explicit` | choice | `hasStepByStep` |
+| 11 | `silent-brooder-21` 不肯開口的沉思者 | `reason-no-transcript` | choice | 🆕`asksForRationaleNotTranscript` |
+| 12 | `well-pause-22` 取水之後的停頓 | `think-after-tool` | fix | `asksToVerify` |
+| 13 | `two-toll-bell-23` 兩段式的鐘 | `think-control` | choice | `mentionsParameters` |
+| 14 | `honed-blade-24` 磨過頭的刀 | `overthinking-remove` | fix | `keepsPromptLean` |
+| 15 | `three-wells-25` 三口井 | `self-consistency` | choice | 🆕`asksMultipleSamples` |
+
+改造的 5 關照 `curriculum-v2-migration.json` 執行 post-A 條目（＋兩條 Phase 0 沒掃到的移除，
+以 `addedIn: "C"` 標記並寫下理由），全部收斂成與新神廟同一個形狀：**主檢查 3 分 ＋ 地基 `assignsTask` 0.5 分、`pass` 2**。
+`source` 改成回查得到 v2 技能的官方連結；`primaryTechniqueId` 保留（它們真的有祖先，收集不倒退）。
+
+**撰寫基本功的兩座 `choice` 佔位換成真的雙面碑**（Phase B 留下的待辦）：
+`wordfork-12`（直接換一個詞 vs 留著原詞補定義）、`old-tag-store-15`（角括號標籤 vs 井號標題）。
+**只換第三幕的資料**，關卡文案、rubric、出處一字未動。
+
+**四個新檢查器**（`src/challenges/checks.js`，規格出自 curriculum-v2 §7.4）：
+`justifiesExampleCount`（明講的組數落在 2–5 ＋ 一句理由；「這一次不放」也算一種數量決定）、
+`labelsNegativeExample`（反例標記 ＋「錯在哪」要在同一行或緊接的下一行）、
+`asksForRationaleNotTranscript`（要「結論的依據」而不是「把內部推理原封不動輸出」）、
+`asksMultipleSamples`（取樣次數 ＋ 多數決 ＋ 平手規則）。
+全部結構性偵測、中英雙語、good／weak／bad fixture、反作弊，並補上 `coach.json` 白話教學（實測填了就會亮）。
+
+**順手改嚴的既有檢查器**（不是為了關卡放寬）：
+`keepsPromptLean` 新增「盡量完整／盡量徹底／愈詳細愈好」這一類鷹架的偵測（官方
+"overthinking and excessive thoroughness" 講的正是這幾句）；
+`SAMPLE_RUN_EN` / `SAMPLE_TIE_EN` 補上更自然的英文寫法。
+
+**世界**：10 座新石座落在示範與推理區（隨機重啟的貪婪取樣，最小間距 13.4 公尺，
+避開石碑／小景／地標／刻文／祕密／反應物件／器物／橋的主動線，並在 node 裡把世界蓋起來用
+`solidAt()` 逐座掃過一圈）。石座燈仍是 Phase B 的常數 8 盞燈池 —— **燈數不隨關卡數成長**。
+
+**樣式**：`src/styles.css` 新增推規碑（`.wall` / `.wallrow`）與雙面碑（`.twoface` / `.face` / `.tradelog`）
+兩段，沿用既有的 `.stele` / `.carve` / `.opt` 語言；暖金只給成就熱點（刻上去、這一張卡上划算的那一面），
+沒有紅字；`prefers-reduced-motion` 下動畫全關但內容照樣讀得懂；720px 以上兩面才並排。
+
+### 驗證
+
+| 指令 | Phase B | Phase C |
+|---|---|---|
+| `npm run fonts` | 語料 60 檔／CJK 1696 字／1365.8 KB | ✓ 語料 **63** 檔／CJK **1721** 字／**1381.5 KB**（指紋測試綠） |
+| `npm run test:rubric` | 25,877 | ✓ **29,846** |
+| `npm run test:playtest` | 396 | ✓ **554** |
+| `npm run build` | ✓ | ✓（CSS 119.10 KB / gzip 22.45 KB） |
+| `npm run test:e2e` | 1,920 全過 | ✓ **2,010 項全過、零 console error** |
+
+**e2e 誠實記錄（四次）**：
+① 第一次 11 紅 ＋ 在「牆上多刻出第三組」逾時中斷 —— 其中 3 條是**歷史快照型斷言**
+（`byKind` 的初始化寫死了五種題型、`choice` 關數、reasoning 5 座）、2 條是已登記的拖曳 flaky，
+另外 6 條抓到一個**真的 bug**：推規碑的選項按 `Enter` 沒有反應。
+原因是 CDP 送進來的原始按鍵不保證會被瀏覽器翻成按鈕的預設 `click` ——
+改碑與點碑當初就是自己接 `Enter`／空白鍵才會過（`fix.js` / `spot.js`）。
+已在 `induct.js` / `tradeoff.js` / `slots.js` 三支都自己接（純鍵盤的正確做法，不是為了測試）。
+② 第二次在 e2e 自己的注入字串上 `SyntaxError`：`join('\n')` 寫在樣板字面值裡會被當成真的換行。
+③ 第三次 2,008 過／2 紅（只剩拖曳）。④ 修掉拖曳的根因後 **2,010 全過**。
+
+**拖曳那一對斷言的根因（不是 flaky，是真的會停在差一格）**：`order.js` 的重排帶 FLIP 動畫
+（`withSlide`：搬完先把每一列 translate 回原位，下一個 animation frame 才歸零）。
+軟體渲染下一幀要 160 ms 以上，在那段時間裡 `getBoundingClientRect()` 讀到的還是**搬之前**的版面，
+`indexAtY()` 因此算出「跟現在一樣的位置」，`to !== 現在` 這個守衛就把後續的移動全部擋掉 ——
+石版停在只搬了一格的地方（`context,role,format,task`）。
+修的是測試端：每一輪**重新量一次清單上緣**，並且由下往上分三步掃過去、每一步之間留 70 ms
+讓影格追得上（產品碼一個字都沒改）。這一組從 Phase A 起被登記為 flaky，這一期查出了真正的原因。
+
+### 未做／留給後續
+
+- `three-wells-25` 沒有照 §3 用 `workshop`、`well-pause-22` 沒有用 `multi`（Phase G）、
+  `effort-forge-15` 沒有用 `sim`（Phase H）—— 理由逐條記在 `findings.md`；
+  題型換裝時只要換第三幕的資料，關卡文案、rubric、出處都不必動。
+- 行動裝置（≤720px 的兩種新題型版面、觸控）仍未做；本期只驗到 820px 無水平溢位。
+- 圖鑑仍未列 v2 技能（`skillsV2` 只是把存檔與進度接起來）。
+- 未 commit／push；未動 `CLAUDE.md`、`vite.config.js`、port 5175、`src/data/curriculum.json`（sha256 仍綠）。
