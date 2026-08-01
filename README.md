@@ -240,8 +240,29 @@ requests at runtime.**
 
 ---
 
+## Release notes
+
+### v1.0 — 2026-08-01（首個正式版）
+
+The first full release, live at **[garyhsieh.com/promptasy](https://www.garyhsieh.com/promptasy)**.
+
+- **27 challenges / 68 techniques / 5 regions** — every technique cited to official OpenAI / Anthropic / Google / xAI docs; fully offline rubric scoring (22 structural checkers, no model calls).
+- **Four interaction kinds**: stele choice-carving（石碑刻印）, drag-to-order（排序刻印）, tool-dispatch workshop（神諭工坊）, and free writing — all inside a director-style four-act flow（委託 → 神諭刻文 → 刻印 → 手印）.
+- **A living night world**: guided prologue（序章「喚醒神諭」）, humanoid traveler, 8 kinds of RPG interactables, proximity reactions, lore steles & inscriptions, hidden secrets, compass & wayfinding nudges.
+- **Original score**: 6 BGM tracks (Gary Hsieh × SUNO.ai) with per-region crossfades + 10 Splice SFX; cinematic opening (entry gate → fade-in title).
+- **Progression & sharing**: XP / 8 rank titles / region mastery / vendor badges, shareable result cards (image + caption to system share sheet / Threads / FB / IG).
+- **Fully keyboard-playable**; localStorage saves with migration; Traditional-Chinese-first UI.
+- Quality floor: 16,000+ data/engine assertions, 220+ playtest gates, ~1,780 headless e2e checks.
+
+### v1.1 — in development（`dev` branch）
+
+Curriculum v2 per [`docs/design/curriculum-v2.md`](docs/design/curriculum-v2.md): expanding toward **130 one-skill shrines + 12 application trials across 12 regions**, 9 new puzzle interaction kinds, sourced from the consolidated [292-technique master list](docs/prompt-engineering-master-list.md). Phase plan in [`task_plan.md`](task_plan.md) (on `dev`).
+
+---
+
 ## Roadmap
 
+- **v1.1 (next)**: curriculum v2 — 130 skills / 12 regions / new puzzle kinds (see Release notes).
 - Mobile: touch joystick and a layout for viewports under 720 px (not done yet — desktop/keyboard only today).
 - An English UI layer (the scoring engine already detects both languages).
 - An optional online grading layer, as an add-on to — never a replacement for — the offline engine.
