@@ -272,3 +272,104 @@ e2e 一直沒跑過，殘留舊斷言）；修好之後第二次跑到 799 個�
 - 字型語料因為掃到新資料檔的中文（廠商名、文件名、區域主題句）而從 1634 → 1664 字、
   1331.5 → 1348.4 KB。這是 Phase 6 就定下的「保守超集」策略的必然成本。
 - 未 commit／push；未動 `CLAUDE.md`、`vite.config.js`、port 5175、`src/data/curriculum.json`（sha256 仍綠）。
+
+
+---
+
+## Phase B step 2 — `fix`／`spot` 題型 ＋ 撰寫基本功十座新神廟（2026-08-01）
+
+狀態：`done`（未 commit／push）
+
+### 做了什麼
+
+**兩種新題型**（WORLD.md §3.3b 的第四、第五種，共用同一組 board 介面、同一隻手掌印、同一支離線引擎）
+
+- `src/prompt/fix.js` — **改碑**：抄寫人留下一份寫壞的草稿，畫線的那幾句要一句一句換掉。
+  `↑` `↓` 在畫線的句子之間走、`Enter` 攤開替代寫法、`Enter` 換上去；挑錯只會「石碑不收 ＋ 就地教學」。
+  **`Esc` 是三段式還原**（見下方 findings）：替代寫法攤開著 → 收起來；停在已改好的句子 → 還原並重新攤開；
+  沒有東西可還原 → 才冒泡出去收面板。正解可以是「整句拿掉」（`text: ''` ＋ `label`），
+  那正是「補過頭」那一拍（P2 的「轉」）。
+- `src/prompt/spot.js` — **點碑**：一疊石籤攤在檯上，玩家自己看出哪幾句有問題並點起來。
+  方向鍵移動、`Enter` 點起來／放回去、`Esc` 放回去；點到不能動的那一句只會彈回來 ＋ 就地教學。
+  壞的石籤可以帶 `replace`（改寫版）或不帶（＝拿掉）。**挑完之前手掌印根本不出現**。
+- `src/prompt/console.js` — `FLOW_KINDS` 3 → 5、`KIND_LABEL`／`KIND_EN`、board lifecycle、
+  `applyMode()` 的舞台切換、`flowKindOf()`（測試用）。**相容契約一個字都沒動**：
+  缺 `kind`／未知 `kind`／宣告了 kind 卻沒有合法資料 → 一律回到石碑刻印。
+
+**十座新神廟**（撰寫基本功 6 → 16 關；curriculum-v2 §3 的 foundations 14 座教學神廟到齊）
+
+| id | 技能 | 題型 | 主檢查 |
+|---|---|---|---|
+| `nightwatch-relief-07` 新來的守夜人 | `clear-golden` | fix | 🆕`noUndefinedReference` |
+| `measuring-table-08` 量繩之桌 | `clear-constraint` | fix | `hasConstraint` |
+| `nodding-courier-09` 只會點頭的信差 | `clear-imperative` | spot | `assignsTask` |
+| `first-rail-10` 只漆了第一節的欄杆 | `clear-scope` | fix | 🆕`statesScope` |
+| `shout-stone-11` 喊破喉嚨的擴音石 | `clear-no-pressure` | spot | 🆕`avoidsPressureLanguage` |
+| `wordfork-12` 一字之差的岔路 | `word-choice` | choice | 🆕`disambiguatesTerms` |
+| `silent-foreman-13` 不解釋的工頭 | `context-why` | choice | `explainsWhy` |
+| `empty-handed-envoy-14` 空手的信使 | `context-supply` | fix | `groundsInContext` |
+| `old-tag-store-15` 舊標籤的倉庫 | `struct-xml` | choice | `hasDelimiters` |
+| `parts-wall-16` 零件表 | `struct-anatomy` | spot | 🆕`namesComponents` |
+
+每一座：`scenario` / `mission` / `craft` / `material` / `clue` / `starter` / `placeholder` /
+`quickFills` / `sample` / 四拍的題型資料 ＋ **石碑刻印後備 `slots`**（相容契約），
+rubric 恰好「1 主檢查（權重 3）＋ 1 地基（0.5）」、`pass = 2`（C1）。
+`source` 一律是該技能在 `skill-codex-v2.json` 裡**逐條解析自 master list** 的真實官方連結。
+
+**五個新檢查器**（`src/challenges/checks.js`，規格出自 curriculum-v2 §7.4）：
+`noUndefinedReference`／`statesScope`／`avoidsPressureLanguage`／`disambiguatesTerms`／`namesComponents`。
+全部結構性偵測（指涉的先行詞、範圍量詞＋例外的成對出現、大寫比例／驚嘆號密度、
+「正面定義＋排除另一種讀法」的成對出現、行首零件名的相異數），中英雙語，
+各有 good／weak／bad fixture ＋ 反作弊（關鍵字堆砌一個都不滿分）＋ `coach.json` 白話教學（實測填了就會亮）。
+
+**存檔**：新增 `save.skillsV2[]`（純加法，`normalize()` 補空陣列、去重、丟掉非字串）。
+新神廟通關時把 `primarySkillId` 記進去；有祖先的技巧照舊寫進 `collected`（D2：收集不倒退）。
+`progression.isSkillCollected()` / `collectedSkills()` / `outcome.newlySkills` 一併上線。
+
+**世界**：十座新石座落在撰寫基本功區的十個座標（由掃描腳本在真的地形上算出來，
+region／coverage／四周可站／與所有石座 ≥13 公尺／避開石碑・小景・地標・刻文・祕密・器物・
+橋的主動線・出生點・祭壇，全部走既有測試的同一組門檻）。
+
+**效能（順手修掉一個馬上就要爆的預算）**：石座的暖光原本是「一座一盞 PointLight」——
+27 → 37 座之後高畫質實測 **59 盞**（WORLD.md §6.1 的上限是 56，e2e 當場紅）。
+改成**常數 8 盞的燈池**每幀指派給最近的幾座（燈的作用半徑 16 公尺、石座至少隔 13 公尺，
+同一時間本來就只有兩三座照得到玩家 → 畫面零差異）。實測 **26 盞**（低畫質 13 盞），
+而且燈數從此不隨關卡數成長 —— 這是 Phase C–J 能繼續加神廟的前提。
+
+### 驗證
+
+| 指令 | 之前 | 之後 |
+|---|---|---|
+| `npm run fonts` | 語料 58 檔／CJK 1664 字／1348.4 KB | ✓ 語料 **60** 檔／CJK **1696** 字／**1365.8 KB**（指紋測試綠） |
+| `npm run test:rubric` | 21,393 | ✓ **25,877** |
+| `npm run test:playtest` | 263 | ✓ **396** |
+| `npm run build` | ✓ | ✓ |
+| `npm run test:e2e` | 1,816 全過 | ✓ **1,920 項全過、零 console error** |
+
+**世界量測**：三角形 142,664 → **144,920**（上限 420k）、燈光 45 → **26**（上限 56）、
+碰撞體 786 → **788**（上限 1,400）、網格 1,199 → 1,249。
+
+**e2e 誠實記錄**：第一次跑 1912 過／8 紅 —— 3 條是燈光預算（就是上面那個真的爆掉的問題，已修）、
+2 條是把數字寫死的歷史快照斷言（coach 22 條、中文字型 1.01 MB 上限，改成由資料現算／往上調一格）、
+2 條是我自己寫錯選擇器（`.stamp__grade` 應為 `.grade__mark`）、
+1 條是已登記的環境型 flaky（`石座四個方向都按得到 E`，第二次跑自己過，期間沒有改到那一段）。
+修掉之後**第二次跑 1,920 項全過、零 console error**。
+
+**先紅後綠（逐條實測）**
+
+- rubric：把 `nightwatch-relief-07` 的 fix 流程改成「正解換一個」→ 6 紅；
+  拿掉 `shout-stone-11` 好石籤的 `why` → 4 紅；
+  把 `flowKind()` 的 `isFixFlow()` 守衛拿掉 → 3 紅（相容契約）。三次都還原後回綠。
+- e2e：把 `fix.js` 的 `Esc` 契約第二段停掉 ＋ 把 `spot.js` 的「不能動的那一句」判斷停掉 →
+  改碑那一段 **6 條紅**（面板被關掉／沒有還原／顯示的不是原句／進度沒退回／替代寫法沒重新攤開／
+  aria-live 沒講出「還原」），點碑那一段因為狀態被弄壞直接中斷。還原後即為上表的 1,920 全過。
+
+### 未做／留給後續
+
+- **既有 6 關的題型換裝仍未做**（curriculum-v2 §4 指定 `postbox-sprite-02` 由 choice 換成 order 等）。
+  因此 C4「同一區不得連續三座同型」目前只對**新蓋的神廟**成立，測試也只守新神廟（有註解寫明）。
+- **`rulesBeforeData` 與 `usesRareDelimiter` 這一期沒有實作**（詳見 `findings.md` 的理由：
+  遷移 manifest 的不變式會擋住「主檢查是新檢查器卻已經實作」，要一起做那一關的改造才動得了）。
+- 行動裝置（≤720px 的兩種新題型版面、觸控）仍未做；本期只驗到 820px 無水平溢位。
+- 圖鑑還沒列 v2 技能（`skillsV2` 只是先把存檔與進度接起來）。
+- 未 commit／push；未動 `CLAUDE.md`、`vite.config.js`、port 5175、`src/data/curriculum.json`（sha256 仍綠）。

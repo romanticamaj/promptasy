@@ -2147,6 +2147,10 @@ async function main() {
       accentIsYellow: styles.borderLeftColor.replace(/\\s+/g, '') === 'rgb(230,199,155)',
       borderLeftWidth: styles.borderLeftWidth,
       coachEntries: g.content.coachMeta.entries.length,
+      usedChecks: new Set([
+        ...g.content.challenges.flatMap((c) => c.rubric.map((r) => r.check)),
+        ...(g.prologueContent?.steps || []).flatMap((st) => (st.rubric || []).map((r) => r.check)),
+      ]).size,
     };
   `);
   eq(orb.visible, true, '主控台裡看得到漂浮提示球');
@@ -2166,7 +2170,7 @@ async function main() {
   eq(orb.nudging, true, '停手太久 / 送出沒過時，提示球會發光提醒');
   eq(orb.stillNotModal, true, '提醒時不會自己彈開提示框（永遠不擋畫面）');
   eq(orb.overlayBlocked, 0, '提示框不是 modal');
-  eq(orb.coachEntries, 22, 'coach.json 覆蓋全部 22 條檢查');
+  eq(orb.coachEntries, orb.usedChecks, 'coach.json 覆蓋每一條真的被用到的檢查（數字由資料現算，不寫死）');
 
   // Tab 焦點鎖：不會跑出面板
   const trap = await evaluate(`
@@ -4096,8 +4100,8 @@ async function main() {
   // Phase 22 多了一整層互動（刻文小語 / 反應 / 祕密）＋ WORLD.md 的世界觀用語，
   // 語料從 1472 → 1583 字。上限往上調一格，但仍遠低於完整字型（16 MB + 11 MB）。
   ok(
-    fonts.serifBytes + fonts.sansBytes < 1_060_000,
-    '兩套中文字型合計在 1.01 MB 以內',
+    fonts.serifBytes + fonts.sansBytes < 1_110_000,
+    '兩套中文字型合計在 1.06 MB 以內',
     `${((fonts.serifBytes + fonts.sansBytes) / 1024).toFixed(0)} KB`
   );
   eq(fonts.externalFontReqs, 0, '沒有任何外部字型 CDN 請求（護欄 3：可離線）');
@@ -7535,26 +7539,35 @@ async function main() {
   const kinds = await evaluate(`
     const g = window.__promptasy;
     const flows = g.content.flowFile.flows;
-    const out = { total: g.content.challenges.length, byKind: { choice: 0, order: 0, workshop: 0 }, missing: [] };
+    const out = { total: g.content.challenges.length, byKind: { choice: 0, order: 0, workshop: 0, fix: 0, spot: 0 }, missing: [] };
     for (const c of g.content.challenges) {
       const f = flows[c.id];
       if (!f) { out.missing.push(c.id); continue; }
-      const k = f.kind === 'order' && f.orderFlow ? 'order' : f.kind === 'workshop' && f.workshop ? 'workshop' : 'choice';
-      out.byKind[k] += 1;
-      // 三種題型都還留著選擇題的資料當後備
+      out.byKind[g.promptConsole.flowKindOf(f)] += 1;
+      // 五種題型都還留著選擇題的資料當後備
       if (!Array.isArray(f.slots) || !f.slots.length) out.missing.push(c.id + ':noslots');
     }
     out.orderIds = Object.entries(flows).filter(([, f]) => f.kind === 'order').map(([id]) => id).sort();
     out.workshopIds = Object.entries(flows).filter(([, f]) => f.kind === 'workshop').map(([id]) => id).sort();
+    out.fixIds = Object.entries(flows).filter(([, f]) => f.kind === 'fix').map(([id]) => id).sort();
+    out.spotIds = Object.entries(flows).filter(([, f]) => f.kind === 'spot').map(([id]) => id).sort();
     return out;
   `);
-  eq(kinds.total, 27, '世界上有 27 關（新增了神諭工坊）');
+  eq(kinds.total, 37, '世界上有 37 關（課程 v2 · Phase B：撰寫基本功新增十座神廟）');
   eq(kinds.missing.length, 0, '每一關都有流程資料，而且都留著選擇題後備', kinds.missing.join(','));
-  eq(kinds.byKind.choice, 24, '24 關維持原本的石碑刻印（零行為變化）');
+  eq(kinds.byKind.choice, 27, '27 關維持原本的石碑刻印（零行為變化）');
   eq(kinds.byKind.order, 2, '2 關改成排序刻印');
   eq(kinds.byKind.workshop, 1, '1 關是神諭工坊');
+  eq(kinds.byKind.fix, 4, '4 座新神廟是改碑');
+  eq(kinds.byKind.spot, 3, '3 座新神廟是點碑');
   eq(kinds.orderIds.join(','), 'long-scroll-tower-23,priority-stair-42', '改成排序的就是那兩關（次序本身就是課程）');
-  eq(kinds.workshopIds.join(','), 'oracle-workshop-36', '神諭工坊是新的第 27 關');
+  eq(kinds.workshopIds.join(','), 'oracle-workshop-36', '神諭工坊是第 27 關');
+  eq(
+    kinds.fixIds.join(','),
+    'empty-handed-envoy-14,first-rail-10,measuring-table-08,nightwatch-relief-07',
+    '改碑是那四座'
+  );
+  eq(kinds.spotIds.join(','), 'nodding-courier-09,parts-wall-16,shout-stone-11', '點碑是那三座');
 
   /* ---------------------------------------------------------------- *
    * 一、排序刻印：純鍵盤走完（拿起 → 搬 → 放下 → 亮燈 → 手印 → S）
@@ -8284,6 +8297,463 @@ async function main() {
   `);
   eq(narrow27.orderOverflow, 0, '820px 下排序刻印沒有水平溢位');
   eq(narrow27.workshopOverflow, 0, '820px 下神諭工坊沒有水平溢位');
+  await cdp.send('Emulation.clearDeviceMetricsOverride', {}, sessionId);
+  await sleep(300);
+
+  /* ================================================================ */
+  console.log('\n▸ 改碑與點碑（課程 v2 · Phase B）');
+
+  await evaluate(`
+    const g = window.__promptasy;
+    g.promptConsole.close(); g.codex.close(); g.settings.close();
+    g.promptConsole.setMode('guided');
+    return 1;
+  `);
+  await sleep(220);
+
+  /* ---------------------------------------------------------------- *
+   * 一、改碑：純鍵盤走完（畫線的句子 → Enter 攤開 → 挑錯不失敗 →
+   *          Esc 還原 → 換對 → 手印 → S），世界上真的多了一座石座
+   * ---------------------------------------------------------------- */
+  const fixOpen = await evaluate(`
+    const g = window.__promptasy;
+    g.promptConsole.open(g.content.challenge('nightwatch-relief-07'));
+    await new Promise((r) => setTimeout(r, 260));
+    const actAtOpen = g.promptConsole.act;
+    g.promptConsole.goAct(3, { force: true });
+    await new Promise((r) => setTimeout(r, 320));
+    const b = g.promptConsole.fixBoard;
+    return {
+      actAtOpen,
+      act: g.promptConsole.act,
+      kind: g.promptConsole.kind,
+      steleHidden: document.querySelector('#prompt-console .stele-stage').hidden,
+      orderHidden: document.querySelector('#prompt-console .orderboard').hidden,
+      spotHidden: document.querySelector('#prompt-console .spotboard').hidden,
+      boardShown: !document.querySelector('#prompt-console .fixboard').hidden,
+      weakCount: document.querySelectorAll('#prompt-console .frag--weak').length,
+      keptCount: document.querySelectorAll('#prompt-console .frag--kept').length,
+      progress: document.querySelector('#prompt-console .fixboard .carve__progress').textContent.trim(),
+      label: document.querySelector('#prompt-console [data-guided-label] .zh').textContent.trim(),
+      palmHidden: document.querySelector('#prompt-console .fixboard .palmwrap').hidden,
+      optionsOpen: document.querySelectorAll('#prompt-console .frag__options').length,
+      text: b.text,
+      done: b.done,
+    };
+  `);
+  eq(fixOpen.actAtOpen, 1, '改碑一樣從第一幕開始（四幕分鏡沒有變）');
+  eq(fixOpen.act, 3, '改碑住在第三幕');
+  eq(fixOpen.kind, 'fix', '這一關的題型是改碑');
+  eq(fixOpen.steleHidden, true, '選擇題的石碑收起來了');
+  eq(fixOpen.orderHidden, true, '排序刻印不會亂入');
+  eq(fixOpen.spotHidden, true, '點碑也不會亂入（一次只有一種在台上）');
+  eq(fixOpen.boardShown, true, '台上是抄寫人留下的那份草稿');
+  eq(fixOpen.label, '改碑', '版面上寫的是「改碑」');
+  eq(fixOpen.weakCount, 3, '草稿上有三句被畫線（要改的）');
+  eq(fixOpen.keptCount, 1, '還有一句不用動的');
+  eq(fixOpen.optionsOpen, 0, '一開始沒有攤開任何替代寫法（一次只有一件事）');
+  ok(/改好 0 \/ 3 句/.test(fixOpen.progress), '一開始一句都還沒改', fixOpen.progress);
+  eq(fixOpen.palmHidden, true, '還沒改完，手掌印不會出現（送不出去）');
+  eq(fixOpen.done, false, '這一關還沒完成');
+
+  // 純鍵盤：焦點停在第一句要改的 → Enter 攤開替代寫法
+  await evaluate(`document.querySelector('#prompt-console [data-frag-btn="route"]').focus(); return 1;`);
+  await key('Enter', 'Enter', { vk: 13 });
+  await sleep(240);
+  const fixOpened = await evaluate(`
+    return {
+      expanded: document.querySelector('#prompt-console [data-frag-btn="route"]').getAttribute('aria-expanded'),
+      options: document.querySelectorAll('#prompt-console [data-options="route"] .opt').length,
+      focusOpt: document.activeElement?.getAttribute('data-opt'),
+      focusFrag: document.activeElement?.getAttribute('data-frag'),
+      openId: window.__promptasy.promptConsole.fixBoard.openId,
+    };
+  `);
+  eq(fixOpened.expanded, 'true', 'Enter 攤開那一句的替代寫法');
+  eq(fixOpened.options, 3, '替代寫法有三個');
+  eq(fixOpened.focusFrag, 'route', '焦點自動跳進替代寫法（鍵盤玩家不會掉焦點）');
+  eq(fixOpened.focusOpt, '0', '焦點落在第一個替代寫法上');
+  eq(fixOpened.openId, 'route', '面板知道現在攤開的是哪一句');
+
+  // 挑一個弱的替代寫法 → 石碑不收：就地教學、不扣分、不前進
+  const wrongIdxFix = await evaluate(`
+    const f = window.__promptasy.content.flow('nightwatch-relief-07').fixFlow;
+    return f.fragments.find((x) => x.id === 'route').options.findIndex((o) => !o.correct);
+  `);
+  await evaluate(`document.querySelector('#prompt-console [data-frag="route"][data-opt="${wrongIdxFix}"]').focus(); return 1;`);
+  await key('Enter', 'Enter', { vk: 13 });
+  await sleep(280);
+  const fixWrong = await evaluate(`
+    const g = window.__promptasy;
+    const btn = document.querySelector('#prompt-console [data-frag="route"][data-opt="${wrongIdxFix}"]');
+    return {
+      marked: btn.classList.contains('is-wrong'),
+      disabled: btn.getAttribute('aria-disabled'),
+      feedback: btn.querySelector('[data-opt-fb]')?.textContent || '',
+      fbHidden: btn.querySelector('[data-opt-fb]')?.hidden,
+      dataFeedback: g.content.flow('nightwatch-relief-07').fixFlow.fragments[0].options[${wrongIdxFix}].feedback,
+      still: g.promptConsole.fixBoard.progress.fixed,
+      openId: g.promptConsole.fixBoard.openId,
+      xp: g.progression.state.xp,
+      verdictHidden: document.querySelector('#prompt-console .act--verdict').hidden,
+      live: g.promptConsole.fixBoard.announcement,
+    };
+  `);
+  eq(fixWrong.marked, true, '挑錯的替代寫法留在原地，標成「石碑不收」');
+  eq(fixWrong.disabled, 'true', '不收的那一片按不下去了');
+  eq(fixWrong.fbHidden, false, '就地長出一句教學回饋');
+  eq(fixWrong.feedback, fixWrong.dataFeedback, '回饋逐字來自資料層（不是臨時編的）');
+  ok(fixWrong.feedback.length >= 12, '回饋講得出「為什麼這樣比較弱」', fixWrong.feedback);
+  eq(fixWrong.still, 0, '挑錯不算改好（不前進）');
+  eq(fixWrong.openId, 'route', '挑錯之後那一句還攤開著，可以再挑一次');
+  eq(fixWrong.verdictHidden, true, '挑錯不會跳結果面板（不會失敗）');
+  ok(fixWrong.live.length > 0, 'aria-live 把回饋唸出來', fixWrong.live);
+
+  // 挑對 → 換上去；然後 Esc 還原（改碑的鍵位契約第二段）
+  const rightIdxFix = await evaluate(`
+    const f = window.__promptasy.content.flow('nightwatch-relief-07').fixFlow;
+    return f.fragments.find((x) => x.id === 'route').options.findIndex((o) => o.correct);
+  `);
+  await evaluate(`document.querySelector('#prompt-console [data-frag="route"][data-opt="${rightIdxFix}"]').focus(); return 1;`);
+  await key('Enter', 'Enter', { vk: 13 });
+  await waitFor(() => evaluate(`return window.__promptasy.promptConsole.fixBoard.progress.fixed === 1;`), {
+    label: '第一句換好了',
+  });
+  const fixedOne = await evaluate(`
+    const g = window.__promptasy;
+    const li = document.querySelector('#prompt-console [data-frag-btn="route"]').closest('.frag');
+    return {
+      isFixed: li.classList.contains('is-fixed'),
+      shown: li.querySelector('.frag__text').textContent.trim(),
+      want: g.content.flow('nightwatch-relief-07').fixFlow.fragments[0].options[${rightIdxFix}].text,
+      progress: document.querySelector('#prompt-console .fixboard .carve__progress').textContent.trim(),
+      focusFrag: document.activeElement?.getAttribute('data-frag-btn'),
+      lit: (g.promptConsole.preflight.evaluation?.results || []).filter((r) => r.score > 0).length,
+      openId: g.promptConsole.fixBoard.openId,
+    };
+  `);
+  eq(fixedOne.isFixed, true, '換對的那一句轉成「改好了」');
+  eq(fixedOne.shown, fixedOne.want, '草稿上顯示的就是換上去的那一句');
+  ok(/改好 1 \/ 3 句/.test(fixedOne.progress), '進度跟著走', fixedOne.progress);
+  eq(fixedOne.openId, null, '換好之後替代寫法自動收起來（一次只有一件事）');
+  ok(fixedOne.focusFrag, '焦點自動跳到下一句要改的', String(fixedOne.focusFrag));
+  ok(fixedOne.lit > 0, '左邊的刻痕對照跟著亮燈（同一支預檢引擎）', String(fixedOne.lit));
+
+  // Esc 在改好的那一句上 ＝ 還原（不是關面板）
+  await evaluate(`document.querySelector('#prompt-console [data-frag-btn="route"]').focus(); return 1;`);
+  await key('Escape', 'Escape', { vk: 27 });
+  await sleep(260);
+  const fixRestored = await evaluate(`
+    const g = window.__promptasy;
+    const li = document.querySelector('#prompt-console [data-frag-btn="route"]').closest('.frag');
+    return {
+      open: g.promptConsole.isOpen,
+      isFixed: li.classList.contains('is-fixed'),
+      shown: li.querySelector('.frag__text').textContent.trim(),
+      original: g.content.flow('nightwatch-relief-07').fixFlow.fragments[0].text,
+      openId: g.promptConsole.fixBoard.openId,
+      fixed: g.promptConsole.fixBoard.progress.fixed,
+      live: g.promptConsole.fixBoard.announcement,
+    };
+  `);
+  eq(fixRestored.open, true, 'Esc 在改好的句子上不會關掉面板（鍵位契約第二段）');
+  eq(fixRestored.isFixed, false, 'Esc 把那一句還原成原本的壞寫法');
+  eq(fixRestored.shown, fixRestored.original, '顯示的就是原句');
+  eq(fixRestored.fixed, 0, '進度跟著退回去（不扣分，只是收回一步）');
+  eq(fixRestored.openId, 'route', '還原之後替代寫法重新攤開，可以再挑');
+  ok(/還原/.test(fixRestored.live), 'aria-live 講出「還原」', fixRestored.live);
+
+  // Esc 在攤開的替代寫法上 ＝ 收起來（鍵位契約第一段）；再一次才關面板
+  await evaluate(`document.querySelector('#prompt-console [data-frag="route"][data-opt="0"]').focus(); return 1;`);
+  await key('Escape', 'Escape', { vk: 27 });
+  await sleep(240);
+  const closedOpts = await evaluate(`
+    const g = window.__promptasy;
+    return {
+      open: g.promptConsole.isOpen,
+      openId: g.promptConsole.fixBoard.openId,
+      options: document.querySelectorAll('#prompt-console [data-options="route"]').length,
+      focusFrag: document.activeElement?.getAttribute('data-frag-btn'),
+    };
+  `);
+  eq(closedOpts.open, true, 'Esc 收起替代寫法時也不會關面板（鍵位契約第一段）');
+  eq(closedOpts.openId, null, '替代寫法收起來了');
+  eq(closedOpts.options, 0, '畫面上不再有攤開的替代寫法');
+  eq(closedOpts.focusFrag, 'route', '焦點還回那一句上（不會掉到 3D 畫布）');
+
+  // 全部換對 → 自動切到第四幕、手印出現
+  await evaluate(`
+    const g = window.__promptasy;
+    const ff = g.content.flow('nightwatch-relief-07').fixFlow;
+    for (const f of ff.fragments) {
+      if (!f.weak) continue;
+      g.promptConsole.fixBoard.pick(f.id, f.options.findIndex((o) => o.correct));
+      await new Promise((r) => setTimeout(r, 60));
+    }
+    return 1;
+  `);
+  await waitFor(() => evaluate(`return window.__promptasy.promptConsole.fixBoard.done === true;`), {
+    label: '草稿全部改好',
+  });
+  await sleep(320);
+  const fixDone = await evaluate(`
+    const g = window.__promptasy;
+    return {
+      act: g.promptConsole.act,
+      palmShown: !document.querySelector('#prompt-console .fixboard .palmwrap').hidden,
+      focusPalm: document.activeElement === document.querySelector('#prompt-console .fixboard [data-palm]'),
+      text: g.promptConsole.fixBoard.text,
+      sample: g.content.challenge('nightwatch-relief-07').sample,
+      isPalmStage: document.querySelector('#prompt-console .console').classList.contains('is-palm'),
+    };
+  `);
+  eq(fixDone.act, 4, '改完自動切到第四幕（手印）');
+  eq(fixDone.palmShown, true, '手掌印浮出來了');
+  eq(fixDone.focusPalm, true, '焦點自動落在手掌上（鍵盤按住就能呈上）');
+  eq(fixDone.text, fixDone.sample, '改好的整段文字＝資料層的示範解答（兩種模式同一段字）');
+  eq(fixDone.isPalmStage, true, '第四幕把光打在手印上');
+
+  // 按住 Enter 呈給神諭 → 結果面板、S、石座轉已通關、v2 技能入袋
+  await key('Enter', 'Enter', { vk: 13, type: 'keyDown' });
+  await sleep(900);
+  await key('Enter', 'Enter', { vk: 13, type: 'keyUp' });
+  await waitFor(() => evaluate(`return !document.querySelector('#prompt-console [data-result]').hidden;`), {
+    label: '改碑的結果面板',
+  });
+  const fixResult = await evaluate(`
+    const g = window.__promptasy;
+    return {
+      grade: document.querySelector('#prompt-console .grade__mark')?.textContent.trim(),
+      best: g.progression.bestGrade('nightwatch-relief-07'),
+      cleared: g.world.markers.find((m) => m.id === 'nightwatch-relief-07')?.cleared,
+      skill: g.progression.isSkillCollected('clear-golden'),
+      legacy: g.progression.state.collected.includes('clarity-01'),
+      sources: [...document.querySelectorAll('#prompt-console [data-result] a.src')].map((a) => a.href),
+      srcText: [...document.querySelectorAll('#prompt-console [data-result] a.src')].map((a) => a.textContent.trim()),
+      xp: g.progression.state.xp,
+    };
+  `);
+  eq(fixResult.grade, 'S', '改碑走完拿到 S');
+  eq(fixResult.best, 'S', '評價存進進度');
+  eq(fixResult.cleared, true, '世界上那座石座轉成已通關');
+  eq(fixResult.skill, true, '這條 v2 技能收進 skillsV2');
+  eq(fixResult.legacy, true, '有祖先的技巧照舊收進舊圖鑑（收集不倒退）');
+  ok(fixResult.xp > 0, '改碑過關有 XP', String(fixResult.xp));
+  ok(fixResult.sources.length > 0, '結果面板有可點的官方出處', fixResult.sources.join(' '));
+  ok(
+    fixResult.sources.every((u) => /^https:\/\//.test(u)),
+    '每一個出處都是 https 連結',
+    fixResult.sources.join(' ')
+  );
+  ok(
+    fixResult.srcText.every((t) => !/^https?:/.test(t)),
+    '出處顯示的是文件名不是網址',
+    fixResult.srcText.join(' | ')
+  );
+
+  /* ---------------------------------------------------------------- *
+   * 二、點碑：純鍵盤走完（方向鍵 → Enter 點起來 → 點到不能動的會彈回來
+   *          → 全部挑出來 → 手印 → S）
+   * ---------------------------------------------------------------- */
+  await evaluate(`window.__promptasy.promptConsole.close(); return 1;`);
+  await sleep(240);
+  const spotOpen = await evaluate(`
+    const g = window.__promptasy;
+    g.promptConsole.open(g.content.challenge('shout-stone-11'));
+    await new Promise((r) => setTimeout(r, 260));
+    g.promptConsole.goAct(3, { force: true });
+    await new Promise((r) => setTimeout(r, 320));
+    const b = g.promptConsole.spotBoard;
+    return {
+      act: g.promptConsole.act,
+      kind: g.promptConsole.kind,
+      boardShown: !document.querySelector('#prompt-console .spotboard').hidden,
+      fixHidden: document.querySelector('#prompt-console .fixboard').hidden,
+      slips: document.querySelectorAll('#prompt-console .spot').length,
+      marked: b.marked.length,
+      progress: document.querySelector('#prompt-console .spotboard .carve__progress').textContent.trim(),
+      label: document.querySelector('#prompt-console [data-guided-label] .zh').textContent.trim(),
+      palmHidden: document.querySelector('#prompt-console .spotboard .palmwrap').hidden,
+      focused: document.activeElement?.getAttribute('data-spot'),
+      pressed: [...document.querySelectorAll('#prompt-console [data-spot]')].map((b2) => b2.getAttribute('aria-pressed')),
+    };
+  `);
+  eq(spotOpen.act, 3, '點碑也住在第三幕');
+  eq(spotOpen.kind, 'spot', '這一關的題型是點碑');
+  eq(spotOpen.boardShown, true, '台上是一疊石籤');
+  eq(spotOpen.fixHidden, true, '改碑收起來了（一次只有一種在台上）');
+  eq(spotOpen.label, '點碑', '版面上寫的是「點碑」');
+  eq(spotOpen.slips, 6, '這一關有 6 片石籤');
+  eq(spotOpen.marked, 0, '一開始一片都沒點');
+  eq(spotOpen.palmHidden, true, '還沒挑完，手掌印不會出現');
+  ok(spotOpen.pressed.every((p) => p === 'false'), '每一片都標成「還沒點起來」（aria-pressed）');
+  ok(/挑出 0 \/ 3 句/.test(spotOpen.progress), '進度從 0 開始', spotOpen.progress);
+
+  // 方向鍵在石籤之間走
+  await evaluate(`document.querySelector('#prompt-console [data-spot="p1"]').focus(); return 1;`);
+  await key('ArrowDown', 'ArrowDown', { vk: 40 });
+  await sleep(180);
+  eq(
+    await evaluate(`return document.activeElement?.getAttribute('data-spot');`),
+    'p2',
+    '↓ 把焦點移到下一片石籤（純鍵盤走得完）'
+  );
+
+  // 點到「不能動」的那一句 → 彈回來 ＋ 就地教學（不扣分、不前進）
+  await key('Enter', 'Enter', { vk: 13 });
+  await sleep(300);
+  const spotWrong = await evaluate(`
+    const g = window.__promptasy;
+    const li = document.querySelector('#prompt-console [data-spot="p2"]').closest('.spot');
+    return {
+      marked: g.promptConsole.spotBoard.marked.length,
+      pressed: document.querySelector('#prompt-console [data-spot="p2"]').getAttribute('aria-pressed'),
+      fbHidden: document.querySelector('#prompt-console [data-spot-fb="p2"]').hidden,
+      feedback: document.querySelector('#prompt-console [data-spot-fb="p2"]').textContent.trim(),
+      dataWhy: g.content.flow('shout-stone-11').spotFlow.slips.find((s) => s.id === 'p2').why,
+      verdictHidden: document.querySelector('#prompt-console .act--verdict').hidden,
+      xpUnchanged: g.progression.bestGrade('shout-stone-11'),
+    };
+  `);
+  eq(spotWrong.marked, 0, '點到不能動的那一句不會被點起來');
+  eq(spotWrong.pressed, 'false', 'aria-pressed 也沒有變');
+  eq(spotWrong.fbHidden, false, '就地長出一句「為什麼要留」');
+  eq(spotWrong.feedback, spotWrong.dataWhy, '教學逐字來自資料層');
+  eq(spotWrong.verdictHidden, true, '點錯不會跳結果面板（不會失敗）');
+  eq(spotWrong.xpUnchanged, null, '點錯不會留下任何評價');
+
+  // 把有問題的都點出來 → 手印
+  await evaluate(`
+    const g = window.__promptasy;
+    for (const sl of g.content.flow('shout-stone-11').spotFlow.slips) {
+      if (!sl.bad) continue;
+      g.promptConsole.spotBoard.toggle(sl.id);
+      await new Promise((r) => setTimeout(r, 60));
+    }
+    return 1;
+  `);
+  await waitFor(() => evaluate(`return window.__promptasy.promptConsole.spotBoard.done === true;`), {
+    label: '有問題的都挑出來了',
+  });
+  await sleep(320);
+  const spotDone = await evaluate(`
+    const g = window.__promptasy;
+    return {
+      act: g.promptConsole.act,
+      palmShown: !document.querySelector('#prompt-console .spotboard .palmwrap').hidden,
+      focusPalm: document.activeElement === document.querySelector('#prompt-console .spotboard [data-palm]'),
+      text: g.promptConsole.spotBoard.text,
+      sample: g.content.challenge('shout-stone-11').sample,
+      goneCount: document.querySelectorAll('#prompt-console .spot__gone').length,
+      lit: (g.promptConsole.preflight.evaluation?.results || []).filter((r) => r.passed).length,
+    };
+  `);
+  eq(spotDone.act, 4, '挑完自動切到第四幕');
+  eq(spotDone.palmShown, true, '手掌印浮出來了');
+  eq(spotDone.focusPalm, true, '焦點自動落在手掌上');
+  eq(spotDone.text, spotDone.sample, '挑乾淨的整段文字＝資料層的示範解答');
+  eq(spotDone.goneCount, 3, '被拿掉的三片在畫面上留下痕跡（看得出自己刪了什麼）');
+  ok(spotDone.lit >= 2, '左邊的刻痕對照全亮（做對就是完美）', String(spotDone.lit));
+
+  await key('Enter', 'Enter', { vk: 13, type: 'keyDown' });
+  await sleep(900);
+  await key('Enter', 'Enter', { vk: 13, type: 'keyUp' });
+  await waitFor(() => evaluate(`return !document.querySelector('#prompt-console [data-result]').hidden;`), {
+    label: '點碑的結果面板',
+  });
+  const spotResult = await evaluate(`
+    const g = window.__promptasy;
+    return {
+      grade: document.querySelector('#prompt-console .grade__mark')?.textContent.trim(),
+      best: g.progression.bestGrade('shout-stone-11'),
+      skill: g.progression.isSkillCollected('clear-no-pressure'),
+      cleared: g.world.markers.find((m) => m.id === 'shout-stone-11')?.cleared,
+    };
+  `);
+  eq(spotResult.grade, 'S', '點碑走完拿到 S');
+  eq(spotResult.best, 'S', '評價存進進度');
+  eq(spotResult.skill, true, '這條 v2 技能收進 skillsV2（它在舊 68 條裡沒有祖先）');
+  eq(spotResult.cleared, true, '世界上那座石座轉成已通關');
+
+  /* --- 存檔：v2 技能跨重整還在，而且不會灌爆舊圖鑑 --- */
+  const savedSkills = await evaluate(`
+    const raw = JSON.parse(localStorage.getItem('promptasy.v1.save'));
+    return { skills: raw.skillsV2 || [], collected: (raw.collected || []).length };
+  `);
+  ok(savedSkills.skills.includes('clear-golden'), 'skillsV2 真的寫進了 localStorage', savedSkills.skills.join(','));
+  ok(savedSkills.skills.includes('clear-no-pressure'), '沒有祖先的技能也記下來了');
+  ok(savedSkills.collected <= 68, '舊圖鑑的收集數沒有被 v2 技能灌水', String(savedSkills.collected));
+
+  /* --- 相容契約：缺 kind / 資料不合契約 → 一律回到石碑刻印 --- */
+  const kindFallback = await evaluate(`
+    const k = window.__promptasy.promptConsole.flowKindOf;
+    return {
+      none: k(undefined),
+      empty: k({}),
+      unknown: k({ kind: 'nonsense' }),
+      fixNoData: k({ kind: 'fix' }),
+      fixBadData: k({ kind: 'fix', fixFlow: { fragments: [] } }),
+      spotNoData: k({ kind: 'spot' }),
+      spotBadData: k({ kind: 'spot', spotFlow: { slips: [{ id: 'a', text: '一句話', bad: true }] } }),
+    };
+  `);
+  eq(kindFallback.none, 'choice', '沒有流程資料 → 石碑刻印');
+  eq(kindFallback.empty, 'choice', '沒寫 kind → 石碑刻印（舊資料零變化）');
+  eq(kindFallback.unknown, 'choice', '未知的 kind → 石碑刻印');
+  eq(kindFallback.fixNoData, 'choice', '宣告了 fix 卻沒有資料 → 石碑刻印');
+  eq(kindFallback.fixBadData, 'choice', 'fix 的資料不合契約 → 石碑刻印（不會開到空白石碑）');
+  eq(kindFallback.spotNoData, 'choice', '宣告了 spot 卻沒有資料 → 石碑刻印');
+  eq(kindFallback.spotBadData, 'choice', 'spot 的資料不合契約 → 石碑刻印');
+
+  /* --- 新石座真的蓋在世界上，而且走得到 --- */
+  const newMarkers = await evaluate(`
+    const g = window.__promptasy;
+    const ids = g.content.challenges.filter((c) => c.primarySkillId).map((c) => c.id);
+    const out = { ids: ids.length, missing: [], blocked: [] };
+    for (const id of ids) {
+      const m = g.world.markers.find((x) => x.id === id);
+      if (!m) { out.missing.push(id); continue; }
+      const p = m.position;
+      // 石座本體擋得住人，但四周走得到互動距離
+      for (const [dx, dz] of [[3.2, 0], [-3.2, 0], [0, 3.2], [0, -3.2]]) {
+        if (g.world.solidAt(p.x + dx, p.z + dz)) out.blocked.push(id + ':' + dx + ',' + dz);
+      }
+    }
+    return out;
+  `);
+  eq(newMarkers.ids, 10, '世界上真的多了十座石座');
+  eq(newMarkers.missing.length, 0, '每一座都蓋出來了', newMarkers.missing.join(','));
+  eq(newMarkers.blocked.length, 0, '新石座四周走得到（互動不會被擋）', newMarkers.blocked.join(' '));
+
+  /* --- 窄畫面不溢位 --- */
+  await cdp.send('Emulation.setDeviceMetricsOverride', { width: 820, height: 760, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await sleep(320);
+  const narrowB = await evaluate(`
+    const g = window.__promptasy;
+    const out = {};
+    g.promptConsole.close();
+    await new Promise((r) => setTimeout(r, 200));
+    g.promptConsole.open(g.content.challenge('nightwatch-relief-07'));
+    await new Promise((r) => setTimeout(r, 240));
+    g.promptConsole.goAct(3, { force: true });
+    await new Promise((r) => setTimeout(r, 300));
+    g.promptConsole.fixBoard.open('route');
+    await new Promise((r) => setTimeout(r, 240));
+    const body = document.querySelector('#prompt-console .panel__body');
+    out.fixOverflow = Math.max(0, body.scrollWidth - body.clientWidth);
+    g.promptConsole.close();
+    await new Promise((r) => setTimeout(r, 200));
+    g.promptConsole.open(g.content.challenge('parts-wall-16'));
+    await new Promise((r) => setTimeout(r, 240));
+    g.promptConsole.goAct(3, { force: true });
+    await new Promise((r) => setTimeout(r, 300));
+    const body2 = document.querySelector('#prompt-console .panel__body');
+    out.spotOverflow = Math.max(0, body2.scrollWidth - body2.clientWidth);
+    g.promptConsole.close();
+    return out;
+  `);
+  eq(narrowB.fixOverflow, 0, '820px 下改碑沒有水平溢位');
+  eq(narrowB.spotOverflow, 0, '820px 下點碑沒有水平溢位');
   await cdp.send('Emulation.clearDeviceMetricsOverride', {}, sessionId);
   await sleep(300);
 

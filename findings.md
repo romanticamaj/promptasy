@@ -210,3 +210,77 @@
 - **e2e 的 6 條環境型 flaky 在 load average 11 的機器上會一起出現**（開場曲自動播放時序、
   fps 暖機、火盆亮度取樣、設定焦點時序、拖曳 2 條）。第二次跑 1,816 項全過。
   這一組值得之後照 `AGENTS.md` 全部改成 poll-until —— 目前只有拖曳那一組（Phase A）改過。
+
+
+## Phase B step 2 實作發現（`fix`／`spot` ＋ 撰寫基本功十座 · 2026-08-01）
+
+### 決策
+
+- **`skillsV2[]` 的形狀**：純字串陣列的存檔欄位（`promptasy.v1.save.skillsV2`），
+  `normalize()` 補空陣列、去重、丟掉非字串。**刻意不塞進 `collected`** ——
+  `collected` 存的是舊 68 條技巧的 id，圖鑑／四廠徽章／稱號／隱藏成就全部依它算；
+  v2 的 130 條技能有 85 條在舊 68 條裡**沒有祖先**（`legacyTechniqueId: null`），
+  混進去會讓「x / 68」與徽章數字失真。所以新神廟通關時**兩邊各寫各的**：
+  有祖先的照舊寫進 `collected`（D2：收集不倒退），技能本身寫進 `skillsV2`。
+  `recordResult()` 的回傳多一個 `newlySkills`；`isSkillCollected()` / `collectedSkills()` 已上線，
+  圖鑑要用它是後續的事（這一期只把存檔與進度接起來）。
+- **`primarySkillId` 而不是第 26 條 `primaryTechniqueId`**：C2 要求「一條技巧只教一次」，
+  舊 68 條的主技巧已經被既有 25 關用光；新神廟教的是 v2 技能，所以資料層多一個
+  `primarySkillId`（rubric 的主檢查那一列也掛 `skillId`），`primaryTechniqueId` 一律 `null`。
+  第二幕的「神諭原典」改走 `content.sourceForSkill()`（catalog）——
+  一樣是**真實文件名 ＋ 可點的 https**（護欄 2、WORLD.md §3.4），不是換一套說法。
+  `content.sourceName()` 也要吃 v2 出處，否則結果面板會秀出一長串網址。
+- **改碑的 `Esc` 是三段式，由內往外**（文件寫在 `src/prompt/fix.js` 檔頭）：
+  ① 替代寫法攤開著 → 收起來，那一句維持原樣；
+  ② 焦點停在**已經改好**的句子 → 還原成原本的壞寫法並重新攤開替代寫法；
+  ③ 以上都不是 → **不攔截**，讓事件冒泡出去收起面板。
+  也就是「`Esc` 永遠先還原你剛剛做的那一步，沒東西可還原了才變回走出去的鑰匙」。
+  點碑同理（點起來的 → 放回去；沒點起來的 → 冒泡）。三段都用 `aria-live` 講出來。
+  這件事必須寫死並測到 —— 不然鍵盤玩家會在「想收起選項」的時候整個面板被關掉。
+- **十座的題型分配與 §3 表格有五處差異**（全部是「那個 kind 還沒實作」，不是設計換方向）：
+
+  | 神廟 | §3 指定 | 這一期 | 理由 |
+  |---|---|---|---|
+  | 量繩之桌 `clear-constraint` | `constraint` 🟡 | `fix` | `constraint` 是 Phase D 的 kind；「替每條限制找一個單位」本來就是把弱句換掉，fix 是最貼的過渡 |
+  | 一字之差的岔路 `word-choice` | `tradeoff` | `choice` | `tradeoff` 是 Phase C 的 kind |
+  | 空手的信使 `context-supply` | `disclose` 🔴 | `fix` | `disclose`（跨世界素材背包）是 Phase K **選配**；用 fix 讓玩家把「你自己去查」換成真的資料 |
+  | 舊標籤的倉庫 `struct-xml` | `tradeoff` | `choice` | 同上，Phase C |
+  | 零件表 `struct-anatomy` | `reverse` 🟡 | `spot` | `reverse` 是 Phase J 的 kind；「替每個零件貼名字、找出兩塊其實是同一個零件」用 spot 幾乎等價 |
+
+  這五座的 `kind` 換掉時**只要換第三幕的資料**，關卡文案、rubric、出處都不必動。
+- **C4（不得連續三座同型）目前只對新神廟成立**：既有六關（`gate-of-clarity-01` … `council-envoy-06`）
+  仍然全是 choice，因為 §4 指定的題型換裝（例如 postbox → order）屬於那幾關自己的改造，不在這一期。
+  測試的 C4 迴圈因此只掃有 `primarySkillId` 的關卡，並在註解裡寫明「等它們改造完就把這裡放開成整區」。
+
+### 卡住 / 沒做的事（誠實記錄）
+
+- **`rulesBeforeData` 與 `usesRareDelimiter` 沒有實作。** 它們是 foundations 表裡另外兩個 🆕，
+  但遷移 manifest 的不變式擋住了：`long-scroll-archive-05` 標了 `newChecker: true`，
+  測試會斷言「主檢查 `rulesBeforeData` **確實還不存在**」；而要讓它存在，就得同時
+  (a) 改 manifest 那一行、(b) 執行該關的 post-A 改造（移除 `groundsInContext`／`hasConstraint`）、
+  (c) 連帶改 `totalWeightAfter` / `passAfter`（passAfter 被釘死成 `passBefore − 0.5`）。
+  那是「規則牆」那一座神廟自己的改造，不是這一期的「新增十座」。
+  `usesRareDelimiter` 同理（要動 `postbox-sprite-02` 的 rubric 總權重）。**兩者一起留給那一關的改造。**
+- **石座的燈是這一期差點撞牆的地方。** 一座一盞 PointLight，27 → 37 座之後高畫質實測 **59 盞**，
+  超過 WORLD.md §6.1 的 56 盞（e2e 當場紅）。改成常數 8 盞的燈池指派給最近的幾座之後是 **26 盞**。
+  沒有這一步，Phase C 再加 10 座就一定過不了；**燈數從此不隨關卡數成長**。
+  代價：`marker.glow` 現在是一個 `{ color, intensity, position.y, worldY }` 的代理物件，
+  不是 `THREE.PointLight` —— 之後若有人想對它做 `add()`／`shadow` 之類的事會失敗（已在程式碼註解寫明）。
+- **`assignsTask` 第一次當上主檢查**（只會點頭的信差）。這跟 `gap-analysis.md` §3 建議 1
+  「assignsTask 是及格線不是技巧」看似矛盾，其實不是：那條建議說的是「不該當**每一關**的教學目標」，
+  而 `clear-imperative` 這座神廟教的**就是**「要它動手而不是給建議」。
+  遷移 manifest 的 `mainCheck !== 'assignsTask'` 斷言只掃既有 27 關，沒有被放寬。
+- **離線檢查器分不出「請你評估一下」是徵詢還是指令**。信差那一關原本想用它當「看似有動詞其實在徵詢」
+  的那一拍，但 `assignsTask` 會把「評估」認成任務動詞（它本來就是動詞）。
+  沒有為了關卡放寬引擎 —— 改的是關卡文案（那一句改成純問句「不知道這樣做好不好？」），
+  教學上的因果由 spot 的就地回饋承擔。
+- **「一句都沒改的草稿一定不過關」這條門檻做不到，而且不該做。** Phase 9 把 `pass` 放寬到總權重的一半，
+  C1 之後一關只有「主檢查 3 ＋ 地基 0.5」，所以主檢查拿部分分數（0.5×3）＋地基滿分（0.5）＝ 2.0
+  就剛好碰到門檻。真正該守的是**「這一關教的那一條沒有滿分」＋「評價進不了 A」**，測試改成守這兩條。
+  而且在改碑／點碑模式下草稿根本送不出去（手掌印要做完才出現），玩家不會遇到這個邊界。
+- **`鿿`（U+9FFF）差點被切進字型子集**：新檢查器一開始把 CJK 範圍寫成字面 `[一-鿿]`，
+  語料掃描器把區間結尾那個字當成真的要用的字，結果原始字型缺字、指紋測試紅。
+  改回 `[\u4e00-\u9fff]` 轉義寫法即可（`checks.js` 原本的 `CJK_RE` 就是這樣寫的 —— 有原因的）。
+- **`快速填入不是直接給答案` 這條既有斷言擋下了六座新神廟**：一開始圖省事讓每一顆快速填入
+  剛好等於示範解答的一行，串起來就是整份答案卷。已改成「零件」（把其中一顆改成通用版本）。
+  這條斷言值得記下來 —— 它守的是 P3 鷹架遞減，不是格式潔癖。

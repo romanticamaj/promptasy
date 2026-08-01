@@ -1,15 +1,21 @@
 {
   "note": "測試用的「這是契約，不是快照」清單。凡是能從 runtime catalog 或資料檔算出來的數字（技巧數、區域數、技能數、flow 數…），測試一律現算，不寫在這裡；只有『這個數字本身就是當期的驗收目標』才登記在這裡，改動它＝有意識地改變契約。每一格都寫得出為什麼。",
   "updatedAt": "2026-08-01",
-  "updatedBy": "課程 v2 · Phase B step 1（catalog bridge）",
+  "updatedBy": "課程 v2 · Phase B step 2（fix／spot 題型 ＋ 撰寫基本功十座新神廟）",
   "contract": {
     "challenges": {
-      "value": 27,
-      "why": "現行關卡數。課程 v2 的終點是 130 教學神廟＋12 應用關；每一期新增神廟時要一起把這個數字往上調（task_plan §3）。"
+      "value": 37,
+      "why": "現行關卡數＝既有 27 關 ＋ 課程 v2 新蓋的教學神廟。終點是 130 教學神廟＋12 應用關；每一期新增神廟時要一起把這個數字往上調（task_plan §3）。"
     },
     "flowKinds": {
-      "value": ["choice", "order", "workshop"],
-      "why": "目前上線的刻印題型。Phase B 會加 fix／spot，加的時候要一起改這裡（flows.json 缺 kind 時預設 choice 的相容契約不變）。"
+      "value": [
+        "choice",
+        "order",
+        "workshop",
+        "fix",
+        "spot"
+      ],
+      "why": "目前上線的刻印題型。Phase B 加了 fix（改碑）與 spot（點碑）；之後每加一種都要一起改這裡（flows.json 缺 kind 時預設 choice 的相容契約不變）。"
     },
     "v2Skills": {
       "value": 130,
@@ -27,6 +33,24 @@
       "value": 0,
       "why": "master list 標「出處找不到」的條目（唯一一條是 #11）在蒸餾規則 3 就被排除，所以 130 條技能目前每一條都有 ≥1 個可驗證官方連結。上限是 3；超過就代表有人把沒出處的東西寫成教學（護欄 2）。",
       "max": 3
+    },
+    "legacyChallenges": {
+      "value": 27,
+      "why": "docs/design/curriculum-v2-migration.json 管的是「既有 27 關的遷移」。新蓋的神廟（有 primarySkillId）不在它的範圍內，所以 manifest 永遠對這 27 關。"
+    },
+    "foundationsShrines": {
+      "value": 16,
+      "why": "撰寫基本功這一區的關卡數：14 座教學神廟（curriculum-v2 §3 的 foundations 總表）＋ 1 關應用關（council-envoy-06）＋ 1 關主題已搬家的 mimic-mirror-04（prefill-completion，它的技能屬於量器坊，Phase E 才搬）。"
+    },
+    "v2CheckersLanded": {
+      "value": [
+        "avoidsPressureLanguage",
+        "disambiguatesTerms",
+        "namesComponents",
+        "noUndefinedReference",
+        "statesScope"
+      ],
+      "why": "curriculum-v2 §7.4 的 59 個新檢查器只按期開；Phase B 只開撰寫基本功那五座新神廟真的用得到的。清單要跟 checks.js 完全一致，避免有人開了沒有神廟在用的檢查器。"
     }
   }
 }

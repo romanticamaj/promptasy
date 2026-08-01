@@ -415,6 +415,84 @@ const FIXTURES = {
     ],
   },
 
+  /* --- 課程 v2 · Phase B：撰寫基本功新增的五個檢查器 --- */
+
+  noUndefinedReference: {
+    good: [
+      '請巡一輪，路線是北門哨塔、井邊、糧倉後巷、東橋。\n井邊和糧倉後巷各停留 5 分鐘，檢查有沒有積水與破口。',
+      'Walk the round in this order: north tower, the well, the granary lane, the east bridge.\nStop 5 minutes at the well.',
+      '照舊那幾件事：分別是補燈油、鎖糧倉、記下水位，三件都要在 22 點前做完。',
+    ],
+    weak: [
+      '照舊巡一輪，井邊和糧倉後巷各停留 5 分鐘。',
+      '請把這段文字整理一下，寫得清楚一點就好。',
+    ],
+    bad: [
+      '照舊巡一輪，重點那幾個地方多看一下。老規矩，你知道的。',
+      'Do the round as usual and check those spots like last time.',
+    ],
+  },
+
+  statesScope: {
+    good: [
+      '請把這座橋的欄杆漆成暖白色。適用範圍：從南端到北端每一節欄杆都要漆。例外：橋面踏板不漆。',
+      'Paint every railing section on this bridge, excluding the deck planks and the brass fittings.',
+    ],
+    weak: [
+      '請把這座橋上每一節欄杆都漆成暖白色，顏色以樣本為準。',
+      '請把這座橋的欄杆漆成暖白色，橋面踏板不漆，其他照舊處理。',
+    ],
+    bad: [
+      '請把這座橋的欄杆漆成暖白色，漆完在施工單上蓋章。',
+      'Paint the railing on the bridge with the warm white sample colour.',
+    ],
+  },
+
+  avoidsPressureLanguage: {
+    good: [
+      '請把下面這份停水公告改寫成告示。這件事今天日落前要貼出去，所以請寫成 3 句話以內。',
+      'Rewrite the notice below as a public announcement in three sentences or fewer.',
+    ],
+    weak: [
+      '請把公告改寫成告示！這件事很急！',
+      '請把公告改寫成告示，拜託你了。',
+    ],
+    bad: [
+      '拜託拜託，這件事真的很急！！！請把公告改寫一下，做得好我請你喝茶。',
+      'PLEASE REWRITE THIS NOTICE RIGHT AWAY, IT IS URGENT AND I BEG YOU!!!',
+    ],
+  },
+
+  disambiguatesTerms: {
+    good: [
+      '請把下面這段文字的用字遣詞調整得更正式。這裡說的「語言」是指用字與語氣，不是指要換成另一種語系。',
+      'Tighten the wording of the paragraph below. By "language" i mean word choice and tone, not the natural language sense.',
+    ],
+    weak: [
+      '請調整這段文字的「語言」是指用字與語氣，整段維持一樣的意思。',
+      '請調整這段文字的語言，而不是換成另一種語系，整段維持原意。',
+    ],
+    bad: [
+      '請調整這段文字的語言，讓它讀起來更好一點。',
+      'Please adjust the language of the paragraph below so it reads better.',
+    ],
+  },
+
+  namesComponents: {
+    good: [
+      '角色：你是一位公告抄寫員。\n任務：把下面的停水通知改寫成一則告示。\n資料：水井這週停用三天。\n格式：3 個條列重點。',
+      'Role: town notice scribe\nTask: rewrite the outage note below\nData: the well is closed for three days\nFormat: three bullets',
+    ],
+    weak: [
+      '角色：你是一位公告抄寫員。\n任務：把下面的停水通知改寫成一則告示。\n資料：水井這週停用三天。',
+      '任務：把下面的停水通知改寫成一則告示。\n格式：3 個條列重點，每點不超過 20 個字。',
+    ],
+    bad: [
+      '你是一位公告抄寫員，請把下面的停水通知改寫成一則告示，寫成 3 個條列重點。',
+      'You are a town notice scribe. Rewrite the outage note below as three short bullets.',
+    ],
+  },
+
   keepsPromptLean: {
     good: [
       'Draft a repair plan for the bridge with a budget under 500 coins. Output: 3 bullet points.',
@@ -705,6 +783,53 @@ const LEGACY_EN_SOLUTIONS = {
   'crossroad-scale-45':
     'Choose the safest of the three ferry routes, with effort = high and verbosity = low.\n' +
     'Success criteria: under 60 words, names one route, lists 2 risks.',
+
+  /* --- 課程 v2 · Phase B：撰寫基本功的十座新神廟 --- */
+  'nightwatch-relief-07':
+    'Walk one round in this order: north tower, the well, the granary lane, the east bridge.\n' +
+    'Stop 5 minutes at the well and at the granary lane, and check for standing water and broken boards.\n' +
+    'Write one line in the handover book when the round is done.',
+  'measuring-table-08':
+    'Rewrite the water outage notice below.\n' +
+    'Length: no more than 3 sentences, each under 20 words.\n' +
+    'Tone: third person, written register, no filler particles.\n' +
+    'Content: the outage dates, the affected area, and the backup well must all appear.',
+  'nodding-courier-09':
+    'Produce a water collection list.\n' +
+    'The list must show the door number and the collection time for each household.\n' +
+    'Also notify the three houses across the river.\n' +
+    'Hand the finished list back to me on one sheet, at most 12 lines.',
+  'first-rail-10':
+    'Paint the railing of this bridge warm white.\n' +
+    'Scope: every railing section from the south end to the north end, not only the first section.\n' +
+    'Exception: the deck planks and the brass fittings on the handrail are not painted.\n' +
+    'Stamp the work order when the painting is done.',
+  'shout-stone-11':
+    'Rewrite the water outage notice below as a public announcement.\n' +
+    'It has to go up before sunset today, so keep it to 3 sentences or fewer.',
+  'wordfork-12':
+    'Tighten the wording of the paragraph below so it reads more formally.\n' +
+    'By "language" i mean word choice and tone, not the natural language sense.\n' +
+    'Keep the original Chinese text.',
+  'silent-foreman-13':
+    'Shorten the water outage note below.\n' +
+    'Because it will be read aloud to a queue in the market, and reading it must take under 20 seconds.\n' +
+    'So keep the outage time and the collection point, and drop the rest.',
+  'empty-handed-envoy-14':
+    'Using the roster and the house rules provided below, answer who may enter the reading room tonight.\n' +
+    'Roster: four names are on the book tonight.\n' +
+    'House rules: only names on the book may enter; anyone carrying fire may not enter.\n' +
+    'Answer using only the reference text above, and say the text does not cover it when it does not.',
+  'old-tag-store-15':
+    'Rewrite each of the two notes below as a one-sentence announcement.\n' +
+    '<note index="1">\nThe well is closed for three days.\n</note>\n' +
+    '<note index="2">\nThe east bridge is shut tonight.\n</note>\n' +
+    'Answer the two notes separately.',
+  'parts-wall-16':
+    'Role: town notice scribe\n' +
+    'Task: rewrite the outage note below as a public announcement\n' +
+    'Data: the well is closed for three days, the backup well is at the north gate\n' +
+    'Format: three bullets, each under 20 words',
 };
 for (const c of challenges) {
   const en = LEGACY_EN_SOLUTIONS[c.id];
@@ -1031,7 +1156,7 @@ for (const [id, zh] of zhTechEntries) {
  * 涵蓋率 ＋ 「畫面上預設看不到整句英文」。
  * displayTechnique() 就是圖鑑與主控台實際用來顯示的那一支。
  */
-const zhContent = createContent(curriculum, challengeData, builderZh, null, null, curriculumZh);
+const zhContent = createContent(curriculum, challengeData, builderZh, null, null, curriculumZh, null, catalog);
 let translatedCount = { example: 0, tip: 0, note: 0 };
 for (const tech of curriculum.techniques) {
   const view = zhContent.displayTechnique(tech.id);
@@ -1339,15 +1464,35 @@ console.log('▸ 資料完整性');
 const techById = new Map(curriculum.techniques.map((t) => [t.id, t]));
 const allSourceUrls = new Set(curriculum.techniques.flatMap((t) => t.sources.map((s) => s.url)));
 
+/**
+ * 課程 v2（Phase B）的神廟教的是 `skill-codex-v2.json` 的技能，
+ * 那 130 條有一半以上在舊 68 條裡沒有祖先（`legacyTechniqueId: null`），
+ * 所以它們的出處要回查 catalog（一樣是逐條解析自 master list 的真實官方連結，護欄 2），
+ * `teaches` 也允許是空的（收集走 `skillsV2`，不是 `collected`）。
+ */
+const skillSourceUrls = new Map(
+  catalog.skills.map((s) => [s.id, new Set((s.sources || []).map((x) => x.url))])
+);
 for (const c of challenges) {
-  ok(c.teaches.length > 0, `[${c.id}] 至少教一個技巧`);
+  const v2 = typeof c.primarySkillId === 'string' && c.primarySkillId;
+  if (v2) {
+    ok(Boolean(catalog.skill(c.primarySkillId)), `[${c.id}] primarySkillId 是 v2 catalog 裡真的技能`, c.primarySkillId);
+    ok(
+      (skillSourceUrls.get(c.primarySkillId) || new Set()).has(c.source),
+      `[${c.id}] source 是它所教技能的官方出處（回查 skill-codex-v2）`,
+      c.source
+    );
+  } else {
+    ok(c.teaches.length > 0, `[${c.id}] 至少教一個技巧`);
+    ok(allSourceUrls.has(c.source), `[${c.id}] source 是 curriculum 裡真實存在的官方連結`, c.source);
+    const teachUrls = new Set(c.teaches.flatMap((t) => (techById.get(t) ? techById.get(t).sources.map((s) => s.url) : [])));
+    ok(teachUrls.has(c.source), `[${c.id}] source 屬於它所教技巧的出處`);
+  }
   for (const t of c.teaches) ok(techById.has(t), `[${c.id}] teaches "${t}" 存在於 curriculum`);
   for (const r of c.rubric) {
     ok(!r.techniqueId || techById.has(r.techniqueId), `[${c.id}] rubric techniqueId "${r.techniqueId}" 存在`);
+    ok(!r.skillId || Boolean(catalog.skill(r.skillId)), `[${c.id}] rubric skillId "${r.skillId}" 存在於 v2 catalog`);
   }
-  ok(allSourceUrls.has(c.source), `[${c.id}] source 是 curriculum 裡真實存在的官方連結`, c.source);
-  const teachUrls = new Set(c.teaches.flatMap((t) => (techById.get(t) ? techById.get(t).sources.map((s) => s.url) : [])));
-  ok(teachUrls.has(c.source), `[${c.id}] source 屬於它所教技巧的出處`);
   ok(/^https:\/\//.test(c.source), `[${c.id}] source 是 https 連結`);
 }
 ok(
@@ -3738,19 +3883,45 @@ for (const c of challenges) byKind[kindOf(c.id)].push(c.id);
 eq(challenges.length, EXPECT.challenges.value, `關卡數＝目前的契約（${EXPECT.challenges.value} 關）`);
 eq(byKind.order.length, 2, '兩關改成排序刻印（次序本身就是那一關的課程）');
 eq(byKind.workshop.length, 1, '一關是神諭工坊');
+eq(byKind.fix.length, 4, '四座新神廟是改碑（課程 v2 · Phase B）');
+eq(byKind.spot.length, 3, '三座新神廟是點碑（課程 v2 · Phase B）');
 eq(
   byKind.choice.length,
-  challenges.length - byKind.order.length - byKind.workshop.length,
-  `其餘 ${challenges.length - byKind.order.length - byKind.workshop.length} 關維持石碑刻印`
+  challenges.length - byKind.order.length - byKind.workshop.length - byKind.fix.length - byKind.spot.length,
+  `其餘 ${challenges.length - byKind.order.length - byKind.workshop.length - byKind.fix.length - byKind.spot.length} 關維持石碑刻印`
 );
 eq(byKind.order.sort().join(','), 'long-scroll-tower-23,priority-stair-42', '改成排序的是那兩關');
 eq(byKind.workshop.join(','), 'oracle-workshop-36', '神諭工坊是那一關');
+eq(
+  byKind.fix.slice().sort().join(','),
+  'empty-handed-envoy-14,first-rail-10,measuring-table-08,nightwatch-relief-07',
+  '改碑是那四座'
+);
+eq(byKind.spot.slice().sort().join(','), 'nodding-courier-09,parts-wall-16,shout-stone-11', '點碑是那三座');
+/*
+ * C4（題型要變奏）：同一區裡不得連續三座用同一種題型。
+ *
+ * 只對**課程 v2 新蓋的神廟**成立 —— 既有 27 關的題型換裝（例如 §4 指定
+ * postbox-sprite-02 由 choice 換成 order）屬於各關自己的改造，不在這一期的範圍，
+ * 那六關目前仍然全是 choice。等它們改造完就把這裡放開成整區。
+ */
+for (const g of curriculum.groups) {
+  const inRegion = challenges.filter((c) => c.region === g.id && c.primarySkillId).map((c) => kindOf(c.id));
+  if (inRegion.length < 3) continue;
+  let run = 1;
+  let worst = 1;
+  for (let i = 1; i < inRegion.length; i += 1) {
+    run = inRegion[i] === inRegion[i - 1] ? run + 1 : 1;
+    if (run > worst) worst = run;
+  }
+  ok(worst <= 2, `[${g.id}] 新神廟沒有連續三座同一種題型（C4）`, inRegion.join(','));
+}
 for (const [id, f] of Object.entries(flowData.flows)) {
   if (!('kind' in f)) continue;
   ok(FLOW_KINDS.includes(f.kind), `[${id}] kind 是合法的題型`, String(f.kind));
 }
 // 換題型不等於把舊資料丟掉：選擇題的流程一律留著當後備
-for (const id of [...byKind.order, ...byKind.workshop]) {
+for (const id of [...byKind.order, ...byKind.workshop, ...byKind.fix, ...byKind.spot]) {
   ok(
     Array.isArray(flowData.flows[id].slots) && flowData.flows[id].slots.length >= 3,
     `[${id}] 仍然留著原本的選擇題流程當後備資料`
@@ -3960,6 +4131,233 @@ for (const id of byKind.order) {
     `${tag} 只挑完工具還不會滿分（後面每一步都還在加分）`,
     `earned=${partial.earned}/${partial.total}`
   );
+}
+
+/* ================================================================== */
+/* 課程 v2 · Phase B step 2：兩種新題型（改碑 / 點碑）                  */
+/*                                                                    */
+/*   核心保證（與 Phase 27 的兩種新題型同一套門檻）：                   */
+/*     1. 相容契約沒變：宣告了 kind 卻沒有對應資料 → 退回石碑刻印       */
+/*     2. 改碑：把畫線的每一句都換對 ＝ 資料層的示範解答，              */
+/*        丟進真的離線引擎每一條檢查都滿分；原本那份壞草稿一定不過關     */
+/*     3. 點碑：把有問題的都挑出來 ＝ 資料層的示範解答，同上；          */
+/*        一片都沒點的時候一定不過關（不然不用玩就過了）                */
+/*     4. 錯的替代寫法／不能動的那一句都有白話中文教學，不自帶連結       */
+/*     5. C1：新神廟恰好一條主檢查 ＋ 至多一條地基，其餘什麼都不掛      */
+/* ================================================================== */
+console.log('\n▸ 改碑與點碑（課程 v2 · Phase B）');
+
+eq(flowKind({ kind: 'fix' }), 'choice', '宣告了 fix 卻沒有 fixFlow → 退回石碑刻印');
+eq(flowKind({ kind: 'fix', fixFlow: {} }), 'choice', 'fixFlow 是空的 → 退回石碑刻印（不會開到空白石碑）');
+eq(flowKind({ kind: 'spot' }), 'choice', '宣告了 spot 卻沒有 spotFlow → 退回石碑刻印');
+eq(flowKind({ kind: 'spot', spotFlow: { slips: [] } }), 'choice', 'spotFlow 沒有石籤 → 退回石碑刻印');
+{
+  const goodFix = {
+    kind: 'fix',
+    fixFlow: {
+      fragments: [
+        { id: 'a', text: '固定的一句。' },
+        { id: 'b', weak: true, text: '壞的一句。', options: [{ text: '好的一句。', correct: true }, { text: '另一句。' }] },
+      ],
+    },
+  };
+  eq(flowKind(goodFix), 'fix', 'fix ＋ 合法的 fixFlow → 改碑');
+  const twoRight = JSON.parse(JSON.stringify(goodFix));
+  twoRight.fixFlow.fragments[1].options[1].correct = true;
+  eq(flowKind(twoRight), 'choice', '一句有兩個正解 → 資料不合契約，退回石碑刻印');
+  const goodSpot = {
+    kind: 'spot',
+    spotFlow: {
+      slips: [
+        { id: 'a', text: '要留的一句。' },
+        { id: 'b', text: '有問題的一句。', bad: true },
+        { id: 'c', text: '也要留的一句。' },
+      ],
+    },
+  };
+  eq(flowKind(goodSpot), 'spot', 'spot ＋ 合法的 spotFlow → 點碑');
+  const allBad = JSON.parse(JSON.stringify(goodSpot));
+  for (const sl of allBad.spotFlow.slips) sl.bad = true;
+  eq(flowKind(allBad), 'choice', '全部都有問題（沒有要留的）→ 退回石碑刻印');
+}
+
+/* --- 改碑 ---------------------------------------------------------- */
+for (const id of byKind.fix) {
+  const tag = `[${id}]`;
+  const c = challenges.find((x) => x.id === id);
+  const ff = flowData.flows[id].fixFlow;
+  ok(ff && typeof ff === 'object', `${tag} 有 fixFlow`);
+  if (!ff) continue;
+
+  ok(nonEmptyStr(ff.ask) && ff.ask.length <= 44, `${tag} 改碑的問題一眼讀得完`, ff.ask);
+  ok(CJK.test(ff.ask), `${tag} 改碑的問題是中文`, ff.ask);
+  ok(!ENGLISH(ff.ask), `${tag} 改碑的問題沒有英文句子`, ENGLISH(ff.ask) || '');
+
+  const frags = ff.fragments;
+  ok(Array.isArray(frags) && frags.length >= 3 && frags.length <= 8, `${tag} 草稿有 3–8 句`, `n=${frags.length}`);
+  eq(new Set(frags.map((f) => f.id)).size, frags.length, `${tag} 句子的 id 沒有重複`);
+  const weak = frags.filter((f) => f.weak);
+  ok(weak.length >= 2, `${tag} 至少兩句要改（一句就不叫改碑了）`, `n=${weak.length}`);
+  ok(weak.length < frags.length, `${tag} 一定有不用動的句子（不然就不是「修」而是重寫）`);
+  for (const f of frags) {
+    ok(nonEmptyStr(f.text), `${tag} 句子「${f.id}」有內容`);
+    ok(!/https?:\/\//.test(f.text), `${tag} 句子「${f.id}」不自帶連結（出處只在 rubric 與圖鑑）`);
+    ok(!ENGLISH(f.text), `${tag} 句子「${f.id}」沒有英文句子`, ENGLISH(f.text) || '');
+    if (!f.weak) continue;
+    ok(nonEmptyStr(f.ask) && f.ask.length <= 32, `${tag} 句子「${f.id}」有一句短問題`, f.ask);
+    ok(CJK.test(f.ask), `${tag} 句子「${f.id}」的問題是中文`, f.ask);
+    const opts = f.options;
+    ok(Array.isArray(opts) && opts.length >= 2 && opts.length <= 3, `${tag} 句子「${f.id}」有 2–3 個替代寫法`);
+    const rights = opts.filter((o) => o.correct);
+    eq(rights.length, 1, `${tag} 句子「${f.id}」剛好一個正解`);
+    for (const [j, oo] of opts.entries()) {
+      ok(typeof oo.text === 'string', `${tag} 句子「${f.id}」替代寫法 ${j + 1} 有 text 欄位`);
+      // 空字串＝「整句拿掉」，畫面上要有看得懂的標籤
+      if (!oo.text.trim()) {
+        ok(oo.correct, `${tag} 句子「${f.id}」只有正解可以是「整句拿掉」`);
+        ok(nonEmptyStr(oo.label) && CJK.test(oo.label), `${tag} 句子「${f.id}」的「拿掉」有中文標籤`, oo.label);
+      }
+      ok(!/https?:\/\//.test(oo.text || ''), `${tag} 句子「${f.id}」替代寫法 ${j + 1} 不自帶連結`);
+      ok(!ENGLISH(oo.text || ''), `${tag} 句子「${f.id}」替代寫法 ${j + 1} 沒有英文句子`, ENGLISH(oo.text || '') || '');
+      if (oo.correct) continue;
+      const fb = String(oo.feedback || '');
+      ok(fb.trim().length >= 12, `${tag} 句子「${f.id}」錯的替代寫法有教學回饋`, fb);
+      ok(CJK.test(fb) && !ENGLISH(fb), `${tag} 句子「${f.id}」的教學回饋是中文`, fb);
+      ok(!/https?:\/\//.test(fb), `${tag} 句子「${f.id}」的教學回饋不自帶連結`);
+      ok((oo.text || '').trim() !== (rights[0].text || '').trim(), `${tag} 句子「${f.id}」錯的寫法不是正解的複製`);
+      ok((oo.text || '').trim() !== f.text.trim(), `${tag} 句子「${f.id}」錯的寫法不是原句的複製`);
+    }
+  }
+
+  /* 地基：全部換對 ＝ 資料層的示範解答，而且每一條檢查滿分 */
+  const mended = frags
+    .map((f) => (f.weak ? f.options.find((o) => o.correct).text : f.text))
+    .filter((t) => String(t || '').trim().length > 0)
+    .join('\n');
+  eq(mended, c.sample, `${tag} 改好的整段文字＝資料層的示範解答`);
+  const mev = evaluate(c, mended);
+  ok(mev.passed, `${tag} 改好就過關`, `earned=${mev.earned}/${mev.total} pass=${c.pass}`);
+  eq(mev.grade, 'S', `${tag} 改好拿到 S（改碑的地基）`);
+  ok(
+    mev.results.every((r) => r.passed),
+    `${tag} 改好時每一條檢查都滿分`,
+    mev.results.filter((r) => !r.passed).map((r) => r.check).join('、')
+  );
+  /*
+   * 原本那份壞草稿一定「還沒學到東西」：這一關教的那一條拿不到滿分、評價進不了 A。
+   * （刻意不寫成「一定不過關」—— 門檻本來就寬到總權重的一半，而且在改碑模式下
+   *   手掌印要等每一句都換好才會出現，草稿根本送不出去。真正要守的是「素材真的需要動手改」。）
+   */
+  const draft = frags.map((f) => f.text).join('\n');
+  const dev = evaluate(c, draft);
+  const primaryCheck = c.rubric.find((r) => r.primary).check;
+  ok(
+    !dev.results.find((r) => r.check === primaryCheck).passed,
+    `${tag} 壞草稿還沒做到「這一關教的」那一條（${primaryCheck}）`,
+    `score=${dev.results.find((r) => r.check === primaryCheck).score}`
+  );
+  ok(!['S', 'A'].includes(dev.grade), `${tag} 壞草稿的評價進不了 A（真的要動手改）`, `grade=${dev.grade} earned=${dev.earned}/${dev.total}`);
+}
+
+/* --- 點碑 ---------------------------------------------------------- */
+for (const id of byKind.spot) {
+  const tag = `[${id}]`;
+  const c = challenges.find((x) => x.id === id);
+  const sf = flowData.flows[id].spotFlow;
+  ok(sf && typeof sf === 'object', `${tag} 有 spotFlow`);
+  if (!sf) continue;
+
+  ok(nonEmptyStr(sf.ask) && sf.ask.length <= 44, `${tag} 點碑的問題一眼讀得完`, sf.ask);
+  ok(CJK.test(sf.ask), `${tag} 點碑的問題是中文`, sf.ask);
+  ok(!ENGLISH(sf.ask), `${tag} 點碑的問題沒有英文句子`, ENGLISH(sf.ask) || '');
+
+  const slips = sf.slips;
+  ok(Array.isArray(slips) && slips.length >= 4 && slips.length <= 8, `${tag} 檯上有 4–8 片石籤`, `n=${slips.length}`);
+  eq(new Set(slips.map((x) => x.id)).size, slips.length, `${tag} 石籤 id 沒有重複`);
+  const bad = slips.filter((x) => x.bad);
+  const keep = slips.filter((x) => !x.bad);
+  ok(bad.length >= 2, `${tag} 至少兩片有問題`, `n=${bad.length}`);
+  ok(keep.length >= 2, `${tag} 至少兩片要留著（其中一片就是那個「轉」）`, `n=${keep.length}`);
+  for (const sl of slips) {
+    ok(nonEmptyStr(sl.text), `${tag} 石籤「${sl.id}」有內容`);
+    ok(!/https?:\/\//.test(sl.text), `${tag} 石籤「${sl.id}」不自帶連結`);
+    ok(!ENGLISH(sl.text), `${tag} 石籤「${sl.id}」沒有英文句子`, ENGLISH(sl.text) || '');
+    if (sl.bad) {
+      if (typeof sl.replace === 'string') {
+        ok(sl.replace.trim().length > 0, `${tag} 石籤「${sl.id}」的改寫版有內容`);
+        ok(sl.replace.trim() !== sl.text.trim(), `${tag} 石籤「${sl.id}」的改寫版跟原句不一樣`);
+        ok(!ENGLISH(sl.replace), `${tag} 石籤「${sl.id}」的改寫版沒有英文句子`, ENGLISH(sl.replace) || '');
+      }
+      continue;
+    }
+    // 不能動的那一片一定要說得出「為什麼要留」（點到它就是就地教學）
+    const why = String(sl.why || '');
+    ok(why.trim().length >= 12, `${tag} 石籤「${sl.id}」說得出為什麼要留著`, why);
+    ok(CJK.test(why) && !ENGLISH(why), `${tag} 石籤「${sl.id}」的說明是中文`, why);
+    ok(!/https?:\/\//.test(why), `${tag} 石籤「${sl.id}」的說明不自帶連結`);
+  }
+
+  /* 地基：把有問題的都挑出來 ＝ 資料層的示範解答，而且每一條檢查滿分 */
+  const cleaned = slips
+    .map((x) => (x.bad ? (typeof x.replace === 'string' ? x.replace : '') : x.text))
+    .filter((t) => String(t || '').trim().length > 0)
+    .join('\n');
+  eq(cleaned, c.sample, `${tag} 挑乾淨之後的整段文字＝資料層的示範解答`);
+  const cev = evaluate(c, cleaned);
+  ok(cev.passed, `${tag} 挑乾淨就過關`, `earned=${cev.earned}/${cev.total} pass=${c.pass}`);
+  eq(cev.grade, 'S', `${tag} 挑乾淨拿到 S（點碑的地基）`);
+  ok(
+    cev.results.every((r) => r.passed),
+    `${tag} 挑乾淨時每一條檢查都滿分`,
+    cev.results.filter((r) => !r.passed).map((r) => r.check).join('、')
+  );
+  /* 一片都沒點的時候「還沒學到東西」（理由同改碑：手掌印要挑完才出現） */
+  const raw = slips.map((x) => x.text).join('\n');
+  const rev = evaluate(c, raw);
+  const primarySpot = c.rubric.find((r) => r.primary).check;
+  ok(
+    !rev.results.find((r) => r.check === primarySpot).passed,
+    `${tag} 一片都沒點時還沒做到「這一關教的」那一條（${primarySpot}）`,
+    `score=${rev.results.find((r) => r.check === primarySpot).score}`
+  );
+  ok(!['S', 'A'].includes(rev.grade), `${tag} 一片都沒點的評價進不了 A（真的要挑）`, `grade=${rev.grade} earned=${rev.earned}/${rev.total}`);
+}
+
+/* --- C1：新神廟只教一條（一條主檢查 ＋ 至多一條地基） --------------- */
+for (const c of challenges.filter((x) => x.primarySkillId)) {
+  const tag = `[${c.id}]`;
+  const primaries = c.rubric.filter((r) => r.primary);
+  const foundations = c.rubric.filter((r) => r.foundation);
+  eq(primaries.length, 1, `${tag} 恰好一條主檢查（C1）`, c.rubric.map((r) => r.check).join('、'));
+  ok(foundations.length <= 1, `${tag} 地基至多一條（C1）`, foundations.map((r) => r.check).join('、'));
+  eq(
+    c.rubric.length,
+    primaries.length + foundations.length,
+    `${tag} rubric 上沒有既不是主檢查也不是地基的雜項（C1）`
+  );
+  for (const f of foundations) eq(f.weight, 0.5, `${tag} 地基 ${f.check} 權重 0.5`);
+  ok(primaries[0].weight >= 1, `${tag} 主檢查權重不會比地基輕`, `weight=${primaries[0].weight}`);
+  ok(!primaries[0].foundation, `${tag} 主檢查不會同時是地基`);
+  eq(primaries[0].skillId, c.primarySkillId, `${tag} 主檢查那一列掛的是這一關的 v2 技能`);
+  eq(c.primaryTechniqueId, null, `${tag} 課程 v2 的神廟不掛舊 68 條的主技巧（收集走 skillsV2）`);
+  // 第二幕的神諭原典接得出真實文件名 ＋ 可點連結（護欄 2）
+  const src = zhContent.sourceForSkill(c.primarySkillId);
+  ok(src && /^https:\/\//.test(src.url), `${tag} 主技能有可點的官方出處`, src ? src.url : '');
+  ok(src && nonEmptyStr(src.name) && src.name !== src.url, `${tag} 神諭原典顯示的是文件名不是網址`, src ? src.name : '');
+}
+/* 撰寫基本功這一區已經長到 curriculum-v2 §3 的規模 */
+eq(
+  challenges.filter((c) => c.region === 'foundations').length,
+  EXPECT.foundationsShrines.value,
+  `撰寫基本功有 ${EXPECT.foundationsShrines.value} 關`
+);
+{
+  const foundationSkills = challenges
+    .filter((c) => c.region === 'foundations' && c.primarySkillId)
+    .map((c) => c.primarySkillId);
+  const regionSkillIds = new Set(catalog.regionSkills('foundations').map((s) => s.id));
+  for (const id of foundationSkills) ok(regionSkillIds.has(id), `[foundations] 神廟教的 ${id} 真的屬於這一區`);
+  eq(new Set(foundationSkills).size, foundationSkills.length, '[foundations] 每條技能只有一座神廟（C2）');
 }
 
 // 模式字串的正規化（與存檔那一層同一個規則）
@@ -4882,6 +5280,55 @@ ok(/onOpenKeyHelp/.test(mainSrc), '設定頁的入口真的接到操作一覽');
 
 
 /* ================================================================== */
+/* ================================================================== */
+/* 課程 v2 · Phase B step 2：技能收集（skillsV2）                      */
+/*                                                                    */
+/*   為什麼另開一欄：`collected` 存的是舊 68 條技巧的 id，圖鑑／徽章／  */
+/*   稱號／隱藏成就都依它算；v2 的 130 條技能有一半以上在舊 68 條裡     */
+/*   沒有祖先，混進去會讓那些數字失真。所以純加法多一欄，兩邊各記各的。 */
+/* ================================================================== */
+console.log('\n▸ 技能收集（課程 v2 · Phase B）');
+
+{
+  eq(SaveIO.defaultSave().skillsV2.length, 0, '新存檔的 skillsV2 是空的');
+  const old = SaveIO.normalize({ version: 1, xp: 420, collected: ['clarity-01'], badges: { openai: 2 } });
+  ok(Array.isArray(old.skillsV2), '舊存檔沒有 skillsV2 → 補成空陣列（不是 undefined）');
+  eq(old.skillsV2.length, 0, '補出來的是空陣列');
+  eq(SaveIO.normalize({ skillsV2: ['a', 'a', 7, 'b'] }).skillsV2.length, 2, 'skillsV2 去重並丟掉非字串');
+  eq(old.xp, 420, '新欄位不影響 XP');
+  eq(old.collected.length, 1, '新欄位不影響圖鑑');
+  eq(old.badges.openai, 2, '新欄位不影響徽章');
+
+  memory.clear();
+  const prog = createProgression({ curriculum, challenges });
+  const shrine = challenges.find((c) => c.primarySkillId === 'clear-scope');
+  ok(Boolean(shrine), '找得到「只漆了第一節的欄杆」那座神廟');
+  const before = prog.state.collected.length;
+  const out = prog.recordResult(evaluate(shrine, shrine.sample));
+  ok(out.bestGrade === 'S', '示範解答通關拿 S', String(out.bestGrade));
+  ok(prog.isSkillCollected('clear-scope'), '通關之後這條 v2 技能被收進 skillsV2');
+  eq(out.newlySkills.join(','), 'clear-scope', '結算會報出新收集到的技能');
+  eq(
+    prog.state.collected.length,
+    before,
+    '這座神廟的 v2 技能在舊 68 條裡沒有祖先 → 舊圖鑑一條都沒有多（收集面不被灌水）'
+  );
+  // 重玩不會重複記
+  prog.recordResult(evaluate(shrine, shrine.sample));
+  eq(prog.state.skillsV2.filter((x) => x === 'clear-scope').length, 1, '重玩同一座神廟不會重複記技能');
+
+  // 有祖先的神廟：兩邊都要記（D2 的語意）
+  const withLegacy = challenges.find((c) => c.primarySkillId === 'clear-golden');
+  const out2 = prog.recordResult(evaluate(withLegacy, withLegacy.sample));
+  ok(prog.isSkillCollected('clear-golden'), '有祖先的神廟一樣把技能記進 skillsV2');
+  ok(prog.state.collected.includes('clarity-01'), '同時把 legacy 技巧收進舊圖鑑（D2：收集不倒退）');
+  ok(out2.newlyCollected.includes('clarity-01'), '結算也報出新收集到的 legacy 技巧');
+
+  // 重置清得乾淨
+  prog.resetAll();
+  eq(prog.state.skillsV2.length, 0, '重置會清掉已收集的技能');
+}
+
 /* Phase 29a：橋上的門會問你（先行前往）                              */
 /* ================================================================== */
 console.log('\n▸ 先行前往（詢問式閘門）');
@@ -5143,12 +5590,17 @@ console.log('\n▸ 課程 v2 遷移契約（Phase 0／A）');
   const migration = readJson('docs/design/curriculum-v2-migration.json');
   const rows = migration.challenges;
 
-  eq(rows.length, EXPECT.challenges.value, `manifest 有 ${EXPECT.challenges.value} 關（一關都不能少）`);
+  /*
+   * manifest 是「既有 27 關的遷移契約」，不是關卡總表 ——
+   * 課程 v2 之後新蓋的神廟（有 primarySkillId）不在它管的範圍內。
+   */
+  const legacyChallenges = challenges.filter((c) => !c.primarySkillId);
+  eq(rows.length, EXPECT.legacyChallenges.value, `manifest 有 ${EXPECT.legacyChallenges.value} 關（既有關卡一關都不能少）`);
   eq(migration.authored, 'game', 'manifest 標成遊戲自撰（它是實作契約，不是官方引文）');
 
   // id 與現況資料逐一對得起來（順序也一樣）
-  const liveIds = challenges.map((c) => c.id);
-  eq(rows.map((r) => r.id).join(','), liveIds.join(','), 'manifest 的 id 與 challenges.json 完全一致（含順序）');
+  const liveIds = legacyChallenges.map((c) => c.id);
+  eq(rows.map((r) => r.id).join(','), liveIds.join(','), 'manifest 的 id 與既有 27 關完全一致（含順序）');
 
   // D1：處置分佈 —— 逐關表算出來的真實數字是 5 保留／20 改造／2 應用關
   const tally = rows.reduce((acc, r) => ((acc[r.disposition] = (acc[r.disposition] || 0) + 1), acc), {});
@@ -5181,9 +5633,31 @@ console.log('\n▸ 課程 v2 遷移契約（Phase 0／A）');
     [...specBlock.matchAll(/^\| `([A-Za-z][A-Za-z0-9]*)` \|/gm)].map((m) => m[1])
   );
   eq(V2_NEW_CHECKERS.size, 59, 'curriculum-v2 §7.4 列出 59 個新檢查器');
+  /*
+   * §7.4 的 59 個一開始一個都還沒實作；每一期只開當期神廟需要的那幾個
+   * （Phase B 開了五個）。真正要守的是「清單跟 Phase A 之前的既有 22 個不重疊」——
+   * 那 22 個是課程 v2 開工前就有的檢查器，逐字寫在 §7.4 的「沿用既有檢查器」那一行。
+   */
+  const REUSED_22 = new Set(
+    (v2doc.match(/\*\*沿用既有檢查器\*\*：22 個 — (.+)/) || [, ''])[1]
+      .split('、')
+      .map((x) => x.replace(/`/g, '').trim())
+      .filter(Boolean)
+  );
+  eq(REUSED_22.size, 22, '§7.4 的「沿用既有檢查器」剛好 22 個');
   ok(
-    [...V2_NEW_CHECKERS].every((id) => !checkIds.has(id)),
-    '§7.4 的新檢查器沒有一個是既有的 22 個（清單沒有重疊）'
+    [...REUSED_22].every((id) => checkIds.has(id)),
+    '那 22 個沿用的檢查器今天都還在'
+  );
+  ok(
+    [...V2_NEW_CHECKERS].every((id) => !REUSED_22.has(id)),
+    '§7.4 的新檢查器沒有一個是那 22 個（清單沒有重疊）'
+  );
+  const V2_LANDED = [...V2_NEW_CHECKERS].filter((id) => checkIds.has(id));
+  eq(
+    V2_LANDED.slice().sort().join(','),
+    EXPECT.v2CheckersLanded.value.slice().sort().join(','),
+    `已經實作的新檢查器就是 expected-counts 登記的那幾個（${EXPECT.v2CheckersLanded.value.join(' / ')}）`
   );
 
   for (const r of rows) {
@@ -5341,7 +5815,7 @@ console.log('\n▸ 課程 v2 遷移契約（Phase 0／A）');
   }
 
   /* 全域統計：manifest 記的基線要跟現況資料對得上 */
-  eq(migration.baseline.challenges, challenges.length, 'manifest 的關卡數基線正確');
+  eq(migration.baseline.challenges, legacyChallenges.length, 'manifest 的關卡數基線正確（既有 27 關）');
   /*
    * baseline 是 Phase 0 的快照（118 條），Phase A 之後現況會少：
    *   −1  silent-thinker-13 的 specifiesFormat 直接移除
@@ -5351,9 +5825,9 @@ console.log('\n▸ 課程 v2 遷移契約（Phase 0／A）');
    */
   eq(migration.baseline.rubricRows, 118, 'manifest 記的是 Phase 0 的 rubric 條數基線（118，不是舊文件的 106）');
   eq(
-    challenges.reduce((s, c) => s + c.rubric.length, 0),
+    legacyChallenges.reduce((s, c) => s + c.rubric.length, 0),
     113,
-    'Phase A 之後現況是 113 條 rubric（118 − 1 移除 − 5 替換 + 1 承接）'
+    'Phase A 之後既有 27 關是 113 條 rubric（118 − 1 移除 − 5 替換 + 1 承接）'
   );
   eq(migration.baseline.curriculumTechniques, curriculum.techniques.length, 'manifest 的技巧數基線正確');
   eq(migration.baseline.curriculumSha256, CURRICULUM_SHA256, 'manifest 記的 curriculum 指紋與實檔一致');
@@ -5458,7 +5932,8 @@ console.log('\n▸ 小數門檻的顯示與「一關只教一條」（Phase A）
     const collected = new Set(challenges.flatMap((c) => c.teaches));
     eq(collected.size, curriculum.techniques.length, 'Phase A 之後 27 關的 teaches 仍然收得滿 68 條');
     for (const c of challenges) {
-      ok(c.teaches.length > 0, `[${c.id}] 仍然有 legacy 收集清單`);
+      // 課程 v2 的神廟收集走 skillsV2；只有舊 27 關才必須有 legacy 收集清單
+      if (!c.primarySkillId) ok(c.teaches.length > 0, `[${c.id}] 仍然有 legacy 收集清單`);
       if (c.primaryTechniqueId) {
         ok(
           techById.has(c.primaryTechniqueId),
@@ -5473,8 +5948,11 @@ console.log('\n▸ 小數門檻的顯示與「一關只教一條」（Phase A）
     }
     // 主技巧彼此不重複（C2：一條技巧只教一次）
     const primaries = challenges.map((c) => c.primaryTechniqueId).filter(Boolean);
-    eq(new Set(primaries).size, primaries.length, '25 條主技巧互不重複（C2）');
-    eq(primaries.length, 25, '25 關有主技巧、2 關應用關沒有');
+    eq(new Set(primaries).size, primaries.length, '主技巧互不重複（C2）');
+    eq(primaries.length, 25, '既有 27 關裡 25 關有主技巧、2 關應用關沒有');
+    // 課程 v2 的神廟：主技能也一樣一條只教一次
+    const skillPrimaries = challenges.map((c) => c.primarySkillId).filter(Boolean);
+    eq(new Set(skillPrimaries).size, skillPrimaries.length, 'v2 主技能互不重複（C2）');
   }
 }
 

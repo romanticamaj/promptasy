@@ -436,6 +436,87 @@ export function runPlaytestVerify({ ok, eq }) {
     );
   }
 
+  /* --- F2：課程 v2 的兩種新題型（改碑 / 點碑）也是「做對＝完美」 --- */
+  const fixIds = [];
+  const spotIds = [];
+  for (const [id, f] of Object.entries(flowFile.flows)) {
+    if (f.kind === 'fix' && f.fixFlow) fixIds.push(id);
+    if (f.kind === 'spot' && f.spotFlow) spotIds.push(id);
+  }
+  ok(fixIds.length >= 1, 'playtest：至少有一關是改碑', fixIds.join(','));
+  ok(spotIds.length >= 1, 'playtest：至少有一關是點碑', spotIds.join(','));
+
+  for (const id of fixIds) {
+    const tag = `[${id}]`;
+    const c = byId.get(id);
+    const frags = flowFile.flows[id].fixFlow.fragments;
+    const mended = frags
+      .map((f) => (f.weak ? f.options.find((o) => o.correct).text : f.text))
+      .filter((t) => String(t || '').trim().length > 0)
+      .join('\n');
+    const right = evaluate(c, mended);
+    ok(
+      right.results.every((r) => r.passed),
+      `${tag} playtest：改好時每一條檢查都滿分（改對就是完美）`,
+      right.results.filter((r) => !r.passed).map((r) => `${r.check}=${r.earned}/${r.weight}`).join('、')
+    );
+    eq(mended, c.sample, `${tag} playtest：改好的整段文字就是示範解答（兩種模式同一段字）`);
+    /*
+     * 每一句都要往好的方向走：留著任何一句沒改，分數不會比全部改好更高。
+     * （C1 之後一關只有 1 主檢查 ＋ 1 地基，所以「每一句都必須加分」做不到也不該要求 ——
+     *   有些句子改的是教學上的因果，不是分數。真正要守的是「改了不會變差、漏改不會更好」。）
+     */
+    for (const missed of frags.filter((f) => f.weak)) {
+      const partialText = frags
+        .map((f) => (f.weak && f.id !== missed.id ? f.options.find((o) => o.correct).text : f.text))
+        .filter((t) => String(t || '').trim().length > 0)
+        .join('\n');
+      const ev = evaluate(c, partialText);
+      ok(
+        ev.earned <= right.earned,
+        `${tag} playtest：漏改「${missed.id}」不會比全部改好更高分`,
+        `earned=${ev.earned} vs ${right.earned}`
+      );
+    }
+    // 一句都沒改的草稿一定拿不到滿分（不然這一關不用玩）
+    const rawDraft = evaluate(c, frags.map((f) => f.text).join('\n'));
+    ok(
+      rawDraft.grade !== 'S' && rawDraft.earned < right.earned,
+      `${tag} playtest：一句都沒改的草稿拿不到滿分`,
+      `earned=${rawDraft.earned}/${rawDraft.total} grade=${rawDraft.grade}`
+    );
+  }
+
+  for (const id of spotIds) {
+    const tag = `[${id}]`;
+    const c = byId.get(id);
+    const slips = flowFile.flows[id].spotFlow.slips;
+    const cleaned = slips
+      .map((x) => (x.bad ? (typeof x.replace === 'string' ? x.replace : '') : x.text))
+      .filter((t) => String(t || '').trim().length > 0)
+      .join('\n');
+    const right = evaluate(c, cleaned);
+    ok(
+      right.results.every((r) => r.passed),
+      `${tag} playtest：挑乾淨時每一條檢查都滿分（挑對就是完美）`,
+      right.results.filter((r) => !r.passed).map((r) => `${r.check}=${r.earned}/${r.weight}`).join('、')
+    );
+    eq(cleaned, c.sample, `${tag} playtest：挑乾淨的整段文字就是示範解答（兩種模式同一段字）`);
+    // 漏掉任何一片都還沒完美（不然那一片就是裝飾用的）
+    for (const missed of slips.filter((x) => x.bad)) {
+      const partialText = slips
+        .map((x) => (x.bad && x.id !== missed.id ? (typeof x.replace === 'string' ? x.replace : '') : x.text))
+        .filter((t) => String(t || '').trim().length > 0)
+        .join('\n');
+      const ev = evaluate(c, partialText);
+      ok(
+        ev.earned <= right.earned,
+        `${tag} playtest：漏掉「${missed.id}」不會比全挑出來更高分`,
+        `earned=${ev.earned} vs ${right.earned}`
+      );
+    }
+  }
+
   /* --- D：檢查器回歸案例 --- */
   for (const cse of CHECK_CASES) {
     const out = runCheck(cse.check, cse.text, cse.options || {});

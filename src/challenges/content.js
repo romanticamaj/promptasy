@@ -112,6 +112,12 @@ export function createContent(
   for (const list of Object.values(curriculum.sources || {})) {
     for (const s of list || []) if (s && s.url && !sourceNameByUrl.has(s.url)) sourceNameByUrl.set(s.url, s.name);
   }
+  /* 課程 v2 的技能出處（Phase B）：新蓋的神廟用它們，結果面板一樣要秀文件名不是網址 */
+  for (const sk of catalog.skills || []) {
+    for (const s of sk.sources || []) {
+      if (s && s.url && !sourceNameByUrl.has(s.url)) sourceNameByUrl.set(s.url, s.docName || s.vendor);
+    }
+  }
 
   return {
     curriculum,
@@ -166,6 +172,22 @@ export function createContent(
       const t = techniques.get(techniqueId);
       if (!t || !t.sources || !t.sources.length) return null;
       return t.sources[0];
+    },
+    /**
+     * 課程 v2 的技能出處（Phase B）。
+     *
+     * 新蓋的神廟教的是 `skill-codex-v2.json` 裡的技能，那 130 條的祖先不一定
+     * 存在於舊 68 條裡（`legacyTechniqueId` 可以是 null）。它們的 `sources`
+     * 是**從 master list 的「出處」欄逐條解析出來的真實官方連結**，所以第二幕的
+     * 「神諭原典」照樣接得出真實文件名 ＋ 可點的 https（護欄 2、WORLD.md §3.4）。
+     *
+     * 回傳的形狀刻意跟 `sourceFor()` 一樣（`{ url, name }`），UI 不必分兩套。
+     */
+    sourceForSkill(skillId) {
+      const s = catalog.skill(skillId);
+      const first = s && (s.sources || [])[0];
+      if (!first) return null;
+      return { url: first.url, name: first.docName || first.vendor, vendor: first.vendor };
     },
   };
 }

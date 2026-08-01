@@ -459,6 +459,592 @@
       "source": "https://developers.openai.com/cookbook/examples/gpt-5/gpt-5_prompting_guide"
     },
     {
+      "id": "nightwatch-relief-07",
+      "region": "foundations",
+      "order": 7,
+      "title": "新來的守夜人",
+      "npc": "守夜人 · 木哨",
+      "position": [
+        -25,
+        -47
+      ],
+      "xp": 40,
+      "teaches": [
+        "clarity-01"
+      ],
+      "primaryTechniqueId": null,
+      "primarySkillId": "clear-golden",
+      "scenario": "塔下站著一個今晚第一次值夜的人，手裡捏著上一班留下的交班紙。他抬頭看你：「上面寫『照舊巡一輪』——可是我沒有舊。我不知道要走哪裡、停多久、看什麼。」",
+      "mission": "把守夜人手上這張交班紙，重寫成一段「今晚第一次值夜的人拿了就走得完」的 prompt。",
+      "craft": "把「照舊」「重點那幾個」這種要靠猜的說法，換成寫得出來的地點、次數與時間；補過頭的身世就整段拿掉。",
+      "material": {
+        "label": "上一班留下的交班紙",
+        "text": "照舊巡一輪，重點那幾個地方多看一下。老規矩，你知道的。"
+      },
+      "clue": "塔壁上刻著一行字：一句話裡只要出現「照舊、那幾個、上次那樣」，就代表你把知識留在自己腦袋裡了。",
+      "starter": "照舊巡一輪，重點那幾個地方多看一下就好。",
+      "placeholder": "例如：請巡一輪，路線是＿＿、＿＿、＿＿。在＿＿各停留＿＿分鐘，檢查＿＿。",
+      "quickFills": [
+        {
+          "label": "寫出路線",
+          "text": "請巡一輪，路線是北門哨塔、井邊、糧倉後巷、東橋。"
+        },
+        {
+          "label": "寫出停留",
+          "text": "每一站各停留 5 分鐘，檢查有沒有積水與破口。"
+        },
+        {
+          "label": "寫出交班",
+          "text": "巡完在交班簿上寫一行紀錄。"
+        }
+      ],
+      "sample": "請巡一輪，路線是北門哨塔、井邊、糧倉後巷、東橋。\n井邊和糧倉後巷各停留 5 分鐘，檢查有沒有積水與破口。\n巡完在交班簿上寫一行紀錄。",
+      "rubric": [
+        {
+          "check": "noUndefinedReference",
+          "weight": 3,
+          "primary": true,
+          "techniqueId": "clarity-01",
+          "skillId": "clear-golden"
+        },
+        {
+          "check": "assignsTask",
+          "weight": 0.5,
+          "foundation": true,
+          "techniqueId": "clarity-02"
+        }
+      ],
+      "pass": 2,
+      "source": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#be-clear-and-direct"
+    },
+    {
+      "id": "measuring-table-08",
+      "region": "foundations",
+      "order": 8,
+      "title": "量繩之桌",
+      "npc": "量繩人 · 麻結",
+      "position": [
+        25,
+        -46
+      ],
+      "xp": 40,
+      "teaches": [
+        "clarity-03"
+      ],
+      "primaryTechniqueId": null,
+      "primarySkillId": "clear-constraint",
+      "scenario": "長桌上攤著三條繩子，一條也沒有刻度。桌邊的量繩人把三張便條推過來：「抄寫人要我照這三張量。你告訴我，『簡短』要在繩子上打結打在哪裡？」",
+      "mission": "把桌上這三張沒有刻度的便條，改寫成一段量得出來的 prompt。",
+      "craft": "每一條要求都換成一個帶單位的數字；兩條互相打架時，寫清楚哪一條可以讓。",
+      "material": {
+        "label": "壓在停水公告上的三張便條",
+        "text": "這則停水公告：請寫得簡短。請寫得正式。請寫得完整。"
+      },
+      "clue": "桌角刻著：形容詞量不出來，數字才量得出來。「短一點」不是限制，「3 句話以內」才是。",
+      "starter": "請寫得簡短一點、正式一點、也完整一點。",
+      "placeholder": "例如：長度限制：不超過＿＿句話。語氣限制：＿＿。內容限制：＿＿三項都要寫到。",
+      "quickFills": [
+        {
+          "label": "寫出任務",
+          "text": "請把下面這則停水公告改寫一次。"
+        },
+        {
+          "label": "量出長度",
+          "text": "長度限制：不超過 3 句話，每句不超過 20 個字。"
+        },
+        {
+          "label": "量出內容",
+          "text": "內容限制：停水日期、影響範圍、替代取水點三項都要寫到。"
+        }
+      ],
+      "sample": "請把下面這則停水公告重新改寫。\n長度限制：不超過 3 句話，每句不超過 20 個字。\n語氣限制：用第三人稱書面體，不出現口語的語助詞。\n內容限制：停水日期、影響範圍、替代取水點三項都要寫到。\n三條打架時以 3 句話為上限，先砍語氣的修飾，保留那三項資訊。",
+      "rubric": [
+        {
+          "check": "hasConstraint",
+          "weight": 3,
+          "primary": true,
+          "techniqueId": "clarity-03",
+          "skillId": "clear-constraint"
+        },
+        {
+          "check": "assignsTask",
+          "weight": 0.5,
+          "foundation": true,
+          "techniqueId": "clarity-02"
+        }
+      ],
+      "pass": 2,
+      "source": "https://ai.google.dev/gemini-api/docs/prompting-strategies#constraints"
+    },
+    {
+      "id": "nodding-courier-09",
+      "region": "foundations",
+      "order": 9,
+      "title": "只會點頭的信差",
+      "npc": "信差 · 藺草",
+      "position": [
+        -51,
+        14
+      ],
+      "xp": 40,
+      "teaches": [
+        "agentic-04"
+      ],
+      "primaryTechniqueId": null,
+      "primarySkillId": "clear-imperative",
+      "scenario": "信差跑了三趟，三趟都空手回來。他把石籤攤在檯上：「我每一句都照著唸了，可是它每次都回我『這是個好主意』——然後就沒有然後了。」",
+      "mission": "把檯上這幾句話改成信差交得出成品的指令。",
+      "craft": "把「你可以考慮」「要不要」這種徵詢句換成祈使句；帶著真限制的那一句要留著。",
+      "material": {
+        "label": "信差帶回來的回覆",
+        "text": "這是個好主意，你可以考慮做一份取水清單。或許可以想想要不要順便通知河對岸。不知道這樣做好不好？"
+      },
+      "clue": "檯上壓著一句話：徵詢句換來的是建議，祈使句換來的才是成品。看得出哪一句只是在問嗎？",
+      "starter": "你可以考慮幫我想想要不要做一份取水清單。",
+      "placeholder": "例如：請做出一份＿＿。清單上要有＿＿。請一併＿＿。整份在同一張紙上，最多＿＿行。",
+      "quickFills": [
+        {
+          "label": "換成祈使句",
+          "text": "請做出一份取水清單。"
+        },
+        {
+          "label": "寫出內容",
+          "text": "清單上要有每一戶的門牌與取水時間。"
+        },
+        {
+          "label": "寫出份量",
+          "text": "整份清單在同一張紙上，最多 12 行。"
+        }
+      ],
+      "sample": "請做出一份取水清單。\n清單上要有每一戶的門牌與取水時間。\n請一併通知河對岸那三戶。\n請直接把寫好的清單交給我。\n整份清單在同一張紙上，最多 12 行。",
+      "rubric": [
+        {
+          "check": "assignsTask",
+          "weight": 3,
+          "primary": true,
+          "techniqueId": "clarity-02",
+          "skillId": "clear-imperative"
+        },
+        {
+          "check": "hasConstraint",
+          "weight": 0.5,
+          "foundation": true,
+          "techniqueId": "clarity-03"
+        }
+      ],
+      "pass": 2,
+      "source": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#tool-usage"
+    },
+    {
+      "id": "first-rail-10",
+      "region": "foundations",
+      "order": 10,
+      "title": "只漆了第一節的欄杆",
+      "npc": "油漆匠 · 松脂",
+      "position": [
+        49,
+        20
+      ],
+      "xp": 40,
+      "teaches": [],
+      "primaryTechniqueId": null,
+      "primarySkillId": "clear-scope",
+      "scenario": "橋上第一節欄杆是暖白色的，第二節開始全是舊木色。油漆匠蹲在那裡收工具：「施工單上寫『把欄杆漆成暖白色』——欄杆我漆了啊。它又沒說每一節都要。」",
+      "mission": "把這張施工單改寫成一段「範圍不會被誤讀」的 prompt。",
+      "craft": "一句話講清楚這條規矩涵蓋到哪裡，再一句話講清楚哪裡不算。",
+      "material": {
+        "label": "抄寫人的施工單",
+        "text": "把欄杆漆成暖白色。"
+      },
+      "clue": "橋頭釘著一塊牌子：新的抄寫員照字面做事，不會替你類推。「每一節都要」要自己說出口。",
+      "starter": "請把橋上的欄杆漆成暖白色，先漆看得到的那一段就好。",
+      "placeholder": "例如：請把＿＿漆成＿＿。適用範圍：＿＿每一節都要＿＿。例外：＿＿不漆。",
+      "quickFills": [
+        {
+          "label": "寫出任務",
+          "text": "請把這座橋的欄杆漆成暖白色。"
+        },
+        {
+          "label": "框出範圍",
+          "text": "適用範圍：從南端到北端每一節欄杆都要漆，不是只漆第一節。"
+        },
+        {
+          "label": "框出例外",
+          "text": "例外：橋面踏板與扶手上的銅件不漆，維持原色。"
+        }
+      ],
+      "sample": "請把這座橋的欄杆漆成暖白色。\n適用範圍：從南端到北端每一節欄杆都要漆，不是只漆第一節。\n例外：橋面踏板與扶手上的銅件不漆，維持原色。\n漆完在施工單上蓋章。",
+      "rubric": [
+        {
+          "check": "statesScope",
+          "weight": 3,
+          "primary": true,
+          "techniqueId": "clarity-04",
+          "skillId": "clear-scope"
+        },
+        {
+          "check": "assignsTask",
+          "weight": 0.5,
+          "foundation": true,
+          "techniqueId": "clarity-02"
+        }
+      ],
+      "pass": 2,
+      "source": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5#more-literal-instruction-following"
+    },
+    {
+      "id": "shout-stone-11",
+      "region": "foundations",
+      "order": 11,
+      "title": "喊破喉嚨的擴音石",
+      "npc": "傳話人 · 銅環",
+      "position": [
+        -23,
+        48
+      ],
+      "xp": 40,
+      "teaches": [],
+      "primaryTechniqueId": null,
+      "primarySkillId": "clear-no-pressure",
+      "scenario": "廣場中央那顆石頭正把同一句話喊第三遍，喊到石縫都裂了。傳話人摀著耳朵：「我加了三個驚嘆號、還說要請它喝茶——它反而寫得更差。」",
+      "mission": "把石頭上這段委託裡沒有資訊的話點掉，留下能讓它做對事的那幾句。",
+      "craft": "喊、求、催、送禮都不會讓它做得更好；帶著時間或長度的那一句要留著。",
+      "material": {
+        "label": "刻在擴音石上的委託",
+        "text": "拜託拜託，這件事真的很急！！！我求你了，做得好我請你喝茶。重要！重要！重要！"
+      },
+      "clue": "石頭底座刻著一行小字：一句話拿掉之後，它還做得出一樣的東西嗎？做得出來，那句就是雜訊。",
+      "starter": "拜託拜託，這件事真的很急！！！請把公告改寫一下，做得好我請你喝茶。",
+      "placeholder": "例如：請把＿＿改寫成＿＿。這件事＿＿前要貼出去，所以請寫成＿＿句話以內。",
+      "quickFills": [
+        {
+          "label": "留下任務",
+          "text": "請把下面這份停水公告改寫成告示。"
+        },
+        {
+          "label": "留下真限制",
+          "text": "這件事今天日落前要貼出去，所以請寫成 3 句話以內。"
+        }
+      ],
+      "sample": "請把下面這份停水公告改寫成告示。\n告示要寫出停水的日期與替代取水點。\n這件事今天日落前要貼出去，所以請寫成 3 句話以內。",
+      "rubric": [
+        {
+          "check": "avoidsPressureLanguage",
+          "weight": 3,
+          "primary": true,
+          "techniqueId": "clarity-02",
+          "skillId": "clear-no-pressure"
+        },
+        {
+          "check": "hasConstraint",
+          "weight": 0.5,
+          "foundation": true,
+          "techniqueId": "clarity-03"
+        }
+      ],
+      "pass": 2,
+      "source": "https://developers.openai.com/cookbook/examples/gpt4-1_prompting_guide"
+    },
+    {
+      "id": "wordfork-12",
+      "region": "foundations",
+      "order": 12,
+      "title": "一字之差的岔路",
+      "npc": "路碑 · 雙口",
+      "position": [
+        0,
+        -52
+      ],
+      "xp": 40,
+      "teaches": [],
+      "primaryTechniqueId": null,
+      "primarySkillId": "word-choice",
+      "scenario": "岔路口立著一塊兩面都刻著字的碑，兩條路從碑後分開。碑上寫著同一句話：「請調整這段文字的語言。」左邊那條走去了換字遣詞，右邊那條走去了整篇翻譯。",
+      "mission": "在這段委託裡把「語言」這個詞講死，讓它只剩一條路可以走。",
+      "craft": "先正面說這個詞在這裡是指什麼，再把另一種讀法明確排掉。",
+      "material": {
+        "label": "刻在路碑兩面的同一句話",
+        "text": "請調整這段文字的語言。"
+      },
+      "clue": "碑腳刻著：一個詞有兩種讀法時，模型不會停下來問你 —— 它會自己挑一條走。",
+      "starter": "請調整這段文字的語言，讓它讀起來好一點。",
+      "placeholder": "例如：請把下面這段文字的＿＿調整得更＿＿。這裡說的「＿＿」是指＿＿，不是指＿＿。",
+      "quickFills": [
+        {
+          "label": "寫出任務",
+          "text": "請把下面這段文字的用字遣詞調整得更正式。"
+        },
+        {
+          "label": "把詞講死",
+          "text": "這裡說的「語言」是指用字與語氣，不是指要換成另一種語系。"
+        },
+        {
+          "label": "收住邊界",
+          "text": "請保留原本的中文。"
+        }
+      ],
+      "sample": "請把下面這段文字的用字遣詞調整得更正式。\n這裡說的「語言」是指用字與語氣，不是指要換成另一種語系。\n請保留原本的中文，整段維持一樣的意思。",
+      "rubric": [
+        {
+          "check": "disambiguatesTerms",
+          "weight": 3,
+          "primary": true,
+          "techniqueId": "clarity-03",
+          "skillId": "word-choice"
+        },
+        {
+          "check": "assignsTask",
+          "weight": 0.5,
+          "foundation": true,
+          "techniqueId": "clarity-02"
+        }
+      ],
+      "pass": 2,
+      "source": "https://help.aliyun.com/zh/model-studio/prompt-engineering-guide"
+    },
+    {
+      "id": "silent-foreman-13",
+      "region": "foundations",
+      "order": 13,
+      "title": "不解釋的工頭",
+      "npc": "工頭 · 灰砂",
+      "position": [
+        49,
+        -20
+      ],
+      "xp": 40,
+      "teaches": [
+        "clarity-05"
+      ],
+      "primaryTechniqueId": null,
+      "primarySkillId": "context-why",
+      "scenario": "工地口的木板上釘著一張字條，只有四個字：「把這段縮短。」工頭已經走了。抄寫人縮了三次，三次都被退回來——因為沒有人告訴他這段話最後要拿去做什麼。",
+      "mission": "替工頭那句「把這段縮短」補上理由，讓抄寫人知道該砍哪裡。",
+      "craft": "一句指令配一句動機；動機一變，該留下的東西就跟著變。",
+      "material": {
+        "label": "釘在木板上的字條",
+        "text": "把這段縮短。"
+      },
+      "clue": "木板背面有人補了一行：說出這段話最後要出現在哪裡，它才知道邊界在哪裡。",
+      "starter": "把下面這段說明縮短一點。",
+      "placeholder": "例如：請把＿＿縮短。因為這段話要＿＿，＿＿不能超過＿＿。所以請留下＿＿。",
+      "quickFills": [
+        {
+          "label": "寫出任務",
+          "text": "請把下面這段停水說明縮短。"
+        },
+        {
+          "label": "補上理由",
+          "text": "因為這段話要在市集上大聲唸給排隊的人聽，唸完不能超過 20 秒。"
+        },
+        {
+          "label": "寫出取捨",
+          "text": "所以請留下最要緊的兩項，其餘可以拿掉。"
+        }
+      ],
+      "sample": "請把下面這段停水說明縮短。\n因為這段話要在市集上大聲唸給排隊的人聽，唸完不能超過 20 秒。\n所以請留下停水時間與取水地點，其餘可以拿掉。",
+      "rubric": [
+        {
+          "check": "explainsWhy",
+          "weight": 3,
+          "primary": true,
+          "techniqueId": "clarity-05",
+          "skillId": "context-why"
+        },
+        {
+          "check": "assignsTask",
+          "weight": 0.5,
+          "foundation": true,
+          "techniqueId": "clarity-02"
+        }
+      ],
+      "pass": 2,
+      "source": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#add-context-to-improve-performance"
+    },
+    {
+      "id": "empty-handed-envoy-14",
+      "region": "foundations",
+      "order": 14,
+      "title": "空手的信使",
+      "npc": "信使 · 白翎",
+      "position": [
+        -9,
+        2
+      ],
+      "xp": 40,
+      "teaches": [],
+      "primaryTechniqueId": null,
+      "primarySkillId": "context-supply",
+      "scenario": "閱覽台前站著一個空著兩手的信使。他張口就問：「今晚誰可以進閱覽室？」——名單在他左手邊的架上，館規貼在他背後的牆上，兩張紙他一張都沒有帶進來。",
+      "mission": "把閱覽台上那兩張紙一起交給它，再問今晚的問題。",
+      "craft": "要它讀的東西必須親手放進來；名單是背景、館規是規則，兩者要分開放。",
+      "material": {
+        "label": "攤在閱覽台上的兩張紙",
+        "text": "名單：柯石、青苔、燈奴、遠客四人今晚登記在冊。／館規：登記在冊者才可進入；帶火者一律不得進入。"
+      },
+      "clue": "閱覽台邊刻著：它讀不到石碑以外的東西。你沒放進來的，它只能自己編。",
+      "starter": "今晚誰可以進閱覽室？名單你自己去查。",
+      "placeholder": "例如：請根據下面提供的＿＿與＿＿，回答＿＿。【名單】＿＿【館規】＿＿",
+      "quickFills": [
+        {
+          "label": "綁定資料",
+          "text": "請根據下面提供的名單與館規，回答今晚誰可以進閱覽室。"
+        },
+        {
+          "label": "放進名單",
+          "text": "【名單】柯石、青苔、燈奴、遠客四人今晚登記在冊。"
+        },
+        {
+          "label": "放進規則",
+          "text": "【館規】登記在冊者才可進入；帶火者一律不得進入。"
+        },
+        {
+          "label": "收住邊界",
+          "text": "請只根據上面這份資料作答，沒有寫到的就說資料裡沒有。"
+        }
+      ],
+      "sample": "請根據下面提供的名單與館規，回答今晚誰可以進閱覽室。\n【名單】柯石、青苔、燈奴、遠客四人今晚登記在冊。\n【館規】登記在冊者才可進入；帶火者一律不得進入。\n請只根據上面這份資料作答，沒有寫到的就說資料裡沒有。\n回答請寫成一句話。",
+      "rubric": [
+        {
+          "check": "groundsInContext",
+          "weight": 3,
+          "primary": true,
+          "techniqueId": "grounding-01",
+          "skillId": "context-supply"
+        },
+        {
+          "check": "assignsTask",
+          "weight": 0.5,
+          "foundation": true,
+          "techniqueId": "clarity-02"
+        }
+      ],
+      "pass": 2,
+      "source": "https://ai.google.dev/gemini-api/docs/prompting-strategies#context"
+    },
+    {
+      "id": "old-tag-store-15",
+      "region": "foundations",
+      "order": 15,
+      "title": "舊標籤的倉庫",
+      "npc": "倉管 · 麻繩",
+      "position": [
+        -43,
+        -31
+      ],
+      "xp": 40,
+      "teaches": [],
+      "primaryTechniqueId": null,
+      "primarySkillId": "struct-xml",
+      "scenario": "倉庫裡每一個箱子都被包了三層標籤，拆到第三層才看得到裡面那張便條。倉管把兩張便條推給你：「抄寫人說標籤越多越安全。可是我現在連東西在哪一層都找不到了。」",
+      "mission": "把倉庫裡這兩張便條重新包一次，讓它一眼看得出哪一張是哪一張。",
+      "craft": "兩份以上的東西一定要各自包一層標籤；同一份東西不要包三層。",
+      "material": {
+        "label": "拆到第三層才看得到的便條",
+        "text": "第一張：水井這週停用三天，請大家先儲水。第二張：東橋今晚封閉，請改走北門。"
+      },
+      "clue": "牆上釘著一句話：標籤是用來分開兩份東西的。只有一份東西的時候，多包的每一層都只是雜訊。",
+      "starter": "請把倉庫裡那兩張便條各寫成一句話的通知。",
+      "placeholder": "例如：請把下面兩張便條各改寫成一句話的通知。<note index=\"1\">＿＿</note>",
+      "quickFills": [
+        {
+          "label": "寫出任務",
+          "text": "請把下面這兩張便條各改寫成一句話的通知。"
+        },
+        {
+          "label": "包第一張",
+          "text": "<note index=\"1\">\n水井這週停用三天，請大家先儲水。\n</note>"
+        },
+        {
+          "label": "包第二張",
+          "text": "<note index=\"2\">\n東橋今晚封閉，請改走北門。\n</note>"
+        },
+        {
+          "label": "說清楚怎麼回",
+          "text": "兩張請分開回覆。"
+        }
+      ],
+      "sample": "請把下面這兩張便條各改寫成一句話的通知。\n<note index=\"1\">\n水井這週停用三天，請大家先儲水。\n</note>\n<note index=\"2\">\n東橋今晚封閉，請改走北門。\n</note>\n兩張請分開回覆，一張一句。",
+      "rubric": [
+        {
+          "check": "hasDelimiters",
+          "weight": 3,
+          "primary": true,
+          "techniqueId": "structure-02",
+          "skillId": "struct-xml"
+        },
+        {
+          "check": "assignsTask",
+          "weight": 0.5,
+          "foundation": true,
+          "techniqueId": "clarity-02"
+        }
+      ],
+      "pass": 2,
+      "source": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#structure-prompts-with-xml-tags"
+    },
+    {
+      "id": "parts-wall-16",
+      "region": "foundations",
+      "order": 16,
+      "title": "零件表",
+      "npc": "拆解人 · 榫頭",
+      "position": [
+        12,
+        8
+      ],
+      "xp": 40,
+      "teaches": [],
+      "primaryTechniqueId": null,
+      "primarySkillId": "struct-anatomy",
+      "scenario": "牆上釘著一份被拆開攤平的舊委託，每一塊都用麻繩吊著，但只有一塊掛了名牌。拆解人指著牆說：「其他幾塊我知道長什麼樣，就是叫不出名字——叫不出名字，下次就拼不回去。」",
+      "mission": "替牆上這幾塊零件各掛一張名牌，把舊委託重新拼成一份看得懂骨架的 prompt。",
+      "craft": "每一段開頭先寫零件名再寫內容；同一個零件不要用兩種叫法各掛一次。",
+      "material": {
+        "label": "釘在牆上的舊委託（已拆開）",
+        "text": "你是一位公告抄寫員。／幫忙把停水的事寫成告示。／井要停三天。／格式：3 個條列重點，每點不超過 20 個字。／對象：寫給第一次來到本鎮的旅人看。／輸出樣子：條列就好。"
+      },
+      "clue": "牆角有一句話：內容跟版面是兩件事。名牌掛好了，下次換一份內容也拼得回去。",
+      "starter": "你是一位公告抄寫員，幫忙把停水的事寫成告示，井要停三天。",
+      "placeholder": "例如：角色：＿＿／任務：＿＿／資料：＿＿／格式：＿＿",
+      "quickFills": [
+        {
+          "label": "掛角色",
+          "text": "角色：你是一位公告抄寫員。"
+        },
+        {
+          "label": "掛任務",
+          "text": "任務：請把下面的停水通知改寫成一則告示。"
+        },
+        {
+          "label": "掛資料",
+          "text": "資料：水井這週停用三天。"
+        },
+        {
+          "label": "掛格式",
+          "text": "格式：3 個條列重點，每點不超過 20 個字。"
+        }
+      ],
+      "sample": "角色：你是一位公告抄寫員。\n任務：請把下面的停水通知改寫成一則告示。\n資料：水井這週停用三天，替代取水點在北門井。\n格式：3 個條列重點，每點不超過 20 個字。\n對象：寫給第一次來到本鎮的旅人看。",
+      "rubric": [
+        {
+          "check": "namesComponents",
+          "weight": 3,
+          "primary": true,
+          "techniqueId": "structure-01",
+          "skillId": "struct-anatomy"
+        },
+        {
+          "check": "assignsTask",
+          "weight": 0.5,
+          "foundation": true,
+          "techniqueId": "clarity-02"
+        }
+      ],
+      "pass": 2,
+      "source": "https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/prompts/prompt-design-strategies#how-to-create-an-effective-prompt"
+    },
+    {
       "id": "example-hall-11",
       "region": "reasoning",
       "order": 11,

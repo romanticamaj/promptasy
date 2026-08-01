@@ -131,6 +131,10 @@ export function createProgression({ catalog = null, curriculum = null, challenge
     },
 
     isCollected: (techniqueId) => state.collected.includes(techniqueId),
+    /** 課程 v2：這條技能收集到了嗎（130 條技能的收集面，與舊 68 條分開記）。 */
+    isSkillCollected: (skillId) => state.skillsV2.includes(skillId),
+    /** 課程 v2：已收集的技能 id（圖鑑之後要列它，現在先讓存檔與進度接得起來）。 */
+    collectedSkills: () => state.skillsV2.slice(),
     bestGrade: (challengeId) => state.bestGrades[challengeId] || null,
 
     isRegionUnlocked(regionId) {
@@ -283,6 +287,7 @@ export function createProgression({ catalog = null, curriculum = null, challenge
         levelAfter: levelBefore,
         leveledUp: false,
         newlyCollected: [],
+        newlySkills: [],
         newlyUnlocked: [],
         previousGrade,
         bestGrade: previousGrade,
@@ -313,6 +318,17 @@ export function createProgression({ catalog = null, curriculum = null, challenge
           state.collected.push(techId);
           outcome.newlyCollected.push(techId);
         }
+      }
+
+      /*
+       * 課程 v2（Phase B）：新蓋的神廟教的是一條 v2 技能。
+       * 有祖先的技巧照舊由上面那個迴圈寫進 `collected`（D2：收集不倒退）；
+       * 技能本身另外記在 `skillsV2` —— 純加法，既有的圖鑑／徽章／稱號一格都不動。
+       */
+      const skillId = challenge.primarySkillId;
+      if (typeof skillId === 'string' && skillId && !state.skillsV2.includes(skillId)) {
+        state.skillsV2.push(skillId);
+        outcome.newlySkills.push(skillId);
       }
 
       recomputeBadges();

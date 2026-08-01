@@ -1440,9 +1440,26 @@ function buildMarker(challenge, quality, accent) {
   ring.position.y = 0.06;
   group.add(ring);
 
-  const glow = new THREE.PointLight(color, 4.2, 16, 2);
-  glow.position.y = 2.5;
-  group.add(glow);
+  /*
+   * 石座的暖光不再是「每座一盞 PointLight」。
+   *
+   * 為什麼（課程 v2 · Phase B）：石座會從 27 座長到 142 座，一座一盞會在
+   * Phase C 就撞破 WORLD.md §6.1 的 56 盞預算（前向渲染每一盞都要在片段著色器裡算）。
+   * 這盞燈的 distance 是 16 公尺、石座之間至少隔 13 公尺 —— 也就是說**同一時間
+   * 最多只有兩三座的光照得到玩家**，其餘 130 幾盞是純浪費。
+   *
+   * 所以改成：每座石座留一個**光的意圖**（顏色 / 亮度 / 高度），
+   * 真正的 PointLight 由世界層的一小池（MARKER_LIGHT_POOL 盞）每幀指派給最近的幾座。
+   * 畫面完全一樣（照得到玩家的那幾座本來就只有那幾座），
+   * 但燈數從「石座數」變成「常數」。
+   */
+  const glow = {
+    color: color.clone(),
+    intensity: 4.2,
+    position: { y: 2.5 },
+    /** 這一格光的世界座標（燈池指派時用）。 */
+    worldY: y + 2.5,
+  };
 
   // 光柱：從很遠就看得到「那邊有事情可以做」，等於一個不需要小地圖的導航
   const beacon = new THREE.Mesh(
@@ -1543,6 +1560,7 @@ function buildMarker(challenge, quality, accent) {
       const bob = Math.sin(t * 1.4 + x * 0.3) * 0.22;
       shard.position.y = 2.5 + bob;
       glow.position.y = 2.5 + bob;
+      glow.worldY = y + 2.5 + bob;
       ring.rotation.z += dt * 0.15;
 
       // 三種狀態讀得出來：未解 = 呼吸式脈動、走近 = 亮起、已解 = 安靜的暖金
@@ -1959,6 +1977,72 @@ export function createWorld({
   const gearScale = new THREE.Vector3();
   const gearPos = new THREE.Vector3();
 
+  /* ------------------------------------------------------------------ *
+   * 石座的燈池（課程 v2 · Phase B）
+   *
+   * WORLD.md §6.1：新增場景內容不新增光源。石座會從 27 座長到 142 座，
+   * 一座一盞的作法在 Phase C 就會撞破 56 盞的預算。
+   *
+   * 這一池是**常數盞**（8 盞），每幀指派給離鏡頭最近的幾座石座。
+   * 石座的燈 distance = 16 公尺、彼此至少隔 13 公尺，所以同一時間照得到
+   * 玩家的本來就只有兩三座 —— 畫面看不出差別，燈數卻不再跟著關卡數長。
+   *
+   * 每幀零配置：距離用平方比、暫存物件提到這一層、不 map/filter/sort 整個陣列
+   * （只做一次 8 格的插入排序，8 是常數）。
+   * ------------------------------------------------------------------ */
+  const MARKER_LIGHT_POOL = 8;
+  const markerLights = [];
+  for (let i = 0; i < MARKER_LIGHT_POOL; i += 1) {
+    const l = new THREE.PointLight(0xffffff, 0, 16, 2);
+    l.position.set(0, -50, 0);
+    root.add(l);
+    markerLights.push(l);
+  }
+  /** 這一幀選中的石座（index 0 最近）與它們的平方距離。 */
+  const litMarkers = new Array(MARKER_LIGHT_POOL).fill(null);
+  const litDist = new Array(MARKER_LIGHT_POOL).fill(Infinity);
+
+  function updateMarkerLights() {
+    const cam = engine.camera;
+    if (!cam || !cam.position) return;
+    const cx = cam.position.x;
+    const cz = cam.position.z;
+    for (let i = 0; i < MARKER_LIGHT_POOL; i += 1) {
+      litMarkers[i] = null;
+      litDist[i] = Infinity;
+    }
+    for (let m = 0; m < markers.length; m += 1) {
+      const marker = markers[m];
+      const dx = marker.position.x - cx;
+      const dz = marker.position.z - cz;
+      const d2 = dx * dx + dz * dz;
+      // 45 公尺外整組跳過（§6.2 距離分級）；燈的作用半徑只有 16
+      if (d2 > 2025) continue;
+      for (let i = 0; i < MARKER_LIGHT_POOL; i += 1) {
+        if (d2 >= litDist[i]) continue;
+        for (let j = MARKER_LIGHT_POOL - 1; j > i; j -= 1) {
+          litDist[j] = litDist[j - 1];
+          litMarkers[j] = litMarkers[j - 1];
+        }
+        litDist[i] = d2;
+        litMarkers[i] = marker;
+        break;
+      }
+    }
+    for (let i = 0; i < MARKER_LIGHT_POOL; i += 1) {
+      const light = markerLights[i];
+      const marker = litMarkers[i];
+      if (!marker) {
+        light.intensity = 0;
+        continue;
+      }
+      const g = marker.glow;
+      light.color.copy(g.color);
+      light.intensity = g.intensity;
+      light.position.set(marker.position.x, g.worldY, marker.position.z);
+    }
+  }
+
   const floatMtx = new THREE.Matrix4();
   const floatQuat = new THREE.Quaternion();
   const floatPos = new THREE.Vector3();
@@ -1966,6 +2050,7 @@ export function createWorld({
 
   engine.onUpdate((dt, t) => {
     for (const m of markers) m.update(dt, t, engine.camera);
+    updateMarkerLights();
     for (const g of gates) g.update(dt, t);
     for (const tab of tablets) tab.update(dt, t);
     for (const ins of inscriptionObjs) ins.update(dt, t);

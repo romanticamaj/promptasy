@@ -5060,6 +5060,232 @@ select option:disabled {
 }
 
 /* ================================================================
+   改碑（課程 v2 · Phase B）—— 抄寫人留下的壞草稿，一句一句換掉
+
+   草稿本身就是石碑：不能動的句子安靜地躺著，畫線的那幾句是可按的。
+   換好的那一句轉暖金（成就熱點），還沒換的維持原本的冷色 —— 沒有紅字。
+   ================================================================ */
+.fixboard[hidden],
+.spotboard[hidden] {
+  display: none;
+}
+.draft {
+  display: grid;
+  gap: var(--s2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.frag {
+  position: relative;
+}
+.frag--kept {
+  padding: var(--s2) var(--s3);
+  font-family: var(--font-input);
+  font-size: var(--t-micro);
+  line-height: 1.85;
+  color: var(--paper-3);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  border-left: 1px solid var(--rule);
+}
+.frag__grip {
+  --cut: 8px;
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  align-items: start;
+  gap: var(--s3);
+  width: 100%;
+  padding: var(--s2) var(--s3);
+  border: 0;
+  color: var(--paper-2);
+  font-family: var(--font-input);
+  font-size: var(--t-micro);
+  line-height: 1.85;
+  text-align: left;
+  cursor: pointer;
+  background: linear-gradient(180deg, rgba(19, 27, 38, 0.94), rgba(8, 11, 17, 0.96));
+  box-shadow: inset 0 1px 0 rgba(214, 232, 244, 0.08), inset 0 0 0 1px var(--rule);
+  clip-path: polygon(
+    var(--cut) 0,
+    100% 0,
+    100% calc(100% - var(--cut)),
+    calc(100% - var(--cut)) 100%,
+    0 100%,
+    0 var(--cut)
+  );
+  animation: opt-in var(--d-mid) var(--e-out) both;
+  animation-delay: calc(var(--i, 0) * 38ms);
+}
+.frag--weak:not(.is-fixed) .frag__text {
+  text-decoration: underline wavy rgba(196, 220, 236, 0.32);
+  text-underline-offset: 5px;
+}
+.frag__grip:hover {
+  color: #eef4fa;
+  box-shadow: inset 0 1px 0 rgba(214, 232, 244, 0.14), inset 0 0 0 1px rgba(196, 220, 236, 0.3);
+}
+.frag__grip:focus-visible {
+  outline: 2px solid rgba(230, 199, 155, 0.9);
+  outline-offset: 2px;
+}
+.frag__mark {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  margin-top: 3px;
+  font-size: var(--t-micro);
+  color: var(--paper-4);
+}
+.frag__text {
+  display: block;
+  min-width: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.frag__gone {
+  color: var(--paper-4);
+  font-style: normal;
+}
+.frag.is-fixed .frag__grip {
+  color: #f2ead9;
+  box-shadow: inset 0 1px 0 rgba(230, 199, 155, 0.22), inset 0 0 0 1px var(--rule-gold);
+}
+.frag.is-fixed .frag__mark {
+  color: var(--gold);
+}
+.frag__options {
+  display: grid;
+  gap: var(--s2);
+  margin: var(--s2) 0 var(--s3) var(--s4);
+  padding-left: var(--s3);
+  border-left: 1px solid var(--rule-gold);
+}
+
+/* ================================================================
+   點碑（課程 v2 · Phase B）—— 自己看出哪幾句有問題並點起來
+
+   點對的翻面（露出改寫版或直接被拿掉），點到不能動的那一句會彈回來
+   並就地長出一句白話教學。永遠不用紅字、不用叉叉。
+   ================================================================ */
+.spots {
+  display: grid;
+  gap: var(--s2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.spot {
+  position: relative;
+}
+.spot__grip {
+  --cut: 8px;
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  align-items: start;
+  gap: var(--s3);
+  width: 100%;
+  padding: var(--s2) var(--s3);
+  border: 0;
+  color: var(--paper-2);
+  font-family: var(--font-input);
+  font-size: var(--t-micro);
+  line-height: 1.85;
+  text-align: left;
+  cursor: pointer;
+  background: linear-gradient(180deg, rgba(19, 27, 38, 0.94), rgba(8, 11, 17, 0.96));
+  box-shadow: inset 0 1px 0 rgba(214, 232, 244, 0.08), inset 0 0 0 1px var(--rule);
+  clip-path: polygon(
+    var(--cut) 0,
+    100% 0,
+    100% calc(100% - var(--cut)),
+    calc(100% - var(--cut)) 100%,
+    0 100%,
+    0 var(--cut)
+  );
+  animation: opt-in var(--d-mid) var(--e-out) both;
+  animation-delay: calc(var(--i, 0) * 38ms);
+}
+.spot__grip:hover {
+  color: #eef4fa;
+  box-shadow: inset 0 1px 0 rgba(214, 232, 244, 0.14), inset 0 0 0 1px rgba(196, 220, 236, 0.3);
+}
+.spot__grip:focus-visible {
+  outline: 2px solid rgba(230, 199, 155, 0.9);
+  outline-offset: 2px;
+}
+.spot__mark {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  margin-top: 3px;
+  font-size: var(--t-micro);
+  color: var(--paper-4);
+}
+.spot__body {
+  min-width: 0;
+}
+.spot__was {
+  display: block;
+  color: var(--paper-4);
+  text-decoration: line-through;
+  text-decoration-color: rgba(230, 199, 155, 0.55);
+}
+.spot__text {
+  display: block;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.spot__gone {
+  color: var(--paper-4);
+  font-style: normal;
+}
+.spot.is-marked .spot__grip {
+  color: #f2ead9;
+  box-shadow: inset 0 1px 0 rgba(230, 199, 155, 0.22), inset 0 0 0 1px var(--rule-gold);
+}
+.spot.is-marked .spot__mark {
+  color: var(--gold);
+}
+.spot__fb {
+  display: block;
+  margin: var(--s2) 0 0 var(--s4);
+  padding-left: var(--s3);
+  border-left: 1px solid var(--rule-gold);
+  font-size: var(--t-micro);
+  line-height: 1.8;
+  color: var(--paper-3);
+}
+.spot.is-bounce {
+  animation: spot-bounce 320ms var(--e-out);
+}
+@keyframes spot-bounce {
+  0% {
+    transform: translate3d(0, 0, 0);
+  }
+  35% {
+    transform: translate3d(6px, 0, 0);
+  }
+  70% {
+    transform: translate3d(-4px, 0, 0);
+  }
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .spot.is-bounce {
+    animation: none;
+  }
+  .frag__grip,
+  .spot__grip {
+    animation: none;
+  }
+}
+
+/* ================================================================
    神諭工坊（Phase 27）—— 工具牌 / 參數格 / 值石
 
    一次只有一步擁有畫面（WORLD.md §3.3）；挑錯放錯只會就地長出一句

@@ -36,6 +36,8 @@ import { CHECKS } from '../challenges/checks.js';
 import { createStele } from './stele.js';
 import { createOrderBoard } from './order.js';
 import { createWorkshop } from './workshop.js';
+import { createFixBoard, isFixFlow } from './fix.js';
+import { createSpotBoard, isSpotFlow } from './spot.js';
 
 const GRADE_LABEL = { S: '完美', A: '優秀', B: '良好', C: '通過' };
 
@@ -107,25 +109,35 @@ export const ORB_IDLE_MS = 20000;
 export const PROMPT_MODES = Object.freeze(['guided', 'free']);
 
 /**
- * 引導式作答的三種題型（Phase 27）。
+ * 引導式作答的五種題型（Phase 27 三種＋課程 v2 Phase B 兩種）。
  *
- * 資料層（flows.json）用 `kind` 宣告，沒寫就是 `choice` —— 也就是 Phase 11
- * 就在跑的石碑刻印，其他 24 關一個位元組都不會變。
+ * 資料層（flows.json）用 `kind` 宣告，**沒寫就是 `choice`** —— 也就是 Phase 11
+ * 就在跑的石碑刻印。這個相容契約永遠不變：新增題型不會動到任何一關舊資料。
  *
  *   choice    石碑刻印：一段一段從 2–3 個選項裡挑（教「這一段該寫什麼」）
  *   order     排序刻印：石版已經刻好了，要把它們排順（教「這幾段該照什麼次序」）
  *   workshop  神諭工坊：挑工具 → 填參數 → 排呼叫 → 立規矩（教工具使用 / function calling）
+ *   fix       改碑：抄寫人留下一份壞草稿，你把畫線的那幾句換掉（教「這一句哪裡壞了」）
+ *   spot      點碑：一疊石籤，你自己看出哪幾句有問題並點起來（教「自己找出毛病」）
  *
- * 三種都住在第三幕，結尾都是同一隻手掌印，送出的都是同一段文字、
+ * 五種都住在第三幕，結尾都是同一隻手掌印，送出的都是同一段文字、
  * 走同一支離線評分引擎（護欄 3）。
  */
-export const FLOW_KINDS = Object.freeze(['choice', 'order', 'workshop']);
+export const FLOW_KINDS = Object.freeze(['choice', 'order', 'workshop', 'fix', 'spot']);
 
-/** 一份流程資料是哪一種題型（未知值一律回到石碑刻印）。 */
+/**
+ * 一份流程資料是哪一種題型。
+ *
+ * **未知的 kind、或宣告了某個 kind 卻沒有對應資料，一律回到石碑刻印**——
+ * 這是舊資料的相容契約（WORLD.md §3.3b），也是資料寫壞時的安全網：
+ * 玩家永遠有一種玩得動的題型，不會開到一塊空白的石碑。
+ */
 export function flowKind(flow) {
   const k = flow && flow.kind;
   if (k === 'order' && flow.orderFlow) return 'order';
   if (k === 'workshop' && flow.workshop) return 'workshop';
+  if (k === 'fix' && isFixFlow(flow.fixFlow)) return 'fix';
+  if (k === 'spot' && isSpotFlow(flow.spotFlow)) return 'spot';
   return 'choice';
 }
 
@@ -134,6 +146,8 @@ export const KIND_LABEL = Object.freeze({
   choice: '石碑刻印',
   order: '排序刻印',
   workshop: '神諭工坊',
+  fix: '改碑',
+  spot: '點碑',
 });
 
 /** 對應的 Latin meta label（版面上那一行小字）。 */
@@ -141,6 +155,8 @@ export const KIND_EN = Object.freeze({
   choice: 'Carve',
   order: 'Order',
   workshop: 'Dispatch',
+  fix: 'Mend',
+  spot: 'Spot',
 });
 
 /** 正規化模式字串（未知值一律回到預設的石碑刻印）。 */
@@ -415,16 +431,62 @@ export function createPromptConsole({
   });
   steleSlot.appendChild(workshop.root);
 
-  /** 這一關的引導式題型（choice / order / workshop）。 */
+  /* ---------------------------------------------------------------- *
+   * 改碑（課程 v2 · Phase B）
+   *
+   * 抄寫人留下一份寫壞的草稿，畫線的那幾句要換掉。挑錯的替代寫法只會
+   * 「石碑不收 ＋ 就地教學」，`Esc` 把剛剛換掉的那一句還原（見 fix.js 的鍵位契約）。
+   * ---------------------------------------------------------------- */
+  const fixBoard = createFixBoard({
+    onFix: ({ index, total }) => {
+      runPreflight();
+      onCarve?.({ index, total });
+    },
+    onReject: ({ feedback }) => onReject?.({ feedback }),
+    onRestore: () => runPreflight({ silent: true }),
+    onComplete: () => {
+      onSeal?.();
+      goAct(4, { force: true });
+    },
+    onPress: ({ text }) => submit(text),
+    onTap: () => onTap?.(),
+  });
+  steleSlot.appendChild(fixBoard.root);
+
+  /* ---------------------------------------------------------------- *
+   * 點碑（課程 v2 · Phase B）
+   *
+   * 一疊石籤攤在檯上，玩家自己看出哪幾句有問題並點起來。點到不能動的那一句
+   * 只會彈回來 ＋ 就地教學；還沒挑完手掌印根本不出現（不會失敗）。
+   * ---------------------------------------------------------------- */
+  const spotBoard = createSpotBoard({
+    onSpot: ({ right, total }) => {
+      runPreflight();
+      onCarve?.({ index: right, total });
+    },
+    onReject: ({ feedback }) => onReject?.({ feedback }),
+    onRestore: () => runPreflight({ silent: true }),
+    onComplete: () => {
+      onSeal?.();
+      goAct(4, { force: true });
+    },
+    onPress: ({ text }) => submit(text),
+    onTap: () => onTap?.(),
+  });
+  steleSlot.appendChild(spotBoard.root);
+
+  /** 這一關的引導式題型（choice / order / workshop / fix / spot）。 */
   function kind() {
     return flowKind(currentFlow);
   }
 
-  /** 現在在台上的那一塊石碑（三種題型共用同一組介面）。 */
+  /** 現在在台上的那一塊石碑（五種題型共用同一組介面）。 */
   function board() {
     const k = kind();
     if (k === 'order') return orderBoard;
     if (k === 'workshop') return workshop;
+    if (k === 'fix') return fixBoard;
+    if (k === 'spot') return spotBoard;
     return stele;
   }
 
@@ -460,10 +522,12 @@ export function createPromptConsole({
     freeWrap.hidden = guided;
     freeLabel.hidden = guided;
     guidedLabel.hidden = !guided;
-    // 三種題型共用一個舞台，一次只有一種在上面
+    // 五種題型共用一個舞台，一次只有一種在上面
     stele.root.hidden = !guided || k !== 'choice';
     orderBoard.root.hidden = !guided || k !== 'order';
     workshop.root.hidden = !guided || k !== 'workshop';
+    fixBoard.root.hidden = !guided || k !== 'fix';
+    spotBoard.root.hidden = !guided || k !== 'spot';
     const zhLabel = guidedLabel.querySelector('.zh');
     if (zhLabel) zhLabel.textContent = KIND_LABEL[k];
     const enLabel = guidedLabel.querySelector('.en');
@@ -597,7 +661,7 @@ export function createPromptConsole({
    * ＋ 該技巧的**真正官方出處**。標籤換成世界觀的說法（「神諭原典」），
    * 但後面一定接得出真實文件名與可點連結 —— 換皮，不說謊（護欄 2）。
    * ---------------------------------------------------------------- */
-  function guidanceRow(row, { techniqueId = null } = {}) {
+  function guidanceRow(row, { techniqueId = null, skillId = null } = {}) {
     const entry = content.coach(row.check);
     const def = CHECKS[row.check];
     // 主教學目標用的是這一關的 primaryTechniqueId（Phase A：一關只教一條）；
@@ -606,11 +670,16 @@ export function createPromptConsole({
     const tech = content.technique(techId);
     // 退回官方 tip 時也走中文譯寫層（Phase 14：畫面上不出現整句英文）
     const view = content.displayTechnique(techId);
-    const src = content.sourceFor(techId);
+    /**
+     * 課程 v2（Phase B）新蓋的神廟教的是 v2 技能，祖先不一定在舊 68 條裡 ——
+     * 這時原典改從 catalog 拿（一樣是真實官方文件名 ＋ 可點連結，護欄 2）。
+     */
+    const skill = skillId ? content.skill(skillId) : null;
+    const src = (skillId && content.sourceForSkill(skillId)) || content.sourceFor(techId);
     return {
       check: row.check,
       title: (entry && entry.title) || (def && def.label) || row.check,
-      tech: tech ? tech.title : '',
+      tech: skill ? skill.nameZh : tech ? tech.title : '',
       what: (entry && entry.what) || (view && view.tip) || '',
       how: (entry && entry.how) || row.hint || (def && def.hint) || '',
       src,
@@ -638,7 +707,10 @@ export function createPromptConsole({
   function guidancePrimary(challenge) {
     const row = primaryRow(challenge);
     if (!row) return null;
-    return guidanceRow(row, { techniqueId: challenge.primaryTechniqueId || row.techniqueId });
+    return guidanceRow(row, {
+      techniqueId: challenge.primaryTechniqueId || row.techniqueId,
+      skillId: challenge.primarySkillId || row.skillId || null,
+    });
   }
 
   /** 其餘的檢查：地基與還沒搬家的舊項目 —— 只留名字，不給它們自己的教學段落。 */
@@ -986,9 +1058,12 @@ export function createPromptConsole({
       .map((row, i) => {
         // 主檢查掛的是這一關真正教的那條技巧（Phase A），其餘掛自己的
         const techId = (row.primary && challenge.primaryTechniqueId) || row.techniqueId;
-        const src = content.sourceFor(techId);
+        // 課程 v2 的神廟：主檢查那一列掛的是 v2 技能，原典從 catalog 拿
+        const skillId = (row.primary && challenge.primarySkillId) || row.skillId || null;
+        const skill = skillId ? content.skill(skillId) : null;
+        const src = (skillId && content.sourceForSkill(skillId)) || content.sourceFor(techId);
         const def = CHECKS[row.check];
-        const tech = content.technique(techId);
+        const tech = skill ? { title: skill.nameZh } : content.technique(techId);
         const r = evaluation ? evaluation.results[i] : null;
         const state = r ? (r.passed ? 'pass' : r.partial ? 'part' : 'miss') : null;
         const icon = r ? (r.passed ? '✓' : r.partial ? '◐' : '·') : '';
@@ -1299,8 +1374,12 @@ export function createPromptConsole({
       .map((r, i) => {
         const state = r.passed ? 'pass' : r.partial ? 'part' : 'miss';
         const icon = r.passed ? '✓' : r.partial ? '◐' : '✕';
-        const src = content.sourceFor(r.techniqueId);
-        const tech = content.technique(r.techniqueId);
+        // 課程 v2 的神廟：這一列教的是 v2 技能時，原典從 catalog 拿（一樣是官方連結）
+        const rowSpec = (challenge && challenge.rubric && challenge.rubric[i]) || {};
+        const skillId = (rowSpec.primary && challenge && challenge.primarySkillId) || rowSpec.skillId || null;
+        const skill = skillId ? content.skill(skillId) : null;
+        const src = (skillId && content.sourceForSkill(skillId)) || content.sourceFor(r.techniqueId);
+        const tech = skill ? { title: skill.nameZh } : content.technique(r.techniqueId);
         return `<li class="row row--${state}" style="--i:${i}">
           <span class="row__icon">${icon}</span>
           <div class="row__main">
@@ -1488,11 +1567,21 @@ export function createPromptConsole({
     get workshop() {
       return workshop;
     },
-    /** 現在台上是哪一種題型（choice / order / workshop）。 */
+    /** 改碑的把手（測試與除錯用）。 */
+    get fixBoard() {
+      return fixBoard;
+    },
+    /** 點碑的把手（測試與除錯用）。 */
+    get spotBoard() {
+      return spotBoard;
+    },
+    /** 現在台上是哪一種題型（choice / order / workshop / fix / spot）。 */
     get kind() {
       return kind();
     },
-    /** 現在台上的那一塊石碑（三種題型共用同一組介面）。 */
+    /** 任意一份流程資料是哪一種題型（測試用；缺 kind 一律回到石碑刻印）。 */
+    flowKindOf: (flow) => flowKind(flow),
+    /** 現在台上的那一塊石碑（五種題型共用同一組介面）。 */
     get board() {
       return board();
     },
@@ -1572,6 +1661,8 @@ export function createPromptConsole({
       stele.load(k === 'choice' ? currentFlow : null);
       orderBoard.load(k === 'order' ? currentFlow.orderFlow : null);
       workshop.load(k === 'workshop' ? currentFlow.workshop : null);
+      fixBoard.load(k === 'fix' ? currentFlow.fixFlow : null);
+      spotBoard.load(k === 'spot' ? currentFlow.spotFlow : null);
       mode = normalizeMode(progression.state.settings.promptMode);
       if (!currentFlow) mode = 'free';
       applyMode();

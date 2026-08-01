@@ -131,7 +131,7 @@ Exit criteria（逐條實測）：
 
 ### Phase B — v2 catalog bridge＋`fix`／`spot`＋foundations 14
 
-狀態：`in progress` — **step 1（catalog bridge）done（2026-08-01）**，step 2（`fix`／`spot`＋foundations 十座）pending
+狀態：`done`（2026-08-01）— step 1（catalog bridge）＋ step 2（`fix`／`spot`＋foundations 十座）都完成
 
 先做 catalog bridge：
 
@@ -170,6 +170,40 @@ Exit：foundations 有 14 教學神廟；`fix`／`spot` 各至少一條先紅後
       （catalog 版與 legacy 版的列舉逐欄相同）＋ 8 條 fail-fast 破壞測試。
 - [x] 驗證：`fonts`（語料 58 檔／CJK 1664 字／1348.4 KB）、`test:rubric` 17,705 → **21,393**、
       `test:playtest` 263（未改）、`build` ✓、`test:e2e` **1,816 項全過、零 console error**。
+
+#### Step 2 — `fix`／`spot` ＋ 撰寫基本功十座 ✅ done（2026-08-01）
+
+- [x] `src/prompt/fix.js`（改碑）：預填弱稿、畫線的句子可攤開替代寫法、純鍵盤 roving focus、
+      即時預檢、**三段式 `Esc` 還原**（收起選項 → 還原已改好的句子 → 才冒泡收面板，逐段 `aria-live`）、
+      正解可以是「整句拿掉」（那就是 P2 的「轉」）。
+- [x] `src/prompt/spot.js`（點碑）：石籤 toggle、方向鍵＋`Enter`、正確／漏選／多選都只教學不扣分、
+      壞石籤可帶改寫版或直接拿掉、挑完之前手掌印不出現。
+- [x] `console.js` 擴 `FLOW_KINDS` 3 → 5、label、board lifecycle、`flowKindOf()`；
+      **相容契約未變**：缺 kind／未知 kind／資料不合契約 → 一律回到石碑刻印（rubric ＋ e2e 各守一次）。
+- [x] `challenges.json`／`flows.json` 新增 **10 座**（撰寫基本功 6 → 16 關，curriculum-v2 §3 的
+      foundations 14 座教學神廟到齊）；每座含四拍、素材、起手弱寫法、快速填入、示範解答
+      ＋ **石碑刻印後備 slots**；`source` 逐條回查 `skill-codex-v2.json` 的真實官方連結。
+- [x] **5 個新檢查器**（§7.4）：`noUndefinedReference`／`statesScope`／`avoidsPressureLanguage`／
+      `disambiguatesTerms`／`namesComponents`，全部結構性偵測 ＋ 中英雙語 ＋ good/weak/bad ＋ 反作弊
+      ＋ `coach.json` 白話教學（實測「照著填就會亮」）。
+      （`rulesBeforeData`／`usesRareDelimiter` 這一期**沒有**實作 —— 它們掛在既有兩關身上，
+      要連同那兩關的改造與 manifest 一起動，理由記在 `findings.md`。）
+- [x] 存檔：新增 `skillsV2[]`（純加法、`normalize()` 補預設、去重；通關時與 legacy `collected` 兩邊各寫各的）。
+- [x] 世界：十座新石座落在撰寫基本功區，走既有的落點／淨空／碰撞／可行走性門檻。
+      **順手修掉一個馬上要爆的預算**：石座的燈由「一座一盞」改成常數 8 盞的燈池
+      （27 → 37 座之後實測 59 盞 > 56；改完 26 盞，而且燈數不再隨關卡數成長）。
+- [x] `styles.css` ＋ e2e：鍵盤、焦點、`aria-live`、`prefers-reduced-motion`、820px 無水平溢位。
+- [x] 驗證：`fonts`（語料 60 檔／CJK 1696 字／1365.8 KB）、`test:rubric` 21,393 → **25,877**、
+      `test:playtest` 263 → **396**、`build` ✓、`test:e2e` 1,816 → **1,920 項全過、零 console error**。
+      新斷言逐條先紅後綠（rubric 3 次資料／程式碼破壞、e2e 1 次題型契約破壞，逐項記在 `progress.md`）。
+
+Exit criteria（逐條實測）：
+
+- [x] foundations 有 **14 座教學神廟**（＋1 應用關 ＋1 主題待搬家的 `mimic-mirror-04` ＝ 16 關）。
+- [x] `fix`／`spot` 各有一條**先紅後綠**的完整鍵盤 e2e（開關卡 → 第三幕 → 挑錯不失敗 →
+      `Esc` 契約 → 做對 → 手印 → S → 石座轉已通關 → 技能入袋 → 存檔）。
+- [x] 舊三 kind 行為不變（27 關仍是 choice／order 2／workshop 1，資料一個位元組沒動）。
+- [x] fonts＋rubric＋playtest＋build＋e2e 全綠。
 
 ### Phase C — `induct`／`tradeoff`＋reasoning 15
 
@@ -314,6 +348,11 @@ Exit：跨世界素材有 reload/reset/e2e；或有一份明確的「不實作�
 | WSL 無 `node` | 1 | 改用 Windows Node |
 | 首次假設 JSON 根為陣列 | 1 | 先讀 schema，再使用 `.challenges`／`.flows` |
 | Windows `npm` 經 `cmd.exe` 無法使用 UNC cwd，錯到 `C:\Windows` 找測試腳本 | 1 | 不重跑相同命令；改以 Windows Node 直接執行測試腳本與 Vite CLI |
+| 石座燈光在 37 座時衝到 59 盞（>56 預算），e2e 3 條紅 | 1 | 不是把上限調高，而是把「一座一盞」改成常數 8 盞的燈池指派給最近的幾座（畫面零差異、燈數不再隨關卡數成長） |
+| 新檢查器用字面 `[一-鿿]` 寫 CJK 範圍，害字型語料多切一個原始字型沒有的字 | 1 | 改回 `[\u4e00-\u9fff]` 轉義（`checks.js` 原本就是這樣寫的），重跑 `npm run fonts` |
+| 新神廟的快速填入串起來剛好等於示範解答，撞到「快速填入不是直接給答案」 | 1 | 把其中一顆改成通用零件；那條斷言守的是鷹架遞減，不是格式潔癖 |
+| e2e 新斷言用了 `.stamp__grade`（不存在），兩條假性紅 | 1 | 照既有題型 e2e 的寫法改成 `.grade__mark` |
+| `rulesBeforeData` 實作不了：manifest 斷言「主檢查是新檢查器 → 它必須還不存在」 | 1 | 不改斷言、不硬做；連同該關的改造一起留到後續，理由寫進 `findings.md` |
 | rubric baseline 有 12 個既有開場斷言失敗（entrygate/title 舊結構） | 1 | 規劃文件未觸及產品碼；不擴大 PR 修復，於 PR 明列 16,490 pass／12 fail，留 Phase 0 重建 baseline。**Phase 0 已修**：12 條全部改寫成 Phase 34.5 現行設計的斷言（不是刪掉），並實測破壞會紅 |
 | Windows Node 搭配 Linux `node_modules` 執行 Vite，缺 `@rollup/rollup-win32-x64-msvc` | 1 | 不刪 lockfile/node_modules、不改依賴；先找 WSL 既有 Node，沒有則標記 build 為環境未執行 |
 | PowerShell 再次展開 bash status 變數，合併命令結尾無法回傳正確 code | 1 | 不再依賴合併變數；以各工具明確輸出判定：rubric 12 fail、Vite build passed |

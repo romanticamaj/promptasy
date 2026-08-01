@@ -46,6 +46,16 @@ export function defaultSave() {
     // 純記帳用 —— 它只說明「這道門是被問開的，不是被考過的」，
     // 不影響 XP、圖鑑、徽章，也不會把任何一關算成已通關。
     skippedGates: [],
+    /**
+     * 課程 v2（Phase B）：已經收集到的 **v2 技能** id（`skill-codex-v2.json`）。
+     *
+     * 為什麼要另開一欄而不是塞進 `collected`：`collected` 存的是舊 68 條技巧的 id，
+     * 圖鑑、廠家徽章、稱號、隱藏成就全部依它算；v2 的 130 條技能有一半以上
+     * 在舊 68 條裡**沒有祖先**（`legacyTechniqueId: null`），混進去會讓那些數字失真。
+     * 所以純加法多一欄：新神廟通關時同時寫兩邊 ——
+     * 有祖先的照舊寫進 `collected`（D2：收集不倒退），技能本身寫進這裡。
+     */
+    skillsV2: [],
     badges: { openai: 0, anthropic: 0, google: 0, xai: 0 },
     settings: {
       music: 'ambient-01',
@@ -162,6 +172,8 @@ export function normalize(raw) {
     handlesUsed: [...new Set(strArr(d.handlesUsed) || [])],
     // Phase 29：舊存檔沒有 skippedGates → 空陣列（純加法）
     skippedGates: [...new Set(strArr(d.skippedGates) || [])],
+    // 課程 v2 Phase B：舊存檔沒有 skillsV2 → 空陣列（純加法，不影響任何既有欄位）
+    skillsV2: [...new Set(strArr(d.skillsV2) || [])],
     bestGrades,
     badges,
     settings,

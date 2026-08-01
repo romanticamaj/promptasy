@@ -507,6 +507,62 @@ const PARAM_VALUE = new RegExp(
   'i'
 );
 
+/* ------------------------------------------------------------------ *
+ * 課程 v2 · Phase B 的五個新檢查器共用的樣式
+ * （規格：docs/design/curriculum-v2.md §7.4）
+ * ------------------------------------------------------------------ */
+
+// --- noUndefinedReference（clear-golden：把它當成沒有背景的新同事） ---
+/** 「照舊／老樣子／那幾個地方」這種需要先行知識才讀得懂的說法。 */
+const DANGLING_REF_ZH =
+  /照舊|照往常|照老規矩|跟上次一樣|像上次那樣|按之前那樣|如常|老樣子|老規矩|你知道的|你懂的|重點那幾個|那幾個地方|那幾處|該做的那些|之前那份|上次那份|上回那份|那個東西|那件事情|同上/g;
+const DANGLING_REF_EN =
+  /\b(?:as usual|as before|like last time|the usual (?:way|one|spots?)|same as (?:before|last time)|you know the drill|that thing|those (?:parts|spots|places))\b/gi;
+/** 指涉後面就地補上定義（「重點那幾個地方：井邊、糧倉後巷」）就不算沒交代。 */
+const REF_DEFINED_AFTER =
+  /^[^\n]{0,6}(?:[:：]\s*\S|（[^）]{2,})|[^\n]{0,20}(?:分別是|也就是|指的是|包括|即|namely|specifically)/i;
+/** 「寫得出來」的東西：數字（次數／時間／長度）。 */
+const REF_CONCRETE = /\d/;
+const LIST_LINE = /^[ \t]*(?:[-*・‧]|\d+[.)、])\s*\S/gm;
+
+// --- statesScope（clear-scope：講清楚這條規矩管到哪裡） ---
+const SCOPE_ALL_ZH =
+  /每(?:一)?(?:節|段|項|條|章|頁|行|則|張|處|個|份)|所有的?[\u4e00-\u9fff]{1,6}|全部的?[\u4e00-\u9fff]{1,6}|整(?:份|篇|本|座|條|排)[\u4e00-\u9fff]{0,4}|從[\u4e00-\u9fff]{1,10}到[\u4e00-\u9fff]{1,10}(?:都|一律)/;
+const SCOPE_ALL_EN = /\b(?:every|each)\s+[a-z]+|\ball\s+(?:of\s+)?(?:the\s+)?[a-z]+s\b|\bthroughout\s+the\s+[a-z]+/i;
+const SCOPE_EXC_ZH =
+  /不(?:含|包括|包含|適用|處理|動|漆|改)|除了[^，。\n]{1,14}(?:以外|之外|不算)|例外[:：]|僅限|限於|只(?:動|改|漆|處理|針對|做)[^，。\n]{1,14}/;
+const SCOPE_EXC_EN =
+  /\b(?:excluding|except for|does not (?:include|apply)|leave the [a-z]+ (?:alone|untouched)|only the)\b/i;
+
+// --- avoidsPressureLanguage（clear-no-pressure：喊得大聲沒有用） ---
+const PRESSURE_ZH =
+  /拜託拜託|拜託|求你|求求|很急|非常急|急件|急死|一定要|務必|絕對要|給你小費|請你喝茶|給你獎金|越快越好|馬上給我|超級重要|非常重要/g;
+const PRESSURE_EN =
+  /\b(?:please please|i beg you|urgent|asap|super important|very important|i'?ll tip you|do it now)\b/gi;
+
+// --- disambiguatesTerms（word-choice：換一個詞就換一個結果） ---
+const TERM_GLOSS_ZH =
+  /[「『][^」』\n]{1,14}[」』][^\n]{0,8}(?:是指|指的是|意思是|＝|=)|[「『][^」』\n]{1,14}[」』]（\s*指[^）\n]{1,24}）|這裡(?:說|講|指)的[^\n]{0,4}[「『][^」』\n]{1,14}[」』]/;
+const TERM_GLOSS_EN = /\bby\s+"[^"\n]{1,24}"\s+i\s+mean\b|"[^"\n]{1,24}"\s+here\s+means\b/i;
+const TERM_EXCLUDE_ZH = /不是指|不是要|不是說|並非指|而不是[^，。\n]{1,18}/;
+const TERM_EXCLUDE_EN = /\bnot\s+(?:in\s+)?the\s+[a-z ]{1,20}\s+sense\b|\bdoes not mean\b/i;
+
+// --- namesComponents（struct-anatomy：prompt 的零件表） ---
+/**
+ * 零件名必須寫在**行首**、後面接冒號與內容 —— 這是結構偵測，
+ * 光在句子裡提到「角色」兩個字不算標了零件。
+ */
+const COMPONENT_LABELS = Object.freeze([
+  ['角色', /^[ \t>*\-–—•·]*(?:角色|身分|persona|role)[ \t]*[:：][ \t]*\S[^\n]{1,}/i],
+  ['任務', /^[ \t>*\-–—•·]*(?:任務|要做的事|指令|task|instruction)[ \t]*[:：][ \t]*\S[^\n]{1,}/i],
+  ['脈絡', /^[ \t>*\-–—•·]*(?:脈絡|背景|情境|context|background)[ \t]*[:：][ \t]*\S[^\n]{1,}/i],
+  ['資料', /^[ \t>*\-–—•·]*(?:資料|素材|原文|文件|data|document|source)[ \t]*[:：][ \t]*\S[^\n]{1,}/i],
+  ['範例', /^[ \t>*\-–—•·]*(?:範例|示範|例子|examples?)[ \t]*[:：][ \t]*\S[^\n]{1,}/i],
+  ['格式', /^[ \t>*\-–—•·]*(?:格式|輸出格式|版面|format|output format)[ \t]*[:：][ \t]*\S[^\n]{1,}/i],
+  ['限制', /^[ \t>*\-–—•·]*(?:限制|條件|規則|constraints?|rules?)[ \t]*[:：][ \t]*\S[^\n]{1,}/i],
+  ['對象', /^[ \t>*\-–—•·]*(?:對象|讀者|audience)[ \t]*[:：][ \t]*\S[^\n]{1,}/i],
+]);
+
 // --- keepsPromptLean（reasoning-01 / reasoning-02） ---------------------
 const CJK_RE = /[\u4e00-\u9fff]/g;
 
@@ -1099,6 +1155,143 @@ const definitions = [
       if (hit) return PASS(`指定了參數與數值：「${snip(hit[0], 32)}」`);
       if (PARAM_NAME.test(t)) return MOST(`提到參數了，但沒給數值。寫成「${example}」。`);
       return MISS(`還沒動到旋鈕。寫出參數與數值，例如「${example}」。`);
+    },
+  },
+
+  /* ================================================================ *
+   * 課程 v2 · Phase B —— 撰寫基本功那一區新開的五座神廟用的檢查器
+   *
+   * 五個都照既有原則寫：**結構性偵測**（位置比較、成對出現、標籤在行首、
+   * 比例統計），不是關鍵字比對；中英雙語；有 good / weak / bad 與反作弊 fixture。
+   * 規格出自 docs/design/curriculum-v2.md §7.4。
+   * ================================================================ */
+
+  {
+    id: 'noUndefinedReference',
+    label: '沒有沒交代的指涉 No dangling reference',
+    hint: '「照舊」「重點那幾個地方」這種話，新來的人看不懂。把它換成寫得出來的東西：地點、次數、時間。',
+    techniqueId: 'clarity-01',
+    run(text) {
+      const t = clean(text);
+      const hits = [
+        ...t.matchAll(DANGLING_REF_ZH),
+        ...t.matchAll(DANGLING_REF_EN),
+      ].map((m) => m[0].trim());
+      /** 這個指涉後面（同一行或下一行）有沒有就地交代清楚。 */
+      const undefinedHits = hits.filter((h) => {
+        const at = t.indexOf(h);
+        const tail = t.slice(at + h.length, at + h.length + 60);
+        return !REF_DEFINED_AFTER.test(tail);
+      });
+      const list = [...new Set(undefinedHits)].slice(0, 3).join('、');
+      if (undefinedHits.length >= 2) {
+        return MISS(`有 ${undefinedHits.length} 處沒交代的說法（${list}）。新來的人看不懂「照舊」是照哪一套 —— 一個一個換成寫得出來的地點、次數或時間。`);
+      }
+      if (undefinedHits.length === 1) {
+        return PART(`還剩一處沒交代（「${list}」）。把它換成具體的東西，例如「北門哨塔、井邊、糧倉後巷」。`);
+      }
+      if (!REF_CONCRETE.test(t) && countMatches(t, LIST_LINE) < 2) {
+        return MOST('沒有含糊的指涉了，不過內容還是偏空。補一組寫得出來的東西（地點清單、次數、時間），新來的人才做得出來。');
+      }
+      return PASS('沒有留下「照舊／那幾個」這種要靠猜的說法，該交代的都寫出來了。');
+    },
+  },
+
+  {
+    id: 'statesScope',
+    label: '講清楚管到哪裡 Scope',
+    hint: '一句話框出範圍：哪些要做（「每一節欄杆都要」），哪些不做（「踏板與銅件不漆」）。它不會替你類推。',
+    techniqueId: 'clarity-04',
+    run(text) {
+      const t = clean(text);
+      const all = t.match(SCOPE_ALL_ZH) || t.match(SCOPE_ALL_EN);
+      const exc = t.match(SCOPE_EXC_ZH) || t.match(SCOPE_EXC_EN);
+      if (all && exc) {
+        return PASS(`範圍框住了：適用「${snip(all[0], 20)}」、例外「${snip(exc[0], 20)}」。`);
+      }
+      if (all) {
+        return MOST(`寫了適用範圍（「${snip(all[0], 20)}」），但沒說哪裡不做。補一句例外，例如「附錄不動」。`);
+      }
+      if (exc) {
+        return PART(`只寫了例外（「${snip(exc[0], 20)}」），沒說這條規矩涵蓋到哪裡。補一句「每一節都要」。`);
+      }
+      return MISS('還沒說這條規矩管到哪裡。補一句範圍，例如「這座橋每一節欄杆都要漆，踏板不漆」。');
+    },
+  },
+
+  {
+    id: 'avoidsPressureLanguage',
+    label: '不靠情緒施壓 No pressure',
+    hint: '全大寫、驚嘆號、「求你了」「很急」「請你喝茶」都不會讓它做得更好。留下有資訊的句子就好。',
+    techniqueId: 'clarity-02',
+    run(text) {
+      const t = clean(text);
+      if (!countPositiveDirectives(t)) {
+        return MISS('先寫一句「請＋你要它做的事」。現在整段沒有指令，刪掉情緒也沒有東西剩下來。');
+      }
+      const latin = (t.match(/[A-Za-z]/g) || []).length;
+      const upper = (t.match(/[A-Z]/g) || []).length;
+      const shouting = latin >= 20 && upper / latin > 0.6;
+      const bangs = countMatches(t, /[!！]/g);
+      const begs = [...new Set([...t.matchAll(PRESSURE_ZH), ...t.matchAll(PRESSURE_EN)].map((m) => m[0].trim()))];
+      const issues = (shouting ? 1 : 0) + (bangs >= 2 ? 1 : 0) + begs.length;
+      const said = [
+        shouting ? '整段大寫' : '',
+        bangs >= 2 ? `${bangs} 個驚嘆號` : '',
+        begs.length ? `催促與交換的話（${begs.slice(0, 3).join('、')}）` : '',
+      ]
+        .filter(Boolean)
+        .join('、');
+      if (issues === 0) return PASS('整段只有資訊，沒有喊也沒有求 —— 這樣它反而讀得準。');
+      if (issues === 1) return MOST(`只剩一處在施壓：${said}。拿掉它，留下有資訊的那半句。`);
+      if (issues === 2) return PART(`還有兩處在施壓：${said}。這些字不會讓它做得更好，刪掉就好。`);
+      return MISS(`整段都在施壓：${said}。喊得大聲沒有用 —— 只留「要做什麼」與「做到什麼程度」。`);
+    },
+  },
+
+  {
+    id: 'disambiguatesTerms',
+    label: '把歧義詞講死 Disambiguate',
+    hint: '碰到兩種讀法的詞，就地補一句：「這裡說的『語言』是指用字語氣，不是指換成另一種語系。」',
+    techniqueId: 'clarity-03',
+    run(text) {
+      const t = clean(text);
+      const gloss = t.match(TERM_GLOSS_ZH) || t.match(TERM_GLOSS_EN);
+      const exclude = t.match(TERM_EXCLUDE_ZH) || t.match(TERM_EXCLUDE_EN);
+      if (gloss && exclude) {
+        return PASS(`那個詞被講死了：「${snip(gloss[0], 24)}」，而且說明了不是哪一種意思。`);
+      }
+      if (gloss) {
+        return MOST(`有補上定義（「${snip(gloss[0], 24)}」），再加一句「不是指＿＿」把另一種讀法排掉就滿分了。`);
+      }
+      if (exclude) {
+        return PART(`只排掉了一種讀法（「${snip(exclude[0], 24)}」），還沒正面說它到底是指什麼。`);
+      }
+      return MISS('素材裡那個詞有兩種讀法，你還沒挑一種。補一句「這裡說的『＿＿』是指＿＿，不是指＿＿」。');
+    },
+  },
+
+  {
+    id: 'namesComponents',
+    label: '零件各自標名 Name the parts',
+    hint: '把每一段標上它的零件名再寫內容：角色：／任務：／資料：／格式：。同一個零件不要用兩種叫法各寫一次。',
+    techniqueId: 'structure-01',
+    run(text) {
+      const found = new Set();
+      for (const line of lines(text)) {
+        for (const [key, re] of COMPONENT_LABELS) {
+          if (re.test(line)) {
+            found.add(key);
+            break;
+          }
+        }
+      }
+      const n = found.size;
+      const list = [...found].join('／');
+      if (n >= 4) return PASS(`${n} 個零件都標了名字（${list}），骨架看得出來了。`);
+      if (n === 3) return MOST(`標了 ${n} 個零件（${list}）。再標一個（資料／格式／範例）就完整了。`);
+      if (n === 2) return PART(`只標了 ${n} 個零件（${list}）。剩下的段落也各給一個名字。`);
+      return MISS('還沒替各段標上零件名。每一段開頭寫「角色：」「任務：」「資料：」「格式：」再接內容。');
     },
   },
 
