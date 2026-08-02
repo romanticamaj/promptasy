@@ -1104,10 +1104,21 @@ async function main() {
     const step = g.prologueContent.step('prologue-clarity');
     const urls = new Set(g.content.curriculum.techniques.flatMap((t) => t.sources.map((s) => s.url)));
     const shown = Array.from(document.querySelectorAll('#practice .result a.src')).map((a) => a.href.replace(/\\/$/, ''));
-    return { ok: shown.every((u) => urls.has(u) || urls.has(u + '/')), source: step.source, inCurriculum: urls.has(step.source) };
+    /* 出處深連結：畫面上的網址可能多一個片段（#章節 / #:~:text=），本體必須逐字是 curriculum 那一個 */
+    const base = (u) => (u.includes('#') ? u.slice(0, u.indexOf('#')) : u);
+    const overlay = new Set(g.content.sourceAnchors.entries.map((e) => e.anchored));
+    return {
+      ok: shown.every((u) => urls.has(base(u)) || urls.has(base(u) + '/')),
+      source: step.source,
+      inCurriculum: urls.has(step.source),
+      deep: shown.filter((u) => u.includes('#')),
+      deepKnown: shown.filter((u) => u.includes('#')).every((u) => overlay.has(u)),
+    };
   `);
   eq(citationCheck.inCurriculum, true, '這一課的 source 真的存在於 curriculum');
   eq(citationCheck.ok, true, '面板上的每個出處都指向 curriculum 裡的官方連結');
+  ok(citationCheck.deep.length > 0, '序章的出處也深連結到被引用的那一節', citationCheck.deep.join(' '));
+  eq(citationCheck.deepKnown, true, '而且每一個片段都來自驗證過的疊加層（不是憑空加的）');
 
   // --- 課後：回聲補一句短的過場，再切下一拍 ---
   const bridge = await evaluate(`
@@ -1900,6 +1911,49 @@ async function main() {
     act2.srcHrefs.join(' ')
   );
   ok(act2.srcTargets.every((t) => t === '_blank'), '出處連結開新視窗，不會把玩家踢出遊戲');
+
+  /* --- 出處深連結：神諭原典要直接落在被引用的那一節，不是頁面最上面 --- */
+  const deepAct2 = await evaluate(`
+    const g = window.__promptasy;
+    const a = document.querySelector('#prompt-console .glyph a.src');
+    const skillId = g.content.challenge('gate-of-clarity-01').primarySkillId;
+    const data = g.content.sourceForSkill(skillId);
+    const rows = g.content.catalog.sourcesForSkill(skillId);
+    return {
+      href: a ? a.getAttribute('href') : '',
+      dataUrl: data.url,
+      anchorKind: rows[0].anchor,
+      // 130 座教學神廟的主原典裡，有幾個真的帶著片段
+      shrines: g.content.challenges
+        .filter((c) => c.primarySkillId)
+        .map((c) => g.content.catalog.sourcesForSkill(c.primarySkillId)[0])
+        .reduce(
+          (acc, s) => {
+            acc.total += 1;
+            if (s.url.includes('#')) acc.deep += 1;
+            else acc.flat += 1;
+            if (s.anchor === 'none') acc.honest += 1;
+            return acc;
+          },
+          { total: 0, deep: 0, flat: 0, honest: 0 }
+        ),
+    };
+  `);
+  eq(deepAct2.href, deepAct2.dataUrl, '畫面上的 href 就是資料層那一個網址（沒有中間層改寫）');
+  ok(deepAct2.href.includes('#'), '神諭原典帶著片段 —— 點過去直接落在被引用的那一節', deepAct2.href);
+  ok(
+    deepAct2.href.endsWith('#best-practices'),
+    '而且是這一關教的那一節（Microsoft · Prompt engineering techniques 的 Best practices）',
+    deepAct2.href
+  );
+  ok(deepAct2.anchorKind !== 'none', '資料層也表態了這個 anchor 是怎麼定位的', String(deepAct2.anchorKind));
+  eq(deepAct2.shrines.total, 130, '130 座教學神廟的主原典全部盤過');
+  ok(
+    deepAct2.shrines.deep >= 110,
+    `${deepAct2.shrines.deep} / 130 座的主原典直接跳到章節`,
+    JSON.stringify(deepAct2.shrines)
+  );
+  eq(deepAct2.shrines.flat, deepAct2.shrines.honest, '沒有片段的那幾座都在資料層誠實標成 none（不是漏做）');
   ok(/回顧委託/.test(act2.backLabel), '第二幕可以翻回第一幕', act2.backLabel);
   ok(/開始刻印/.test(act2.nextLabel), '第二幕往下的出口是「開始刻印」', act2.nextLabel);
   ok(/指引/.test(act2.navNow[0]), '指示器跟著移到②指引', act2.navNow[0]);
@@ -4484,6 +4538,42 @@ async function main() {
   ok(codexZh.srcsVisible.every((u) => /^https:\/\//.test(u)), '出處連結是可點的 https 連結');
   ok(codexZh.originCount >= 27, '至少 27 條技巧掛得出官方原文', `n=${codexZh.originCount}`);
   eq(codexZh.leakCount, 0, '整本圖鑑預設看不到任何一句官方英文', JSON.stringify(codexZh.leaks));
+
+  /* --- 出處深連結：圖鑑的舊 68 條走顯示層疊加（curriculum.json 一個字沒動） --- */
+  const codexDeep = await evaluate(`
+    const g = window.__promptasy;
+    const anchors = g.content.sourceAnchors;
+    const raw = g.content.curriculum.techniques.find((t) => t.id === 'clarity-01');
+    const shown = g.content.displayTechnique('clarity-01').sources;
+    const hrefs = Array.from(document.querySelectorAll('#codex .tech__srcs a'))
+      .filter((a) => a.checkVisibility && a.checkVisibility())
+      .map((a) => a.getAttribute('href'));
+    return {
+      overlaySize: anchors.size,
+      rawFirst: raw.sources[0].url,
+      shownFirst: shown[0].url,
+      shownName: shown[0].name,
+      rawName: raw.sources[0].name,
+      rawHasHash: raw.sources.some((s) => s.url.includes('#')),
+      // 畫面上「有帶片段」的出處連結有幾條（整本圖鑑）
+      deepOnScreen: hrefs.filter((u) => u.includes('#')).length,
+      onScreen: hrefs.length,
+      /* 疊加層的每一條都只在片段上動手腳 */
+      allFragmentOnly: anchors.entries.every((e) => e.anchored.startsWith(e.url + '#')),
+      methods: Array.from(new Set(anchors.entries.map((e) => e.method))).sort(),
+    };
+  `);
+  ok(codexDeep.overlaySize > 0, '圖鑑接上了出處深連結疊加層', String(codexDeep.overlaySize));
+  eq(codexDeep.rawHasHash, false, 'curriculum.json 裡的原網址仍然是頁面層（一個位元組都沒動）');
+  ok(codexDeep.shownFirst.startsWith(codexDeep.rawFirst + '#'), '畫面上顯示的是原網址 ＋ 一個片段', codexDeep.shownFirst);
+  eq(codexDeep.shownName, codexDeep.rawName, '文件名一個字沒改（疊加層只動網址的片段）');
+  eq(codexDeep.allFragmentOnly, true, '疊加層的每一條都只在片段上動手腳（不得換文件）');
+  ok(
+    codexDeep.methods.every((m) => ['heading', 'fragment'].includes(m)),
+    '定位方式只有兩種：頁面上的標題 id、或 W3C 文字片段',
+    codexDeep.methods.join(',')
+  );
+  ok(codexDeep.deepOnScreen > 0, '展開的那條技巧，畫面上的出處連結真的帶著片段', `${codexDeep.deepOnScreen}/${codexDeep.onScreen}`);
 
   // 展開之後：官方原文一字不差
   const originOpen = await evaluate(`

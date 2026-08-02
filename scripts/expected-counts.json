@@ -1,7 +1,7 @@
 {
   "note": "測試用的「這是契約，不是快照」清單。凡是能從 runtime catalog 或資料檔算出來的數字（技巧數、區域數、技能數、flow 數…），測試一律現算，不寫在這裡；只有『這個數字本身就是當期的驗收目標』才登記在這裡，改動它＝有意識地改變契約。每一格都寫得出為什麼。",
-  "updatedAt": "2026-08-02",
-  "updatedBy": "課程 v2 · Phase J2（12 座應用關 ＋ 土地印記 seals ＋ 大師層印記）",
+  "updatedAt": "2026-08-03",
+  "updatedBy": "出處深連結稽核（每一個顯示得到的官方連結都直接跳到被引用的那一節）",
   "contract": {
     "challenges": {
       "value": 142,
@@ -167,6 +167,19 @@
     "divergenceShrines": {
       "value": 9,
       "why": "分歧之廳這一區的關卡數：curriculum-v2 §3 的 divergence 總表就是 9 座教學神廟（本區的終章試煉屬於 J2 的 12 座應用關）。"
+    },
+    "sourceAnchors": {
+      "value": {
+        "skillRowsWithoutAnchor": 75,
+        "legacyOverlayEntries": 64,
+        "legacyRowsWithoutAnchor": 41,
+        "textFragments": 20
+      },
+      "why": "出處深連結稽核（2026-08-03）的驗收數字。130 座教學神廟與圖鑑顯示的每一個官方連結都要直接跳到**被引用的那一節**：v2 技能的 445 列出處就地升級（370 列帶得出片段、75 列查核後確認是頁面層引用而誠實留白），舊 68 條的 105 列走顯示層疊加 source-anchors.json（64 條疊得上、41 列停在頁面層）。textFragments ＝ 兩層加起來用 W3C `#:~:text=` 的條數（那些頁面沒有可用的標題 id）。這幾個「沒有深連結」的數字就是誠實度本身 —— 只准往下走，往上就是有人把片段亂加或把驗證拿掉；max 是硬上限。逐網址的驗證紀錄在 docs/design/source-anchor-audit.md。",
+      "max": {
+        "skillRowsWithoutAnchor": 80,
+        "legacyRowsWithoutAnchor": 45
+      }
     },
     "applicationTrials": {
       "value": 12,

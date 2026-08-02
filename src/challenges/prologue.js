@@ -10,11 +10,19 @@
  * （id / rubric / pass / xp / teaches），所以序章與正式關卡共用同一套離線評分邏輯。
  */
 
+import { createSourceAnchors } from './source-anchor.js';
+
 /**
  * @param {object} prologueData src/data/prologue.json
  * @param {object} curriculum   src/data/curriculum.json
  */
-export function createPrologueContent(prologueData, curriculum, curriculumZh = null) {
+export function createPrologueContent(prologueData, curriculum, curriculumZh = null, anchorFile = null) {
+  /**
+   * 出處深連結疊加層（見 src/challenges/source-anchor.js）：
+   * 序章顯示的官方出處與圖鑑走同一層，一樣直接跳到被引用的那一節。
+   * curriculum.json 的原網址一個字都沒動，這裡只在顯示時多接一個片段。
+   */
+  const anchors = createSourceAnchors(anchorFile);
   const techniques = new Map((curriculum.techniques || []).map((t) => [t.id, t]));
   const beforeAfter = new Map((curriculum.beforeAfter || []).map((b) => [b.title, b]));
   /** 官方範例的中文譯寫（curriculum-zh.json）—— 序章沒自己寫 zhCards 時的退路。 */
@@ -55,7 +63,7 @@ export function createPrologueContent(prologueData, curriculum, curriculumZh = n
         example: tech.example,
         exampleZh: typeof zh.example === 'string' ? zh.example : '',
         zhNote: typeof zh.note === 'string' ? zh.note : '',
-        source: (tech.sources || [])[0] || null,
+        source: anchors.applyTo(tech.id, tech.sources)[0] || null,
       };
     }
     return null;
@@ -79,7 +87,7 @@ export function createPrologueContent(prologueData, curriculum, curriculumZh = n
           (zhTech.get(t.id) || {}).example ||
           '',
         vendors: t.vendors || [],
-        sources: t.sources || [],
+        sources: anchors.applyTo(t.id, t.sources),
       }));
 
     // 起手文字：那句「弱」的委託逐字留著 —— 第一幕要讓玩家先看見「哪裡不對」
@@ -112,7 +120,7 @@ export function createPrologueContent(prologueData, curriculum, curriculumZh = n
     const src = step.inscription || null;
     if (!src) return null;
     const tech = techniques.get(src.techniqueId) || null;
-    const sources = (tech && tech.sources) || [];
+    const sources = tech ? anchors.applyTo(tech.id, tech.sources) : [];
     return {
       techniqueId: src.techniqueId,
       title: src.title,
@@ -121,7 +129,7 @@ export function createPrologueContent(prologueData, curriculum, curriculumZh = n
       /** 對應技巧的正式名稱（顯示在標題旁邊，不冒充官方文字）。 */
       tech: tech ? tech.title : '',
       /** 神諭原典：優先取這一課指定的那份官方文件。 */
-      source: sources.find((s) => s.url === step.source) || sources[0] || null,
+      source: sources.find((s) => anchors.baseUrl(s.url) === step.source) || sources[0] || null,
     };
   }
 
@@ -140,7 +148,7 @@ export function createPrologueContent(prologueData, curriculum, curriculumZh = n
 
   function sourceNameFor(step, teachCards) {
     for (const card of teachCards) {
-      const hit = (card.sources || []).find((s) => s.url === step.source);
+      const hit = (card.sources || []).find((s) => anchors.baseUrl(s.url) === step.source);
       if (hit) return hit.name;
     }
     for (const id of step.teaches || []) {

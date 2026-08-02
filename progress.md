@@ -1989,3 +1989,103 @@ system prompt / schema / API / prompt / LLM / HTML / CSS / TTS…）滑上去能
 - 未 commit／未 push。
 - 字型的 6 個 `.woff2` **一個位元組都沒變**（換字之後語料字元集跟 HEAD 完全一樣），
   只有 `manifest.json` 的語料指紋更新。
+
+---
+
+## 2026-08-03 — 出處深連結（Source deep-linking）
+
+**要求（站長原話的意圖）**：每一關顯示的廠商文件連結，要**直接跳到被引用的那一節**
+（網址帶 hash / anchor），不是只到頁面最上面；而且要逐幕確認每一個顯示位置都照做。
+
+### 做了什麼
+
+**① 盤點**（scratchpad 腳本，非產品碼）：走過 142 關的每一個顯示路徑
+（第二幕神諭原典、第三幕對照、結果面板、圖鑑的 130 技能卡與 68 技巧卡、序章、
+刻文小語、時代註記、雙面碑的模型卡）→ **963 個顯示位置 / 360 個相異網址 / 114 份文件**。
+確認 **12 座應用試煉整幕不顯示任何出處**（`links === 0`，e2e 既有斷言）。
+
+**② 實地抓頁面**（2026-08-03 當天）：114 份官方文件全部 `curl` 下來。
+三個問題網域誠實處理 —— `ai.google.dev` 的 302 自動登入迴圈用 cookie jar 解掉（20 份全取回）、
+`developer.meta.com` 對 curl 回 400 改用 headless Chrome `--dump-dom`（3 份取回）、
+`help.openai.com` 403 與 `docs.x.ai/docs/guides/grok-code-prompt-engineering` 404 維持原樣不動。
+
+**③ 逐列定位**（550 列資料層出處）：優先序＝出處自己寫的章節名 →
+這條技能的英文名恰好是某個章節 → master list 自己記過的深連結 →
+master 條目的官方引文落在哪一節 → 文字片段。**一個 anchor 都沒有臆造**：
+`heading` 型的 id 必須出現在當天抓下來的 HTML；`fragment` 型的片段必須在頁面文字裡唯一命中。
+
+| 定位方式 | 列數 |
+|---|---:|
+| 本來就有（實地確認 id 仍在） | 192 |
+| 標題 id | 155 |
+| 標題 id（沿用 master list 的深連結） | 46 |
+| 文字片段（`#:~:text=`） | 20 |
+| **修好失效的舊 anchor** | **9** |
+| 頁面層（誠實留白 ＋ 理由） | 116 |
+
+寫回之後重新盤一次畫面：**anchor-ok 654 / fragment-ok 22 / page-level 287，壞掉的片段 0**。
+
+**④ 寫回（兩層，理由不同）**
+- **v2 的 130 條技能**（`skill-codex-v2.json`，遊戲自撰資料層）→ `url` 就地升級（178 列），
+  每一列多一個 `anchor` 欄表態，`none` 的另附 `anchorNote` 理由；跟著同步
+  `challenges.json` 的 `source`（40 關）與 `flows.json` 雙面碑的模型卡出處（5 條）。
+- **舊 68 條**（`curriculum.json` 逐字鎖死）→ 新增顯示層疊加 `src/data/source-anchors.json`
+  （`authored: "game"`，64 條）＋ 新模組 `src/challenges/source-anchor.js`，
+  在 `content.js` / `prologue.js` **顯示時**才把片段接上去。
+  **`anchored` 與 `url` 只准差一個片段**（測試強制驗證）。
+- `dated-notes.json` 的 5 條新官方連結也一併深連結（逐條在頁面上找到那句話才寫）。
+
+**⑤ 這次抓到的真問題**：9 條**原本就寫了 anchor、但那個 id 在現在的頁面上已經不存在**
+（Anthropic 文件把 `&` 的 slug 規則從 `--` 改成 `-and-`、`#latex-output` 變成 `#la-te-x-output`…）
+—— 玩家點過去只會停在頁面最上面。全部修好並在報告裡逐條列出。
+
+**⑥ 誠實留白**：116 列停在頁面層，理由分兩類 ——「出處本來就是頁面層引用（沒有指名章節）
+且 master 的官方引文在這一版頁面上找不到唯一落點」，以及「出處寫的章節在這一版頁面上找不到」。
+每一條理由都寫進 `anchorNote` 與報告。
+
+### 驗證
+
+| 套件 | 之前 | 之後 |
+|---|---|---|
+| `npm run fonts` | CJK 1844 / 1463.4 KB | CJK 1844 / **1463.3 KB**，指紋綠（片段裡的非 ASCII 一律 percent-encode，語料沒被拖下水） |
+| `npm run test:rubric` | 77,311 | **79,830 全綠** |
+| `npm run test:playtest` | 2,372 | **2,372**（未動） |
+| `npm run build` | ✓ | ✓ |
+| `npm run test:e2e` | 3,190 | **3,206 全部通過、零 console error、零重跑** |
+
+**先紅後綠**（實測）：把疊加層第一條的 `anchored` 改成別的網域、
+把一列標 `heading` 的網址片段拔掉 → **8 條紅**
+（`深連結與原網址只差一個片段`、`真的多加了片段`、`片段接在原網址後面`、
+`標 heading 的網址真的帶著片段`、`圖鑑顯示的出處帶著深連結`、`sourceFor() 走同一層疊加`…）；還原後全綠。
+
+**新增的測試**
+- rubric：疊加層只准差片段、每一列都要表態（`anchor` ／ `none` ＋ `anchorNote`）、
+  疊加的網址真的是那條技巧引用的那一個、`curriculum.json` 的原網址沒被動過、
+  130 座神廟的主原典逐座檢查、試煉沒有主教學目標、
+  覆蓋率契約 `scripts/expected-counts.json` 的 `sourceAnchors`（含**誠實的 none 數**與硬上限）。
+- e2e：第二幕的 `href` 真的帶著片段且就是資料層那一個（`#best-practices`）、
+  130 座主原典的深連結覆蓋、沒有片段的那幾座都標成 `none`（不是漏做）、
+  圖鑑的舊 68 條走疊加層而 `curriculum.json` 仍是頁面層、序章結果面板的出處也深連結
+  且每個片段都來自驗證過的疊加層。
+
+### e2e 兩輪的誠實紀錄
+
+| 輪 | 結果 |
+|---|---|
+| 第一輪（寫回後的第一版資料） | 3,203 通過 / **1 失敗** —— 序章那條「面板上的每個出處都指向 curriculum 裡的官方連結」用 `urls.has(href)` 逐字比對，深連結多了片段就對不上。**它抓到的是真的事**（顯示層變了而斷言沒跟上），改成比對網址本體 ＋ 新增「片段必須來自驗證過的疊加層」一條 |
+| 第二輪（修好解析器的框架 id 與 GitHub anchor 之後重跑全套） | **3,206 全部通過、零 console error**；AGENTS.md 登記的動畫時序 flaky 家族一條都沒出現，沒有重跑 |
+
+兩輪之間還修了解析器的三個真問題（都在寫回前抓到並重跑）：挑到 Google devsite 的
+`#breadcrumb`、GitHub repo 頁的 `#folders-and-files`，以及把 repo 名當搜尋針挑出
+`#step-1-installation`。修完 GitHub 的八條變成正確的 `#usage-recommendations` / `#official-prompts`。
+
+### 文件
+
+- 新增 `docs/design/source-anchor-audit.md`：逐網址驗證表、9 條失效 anchor 的前後對照、
+  誠實留白的理由分類、三個抓不到的網域、為什麼用 Text Fragments、怎麼重驗。
+- `WORLD.md` §3.4 新增「出處要深連結到被引用的那一節」三條硬規則。
+
+### 這一期沒有動到的東西
+
+- `CLAUDE.md`、`vite.config.js`、port 5175、`src/data/curriculum.json`（sha256 仍綠）。
+- 未 commit／未 push。

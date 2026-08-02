@@ -18,12 +18,14 @@
     "src/data/secrets.json",
     "src/data/sim-samples.json",
     "src/data/skill-codex-v2.json",
+    "src/data/source-anchors.json",
     "src/audio/audio.js",
     "src/challenges/catalog.js",
     "src/challenges/checks.js",
     "src/challenges/content.js",
     "src/challenges/prologue.js",
     "src/challenges/rubric.js",
+    "src/challenges/source-anchor.js",
     "src/challenges/trial.js",
     "src/engine/engine.js",
     "src/main.js",
@@ -73,7 +75,7 @@
     "src/world/reactive.js",
     "src/world/world.js"
   ],
-  "corpusHash": "3462207b5538c770",
+  "corpusHash": "3b8e0594c4134de4",
   "coverage": {
     "latin": [
       32,
@@ -331,7 +333,8 @@
       10230,
       10697,
       11093,
-      12539
+      12539,
+      57498
     ],
     "cjk": [
       12288,
@@ -2379,7 +2382,8 @@
       10230,
       10697,
       11093,
-      12539
+      12539,
+      57498
     ],
     "mono": [
       8213,
@@ -2416,7 +2420,8 @@
       10060,
       10697,
       11093,
-      12539
+      12539,
+      57498
     ],
     "serif-tc": [],
     "sans-tc": []
@@ -2456,7 +2461,7 @@
       "id": "inter",
       "family": "Inter UI",
       "file": "inter-ui.woff2",
-      "bytes": 85552,
+      "bytes": 85444,
       "role": "latin",
       "variable": true,
       "weight": null,
@@ -2472,7 +2477,7 @@
           "default": 14
         }
       },
-      "requested": 256,
+      "requested": 257,
       "missing": 25,
       "source": "Inter.ttf",
       "author": "Rasmus Andersson",
@@ -2500,8 +2505,8 @@
           "default": 16
         }
       },
-      "requested": 256,
-      "missing": 62,
+      "requested": 257,
+      "missing": 63,
       "source": "Newsreader.ttf",
       "author": "Production Type (Jean-Baptiste Morizot, Lucas Descroix)",
       "license": "SIL Open Font License 1.1",
@@ -2523,8 +2528,8 @@
           "default": 400
         }
       },
-      "requested": 256,
-      "missing": 35,
+      "requested": 257,
+      "missing": 36,
       "source": "JetBrainsMono.ttf",
       "author": "JetBrains (Philipp Nurullin, Konstantin Bulenkov)",
       "license": "SIL Open Font License 1.1",
@@ -2578,5 +2583,5 @@
       "url": "https://github.com/google/fonts/tree/main/ofl/notosanstc"
     }
   ],
-  "totalBytes": 1498536
+  "totalBytes": 1498428
 }

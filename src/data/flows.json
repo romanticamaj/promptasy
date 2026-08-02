@@ -12260,7 +12260,7 @@
               "sources": [
                 {
                   "name": "DeepSeek-R1 README（Usage Recommendations）",
-                  "url": "https://github.com/deepseek-ai/DeepSeek-R1"
+                  "url": "https://github.com/deepseek-ai/DeepSeek-R1#usage-recommendations"
                 }
               ]
             },
@@ -12282,7 +12282,7 @@
               "sources": [
                 {
                   "name": "Magistral-Small-2509 模型卡",
-                  "url": "https://huggingface.co/mistralai/Magistral-Small-2509"
+                  "url": "https://huggingface.co/mistralai/Magistral-Small-2509#sampling-parameters"
                 },
                 {
                   "name": "Ministral-3-8B-Reasoning-2512 官方 SYSTEM_PROMPT.txt",
@@ -12397,11 +12397,11 @@
               "sources": [
                 {
                   "name": "Qwen3-235B-A22B-Thinking-2507 模型卡",
-                  "url": "https://huggingface.co/Qwen/Qwen3-235B-A22B-Thinking-2507"
+                  "url": "https://huggingface.co/Qwen/Qwen3-235B-A22B-Thinking-2507#best-practices"
                 },
                 {
                   "name": "Thinking Mode",
-                  "url": "https://api-docs.deepseek.com/guides/thinking_mode"
+                  "url": "https://api-docs.deepseek.com/guides/thinking_mode#tool-calls"
                 }
               ]
             },
@@ -12423,7 +12423,7 @@
               "sources": [
                 {
                   "name": "Ministral-3-8B-Reasoning-2512 模型卡（Recommended Settings）",
-                  "url": "https://huggingface.co/mistralai/Ministral-3-8B-Reasoning-2512"
+                  "url": "https://huggingface.co/mistralai/Ministral-3-8B-Reasoning-2512#recommended-settings"
                 }
               ]
             },

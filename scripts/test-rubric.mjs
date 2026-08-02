@@ -41,6 +41,12 @@ const { findEnglishSentence: ENGLISH } = await import('./zh-scan.mjs');
 const { CHECKS: CHECK_DEFS } = await import('../src/challenges/checks.js');
 
 const nonEmptyStr = (v) => typeof v === 'string' && v.trim().length > 0;
+/** 網址去掉片段（#anchor / #:~:text=）之後的本體 —— 出處深連結只准在片段上動手腳。 */
+const urlBase = (u) => {
+  const s = String(u || '');
+  const i = s.indexOf('#');
+  return i < 0 ? s : s.slice(0, i);
+};
 
 /**
  * 少數檢查天生需要「一大段資料」才成立（長文本擺放）。
@@ -9921,9 +9927,16 @@ console.log('\n▸ 課程 v2 runtime catalog（Phase B step 1）');
       ok(nonEmptyStr(src.vendor), `[${s.id}] 出處標得出廠商`, src.url);
       ok(s.masterRefs.includes(src.masterRef), `[${s.id}] 出處的 masterRef 在自己的 masterRefs 裡`, String(src.masterRef));
       const entry = masterEntries.get(src.masterRef);
+      /*
+       * 出處深連結（Phase 出處深連結稽核）之後，`src.url` 可能比 master 多一個
+       * **片段**（#章節 id 或 #:~:text=）—— 那是我們自己加的、指向被引用的那一節。
+       * 所以這裡比的是「文件本體」逐字相同（不得換一份文件、不得杜撰網域），
+       * 片段本身由下面「出處深連結」那一節逐條把關（每一個都要實地驗證過）。
+       */
+      const masterBases = new Set([...(entry ? entry.urls : [])].map(urlBase));
       ok(
-        Boolean(entry && entry.urls.has(src.url)),
-        `[${s.id}] 出處逐字取自 master #${src.masterRef} 的「出處」欄（不是自己編的）`,
+        masterBases.has(urlBase(src.url)),
+        `[${s.id}] 出處的文件逐字取自 master #${src.masterRef} 的「出處」欄（不是自己編的）`,
         src.url
       );
     }
@@ -9943,6 +9956,149 @@ console.log('\n▸ 課程 v2 runtime catalog（Phase B step 1）');
     catalog.counts.skillsWithoutSource <= EXPECT.v2SkillsWithoutSource.max,
     `沒有出處的技能不超過 ${EXPECT.v2SkillsWithoutSource.max} 條（master list 的「找不到」集合上限）`
   );
+  /* ---------------------------------------------------------------- *
+   * 出處深連結稽核（2026-08-03）
+   *
+   * 玩家點「神諭原典」時要直接落在**被引用的那一節**，不是頁面最上面。
+   * 兩條路：v2 技能的出處就地升級（skill-codex-v2.json 的 url ＋ anchor 欄），
+   * 舊 68 條走顯示層疊加（source-anchors.json）—— curriculum.json 一個位元組沒動。
+   * 這一節守三件事：疊加只准動片段、每一列都表態（含誠實的 none）、覆蓋率不倒退。
+   * ---------------------------------------------------------------- */
+  {
+    const anchorOverlay = readJson('src/data/source-anchors.json');
+    const ANCHOR_KINDS = new Set(['already', 'heading', 'repaired', 'fragment', 'none']);
+    const isFragment = (u) => u.includes('#:~:text=');
+    /* ① v2 技能：每一列都要表態 */
+    const anchorCount = { already: 0, heading: 0, repaired: 0, fragment: 0, none: 0 };
+    for (const s of catalog.skills) {
+      for (const src of s.sources) {
+        const tag = `[anchor:${s.id}]`;
+        ok(ANCHOR_KINDS.has(src.anchor), `${tag} 出處標得出深連結的定位方式`, String(src.anchor));
+        anchorCount[src.anchor] = (anchorCount[src.anchor] || 0) + 1;
+        if (src.anchor === 'none') {
+          ok(nonEmptyStr(src.anchorNote), `${tag} 沒有深連結時寫得出誠實理由`, src.url);
+          ok(!src.url.includes('#'), `${tag} 標 none 的網址就是頁面層（沒有偷加片段）`, src.url);
+        } else {
+          ok(src.url.includes('#'), `${tag} 標 ${src.anchor} 的網址真的帶著片段`, src.url);
+          ok(!('anchorNote' in src), `${tag} 有深連結就不留「找不到」的理由`, src.url);
+        }
+        if (src.anchor === 'fragment') {
+          ok(isFragment(src.url), `${tag} fragment 型走的是 W3C 文字片段`, src.url);
+        }
+      }
+    }
+    ok(Boolean(skillCodexV2.anchorAudit && skillCodexV2.anchorAudit.checkedAt), '技能出處記得出稽核日期');
+    /* ② 舊 68 條的疊加層：只准多一個片段 */
+    ok(anchorOverlay.authored === 'game', 'source-anchors 標明是遊戲自撰的顯示層');
+    ok(/^\d{4}-\d{2}-\d{2}$/.test(String(anchorOverlay.verifiedAt || '')), '疊加層寫得出驗證日期', anchorOverlay.verifiedAt);
+    ok(anchorOverlay.entries.length > 0, '疊加層至少疊了一條');
+    const seenOverlay = new Set();
+    const overlayMethods = { heading: 0, fragment: 0 };
+    for (const e of anchorOverlay.entries) {
+      const tag = `[srcanchor:${e.techniqueId}]`;
+      const tech = techById.get(e.techniqueId);
+      ok(Boolean(tech), `${tag} 掛在 curriculum 裡真的存在的技巧上`, e.techniqueId);
+      ok(
+        Boolean(tech && (tech.sources || []).some((s) => s.url === e.url)),
+        `${tag} 疊加的網址真的是這條技巧引用的那一個`,
+        e.url
+      );
+      /* 核心規則：疊加後只准差在片段 */
+      eq(urlBase(e.anchored), e.url, `${tag} 深連結與原網址只差一個片段（不得換文件）`);
+      ok(e.anchored.length > e.url.length, `${tag} 真的多加了片段`, e.anchored);
+      ok(e.anchored.startsWith(`${e.url}#`), `${tag} 片段接在原網址後面`, e.anchored);
+      ok(['heading', 'fragment'].includes(e.method), `${tag} 定位方式合法`, e.method);
+      overlayMethods[e.method] += 1;
+      if (e.method === 'fragment') ok(isFragment(e.anchored), `${tag} fragment 型走 W3C 文字片段`, e.anchored);
+      else ok(!isFragment(e.anchored), `${tag} heading 型指的是頁面上的標題 id`, e.anchored);
+      const key = `${e.techniqueId}|${e.url}`;
+      ok(!seenOverlay.has(key), `${tag} 同一條技巧的同一個網址只疊一次`, e.url);
+      seenOverlay.add(key);
+      /* 護欄 2：原網址仍然逐字留在 curriculum.json 裡 */
+      ok(
+        (tech.sources || []).some((s) => s.url === e.url && !s.url.includes('#')),
+        `${tag} curriculum 裡的原網址沒有被動過`,
+        e.url
+      );
+    }
+    /* ③ 疊加層真的接到畫面上 */
+    const anchored = createContent(curriculum, challengeData, null, null, null, null, datedNotes, catalog, anchorOverlay);
+    const plain = createContent(curriculum, challengeData);
+    const sample = anchorOverlay.entries[0];
+    const shown = anchored.displayTechnique(sample.techniqueId).sources.find((s) => urlBase(s.url) === sample.url);
+    eq(shown.url, sample.anchored, '圖鑑顯示的出處帶著深連結');
+    eq(
+      plain.displayTechnique(sample.techniqueId).sources.find((s) => s.url === sample.url).url,
+      sample.url,
+      '沒有疊加層時安靜降級成原本的頁面層網址'
+    );
+    /* 深連結之後畫面上仍然是文件名不是網址（v2 技能與舊 68 條對同一份文件各有自己的寫法，都算數） */
+    const shownName = anchored.sourceName(sample.anchored);
+    ok(nonEmptyStr(shownName) && shownName !== sample.anchored, '深連結之後照樣查得到官方文件名', shownName);
+    eq(plain.sourceName(sample.url), plain.sourceName(sample.anchored), '同一份文件不管帶不帶片段都查到同一個名字');
+    for (const t of curriculum.techniques) {
+      const first = (t.sources || [])[0];
+      if (!first) continue;
+      const want = anchorOverlay.entries.find((e) => e.techniqueId === t.id && e.url === first.url);
+      eq(
+        anchored.sourceFor(t.id).url,
+        want ? want.anchored : first.url,
+        `[srcfor:${t.id}] sourceFor() 走同一層疊加`
+      );
+      eq(anchored.sourceFor(t.id).name, first.name, `[srcfor:${t.id}] 文件名不變`);
+    }
+    /* 時代註記的網址多了片段之後照樣查得到狀態 */
+    for (const sn of datedNotes.sourceNotes || []) {
+      eq(anchored.sourceNote(`${sn.url}#whatever`), sn, `[deadsrc] 帶片段也查得到出處狀態`, sn.url);
+    }
+    /* ④ 130 座教學神廟：第二幕的神諭原典逐座檢查 */
+    let shrineAnchored = 0;
+    let shrineFlat = 0;
+    for (const c of challenges) {
+      if (!c.primarySkillId) continue;
+      const skill = catalog.skill(c.primarySkillId);
+      const first = (skill.sources || [])[0];
+      const tag = `[act2:${c.id}]`;
+      ok(Boolean(first), `${tag} 主技能掛得出官方出處`);
+      if (first.anchor === 'none') shrineFlat += 1;
+      else {
+        shrineAnchored += 1;
+        ok(first.url.includes('#'), `${tag} 神諭原典直接跳到被引用的那一節`, first.url);
+      }
+      /* 結果面板那一行與第二幕指的是同一份文件 */
+      ok(
+        (skill.sources || []).some((s) => s.url === c.source),
+        `${tag} 結果面板的出處也是這條技能自己的清單裡的`,
+        c.source
+      );
+    }
+    ok(shrineAnchored + shrineFlat === 130, `130 座教學神廟的原典都盤過`, String(shrineAnchored + shrineFlat));
+    /* ⑤ 應用試煉：不教新技巧 → 畫面上不掛任何神諭原典 */
+    for (const c of challenges) {
+      if (c.primarySkillId) continue;
+      ok(Boolean(c.application), `[trial:${c.id}] 沒有主技能的就是應用試煉`);
+      for (const row of c.rubric || []) {
+        ok(!row.primary, `[trial:${c.id}] 試煉沒有「主教學目標」那一列`);
+      }
+    }
+    /* ⑥ 覆蓋率：契約在 expected-counts，退步就要有人簽名 */
+    const E = EXPECT.sourceAnchors.value;
+    eq(anchorCount.none, E.skillRowsWithoutAnchor, `v2 技能出處只剩 ${E.skillRowsWithoutAnchor} 列沒有深連結`);
+    ok(
+      anchorCount.none <= EXPECT.sourceAnchors.max.skillRowsWithoutAnchor,
+      `沒有深連結的技能出處不超過 ${EXPECT.sourceAnchors.max.skillRowsWithoutAnchor} 列`,
+      String(anchorCount.none)
+    );
+    const legacyRows = curriculum.techniques.reduce((n, t) => n + (t.sources || []).length, 0);
+    eq(anchorOverlay.entries.length, E.legacyOverlayEntries, `舊 68 條疊了 ${E.legacyOverlayEntries} 條深連結`);
+    eq(legacyRows - anchorOverlay.entries.length, E.legacyRowsWithoutAnchor, `舊 68 條還有 ${E.legacyRowsWithoutAnchor} 列停在頁面層`);
+    ok(
+      legacyRows - anchorOverlay.entries.length <= EXPECT.sourceAnchors.max.legacyRowsWithoutAnchor,
+      `停在頁面層的舊出處不超過 ${EXPECT.sourceAnchors.max.legacyRowsWithoutAnchor} 列`
+    );
+    eq(overlayMethods.fragment + anchorCount.fragment, E.textFragments, `文字片段型的深連結共 ${E.textFragments} 條`);
+  }
+
   /* 蒸餾規則 3：總表標「找不到」的條目不得被任何技能引用 */
   for (const s of catalog.skills) {
     for (const n of s.masterRefs) {

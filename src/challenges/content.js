@@ -22,6 +22,7 @@
  * 所以既有的測試呼叫端一個字都不必改。
  */
 import { createCatalog } from './catalog.js';
+import { createSourceAnchors, baseUrl } from './source-anchor.js';
 
 export function createContent(
   curriculum,
@@ -31,8 +32,15 @@ export function createContent(
   flowFile = null,
   curriculumZh = null,
   datedFile = null,
-  catalogInput = null
+  catalogInput = null,
+  anchorFile = null
 ) {
+  /**
+   * 出處深連結疊加層（source-anchors.json，遊戲自撰的顯示層）。
+   * 舊 68 條的官方網址逐字留在 curriculum.json 裡不動，這裡只在**顯示時**
+   * 把「被引用的那一節」的片段接上去（見 src/challenges/source-anchor.js）。
+   */
+  const anchors = createSourceAnchors(anchorFile);
   /** 課程 v2 的合併層：舊 68 條 ＋ 新 130 技能 ＋ 12 區（只有 implemented 的會被列舉）。 */
   const catalog = catalogInput || createCatalog({ curriculum });
   const challenges = (challengeFile.challenges || []).slice().sort((a, b) => (a.order || 0) - (b.order || 0));
@@ -98,25 +106,34 @@ export function createContent(
       translated: Object.keys(origin).length > 0,
       origin,
       vendors: tech.vendors || [],
-      sources: tech.sources || [],
+      /** 出處：網址已套上深連結（只多一個片段，文件名與順序完全不變）。 */
+      sources: anchors.applyTo(tech.id, tech.sources),
       /** 時代註記：官方建議在新一代模型上變了（沒有就是 null）。 */
       dated: datedByTech.get(tech.id) || null,
     };
   }
 
-  /** 官方文件網址 → 文件名（結果面板不要秀一長串網址給玩家看）。 */
+  /**
+   * 官方文件網址 → 文件名（結果面板不要秀一長串網址給玩家看）。
+   * 出處深連結之後同一份文件會有「頁面層」與「帶片段」兩種寫法，
+   * 兩個 key 都登記，任何一種寫法都查得到同一個文件名。
+   */
   const sourceNameByUrl = new Map();
+  const rememberName = (url, name) => {
+    if (!url || !name) return;
+    if (!sourceNameByUrl.has(url)) sourceNameByUrl.set(url, name);
+    const b = baseUrl(url);
+    if (!sourceNameByUrl.has(b)) sourceNameByUrl.set(b, name);
+  };
   for (const t of curriculum.techniques || []) {
-    for (const s of t.sources || []) if (s && s.url && !sourceNameByUrl.has(s.url)) sourceNameByUrl.set(s.url, s.name);
+    for (const s of t.sources || []) rememberName(s && s.url, s && s.name);
   }
   for (const list of Object.values(curriculum.sources || {})) {
-    for (const s of list || []) if (s && s.url && !sourceNameByUrl.has(s.url)) sourceNameByUrl.set(s.url, s.name);
+    for (const s of list || []) rememberName(s && s.url, s && s.name);
   }
   /* 課程 v2 的技能出處（Phase B）：新蓋的神廟用它們，結果面板一樣要秀文件名不是網址 */
   for (const sk of catalog.skills || []) {
-    for (const s of sk.sources || []) {
-      if (s && s.url && !sourceNameByUrl.has(s.url)) sourceNameByUrl.set(s.url, s.docName || s.vendor);
-    }
+    for (const s of sk.sources || []) rememberName(s && s.url, s && (s.docName || s.vendor));
   }
 
   return {
@@ -132,11 +149,17 @@ export function createContent(
     curriculumZh: curriculumZh || null,
     /** 這條技巧的時代註記（沒有就是 null）。 */
     datedNote: (id) => datedByTech.get(id) || null,
-    /** 這個官方網址的狀態註記：已下架 / 已標示即將移除（沒有就是 null）。 */
-    sourceNote: (url) => datedBySource.get(url) || null,
+    /**
+     * 這個官方網址的狀態註記：已下架 / 已標示即將移除（沒有就是 null）。
+     * 深連結之後畫面上的網址會多一個片段，所以查不到時再用去片段的本體查一次。
+     */
+    sourceNote: (url) => datedBySource.get(url) || datedBySource.get(baseUrl(url)) || null,
     datedFile: datedFile || null,
-    /** 官方文件網址 → 文件名（找不到就回傳網址本身）。 */
-    sourceName: (url) => sourceNameByUrl.get(url) || url,
+    /**
+     * 官方文件網址 → 文件名（找不到就回傳網址本身）。
+     * 同上：深連結只是多一個片段，文件名要查得到。
+     */
+    sourceName: (url) => sourceNameByUrl.get(url) || sourceNameByUrl.get(baseUrl(url)) || url,
     topic: (id) => topics.get(id) || null,
     /**
      * 一個區域的顯示資料（名稱、英文短名、主色）。
@@ -178,8 +201,12 @@ export function createContent(
     sourceFor(techniqueId) {
       const t = techniques.get(techniqueId);
       if (!t || !t.sources || !t.sources.length) return null;
-      return t.sources[0];
+      const first = t.sources[0];
+      const url = anchors.anchor(t.id, first.url);
+      return url === first.url ? first : { ...first, url };
     },
+    /** 出處深連結疊加層本身（測試與稽核報告用）。 */
+    sourceAnchors: anchors,
     /**
      * 課程 v2 的技能出處（Phase B）。
      *

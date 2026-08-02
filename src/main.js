@@ -21,6 +21,7 @@ import inscriptionFile from './data/inscriptions.json';
 import secretFile from './data/secrets.json';
 import handleFile from './data/handles.json';
 import datedFile from './data/dated-notes.json';
+import sourceAnchorFile from './data/source-anchors.json';
 import simSamples from './data/sim-samples.json';
 import glossaryFile from './data/glossary.json';
 import './styles.css';
@@ -99,10 +100,11 @@ function boot() {
     flowFile,
     curriculumZh,
     datedFile,
-    catalog
+    catalog,
+    sourceAnchorFile
   );
   // 序章的教學內容：只引用 curriculum 既有的技巧與弱→強對照（逐字，附官方出處）
-  const prologueContent = createPrologueContent(prologueFile, curriculum, curriculumZh);
+  const prologueContent = createPrologueContent(prologueFile, curriculum, curriculumZh, sourceAnchorFile);
   const progression = createProgression({ catalog, challenges: content.challenges });
   const quality = progression.state.settings.quality === 'low' ? 'low' : 'high';
 

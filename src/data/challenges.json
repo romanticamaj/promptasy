@@ -63,7 +63,7 @@
         }
       ],
       "pass": 2,
-      "source": "https://learn.microsoft.com/en-us/azure/ai-foundry/openai/concepts/prompt-engineering"
+      "source": "https://learn.microsoft.com/en-us/azure/ai-foundry/openai/concepts/prompt-engineering#best-practices"
     },
     {
       "id": "postbox-sprite-02",
@@ -778,7 +778,7 @@
         }
       ],
       "pass": 2,
-      "source": "https://help.aliyun.com/zh/model-studio/prompt-engineering-guide"
+      "source": "https://help.aliyun.com/zh/model-studio/prompt-engineering-guide#05776c0f8brr0"
     },
     {
       "id": "lantern-rows-12",
@@ -833,7 +833,7 @@
         }
       ],
       "pass": 2,
-      "source": "https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/prompts/few-shot-examples",
+      "source": "https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/prompts/few-shot-examples#zero-shot-versus-few-shot-prompts",
       "primarySkillId": "fewshot-consistent"
     },
     {
@@ -954,7 +954,7 @@
         }
       ],
       "pass": 2,
-      "source": "https://developers.openai.com/api/docs/guides/reasoning-best-practices",
+      "source": "https://developers.openai.com/api/docs/guides/reasoning-best-practices#how-to-prompt-reasoning-models-effectively",
       "primarySkillId": "reason-keep-simple"
     },
     {
@@ -1072,7 +1072,7 @@
         }
       ],
       "pass": 2,
-      "source": "https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/prompts/explain-reasoning",
+      "source": "https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/prompts/explain-reasoning#examples",
       "primarySkillId": "cot-separate-answer"
     },
     {
@@ -1199,7 +1199,7 @@
         }
       ],
       "pass": 2,
-      "source": "https://developers.openai.com/api/docs/guides/reasoning",
+      "source": "https://developers.openai.com/api/docs/guides/reasoning#advice-on-prompting",
       "primarySkillId": "knob-effort"
     },
     {
@@ -1369,7 +1369,7 @@
         }
       ],
       "pass": 2,
-      "source": "https://docs.cohere.com/docs/advanced-prompt-engineering-techniques"
+      "source": "https://docs.cohere.com/docs/advanced-prompt-engineering-techniques#few-shot-prompting"
     },
     {
       "id": "two-lampkeepers-18",
@@ -1472,7 +1472,7 @@
         }
       ],
       "pass": 2,
-      "source": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#leverage-thinking--interleaved-thinking-capabilities"
+      "source": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#leverage-thinking-and-interleaved-thinking-capabilities"
     },
     {
       "id": "step-bridge-20",
@@ -1525,7 +1525,7 @@
         }
       ],
       "pass": 2,
-      "source": "https://developers.openai.com/cookbook/examples/gpt4-1_prompting_guide"
+      "source": "https://developers.openai.com/cookbook/examples/gpt4-1_prompting_guide#3-chain-of-thought"
     },
     {
       "id": "silent-brooder-21",
@@ -1577,7 +1577,7 @@
         }
       ],
       "pass": 2,
-      "source": "https://developers.openai.com/api/docs/guides/reasoning"
+      "source": "https://developers.openai.com/api/docs/guides/reasoning#reasoning-summaries"
     },
     {
       "id": "citation-desk-21",
@@ -1689,7 +1689,7 @@
         }
       ],
       "pass": 2,
-      "source": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#leverage-thinking--interleaved-thinking-capabilities"
+      "source": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#leverage-thinking-and-interleaved-thinking-capabilities"
     },
     {
       "id": "well-of-unknowing-22",
@@ -1748,7 +1748,7 @@
         }
       ],
       "pass": 2,
-      "source": "https://claude.com/blog/best-practices-for-prompt-engineering",
+      "source": "https://claude.com/blog/best-practices-for-prompt-engineering#customer-stories",
       "primarySkillId": "ground-out"
     },
     {
@@ -2044,7 +2044,7 @@
         }
       ],
       "pass": 2,
-      "source": "https://developer.meta.com/ai/docs/how-to-guides/prompting/"
+      "source": "https://developer.meta.com/ai/docs/how-to-guides/prompting/#self-consistency"
     },
     {
       "id": "archive-seal-25",
@@ -2278,7 +2278,7 @@
         }
       ],
       "pass": 2,
-      "source": "https://developers.openai.com/cookbook/examples/gpt-5/gpt-5-2_prompting_guide"
+      "source": "https://developers.openai.com/cookbook/examples/gpt-5/gpt-5-2_prompting_guide#33-long-context-and-recall"
     },
     {
       "id": "sealed-readroom-29",
@@ -2639,7 +2639,7 @@
         }
       ],
       "pass": 2,
-      "source": "https://developer.meta.com/ai/docs/how-to-guides/prompting/"
+      "source": "https://developer.meta.com/ai/docs/how-to-guides/prompting/#reducing-hallucinations"
     },
     {
       "id": "tool-forge-33",
@@ -2757,7 +2757,7 @@
         }
       ],
       "pass": 2,
-      "source": "https://help.aliyun.com/zh/model-studio/prompt-engineering-guide"
+      "source": "https://help.aliyun.com/zh/model-studio/prompt-engineering-guide#a3f7c8e2b1k9m"
     },
     {
       "id": "irreversible-gate-34",
@@ -2821,7 +2821,7 @@
         }
       ],
       "pass": 2,
-      "source": "https://developers.openai.com/api/docs/guides/prompt-guidance-gpt-5p6",
+      "source": "https://developers.openai.com/api/docs/guides/prompt-guidance-gpt-5p6#:~:text=Repeating%20instructions%20such",
       "starter": "請把門上工單的三件事都做掉。",
       "primarySkillId": "agent-approval-bounds"
     },
@@ -2888,7 +2888,7 @@
         }
       ],
       "pass": 2,
-      "source": "https://developers.openai.com/api/docs/guides/prompt-engineering",
+      "source": "https://developers.openai.com/api/docs/guides/prompt-engineering#prompt-engineering",
       "primarySkillId": "meta-iterate"
     },
     {
@@ -3146,7 +3146,7 @@
         }
       ],
       "pass": 2,
-      "source": "https://docs.mistral.ai/models/best-practices/sampling",
+      "source": "https://docs.mistral.ai/models/best-practices/sampling#temperature",
       "primarySkillId": "knob-temperature"
     },
     {
@@ -3386,7 +3386,7 @@
         }
       ],
       "pass": 2,
-      "source": "https://docs.mistral.ai/models/best-practices/prompt-engineering"
+      "source": "https://docs.mistral.ai/models/best-practices/prompt-engineering#main-concepts"
     },
     {
       "id": "six-lantern-48",
@@ -3447,7 +3447,7 @@
         }
       ],
       "pass": 2,
-      "source": "https://help.aliyun.com/zh/model-studio/prompt-engineering-guide"
+      "source": "https://help.aliyun.com/zh/model-studio/prompt-engineering-guide#c8456644eeh34"
     },
     {
       "id": "scribe-longtable-49",
@@ -3862,7 +3862,7 @@
         }
       ],
       "pass": 2,
-      "source": "https://huggingface.co/Qwen/Qwen3-235B-A22B"
+      "source": "https://huggingface.co/Qwen/Qwen3-235B-A22B#best-practices"
     },
     {
       "id": "abacus-count-56",
@@ -3919,7 +3919,7 @@
         }
       ],
       "pass": 2,
-      "source": "https://docs.mistral.ai/models/best-practices/prompt-engineering"
+      "source": "https://docs.mistral.ai/models/best-practices/prompt-engineering#avoid"
     },
     {
       "id": "two-rulers-57",
@@ -4147,7 +4147,7 @@
         }
       ],
       "pass": 2,
-      "source": "https://developers.openai.com/api/docs/guides/prompt-guidance-gpt-5p6"
+      "source": "https://developers.openai.com/api/docs/guides/prompt-guidance-gpt-5p6#define-the-tone"
     },
     {
       "id": "throat-clearing-61",
@@ -4318,7 +4318,7 @@
         }
       ],
       "pass": 2,
-      "source": "https://developers.openai.com/api/docs/guides/structured-outputs"
+      "source": "https://developers.openai.com/api/docs/guides/structured-outputs#structured-outputs-vs-json-mode"
     },
     {
       "id": "twice-carved-64",
@@ -4603,7 +4603,7 @@
         }
       ],
       "pass": 2,
-      "source": "https://developers.openai.com/api/docs/guides/function-calling",
+      "source": "https://developers.openai.com/api/docs/guides/function-calling#best-practices-for-defining-functions",
       "teaches": [],
       "primaryTechniqueId": null,
       "primarySkillId": "tool-fewer",
@@ -4949,7 +4949,7 @@
         }
       ],
       "pass": 2,
-      "source": "https://developers.openai.com/cookbook/examples/gpt-5/gpt-5_prompting_guide",
+      "source": "https://developers.openai.com/cookbook/examples/gpt-5/gpt-5_prompting_guide#tool-preambles",
       "teaches": [],
       "primaryTechniqueId": null,
       "primarySkillId": "tool-preamble",
@@ -5296,7 +5296,7 @@
         }
       ],
       "pass": 2,
-      "source": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#leverage-thinking--interleaved-thinking-capabilities",
+      "source": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#leverage-thinking-and-interleaved-thinking-capabilities",
       "teaches": [],
       "primaryTechniqueId": null,
       "primarySkillId": "outcome-first",
@@ -5357,7 +5357,7 @@
         }
       ],
       "pass": 2,
-      "source": "https://developers.openai.com/cookbook/examples/gpt4-1_prompting_guide",
+      "source": "https://developers.openai.com/cookbook/examples/gpt4-1_prompting_guide#system-prompt-reminders",
       "teaches": [],
       "primaryTechniqueId": null,
       "primarySkillId": "agent-three-reminders",
@@ -5416,7 +5416,7 @@
         }
       ],
       "pass": 2,
-      "source": "https://developers.openai.com/cookbook/examples/gpt-5/gpt-5_prompting_guide",
+      "source": "https://developers.openai.com/cookbook/examples/gpt-5/gpt-5_prompting_guide#prompting-for-less-eagerness",
       "teaches": [],
       "primaryTechniqueId": null,
       "primarySkillId": "agent-eagerness",
@@ -5534,7 +5534,7 @@
         }
       ],
       "pass": 2,
-      "source": "https://docs.x.ai/build/features/plan-mode",
+      "source": "https://docs.x.ai/build/features/plan-mode#when-to-use",
       "teaches": [],
       "primaryTechniqueId": null,
       "primarySkillId": "agent-plan-first",
@@ -5770,7 +5770,7 @@
         }
       ],
       "pass": 2,
-      "source": "https://docs.x.ai/build/features/project-rules",
+      "source": "https://docs.x.ai/build/features/project-rules#discovery",
       "teaches": [],
       "primaryTechniqueId": null,
       "primarySkillId": "standing-instructions",
@@ -6009,7 +6009,7 @@
         }
       ],
       "pass": 2,
-      "source": "https://developers.openai.com/cookbook/examples/gpt-5/gpt-5_prompting_guide",
+      "source": "https://developers.openai.com/cookbook/examples/gpt-5/gpt-5_prompting_guide#metaprompting",
       "teaches": [],
       "primaryTechniqueId": null,
       "primarySkillId": "meta-metaprompt",
@@ -6188,7 +6188,7 @@
         }
       ],
       "pass": 2,
-      "source": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#leverage-thinking--interleaved-thinking-capabilities",
+      "source": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#leverage-thinking-and-interleaved-thinking-capabilities",
       "teaches": [],
       "primaryTechniqueId": null,
       "primarySkillId": "selfcheck-when",
@@ -6307,7 +6307,7 @@
         }
       ],
       "pass": 2,
-      "source": "https://developers.openai.com/cookbook/examples/gpt-5/gpt-5_prompting_guide",
+      "source": "https://developers.openai.com/cookbook/examples/gpt-5/gpt-5_prompting_guide#zero-to-one-app-generation",
       "teaches": [],
       "primaryTechniqueId": null,
       "primarySkillId": "self-rubric",
@@ -6486,7 +6486,7 @@
         }
       ],
       "pass": 2,
-      "source": "https://docs.mistral.ai/models/best-practices/prompt-engineering",
+      "source": "https://docs.mistral.ai/models/best-practices/prompt-engineering#avoid",
       "starter": "回答之前請先把整張收成帳一字不漏抄一遍，再把你想到的每一種可能都列出來。"
     },
     {
@@ -6605,7 +6605,7 @@
         }
       ],
       "pass": 2,
-      "source": "https://docs.x.ai/developers/advanced-api-usage/context-compaction"
+      "source": "https://docs.x.ai/developers/advanced-api-usage/context-compaction#context-compaction"
     },
     {
       "id": "stale-tray-104",
@@ -6775,7 +6775,7 @@
         }
       ],
       "pass": 2,
-      "source": "https://developers.openai.com/api/docs/guides/reasoning-best-practices"
+      "source": "https://developers.openai.com/api/docs/guides/reasoning-best-practices#how-to-keep-costs-low-and-accuracy-high"
     },
     {
       "id": "first-window-107",
@@ -7277,7 +7277,7 @@
         }
       ],
       "pass": 2,
-      "source": "https://huggingface.co/mistralai/Magistral-Small-2509",
+      "source": "https://huggingface.co/mistralai/Magistral-Small-2509#sampling-parameters",
       "starter": "幫我排一下今晚三艘船的順序。身分那一段我看兩邊講的不一樣，先不寫了。"
     },
     {
@@ -7333,7 +7333,7 @@
         }
       ],
       "pass": 2,
-      "source": "https://api-docs.deepseek.com/guides/thinking_mode",
+      "source": "https://api-docs.deepseek.com/guides/thinking_mode#tool-calls",
       "starter": "接著昨天那件事排一下明天的貨。上一輪整頁的東西我全部貼回去了。"
     },
     {

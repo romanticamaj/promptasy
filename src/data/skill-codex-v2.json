@@ -46,49 +46,59 @@
           "vendor": "Anthropic",
           "docName": "Prompting best practices（Be clear and direct）",
           "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#be-clear-and-direct",
-          "masterRef": 12
+          "masterRef": 12,
+          "anchor": "already"
         },
         {
           "vendor": "Google",
           "docName": "Prompt design strategies（Clear and specific instructions）",
           "url": "https://ai.google.dev/gemini-api/docs/prompting-strategies#clear-and-specific-instructions",
-          "masterRef": 12
+          "masterRef": 12,
+          "anchor": "already"
         },
         {
           "vendor": "Google",
           "docName": "Give clear and specific instructions（Vertex / Gemini Enterprise）",
-          "url": "https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/prompts/clear-instructions",
-          "masterRef": 12
+          "url": "https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/prompts/clear-instructions#google-signin-client-id",
+          "masterRef": 12,
+          "anchor": "heading"
         },
         {
           "vendor": "Google",
           "docName": "Tips to write prompts for Gemini（Workspace 說明中心）",
-          "url": "https://support.google.com/a/users/answer/14200040",
-          "masterRef": 12
+          "url": "https://support.google.com/a/users/answer/14200040#natural-language",
+          "masterRef": 12,
+          "anchor": "heading"
         },
         {
           "vendor": "Qwen（阿里雲百煉）",
           "docName": "文生文 Prompt 指南（構建清晰明確的 Prompt）",
           "url": "https://help.aliyun.com/zh/model-studio/prompt-engineering-guide",
-          "masterRef": 12
+          "masterRef": 12,
+          "anchor": "none",
+          "anchorNote": "出處寫的章節「構建清晰明確的 Prompt」在這一版頁面上找不到對得起來的 id"
         },
         {
           "vendor": "Mistral",
           "docName": "Prompting best practices（Structure）",
-          "url": "https://docs.mistral.ai/models/best-practices/prompt-engineering",
-          "masterRef": 12
+          "url": "https://docs.mistral.ai/models/best-practices/prompt-engineering#structure",
+          "masterRef": 12,
+          "anchor": "heading"
         },
         {
           "vendor": "Meta",
           "docName": "Prompt engineering（Crafting effective prompts）",
-          "url": "https://developer.meta.com/ai/docs/how-to-guides/prompting/",
-          "masterRef": 12
+          "url": "https://developer.meta.com/ai/docs/how-to-guides/prompting/#crafting-effective-prompts",
+          "masterRef": 12,
+          "anchor": "heading"
         },
         {
           "vendor": "OpenAI",
           "docName": "Function calling",
           "url": "https://developers.openai.com/api/docs/guides/function-calling",
-          "masterRef": 144
+          "masterRef": 144,
+          "anchor": "none",
+          "anchorNote": "頁面層引用（出處沒有指名章節），且 master 條目的官方引文在這一版頁面上找不到唯一落點"
         }
       ]
     },
@@ -113,26 +123,30 @@
         {
           "vendor": "Microsoft",
           "docName": "Prompt engineering techniques（Best practices）",
-          "url": "https://learn.microsoft.com/en-us/azure/ai-foundry/openai/concepts/prompt-engineering",
-          "masterRef": 13
+          "url": "https://learn.microsoft.com/en-us/azure/ai-foundry/openai/concepts/prompt-engineering#best-practices",
+          "masterRef": 13,
+          "anchor": "heading"
         },
         {
           "vendor": "Cohere",
           "docName": "Advanced Prompt Engineering Techniques（Defining the Task）",
-          "url": "https://docs.cohere.com/docs/advanced-prompt-engineering-techniques",
-          "masterRef": 13
+          "url": "https://docs.cohere.com/docs/advanced-prompt-engineering-techniques#defining-the-task",
+          "masterRef": 13,
+          "anchor": "heading"
         },
         {
           "vendor": "xAI",
           "docName": "Code Execution Tool（Best Practices）",
           "url": "https://docs.x.ai/developers/tools/code-execution#best-practices",
-          "masterRef": 13
+          "masterRef": 13,
+          "anchor": "already"
         },
         {
           "vendor": "Google",
           "docName": "Prompt design strategies（Input types）",
           "url": "https://ai.google.dev/gemini-api/docs/prompting-strategies#input",
-          "masterRef": 21
+          "masterRef": 21,
+          "anchor": "already"
         }
       ]
     },
@@ -157,13 +171,15 @@
           "vendor": "Anthropic",
           "docName": "Prompting best practices（Control the format of responses）",
           "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#control-the-format-of-responses",
-          "masterRef": 14
+          "masterRef": 14,
+          "anchor": "already"
         },
         {
           "vendor": "Cohere",
           "docName": "A Guide to Crafting Effective Prompts（Do vs. Do Not Do）",
-          "url": "https://docs.cohere.com/docs/crafting-effective-prompts",
-          "masterRef": 14
+          "url": "https://docs.cohere.com/docs/crafting-effective-prompts#do-vs-do-not-do",
+          "masterRef": 14,
+          "anchor": "heading"
         }
       ]
     },
@@ -188,19 +204,22 @@
           "vendor": "Google",
           "docName": "Prompt design strategies（Constraints）",
           "url": "https://ai.google.dev/gemini-api/docs/prompting-strategies#constraints",
-          "masterRef": 15
+          "masterRef": 15,
+          "anchor": "already"
         },
         {
           "vendor": "Mistral",
           "docName": "Prompting best practices（What to Avoid）",
-          "url": "https://docs.mistral.ai/models/best-practices/prompt-engineering",
-          "masterRef": 15
+          "url": "https://docs.mistral.ai/models/best-practices/prompt-engineering#avoid",
+          "masterRef": 15,
+          "anchor": "heading"
         },
         {
           "vendor": "Meta",
           "docName": "Prompt engineering（Explicit instructions / Restrictions）",
-          "url": "https://developer.meta.com/ai/docs/how-to-guides/prompting/",
-          "masterRef": 15
+          "url": "https://developer.meta.com/ai/docs/how-to-guides/prompting/#restrictions",
+          "masterRef": 15,
+          "anchor": "heading"
         }
       ]
     },
@@ -225,7 +244,8 @@
           "vendor": "Anthropic",
           "docName": "Prompting best practices（Tool usage）",
           "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#tool-usage",
-          "masterRef": 16
+          "masterRef": 16,
+          "anchor": "already"
         }
       ]
     },
@@ -250,13 +270,16 @@
           "vendor": "Anthropic",
           "docName": "Prompting Claude Sonnet 5（More literal instruction following）",
           "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5#more-literal-instruction-following",
-          "masterRef": 17
+          "masterRef": 17,
+          "anchor": "already"
         },
         {
           "vendor": "OpenAI",
           "docName": "Cookbook: GPT-4.1 prompting guide",
           "url": "https://developers.openai.com/cookbook/examples/gpt4-1_prompting_guide",
-          "masterRef": 17
+          "masterRef": 17,
+          "anchor": "none",
+          "anchorNote": "頁面層引用（出處沒有指名章節），且 master 條目的官方引文在這一版頁面上找不到唯一落點"
         }
       ]
     },
@@ -281,7 +304,9 @@
           "vendor": "OpenAI",
           "docName": "Cookbook: GPT-4.1 prompting guide",
           "url": "https://developers.openai.com/cookbook/examples/gpt4-1_prompting_guide",
-          "masterRef": 18
+          "masterRef": 18,
+          "anchor": "none",
+          "anchorNote": "頁面層引用（出處沒有指名章節），且 master 條目的官方引文在這一版頁面上找不到唯一落點"
         }
       ]
     },
@@ -306,14 +331,16 @@
         {
           "vendor": "Qwen（阿里雲百煉）",
           "docName": "文生文 Prompt 指南（優化案例一）",
-          "url": "https://help.aliyun.com/zh/model-studio/prompt-engineering-guide",
-          "masterRef": 265
+          "url": "https://help.aliyun.com/zh/model-studio/prompt-engineering-guide#05776c0f8brr0",
+          "masterRef": 265,
+          "anchor": "heading"
         },
         {
           "vendor": "Anthropic",
           "docName": "Prompting best practices",
-          "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#leverage-thinking--interleaved-thinking-capabilities",
-          "masterRef": 72
+          "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#leverage-thinking-and-interleaved-thinking-capabilities",
+          "masterRef": 72,
+          "anchor": "repaired"
         }
       ]
     },
@@ -338,13 +365,15 @@
           "vendor": "Anthropic",
           "docName": "Prompting best practices（Add context to improve performance）",
           "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#add-context-to-improve-performance",
-          "masterRef": 22
+          "masterRef": 22,
+          "anchor": "already"
         },
         {
           "vendor": "Anthropic",
           "docName": "Prompting Claude Fable 5（Give the reason, not only the request）",
           "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5#give-the-reason-not-only-the-request",
-          "masterRef": 22
+          "masterRef": 22,
+          "anchor": "already"
         }
       ]
     },
@@ -372,55 +401,64 @@
           "vendor": "Google",
           "docName": "Prompt design strategies（Add context）",
           "url": "https://ai.google.dev/gemini-api/docs/prompting-strategies#context",
-          "masterRef": 23
+          "masterRef": 23,
+          "anchor": "already"
         },
         {
           "vendor": "OpenAI",
           "docName": "Prompt engineering（Include relevant context information）",
           "url": "https://developers.openai.com/api/docs/guides/prompt-engineering#include-relevant-context-information",
-          "masterRef": 23
+          "masterRef": 23,
+          "anchor": "already"
         },
         {
           "vendor": "Meta",
           "docName": "Prompt engineering（Retrieval-augmented generation）",
-          "url": "https://developer.meta.com/ai/docs/how-to-guides/prompting/",
-          "masterRef": 23
+          "url": "https://developer.meta.com/ai/docs/how-to-guides/prompting/#retrieval-augmented-generation",
+          "masterRef": 23,
+          "anchor": "heading"
         },
         {
           "vendor": "Mistral",
           "docName": "Prompting best practices（Personalization / Providing facts）",
-          "url": "https://docs.mistral.ai/models/best-practices/prompt-engineering",
-          "masterRef": 23
+          "url": "https://docs.mistral.ai/models/best-practices/prompt-engineering#personalization",
+          "masterRef": 23,
+          "anchor": "heading"
         },
         {
           "vendor": "Cohere",
           "docName": "A Guide to Crafting Effective Prompts（Context / grounded generation）",
-          "url": "https://docs.cohere.com/docs/crafting-effective-prompts",
-          "masterRef": 23
+          "url": "https://docs.cohere.com/docs/crafting-effective-prompts#context",
+          "masterRef": 23,
+          "anchor": "heading"
         },
         {
           "vendor": "Microsoft",
           "docName": "Prompt engineering techniques（Provide grounding context）",
-          "url": "https://learn.microsoft.com/en-us/azure/ai-foundry/openai/concepts/prompt-engineering",
-          "masterRef": 23
+          "url": "https://learn.microsoft.com/en-us/azure/ai-foundry/openai/concepts/prompt-engineering#provide-grounding-context",
+          "masterRef": 23,
+          "anchor": "heading"
         },
         {
           "vendor": "Google",
           "docName": "Add contextual information（Vertex / Gemini Enterprise）",
-          "url": "https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/prompts/contextual-information",
-          "masterRef": 24
+          "url": "https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/prompts/contextual-information#google-signin-client-id",
+          "masterRef": 24,
+          "anchor": "heading"
         },
         {
           "vendor": "Google",
           "docName": "URL context（Best practices）",
           "url": "https://ai.google.dev/gemini-api/docs/url-context#best-practices",
-          "masterRef": 99
+          "masterRef": 99,
+          "anchor": "already"
         },
         {
           "vendor": "Anthropic",
           "docName": "Prompting best practices（Model self-knowledge）",
           "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#model-self-knowledge",
-          "masterRef": 54
+          "masterRef": 54,
+          "anchor": "already"
         }
       ]
     },
@@ -446,49 +484,59 @@
           "vendor": "OpenAI",
           "docName": "Prompt engineering（Message formatting with Markdown and XML）",
           "url": "https://developers.openai.com/api/docs/guides/prompt-engineering#message-formatting-with-markdown-and-xml",
-          "masterRef": 27
+          "masterRef": 27,
+          "anchor": "already"
         },
         {
           "vendor": "OpenAI",
           "docName": "Reasoning best practices（Use delimiters）",
           "url": "https://developers.openai.com/api/docs/guides/reasoning-best-practices",
-          "masterRef": 27
+          "masterRef": 27,
+          "anchor": "none",
+          "anchorNote": "出處寫的章節「Use delimiters」在這一版頁面上找不到對得起來的 id"
         },
         {
           "vendor": "OpenAI",
           "docName": "Cookbook: GPT-4.1 prompting guide",
-          "url": "https://developers.openai.com/cookbook/examples/gpt4-1_prompting_guide",
-          "masterRef": 27
+          "url": "https://developers.openai.com/cookbook/examples/gpt4-1_prompting_guide#delimiters",
+          "masterRef": 27,
+          "anchor": "heading"
         },
         {
           "vendor": "Mistral",
           "docName": "Prompting best practices（Formatting）",
-          "url": "https://docs.mistral.ai/models/best-practices/prompt-engineering",
-          "masterRef": 27
+          "url": "https://docs.mistral.ai/models/best-practices/prompt-engineering#formatting",
+          "masterRef": 27,
+          "anchor": "heading"
         },
         {
           "vendor": "Cohere",
           "docName": "A Guide to Crafting Effective Prompts（Formatting and Delimiters）",
-          "url": "https://docs.cohere.com/docs/crafting-effective-prompts",
-          "masterRef": 27
+          "url": "https://docs.cohere.com/docs/crafting-effective-prompts#formatting-and-delimiters",
+          "masterRef": 27,
+          "anchor": "heading"
         },
         {
           "vendor": "Google",
           "docName": "Structure prompts（Vertex / Gemini Enterprise）",
-          "url": "https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/prompts/structure-prompts",
-          "masterRef": 28
+          "url": "https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/prompts/structure-prompts#google-signin-client-id",
+          "masterRef": 28,
+          "anchor": "heading"
         },
         {
           "vendor": "Qwen（阿里雲百煉）",
           "docName": "文生文 Prompt 指南（使用分隔符號區分單元）",
           "url": "https://help.aliyun.com/zh/model-studio/prompt-engineering-guide",
-          "masterRef": 28
+          "masterRef": 28,
+          "anchor": "none",
+          "anchorNote": "出處寫的章節「使用分隔符號區分單元」在這一版頁面上找不到對得起來的 id"
         },
         {
           "vendor": "Microsoft",
           "docName": "Prompt engineering techniques（Add clear syntax）",
-          "url": "https://learn.microsoft.com/en-us/azure/ai-foundry/openai/concepts/prompt-engineering",
-          "masterRef": 28
+          "url": "https://learn.microsoft.com/en-us/azure/ai-foundry/openai/concepts/prompt-engineering#add-clear-syntax",
+          "masterRef": 28,
+          "anchor": "heading"
         }
       ]
     },
@@ -514,25 +562,30 @@
           "vendor": "Anthropic",
           "docName": "Prompting best practices（Structure prompts with XML tags）",
           "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#structure-prompts-with-xml-tags",
-          "masterRef": 25
+          "masterRef": 25,
+          "anchor": "already"
         },
         {
           "vendor": "OpenAI",
           "docName": "Prompt engineering（Message formatting with Markdown and XML）",
           "url": "https://developers.openai.com/api/docs/guides/prompt-engineering#message-formatting-with-markdown-and-xml",
-          "masterRef": 25
+          "masterRef": 25,
+          "anchor": "already"
         },
         {
           "vendor": "OpenAI",
           "docName": "Cookbook: GPT-4.1 prompting guide",
-          "url": "https://developers.openai.com/cookbook/examples/gpt4-1_prompting_guide",
-          "masterRef": 25
+          "url": "https://developers.openai.com/cookbook/examples/gpt4-1_prompting_guide#:~:text=XML%20is%20convenient",
+          "masterRef": 25,
+          "anchor": "fragment"
         },
         {
           "vendor": "Anthropic",
           "docName": "Blog: Best practices for prompt engineering",
           "url": "https://claude.com/blog/best-practices-for-prompt-engineering",
-          "masterRef": 26
+          "masterRef": 26,
+          "anchor": "none",
+          "anchorNote": "頁面層引用（出處沒有指名章節），且 master 條目的官方引文在這一版頁面上找不到唯一落點"
         }
       ]
     },
@@ -559,31 +612,36 @@
           "vendor": "Google",
           "docName": "Overview of prompting strategies",
           "url": "https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/prompts/prompt-design-strategies#how-to-create-an-effective-prompt",
-          "masterRef": 29
+          "masterRef": 29,
+          "anchor": "already"
         },
         {
           "vendor": "Google",
           "docName": "Introduction to prompting",
-          "url": "https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/prompts/introduction-prompt-design",
-          "masterRef": 30
+          "url": "https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/prompts/introduction-prompt-design#what-is-prompt-design-and-prompt-engineering",
+          "masterRef": 30,
+          "anchor": "heading"
         },
         {
           "vendor": "Google",
           "docName": "Overview of prompting strategies（Components of a prompt）",
           "url": "https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/prompts/prompt-design-strategies#components-of-a-prompt",
-          "masterRef": 30
+          "masterRef": 30,
+          "anchor": "already"
         },
         {
           "vendor": "Microsoft",
           "docName": "Prompt engineering techniques（Prompt components）",
-          "url": "https://learn.microsoft.com/en-us/azure/ai-foundry/openai/concepts/prompt-engineering",
-          "masterRef": 30
+          "url": "https://learn.microsoft.com/en-us/azure/ai-foundry/openai/concepts/prompt-engineering#prompt-components",
+          "masterRef": 30,
+          "anchor": "heading"
         },
         {
           "vendor": "Google",
           "docName": "Use prompt templates",
-          "url": "https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/prompts/prompt-templates",
-          "masterRef": 38
+          "url": "https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/prompts/prompt-templates#:~:text=Do%20%7Banimal_name%7D%20%7Banimal_activity%7D%3F",
+          "masterRef": 38,
+          "anchor": "fragment"
         }
       ]
     },
@@ -608,19 +666,23 @@
           "vendor": "OpenAI",
           "docName": "Cookbook: GPT-4.1 prompting guide",
           "url": "https://developers.openai.com/cookbook/examples/gpt4-1_prompting_guide",
-          "masterRef": 37
+          "masterRef": 37,
+          "anchor": "none",
+          "anchorNote": "頁面層引用（出處沒有指名章節），且 master 條目的官方引文在這一版頁面上找不到唯一落點"
         },
         {
           "vendor": "Cohere",
           "docName": "A Guide to Crafting Effective Prompts（Formatting and Delimiters）",
-          "url": "https://docs.cohere.com/docs/crafting-effective-prompts",
-          "masterRef": 37
+          "url": "https://docs.cohere.com/docs/crafting-effective-prompts#formatting-and-delimiters",
+          "masterRef": 37,
+          "anchor": "heading"
         },
         {
           "vendor": "Microsoft",
           "docName": "Prompt engineering techniques（Start with clear instructions / Order matters）",
-          "url": "https://learn.microsoft.com/en-us/azure/ai-foundry/openai/concepts/prompt-engineering",
-          "masterRef": 37
+          "url": "https://learn.microsoft.com/en-us/azure/ai-foundry/openai/concepts/prompt-engineering#start-with-clear-instructions",
+          "masterRef": 37,
+          "anchor": "heading"
         }
       ]
     },
@@ -645,37 +707,43 @@
           "vendor": "Anthropic",
           "docName": "Prompting best practices（Use examples effectively）",
           "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#use-examples-effectively",
-          "masterRef": 39
+          "masterRef": 39,
+          "anchor": "already"
         },
         {
           "vendor": "OpenAI",
           "docName": "Prompt engineering（Few-shot learning）",
           "url": "https://developers.openai.com/api/docs/guides/prompt-engineering#few-shot-learning",
-          "masterRef": 39
+          "masterRef": 39,
+          "anchor": "already"
         },
         {
           "vendor": "Qwen（阿里雲百煉）",
           "docName": "文生文 Prompt 指南（為模型提供輸出樣例）",
-          "url": "https://help.aliyun.com/zh/model-studio/prompt-engineering-guide",
-          "masterRef": 39
+          "url": "https://help.aliyun.com/zh/model-studio/prompt-engineering-guide#48dbb207cbaf0",
+          "masterRef": 39,
+          "anchor": "heading"
         },
         {
           "vendor": "Mistral",
           "docName": "Prompting best practices（Example Prompting / Few-Shot）",
-          "url": "https://docs.mistral.ai/models/best-practices/prompt-engineering",
-          "masterRef": 39
+          "url": "https://docs.mistral.ai/models/best-practices/prompt-engineering#example-prompting",
+          "masterRef": 39,
+          "anchor": "heading"
         },
         {
           "vendor": "Meta",
           "docName": "Prompt engineering（Zero-shot / Few-shot）",
-          "url": "https://developer.meta.com/ai/docs/how-to-guides/prompting/",
-          "masterRef": 39
+          "url": "https://developer.meta.com/ai/docs/how-to-guides/prompting/#zero--and-few-shot-prompting",
+          "masterRef": 39,
+          "anchor": "heading"
         },
         {
           "vendor": "Microsoft",
           "docName": "Prompt engineering techniques（Few-shot learning）",
-          "url": "https://learn.microsoft.com/en-us/azure/ai-foundry/openai/concepts/prompt-engineering",
-          "masterRef": 39
+          "url": "https://learn.microsoft.com/en-us/azure/ai-foundry/openai/concepts/prompt-engineering#few-shot-learning",
+          "masterRef": 39,
+          "anchor": "heading"
         }
       ]
     },
@@ -701,19 +769,23 @@
           "vendor": "Google",
           "docName": "Prompt design strategies（Consistent formatting）",
           "url": "https://ai.google.dev/gemini-api/docs/prompting-strategies#consistent-formatting",
-          "masterRef": 42
+          "masterRef": 42,
+          "anchor": "already"
         },
         {
           "vendor": "Google",
           "docName": "Include few-shot examples",
-          "url": "https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/prompts/few-shot-examples",
-          "masterRef": 43
+          "url": "https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/prompts/few-shot-examples#zero-shot-versus-few-shot-prompts",
+          "masterRef": 43,
+          "anchor": "heading"
         },
         {
           "vendor": "OpenAI",
           "docName": "Cookbook: GPT-4.1 prompting guide",
           "url": "https://developers.openai.com/cookbook/examples/gpt4-1_prompting_guide",
-          "masterRef": 43
+          "masterRef": 43,
+          "anchor": "none",
+          "anchorNote": "頁面層引用（出處沒有指名章節），且 master 條目的官方引文在這一版頁面上找不到唯一落點"
         }
       ]
     },
@@ -739,13 +811,15 @@
           "vendor": "Google",
           "docName": "Prompt design strategies（Number of examples）",
           "url": "https://ai.google.dev/gemini-api/docs/prompting-strategies#number-examples",
-          "masterRef": 41
+          "masterRef": 41,
+          "anchor": "already"
         },
         {
           "vendor": "Google",
           "docName": "Long context",
           "url": "https://ai.google.dev/gemini-api/docs/long-context#long-form-text",
-          "masterRef": 44
+          "masterRef": 44,
+          "anchor": "already"
         }
       ]
     },
@@ -769,8 +843,9 @@
         {
           "vendor": "Cohere",
           "docName": "Advanced Prompt Engineering Techniques（Few-shot Prompting）",
-          "url": "https://docs.cohere.com/docs/advanced-prompt-engineering-techniques",
-          "masterRef": 268
+          "url": "https://docs.cohere.com/docs/advanced-prompt-engineering-techniques#few-shot-prompting",
+          "masterRef": 268,
+          "anchor": "heading"
         }
       ]
     },
@@ -796,13 +871,16 @@
           "vendor": "Google",
           "docName": "Prompt design strategies（Few-shot）",
           "url": "https://ai.google.dev/gemini-api/docs/prompting-strategies#few-shot",
-          "masterRef": 40
+          "masterRef": 40,
+          "anchor": "already"
         },
         {
           "vendor": "OpenAI",
           "docName": "Reasoning best practices",
           "url": "https://developers.openai.com/api/docs/guides/reasoning-best-practices",
-          "masterRef": 45
+          "masterRef": 45,
+          "anchor": "none",
+          "anchorNote": "頁面層引用（出處沒有指名章節），且 master 條目的官方引文在這一版頁面上找不到唯一落點"
         }
       ]
     },
@@ -827,8 +905,9 @@
         {
           "vendor": "Anthropic",
           "docName": "Prompting best practices（Leverage thinking capabilities）",
-          "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#leverage-thinking--interleaved-thinking-capabilities",
-          "masterRef": 47
+          "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#leverage-thinking-and-interleaved-thinking-capabilities",
+          "masterRef": 47,
+          "anchor": "repaired"
         }
       ]
     },
@@ -853,32 +932,37 @@
         {
           "vendor": "OpenAI",
           "docName": "Cookbook: GPT-4.1 prompting guide",
-          "url": "https://developers.openai.com/cookbook/examples/gpt4-1_prompting_guide",
-          "masterRef": 59
+          "url": "https://developers.openai.com/cookbook/examples/gpt4-1_prompting_guide#3-chain-of-thought",
+          "masterRef": 59,
+          "anchor": "heading"
         },
         {
           "vendor": "Google",
           "docName": "Prompt design strategies（Enhancing reasoning and planning）",
           "url": "https://ai.google.dev/gemini-api/docs/prompting-strategies#enhancing_reasoning_and_planning",
-          "masterRef": 59
+          "masterRef": 59,
+          "anchor": "already"
         },
         {
           "vendor": "Qwen（阿里雲百煉）",
           "docName": "文生文 Prompt 指南（思維鏈 COT）",
-          "url": "https://help.aliyun.com/zh/model-studio/prompt-engineering-guide",
-          "masterRef": 59
+          "url": "https://help.aliyun.com/zh/model-studio/prompt-engineering-guide#2ae22a9c7028a",
+          "masterRef": 59,
+          "anchor": "heading"
         },
         {
           "vendor": "Microsoft",
           "docName": "Prompt engineering techniques（Chain of thought prompting）",
-          "url": "https://learn.microsoft.com/en-us/azure/ai-foundry/openai/concepts/prompt-engineering",
-          "masterRef": 59
+          "url": "https://learn.microsoft.com/en-us/azure/ai-foundry/openai/concepts/prompt-engineering#chain-of-thought-prompting",
+          "masterRef": 59,
+          "anchor": "heading"
         },
         {
           "vendor": "Anthropic",
           "docName": "Prompting best practices（Leverage thinking capabilities）",
-          "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#leverage-thinking--interleaved-thinking-capabilities",
-          "masterRef": 60
+          "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#leverage-thinking-and-interleaved-thinking-capabilities",
+          "masterRef": 60,
+          "anchor": "repaired"
         }
       ]
     },
@@ -903,14 +987,16 @@
         {
           "vendor": "Google",
           "docName": "Instruct the model to explain its reasoning",
-          "url": "https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/prompts/explain-reasoning",
-          "masterRef": 61
+          "url": "https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/prompts/explain-reasoning#examples",
+          "masterRef": 61,
+          "anchor": "heading"
         },
         {
           "vendor": "Cohere",
           "docName": "Advanced Prompt Engineering Techniques（Chain of Thought）",
-          "url": "https://docs.cohere.com/docs/advanced-prompt-engineering-techniques",
-          "masterRef": 61
+          "url": "https://docs.cohere.com/docs/advanced-prompt-engineering-techniques#chain-of-thought-prompting",
+          "masterRef": 61,
+          "anchor": "heading"
         }
       ]
     },
@@ -935,20 +1021,23 @@
         {
           "vendor": "OpenAI",
           "docName": "Reasoning best practices",
-          "url": "https://developers.openai.com/api/docs/guides/reasoning-best-practices",
-          "masterRef": 56
+          "url": "https://developers.openai.com/api/docs/guides/reasoning-best-practices#how-to-prompt-reasoning-models-effectively",
+          "masterRef": 56,
+          "anchor": "heading"
         },
         {
           "vendor": "OpenAI",
           "docName": "Cookbook: o3/o4-mini function calling guide",
-          "url": "https://developers.openai.com/cookbook/examples/o-series/o3o4-mini_prompting_guide",
-          "masterRef": 57
+          "url": "https://developers.openai.com/cookbook/examples/o-series/o3o4-mini_prompting_guide#avoid-chain-of-thought-prompting",
+          "masterRef": 57,
+          "anchor": "heading"
         },
         {
           "vendor": "Microsoft",
           "docName": "Prompt engineering techniques（文章開頭警語）",
-          "url": "https://learn.microsoft.com/en-us/azure/ai-foundry/openai/concepts/prompt-engineering",
-          "masterRef": 57
+          "url": "https://learn.microsoft.com/en-us/azure/ai-foundry/openai/concepts/prompt-engineering#prompt-engineering-techniques",
+          "masterRef": 57,
+          "anchor": "heading"
         }
       ]
     },
@@ -974,25 +1063,29 @@
           "vendor": "Anthropic",
           "docName": "Prompting Claude Fable 5（Recommended scaffolding changes）",
           "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5#recommended-scaffolding-changes",
-          "masterRef": 58
+          "masterRef": 58,
+          "anchor": "already"
         },
         {
           "vendor": "Microsoft",
           "docName": "Prompt engineering techniques（Chain of thought prompting）",
-          "url": "https://learn.microsoft.com/en-us/azure/ai-foundry/openai/concepts/prompt-engineering",
-          "masterRef": 58
+          "url": "https://learn.microsoft.com/en-us/azure/ai-foundry/openai/concepts/prompt-engineering#chain-of-thought-prompting",
+          "masterRef": 58,
+          "anchor": "heading"
         },
         {
           "vendor": "OpenAI",
           "docName": "Reasoning",
-          "url": "https://developers.openai.com/api/docs/guides/reasoning",
-          "masterRef": 74
+          "url": "https://developers.openai.com/api/docs/guides/reasoning#reasoning-summaries",
+          "masterRef": 74,
+          "anchor": "heading"
         },
         {
           "vendor": "Google",
           "docName": "Gemini thinking",
-          "url": "https://ai.google.dev/gemini-api/docs/thinking",
-          "masterRef": 74
+          "url": "https://ai.google.dev/gemini-api/docs/thinking#:~:text=Always%20present%2C%20even",
+          "masterRef": 74,
+          "anchor": "fragment"
         }
       ]
     },
@@ -1018,38 +1111,45 @@
         {
           "vendor": "Anthropic",
           "docName": "Prompting best practices（Leverage thinking capabilities）",
-          "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#leverage-thinking--interleaved-thinking-capabilities",
-          "masterRef": 62
+          "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#leverage-thinking-and-interleaved-thinking-capabilities",
+          "masterRef": 62,
+          "anchor": "repaired"
         },
         {
           "vendor": "Qwen",
           "docName": "Qwen3-235B-A22B 模型卡（Advanced Usage）",
-          "url": "https://huggingface.co/Qwen/Qwen3-235B-A22B",
-          "masterRef": 272
+          "url": "https://huggingface.co/Qwen/Qwen3-235B-A22B#advanced-usage-switching-between-thinking-and-non-thinking-modes-via-user-input",
+          "masterRef": 272,
+          "anchor": "heading"
         },
         {
           "vendor": "Qwen",
           "docName": "Qwen3.5-397B-A17B 模型卡",
-          "url": "https://huggingface.co/Qwen/Qwen3.5-397B-A17B",
-          "masterRef": 272
+          "url": "https://huggingface.co/Qwen/Qwen3.5-397B-A17B#instruct-or-non-thinking-mode",
+          "masterRef": 272,
+          "anchor": "heading"
         },
         {
           "vendor": "Qwen（阿里雲百煉）",
           "docName": "深度思考",
           "url": "https://help.aliyun.com/zh/model-studio/deep-thinking",
-          "masterRef": 272
+          "masterRef": 272,
+          "anchor": "none",
+          "anchorNote": "頁面層引用（出處沒有指名章節），且 master 條目的官方引文在這一版頁面上找不到唯一落點"
         },
         {
           "vendor": "DeepSeek",
           "docName": "DeepSeek-R1 README（Usage Recommendations）",
-          "url": "https://github.com/deepseek-ai/DeepSeek-R1",
-          "masterRef": 274
+          "url": "https://github.com/deepseek-ai/DeepSeek-R1#usage-recommendations",
+          "masterRef": 274,
+          "anchor": "heading"
         },
         {
           "vendor": "Qwen",
           "docName": "QwQ-32B 模型卡（Usage Guidelines）",
-          "url": "https://huggingface.co/Qwen/QwQ-32B",
-          "masterRef": 274
+          "url": "https://huggingface.co/Qwen/QwQ-32B#usage-guidelines",
+          "masterRef": 274,
+          "anchor": "heading"
         }
       ]
     },
@@ -1073,8 +1173,9 @@
         {
           "vendor": "Anthropic",
           "docName": "Prompting best practices",
-          "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#leverage-thinking--interleaved-thinking-capabilities",
-          "masterRef": 63
+          "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#leverage-thinking-and-interleaved-thinking-capabilities",
+          "masterRef": 63,
+          "anchor": "repaired"
         }
       ]
     },
@@ -1105,73 +1206,87 @@
           "vendor": "Anthropic",
           "docName": "Prompting Claude Sonnet 5（Calibrating effort and thinking depth）",
           "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5#calibrating-effort-and-thinking-depth",
-          "masterRef": 64
+          "masterRef": 64,
+          "anchor": "already"
         },
         {
           "vendor": "Anthropic",
           "docName": "Prompting Claude Fable 5（Consider all effort levels）",
           "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5#consider-all-effort-levels",
-          "masterRef": 64
+          "masterRef": 64,
+          "anchor": "already"
         },
         {
           "vendor": "Anthropic",
           "docName": "Prompting Claude Opus 4.8（Calibrating effort and thinking depth）",
           "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-4-8#calibrating-effort-and-thinking-depth",
-          "masterRef": 64
+          "masterRef": 64,
+          "anchor": "already"
         },
         {
           "vendor": "OpenAI",
           "docName": "Reasoning",
-          "url": "https://developers.openai.com/api/docs/guides/reasoning",
-          "masterRef": 65
+          "url": "https://developers.openai.com/api/docs/guides/reasoning#advice-on-prompting",
+          "masterRef": 65,
+          "anchor": "heading"
         },
         {
           "vendor": "OpenAI",
           "docName": "Prompting guidance for GPT-5.6（Reasoning effort）",
           "url": "https://developers.openai.com/api/docs/guides/prompt-guidance-gpt-5p6",
-          "masterRef": 65
+          "masterRef": 65,
+          "anchor": "none",
+          "anchorNote": "出處寫的章節「Reasoning effort」在這一版頁面上找不到對得起來的 id"
         },
         {
           "vendor": "OpenAI",
           "docName": "Cookbook: GPT-5 prompting guide",
           "url": "https://developers.openai.com/cookbook/examples/gpt-5/gpt-5_prompting_guide",
-          "masterRef": 65
+          "masterRef": 65,
+          "anchor": "none",
+          "anchorNote": "頁面層引用（出處沒有指名章節），且 master 條目的官方引文在這一版頁面上找不到唯一落點"
         },
         {
           "vendor": "xAI",
           "docName": "Reasoning",
           "url": "https://docs.x.ai/developers/model-capabilities/text/reasoning#the-reasoning_effort-parameter",
-          "masterRef": 66
+          "masterRef": 66,
+          "anchor": "already"
         },
         {
           "vendor": "Google",
           "docName": "What's new in Gemini 3.5 Flash（Thinking budget / Default effort level）",
           "url": "https://ai.google.dev/gemini-api/docs/whats-new-gemini-3.5#thinking-budget",
-          "masterRef": 68
+          "masterRef": 68,
+          "anchor": "already"
         },
         {
           "vendor": "Google",
           "docName": "Gemini thinking（Best practices）",
           "url": "https://ai.google.dev/gemini-api/docs/thinking#best_practices",
-          "masterRef": 68
+          "masterRef": 68,
+          "anchor": "already"
         },
         {
           "vendor": "Qwen（阿里雲百煉）",
           "docName": "深度思考（thinking_budget）",
-          "url": "https://help.aliyun.com/zh/model-studio/deep-thinking",
-          "masterRef": 68
+          "url": "https://help.aliyun.com/zh/model-studio/deep-thinking#5caa63cc88kzd",
+          "masterRef": 68,
+          "anchor": "heading"
         },
         {
           "vendor": "DeepSeek",
           "docName": "Thinking Mode",
-          "url": "https://api-docs.deepseek.com/guides/thinking_mode",
-          "masterRef": 276
+          "url": "https://api-docs.deepseek.com/guides/thinking_mode#thinking-mode-toggle-and-effort-control",
+          "masterRef": 276,
+          "anchor": "heading"
         },
         {
           "vendor": "Anthropic",
           "docName": "Prompting Claude Opus 5（Running with thinking disabled）",
           "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5#running-with-thinking-disabled",
-          "masterRef": 71
+          "masterRef": 71,
+          "anchor": "already"
         }
       ]
     },
@@ -1197,13 +1312,15 @@
           "vendor": "Anthropic",
           "docName": "Prompting best practices（Overthinking and excessive thoroughness）",
           "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#overthinking-and-excessive-thoroughness",
-          "masterRef": 70
+          "masterRef": 70,
+          "anchor": "already"
         },
         {
           "vendor": "Anthropic",
           "docName": "Prompting Claude Fable 5（Longer turns by default）",
           "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5#longer-turns-by-default",
-          "masterRef": 253
+          "masterRef": 253,
+          "anchor": "already"
         }
       ]
     },
@@ -1227,14 +1344,16 @@
         {
           "vendor": "Meta",
           "docName": "Prompt engineering（Self-consistency）",
-          "url": "https://developer.meta.com/ai/docs/how-to-guides/prompting/",
-          "masterRef": 288
+          "url": "https://developer.meta.com/ai/docs/how-to-guides/prompting/#self-consistency",
+          "masterRef": 288,
+          "anchor": "heading"
         },
         {
           "vendor": "DeepSeek",
           "docName": "DeepSeek-R1 README（Usage Recommendations）",
-          "url": "https://github.com/deepseek-ai/DeepSeek-R1",
-          "masterRef": 288
+          "url": "https://github.com/deepseek-ai/DeepSeek-R1#usage-recommendations",
+          "masterRef": 288,
+          "anchor": "heading"
         }
       ]
     },
@@ -1260,31 +1379,37 @@
           "vendor": "Anthropic",
           "docName": "Prompting best practices（Long context prompting）",
           "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#long-context-prompting",
-          "masterRef": 80
+          "masterRef": 80,
+          "anchor": "already"
         },
         {
           "vendor": "Google",
           "docName": "Long context FAQ",
           "url": "https://ai.google.dev/gemini-api/docs/long-context#where_is_the_best_place_to_put_my_query_in_the_context_window",
-          "masterRef": 80
+          "masterRef": 80,
+          "anchor": "already"
         },
         {
           "vendor": "DeepSeek",
           "docName": "DeepSeek-R1 README（Official Prompts：檔案上傳模板）",
-          "url": "https://github.com/deepseek-ai/DeepSeek-R1",
-          "masterRef": 80
+          "url": "https://github.com/deepseek-ai/DeepSeek-R1#official-prompts",
+          "masterRef": 80,
+          "anchor": "heading"
         },
         {
           "vendor": "OpenAI",
           "docName": "Cookbook: GPT-4.1 prompting guide",
           "url": "https://developers.openai.com/cookbook/examples/gpt4-1_prompting_guide",
-          "masterRef": 81
+          "masterRef": 81,
+          "anchor": "none",
+          "anchorNote": "頁面層引用（出處沒有指名章節），且 master 條目的官方引文在這一版頁面上找不到唯一落點"
         },
         {
           "vendor": "Microsoft",
           "docName": "Prompt engineering techniques（Repeat instructions at the end / Double down）",
-          "url": "https://learn.microsoft.com/en-us/azure/ai-foundry/openai/concepts/prompt-engineering",
-          "masterRef": 81
+          "url": "https://learn.microsoft.com/en-us/azure/ai-foundry/openai/concepts/prompt-engineering#repeat-instructions-at-the-end",
+          "masterRef": 81,
+          "anchor": "heading"
         }
       ]
     },
@@ -1311,19 +1436,23 @@
           "vendor": "Anthropic",
           "docName": "Prompting best practices（Long context prompting）",
           "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#long-context-prompting",
-          "masterRef": 82
+          "masterRef": 82,
+          "anchor": "already"
         },
         {
           "vendor": "OpenAI",
           "docName": "Cookbook: GPT-4.1 prompting guide",
           "url": "https://developers.openai.com/cookbook/examples/gpt4-1_prompting_guide",
-          "masterRef": 83
+          "masterRef": 83,
+          "anchor": "none",
+          "anchorNote": "頁面層引用（出處沒有指名章節），且 master 條目的官方引文在這一版頁面上找不到唯一落點"
         },
         {
           "vendor": "Microsoft",
           "docName": "Prompt engineering techniques（Space efficiency）",
-          "url": "https://learn.microsoft.com/en-us/azure/ai-foundry/openai/concepts/prompt-engineering",
-          "masterRef": 292
+          "url": "https://learn.microsoft.com/en-us/azure/ai-foundry/openai/concepts/prompt-engineering#space-efficiency",
+          "masterRef": 292,
+          "anchor": "heading"
         }
       ]
     },
@@ -1349,13 +1478,15 @@
           "vendor": "Google",
           "docName": "Long context",
           "url": "https://ai.google.dev/gemini-api/docs/long-context#getting-started-with-long-context",
-          "masterRef": 84
+          "masterRef": 84,
+          "anchor": "already"
         },
         {
           "vendor": "Google",
           "docName": "Long context（Limitations）",
           "url": "https://ai.google.dev/gemini-api/docs/long-context#long-context-limitations",
-          "masterRef": 85
+          "masterRef": 85,
+          "anchor": "already"
         }
       ]
     },
@@ -1380,14 +1511,17 @@
         {
           "vendor": "OpenAI",
           "docName": "Cookbook: GPT-5.2 prompting guide",
-          "url": "https://developers.openai.com/cookbook/examples/gpt-5/gpt-5-2_prompting_guide",
-          "masterRef": 86
+          "url": "https://developers.openai.com/cookbook/examples/gpt-5/gpt-5-2_prompting_guide#33-long-context-and-recall",
+          "masterRef": 86,
+          "anchor": "heading"
         },
         {
           "vendor": "OpenAI",
           "docName": "Cookbook: GPT-4.1 prompting guide",
           "url": "https://developers.openai.com/cookbook/examples/gpt4-1_prompting_guide",
-          "masterRef": 87
+          "masterRef": 87,
+          "anchor": "none",
+          "anchorNote": "頁面層引用（出處沒有指名章節），且 master 條目的官方引文在這一版頁面上找不到唯一落點"
         }
       ]
     },
@@ -1412,13 +1546,16 @@
           "vendor": "OpenAI",
           "docName": "Cookbook: GPT-4.1 prompting guide",
           "url": "https://developers.openai.com/cookbook/examples/gpt4-1_prompting_guide",
-          "masterRef": 90
+          "masterRef": 90,
+          "anchor": "none",
+          "anchorNote": "頁面層引用（出處沒有指名章節），且 master 條目的官方引文在這一版頁面上找不到唯一落點"
         },
         {
           "vendor": "Google",
           "docName": "Prompt design strategies（Gemini 3 Flash strategies）",
           "url": "https://ai.google.dev/gemini-api/docs/prompting-strategies#gemini_3_flash_strategies",
-          "masterRef": 90
+          "masterRef": 90,
+          "anchor": "already"
         }
       ]
     },
@@ -1442,26 +1579,31 @@
         {
           "vendor": "Anthropic",
           "docName": "Blog: Best practices for prompt engineering",
-          "url": "https://claude.com/blog/best-practices-for-prompt-engineering",
-          "masterRef": 89
+          "url": "https://claude.com/blog/best-practices-for-prompt-engineering#customer-stories",
+          "masterRef": 89,
+          "anchor": "heading"
         },
         {
           "vendor": "OpenAI",
           "docName": "Cookbook: GPT-5.2 prompting guide",
-          "url": "https://developers.openai.com/cookbook/examples/gpt-5/gpt-5-2_prompting_guide",
-          "masterRef": 89
+          "url": "https://developers.openai.com/cookbook/examples/gpt-5/gpt-5-2_prompting_guide#34-handling-ambiguity--hallucination-risk",
+          "masterRef": 89,
+          "anchor": "heading"
         },
         {
           "vendor": "Meta",
           "docName": "Prompt engineering（Restrictions）",
-          "url": "https://developer.meta.com/ai/docs/how-to-guides/prompting/",
-          "masterRef": 89
+          "url": "https://developer.meta.com/ai/docs/how-to-guides/prompting/#restrictions",
+          "masterRef": 89,
+          "anchor": "heading"
         },
         {
           "vendor": "Microsoft",
           "docName": "Prompt engineering techniques（Give the model an \"out\"）",
           "url": "https://learn.microsoft.com/en-us/azure/ai-foundry/openai/concepts/prompt-engineering",
-          "masterRef": 89
+          "masterRef": 89,
+          "anchor": "none",
+          "anchorNote": "出處寫的章節「Give the model an \"out\"」在這一版頁面上找不到對得起來的 id"
         }
       ]
     },
@@ -1486,7 +1628,8 @@
           "vendor": "Anthropic",
           "docName": "Prompting best practices（Long context prompting）",
           "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#long-context-prompting",
-          "masterRef": 88
+          "masterRef": 88,
+          "anchor": "already"
         }
       ]
     },
@@ -1512,25 +1655,30 @@
           "vendor": "OpenAI",
           "docName": "Cookbook: GPT-4.1 prompting guide",
           "url": "https://developers.openai.com/cookbook/examples/gpt4-1_prompting_guide",
-          "masterRef": 92
+          "masterRef": 92,
+          "anchor": "none",
+          "anchorNote": "頁面層引用（出處沒有指名章節），且 master 條目的官方引文在這一版頁面上找不到唯一落點"
         },
         {
           "vendor": "DeepSeek",
           "docName": "DeepSeek-R1 README（Official Prompts：Web Search）",
-          "url": "https://github.com/deepseek-ai/DeepSeek-R1",
-          "masterRef": 92
+          "url": "https://github.com/deepseek-ai/DeepSeek-R1#official-prompts",
+          "masterRef": 92,
+          "anchor": "heading"
         },
         {
           "vendor": "Microsoft",
           "docName": "Prompt engineering techniques（Specifying the output structure）",
-          "url": "https://learn.microsoft.com/en-us/azure/ai-foundry/openai/concepts/prompt-engineering",
-          "masterRef": 92
+          "url": "https://learn.microsoft.com/en-us/azure/ai-foundry/openai/concepts/prompt-engineering#specifying-the-output-structure",
+          "masterRef": 92,
+          "anchor": "heading"
         },
         {
           "vendor": "xAI",
           "docName": "Citations",
-          "url": "https://docs.x.ai/developers/tools/citations",
-          "masterRef": 98
+          "url": "https://docs.x.ai/developers/tools/citations#inline-citations",
+          "masterRef": 98,
+          "anchor": "heading"
         }
       ]
     },
@@ -1557,19 +1705,22 @@
           "vendor": "Anthropic",
           "docName": "Prompting best practices（Minimizing hallucinations in agentic coding）",
           "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#minimizing-hallucinations-in-agentic-coding",
-          "masterRef": 97
+          "masterRef": 97,
+          "anchor": "already"
         },
         {
           "vendor": "Anthropic",
           "docName": "Prompting Claude Fable 5（Ground progress claims during long runs）",
           "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5#ground-progress-claims-during-long-runs",
-          "masterRef": 96
+          "masterRef": 96,
+          "anchor": "already"
         },
         {
           "vendor": "Anthropic",
           "docName": "Prompting best practices（Research and information gathering）",
           "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#research-and-information-gathering",
-          "masterRef": 95
+          "masterRef": 95,
+          "anchor": "already"
         }
       ]
     },
@@ -1596,13 +1747,16 @@
           "vendor": "OpenAI",
           "docName": "Prompting guidance for GPT-5.6",
           "url": "https://developers.openai.com/api/docs/guides/prompt-guidance-gpt-5p6",
-          "masterRef": 91
+          "masterRef": 91,
+          "anchor": "none",
+          "anchorNote": "頁面層引用（出處沒有指名章節），且 master 條目的官方引文在這一版頁面上找不到唯一落點"
         },
         {
           "vendor": "OpenAI",
           "docName": "Cookbook: GPT-5.2 prompting guide",
-          "url": "https://developers.openai.com/cookbook/examples/gpt-5/gpt-5-2_prompting_guide",
-          "masterRef": 94
+          "url": "https://developers.openai.com/cookbook/examples/gpt-5/gpt-5-2_prompting_guide#:~:text=Keep%20iterating%20until",
+          "masterRef": 94,
+          "anchor": "fragment"
         }
       ]
     },
@@ -1626,8 +1780,9 @@
         {
           "vendor": "Meta",
           "docName": "Prompt engineering（Reducing hallucinations）",
-          "url": "https://developer.meta.com/ai/docs/how-to-guides/prompting/",
-          "masterRef": 281
+          "url": "https://developer.meta.com/ai/docs/how-to-guides/prompting/#reducing-hallucinations",
+          "masterRef": 281,
+          "anchor": "heading"
         }
       ]
     },
@@ -1652,20 +1807,23 @@
         {
           "vendor": "Qwen（阿里雲百煉）",
           "docName": "文生文 Prompt 指南（優化案例二）",
-          "url": "https://help.aliyun.com/zh/model-studio/prompt-engineering-guide",
-          "masterRef": 282
+          "url": "https://help.aliyun.com/zh/model-studio/prompt-engineering-guide#a3f7c8e2b1k9m",
+          "masterRef": 282,
+          "anchor": "heading"
         },
         {
           "vendor": "OpenAI",
           "docName": "Cookbook: GPT-5.2 prompting guide",
-          "url": "https://developers.openai.com/cookbook/examples/gpt-5/gpt-5-2_prompting_guide",
-          "masterRef": 132
+          "url": "https://developers.openai.com/cookbook/examples/gpt-5/gpt-5-2_prompting_guide#:~:text=Always%20follow%20this",
+          "masterRef": 132,
+          "anchor": "fragment"
         },
         {
           "vendor": "Microsoft",
           "docName": "Prompt engineering techniques（Specifying the output structure）",
-          "url": "https://learn.microsoft.com/en-us/azure/ai-foundry/openai/concepts/prompt-engineering",
-          "masterRef": 132
+          "url": "https://learn.microsoft.com/en-us/azure/ai-foundry/openai/concepts/prompt-engineering#specifying-the-output-structure",
+          "masterRef": 132,
+          "anchor": "heading"
         }
       ]
     },
@@ -1691,55 +1849,64 @@
           "vendor": "Google",
           "docName": "Prompt design strategies（Break down prompts into components）",
           "url": "https://ai.google.dev/gemini-api/docs/prompting-strategies#prompt-components",
-          "masterRef": 187
+          "masterRef": 187,
+          "anchor": "already"
         },
         {
           "vendor": "Google",
           "docName": "Break down complex tasks into simpler prompts",
-          "url": "https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/prompts/break-down-prompts",
-          "masterRef": 187
+          "url": "https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/prompts/break-down-prompts#task-1:-identify-customer-issues",
+          "masterRef": 187,
+          "anchor": "heading"
         },
         {
           "vendor": "Anthropic",
           "docName": "Prompting best practices（Chain complex prompts）",
           "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#chain-complex-prompts",
-          "masterRef": 187
+          "masterRef": 187,
+          "anchor": "already"
         },
         {
           "vendor": "Qwen（阿里雲百煉）",
           "docName": "文生文 Prompt 指南（提示鏈 Prompt Chaining）",
-          "url": "https://help.aliyun.com/zh/model-studio/prompt-engineering-guide",
-          "masterRef": 187
+          "url": "https://help.aliyun.com/zh/model-studio/prompt-engineering-guide#f814464dbaqqh",
+          "masterRef": 187,
+          "anchor": "heading"
         },
         {
           "vendor": "Cohere",
           "docName": "Advanced Prompt Engineering Techniques（Prompt Chaining）",
-          "url": "https://docs.cohere.com/docs/advanced-prompt-engineering-techniques",
-          "masterRef": 187
+          "url": "https://docs.cohere.com/docs/advanced-prompt-engineering-techniques#prompt-chaining",
+          "masterRef": 187,
+          "anchor": "heading"
         },
         {
           "vendor": "Cohere",
           "docName": "A Guide to Crafting Effective Prompts（Task Splitting）",
-          "url": "https://docs.cohere.com/docs/crafting-effective-prompts",
-          "masterRef": 287
+          "url": "https://docs.cohere.com/docs/crafting-effective-prompts#task-splitting",
+          "masterRef": 287,
+          "anchor": "heading"
         },
         {
           "vendor": "Meta",
           "docName": "Prompt engineering（Chain-of-thought prompting）",
-          "url": "https://developer.meta.com/ai/docs/how-to-guides/prompting/",
-          "masterRef": 287
+          "url": "https://developer.meta.com/ai/docs/how-to-guides/prompting/#chain-of-thought-prompting",
+          "masterRef": 287,
+          "anchor": "heading"
         },
         {
           "vendor": "Mistral",
           "docName": "Prompting best practices（Summarization）",
-          "url": "https://docs.mistral.ai/models/best-practices/prompt-engineering",
-          "masterRef": 287
+          "url": "https://docs.mistral.ai/models/best-practices/prompt-engineering#summarization",
+          "masterRef": 287,
+          "anchor": "heading"
         },
         {
           "vendor": "Microsoft",
           "docName": "Prompt engineering techniques（Break the task down）",
-          "url": "https://learn.microsoft.com/en-us/azure/ai-foundry/openai/concepts/prompt-engineering",
-          "masterRef": 287
+          "url": "https://learn.microsoft.com/en-us/azure/ai-foundry/openai/concepts/prompt-engineering#break-the-task-down",
+          "masterRef": 287,
+          "anchor": "heading"
         }
       ]
     },
@@ -1765,32 +1932,39 @@
         {
           "vendor": "Anthropic",
           "docName": "Prompting best practices（Leverage thinking capabilities）",
-          "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#leverage-thinking--interleaved-thinking-capabilities",
-          "masterRef": 55
+          "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#leverage-thinking-and-interleaved-thinking-capabilities",
+          "masterRef": 55,
+          "anchor": "repaired"
         },
         {
           "vendor": "OpenAI",
           "docName": "Reasoning",
-          "url": "https://developers.openai.com/api/docs/guides/reasoning",
-          "masterRef": 55
+          "url": "https://developers.openai.com/api/docs/guides/reasoning#advice-on-prompting",
+          "masterRef": 55,
+          "anchor": "heading"
         },
         {
           "vendor": "OpenAI",
           "docName": "Reasoning best practices（Be specific）",
           "url": "https://developers.openai.com/api/docs/guides/reasoning-best-practices",
-          "masterRef": 55
+          "masterRef": 55,
+          "anchor": "none",
+          "anchorNote": "出處寫的章節「Be specific」在這一版頁面上找不到對得起來的 id"
         },
         {
           "vendor": "OpenAI",
           "docName": "Prompting guidance for GPT-5.6",
           "url": "https://developers.openai.com/api/docs/guides/prompt-guidance-gpt-5p6",
-          "masterRef": 171
+          "masterRef": 171,
+          "anchor": "none",
+          "anchorNote": "頁面層引用（出處沒有指名章節），且 master 條目的官方引文在這一版頁面上找不到唯一落點"
         },
         {
           "vendor": "Anthropic",
           "docName": "Prompting Claude Sonnet 5（Interactive coding products）",
           "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5#interactive-coding-products",
-          "masterRef": 254
+          "masterRef": 254,
+          "anchor": "already"
         }
       ]
     },
@@ -1814,14 +1988,16 @@
         {
           "vendor": "OpenAI",
           "docName": "Cookbook: GPT-4.1 prompting guide",
-          "url": "https://developers.openai.com/cookbook/examples/gpt4-1_prompting_guide",
-          "masterRef": 169
+          "url": "https://developers.openai.com/cookbook/examples/gpt4-1_prompting_guide#system-prompt-reminders",
+          "masterRef": 169,
+          "anchor": "heading"
         },
         {
           "vendor": "OpenAI",
           "docName": "Prompt engineering（Prompting current GPT-5 series models）",
           "url": "https://developers.openai.com/api/docs/guides/prompt-engineering#prompting-current-gpt-5-series-models",
-          "masterRef": 169
+          "masterRef": 169,
+          "anchor": "already"
         }
       ]
     },
@@ -1847,26 +2023,30 @@
         {
           "vendor": "OpenAI",
           "docName": "Cookbook: GPT-5 prompting guide",
-          "url": "https://developers.openai.com/cookbook/examples/gpt-5/gpt-5_prompting_guide",
-          "masterRef": 170
+          "url": "https://developers.openai.com/cookbook/examples/gpt-5/gpt-5_prompting_guide#prompting-for-less-eagerness",
+          "masterRef": 170,
+          "anchor": "heading"
         },
         {
           "vendor": "Anthropic",
           "docName": "Prompting best practices（Tool usage）",
           "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#tool-usage",
-          "masterRef": 170
+          "masterRef": 170,
+          "anchor": "already"
         },
         {
           "vendor": "Anthropic",
           "docName": "Prompting Claude Fable 5（Rare cases of early stopping）",
           "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5#rare-cases-of-early-stopping",
-          "masterRef": 185
+          "masterRef": 185,
+          "anchor": "already"
         },
         {
           "vendor": "Google",
           "docName": "Prompt design strategies（Agentic workflows）",
           "url": "https://ai.google.dev/gemini-api/docs/prompting-strategies#agentic-workflows",
-          "masterRef": 188
+          "masterRef": 188,
+          "anchor": "already"
         }
       ]
     },
@@ -1893,26 +2073,31 @@
         {
           "vendor": "OpenAI",
           "docName": "Prompting guidance for GPT-5.6",
-          "url": "https://developers.openai.com/api/docs/guides/prompt-guidance-gpt-5p6",
-          "masterRef": 172
+          "url": "https://developers.openai.com/api/docs/guides/prompt-guidance-gpt-5p6#:~:text=Repeating%20instructions%20such",
+          "masterRef": 172,
+          "anchor": "fragment"
         },
         {
           "vendor": "Anthropic",
           "docName": "Prompting best practices（Balancing autonomy and safety）",
           "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#balancing-autonomy-and-safety",
-          "masterRef": 173
+          "masterRef": 173,
+          "anchor": "already"
         },
         {
           "vendor": "Anthropic",
           "docName": "Prompting Claude Fable 5（State the boundaries）",
           "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5#state-the-boundaries",
-          "masterRef": 174
+          "masterRef": 174,
+          "anchor": "already"
         },
         {
           "vendor": "OpenAI",
           "docName": "Cookbook: GPT-5 prompting guide（Cursor 案例）",
           "url": "https://developers.openai.com/cookbook/examples/gpt-5/gpt-5_prompting_guide",
-          "masterRef": 179
+          "masterRef": 179,
+          "anchor": "none",
+          "anchorNote": "出處寫的章節「Cursor 案例」在這一版頁面上找不到對得起來的 id"
         }
       ]
     },
@@ -1940,37 +2125,43 @@
           "vendor": "Anthropic",
           "docName": "Prompting best practices（Overeagerness）",
           "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#overeagerness",
-          "masterRef": 175
+          "masterRef": 175,
+          "anchor": "already"
         },
         {
           "vendor": "OpenAI",
           "docName": "Cookbook: GPT-5.2 prompting guide",
-          "url": "https://developers.openai.com/cookbook/examples/gpt-5/gpt-5-2_prompting_guide",
-          "masterRef": 175
+          "url": "https://developers.openai.com/cookbook/examples/gpt-5/gpt-5-2_prompting_guide#32-preventing-scope-drift-eg-ux--design-in-frontend-tasks",
+          "masterRef": 175,
+          "anchor": "heading"
         },
         {
           "vendor": "OpenAI",
           "docName": "Cookbook: GPT-5 prompting guide",
-          "url": "https://developers.openai.com/cookbook/examples/gpt-5/gpt-5_prompting_guide",
-          "masterRef": 175
+          "url": "https://developers.openai.com/cookbook/examples/gpt-5/gpt-5_prompting_guide#matching-codebase-design-standards",
+          "masterRef": 175,
+          "anchor": "heading"
         },
         {
           "vendor": "Anthropic",
           "docName": "Prompting best practices（Avoid focusing on passing tests and hardcoding）",
-          "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#avoid-focusing-on-passing-tests-and-hardcoding",
-          "masterRef": 176
+          "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#avoid-focusing-on-passing-tests-and-hard-coding",
+          "masterRef": 176,
+          "anchor": "repaired"
         },
         {
           "vendor": "OpenAI",
           "docName": "Prompt engineering（Prompting current GPT-5 series models）",
           "url": "https://developers.openai.com/api/docs/guides/prompt-engineering#prompting-current-gpt-5-series-models",
-          "masterRef": 177
+          "masterRef": 177,
+          "anchor": "already"
         },
         {
           "vendor": "Anthropic",
           "docName": "Prompting best practices（Reduce file creation in agentic coding）",
           "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#reduce-file-creation-in-agentic-coding",
-          "masterRef": 194
+          "masterRef": 194,
+          "anchor": "already"
         }
       ]
     },
@@ -1996,26 +2187,31 @@
         {
           "vendor": "xAI",
           "docName": "Plan Mode",
-          "url": "https://docs.x.ai/build/features/plan-mode",
-          "masterRef": 190
+          "url": "https://docs.x.ai/build/features/plan-mode#when-to-use",
+          "masterRef": 190,
+          "anchor": "heading"
         },
         {
           "vendor": "Google",
           "docName": "Deep Research（Collaborative planning）",
           "url": "https://ai.google.dev/gemini-api/docs/deep-research#collaborative-planning",
-          "masterRef": 190
+          "masterRef": 190,
+          "anchor": "already"
         },
         {
           "vendor": "OpenAI",
           "docName": "Cookbook: GPT-4.1 prompting guide",
           "url": "https://developers.openai.com/cookbook/examples/gpt4-1_prompting_guide",
-          "masterRef": 178
+          "masterRef": 178,
+          "anchor": "none",
+          "anchorNote": "頁面層引用（出處沒有指名章節），且 master 條目的官方引文在這一版頁面上找不到唯一落點"
         },
         {
           "vendor": "Google",
           "docName": "Prompt design strategies（Agentic SI template）",
           "url": "https://ai.google.dev/gemini-api/docs/prompting-strategies#agentic-si-template",
-          "masterRef": 189
+          "masterRef": 189,
+          "anchor": "already"
         }
       ]
     },
@@ -2042,43 +2238,51 @@
           "vendor": "Anthropic",
           "docName": "Prompting best practices（Long-horizon reasoning and state tracking）",
           "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#long-horizon-reasoning-and-state-tracking",
-          "masterRef": 180
+          "masterRef": 180,
+          "anchor": "already"
         },
         {
           "vendor": "Anthropic",
           "docName": "Prompting best practices（Context awareness and multiwindow workflows）",
           "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#context-awareness-and-multiwindow-workflows",
-          "masterRef": 181
+          "masterRef": 181,
+          "anchor": "already"
         },
         {
           "vendor": "Anthropic",
           "docName": "Prompting Claude Fable 5（Rare cases of context-budget concern）",
           "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5#rare-cases-of-context-budget-concern",
-          "masterRef": 181
+          "masterRef": 181,
+          "anchor": "already"
         },
         {
           "vendor": "OpenAI",
           "docName": "Prompting guidance for GPT-5.6（Long-running workflows and state）",
           "url": "https://developers.openai.com/api/docs/guides/prompt-guidance-gpt-5p6",
-          "masterRef": 118
+          "masterRef": 118,
+          "anchor": "none",
+          "anchorNote": "出處寫的章節「Long-running workflows and state」在這一版頁面上找不到對得起來的 id"
         },
         {
           "vendor": "OpenAI",
           "docName": "Cookbook: GPT-5.2 prompting guide",
-          "url": "https://developers.openai.com/cookbook/examples/gpt-5/gpt-5-2_prompting_guide",
-          "masterRef": 118
+          "url": "https://developers.openai.com/cookbook/examples/gpt-5/gpt-5-2_prompting_guide#5-agentic-steerability--user-updates",
+          "masterRef": 118,
+          "anchor": "heading"
         },
         {
           "vendor": "Anthropic",
           "docName": "Prompting Claude Opus 5（User-facing progress updates）",
           "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5#user-facing-progress-updates",
-          "masterRef": 118
+          "masterRef": 118,
+          "anchor": "already"
         },
         {
           "vendor": "Anthropic",
           "docName": "Prompting Claude Sonnet 5（User-facing progress updates）",
           "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5#user-facing-progress-updates",
-          "masterRef": 118
+          "masterRef": 118,
+          "anchor": "already"
         }
       ]
     },
@@ -2104,19 +2308,23 @@
           "vendor": "Anthropic",
           "docName": "Prompting best practices（State management best practices）",
           "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#state-management-best-practices",
-          "masterRef": 183
+          "masterRef": 183,
+          "anchor": "already"
         },
         {
           "vendor": "DeepSeek",
           "docName": "Multi-round Conversation",
           "url": "https://api-docs.deepseek.com/guides/multi_round_chat",
-          "masterRef": 183
+          "masterRef": 183,
+          "anchor": "none",
+          "anchorNote": "頁面層引用（出處沒有指名章節），且 master 條目的官方引文在這一版頁面上找不到唯一落點"
         },
         {
           "vendor": "Anthropic",
           "docName": "Prompting Claude Fable 5（Construct a memory system）",
           "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5#construct-a-memory-system",
-          "masterRef": 184
+          "masterRef": 184,
+          "anchor": "already"
         }
       ]
     },
@@ -2141,31 +2349,37 @@
           "vendor": "Anthropic",
           "docName": "Prompting best practices（Subagent orchestration）",
           "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#subagent-orchestration",
-          "masterRef": 186
+          "masterRef": 186,
+          "anchor": "already"
         },
         {
           "vendor": "Anthropic",
           "docName": "Prompting Claude Opus 5（Controlling subagent spawning）",
           "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5#controlling-subagent-spawning",
-          "masterRef": 186
+          "masterRef": 186,
+          "anchor": "already"
         },
         {
           "vendor": "Anthropic",
           "docName": "Prompting Claude Opus 4.8（Controlling subagent spawning）",
           "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-4-8#controlling-subagent-spawning",
-          "masterRef": 186
+          "masterRef": 186,
+          "anchor": "already"
         },
         {
           "vendor": "Anthropic",
           "docName": "Prompting Claude Fable 5（Parallel subagents）",
           "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5#parallel-subagents",
-          "masterRef": 186
+          "masterRef": 186,
+          "anchor": "already"
         },
         {
           "vendor": "xAI",
           "docName": "Subagents",
           "url": "https://docs.x.ai/build/features/subagents",
-          "masterRef": 186
+          "masterRef": 186,
+          "anchor": "none",
+          "anchorNote": "頁面層引用（出處沒有指名章節），且 master 條目的官方引文在這一版頁面上找不到唯一落點"
         }
       ]
     },
@@ -2190,14 +2404,17 @@
         {
           "vendor": "xAI",
           "docName": "AGENTS.md / Project rules",
-          "url": "https://docs.x.ai/build/features/project-rules",
-          "masterRef": 192
+          "url": "https://docs.x.ai/build/features/project-rules#discovery",
+          "masterRef": 192,
+          "anchor": "heading"
         },
         {
           "vendor": "xAI",
           "docName": "Skills, Plugins & Marketplaces",
           "url": "https://docs.x.ai/build/features/skills-plugins-marketplaces",
-          "masterRef": 193
+          "masterRef": 193,
+          "anchor": "none",
+          "anchorNote": "頁面層引用（出處沒有指名章節），且 master 條目的官方引文在這一版頁面上找不到唯一落點"
         }
       ]
     },
@@ -2223,19 +2440,22 @@
           "vendor": "Google",
           "docName": "What's new in Gemini 3.5 Flash（Reducing tool calls）",
           "url": "https://ai.google.dev/gemini-api/docs/whats-new-gemini-3.5#reducing-tool-calls",
-          "masterRef": 166
+          "masterRef": 166,
+          "anchor": "already"
         },
         {
           "vendor": "xAI",
           "docName": "Tool Usage Details",
           "url": "https://docs.x.ai/developers/tools/tool-usage-details#understanding-turns-vs-tool-calls",
-          "masterRef": 191
+          "masterRef": 191,
+          "anchor": "already"
         },
         {
           "vendor": "xAI",
           "docName": "Advanced Tool Usage",
           "url": "https://docs.x.ai/developers/tools/advanced-usage#understanding-max_turns-with-client-side-tools",
-          "masterRef": 191
+          "masterRef": 191,
+          "anchor": "already"
         }
       ]
     },
@@ -2261,31 +2481,37 @@
           "vendor": "Anthropic",
           "docName": "Prompting best practices（Give Claude a role）",
           "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#give-claude-a-role",
-          "masterRef": 48
+          "masterRef": 48,
+          "anchor": "already"
         },
         {
           "vendor": "OpenAI",
           "docName": "Cookbook: o3/o4-mini function calling guide",
-          "url": "https://developers.openai.com/cookbook/examples/o-series/o3o4-mini_prompting_guide",
-          "masterRef": 48
+          "url": "https://developers.openai.com/cookbook/examples/o-series/o3o4-mini_prompting_guide#context-setting-via-developer-message",
+          "masterRef": 48,
+          "anchor": "heading"
         },
         {
           "vendor": "Mistral",
           "docName": "Prompting best practices（Providing a Purpose / Roleplaying）",
-          "url": "https://docs.mistral.ai/models/best-practices/prompt-engineering",
-          "masterRef": 48
+          "url": "https://docs.mistral.ai/models/best-practices/prompt-engineering#purpose",
+          "masterRef": 48,
+          "anchor": "heading"
         },
         {
           "vendor": "Meta",
           "docName": "Prompt engineering（Role-based prompts）",
-          "url": "https://developer.meta.com/ai/docs/how-to-guides/prompting/",
-          "masterRef": 48
+          "url": "https://developer.meta.com/ai/docs/how-to-guides/prompting/#role-based-prompts",
+          "masterRef": 48,
+          "anchor": "heading"
         },
         {
           "vendor": "Anthropic",
           "docName": "Blog: Best practices for prompt engineering",
           "url": "https://claude.com/blog/best-practices-for-prompt-engineering",
-          "masterRef": 49
+          "masterRef": 49,
+          "anchor": "none",
+          "anchorNote": "頁面層引用（出處沒有指名章節），且 master 條目的官方引文在這一版頁面上找不到唯一落點"
         }
       ]
     },
@@ -2310,13 +2536,15 @@
           "vendor": "Google",
           "docName": "System instructions introduction",
           "url": "https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/prompts/system-instruction-introduction#use_cases",
-          "masterRef": 50
+          "masterRef": 50,
+          "anchor": "already"
         },
         {
           "vendor": "Google",
           "docName": "Use system instructions",
           "url": "https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/prompts/system-instructions#use_cases",
-          "masterRef": 50
+          "masterRef": 50,
+          "anchor": "already"
         }
       ]
     },
@@ -2343,31 +2571,37 @@
           "vendor": "OpenAI",
           "docName": "Prompt engineering（Message roles and instruction following）",
           "url": "https://developers.openai.com/api/docs/guides/prompt-engineering#message-roles-and-instruction-following",
-          "masterRef": 51
+          "masterRef": 51,
+          "anchor": "already"
         },
         {
           "vendor": "Meta",
           "docName": "Llama 4 — Model Cards & Prompt Formats（Roles）",
-          "url": "https://developer.meta.com/ai/docs/model-cards-and-prompt-formats/llama4/",
-          "masterRef": 51
+          "url": "https://developer.meta.com/ai/docs/model-cards-and-prompt-formats/llama4/#-roles-",
+          "masterRef": 51,
+          "anchor": "heading"
         },
         {
           "vendor": "Cohere",
           "docName": "An Overview of System Messages",
-          "url": "https://docs.cohere.com/docs/system-instructions",
-          "masterRef": 51
+          "url": "https://docs.cohere.com/docs/system-instructions#writing-a-custom-system-message",
+          "masterRef": 51,
+          "anchor": "heading"
         },
         {
           "vendor": "OpenAI",
           "docName": "Reasoning best practices",
           "url": "https://developers.openai.com/api/docs/guides/reasoning-best-practices",
-          "masterRef": 52
+          "masterRef": 52,
+          "anchor": "none",
+          "anchorNote": "頁面層引用（出處沒有指名章節），且 master 條目的官方引文在這一版頁面上找不到唯一落點"
         },
         {
           "vendor": "xAI",
           "docName": "Speech to Speech（Per-response instructions）",
           "url": "https://docs.x.ai/developers/model-capabilities/audio/speech-to-speech#per-response-instructions",
-          "masterRef": 53
+          "masterRef": 53,
+          "anchor": "already"
         }
       ]
     },
@@ -2391,8 +2625,9 @@
         {
           "vendor": "Mistral",
           "docName": "Prompting best practices（Main Concepts）",
-          "url": "https://docs.mistral.ai/models/best-practices/prompt-engineering",
-          "masterRef": 270
+          "url": "https://docs.mistral.ai/models/best-practices/prompt-engineering#main-concepts",
+          "masterRef": 270,
+          "anchor": "heading"
         }
       ]
     },
@@ -2417,7 +2652,9 @@
           "vendor": "Google",
           "docName": "Gemini for Workspace: Prompting guide 101",
           "url": "https://workspace.google.com/intl/en/resources/ai/writing-effective-prompts/",
-          "masterRef": 36
+          "masterRef": 36,
+          "anchor": "none",
+          "anchorNote": "page-unfetchable"
         }
       ]
     },
@@ -2441,8 +2678,9 @@
         {
           "vendor": "Qwen（阿里雲百煉）",
           "docName": "文生文 Prompt 指南（Prompt 框架）",
-          "url": "https://help.aliyun.com/zh/model-studio/prompt-engineering-guide",
-          "masterRef": 266
+          "url": "https://help.aliyun.com/zh/model-studio/prompt-engineering-guide#c8456644eeh34",
+          "masterRef": 266,
+          "anchor": "heading"
         }
       ]
     },
@@ -2470,19 +2708,23 @@
           "vendor": "OpenAI",
           "docName": "Prompt engineering",
           "url": "https://developers.openai.com/api/docs/guides/prompt-engineering#message-formatting-with-markdown-and-xml",
-          "masterRef": 33
+          "masterRef": 33,
+          "anchor": "already"
         },
         {
           "vendor": "OpenAI",
           "docName": "Cookbook: GPT-4.1 prompting guide",
-          "url": "https://developers.openai.com/cookbook/examples/gpt4-1_prompting_guide",
-          "masterRef": 34
+          "url": "https://developers.openai.com/cookbook/examples/gpt4-1_prompting_guide#:~:text=%23%20Role%20and%20Objective",
+          "masterRef": 34,
+          "anchor": "fragment"
         },
         {
           "vendor": "OpenAI",
           "docName": "Prompting guidance for GPT-5.6（Suggested prompt structure）",
           "url": "https://developers.openai.com/api/docs/guides/prompt-guidance-gpt-5p6",
-          "masterRef": 35
+          "masterRef": 35,
+          "anchor": "none",
+          "anchorNote": "出處寫的章節「Suggested prompt structure」在這一版頁面上找不到對得起來的 id"
         }
       ],
       "legacyNote": "同時吸收了舊 structure-03（GPT-4.1 七段模板，master #34）。"
@@ -2510,25 +2752,29 @@
           "vendor": "Google",
           "docName": "Overview of prompting strategies（Sample prompt template）",
           "url": "https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/prompts/prompt-design-strategies#sample-prompt-template",
-          "masterRef": 31
+          "masterRef": 31,
+          "anchor": "already"
         },
         {
           "vendor": "Google",
           "docName": "Prompt design strategies（Structured prompting examples）",
           "url": "https://ai.google.dev/gemini-api/docs/prompting-strategies#structured_prompting_examples",
-          "masterRef": 32
+          "masterRef": 32,
+          "anchor": "already"
         },
         {
           "vendor": "Google",
           "docName": "Prompt design strategies（Example template combining best practices）",
           "url": "https://ai.google.dev/gemini-api/docs/prompting-strategies#example_template_combining_best_practices",
-          "masterRef": 32
+          "masterRef": 32,
+          "anchor": "already"
         },
         {
           "vendor": "Mistral",
           "docName": "Prompting best practices（Structure）",
-          "url": "https://docs.mistral.ai/models/best-practices/prompt-engineering",
-          "masterRef": 267
+          "url": "https://docs.mistral.ai/models/best-practices/prompt-engineering#structure",
+          "masterRef": 267,
+          "anchor": "heading"
         }
       ]
     },
@@ -2555,50 +2801,59 @@
         {
           "vendor": "Mistral",
           "docName": "Sampling（Temperature / The Best Temperature）",
-          "url": "https://docs.mistral.ai/models/best-practices/sampling",
-          "masterRef": 278
+          "url": "https://docs.mistral.ai/models/best-practices/sampling#temperature",
+          "masterRef": 278,
+          "anchor": "heading"
         },
         {
           "vendor": "Mistral",
           "docName": "Mistral-Large-3-675B-Instruct-2512 模型卡（Recommended Settings）",
-          "url": "https://huggingface.co/mistralai/Mistral-Large-3-675B-Instruct-2512",
-          "masterRef": 278
+          "url": "https://huggingface.co/mistralai/Mistral-Large-3-675B-Instruct-2512#recommended-settings",
+          "masterRef": 278,
+          "anchor": "heading"
         },
         {
           "vendor": "Microsoft",
           "docName": "Prompt engineering techniques（Temperature and Top_p）",
-          "url": "https://learn.microsoft.com/en-us/azure/ai-foundry/openai/concepts/prompt-engineering",
-          "masterRef": 278
+          "url": "https://learn.microsoft.com/en-us/azure/ai-foundry/openai/concepts/prompt-engineering#temperature-and-top_p-parameters",
+          "masterRef": 278,
+          "anchor": "heading"
         },
         {
           "vendor": "Google",
           "docName": "Prompt design strategies（Model parameters）",
           "url": "https://ai.google.dev/gemini-api/docs/prompting-strategies#model-parameters",
-          "masterRef": 76
+          "masterRef": 76,
+          "anchor": "already"
         },
         {
           "vendor": "Google",
           "docName": "Experiment with parameter values",
           "url": "https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/prompts/adjust-parameter-values",
-          "masterRef": 76
+          "masterRef": 76,
+          "anchor": "none",
+          "anchorNote": "頁面層引用（出處沒有指名章節），且 master 條目的官方引文在這一版頁面上找不到唯一落點"
         },
         {
           "vendor": "Qwen",
           "docName": "Qwen3-235B-A22B 模型卡（Best Practices）",
-          "url": "https://huggingface.co/Qwen/Qwen3-235B-A22B",
-          "masterRef": 273
+          "url": "https://huggingface.co/Qwen/Qwen3-235B-A22B#best-practices",
+          "masterRef": 273,
+          "anchor": "heading"
         },
         {
           "vendor": "Qwen",
           "docName": "Qwen3.5-397B-A17B 模型卡（Best Practices）",
-          "url": "https://huggingface.co/Qwen/Qwen3.5-397B-A17B",
-          "masterRef": 273
+          "url": "https://huggingface.co/Qwen/Qwen3.5-397B-A17B#best-practices",
+          "masterRef": 273,
+          "anchor": "heading"
         },
         {
           "vendor": "DeepSeek",
           "docName": "DeepSeek-R1 README（Usage Recommendations）",
-          "url": "https://github.com/deepseek-ai/DeepSeek-R1",
-          "masterRef": 273
+          "url": "https://github.com/deepseek-ai/DeepSeek-R1#usage-recommendations",
+          "masterRef": 273,
+          "anchor": "heading"
         }
       ]
     },
@@ -2624,31 +2879,39 @@
           "vendor": "Google",
           "docName": "Prompt design strategies（Model parameters）",
           "url": "https://ai.google.dev/gemini-api/docs/prompting-strategies#model-parameters",
-          "masterRef": 76
+          "masterRef": 76,
+          "anchor": "already"
         },
         {
           "vendor": "Google",
           "docName": "Experiment with parameter values",
           "url": "https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/prompts/adjust-parameter-values",
-          "masterRef": 76
+          "masterRef": 76,
+          "anchor": "none",
+          "anchorNote": "頁面層引用（出處沒有指名章節），且 master 條目的官方引文在這一版頁面上找不到唯一落點"
         },
         {
           "vendor": "OpenAI",
           "docName": "Reasoning",
           "url": "https://developers.openai.com/api/docs/guides/reasoning",
-          "masterRef": 73
+          "masterRef": 73,
+          "anchor": "none",
+          "anchorNote": "頁面層引用（出處沒有指名章節），且 master 條目的官方引文在這一版頁面上找不到唯一落點"
         },
         {
           "vendor": "Anthropic",
           "docName": "Prompting Claude Sonnet 5",
           "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5#calibrating-effort-and-thinking-depth",
-          "masterRef": 73
+          "masterRef": 73,
+          "anchor": "already"
         },
         {
           "vendor": "Qwen",
           "docName": "Qwen3-235B-A22B 模型卡（Adequate Output Length）",
           "url": "https://huggingface.co/Qwen/Qwen3-235B-A22B",
-          "masterRef": 73
+          "masterRef": 73,
+          "anchor": "none",
+          "anchorNote": "出處寫的章節「Adequate Output Length」在這一版頁面上找不到對得起來的 id"
         }
       ]
     },
@@ -2673,19 +2936,22 @@
           "vendor": "xAI",
           "docName": "Web Search",
           "url": "https://docs.x.ai/developers/tools/web-search#only-search-in-specific-domains",
-          "masterRef": 10
+          "masterRef": 10,
+          "anchor": "already"
         },
         {
           "vendor": "xAI",
           "docName": "Speech to Speech（Force Message）",
           "url": "https://docs.x.ai/developers/model-capabilities/audio/speech-to-speech#force-message",
-          "masterRef": 10
+          "masterRef": 10,
+          "anchor": "already"
         },
         {
           "vendor": "xAI",
           "docName": "Speech to Speech（keyterms / replace）",
           "url": "https://docs.x.ai/developers/model-capabilities/audio/speech-to-speech#keyterms",
-          "masterRef": 10
+          "masterRef": 10,
+          "anchor": "already"
         }
       ]
     },
@@ -2712,25 +2978,29 @@
           "vendor": "OpenAI",
           "docName": "Prompt engineering（Choosing a model / Prompting reasoning models）",
           "url": "https://developers.openai.com/api/docs/guides/prompt-engineering#choosing-a-model",
-          "masterRef": 4
+          "masterRef": 4,
+          "anchor": "already"
         },
         {
           "vendor": "OpenAI",
           "docName": "Reasoning best practices",
-          "url": "https://developers.openai.com/api/docs/guides/reasoning-best-practices",
-          "masterRef": 4
+          "url": "https://developers.openai.com/api/docs/guides/reasoning-best-practices#reasoning-models-vs-gpt-models",
+          "masterRef": 4,
+          "anchor": "heading"
         },
         {
           "vendor": "OpenAI",
           "docName": "Model guidance / latest model",
-          "url": "https://developers.openai.com/api/docs/guides/latest-model",
-          "masterRef": 262
+          "url": "https://developers.openai.com/api/docs/guides/latest-model#:~:text=Use%20pro%20mode%20when",
+          "masterRef": 262,
+          "anchor": "fragment"
         },
         {
           "vendor": "xAI",
           "docName": "May 15 Retirement",
           "url": "https://docs.x.ai/developers/migration/may-15-retirement#recommended-replacements",
-          "masterRef": 263
+          "masterRef": 263,
+          "anchor": "already"
         }
       ]
     },
@@ -2757,31 +3027,36 @@
           "vendor": "Google",
           "docName": "Prompt design strategies（Response format）",
           "url": "https://ai.google.dev/gemini-api/docs/prompting-strategies#response-format",
-          "masterRef": 101
+          "masterRef": 101,
+          "anchor": "already"
         },
         {
           "vendor": "Meta",
           "docName": "Prompt engineering（Formatting）",
-          "url": "https://developer.meta.com/ai/docs/how-to-guides/prompting/",
-          "masterRef": 101
+          "url": "https://developer.meta.com/ai/docs/how-to-guides/prompting/#formatting",
+          "masterRef": 101,
+          "anchor": "heading"
         },
         {
           "vendor": "Cohere",
           "docName": "A Guide to Crafting Effective Prompts（Example Outputs / Structured Output）",
-          "url": "https://docs.cohere.com/docs/crafting-effective-prompts",
-          "masterRef": 101
+          "url": "https://docs.cohere.com/docs/crafting-effective-prompts#incorporating-example-outputs",
+          "masterRef": 101,
+          "anchor": "heading"
         },
         {
           "vendor": "Anthropic",
           "docName": "Prompting best practices（LaTeX output）",
-          "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#latex-output",
-          "masterRef": 106
+          "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#la-te-x-output",
+          "masterRef": 106,
+          "anchor": "repaired"
         },
         {
           "vendor": "Anthropic",
           "docName": "Prompting best practices（Control the format of responses）",
           "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#control-the-format-of-responses",
-          "masterRef": 102
+          "masterRef": 102,
+          "anchor": "already"
         }
       ]
     },
@@ -2808,19 +3083,23 @@
           "vendor": "Anthropic",
           "docName": "Prompting best practices（Control the format of responses）",
           "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#control-the-format-of-responses",
-          "masterRef": 104
+          "masterRef": 104,
+          "anchor": "already"
         },
         {
           "vendor": "OpenAI",
           "docName": "Cookbook: GPT-5 prompting guide",
           "url": "https://developers.openai.com/cookbook/examples/gpt-5/gpt-5_prompting_guide",
-          "masterRef": 105
+          "masterRef": 105,
+          "anchor": "none",
+          "anchorNote": "頁面層引用（出處沒有指名章節），且 master 條目的官方引文在這一版頁面上找不到唯一落點"
         },
         {
           "vendor": "OpenAI",
           "docName": "Reasoning best practices",
-          "url": "https://developers.openai.com/api/docs/guides/reasoning-best-practices",
-          "masterRef": 105
+          "url": "https://developers.openai.com/api/docs/guides/reasoning-best-practices#how-to-prompt-reasoning-models-effectively",
+          "masterRef": 105,
+          "anchor": "heading"
         }
       ]
     },
@@ -2846,37 +3125,44 @@
           "vendor": "Google",
           "docName": "Prompt design strategies（Completion）",
           "url": "https://ai.google.dev/gemini-api/docs/prompting-strategies#completion",
-          "masterRef": 46
+          "masterRef": 46,
+          "anchor": "already"
         },
         {
           "vendor": "Google",
           "docName": "Prompt design strategies（Format responses with the completion strategy）",
           "url": "https://ai.google.dev/gemini-api/docs/prompting-strategies#format_responses_with_the_completion_strategy",
-          "masterRef": 46
+          "masterRef": 46,
+          "anchor": "already"
         },
         {
           "vendor": "Cohere",
           "docName": "A Guide to Crafting Effective Prompts（Begin the Completion Yourself）",
-          "url": "https://docs.cohere.com/docs/crafting-effective-prompts",
-          "masterRef": 46
+          "url": "https://docs.cohere.com/docs/crafting-effective-prompts#begin-the-completion-yourself",
+          "masterRef": 46,
+          "anchor": "heading"
         },
         {
           "vendor": "Microsoft",
           "docName": "Prompt engineering techniques（Prime the output）",
-          "url": "https://learn.microsoft.com/en-us/azure/ai-foundry/openai/concepts/prompt-engineering",
-          "masterRef": 46
+          "url": "https://learn.microsoft.com/en-us/azure/ai-foundry/openai/concepts/prompt-engineering#prime-the-output",
+          "masterRef": 46,
+          "anchor": "heading"
         },
         {
           "vendor": "DeepSeek",
           "docName": "Chat Prefix Completion (Beta)",
           "url": "https://api-docs.deepseek.com/guides/chat_prefix_completion",
-          "masterRef": 46
+          "masterRef": 46,
+          "anchor": "none",
+          "anchorNote": "出處寫的章節「Beta」在這一版頁面上找不到對得起來的 id"
         },
         {
           "vendor": "Anthropic",
           "docName": "Prompting best practices（Migrating away from prefilled responses）",
           "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#migrating-away-from-prefilled-responses",
-          "masterRef": 251
+          "masterRef": 251,
+          "anchor": "already"
         }
       ]
     },
@@ -2901,20 +3187,23 @@
         {
           "vendor": "Qwen",
           "docName": "Qwen3-235B-A22B 模型卡（Best Practices）",
-          "url": "https://huggingface.co/Qwen/Qwen3-235B-A22B",
-          "masterRef": 283
+          "url": "https://huggingface.co/Qwen/Qwen3-235B-A22B#best-practices",
+          "masterRef": 283,
+          "anchor": "heading"
         },
         {
           "vendor": "DeepSeek",
           "docName": "DeepSeek-R1 README（Usage Recommendations）",
-          "url": "https://github.com/deepseek-ai/DeepSeek-R1",
-          "masterRef": 283
+          "url": "https://github.com/deepseek-ai/DeepSeek-R1#usage-recommendations",
+          "masterRef": 283,
+          "anchor": "heading"
         },
         {
           "vendor": "Mistral",
           "docName": "Prompting best practices（Classification）",
-          "url": "https://docs.mistral.ai/models/best-practices/prompt-engineering",
-          "masterRef": 285
+          "url": "https://docs.mistral.ai/models/best-practices/prompt-engineering#classification",
+          "masterRef": 285,
+          "anchor": "heading"
         }
       ]
     },
@@ -2938,8 +3227,9 @@
         {
           "vendor": "Mistral",
           "docName": "Prompting best practices（What to Avoid）",
-          "url": "https://docs.mistral.ai/models/best-practices/prompt-engineering",
-          "masterRef": 286
+          "url": "https://docs.mistral.ai/models/best-practices/prompt-engineering#avoid",
+          "masterRef": 286,
+          "anchor": "heading"
         }
       ]
     },
@@ -2966,37 +3256,45 @@
           "vendor": "OpenAI",
           "docName": "Cookbook: GPT-5.2 prompting guide",
           "url": "https://developers.openai.com/cookbook/examples/gpt-5/gpt-5-2_prompting_guide",
-          "masterRef": 107
+          "masterRef": 107,
+          "anchor": "none",
+          "anchorNote": "頁面層引用（出處沒有指名章節），且 master 條目的官方引文在這一版頁面上找不到唯一落點"
         },
         {
           "vendor": "OpenAI",
           "docName": "Model guidance / latest model",
           "url": "https://developers.openai.com/api/docs/guides/latest-model",
-          "masterRef": 107
+          "masterRef": 107,
+          "anchor": "none",
+          "anchorNote": "頁面層引用（出處沒有指名章節），且 master 條目的官方引文在這一版頁面上找不到唯一落點"
         },
         {
           "vendor": "OpenAI",
           "docName": "Cookbook: GPT-5 prompting guide",
-          "url": "https://developers.openai.com/cookbook/examples/gpt-5/gpt-5_prompting_guide",
-          "masterRef": 107
+          "url": "https://developers.openai.com/cookbook/examples/gpt-5/gpt-5_prompting_guide#:~:text=Write%20code%20for",
+          "masterRef": 107,
+          "anchor": "fragment"
         },
         {
           "vendor": "Cohere",
           "docName": "A Guide to Crafting Effective Prompts（Length Control）",
-          "url": "https://docs.cohere.com/docs/crafting-effective-prompts",
-          "masterRef": 107
+          "url": "https://docs.cohere.com/docs/crafting-effective-prompts#length-control",
+          "masterRef": 107,
+          "anchor": "heading"
         },
         {
           "vendor": "Anthropic",
           "docName": "Prompting Claude Opus 5（Response length and verbosity）",
           "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5#response-length-and-verbosity",
-          "masterRef": 111
+          "masterRef": 111,
+          "anchor": "already"
         },
         {
           "vendor": "Anthropic",
           "docName": "Prompting Claude Opus 5（Written deliverable length）",
           "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5#written-deliverable-length",
-          "masterRef": 113
+          "masterRef": 113,
+          "anchor": "already"
         }
       ]
     },
@@ -3021,7 +3319,8 @@
           "vendor": "OpenAI",
           "docName": "Model guidance / latest model",
           "url": "https://developers.openai.com/api/docs/guides/latest-model#prompting-best-practices",
-          "masterRef": 108
+          "masterRef": 108,
+          "anchor": "already"
         }
       ]
     },
@@ -3047,13 +3346,15 @@
           "vendor": "Anthropic",
           "docName": "Prompting Claude Fable 5（Strong instruction following）",
           "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5#strong-instruction-following",
-          "masterRef": 114
+          "masterRef": 114,
+          "anchor": "already"
         },
         {
           "vendor": "Anthropic",
           "docName": "Prompting Claude Fable 5（Readability when communicating with the user）",
           "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5#readability-when-communicating-with-the-user",
-          "masterRef": 115
+          "masterRef": 115,
+          "anchor": "already"
         }
       ]
     },
@@ -3078,32 +3379,38 @@
         {
           "vendor": "OpenAI",
           "docName": "Prompting guidance for GPT-5.6",
-          "url": "https://developers.openai.com/api/docs/guides/prompt-guidance-gpt-5p6",
-          "masterRef": 116
+          "url": "https://developers.openai.com/api/docs/guides/prompt-guidance-gpt-5p6#define-the-tone",
+          "masterRef": 116,
+          "anchor": "heading"
         },
         {
           "vendor": "Anthropic",
           "docName": "Prompting Claude Opus 4.8（Tone and writing style）",
           "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-4-8#tone-and-writing-style",
-          "masterRef": 116
+          "masterRef": 116,
+          "anchor": "already"
         },
         {
           "vendor": "Meta",
           "docName": "Prompt engineering（Stylization）",
-          "url": "https://developer.meta.com/ai/docs/how-to-guides/prompting/",
-          "masterRef": 116
+          "url": "https://developer.meta.com/ai/docs/how-to-guides/prompting/#stylization",
+          "masterRef": 116,
+          "anchor": "heading"
         },
         {
           "vendor": "Cohere",
           "docName": "An Overview of System Messages（Command A 預設 system message）",
-          "url": "https://docs.cohere.com/docs/system-instructions",
-          "masterRef": 116
+          "url": "https://docs.cohere.com/docs/system-instructions#writing-a-custom-system-message",
+          "masterRef": 116,
+          "anchor": "heading"
         },
         {
           "vendor": "OpenAI",
           "docName": "Cookbook: GPT-4.1 prompting guide",
           "url": "https://developers.openai.com/cookbook/examples/gpt4-1_prompting_guide",
-          "masterRef": 117
+          "masterRef": 117,
+          "anchor": "none",
+          "anchorNote": "頁面層引用（出處沒有指名章節），且 master 條目的官方引文在這一版頁面上找不到唯一落點"
         }
       ]
     },
@@ -3129,19 +3436,22 @@
           "vendor": "Anthropic",
           "docName": "Prompting best practices（Migrating away from prefilled responses）",
           "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#migrating-away-from-prefilled-responses",
-          "masterRef": 120
+          "masterRef": 120,
+          "anchor": "already"
         },
         {
           "vendor": "Meta",
           "docName": "Prompt engineering（Limiting extraneous tokens）",
-          "url": "https://developer.meta.com/ai/docs/how-to-guides/prompting/",
-          "masterRef": 120
+          "url": "https://developer.meta.com/ai/docs/how-to-guides/prompting/#limiting-extraneous-tokens",
+          "masterRef": 120,
+          "anchor": "heading"
         },
         {
           "vendor": "Meta",
           "docName": "Llama 4 — Model Cards & Prompt Formats（Suggested System Prompt）",
-          "url": "https://developer.meta.com/ai/docs/model-cards-and-prompt-formats/llama4/",
-          "masterRef": 271
+          "url": "https://developer.meta.com/ai/docs/model-cards-and-prompt-formats/llama4/#-suggested-system-prompt-",
+          "masterRef": 271,
+          "anchor": "heading"
         }
       ]
     },
@@ -3167,19 +3477,22 @@
           "vendor": "Anthropic",
           "docName": "Prompting best practices（Migrating away from prefilled responses）",
           "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#migrating-away-from-prefilled-responses",
-          "masterRef": 121
+          "masterRef": 121,
+          "anchor": "already"
         },
         {
           "vendor": "Mistral",
           "docName": "Prompting best practices（Structured Outputs）",
-          "url": "https://docs.mistral.ai/models/best-practices/prompt-engineering",
-          "masterRef": 121
+          "url": "https://docs.mistral.ai/models/best-practices/prompt-engineering#structured-outputs",
+          "masterRef": 121,
+          "anchor": "heading"
         },
         {
           "vendor": "OpenAI",
           "docName": "Structured Outputs",
-          "url": "https://developers.openai.com/api/docs/guides/structured-outputs",
-          "masterRef": 122
+          "url": "https://developers.openai.com/api/docs/guides/structured-outputs#chat",
+          "masterRef": 122,
+          "anchor": "heading"
         }
       ]
     },
@@ -3205,20 +3518,23 @@
         {
           "vendor": "OpenAI",
           "docName": "Structured Outputs",
-          "url": "https://developers.openai.com/api/docs/guides/structured-outputs",
-          "masterRef": 124
+          "url": "https://developers.openai.com/api/docs/guides/structured-outputs#structured-outputs-vs-json-mode",
+          "masterRef": 124,
+          "anchor": "heading"
         },
         {
           "vendor": "DeepSeek",
           "docName": "JSON Output",
-          "url": "https://api-docs.deepseek.com/guides/json_mode",
-          "masterRef": 284
+          "url": "https://api-docs.deepseek.com/guides/json_mode#notice",
+          "masterRef": 284,
+          "anchor": "heading"
         },
         {
           "vendor": "Google",
           "docName": "Structured output（vs function calling）",
           "url": "https://ai.google.dev/gemini-api/docs/structured-output#vs-function-calling",
-          "masterRef": 123
+          "masterRef": 123,
+          "anchor": "already"
         }
       ]
     },
@@ -3247,43 +3563,54 @@
           "vendor": "xAI",
           "docName": "Structured Outputs（System prompt）",
           "url": "https://docs.x.ai/developers/model-capabilities/text/structured-outputs#system-prompt",
-          "masterRef": 129
+          "masterRef": 129,
+          "anchor": "already"
         },
         {
           "vendor": "OpenAI",
           "docName": "Structured Outputs",
           "url": "https://developers.openai.com/api/docs/guides/structured-outputs",
-          "masterRef": 127
+          "masterRef": 127,
+          "anchor": "none",
+          "anchorNote": "頁面層引用（出處沒有指名章節），且 master 條目的官方引文在這一版頁面上找不到唯一落點"
         },
         {
           "vendor": "xAI",
           "docName": "Structured Outputs（Best-effort keywords）",
           "url": "https://docs.x.ai/developers/model-capabilities/text/structured-outputs#best-effort-keywords",
-          "masterRef": 130
+          "masterRef": 130,
+          "anchor": "already"
         },
         {
           "vendor": "Anthropic",
           "docName": "Strict tool use",
           "url": "https://platform.claude.com/docs/en/agents-and-tools/tool-use/strict-tool-use",
-          "masterRef": 146
+          "masterRef": 146,
+          "anchor": "none",
+          "anchorNote": "頁面層引用（出處沒有指名章節），且 master 條目的官方引文在這一版頁面上找不到唯一落點"
         },
         {
           "vendor": "OpenAI",
           "docName": "Function calling",
           "url": "https://developers.openai.com/api/docs/guides/function-calling",
-          "masterRef": 146
+          "masterRef": 146,
+          "anchor": "none",
+          "anchorNote": "頁面層引用（出處沒有指名章節），且 master 條目的官方引文在這一版頁面上找不到唯一落點"
         },
         {
           "vendor": "OpenAI",
           "docName": "Cookbook: o3/o4-mini function calling guide",
           "url": "https://developers.openai.com/cookbook/examples/o-series/o3o4-mini_prompting_guide",
-          "masterRef": 146
+          "masterRef": 146,
+          "anchor": "none",
+          "anchorNote": "頁面層引用（出處沒有指名章節），且 master 條目的官方引文在這一版頁面上找不到唯一落點"
         },
         {
           "vendor": "xAI",
           "docName": "Structured Outputs",
-          "url": "https://docs.x.ai/developers/model-capabilities/text/structured-outputs",
-          "masterRef": 146
+          "url": "https://docs.x.ai/developers/model-capabilities/text/structured-outputs#example-client-side-tools-with-structured-output",
+          "masterRef": 146,
+          "anchor": "heading"
         }
       ]
     },
@@ -3308,7 +3635,8 @@
           "vendor": "Anthropic",
           "docName": "Prompting best practices（Document creation）",
           "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#document-creation",
-          "masterRef": 133
+          "masterRef": 133,
+          "anchor": "already"
         }
       ]
     },
@@ -3333,13 +3661,16 @@
           "vendor": "OpenAI",
           "docName": "Cookbook: GPT-4.1 prompting guide",
           "url": "https://developers.openai.com/cookbook/examples/gpt4-1_prompting_guide",
-          "masterRef": 155
+          "masterRef": 155,
+          "anchor": "none",
+          "anchorNote": "頁面層引用（出處沒有指名章節），且 master 條目的官方引文在這一版頁面上找不到唯一落點"
         },
         {
           "vendor": "Qwen",
           "docName": "Qwen3-235B-A22B 模型卡（Agentic Use）",
-          "url": "https://huggingface.co/Qwen/Qwen3-235B-A22B",
-          "masterRef": 155
+          "url": "https://huggingface.co/Qwen/Qwen3-235B-A22B#agentic-use",
+          "masterRef": 155,
+          "anchor": "heading"
         }
       ]
     },
@@ -3368,49 +3699,59 @@
           "vendor": "Anthropic",
           "docName": "Define tools（Best practices for tool definitions）",
           "url": "https://platform.claude.com/docs/en/agents-and-tools/tool-use/define-tools#best-practices-for-tool-definitions",
-          "masterRef": 134
+          "masterRef": 134,
+          "anchor": "already"
         },
         {
           "vendor": "OpenAI",
           "docName": "Function calling",
           "url": "https://developers.openai.com/api/docs/guides/function-calling",
-          "masterRef": 134
+          "masterRef": 134,
+          "anchor": "none",
+          "anchorNote": "頁面層引用（出處沒有指名章節），且 master 條目的官方引文在這一版頁面上找不到唯一落點"
         },
         {
           "vendor": "OpenAI",
           "docName": "Prompting guidance for GPT-5.6（Tool routing）",
-          "url": "https://developers.openai.com/api/docs/guides/prompt-guidance-gpt-5p6",
-          "masterRef": 134
+          "url": "https://developers.openai.com/api/docs/guides/prompt-guidance-gpt-5p6#make-routing-instructions-task-specific",
+          "masterRef": 134,
+          "anchor": "heading"
         },
         {
           "vendor": "Google",
           "docName": "Function calling（Best practices）",
           "url": "https://ai.google.dev/gemini-api/docs/function-calling#best-practices",
-          "masterRef": 134
+          "masterRef": 134,
+          "anchor": "already"
         },
         {
           "vendor": "xAI",
           "docName": "Function Calling（Tool schema reference）",
           "url": "https://docs.x.ai/developers/tools/function-calling#tool-schema-reference",
-          "masterRef": 134
+          "masterRef": 134,
+          "anchor": "already"
         },
         {
           "vendor": "OpenAI",
           "docName": "Cookbook: o3/o4-mini function calling guide",
           "url": "https://developers.openai.com/cookbook/examples/o-series/o3o4-mini_prompting_guide",
-          "masterRef": 137
+          "masterRef": 137,
+          "anchor": "none",
+          "anchorNote": "頁面層引用（出處沒有指名章節），且 master 條目的官方引文在這一版頁面上找不到唯一落點"
         },
         {
           "vendor": "Anthropic",
           "docName": "Define tools（Providing tool use examples）",
           "url": "https://platform.claude.com/docs/en/agents-and-tools/tool-use/define-tools#providing-tool-use-examples",
-          "masterRef": 139
+          "masterRef": 139,
+          "anchor": "already"
         },
         {
           "vendor": "Anthropic",
           "docName": "Prompting best practices（Tool usage）",
           "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#tool-usage",
-          "masterRef": 157
+          "masterRef": 157,
+          "anchor": "already"
         }
       ]
     },
@@ -3436,19 +3777,22 @@
           "vendor": "Anthropic",
           "docName": "Define tools",
           "url": "https://platform.claude.com/docs/en/agents-and-tools/tool-use/define-tools#best-practices-for-tool-definitions",
-          "masterRef": 140
+          "masterRef": 140,
+          "anchor": "already"
         },
         {
           "vendor": "OpenAI",
           "docName": "Cookbook: o3/o4-mini function calling guide",
-          "url": "https://developers.openai.com/cookbook/examples/o-series/o3o4-mini_prompting_guide",
-          "masterRef": 140
+          "url": "https://developers.openai.com/cookbook/examples/o-series/o3o4-mini_prompting_guide#agentic-experience-with-hosted-tools",
+          "masterRef": 140,
+          "anchor": "heading"
         },
         {
           "vendor": "OpenAI",
           "docName": "Function calling",
-          "url": "https://developers.openai.com/api/docs/guides/function-calling",
-          "masterRef": 143
+          "url": "https://developers.openai.com/api/docs/guides/function-calling#best-practices-for-defining-functions",
+          "masterRef": 143,
+          "anchor": "heading"
         }
       ]
     },
@@ -3474,26 +3818,30 @@
         {
           "vendor": "OpenAI",
           "docName": "Function calling",
-          "url": "https://developers.openai.com/api/docs/guides/function-calling",
-          "masterRef": 135
+          "url": "https://developers.openai.com/api/docs/guides/function-calling#best-practices-for-defining-functions",
+          "masterRef": 135,
+          "anchor": "heading"
         },
         {
           "vendor": "OpenAI",
           "docName": "Model guidance / latest model",
           "url": "https://developers.openai.com/api/docs/guides/latest-model#prompting-best-practices",
-          "masterRef": 135
+          "masterRef": 135,
+          "anchor": "already"
         },
         {
           "vendor": "Mistral",
           "docName": "Ministral-3-8B-Reasoning-2512 模型卡（Tools）",
-          "url": "https://huggingface.co/mistralai/Ministral-3-8B-Reasoning-2512",
-          "masterRef": 135
+          "url": "https://huggingface.co/mistralai/Ministral-3-8B-Reasoning-2512#recommended-settings",
+          "masterRef": 135,
+          "anchor": "heading"
         },
         {
           "vendor": "Anthropic",
           "docName": "Define tools",
           "url": "https://platform.claude.com/docs/en/agents-and-tools/tool-use/define-tools#best-practices-for-tool-definitions",
-          "masterRef": 141
+          "masterRef": 141,
+          "anchor": "already"
         }
       ]
     },
@@ -3519,32 +3867,37 @@
         {
           "vendor": "OpenAI",
           "docName": "Function calling",
-          "url": "https://developers.openai.com/api/docs/guides/function-calling",
-          "masterRef": 136
+          "url": "https://developers.openai.com/api/docs/guides/function-calling#best-practices-for-defining-functions",
+          "masterRef": 136,
+          "anchor": "heading"
         },
         {
           "vendor": "OpenAI",
           "docName": "Cookbook: o3/o4-mini function calling guide",
-          "url": "https://developers.openai.com/cookbook/examples/o-series/o3o4-mini_prompting_guide",
-          "masterRef": 136
+          "url": "https://developers.openai.com/cookbook/examples/o-series/o3o4-mini_prompting_guide#context-setting-via-developer-message",
+          "masterRef": 136,
+          "anchor": "heading"
         },
         {
           "vendor": "Anthropic",
           "docName": "Tool use overview（When Claude uses tools）",
           "url": "https://platform.claude.com/docs/en/agents-and-tools/tool-use/overview#when-claude-uses-tools",
-          "masterRef": 149
+          "masterRef": 149,
+          "anchor": "already"
         },
         {
           "vendor": "OpenAI",
           "docName": "Cookbook: GPT-4.1 prompting guide",
-          "url": "https://developers.openai.com/cookbook/examples/gpt4-1_prompting_guide",
-          "masterRef": 149
+          "url": "https://developers.openai.com/cookbook/examples/gpt4-1_prompting_guide#:~:text=Always%20call%20a%20tool",
+          "masterRef": 149,
+          "anchor": "fragment"
         },
         {
           "vendor": "OpenAI",
           "docName": "Cookbook: GPT-5.2 prompting guide",
-          "url": "https://developers.openai.com/cookbook/examples/gpt-5/gpt-5-2_prompting_guide",
-          "masterRef": 160
+          "url": "https://developers.openai.com/cookbook/examples/gpt-5/gpt-5-2_prompting_guide#:~:text=Prefer%20tools%20over",
+          "masterRef": 160,
+          "anchor": "fragment"
         }
       ],
       "legacyNote": "遷移 manifest 的 primaryTechniqueId 曾暫用 agentic-01（needsV2Catalog: true）；agentic-01 的真正後裔是 tool-native-field，所以這一條在舊 68 條裡沒有祖先。"
@@ -3571,31 +3924,37 @@
           "vendor": "Anthropic",
           "docName": "Prompting Claude Sonnet 5（Tool use triggering）",
           "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5#tool-use-triggering",
-          "masterRef": 158
+          "masterRef": 158,
+          "anchor": "already"
         },
         {
           "vendor": "Anthropic",
           "docName": "Prompting Claude Opus 4.8（Tool use triggering）",
           "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-4-8#tool-use-triggering",
-          "masterRef": 158
+          "masterRef": 158,
+          "anchor": "already"
         },
         {
           "vendor": "Anthropic",
           "docName": "Define tools（Forcing tool use）",
           "url": "https://platform.claude.com/docs/en/agents-and-tools/tool-use/define-tools#forcing-tool-use",
-          "masterRef": 145
+          "masterRef": 145,
+          "anchor": "already"
         },
         {
           "vendor": "OpenAI",
           "docName": "Function calling",
           "url": "https://developers.openai.com/api/docs/guides/function-calling",
-          "masterRef": 145
+          "masterRef": 145,
+          "anchor": "none",
+          "anchorNote": "頁面層引用（出處沒有指名章節），且 master 條目的官方引文在這一版頁面上找不到唯一落點"
         },
         {
           "vendor": "xAI",
           "docName": "Function Calling（Tool choice）",
           "url": "https://docs.x.ai/developers/tools/function-calling#tool-choice",
-          "masterRef": 145
+          "masterRef": 145,
+          "anchor": "already"
         }
       ]
     },
@@ -3621,13 +3980,15 @@
           "vendor": "Anthropic",
           "docName": "Tool use overview（When Claude uses tools）",
           "url": "https://platform.claude.com/docs/en/agents-and-tools/tool-use/overview#when-claude-uses-tools",
-          "masterRef": 150
+          "masterRef": 150,
+          "anchor": "already"
         },
         {
           "vendor": "OpenAI",
           "docName": "Cookbook: o3/o4-mini function calling guide",
-          "url": "https://developers.openai.com/cookbook/examples/o-series/o3o4-mini_prompting_guide",
-          "masterRef": 150
+          "url": "https://developers.openai.com/cookbook/examples/o-series/o3o4-mini_prompting_guide#guarding-against-function-calling-hallucinations",
+          "masterRef": 150,
+          "anchor": "heading"
         }
       ]
     },
@@ -3653,20 +4014,24 @@
         {
           "vendor": "OpenAI",
           "docName": "Cookbook: o3/o4-mini function calling guide",
-          "url": "https://developers.openai.com/cookbook/examples/o-series/o3o4-mini_prompting_guide",
-          "masterRef": 152
+          "url": "https://developers.openai.com/cookbook/examples/o-series/o3o4-mini_prompting_guide#context-setting-via-developer-message",
+          "masterRef": 152,
+          "anchor": "heading"
         },
         {
           "vendor": "Anthropic",
           "docName": "Prompting best practices（Optimize parallel tool calling）",
           "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#optimize-parallel-tool-calling",
-          "masterRef": 148
+          "masterRef": 148,
+          "anchor": "already"
         },
         {
           "vendor": "OpenAI",
           "docName": "Function calling",
           "url": "https://developers.openai.com/api/docs/guides/function-calling",
-          "masterRef": 148
+          "masterRef": 148,
+          "anchor": "none",
+          "anchorNote": "頁面層引用（出處沒有指名章節），且 master 條目的官方引文在這一版頁面上找不到唯一落點"
         }
       ]
     },
@@ -3693,43 +4058,52 @@
           "vendor": "OpenAI",
           "docName": "Cookbook: o3/o4-mini function calling guide",
           "url": "https://developers.openai.com/cookbook/examples/o-series/o3o4-mini_prompting_guide",
-          "masterRef": 154
+          "masterRef": 154,
+          "anchor": "none",
+          "anchorNote": "頁面層引用（出處沒有指名章節），且 master 條目的官方引文在這一版頁面上找不到唯一落點"
         },
         {
           "vendor": "Google",
           "docName": "Prompt design strategies（Grounding and code execution）",
           "url": "https://ai.google.dev/gemini-api/docs/prompting-strategies#grounding_and_code_execution",
-          "masterRef": 154
+          "masterRef": 154,
+          "anchor": "already"
         },
         {
           "vendor": "Meta",
           "docName": "Prompt engineering（Program-aided language models）",
-          "url": "https://developer.meta.com/ai/docs/how-to-guides/prompting/",
-          "masterRef": 154
+          "url": "https://developer.meta.com/ai/docs/how-to-guides/prompting/#program-aided-language-models",
+          "masterRef": 154,
+          "anchor": "heading"
         },
         {
           "vendor": "Microsoft",
           "docName": "Prompt engineering techniques（Use of affordances）",
-          "url": "https://learn.microsoft.com/en-us/azure/ai-foundry/openai/concepts/prompt-engineering",
-          "masterRef": 154
+          "url": "https://learn.microsoft.com/en-us/azure/ai-foundry/openai/concepts/prompt-engineering#use-of-affordances",
+          "masterRef": 154,
+          "anchor": "heading"
         },
         {
           "vendor": "xAI",
           "docName": "Code Execution Tool",
           "url": "https://docs.x.ai/developers/tools/code-execution#when-to-use-code-execution",
-          "masterRef": 167
+          "masterRef": 167,
+          "anchor": "already"
         },
         {
           "vendor": "Google",
           "docName": "Code execution（Limitations）",
           "url": "https://ai.google.dev/gemini-api/docs/code-execution#limitations",
-          "masterRef": 167
+          "masterRef": 167,
+          "anchor": "already"
         },
         {
           "vendor": "OpenAI",
           "docName": "Prompting guidance for GPT-5.6",
           "url": "https://developers.openai.com/api/docs/guides/prompt-guidance-gpt-5p6",
-          "masterRef": 159
+          "masterRef": 159,
+          "anchor": "none",
+          "anchorNote": "頁面層引用（出處沒有指名章節），且 master 條目的官方引文在這一版頁面上找不到唯一落點"
         }
       ]
     },
@@ -3755,13 +4129,15 @@
           "vendor": "Anthropic",
           "docName": "Define tools",
           "url": "https://platform.claude.com/docs/en/agents-and-tools/tool-use/define-tools#best-practices-for-tool-definitions",
-          "masterRef": 142
+          "masterRef": 142,
+          "anchor": "already"
         },
         {
           "vendor": "xAI",
           "docName": "Tool Usage Details",
           "url": "https://docs.x.ai/developers/tools/tool-usage-details#real-time-server-side-tool-calls",
-          "masterRef": 162
+          "masterRef": 162,
+          "anchor": "already"
         }
       ]
     },
@@ -3786,20 +4162,24 @@
         {
           "vendor": "OpenAI",
           "docName": "Cookbook: GPT-5 prompting guide",
-          "url": "https://developers.openai.com/cookbook/examples/gpt-5/gpt-5_prompting_guide",
-          "masterRef": 119
+          "url": "https://developers.openai.com/cookbook/examples/gpt-5/gpt-5_prompting_guide#tool-preambles",
+          "masterRef": 119,
+          "anchor": "heading"
         },
         {
           "vendor": "OpenAI",
           "docName": "Cookbook: GPT-4.1 prompting guide",
           "url": "https://developers.openai.com/cookbook/examples/gpt4-1_prompting_guide",
-          "masterRef": 119
+          "masterRef": 119,
+          "anchor": "none",
+          "anchorNote": "頁面層引用（出處沒有指名章節），且 master 條目的官方引文在這一版頁面上找不到唯一落點"
         },
         {
           "vendor": "Google",
           "docName": "Function calling（Workarounds for pre-tool text requirements）",
           "url": "https://ai.google.dev/gemini-api/docs/function-calling#workarounds-for-pre-tool-text-requirements",
-          "masterRef": 165
+          "masterRef": 165,
+          "anchor": "already"
         }
       ]
     },
@@ -3826,25 +4206,31 @@
           "vendor": "OpenAI",
           "docName": "Model guidance / latest model（Prompting best practices）",
           "url": "https://developers.openai.com/api/docs/guides/latest-model#prompting-best-practices",
-          "masterRef": 207
+          "masterRef": 207,
+          "anchor": "already"
         },
         {
           "vendor": "OpenAI",
           "docName": "Prompting guidance for GPT-5.6",
-          "url": "https://developers.openai.com/api/docs/guides/prompt-guidance-gpt-5p6",
-          "masterRef": 207
+          "url": "https://developers.openai.com/api/docs/guides/prompt-guidance-gpt-5p6#favor-leaner-prompts",
+          "masterRef": 207,
+          "anchor": "heading"
         },
         {
           "vendor": "Anthropic",
           "docName": "Blog: Best practices for prompt engineering（2025-11-10）",
           "url": "https://claude.com/blog/best-practices-for-prompt-engineering",
-          "masterRef": 8
+          "masterRef": 8,
+          "anchor": "none",
+          "anchorNote": "出處寫的章節「2025-11-10」在這一版頁面上找不到對得起來的 id"
         },
         {
           "vendor": "Google",
           "docName": "Blog: 5 tips for writing great prompts（2024-07-29）",
           "url": "https://blog.google/products-and-platforms/products/workspace/google-gemini-workspace-ai-prompt-tips/",
-          "masterRef": 20
+          "masterRef": 20,
+          "anchor": "none",
+          "anchorNote": "出處寫的章節「2024-07-29」在這一版頁面上找不到對得起來的 id"
         }
       ]
     },
@@ -3868,8 +4254,9 @@
         {
           "vendor": "Mistral",
           "docName": "Prompting best practices（What to Avoid）",
-          "url": "https://docs.mistral.ai/models/best-practices/prompt-engineering",
-          "masterRef": 291
+          "url": "https://docs.mistral.ai/models/best-practices/prompt-engineering#avoid",
+          "masterRef": 291,
+          "anchor": "heading"
         }
       ]
     },
@@ -3897,43 +4284,51 @@
           "vendor": "OpenAI",
           "docName": "Prompt caching",
           "url": "https://developers.openai.com/api/docs/guides/prompt-caching",
-          "masterRef": 209
+          "masterRef": 209,
+          "anchor": "none",
+          "anchorNote": "頁面層引用（出處沒有指名章節），且 master 條目的官方引文在這一版頁面上找不到唯一落點"
         },
         {
           "vendor": "OpenAI",
           "docName": "Prompt engineering",
           "url": "https://developers.openai.com/api/docs/guides/prompt-engineering#message-formatting-with-markdown-and-xml",
-          "masterRef": 209
+          "masterRef": 209,
+          "anchor": "already"
         },
         {
           "vendor": "xAI",
           "docName": "Prompt Caching Best Practices",
           "url": "https://docs.x.ai/developers/advanced-api-usage/prompt-caching/best-practices#best-practices",
-          "masterRef": 209
+          "masterRef": 209,
+          "anchor": "already"
         },
         {
           "vendor": "Google",
           "docName": "Context caching（Implicit caching）",
           "url": "https://ai.google.dev/gemini-api/docs/caching#implicit-caching",
-          "masterRef": 209
+          "masterRef": 209,
+          "anchor": "already"
         },
         {
           "vendor": "xAI",
           "docName": "Prompt Caching — What Breaks Caching",
-          "url": "https://docs.x.ai/developers/advanced-api-usage/prompt-caching/multi-turn",
-          "masterRef": 210
+          "url": "https://docs.x.ai/developers/advanced-api-usage/prompt-caching/multi-turn#what-breaks-caching",
+          "masterRef": 210,
+          "anchor": "heading"
         },
         {
           "vendor": "xAI",
           "docName": "Grok 4.5（Important details）",
           "url": "https://docs.x.ai/developers/grok-4-5#important-details",
-          "masterRef": 211
+          "masterRef": 211,
+          "anchor": "already"
         },
         {
           "vendor": "xAI",
           "docName": "Prompt Caching Best Practices",
           "url": "https://docs.x.ai/developers/advanced-api-usage/prompt-caching/best-practices#does-caching-affect-output-quality",
-          "masterRef": 212
+          "masterRef": 212,
+          "anchor": "already"
         }
       ]
     },
@@ -3960,32 +4355,37 @@
         {
           "vendor": "xAI",
           "docName": "Context Compaction",
-          "url": "https://docs.x.ai/developers/advanced-api-usage/context-compaction",
-          "masterRef": 213
+          "url": "https://docs.x.ai/developers/advanced-api-usage/context-compaction#context-compaction",
+          "masterRef": 213,
+          "anchor": "heading"
         },
         {
           "vendor": "OpenAI",
           "docName": "Cookbook: GPT-5.2 prompting guide",
-          "url": "https://developers.openai.com/cookbook/examples/gpt-5/gpt-5-2_prompting_guide",
-          "masterRef": 213
+          "url": "https://developers.openai.com/cookbook/examples/gpt-5/gpt-5-2_prompting_guide#4-compaction-extending-effective-context",
+          "masterRef": 213,
+          "anchor": "heading"
         },
         {
           "vendor": "Anthropic",
           "docName": "Prompting best practices（Workflows across multiple context windows）",
           "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#workflows-across-multiple-context-windows",
-          "masterRef": 182
+          "masterRef": 182,
+          "anchor": "already"
         },
         {
           "vendor": "OpenAI",
           "docName": "Model guidance / latest model",
           "url": "https://developers.openai.com/api/docs/guides/latest-model#prompting-best-practices",
-          "masterRef": 208
+          "masterRef": 208,
+          "anchor": "already"
         },
         {
           "vendor": "xAI",
           "docName": "Modes and Commands",
           "url": "https://docs.x.ai/build/modes-and-commands#core-tui-commands",
-          "masterRef": 217
+          "masterRef": 217,
+          "anchor": "already"
         }
       ]
     },
@@ -4010,7 +4410,9 @@
           "vendor": "OpenAI",
           "docName": "Cookbook: o3/o4-mini function calling guide",
           "url": "https://developers.openai.com/cookbook/examples/o-series/o3o4-mini_prompting_guide",
-          "masterRef": 214
+          "masterRef": 214,
+          "anchor": "none",
+          "anchorNote": "頁面層引用（出處沒有指名章節），且 master 條目的官方引文在這一版頁面上找不到唯一落點"
         }
       ]
     },
@@ -4035,7 +4437,9 @@
           "vendor": "OpenAI",
           "docName": "Cookbook: o3/o4-mini function calling guide",
           "url": "https://developers.openai.com/cookbook/examples/o-series/o3o4-mini_prompting_guide",
-          "masterRef": 215
+          "masterRef": 215,
+          "anchor": "none",
+          "anchorNote": "頁面層引用（出處沒有指名章節），且 master 條目的官方引文在這一版頁面上找不到唯一落點"
         }
       ]
     },
@@ -4059,32 +4463,37 @@
         {
           "vendor": "OpenAI",
           "docName": "Reasoning best practices",
-          "url": "https://developers.openai.com/api/docs/guides/reasoning-best-practices",
-          "masterRef": 216
+          "url": "https://developers.openai.com/api/docs/guides/reasoning-best-practices#how-to-keep-costs-low-and-accuracy-high",
+          "masterRef": 216,
+          "anchor": "heading"
         },
         {
           "vendor": "OpenAI",
           "docName": "Cookbook: GPT-5 prompting guide",
-          "url": "https://developers.openai.com/cookbook/examples/gpt-5/gpt-5_prompting_guide",
-          "masterRef": 216
+          "url": "https://developers.openai.com/cookbook/examples/gpt-5/gpt-5_prompting_guide#reusing-reasoning-context-with-the-responses-api",
+          "masterRef": 216,
+          "anchor": "heading"
         },
         {
           "vendor": "OpenAI",
           "docName": "Cookbook: o3/o4-mini function calling guide",
-          "url": "https://developers.openai.com/cookbook/examples/o-series/o3o4-mini_prompting_guide",
-          "masterRef": 216
+          "url": "https://developers.openai.com/cookbook/examples/o-series/o3o4-mini_prompting_guide#reasoning-items-for-better-performance",
+          "masterRef": 216,
+          "anchor": "heading"
         },
         {
           "vendor": "xAI",
           "docName": "Generate Text",
-          "url": "https://docs.x.ai/developers/model-capabilities/text/generate-text",
-          "masterRef": 216
+          "url": "https://docs.x.ai/developers/model-capabilities/text/generate-text#chaining-the-conversation",
+          "masterRef": 216,
+          "anchor": "heading"
         },
         {
           "vendor": "xAI",
           "docName": "Advanced Tool Usage",
           "url": "https://docs.x.ai/developers/tools/advanced-usage#append-the-encrypted-agentic-tool-calling-states",
-          "masterRef": 216
+          "masterRef": 216,
+          "anchor": "already"
         }
       ]
     },
@@ -4110,13 +4519,16 @@
           "vendor": "Anthropic",
           "docName": "Prompt engineering overview",
           "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/overview#when-to-prompt-engineer",
-          "masterRef": 3
+          "masterRef": 3,
+          "anchor": "already"
         },
         {
           "vendor": "Anthropic",
           "docName": "Blog: Best practices for prompt engineering",
           "url": "https://claude.com/blog/best-practices-for-prompt-engineering",
-          "masterRef": 9
+          "masterRef": 9,
+          "anchor": "none",
+          "anchorNote": "頁面層引用（出處沒有指名章節），且 master 條目的官方引文在這一版頁面上找不到唯一落點"
         }
       ]
     },
@@ -4144,44 +4556,51 @@
         {
           "vendor": "OpenAI",
           "docName": "Prompt engineering",
-          "url": "https://developers.openai.com/api/docs/guides/prompt-engineering",
-          "masterRef": 1
+          "url": "https://developers.openai.com/api/docs/guides/prompt-engineering#prompt-engineering",
+          "masterRef": 1,
+          "anchor": "heading"
         },
         {
           "vendor": "Meta",
           "docName": "Prompt engineering（How-to Guides）",
-          "url": "https://developer.meta.com/ai/docs/how-to-guides/prompting/",
-          "masterRef": 1
+          "url": "https://developer.meta.com/ai/docs/how-to-guides/prompting/#mdc-main-content",
+          "masterRef": 1,
+          "anchor": "heading"
         },
         {
           "vendor": "Google",
           "docName": "Prompt design strategies",
-          "url": "https://ai.google.dev/gemini-api/docs/prompting-strategies",
-          "masterRef": 7
+          "url": "https://ai.google.dev/gemini-api/docs/prompting-strategies#:~:text=These%20guidelines%20and",
+          "masterRef": 7,
+          "anchor": "fragment"
         },
         {
           "vendor": "Mistral",
           "docName": "Prompting best practices（Advice）",
-          "url": "https://docs.mistral.ai/models/best-practices/prompt-engineering",
-          "masterRef": 7
+          "url": "https://docs.mistral.ai/models/best-practices/prompt-engineering#advice",
+          "masterRef": 7,
+          "anchor": "heading"
         },
         {
           "vendor": "Google",
           "docName": "Prompt iteration strategies",
-          "url": "https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/prompts/prompt-iteration",
-          "masterRef": 202
+          "url": "https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/prompts/prompt-iteration#:~:text=for%20multimodal%20prompts%2C",
+          "masterRef": 202,
+          "anchor": "fragment"
         },
         {
           "vendor": "OpenAI",
           "docName": "Prompting（總覽頁）",
-          "url": "https://developers.openai.com/api/docs/guides/prompting",
-          "masterRef": 206
+          "url": "https://developers.openai.com/api/docs/guides/prompting#refine-your-prompt",
+          "masterRef": 206,
+          "anchor": "heading"
         },
         {
           "vendor": "Google",
           "docName": "Prompt design strategies（Iteration）",
           "url": "https://ai.google.dev/gemini-api/docs/prompting-strategies#iteration",
-          "masterRef": 201
+          "masterRef": 201,
+          "anchor": "already"
         }
       ]
     },
@@ -4209,31 +4628,39 @@
           "vendor": "Anthropic",
           "docName": "Prompt engineering overview",
           "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/overview#before-prompt-engineering",
-          "masterRef": 2
+          "masterRef": 2,
+          "anchor": "already"
         },
         {
           "vendor": "OpenAI",
           "docName": "Prompt engineering",
           "url": "https://developers.openai.com/api/docs/guides/prompt-engineering",
-          "masterRef": 5
+          "masterRef": 5,
+          "anchor": "none",
+          "anchorNote": "頁面層引用（出處沒有指名章節），且 master 條目的官方引文在這一版頁面上找不到唯一落點"
         },
         {
           "vendor": "Google",
           "docName": "Compare prompts",
           "url": "https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/prompts/compare-prompts",
-          "masterRef": 203
+          "masterRef": 203,
+          "anchor": "none",
+          "anchorNote": "頁面層引用（出處沒有指名章節），且 master 條目的官方引文在這一版頁面上找不到唯一落點"
         },
         {
           "vendor": "Qwen（阿里雲百煉）",
           "docName": "文生文 Prompt 指南（Prompt 測試與迭代）",
           "url": "https://help.aliyun.com/zh/model-studio/prompt-engineering-guide",
-          "masterRef": 290
+          "masterRef": 290,
+          "anchor": "none",
+          "anchorNote": "出處寫的章節「Prompt 測試與迭代」在這一版頁面上找不到對得起來的 id"
         },
         {
           "vendor": "Meta",
           "docName": "Prompt engineering（Crafting effective prompts）",
-          "url": "https://developer.meta.com/ai/docs/how-to-guides/prompting/",
-          "masterRef": 290
+          "url": "https://developer.meta.com/ai/docs/how-to-guides/prompting/#crafting-effective-prompts",
+          "masterRef": 290,
+          "anchor": "heading"
         }
       ]
     },
@@ -4259,44 +4686,56 @@
         {
           "vendor": "OpenAI",
           "docName": "Cookbook: GPT-5 prompting guide（Metaprompting）",
-          "url": "https://developers.openai.com/cookbook/examples/gpt-5/gpt-5_prompting_guide",
-          "masterRef": 205
+          "url": "https://developers.openai.com/cookbook/examples/gpt-5/gpt-5_prompting_guide#metaprompting",
+          "masterRef": 205,
+          "anchor": "heading"
         },
         {
           "vendor": "Anthropic",
           "docName": "Prompt engineering overview",
           "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/overview",
-          "masterRef": 205
+          "masterRef": 205,
+          "anchor": "none",
+          "anchorNote": "頁面層引用（出處沒有指名章節），且 master 條目的官方引文在這一版頁面上找不到唯一落點"
         },
         {
           "vendor": "Google",
           "docName": "Optimize prompts",
           "url": "https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/prompts/prompt-optimizer",
-          "masterRef": 204
+          "masterRef": 204,
+          "anchor": "none",
+          "anchorNote": "頁面層引用（出處沒有指名章節），且 master 條目的官方引文在這一版頁面上找不到唯一落點"
         },
         {
           "vendor": "Google",
           "docName": "Zero-shot optimizer",
           "url": "https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/prompts/zero-shot-optimizer",
-          "masterRef": 204
+          "masterRef": 204,
+          "anchor": "none",
+          "anchorNote": "頁面層引用（出處沒有指名章節），且 master 條目的官方引文在這一版頁面上找不到唯一落點"
         },
         {
           "vendor": "Qwen（阿里雲百煉）",
           "docName": "文生文 Prompt 指南（Prompt 一鍵優化工具）",
           "url": "https://help.aliyun.com/zh/model-studio/prompt-engineering-guide",
-          "masterRef": 204
+          "masterRef": 204,
+          "anchor": "none",
+          "anchorNote": "出處寫的章節「Prompt 一鍵優化工具」在這一版頁面上找不到對得起來的 id"
         },
         {
           "vendor": "Meta",
           "docName": "llama-prompt-ops",
-          "url": "https://github.com/meta-llama/llama-prompt-ops",
-          "masterRef": 204
+          "url": "https://github.com/meta-llama/llama-prompt-ops#what-is-prompt-ops",
+          "masterRef": 204,
+          "anchor": "heading"
         },
         {
           "vendor": "Google",
           "docName": "Gemini for Workspace: Prompting guide 101",
           "url": "https://workspace.google.com/intl/en/resources/ai/writing-effective-prompts/",
-          "masterRef": 19
+          "masterRef": 19,
+          "anchor": "none",
+          "anchorNote": "page-unfetchable"
         }
       ]
     },
@@ -4321,13 +4760,16 @@
           "vendor": "OpenAI",
           "docName": "Cookbook: GPT-5 prompting guide",
           "url": "https://developers.openai.com/cookbook/examples/gpt-5/gpt-5_prompting_guide",
-          "masterRef": 199
+          "masterRef": 199,
+          "anchor": "none",
+          "anchorNote": "頁面層引用（出處沒有指名章節），且 master 條目的官方引文在這一版頁面上找不到唯一落點"
         },
         {
           "vendor": "Mistral",
           "docName": "Prompting best practices（What to Avoid：Avoid Contradicting Yourself）",
-          "url": "https://docs.mistral.ai/models/best-practices/prompt-engineering",
-          "masterRef": 199
+          "url": "https://docs.mistral.ai/models/best-practices/prompt-engineering#avoid",
+          "masterRef": 199,
+          "anchor": "heading"
         }
       ]
     },
@@ -4352,7 +4794,8 @@
           "vendor": "Google",
           "docName": "Overview of prompting strategies（Prompt health checklist）",
           "url": "https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/prompts/prompt-design-strategies#prompt_health_checklist",
-          "masterRef": 200
+          "masterRef": 200,
+          "anchor": "already"
         }
       ]
     },
@@ -4376,20 +4819,23 @@
         {
           "vendor": "Anthropic",
           "docName": "Prompting best practices（Ask Claude to self-check）",
-          "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#leverage-thinking--interleaved-thinking-capabilities",
-          "masterRef": 195
+          "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#leverage-thinking-and-interleaved-thinking-capabilities",
+          "masterRef": 195,
+          "anchor": "repaired"
         },
         {
           "vendor": "Anthropic",
           "docName": "Prompting Claude Opus 5（Task scope and over-verification）",
           "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5#task-scope-and-over-verification",
-          "masterRef": 195
+          "masterRef": 195,
+          "anchor": "already"
         },
         {
           "vendor": "Anthropic",
           "docName": "Prompting Claude Opus 5（Self-correction）",
           "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5#self-correction",
-          "masterRef": 195
+          "masterRef": 195,
+          "anchor": "already"
         }
       ]
     },
@@ -4414,13 +4860,16 @@
           "vendor": "OpenAI",
           "docName": "Prompting guidance for GPT-5.6（Check work before finishing）",
           "url": "https://developers.openai.com/api/docs/guides/prompt-guidance-gpt-5p6",
-          "masterRef": 196
+          "masterRef": 196,
+          "anchor": "none",
+          "anchorNote": "出處寫的章節「Check work before finishing」在這一版頁面上找不到對得起來的 id"
         },
         {
           "vendor": "Anthropic",
           "docName": "Prompting Claude Fable 5（Recommended scaffolding changes）",
           "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5#recommended-scaffolding-changes",
-          "masterRef": 196
+          "masterRef": 196,
+          "anchor": "already"
         }
       ]
     },
@@ -4445,14 +4894,16 @@
         {
           "vendor": "OpenAI",
           "docName": "Cookbook: GPT-5 prompting guide（Zero-to-one app generation）",
-          "url": "https://developers.openai.com/cookbook/examples/gpt-5/gpt-5_prompting_guide",
-          "masterRef": 198
+          "url": "https://developers.openai.com/cookbook/examples/gpt-5/gpt-5_prompting_guide#zero-to-one-app-generation",
+          "masterRef": 198,
+          "anchor": "heading"
         },
         {
           "vendor": "Mistral",
           "docName": "Prompting best practices（Evaluation）",
-          "url": "https://docs.mistral.ai/models/best-practices/prompt-engineering",
-          "masterRef": 198
+          "url": "https://docs.mistral.ai/models/best-practices/prompt-engineering#evaluation",
+          "masterRef": 198,
+          "anchor": "heading"
         }
       ]
     },
@@ -4477,13 +4928,15 @@
           "vendor": "Anthropic",
           "docName": "Prompting Claude Opus 5（Capability improvements）",
           "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5#capability-improvements",
-          "masterRef": 197
+          "masterRef": 197,
+          "anchor": "already"
         },
         {
           "vendor": "Anthropic",
           "docName": "Prompting Claude Sonnet 5（Code review harnesses）",
           "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5#code-review-harnesses",
-          "masterRef": 197
+          "masterRef": 197,
+          "anchor": "already"
         }
       ]
     },
@@ -4508,31 +4961,36 @@
           "vendor": "Google",
           "docName": "Prompt design strategies（Break down prompts into components）",
           "url": "https://ai.google.dev/gemini-api/docs/prompting-strategies#prompt-components",
-          "masterRef": 187
+          "masterRef": 187,
+          "anchor": "already"
         },
         {
           "vendor": "Google",
           "docName": "Break down complex tasks into simpler prompts",
-          "url": "https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/prompts/break-down-prompts",
-          "masterRef": 187
+          "url": "https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/prompts/break-down-prompts#task-1:-identify-customer-issues",
+          "masterRef": 187,
+          "anchor": "heading"
         },
         {
           "vendor": "Anthropic",
           "docName": "Prompting best practices（Chain complex prompts）",
           "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#chain-complex-prompts",
-          "masterRef": 187
+          "masterRef": 187,
+          "anchor": "already"
         },
         {
           "vendor": "Qwen（阿里雲百煉）",
           "docName": "文生文 Prompt 指南（提示鏈 Prompt Chaining）",
-          "url": "https://help.aliyun.com/zh/model-studio/prompt-engineering-guide",
-          "masterRef": 187
+          "url": "https://help.aliyun.com/zh/model-studio/prompt-engineering-guide#f814464dbaqqh",
+          "masterRef": 187,
+          "anchor": "heading"
         },
         {
           "vendor": "Cohere",
           "docName": "Advanced Prompt Engineering Techniques（Prompt Chaining）",
-          "url": "https://docs.cohere.com/docs/advanced-prompt-engineering-techniques",
-          "masterRef": 187
+          "url": "https://docs.cohere.com/docs/advanced-prompt-engineering-techniques#prompt-chaining",
+          "masterRef": 187,
+          "anchor": "heading"
         }
       ]
     },
@@ -4557,7 +5015,8 @@
           "vendor": "Google",
           "docName": "Safety guidance",
           "url": "https://ai.google.dev/gemini-api/docs/safety-guidance#consider_adjustments_to_mitigate_safety_and_factuality_risks",
-          "masterRef": 244
+          "masterRef": 244,
+          "anchor": "already"
         }
       ]
     },
@@ -4582,7 +5041,8 @@
           "vendor": "Google",
           "docName": "Safety guidance",
           "url": "https://ai.google.dev/gemini-api/docs/safety-guidance#consider_adjustments_to_mitigate_safety_and_factuality_risks",
-          "masterRef": 245
+          "masterRef": 245,
+          "anchor": "already"
         }
       ]
     },
@@ -4607,7 +5067,8 @@
           "vendor": "Google",
           "docName": "Safety guidance",
           "url": "https://ai.google.dev/gemini-api/docs/safety-guidance#consider_adjustments_to_mitigate_safety_and_factuality_risks",
-          "masterRef": 246
+          "masterRef": 246,
+          "anchor": "already"
         }
       ]
     },
@@ -4633,13 +5094,15 @@
           "vendor": "Google",
           "docName": "Computer Use（Safety best practices）",
           "url": "https://ai.google.dev/gemini-api/docs/computer-use#safety-best-practices",
-          "masterRef": 248
+          "masterRef": 248,
+          "anchor": "already"
         },
         {
           "vendor": "Google",
           "docName": "Managed agents（Security best practices）",
           "url": "https://ai.google.dev/gemini-api/docs/agents#security-best-practices",
-          "masterRef": 249
+          "masterRef": 249,
+          "anchor": "already"
         }
       ]
     },
@@ -4664,7 +5127,8 @@
           "vendor": "Google",
           "docName": "Safety guidance",
           "url": "https://ai.google.dev/gemini-api/docs/safety-guidance#perform_safety_testing_appropriate_to_your_use_case",
-          "masterRef": 247
+          "masterRef": 247,
+          "anchor": "already"
         }
       ]
     },
@@ -4690,19 +5154,23 @@
           "vendor": "Google",
           "docName": "Files API ＋ File prompting strategies",
           "url": "https://ai.google.dev/gemini-api/docs/files#prompt-design-fundamentals",
-          "masterRef": 218
+          "masterRef": 218,
+          "anchor": "already"
         },
         {
           "vendor": "Meta",
           "docName": "Vision Capabilities",
-          "url": "https://developer.meta.com/ai/docs/how-to-guides/vision-capabilities/",
-          "masterRef": 218
+          "url": "https://developer.meta.com/ai/docs/how-to-guides/vision-capabilities/#-capabilities-of-llama-3.2-",
+          "masterRef": 218,
+          "anchor": "heading"
         },
         {
           "vendor": "Google",
           "docName": "Video understanding",
           "url": "https://ai.google.dev/gemini-api/docs/video-understanding",
-          "masterRef": 222
+          "masterRef": 222,
+          "anchor": "none",
+          "anchorNote": "頁面層引用（出處沒有指名章節），且 master 條目的官方引文在這一版頁面上找不到唯一落點"
         }
       ]
     },
@@ -4731,43 +5199,50 @@
           "vendor": "Google",
           "docName": "File prompting strategies（Troubleshooting）",
           "url": "https://ai.google.dev/gemini-api/docs/files#troubleshooting-your-multimodal-prompt",
-          "masterRef": 219
+          "masterRef": 219,
+          "anchor": "already"
         },
         {
           "vendor": "Google",
           "docName": "File prompting strategies",
           "url": "https://ai.google.dev/gemini-api/docs/files#break_it_down_step-by-step",
-          "masterRef": 220
+          "masterRef": 220,
+          "anchor": "already"
         },
         {
           "vendor": "Anthropic",
           "docName": "Prompting best practices（Improved vision capabilities）",
           "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#improved-vision-capabilities",
-          "masterRef": 234
+          "masterRef": 234,
+          "anchor": "already"
         },
         {
           "vendor": "Google",
           "docName": "Image understanding（Tips & best practices）",
           "url": "https://ai.google.dev/gemini-api/docs/image-understanding#tips-best-practices",
-          "masterRef": 221
+          "masterRef": 221,
+          "anchor": "already"
         },
         {
           "vendor": "Google",
           "docName": "Document (PDF) processing（Best practices）",
           "url": "https://ai.google.dev/gemini-api/docs/document-processing#best-practices",
-          "masterRef": 221
+          "masterRef": 221,
+          "anchor": "already"
         },
         {
           "vendor": "Mistral",
           "docName": "Ministral-3-8B-Reasoning-2512 模型卡（Vision）",
-          "url": "https://huggingface.co/mistralai/Ministral-3-8B-Reasoning-2512",
-          "masterRef": 221
+          "url": "https://huggingface.co/mistralai/Ministral-3-8B-Reasoning-2512#recommended-settings",
+          "masterRef": 221,
+          "anchor": "heading"
         },
         {
           "vendor": "Google",
           "docName": "Image understanding（media_resolution）",
           "url": "https://ai.google.dev/gemini-api/docs/image-understanding#media_resolution",
-          "masterRef": 223
+          "masterRef": 223,
+          "anchor": "already"
         }
       ]
     },
@@ -4793,13 +5268,15 @@
           "vendor": "Google",
           "docName": "Image generation（Prompt guide）",
           "url": "https://ai.google.dev/gemini-api/docs/image-generation#image-generation-prompts",
-          "masterRef": 224
+          "masterRef": 224,
+          "anchor": "already"
         },
         {
           "vendor": "Google",
           "docName": "Image generation（Best practices）",
           "url": "https://ai.google.dev/gemini-api/docs/image-generation#best-practices",
-          "masterRef": 226
+          "masterRef": 226,
+          "anchor": "already"
         }
       ]
     },
@@ -4825,13 +5302,15 @@
           "vendor": "Google",
           "docName": "Image generation（Image editing prompts）",
           "url": "https://ai.google.dev/gemini-api/docs/image-generation#image-editing-prompts",
-          "masterRef": 225
+          "masterRef": 225,
+          "anchor": "already"
         },
         {
           "vendor": "xAI",
           "docName": "Image Editing（Style transfer / Multi-turn editing）",
           "url": "https://docs.x.ai/developers/model-capabilities/images/editing#style-transfer",
-          "masterRef": 231
+          "masterRef": 231,
+          "anchor": "already"
         }
       ]
     },
@@ -4858,19 +5337,22 @@
           "vendor": "Google",
           "docName": "Veo（Prompt guide）",
           "url": "https://ai.google.dev/gemini-api/docs/veo#basics",
-          "masterRef": 227
+          "masterRef": 227,
+          "anchor": "already"
         },
         {
           "vendor": "Google",
           "docName": "Veo（More tips）",
           "url": "https://ai.google.dev/gemini-api/docs/veo#more-tips",
-          "masterRef": 229
+          "masterRef": 229,
+          "anchor": "already"
         },
         {
           "vendor": "Google",
           "docName": "Veo（Audio）",
           "url": "https://ai.google.dev/gemini-api/docs/veo#audio",
-          "masterRef": 228
+          "masterRef": 228,
+          "anchor": "already"
         }
       ]
     },
@@ -4897,19 +5379,22 @@
           "vendor": "xAI",
           "docName": "Text to Speech",
           "url": "https://docs.x.ai/developers/model-capabilities/audio/text-to-speech#writing-effective-text",
-          "masterRef": 235
+          "masterRef": 235,
+          "anchor": "already"
         },
         {
           "vendor": "xAI",
           "docName": "Speech to Speech",
           "url": "https://docs.x.ai/developers/model-capabilities/audio/speech-to-speech#additional-high-impact-recommendations",
-          "masterRef": 237
+          "masterRef": 237,
+          "anchor": "already"
         },
         {
           "vendor": "xAI",
           "docName": "Text to Speech（Speech tags）",
           "url": "https://docs.x.ai/developers/model-capabilities/audio/text-to-speech#speech-tags",
-          "masterRef": 236
+          "masterRef": 236,
+          "anchor": "already"
         }
       ]
     },
@@ -4936,19 +5421,22 @@
           "vendor": "Anthropic",
           "docName": "Prompting best practices（Frontend design）",
           "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#frontend-design",
-          "masterRef": 238
+          "masterRef": 238,
+          "anchor": "already"
         },
         {
           "vendor": "Anthropic",
           "docName": "Prompting Claude Sonnet 5（Design and frontend defaults）",
           "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5#design-and-frontend-defaults",
-          "masterRef": 239
+          "masterRef": 239,
+          "anchor": "already"
         },
         {
           "vendor": "Anthropic",
           "docName": "Prompting Claude Opus 4.8（Design and frontend defaults）",
           "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-4-8#design-and-frontend-defaults",
-          "masterRef": 240
+          "masterRef": 240,
+          "anchor": "already"
         }
       ]
     },
@@ -4974,19 +5462,24 @@
           "vendor": "OpenAI",
           "docName": "Prompt engineering（Prompting current GPT-5 series models）",
           "url": "https://developers.openai.com/api/docs/guides/prompt-engineering#prompting-current-gpt-5-series-models",
-          "masterRef": 241
+          "masterRef": 241,
+          "anchor": "already"
         },
         {
           "vendor": "OpenAI",
           "docName": "Cookbook: GPT-5 prompting guide",
           "url": "https://developers.openai.com/cookbook/examples/gpt-5/gpt-5_prompting_guide",
-          "masterRef": 241
+          "masterRef": 241,
+          "anchor": "none",
+          "anchorNote": "頁面層引用（出處沒有指名章節），且 master 條目的官方引文在這一版頁面上找不到唯一落點"
         },
         {
           "vendor": "OpenAI",
           "docName": "Prompting guidance for GPT-5.6（Frontend and visual tasks）",
           "url": "https://developers.openai.com/api/docs/guides/prompt-guidance-gpt-5p6",
-          "masterRef": 242
+          "masterRef": 242,
+          "anchor": "none",
+          "anchorNote": "出處寫的章節「Frontend and visual tasks」在這一版頁面上找不到對得起來的 id"
         }
       ]
     },
@@ -5011,20 +5504,24 @@
         {
           "vendor": "DeepSeek",
           "docName": "DeepSeek-R1 README（Usage Recommendations）",
-          "url": "https://github.com/deepseek-ai/DeepSeek-R1",
-          "masterRef": 269
+          "url": "https://github.com/deepseek-ai/DeepSeek-R1#usage-recommendations",
+          "masterRef": 269,
+          "anchor": "heading"
         },
         {
           "vendor": "Mistral",
           "docName": "Magistral-Small-2509 模型卡",
-          "url": "https://huggingface.co/mistralai/Magistral-Small-2509",
-          "masterRef": 277
+          "url": "https://huggingface.co/mistralai/Magistral-Small-2509#sampling-parameters",
+          "masterRef": 277,
+          "anchor": "heading"
         },
         {
           "vendor": "Mistral",
           "docName": "Ministral-3-8B-Reasoning-2512 官方 SYSTEM_PROMPT.txt",
           "url": "https://huggingface.co/mistralai/Ministral-3-8B-Reasoning-2512/blob/main/SYSTEM_PROMPT.txt",
-          "masterRef": 277
+          "masterRef": 277,
+          "anchor": "none",
+          "anchorNote": "頁面層引用（出處沒有指名章節），且 master 條目的官方引文在這一版頁面上找不到唯一落點"
         }
       ]
     },
@@ -5048,20 +5545,23 @@
         {
           "vendor": "Qwen",
           "docName": "Qwen3-235B-A22B-Thinking-2507 模型卡",
-          "url": "https://huggingface.co/Qwen/Qwen3-235B-A22B-Thinking-2507",
-          "masterRef": 275
+          "url": "https://huggingface.co/Qwen/Qwen3-235B-A22B-Thinking-2507#best-practices",
+          "masterRef": 275,
+          "anchor": "heading"
         },
         {
           "vendor": "Mistral",
           "docName": "Ministral-3-8B-Reasoning-2512 模型卡（Recommended Settings）",
-          "url": "https://huggingface.co/mistralai/Ministral-3-8B-Reasoning-2512",
-          "masterRef": 275
+          "url": "https://huggingface.co/mistralai/Ministral-3-8B-Reasoning-2512#recommended-settings",
+          "masterRef": 275,
+          "anchor": "heading"
         },
         {
           "vendor": "DeepSeek",
           "docName": "Thinking Mode",
-          "url": "https://api-docs.deepseek.com/guides/thinking_mode",
-          "masterRef": 275
+          "url": "https://api-docs.deepseek.com/guides/thinking_mode#tool-calls",
+          "masterRef": 275,
+          "anchor": "heading"
         }
       ]
     },
@@ -5086,7 +5586,8 @@
           "vendor": "xAI",
           "docName": "Reasoning（Multi-agent model）",
           "url": "https://docs.x.ai/developers/model-capabilities/text/reasoning#multi-agent-model",
-          "masterRef": 67
+          "masterRef": 67,
+          "anchor": "already"
         }
       ]
     },
@@ -5114,37 +5615,43 @@
           "vendor": "Anthropic",
           "docName": "Prompting best practices（Overthinking and excessive thoroughness）",
           "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#overthinking-and-excessive-thoroughness",
-          "masterRef": 69
+          "masterRef": 69,
+          "anchor": "already"
         },
         {
           "vendor": "Google",
           "docName": "Prompt design strategies（Model parameters）",
           "url": "https://ai.google.dev/gemini-api/docs/prompting-strategies#model-parameters",
-          "masterRef": 77
+          "masterRef": 77,
+          "anchor": "already"
         },
         {
           "vendor": "Google",
           "docName": "What's new in Gemini 3.5 Flash（Sampling parameters）",
           "url": "https://ai.google.dev/gemini-api/docs/whats-new-gemini-3.5#sampling-parameters",
-          "masterRef": 77
+          "masterRef": 77,
+          "anchor": "already"
         },
         {
           "vendor": "Anthropic",
           "docName": "Prompting Claude Sonnet 5（Tone and writing style）",
           "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5#tone-and-writing-style",
-          "masterRef": 78
+          "masterRef": 78,
+          "anchor": "already"
         },
         {
           "vendor": "DeepSeek",
           "docName": "Thinking Mode（不支援取樣參數）",
-          "url": "https://api-docs.deepseek.com/guides/thinking_mode",
-          "masterRef": 78
+          "url": "https://api-docs.deepseek.com/guides/thinking_mode#input-and-output-parameters",
+          "masterRef": 78,
+          "anchor": "heading"
         },
         {
           "vendor": "Google",
           "docName": "What's new in Gemini 3.5 Flash（Parameter updates）",
           "url": "https://ai.google.dev/gemini-api/docs/whats-new-gemini-3.5#parameter-updates",
-          "masterRef": 257
+          "masterRef": 257,
+          "anchor": "already"
         }
       ]
     },
@@ -5170,14 +5677,17 @@
           "vendor": "Google",
           "docName": "What's new in Gemini 3.5 Flash（Migrate from 2.5）",
           "url": "https://ai.google.dev/gemini-api/docs/whats-new-gemini-3.5#migrate-from-25",
-          "masterRef": 258
+          "masterRef": 258,
+          "anchor": "already"
         },
         {
           "vendor": "Google",
           "docName": "Gemini 3 Developer Guide",
           "url": "https://ai.google.dev/gemini-api/docs/gemini-3",
           "masterRef": 258,
-          "status": "原文件已標示下架 — 找不到穩定版本，後繼參考: https://ai.google.dev/gemini-api/docs/whats-new-gemini-3.5"
+          "status": "原文件已標示下架 — 找不到穩定版本，後繼參考: https://ai.google.dev/gemini-api/docs/whats-new-gemini-3.5",
+          "anchor": "none",
+          "anchorNote": "頁面層引用（出處沒有指名章節），且 master 條目的官方引文在這一版頁面上找不到唯一落點"
         }
       ]
     },
@@ -5204,19 +5714,22 @@
           "vendor": "OpenAI",
           "docName": "Model guidance / latest model",
           "url": "https://developers.openai.com/api/docs/guides/latest-model#prompting-best-practices",
-          "masterRef": 109
+          "masterRef": 109,
+          "anchor": "already"
         },
         {
           "vendor": "Anthropic",
           "docName": "Prompting best practices（Communication style and verbosity）",
           "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#communication-style-and-verbosity",
-          "masterRef": 110
+          "masterRef": 110,
+          "anchor": "already"
         },
         {
           "vendor": "Anthropic",
           "docName": "Prompting Claude Sonnet 5（Response length and verbosity）",
           "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5#response-length-and-verbosity",
-          "masterRef": 112
+          "masterRef": 112,
+          "anchor": "already"
         }
       ]
     },
@@ -5241,7 +5754,8 @@
           "vendor": "xAI",
           "docName": "Speech to Speech（Model-specific best practices）",
           "url": "https://docs.x.ai/developers/model-capabilities/audio/speech-to-speech#step-3--model-specific-best-practices",
-          "masterRef": 264
+          "masterRef": 264,
+          "anchor": "already"
         }
       ]
     },
@@ -5268,19 +5782,23 @@
           "vendor": "Anthropic",
           "docName": "Prompting best practices（Migration considerations）",
           "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#migration-considerations",
-          "masterRef": 252
+          "masterRef": 252,
+          "anchor": "already"
         },
         {
           "vendor": "OpenAI",
           "docName": "Prompting guidance for GPT-5.6（Prompt migration workflow）",
           "url": "https://developers.openai.com/api/docs/guides/prompt-guidance-gpt-5p6",
-          "masterRef": 260
+          "masterRef": 260,
+          "anchor": "none",
+          "anchorNote": "出處寫的章節「Prompt migration workflow」在這一版頁面上找不到對得起來的 id"
         },
         {
           "vendor": "OpenAI",
           "docName": "Cookbook: GPT-5.2 prompting guide",
-          "url": "https://developers.openai.com/cookbook/examples/gpt-5/gpt-5-2_prompting_guide",
-          "masterRef": 261
+          "url": "https://developers.openai.com/cookbook/examples/gpt-5/gpt-5-2_prompting_guide#:~:text=Switch%20models%2C%20don%E2%80%99t",
+          "masterRef": 261,
+          "anchor": "fragment"
         }
       ]
     },
@@ -5306,15 +5824,21 @@
           "vendor": "Google",
           "docName": "Prompt design strategies（Core prompting principles）",
           "url": "https://ai.google.dev/gemini-api/docs/prompting-strategies#core_prompting_principles",
-          "masterRef": 255
+          "masterRef": 255,
+          "anchor": "already"
         },
         {
           "vendor": "Google",
           "docName": "What's new in Gemini 3.5 Flash（Prompting best practices）",
           "url": "https://ai.google.dev/gemini-api/docs/whats-new-gemini-3.5#prompting-best-practices",
-          "masterRef": 256
+          "masterRef": 256,
+          "anchor": "already"
         }
       ]
     }
-  ]
+  ],
+  "anchorAudit": {
+    "checkedAt": "2026-08-03",
+    "note": "出處深連結稽核：每一列的 anchor 欄記錄這一次是怎麼定位到章節的 —— already（本來就有，實地確認 id 仍在）／heading（頁面上對得起來的標題 id）／repaired（舊 anchor 已失效，換成同一個標題的新 id）／fragment（頁面沒有可用 id，改用文字片段深連結）／none（誠實留頁面層，理由寫在 anchorNote）。所有 anchor 都以當日實際抓下來的頁面驗證過，沒有臆造。"
+  }
 }

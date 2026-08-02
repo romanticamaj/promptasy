@@ -1,0 +1,457 @@
+{
+  "version": 1,
+  "authored": "game",
+  "verifiedAt": "2026-08-03",
+  "note": "出處深連結疊加層（遊戲自撰的顯示層，不是官方文字）。curriculum.json 一個位元組都不能動（護欄 2），但它記的官方網址大多只到「頁面」而不是「被引用的那一節」，玩家點過去要自己再找一次。這一層只做一件事：**在原網址後面加上一個片段（#anchor 或 #:~:text=）**，讓連結直接跳到該節。每一條的 anchored 一定與 url 只差在片段（測試強制驗證），method 記錄定位方式（heading＝頁面上真的有這個標題 id；fragment＝頁面沒有可用 id，改用瀏覽器的文字片段），evidence 記錄依據。所有片段都在 verifiedAt 當天實際抓取該頁面驗證過；找不到唯一落點的一律不收進來（畫面上仍是原本的頁面層網址，不臆造 anchor）。",
+  "fragmentNote": "method 為 fragment 的連結用 W3C 的 Text Fragments（#:~:text=）。Chrome / Edge 會跳到那句話並highlight；Safari / Firefox 不支援時會安靜地正常開啟該頁面（不會壞掉）。",
+  "entries": [
+    {
+      "techniqueId": "clarity-01",
+      "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices",
+      "anchored": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#be-clear-and-direct",
+      "method": "heading",
+      "evidence": "master list 條目 #12 為同一份文件記了 #be-clear-and-direct，本次實地確認頁面上有這個 id"
+    },
+    {
+      "techniqueId": "clarity-02",
+      "url": "https://ai.google.dev/gemini-api/docs/prompting-strategies",
+      "anchored": "https://ai.google.dev/gemini-api/docs/prompting-strategies#clear-and-specific-instructions",
+      "method": "heading",
+      "evidence": "master list 條目 #12 為同一份文件記了 #clear-and-specific-instructions，本次實地確認頁面上有這個 id"
+    },
+    {
+      "techniqueId": "clarity-05",
+      "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices",
+      "anchored": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#add-context-to-improve-performance",
+      "method": "heading",
+      "evidence": "master list 條目 #22 為同一份文件記了 #add-context-to-improve-performance，本次實地確認頁面上有這個 id"
+    },
+    {
+      "techniqueId": "clarity-06",
+      "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices",
+      "anchored": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#be-clear-and-direct",
+      "method": "heading",
+      "evidence": "master list 條目 #12 為同一份文件記了 #be-clear-and-direct，本次實地確認頁面上有這個 id"
+    },
+    {
+      "techniqueId": "positive-01",
+      "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices",
+      "anchored": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#control-the-format-of-responses",
+      "method": "heading",
+      "evidence": "master list 條目 #14 為同一份文件記了 #control-the-format-of-responses，本次實地確認頁面上有這個 id"
+    },
+    {
+      "techniqueId": "format-01",
+      "url": "https://developers.openai.com/api/docs/guides/prompt-engineering",
+      "anchored": "https://developers.openai.com/api/docs/guides/prompt-engineering#:~:text=Only%20output%20a%20single",
+      "method": "fragment",
+      "evidence": "文字片段「Only output a single」在頁面上唯一出現"
+    },
+    {
+      "techniqueId": "format-01",
+      "url": "https://ai.google.dev/gemini-api/docs/prompting-strategies",
+      "anchored": "https://ai.google.dev/gemini-api/docs/prompting-strategies#response-format",
+      "method": "heading",
+      "evidence": "master list 條目 #101 為同一份文件記了 #response-format，本次實地確認頁面上有這個 id"
+    },
+    {
+      "techniqueId": "format-02",
+      "url": "https://ai.google.dev/gemini-api/docs/prompting-strategies",
+      "anchored": "https://ai.google.dev/gemini-api/docs/prompting-strategies#completion",
+      "method": "heading",
+      "evidence": "master list 條目 #46 為同一份文件記了 #completion，本次實地確認頁面上有這個 id"
+    },
+    {
+      "techniqueId": "format-03",
+      "url": "https://ai.google.dev/gemini-api/docs/prompting-strategies",
+      "anchored": "https://ai.google.dev/gemini-api/docs/prompting-strategies#completion",
+      "method": "heading",
+      "evidence": "master list 條目 #46 為同一份文件記了 #completion，本次實地確認頁面上有這個 id"
+    },
+    {
+      "techniqueId": "format-04",
+      "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices",
+      "anchored": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#control-the-format-of-responses",
+      "method": "heading",
+      "evidence": "master list 條目 #102 為同一份文件記了 #control-the-format-of-responses，本次實地確認頁面上有這個 id"
+    },
+    {
+      "techniqueId": "format-05",
+      "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices",
+      "anchored": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#control-the-format-of-responses",
+      "method": "heading",
+      "evidence": "master list 條目 #103 為同一份文件記了 #control-the-format-of-responses，本次實地確認頁面上有這個 id"
+    },
+    {
+      "techniqueId": "format-06",
+      "url": "https://developers.openai.com/cookbook/examples/gpt-5/gpt-5_prompting_guide",
+      "anchored": "https://developers.openai.com/cookbook/examples/gpt-5/gpt-5_prompting_guide#:~:text=Write%20code%20for",
+      "method": "fragment",
+      "evidence": "文字片段「Write code for」在頁面上唯一出現"
+    },
+    {
+      "techniqueId": "structure-01",
+      "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices",
+      "anchored": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#structure-prompts-with-xml-tags",
+      "method": "heading",
+      "evidence": "master list 條目 #25 為同一份文件記了 #structure-prompts-with-xml-tags，本次實地確認頁面上有這個 id"
+    },
+    {
+      "techniqueId": "structure-02",
+      "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices",
+      "anchored": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#structure-prompts-with-xml-tags",
+      "method": "heading",
+      "evidence": "master list 條目 #25 為同一份文件記了 #structure-prompts-with-xml-tags，本次實地確認頁面上有這個 id"
+    },
+    {
+      "techniqueId": "structure-03",
+      "url": "https://developers.openai.com/cookbook/examples/gpt4-1_prompting_guide",
+      "anchored": "https://developers.openai.com/cookbook/examples/gpt4-1_prompting_guide#:~:text=%23%20Role%20and%20Objective",
+      "method": "fragment",
+      "evidence": "文字片段「# Role and Objective」在頁面上唯一出現"
+    },
+    {
+      "techniqueId": "role-01",
+      "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices",
+      "anchored": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#give-claude-a-role",
+      "method": "heading",
+      "evidence": "master list 條目 #48 為同一份文件記了 #give-claude-a-role，本次實地確認頁面上有這個 id"
+    },
+    {
+      "techniqueId": "role-01",
+      "url": "https://developers.openai.com/api/docs/guides/prompt-engineering",
+      "anchored": "https://developers.openai.com/api/docs/guides/prompt-engineering#:~:text=You%20are%20a%20helpful",
+      "method": "fragment",
+      "evidence": "文字片段「You are a helpful」在頁面上唯一出現"
+    },
+    {
+      "techniqueId": "role-02",
+      "url": "https://developers.openai.com/api/docs/guides/prompt-engineering",
+      "anchored": "https://developers.openai.com/api/docs/guides/prompt-engineering#message-roles-and-instruction-following",
+      "method": "heading",
+      "evidence": "master list 條目 #51 為同一份文件記了 #message-roles-and-instruction-following，本次實地確認頁面上有這個 id"
+    },
+    {
+      "techniqueId": "role-03",
+      "url": "https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/prompts/system-instructions",
+      "anchored": "https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/prompts/system-instructions#use_cases",
+      "method": "heading",
+      "evidence": "master list 條目 #50 為同一份文件記了 #use_cases，本次實地確認頁面上有這個 id"
+    },
+    {
+      "techniqueId": "fewshot-01",
+      "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices",
+      "anchored": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#use-examples-effectively",
+      "method": "heading",
+      "evidence": "master list 條目 #39 為同一份文件記了 #use-examples-effectively，本次實地確認頁面上有這個 id"
+    },
+    {
+      "techniqueId": "fewshot-02",
+      "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices",
+      "anchored": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#use-examples-effectively",
+      "method": "heading",
+      "evidence": "master list 條目 #39 為同一份文件記了 #use-examples-effectively，本次實地確認頁面上有這個 id"
+    },
+    {
+      "techniqueId": "fewshot-03",
+      "url": "https://ai.google.dev/gemini-api/docs/prompting-strategies",
+      "anchored": "https://ai.google.dev/gemini-api/docs/prompting-strategies#few-shot",
+      "method": "heading",
+      "evidence": "master list 條目 #40 為同一份文件記了 #few-shot，本次實地確認頁面上有這個 id"
+    },
+    {
+      "techniqueId": "fewshot-04",
+      "url": "https://ai.google.dev/gemini-api/docs/prompting-strategies",
+      "anchored": "https://ai.google.dev/gemini-api/docs/prompting-strategies#number-examples",
+      "method": "heading",
+      "evidence": "master list 條目 #41 為同一份文件記了 #number-examples，本次實地確認頁面上有這個 id"
+    },
+    {
+      "techniqueId": "cot-01",
+      "url": "https://developers.openai.com/cookbook/examples/gpt4-1_prompting_guide",
+      "anchored": "https://developers.openai.com/cookbook/examples/gpt4-1_prompting_guide#3-chain-of-thought",
+      "method": "heading",
+      "evidence": "官方引文「First, think carefully step by step about what documents are」落在標題「3. Chain of Thought」之下"
+    },
+    {
+      "techniqueId": "cot-01",
+      "url": "https://ai.google.dev/gemini-api/docs/prompting-strategies",
+      "anchored": "https://ai.google.dev/gemini-api/docs/prompting-strategies#enhancing_reasoning_and_planning",
+      "method": "heading",
+      "evidence": "master list 條目 #59 為同一份文件記了 #enhancing_reasoning_and_planning，本次實地確認頁面上有這個 id"
+    },
+    {
+      "techniqueId": "cot-04",
+      "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices",
+      "anchored": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#leverage-thinking-and-interleaved-thinking-capabilities",
+      "method": "heading",
+      "evidence": "官方引文「Before you finish, verify your answer against [test criteria」落在標題「 Leverage thinking & interleaved thinking capabilities」之下"
+    },
+    {
+      "techniqueId": "reasoning-01",
+      "url": "https://developers.openai.com/cookbook/examples/o-series/o3o4-mini_prompting_guide",
+      "anchored": "https://developers.openai.com/cookbook/examples/o-series/o3o4-mini_prompting_guide#avoid-chain-of-thought-prompting",
+      "method": "heading",
+      "evidence": "官方引文「a developer should not try to induce additional reasoning be」落在標題「Avoid Chain of Thought Prompting」之下"
+    },
+    {
+      "techniqueId": "reasoning-02",
+      "url": "https://developers.openai.com/api/docs/guides/reasoning-best-practices",
+      "anchored": "https://developers.openai.com/api/docs/guides/reasoning-best-practices#how-to-prompt-reasoning-models-effectively",
+      "method": "heading",
+      "evidence": "官方引文「The models excel at understanding and responding to brief, c」落在標題「How to prompt reasoning models effectively」之下"
+    },
+    {
+      "techniqueId": "reasoning-03",
+      "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices",
+      "anchored": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#overthinking-and-excessive-thoroughness",
+      "method": "heading",
+      "evidence": "master list 條目 #69 為同一份文件記了 #overthinking-and-excessive-thoroughness，本次實地確認頁面上有這個 id"
+    },
+    {
+      "techniqueId": "reasoning-04",
+      "url": "https://ai.google.dev/gemini-api/docs/prompting-strategies",
+      "anchored": "https://ai.google.dev/gemini-api/docs/prompting-strategies#enhancing_reasoning_and_planning",
+      "method": "heading",
+      "evidence": "master list 條目 #59 為同一份文件記了 #enhancing_reasoning_and_planning，本次實地確認頁面上有這個 id"
+    },
+    {
+      "techniqueId": "reasoning-05",
+      "url": "https://docs.x.ai/developers/model-capabilities/text/reasoning",
+      "anchored": "https://docs.x.ai/developers/model-capabilities/text/reasoning#the-reasoning_effort-parameter",
+      "method": "heading",
+      "evidence": "master list 條目 #66 為同一份文件記了 #the-reasoning_effort-parameter，本次實地確認頁面上有這個 id"
+    },
+    {
+      "techniqueId": "grounding-01",
+      "url": "https://ai.google.dev/gemini-api/docs/prompting-strategies",
+      "anchored": "https://ai.google.dev/gemini-api/docs/prompting-strategies#gemini_3_flash_strategies",
+      "method": "heading",
+      "evidence": "master list 條目 #90 為同一份文件記了 #gemini_3_flash_strategies，本次實地確認頁面上有這個 id"
+    },
+    {
+      "techniqueId": "grounding-02",
+      "url": "https://developers.openai.com/cookbook/examples/gpt4-1_prompting_guide",
+      "anchored": "https://developers.openai.com/cookbook/examples/gpt4-1_prompting_guide#:~:text=If%20you%20don't%20know",
+      "method": "fragment",
+      "evidence": "文字片段「If you don't know」在頁面上唯一出現"
+    },
+    {
+      "techniqueId": "grounding-03",
+      "url": "https://developers.openai.com/cookbook/examples/o-series/o3o4-mini_prompting_guide",
+      "anchored": "https://developers.openai.com/cookbook/examples/o-series/o3o4-mini_prompting_guide#guarding-against-function-calling-hallucinations",
+      "method": "heading",
+      "evidence": "官方引文「Validate arguments against the format before sending the cal」落在標題「Guarding Against Function Calling Hallucinations」之下"
+    },
+    {
+      "techniqueId": "grounding-04",
+      "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices",
+      "anchored": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#long-context-prompting",
+      "method": "heading",
+      "evidence": "master list 條目 #88 為同一份文件記了 #long-context-prompting，本次實地確認頁面上有這個 id"
+    },
+    {
+      "techniqueId": "grounding-05",
+      "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices",
+      "anchored": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#minimizing-hallucinations-in-agentic-coding",
+      "method": "heading",
+      "evidence": "master list 條目 #97 為同一份文件記了 #minimizing-hallucinations-in-agentic-coding，本次實地確認頁面上有這個 id"
+    },
+    {
+      "techniqueId": "grounding-06",
+      "url": "https://ai.google.dev/gemini-api/docs/prompting-strategies",
+      "anchored": "https://ai.google.dev/gemini-api/docs/prompting-strategies#grounding_and_code_execution",
+      "method": "heading",
+      "evidence": "master list 條目 #154 為同一份文件記了 #grounding_and_code_execution，本次實地確認頁面上有這個 id"
+    },
+    {
+      "techniqueId": "longcontext-01",
+      "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices",
+      "anchored": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#long-context-prompting",
+      "method": "heading",
+      "evidence": "master list 條目 #80 為同一份文件記了 #long-context-prompting，本次實地確認頁面上有這個 id"
+    },
+    {
+      "techniqueId": "longcontext-01",
+      "url": "https://ai.google.dev/gemini-api/docs/prompting-strategies",
+      "anchored": "https://ai.google.dev/gemini-api/docs/prompting-strategies#core_prompting_principles",
+      "method": "heading",
+      "evidence": "官方引文「\"Based on the information above」落在標題「Core prompting principles」之下"
+    },
+    {
+      "techniqueId": "longcontext-02",
+      "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices",
+      "anchored": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#long-context-prompting",
+      "method": "heading",
+      "evidence": "master list 條目 #82 為同一份文件記了 #long-context-prompting，本次實地確認頁面上有這個 id"
+    },
+    {
+      "techniqueId": "longcontext-03",
+      "url": "https://ai.google.dev/gemini-api/docs/gemini-3",
+      "anchored": "https://ai.google.dev/gemini-api/docs/gemini-3#prompting-best-practices",
+      "method": "heading",
+      "evidence": "官方引文「\"Based on the preceding information」落在標題「Prompting best practices」之下"
+    },
+    {
+      "techniqueId": "decompose-01",
+      "url": "https://developers.openai.com/api/docs/guides/prompt-engineering",
+      "anchored": "https://developers.openai.com/api/docs/guides/prompt-engineering#prompting-current-gpt-5-series-models",
+      "method": "heading",
+      "evidence": "master list 條目 #169 為同一份文件記了 #prompting-current-gpt-5-series-models，本次實地確認頁面上有這個 id"
+    },
+    {
+      "techniqueId": "decompose-01",
+      "url": "https://ai.google.dev/gemini-api/docs/prompting-strategies",
+      "anchored": "https://ai.google.dev/gemini-api/docs/prompting-strategies#prompt-components",
+      "method": "heading",
+      "evidence": "master list 條目 #187 為同一份文件記了 #prompt-components，本次實地確認頁面上有這個 id"
+    },
+    {
+      "techniqueId": "decompose-02",
+      "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices",
+      "anchored": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#chain-complex-prompts",
+      "method": "heading",
+      "evidence": "master list 條目 #187 為同一份文件記了 #chain-complex-prompts，本次實地確認頁面上有這個 id"
+    },
+    {
+      "techniqueId": "decompose-02",
+      "url": "https://ai.google.dev/gemini-api/docs/prompting-strategies",
+      "anchored": "https://ai.google.dev/gemini-api/docs/prompting-strategies#prompt-components",
+      "method": "heading",
+      "evidence": "master list 條目 #187 為同一份文件記了 #prompt-components，本次實地確認頁面上有這個 id"
+    },
+    {
+      "techniqueId": "decompose-03",
+      "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices",
+      "anchored": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#chain-complex-prompts",
+      "method": "heading",
+      "evidence": "master list 條目 #187 為同一份文件記了 #chain-complex-prompts，本次實地確認頁面上有這個 id"
+    },
+    {
+      "techniqueId": "decompose-04",
+      "url": "https://ai.google.dev/gemini-api/docs/prompting-strategies",
+      "anchored": "https://ai.google.dev/gemini-api/docs/prompting-strategies#prompt-components",
+      "method": "heading",
+      "evidence": "master list 條目 #187 為同一份文件記了 #prompt-components，本次實地確認頁面上有這個 id"
+    },
+    {
+      "techniqueId": "agentic-03",
+      "url": "https://developers.openai.com/cookbook/examples/gpt4-1_prompting_guide",
+      "anchored": "https://developers.openai.com/cookbook/examples/gpt4-1_prompting_guide#system-prompt-reminders",
+      "method": "heading",
+      "evidence": "官方引文「You are an agent - please keep going until the user's query 」落在標題「System Prompt Reminders」之下"
+    },
+    {
+      "techniqueId": "agentic-04",
+      "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices",
+      "anchored": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#tool-usage",
+      "method": "heading",
+      "evidence": "master list 條目 #16 為同一份文件記了 #tool-usage，本次實地確認頁面上有這個 id"
+    },
+    {
+      "techniqueId": "agentic-05",
+      "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices",
+      "anchored": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#optimize-parallel-tool-calling",
+      "method": "heading",
+      "evidence": "master list 條目 #148 為同一份文件記了 #optimize-parallel-tool-calling，本次實地確認頁面上有這個 id"
+    },
+    {
+      "techniqueId": "agentic-05",
+      "url": "https://docs.x.ai/docs/guides/function-calling",
+      "anchored": "https://docs.x.ai/docs/guides/function-calling#parallel-function-calling",
+      "method": "heading",
+      "evidence": "官方引文「parallel_tool_calls: false」落在標題「Parallel Function Calling」之下"
+    },
+    {
+      "techniqueId": "agentic-06",
+      "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices",
+      "anchored": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#balancing-autonomy-and-safety",
+      "method": "heading",
+      "evidence": "master list 條目 #173 為同一份文件記了 #balancing-autonomy-and-safety，本次實地確認頁面上有這個 id"
+    },
+    {
+      "techniqueId": "agentic-07",
+      "url": "https://docs.x.ai/developers/model-capabilities/text/structured-outputs",
+      "anchored": "https://docs.x.ai/developers/model-capabilities/text/structured-outputs#system-prompt",
+      "method": "heading",
+      "evidence": "master list 條目 #129 為同一份文件記了 #system-prompt，本次實地確認頁面上有這個 id"
+    },
+    {
+      "techniqueId": "iterate-02",
+      "url": "https://ai.google.dev/gemini-api/docs/prompting-strategies",
+      "anchored": "https://ai.google.dev/gemini-api/docs/prompting-strategies#iteration",
+      "method": "heading",
+      "evidence": "master list 條目 #201 為同一份文件記了 #iteration，本次實地確認頁面上有這個 id"
+    },
+    {
+      "techniqueId": "iterate-03",
+      "url": "https://developers.openai.com/cookbook/examples/gpt-5/gpt-5_prompting_guide",
+      "anchored": "https://developers.openai.com/cookbook/examples/gpt-5/gpt-5_prompting_guide#instruction-following",
+      "method": "heading",
+      "evidence": "官方引文「We recommend testing your prompts in our prompt optimizer to」落在標題「Instruction following」之下"
+    },
+    {
+      "techniqueId": "iterate-05",
+      "url": "https://developers.openai.com/api/docs/guides/prompt-engineering",
+      "anchored": "https://developers.openai.com/api/docs/guides/prompt-engineering#message-formatting-with-markdown-and-xml",
+      "method": "heading",
+      "evidence": "master list 條目 #209 為同一份文件記了 #message-formatting-with-markdown-and-xml，本次實地確認頁面上有這個 id"
+    },
+    {
+      "techniqueId": "params-01",
+      "url": "https://ai.google.dev/gemini-api/docs/prompting-strategies",
+      "anchored": "https://ai.google.dev/gemini-api/docs/prompting-strategies#model-parameters",
+      "method": "heading",
+      "evidence": "master list 條目 #76 為同一份文件記了 #model-parameters，本次實地確認頁面上有這個 id"
+    },
+    {
+      "techniqueId": "params-02",
+      "url": "https://ai.google.dev/gemini-api/docs/prompting-strategies",
+      "anchored": "https://ai.google.dev/gemini-api/docs/prompting-strategies#model-parameters",
+      "method": "heading",
+      "evidence": "master list 條目 #76 為同一份文件記了 #model-parameters，本次實地確認頁面上有這個 id"
+    },
+    {
+      "techniqueId": "params-03",
+      "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices",
+      "anchored": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#overeagerness",
+      "method": "heading",
+      "evidence": "官方引文「Only validate at system boundaries (user input, external API」落在標題「 Overeagerness」之下"
+    },
+    {
+      "techniqueId": "params-03",
+      "url": "https://docs.x.ai/developers/model-capabilities/text/reasoning",
+      "anchored": "https://docs.x.ai/developers/model-capabilities/text/reasoning#the-reasoning_effort-parameter",
+      "method": "heading",
+      "evidence": "master list 條目 #66 為同一份文件記了 #the-reasoning_effort-parameter，本次實地確認頁面上有這個 id"
+    },
+    {
+      "techniqueId": "params-04",
+      "url": "https://ai.google.dev/gemini-api/docs/prompting-strategies",
+      "anchored": "https://ai.google.dev/gemini-api/docs/prompting-strategies#model-parameters",
+      "method": "heading",
+      "evidence": "master list 條目 #76 為同一份文件記了 #model-parameters，本次實地確認頁面上有這個 id"
+    },
+    {
+      "techniqueId": "framework-01",
+      "url": "https://blog.google/products-and-platforms/products/workspace/google-gemini-workspace-ai-prompt-tips/",
+      "anchored": "https://blog.google/products-and-platforms/products/workspace/google-gemini-workspace-ai-prompt-tips/#:~:text=I%E2%80%99m%20a%20project%20manager",
+      "method": "fragment",
+      "evidence": "文字片段「I’m a project manager」在頁面上唯一出現"
+    },
+    {
+      "techniqueId": "framework-02",
+      "url": "https://developers.openai.com/api/docs/guides/prompt-engineering",
+      "anchored": "https://developers.openai.com/api/docs/guides/prompt-engineering#message-formatting-with-markdown-and-xml",
+      "method": "heading",
+      "evidence": "master list 條目 #33 為同一份文件記了 #message-formatting-with-markdown-and-xml，本次實地確認頁面上有這個 id"
+    },
+    {
+      "techniqueId": "framework-03",
+      "url": "https://developers.openai.com/api/docs/guides/reasoning-best-practices",
+      "anchored": "https://developers.openai.com/api/docs/guides/reasoning-best-practices#reasoning-models-vs-gpt-models",
+      "method": "heading",
+      "evidence": "官方引文「One model family isn't better than the other-they're just di」落在標題「Reasoning models vs. GPT models」之下"
+    }
+  ]
+}

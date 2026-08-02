@@ -1250,3 +1250,43 @@ Phase 35 的「十一種題型的手掌印都量得到」第一輪紅了 4 條�
    修法是在量測前明確 `setMode('guided')` 並斷言 `modeAtStart === 'guided'`，
    同時把固定 sleep 換成輪詢（最多 20 次 × 150ms），失敗時回報
    `act / mode / ovHidden / dataAct / wraps` 讓下一個人不用再猜。
+
+## 2026-08-03 — 出處深連結稽核的發現
+
+- **既有的 anchor 會腐爛，而且沒有人在看**：9 條原本就寫了 anchor 的出處，那個 id
+  在現在的頁面上**已經不存在**（Anthropic 文件把 `&` 的 slug 從 `--` 改成 `-and-`、
+  `#latex-output` → `#la-te-x-output`、`hardcoding` → `hard-coding`）。
+  離線測試看不出來（格式合法），只有實地抓頁面才驗得出。
+  → 建議把「重抓 114 份文件、重驗每一個片段」做成一年一次的例行稽核，
+  方法已寫進 `docs/design/source-anchor-audit.md`。
+- **`ai.google.dev` 對非瀏覽器會掉進自動登入迴圈**（302 → `oauth2authorize`，body 空的）。
+  帶一個 cookie jar（`curl -c/-b`）就正常回 200 —— 之前的擷取如果沒帶，很可能整批 Google
+  文件都是空的。20 份頁面靠這一招才拿到。
+- **`developer.meta.com` 對 `curl` 一律 400**（要 JS），但 headless Chrome `--dump-dom`
+  拿得到完整 DOM，章節 id 齊全。之前 promptbooks 記的「抓不到」其實有解。
+- **同一個網址在不同引用列指的是不同章節**。`claude-prompting-best-practices` 被 33 個
+  顯示位置引用、`gpt4-1_prompting_guide` 被 45 個 —— 所以深連結必須**逐列**解析，
+  「一個 URL 一個 anchor」的疊加設計會把不同技巧指到同一節。
+  最後疊加層用 `(techniqueId, url)` 當鍵。
+- **`docName` 括號裡的章節名是最好的搜尋針**：117 列的出處自己就寫了
+  「Prompting best practices（Be clear and direct）」這種形狀，直接對得上頁面標題。
+  這是 master list 當初的紀律留下來的紅利。
+- **框架元件會冒充章節**：第一版解析器挑到 `#breadcrumb`（Google devsite 的麵包屑）、
+  `#folders-and-files`（GitHub repo 頁的框架標題）、`#ms--in-this-article`（Microsoft 的 TOC）。
+  加了一份「這些 id 不是章節」的封鎖清單才乾淨。
+- **GitHub README 的 anchor 有兩種寫法**：元素上的 id 是 `user-content-x`，
+  但真正跳得到的目標是 `href="#x"`；而且錨點掛在標題**後面**，
+  往後看是空的、要往前一行才找得到標題文字。
+- **搜尋針不能是文件自己的名字**：master 條目裡的 `llama-prompt-ops` 是 repo 名，
+  它出現在頁面上的任何地方，據此挑出來的章節（`#step-1-installation`）沒有意義。
+- **Text Fragments 要用頁面上的原字**：比對時可以把彎引號／破折號正規化，
+  但寫進網址的片段必須是頁面上的literal 文字，否則瀏覽器比不到（`don’t` vs `don't`）。
+- **片段裡的非 ASCII 會撞到字型預算**：阿里雲文件有 `#prompt-评测` 這種中文 id，
+  直接寫進 JSON 會把兩個簡體字帶進 CJK 語料，而 Noto Serif/Sans TC 沒有這兩個字 →
+  字型測試紅。改成 percent-encode（等價寫法）就解決了。
+  這也再次證明 `docs/` 不進語料、`src/data/` 進語料這條界線很敏感。
+- **114 份文件裡，SPA 分頁式渲染仍抓不到內容**：`docs.mistral.ai/.../sampling`（分頁）
+  與 Qwen 模型卡的 Best Practices 區塊（JS 展開）—— 這兩處的時代註記只好停在頁面層。
+- **「頁面層引用」本來就存在**：116 列停在頁面層裡有 98 列是出處本身就沒指名章節
+  （例如「OpenAI · Function calling」整份文件）。這不是漏做，是引用的顆粒度就是一整份文件；
+  硬加 anchor 才是杜撰。
