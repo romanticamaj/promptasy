@@ -1176,16 +1176,18 @@
           "weightBefore": 2,
           "action": "remove",
           "weightAfter": 0,
-          "phase": "post-A",
-          "reason": "主題搬去自己的神廟（C1 一關一技巧／C2 只教一次）：第三幕改成 order；specifiesFormat／hasConstraint 移除"
+          "phase": "G",
+          "reason": "主題搬去自己的神廟（C1 一關一技巧／C2 只教一次）：第三幕改成 order；specifiesFormat／hasConstraint 移除（Phase G 執行：收斂成一關一技巧的形狀，主檢查 3 ＋ 地基 0.5、pass 2）",
+          "addedIn": "G"
         },
         {
           "check": "hasConstraint",
           "weightBefore": 1,
           "action": "remove",
           "weightAfter": 0,
-          "phase": "post-A",
-          "reason": "主題搬去自己的神廟（C1 一關一技巧／C2 只教一次）：第三幕改成 order；specifiesFormat／hasConstraint 移除"
+          "phase": "G",
+          "reason": "主題搬去自己的神廟（C1 一關一技巧／C2 只教一次）：第三幕改成 order；specifiesFormat／hasConstraint 移除（Phase G 執行：收斂成一關一技巧的形狀，主檢查 3 ＋ 地基 0.5、pass 2）",
+          "addedIn": "G"
         }
       ],
       "passBefore": 4,
@@ -1198,7 +1200,17 @@
         "decompose-02",
         "decompose-04"
       ],
-      "designNote": "第三幕改成 order；specifiesFormat／hasConstraint 移除"
+      "designNote": "第三幕改成 order；specifiesFormat／hasConstraint 移除",
+      "phaseG": {
+        "skillId": "chain-serial",
+        "mainCheck": "decomposesTask",
+        "kindAfterG": "order",
+        "regionAfterG": "orchestration",
+        "note": "§3 orchestration 第 1 列指名「拆解工作台（保留）」——主題收斂成「把大事拆小，一步的產物餵給下一步」，第三幕由分段建構換成排序刻印（四片工單要照先後疊，第三張吃第二張的產物）。收斂成新神廟的形狀（主檢查 3 ＋ 地基 assignsTask 0.5、pass 2），legacy teaches 與舊主技巧 decompose-01 都保留（收集不倒退，D2）。",
+        "mainWeightAfterG": 3,
+        "totalWeightAfterG": 3.5,
+        "passAfterG": 2
+      }
     },
     {
       "id": "draft-review-wheel-32",
@@ -1241,16 +1253,18 @@
           "weightBefore": 2,
           "action": "remove",
           "weightAfter": 0,
-          "phase": "post-A",
-          "reason": "主題搬去自己的神廟（C1 一關一技巧／C2 只教一次）：搬到校驗場；第三幕改成 multi（真的走三輪）"
+          "phase": "G",
+          "reason": "主題搬去自己的神廟（C1 一關一技巧／C2 只教一次）：搬到校驗場；第三幕改成 multi（真的走三輪）（Phase G 執行：收斂成一關一技巧的形狀，主檢查 3 ＋ 地基 0.5、pass 2）",
+          "addedIn": "G"
         },
         {
           "check": "hasConstraint",
           "weightBefore": 1,
           "action": "remove",
           "weightAfter": 0,
-          "phase": "post-A",
-          "reason": "主題搬去自己的神廟（C1 一關一技巧／C2 只教一次）：搬到校驗場；第三幕改成 multi（真的走三輪）"
+          "phase": "G",
+          "reason": "主題搬去自己的神廟（C1 一關一技巧／C2 只教一次）：搬到校驗場；第三幕改成 multi（真的走三輪）（Phase G 執行：收斂成一關一技巧的形狀，主檢查 3 ＋ 地基 0.5、pass 2）",
+          "addedIn": "G"
         }
       ],
       "passBefore": 4,
@@ -1262,7 +1276,17 @@
         "decompose-03",
         "iterate-01"
       ],
-      "designNote": "搬到校驗場；第三幕改成 multi（真的走三輪）"
+      "designNote": "搬到校驗場；第三幕改成 multi（真的走三輪）",
+      "phaseG": {
+        "skillId": "draft-review-refine",
+        "mainCheck": "asksToRefine",
+        "kindAfterG": "multi",
+        "regionAfterG": "refinery",
+        "note": "§4 逐關表指名「搬到校驗場；第三幕改成 multi（真的走三輪）」——整座石座搬進齒輪工坊旁的院子，第三幕換成兩輪刻印：第一輪寫草稿與標準，看過遊戲自撰的草稿之後，第二輪才決定怎麼審、怎麼改。",
+        "mainWeightAfterG": 3,
+        "totalWeightAfterG": 3.5,
+        "passAfterG": 2
+      }
     },
     {
       "id": "tool-forge-33",
@@ -1362,16 +1386,18 @@
           "weightBefore": 2,
           "action": "remove",
           "weightAfter": 0,
-          "phase": "post-A",
-          "reason": "主題搬去自己的神廟（C1 一關一技巧／C2 只教一次）：收斂成「可逆／不可逆」一條主題；setsPersistence 讓給三句箴言的柱"
+          "phase": "G",
+          "reason": "主題搬去自己的神廟（C1 一關一技巧／C2 只教一次）：收斂成「可逆／不可逆」一條主題；setsPersistence 讓給三句箴言的柱（Phase G 執行：收斂成一關一技巧的形狀，主檢查 3 ＋ 地基 0.5、pass 2）",
+          "addedIn": "G"
         },
         {
           "check": "decomposesTask",
           "weightBefore": 2,
           "action": "remove",
           "weightAfter": 0,
-          "phase": "post-A",
-          "reason": "主題搬去自己的神廟（C1 一關一技巧／C2 只教一次）：收斂成「可逆／不可逆」一條主題；setsPersistence 讓給三句箴言的柱"
+          "phase": "G",
+          "reason": "主題搬去自己的神廟（C1 一關一技巧／C2 只教一次）：收斂成「可逆／不可逆」一條主題；setsPersistence 讓給三句箴言的柱（Phase G 執行：收斂成一關一技巧的形狀，主檢查 3 ＋ 地基 0.5、pass 2）",
+          "addedIn": "G"
         }
       ],
       "passBefore": 4,
@@ -1385,7 +1411,17 @@
         "agentic-05",
         "agentic-06"
       ],
-      "designNote": "收斂成「可逆／不可逆」一條主題；setsPersistence 讓給三句箴言的柱"
+      "designNote": "收斂成「可逆／不可逆」一條主題；setsPersistence 讓給三句箴言的柱",
+      "phaseG": {
+        "skillId": "agent-approval-bounds",
+        "mainCheck": "requiresConfirmation",
+        "kindAfterG": "workshop",
+        "regionAfterG": "orchestration",
+        "note": "§3 orchestration 第 5 列指名「不可逆之門（保留）· 派送／分流（workshop）」——主題收斂成「可逆的自己做、不可逆的先問」，setsPersistence 讓給三句箴言的柱（C2 不重教），第三幕換成派工檯（讀水位／調高度可以自己做，清日誌落到規矩那一步）。",
+        "mainWeightAfterG": 3,
+        "totalWeightAfterG": 3.5,
+        "passAfterG": 2
+      }
     },
     {
       "id": "echo-workshop-35",
@@ -1428,16 +1464,18 @@
           "weightBefore": 2,
           "action": "remove",
           "weightAfter": 0,
-          "phase": "post-A",
-          "reason": "主題搬去自己的神廟（C1 一關一技巧／C2 只教一次）：搬到校驗場；主題改成「怎麼知道已經收斂」（iterate-03 讓給照自己的鏡）"
+          "phase": "G",
+          "reason": "主題搬去自己的神廟（C1 一關一技巧／C2 只教一次）：搬到校驗場；主題改成「怎麼知道已經收斂」（iterate-03 讓給照自己的鏡）（Phase G 執行：收斂成一關一技巧的形狀，主檢查 3 ＋ 地基 0.5、pass 2）",
+          "addedIn": "G"
         },
         {
           "check": "hasDelimiters",
           "weightBefore": 1,
           "action": "remove",
           "weightAfter": 0,
-          "phase": "post-A",
-          "reason": "主題搬去自己的神廟（C1 一關一技巧／C2 只教一次）：搬到校驗場；主題改成「怎麼知道已經收斂」（iterate-03 讓給照自己的鏡）"
+          "phase": "G",
+          "reason": "主題搬去自己的神廟（C1 一關一技巧／C2 只教一次）：搬到校驗場；主題改成「怎麼知道已經收斂」（iterate-03 讓給照自己的鏡）（Phase G 執行：收斂成一關一技巧的形狀，主檢查 3 ＋ 地基 0.5、pass 2）",
+          "addedIn": "G"
         }
       ],
       "passBefore": 4,
@@ -1451,7 +1489,17 @@
         "iterate-04",
         "iterate-05"
       ],
-      "designNote": "搬到校驗場；主題改成「怎麼知道已經收斂」（iterate-03 讓給照自己的鏡）"
+      "designNote": "搬到校驗場；主題改成「怎麼知道已經收斂」（iterate-03 讓給照自己的鏡）",
+      "phaseG": {
+        "skillId": "meta-iterate",
+        "mainCheck": "asksToRefine",
+        "kindAfterG": "multi",
+        "regionAfterG": "refinery",
+        "note": "§4 逐關表指名「搬到校驗場；主題改成『怎麼知道已經收斂』」——整座石座搬進院子，第三幕換成兩輪刻印：第一輪寫一版並訂出「什麼叫落空」，看過遊戲自撰的第一版公告之後，第二輪才決定換什麼說法、什麼時候收手。",
+        "mainWeightAfterG": 3,
+        "totalWeightAfterG": 3.5,
+        "passAfterG": 2
+      }
     },
     {
       "id": "oracle-workshop-36",
@@ -1894,5 +1942,5 @@
       }
     }
   ],
-  "updatedBy": "課程 v2 · Phase D（constraint 題型 ＋ 脈絡與長文／角色與參數補齊到 12 座） ／ 課程 v2 · Phase E（量器坊：mimic-mirror-04 執行 post-A 的移除、接上 prefill-completion、搬進 forms 區） ／ 課程 v2 · Phase F（契約鍛冶場：tool-forge-33 與 oracle-workshop-36 執行 post-A 的移除、接上 tool-description／tool-when-not、搬進 toolcraft 區）"
+  "updatedBy": "課程 v2 · Phase G（multi 兩輪刻印 ＋ refinery 校驗場 11 座 ＋ orchestration 收尾 12 座）"
 }

@@ -302,8 +302,8 @@
       "place": "西南外緣 · 齒輪工坊旁的院子",
       "theme": "改 prompt 的 prompt：迭代、評測、自評、健檢、矛盾修復。",
       "landmark": "會回頭照自己的鏡（兩面互相對照的鏡）",
-      "engineCost": "既有地形加建",
-      "implemented": false,
+      "engineCost": "既有地形加建（Phase G 已上線）",
+      "implemented": true,
       "skillIds": [
         "meta-when",
         "meta-iterate",
@@ -327,7 +327,8 @@
         ],
         "masteredAnyCount": 1,
         "text": "軟門檻：orchestration 兩座 ＋ 任一區精通。"
-      }
+      },
+      "color": "#9fb8c4"
     },
     {
       "id": "wards",

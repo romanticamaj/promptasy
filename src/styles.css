@@ -7574,3 +7574,130 @@ select option:disabled {
     transform: translate(0, 0);
   }
 }
+
+/* ================================================================
+   兩輪刻印（課程 v2 · Phase G）—— 同一塊碑，切成兩輪
+
+   視覺語言完全沿用 .stele / .carve / .opt：這裡只加三樣東西 ——
+   輪次的抬頭、前面幾輪收起來的字、以及中間那張**遊戲自撰**的回話卡。
+   回話卡刻意做得像「別人給的東西」（引文式左邊線 ＋ 等寬字），
+   跟玩家自己刻的碑面分得開；它旁邊永遠掛一顆 ⓘ 說明它是誰寫的。
+   ================================================================ */
+.multiboard[hidden] {
+  display: none;
+}
+.multiboard {
+  display: grid;
+  gap: var(--s4);
+}
+.multi__eyebrow {
+  margin: 0;
+  font-size: var(--t-micro);
+  letter-spacing: 0.02em;
+  color: var(--paper-4);
+}
+.multi__lead {
+  margin: 0;
+  font-size: var(--t-micro);
+  line-height: 1.8;
+  color: var(--paper-3);
+}
+.multi__lead[hidden] {
+  display: none;
+}
+.multi__prior {
+  display: grid;
+  gap: var(--s2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.multi__prior[hidden] {
+  display: none;
+}
+.multi__priorlot {
+  display: grid;
+  gap: 2px;
+  padding-left: var(--s3);
+  border-left: 1px solid var(--rule-gold);
+  font-size: var(--t-micro);
+  line-height: 1.8;
+  color: var(--paper-3);
+  animation: opt-in var(--d-mid) var(--e-out) both;
+  animation-delay: calc(var(--i, 0) * 38ms);
+}
+.multi__priorlabel {
+  color: var(--paper-4);
+}
+.multi__priortext {
+  color: #eef4fa;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* --- 中間那一段回話（遊戲自撰，不是模型跑出來的） --- */
+.handoff {
+  display: grid;
+  gap: var(--s3);
+  padding: var(--s3);
+  border-left: 1px solid var(--rule);
+  background: linear-gradient(180deg, rgba(19, 27, 38, 0.6), rgba(8, 11, 17, 0.4));
+  animation: opt-in var(--d-mid) var(--e-out) both;
+}
+.handoff[hidden] {
+  display: none;
+}
+.handoff__eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin: 0;
+  font-size: var(--t-micro);
+  letter-spacing: 0.02em;
+  color: var(--paper-4);
+}
+.handoff__body {
+  margin: 0;
+  padding: var(--s2) var(--s3);
+  border-left: 1px solid var(--rule);
+  font-family: var(--font-input);
+  font-size: var(--t-micro);
+  line-height: 1.85;
+  color: var(--paper-2);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.handoff__ask {
+  margin: 0;
+  font-size: var(--t-body);
+  line-height: 1.8;
+  color: #eef4fa;
+}
+.handoff__go {
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  min-height: 44px;
+  padding: var(--s2) var(--s4);
+  border: 1px solid var(--rule-gold);
+  background: transparent;
+  color: #f4e6c8;
+  font: inherit;
+  font-size: var(--t-micro);
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition: background var(--d-fast) var(--e-out), color var(--d-fast) var(--e-out);
+}
+.handoff__go:hover,
+.handoff__go:focus-visible {
+  background: rgba(198, 160, 94, 0.14);
+  color: #fff6e2;
+}
+@media (prefers-reduced-motion: reduce) {
+  .multi__priorlot,
+  .handoff {
+    animation: none;
+  }
+}

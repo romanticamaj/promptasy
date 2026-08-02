@@ -457,7 +457,7 @@ export const REACTIVE_SPOTS = Object.freeze([
   { id: 'gnd-spirit-east', kind: 'spirit', region: 'grounding', at: [107, -81] },
 
   /* --- orchestration：齒輪工坊 --- */
-  { id: 'orc-chime-draft', kind: 'chime', region: 'orchestration', at: [-98, 131] },
+  { id: 'orc-chime-draft', kind: 'chime', region: 'orchestration', at: [-93.5, 80.5] },
   { id: 'orc-song-engine', kind: 'songstone', region: 'orchestration', at: [-108, 109], opts: { dir: -0.6 } },
   { id: 'orc-caps-west', kind: 'glowcap', region: 'orchestration', at: [-113, 97] },
   { id: 'orc-moths-yard', kind: 'moths', region: 'orchestration', at: [-76, 115] },

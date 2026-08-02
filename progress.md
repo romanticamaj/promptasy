@@ -739,6 +739,21 @@ rubric 一律「主檢查 3 ＋ 地基 `assignsTask` 0.5、`pass` 2」（C1）�
 ③ 加上「純鍵盤走完量器坊第一座」的區段後做兩輪**先紅**（見下），最後一輪
 **2,308 項全過、零 console error**，零重跑。
 
+### e2e 的兩輪（誠實記錄）
+
+① 第一輪：**2,621 通過、14 失敗**，四組，全部是真的東西：
+   · 1 條 Phase F 的快照斷言（「齒輪工坊現在有 4 關」→ 收尾之後是 12）；
+   · 5 條量器坊那一段（`for-newcomer-59` 換裝成 multi 之後，舊的播放器不會「收下回話」就卡在第一輪
+     → 連帶讓「全破之後一條都不再是剪影 / 量器坊蓋上精通封印 / 進程也認定量器坊精通了」三條跟著紅）；
+   · 5 條我自己新寫的 Esc 段落 —— **抓到的是我測試寫錯，不是產品錯**：
+     前一步把回話卡的 ⓘ 打開了，`bindInfoTips` 的既有行為是「Esc 先收 ⓘ」，
+     所以第一下 Esc 沒有收面板。改成**兩段都驗**（第一下收 ⓘ、面板還開著；第二下才收面板）；
+   · 1 條 reduced-motion 的可見性 —— 我用了 `goAct(3)` 沒帶 `force`，那一關的第三幕還沒被走過，
+     所以量到的是「在還沒切過去的幕裡」。改成 `goAct(3, { force: true })`。
+② 第二輪（全部修完後）：**2,637 項全過、零 console error、零重跑**。
+   GPU：SwiftShader 軟體渲染、每幀 224.9 ms —— 這一輪連 `AGENTS.md` 登記的
+   動畫時序 flaky 家族（拖曳 / 風鈴 / 火盆亮度）都沒有出現。
+
 ### 先紅後綠（逐條實測）
 
 - **rubric（3 次）**：把 `gateSatisfied()` 的知識式判定拿掉 → 1 紅（`量器坊仍鎖住`）；
@@ -899,3 +914,138 @@ safety-guidance／agents security-best-practices），逐條回查 `skill-codex-
   把 id 從 `SYNTH_ONLY_REGIONS` 移走即可。
 - 流程與代理（orchestration）剩下 4 關，它的 v2 化排在 Phase G。
 - 未 commit／push；未動 `CLAUDE.md`、`vite.config.js`、port 5175、`src/data/curriculum.json`（sha256 仍綠）。
+
+## Phase G — 兩輪刻印（`multi`）＋ 校驗場（`refinery`）＋ 流程與代理收尾（2026-08-02）
+
+狀態：`done`（未 commit／push）
+
+**一句話**：第三幕第一次跑**兩輪** —— 刻完第一輪之後，會看到一段**遊戲自己寫好的**神諭回話，
+第二輪才動手修它；齒輪工坊西南外緣長出第二座加建 **校驗場**（11 座），
+流程與代理補回 **12 座**，既有五區之外的課程遷移到此告一段落。
+
+### 做了什麼
+
+**新題型：兩輪刻印（`multi`）** — `src/prompt/multi.js`
+
+- 是**石碑刻印的變體**：共用 `slots.js` 的刻寫台與 `palm.js` 的結尾，
+  送出的是同一段文字、走同一支離線引擎（護欄 3）。
+- **輪次是 `flow.slots` 的一個切法**：每一輪只宣告吃幾段（`count`），
+  段落全部住在 `flow.slots` 裡，而且 `sum(count) === slots.length`。
+  這條契約同時買到三件事 —— 退回石碑刻印時玩家刻出來的字一模一樣、
+  **結構上不可能串錯輪次**、測試不必知道題型就能驗「全部選對＝S」。
+- **中間那一段回話是遊戲自撰的**（`authored: "game"`），畫面上永遠掛一顆 ⓘ 明講
+  「這一段回話是遊戲自己寫好的示範，不是真的模型跑出來的結果」；回話卡不放任何連結。
+- **狀態只活在記憶體裡**：切幕／切模式輪次原封不動；重開這一關一律回到第一輪；
+  重新整理＝這一關從第一輪重來（誠實的「重新開始」，不為 multi 破例做落地存檔）。
+- **6 座**用它：`self-mirror-93`（照自己的鏡）、`echo-workshop-35`（回音工坊）、
+  `draft-review-wheel-32`（草稿之輪）、`endless-corridor-86`（走不完的長廊）、
+  ＋ backlog 換裝的 `for-newcomer-59`（給沒看過的人）與 `well-pause-22`（取水之後的停頓）。
+
+**流程與代理 12 座**（新蓋 10 ＋ 改造 2）
+
+| # | id | 神廟名 | 技能 | 題型 | 主檢查 |
+|---|---|---|---|---|---|
+| 1 | `subtask-workbench-31` | 拆解工作台（改造） | `chain-serial` | order | `decomposesTask` |
+| 2 | `endpoint-stake-81` | 終點的樁 | `outcome-first` | constraint | 🆕`statesSuccessCriteria` |
+| 3 | `three-maxims-82` | 三句箴言的柱 | `agent-three-reminders` | choice | `setsPersistence` |
+| 4 | `two-end-scale-83` | 兩端的秤 | `agent-eagerness` | tradeoff | 🆕`tunesAutonomyLevel` |
+| 5 | `irreversible-gate-34` | 不可逆之門（改造） | `agent-approval-bounds` | workshop | `requiresConfirmation` |
+| 6 | `sprawling-site-84` | 越蓋越大的工地 | `agent-scope-drift` | spot | 🆕`limitsScope` |
+| 7 | `drawing-room-85` | 審圖房 | `agent-plan-first` | order | 🆕`asksForPlanFirst` |
+| 8 | `endless-corridor-86` | 走不完的長廊 | `agent-longhorizon` | **multi** | `setsPersistence` |
+| 9 | `handover-table-87` | 交班的石桌 | `agent-state` | workshop | 🆕`definesHandoffState` |
+| 10 | `dispatch-window-88` | 派工的窗口 | `agent-subagents` | workshop | 🆕`delegatesWithCriteria` |
+| 11 | `nailed-rules-89` | 釘在門上的規矩 | `standing-instructions` | fix | 🆕`extractsStandingRules` |
+| 12 | `hourglass-shop-90` | 沙漏工房 | `action-budget` | choice | 🆕`setsActionBudget` |
+
+**校驗場 11 座**（新蓋 9 ＋ 搬家改造 2）
+
+| # | id | 神廟名 | 技能 | 題型 | 主檢查 |
+|---|---|---|---|---|---|
+| 1 | `wrong-door-91` | 走錯門的委託 | `meta-when` | choice | `diagnosesFailureCause` |
+| 2 | `echo-workshop-35` | 回音工坊（改造＋搬家） | `meta-iterate` | **multi** | `asksToRefine` |
+| 3 | `refinery-ruler-92` | 校驗場的量尺 | `meta-eval` | workshop | 🆕`definesEvalSet` |
+| 4 | `self-mirror-93` | 照自己的鏡 | `meta-metaprompt` | **multi** | 🆕`asksModelToRewritePrompt` |
+| 5 | `clashing-tablets-94` | 互相牴觸的兩條規矩 | `contradiction-fix` | order | 🆕`decisionTree` |
+| 6 | `diagnosis-bench-95` | 診斷台 | `prompt-healthcheck` | spot | `diagnosesFailureCause` |
+| 7 | `sevenfold-door-96` | 檢查了七遍的門 | `selfcheck-when` | tradeoff | `asksToVerify` |
+| 8 | `empty-handed-inspector-97` | 空手的檢查員 | `verify-with-tools` | fix | `asksToVerify` |
+| 9 | `own-carved-ruler-98` | 自己刻的量尺 | `self-rubric` | workshop | 🆕`definesWordedScale` |
+| 10 | `half-cast-net-99` | 一次撈不完的網 | `two-stage-filter` | order | `decomposesTask` |
+| 11 | `draft-review-wheel-32` | 草稿之輪（改造＋搬家） | `draft-review-refine` | **multi** | `asksToRefine` |
+
+每一座：`scenario` / `mission` / `craft` / `material` / `clue` / `placeholder` / `quickFills` / `sample`
+＋ 該題型的第三幕資料 ＋ **石碑刻印後備 `slots`**，rubric 一律「主檢查 3 ＋ 地基 `assignsTask` 0.5、
+`pass` 2」（C1），`source` 逐條回查 `skill-codex-v2.json` 裡解析自 master list 的真實官方連結。
+**題型序列**：orchestration ＝ order・constraint・choice・tradeoff・workshop・spot・order・multi・
+workshop・workshop・fix・choice；refinery ＝ choice・multi・workshop・multi・order・spot・tradeoff・
+fix・workshop・order・multi —— 兩區最長連續同型都是 **2**，各用了 **8** 種題型。
+
+**12 個新檢查器**（`src/challenges/checks.js`，規格出自 curriculum-v2 §7.4）。
+四個是**非單調**的：`limitsScope`（自己又寫「順便」→ 歸零）、`decisionTree`（兩條都寫「一律」→ 歸零）、
+`definesWordedScale`（文字級距寫好了又補一個數字分數 → 掉分）、
+`setsActionBudget`（兩條上限落在同一個單位 → 只給部分分）。
+中文與阿拉伯數字都認（`NUM_G`），英文那一面逐條補了 fixture 與對照解答。
+
+**世界**：`REGION_SITES` 新增 `refinery (-129, 129) r=40, annexOf: 'orchestration'` ——
+**第二座沒有橋的加建**，閘門立在 `regionAt()` 的正規化距離分界上。
+地貌是「兩面互相照著的鏡」（一條淺谷把院子分成幾乎一樣高的兩半）；
+`REGION_ATMOSPHERE`（銀灰、螢火 0.86）、`FLORA`（舊稿板／鏡胚／量規腳）、
+`buildRegionProps`（兩兩相對的照面架 ＋ 稿堆，全部 InstancedMesh、零光源）、
+地標**會回頭照自己的鏡**（高 20、留白 14、**零實體光源**）、三組故事小景、路網全部跟上。
+
+**知識式軟門檻新開一種條件**：`masteredAny`（任一區精通）——
+精通的定義完全沿用 `regionMastery()`，不會有第二套判準；閘門說得出「任何一片土地精通（目前 0）」。
+
+### 驗證
+
+| 指令 | Phase F | Phase G |
+|---|---|---|
+| `npm run fonts` | CJK 1790 字／1423.8 KB | ✓ CJK **1822** 字／**1447.6 KB**（指紋測試綠） |
+| `npm run test:rubric` | 49,756 | ✓ **58,760** |
+| `npm run test:playtest` | 1,275 | ✓ **1,642** |
+| `npm run build` | ✓ | ✓ |
+| `npm run test:e2e` | 2,493 全過 | ✓ **2,637 項全過、零 console error、零重跑** |
+
+**世界量測**（在 node 裡把世界蓋起來實測，非引用文件）
+
+| 項目 | Phase F | Phase G | 上限 |
+|---|---:|---:|---:|
+| 三角形（高畫質） | 168,068 | **172,602** | 420,000 |
+| 光源（高畫質） | 30 | **32** | 56 |
+| 碰撞體（高畫質） | 813 | **856** | 1,400 |
+| mesh | 1,790 | **1,977** | — |
+| InstancedMesh／實例 | 66 ／ 1,199 | **74 ／ 1,218** | — |
+| 低畫質三角形／燈 | 106,440 ／ 16 | **112,284 ／ 17** | — |
+
+新增的兩盞燈：一盞是校驗場的「每區一盞主色補光」（與其他七片土地同一個模式），
+另一盞是搬過去的小景裡本來就有的那一盞。**地標本身零實體光源**。
+
+### 先紅後綠（逐條實測）
+
+- **checks（第一次跑）**：12 個新檢查器一上線，rubric 立刻紅 17 條 ——
+  12 條「有 fixture」、1 條題型清單、1 條「題型 multi 真的有神廟在用」、
+  2 條字型語料、1 條 `v2CheckersLanded` 登記。全部是預期中的紅燈（新東西還沒補齊契約）。
+- **playtest（我自己寫的新斷言）**：「只刻完第一輪還沒滿分」**一開始 4 座紅**
+  （`well-pause-22` / `echo-workshop-35` / `for-newcomer-59` / `endless-corridor-86` 的第一輪就滿分）。
+  **改的是設計不是斷言**：輪次切法改成「第一輪＝先寫一版」。
+- **碰撞稽核**：校驗場的照面架有 5 組疊在 `place()` 的退回點上 → 兩種畫質各紅一條
+  「有份量卻走得過去」。修法是那一段自己多試幾次、找不到就不擺。
+- **加建吃掉母土地**：refinery 上線後 4 個既有物件被改判成 refinery
+  （反應物 `orc-chime-draft`、祕密 `echo-shrine`、器物 `orc-brazier-forge`，
+  ＋ 我自己新放的小景），各紅一條「落在標示的區域裡」。全部搬回工坊那一側。
+
+### 未做／留給後續
+
+- **校驗場沒有石碑／刻文小語／會回應的東西／動得了的器物**（與量器坊、契約鍛冶場、
+  護欄崗同樣的範圍控制）。理由記在 `findings.md`。
+- `hourglass-shop-90`（沙漏工房）用 `choice` 上線，§3 指定的 `sim` 留給 Phase H；
+  `mould-room-62`（鑄模房）的 `workshop` 仍在 backlog。
+- `bgm_refinery.m4a` 尚未錄製；補上時只要在 `BGM_TRACKS` 加一行、把 id 從
+  `SYNTH_ONLY_REGIONS` 移走即可。
+- 未 commit／push；未動 `CLAUDE.md`、`vite.config.js`、port 5175、`src/data/curriculum.json`（sha256 仍綠）。
+
+**G readiness（2026-08-02）**：9 區／**108 關**（既有 27 關 ＋ 課程 v2 新蓋的 81 座）／
+130 條技能中的 **104 條**已經接上自己的神廟（`primarySkillId`）；59 個新檢查器已實作 **51** 個；
+`curriculum.json` sha256 未變；存檔 additive（**這一期沒有新增任何欄位**）、reset 正常；
+快檢 ＋ playtest ＋ build 全綠。

@@ -1260,6 +1260,48 @@ export const STORY_VIGNETTES = Object.freeze([
     ],
   },
 
+  /* --- refinery：改 prompt 的 prompt（課程 v2 · Phase G） --- */
+  {
+    id: 'ten-drafts',
+    region: 'refinery',
+    name: '改到第十版的那一疊',
+    at: [-121.2, 142.4],
+    rot: 0.5,
+    parts: [
+      ['desk', [0, 0, 0], 0, { light: false }],
+      ['scrolls', [3.0, 0, 1.4], -0.3, {}],
+      ['ink', [1.1, 0.4, 0.5], 0.4, {}],
+      ['crates', [-3.4, 0, -2.2], 0.2, {}],
+      ['seat', [-2.6, 0, 1.8], 0.2, {}],
+    ],
+  },
+  {
+    id: 'facing-mirrors',
+    region: 'refinery',
+    name: '照著照著就沒有人看的兩面',
+    at: [-144.4, 127.6],
+    rot: -0.9,
+    parts: [
+      ['mirror', [-2.4, 0, 0], 0.25, { h: 3.2 }],
+      ['mirror', [2.4, 0, 0], Math.PI - 0.25, { h: 3.2 }],
+      ['stele', [0, 0, -3.4], 0.1, { h: 2.4, seed: 11, tilt: 0.06 }],
+      ['cairn', [4.2, 0, 2.4], 0, {}],
+    ],
+  },
+  {
+    id: 'unread-checklist',
+    region: 'refinery',
+    name: '只蓋了章的那張檢查表',
+    at: [-142.6, 103.3],
+    rot: 1.8,
+    parts: [
+      ['drafttable', [0, 0, 0], 0, {}],
+      ['slate', [-3.2, 0, 1.6], 0.4, { marks: 6 }],
+      ['signpost', [3.6, 0, 1.2], -0.4, {}],
+      ['column', [-4.0, 0, -2.8], 0, { h: 2.4 }],
+    ],
+  },
+
   {
     id: 'little-stage',
     region: 'config',
@@ -1291,6 +1333,8 @@ export const LANDMARKS = Object.freeze([
   { id: 'nameless-keys', region: 'toolcraft', name: '未命名的工具', at: [-124, 0], height: 23, clear: 15 },
   // 課程 v2 · Phase F：護欄崗（§二：「一道永遠留一條縫的雙層門」）
   { id: 'ajar-doors', region: 'wards', name: '不會關上的門', at: [101, -142], height: 19, clear: 13 },
+  // 課程 v2 · Phase G：校驗場（§二：「兩面互相對照的鏡」）
+  { id: 'facing-glass', region: 'refinery', name: '會回頭照自己的鏡', at: [-129, 129], height: 20, clear: 14 },
 ]);
 
 /** 斷環：一圈立起來的巨石環，缺了一角 —— 「有人試著把話說圓，還差一塊」。 */
@@ -1596,6 +1640,57 @@ function landmarkAjarDoors(kit) {
   return grp;
 }
 
+/**
+ * 會回頭照自己的鏡（校驗場 · 課程 v2 · Phase G）：兩面高大的鏡互相對著，
+ * 中間那條窄縫裡是一層層越縮越小的自己 —— 這一區教的就是「拿自己的東西照自己」。
+ * 零實體光源：所有的光都是自發光薄片與加色反光層。
+ */
+function landmarkFacingGlass(kit) {
+  const grp = new THREE.Group();
+  put(grp, cyl(7.6, 8.8, 1.2, 12), stone(kit.dark), [0, 0.6, 0]);
+
+  // 兩面鏡：面對面，各自往內傾一點，所以中間那條縫會一直反下去
+  for (const side of [-1, 1]) {
+    const frame = put(
+      grp,
+      box(1.1, 17.5, 7.4),
+      stone(kit.mid),
+      [side * 4.3, 17.5 / 2 + 1.2, 0],
+      [0, 0, side * -0.05]
+    );
+    bulky(frame);
+    // 鏡面本身（自發光的薄片，不是燈）
+    put(
+      grp,
+      box(0.22, 15.4, 6.2),
+      glow(kit.accent, 0.8),
+      [side * (4.3 - 0.62), 15.4 / 2 + 1.9, 0],
+      [0, 0, side * -0.05]
+    );
+    // 磨損：鏡框上一道一道被改過的刻痕
+    for (let i = 0; i < 5; i += 1) {
+      put(grp, box(1.16, 0.16, 0.5), glow(kit.accent, 0.5), [side * 4.3, 3.6 + i * 2.9, 3.4]);
+    }
+  }
+
+  // 中間那條縫裡越縮越小的「自己」：六層一層比一層小的薄片
+  for (let i = 0; i < 6; i += 1) {
+    const t = i / 5;
+    put(
+      grp,
+      box(0.16, 12.0 * (1 - t * 0.72), 0.9 * (1 - t * 0.6)),
+      glow(kit.accent, 1.4 - t * 1.05),
+      [0, 7.4 - t * 1.6, -1.4 + t * 2.6]
+    );
+  }
+
+  // 頂上橫過去的那一根（把兩面接起來 —— 它們照的是同一件事）
+  put(grp, box(10.6, 1.3, 1.9), stone(kit.mid), [0, 19.4, 0]);
+  put(grp, ico(0.42, 0), glow(PALETTE.warm, 2.0), [0, 20.3, 0]);
+  put(grp, torus(1.35, 0.13, 4, 16), glow(kit.accent, 1.0), [0, 20.3, 0], [Math.PI / 2, 0, 0]);
+  return grp;
+}
+
 const LANDMARK_BUILDERS = {
   'broken-ring': landmarkBrokenRing,
   'endless-stair': landmarkEndlessStair,
@@ -1605,6 +1700,7 @@ const LANDMARK_BUILDERS = {
   'gauge-column': landmarkGaugeColumn,
   'nameless-keys': landmarkNamelessKeys,
   'ajar-doors': landmarkAjarDoors,
+  'facing-glass': landmarkFacingGlass,
 };
 
 /* ------------------------------------------------------------------ *

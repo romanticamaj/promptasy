@@ -677,6 +677,87 @@ export function runPlaytestVerify({ ok, eq }) {
     }
   }
 
+
+  /* ------------------------------------------------------------------ *
+   * H：兩輪刻印（multi）＋ 校驗場／流程與代理（課程 v2 · Phase G）
+   *
+   * 兩輪刻印的安全閘與其他七種題型一樣（走同一支引擎），另外守三件
+   * **它自己的**事：
+   *   · 輪次是同一份 slots 的切法（sum(count) === slots.length）——
+   *     結構上不可能「串錯輪次」，退回石碑刻印時玩家刻出來的字也一模一樣
+   *   · 兩輪刻完每一條檢查都滿分；**只刻完第一輪還不會滿分**（第二輪真的在加分）
+   *   · 中間那一段回話是遊戲自撰的，資料層與畫面都要說得出來
+   * ------------------------------------------------------------------ */
+  {
+    const multiIds = Object.entries(flowFile.flows)
+      .filter(([, f]) => (f.kind || '') === 'multi')
+      .map(([id]) => id);
+    ok(multiIds.length >= 5, `playtest：至少五座神廟用兩輪刻印（實際 ${multiIds.length}）`, multiIds.join(','));
+    for (const id of multiIds) {
+      const tag = `[${id}]`;
+      const c = byId.get(id);
+      const f = flowFile.flows[id];
+      const mf = f.multiFlow;
+      ok(Boolean(c) && Boolean(mf), `${tag} playtest：兩輪刻印掛在真的關卡上、而且有 multiFlow`);
+      if (!c || !mf) continue;
+      const counts = mf.rounds.map((r) => r.count);
+      ok(
+        counts.reduce((n, x) => n + x, 0) === f.slots.length,
+        `${tag} playtest：輪次是同一份 slots 的切法（加起來剛好等於段數）`,
+        `${counts.join('+')} vs ${f.slots.length}`
+      );
+      const picks = f.slots.map((sl) => sl.options.find((o) => o.correct).text);
+      const all = evaluate(c, picks.join('\n'));
+      ok(
+        all.results.every((r) => r.passed),
+        `${tag} playtest：兩輪刻完每一條檢查都滿分`,
+        all.results.filter((r) => !r.passed).map((r) => `${r.check}=${r.earned}/${r.weight}`).join('、')
+      );
+      const first = evaluate(c, picks.slice(0, counts[0]).join('\n'));
+      ok(
+        first.earned < all.earned,
+        `${tag} playtest：只刻完第一輪還沒滿分（第二輪真的在加分，不是裝飾）`,
+        `${first.earned} vs ${all.earned}`
+      );
+      eq(mf.authored, 'game', `${tag} playtest：中間那一段回話標明是遊戲自撰的`);
+      for (const h of mf.handoffs) {
+        ok(
+          /遊戲|自撰|不是真的/.test(String(h.note || '')),
+          `${tag} playtest：回話卡明講它不是真的模型輸出`,
+          h.note || ''
+        );
+      }
+    }
+  }
+
+  /* ------------------------------------------------------------------ *
+   * I：校驗場 11 座 ＋ 流程與代理 12 座（課程 v2 · Phase G）
+   * ------------------------------------------------------------------ */
+  for (const [regionId, zh, want] of [['orchestration', '流程與代理', 12], ['refinery', '校驗場', 11]]) {
+    const list = challenges.filter((c) => c.region === regionId);
+    ok(list.length === want, `playtest：${zh}有 ${want} 座教學神廟（實際 ${list.length}）`);
+    const skills = list.map((c) => c.primarySkillId).filter(Boolean);
+    ok(skills.length === list.length, `playtest：${zh}每一關都接上了 v2 技能`);
+    ok(new Set(skills).size === skills.length, `playtest：${zh}的技能一條只教一次`);
+    for (const c of list) {
+      const tag = `[${c.id}]`;
+      const f = flowFile.flows[c.id];
+      ok(!!f, `${tag} playtest：${zh}的神廟有第三幕流程`);
+      if (!f) continue;
+      const picks = f.slots.map((sl) => sl.options.find((o) => o.correct).text).join('\n');
+      const ev = evaluate(c, picks);
+      ok(
+        ev.results.every((r) => r.passed),
+        `${tag} playtest：全部選對時每一條檢查都滿分`,
+        ev.results.filter((r) => !r.passed).map((r) => `${r.check}=${r.earned}/${r.weight}`).join('、')
+      );
+      const primary = c.rubric.find((r) => r.primary);
+      ok(Boolean(primary && primary.skillId === c.primarySkillId), `${tag} playtest：主檢查那一列掛著這一關的技能`);
+      ok(c.rubric.length === 2, `${tag} playtest：收斂成「一條主檢查 ＋ 一條地基」（C1）`, String(c.rubric.length));
+      ok(c.pass === 2, `${tag} playtest：門檻是 2 分`, String(c.pass));
+    }
+  }
+
   /* --- D：檢查器回歸案例 --- */
   for (const cse of CHECK_CASES) {
     const out = runCheck(cse.check, cse.text, cse.options || {});

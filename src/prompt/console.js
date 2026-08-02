@@ -42,6 +42,7 @@ import { createInductBoard, isInductFlow } from './induct.js';
 import { isSlotList } from './slots.js';
 import { createTradeoffBoard, isTradeoffFlow } from './tradeoff.js';
 import { createConstraintBoard, isConstraintFlow } from './constraint.js';
+import { createMultiBoard, isMultiFlow } from './multi.js';
 
 const GRADE_LABEL = { S: '完美', A: '優秀', B: '良好', C: '通過' };
 
@@ -146,6 +147,7 @@ export const FLOW_KINDS = Object.freeze([
   'induct',
   'tradeoff',
   'constraint',
+  'multi',
 ]);
 
 /**
@@ -165,6 +167,8 @@ export function flowKind(flow) {
   if (k === 'induct' && isInductFlow(flow.inductFlow) && isSlotList(flow.slots)) return 'induct';
   if (k === 'tradeoff' && isTradeoffFlow(flow.tradeoffFlow) && isSlotList(flow.slots)) return 'tradeoff';
   if (k === 'constraint' && isConstraintFlow(flow.constraintFlow) && isSlotList(flow.slots)) return 'constraint';
+  // 兩輪刻印：輪次是同一份 slots 的切法，所以 slots 一定要在（見 multi.js 的契約）
+  if (k === 'multi' && isMultiFlow(flow.multiFlow, flow.slots)) return 'multi';
   return 'choice';
 }
 
@@ -178,6 +182,7 @@ export const KIND_LABEL = Object.freeze({
   induct: '推規碑',
   tradeoff: '雙面碑',
   constraint: '合尺',
+  multi: '兩輪刻印',
 });
 
 /** 對應的 Latin meta label（版面上那一行小字）。 */
@@ -190,6 +195,7 @@ export const KIND_EN = Object.freeze({
   induct: 'Induce',
   tradeoff: 'Weigh',
   constraint: 'Fit',
+  multi: 'Rounds',
 });
 
 /** 正規化模式字串（未知值一律回到預設的石碑刻印）。 */
@@ -581,7 +587,30 @@ export function createPromptConsole({
   });
   steleSlot.appendChild(constraintBoard.root);
 
-  /** 這一關的引導式題型（choice / order / workshop / fix / spot / induct / tradeoff）。 */
+  /* ---------------------------------------------------------------- *
+   * 兩輪刻印（課程 v2 · Phase G）
+   *
+   * 同一塊碑、同一組 slots、同一隻手掌印 —— 只是把段落切成兩輪，
+   * 中間插一段**遊戲自撰**的「神諭第一次回話」（畫面上掛 ⓘ 明講）。
+   * 迭代類技巧要的就是那一秒：看到第一輪長什麼樣，再決定第二輪修什麼。
+   * ---------------------------------------------------------------- */
+  const multiBoard = createMultiBoard({
+    onCarve: ({ index, total }) => {
+      runPreflight();
+      onCarve?.({ index, total });
+    },
+    onReject: ({ feedback }) => onReject?.({ feedback }),
+    onRound: () => runPreflight({ silent: true }),
+    onComplete: () => {
+      onSeal?.();
+      goAct(4, { force: true });
+    },
+    onPress: ({ text }) => submit(text),
+    onTap: () => onTap?.(),
+  });
+  steleSlot.appendChild(multiBoard.root);
+
+  /** 這一關的引導式題型（choice / order / workshop / fix / spot / induct / tradeoff / constraint / multi）。 */
   function kind() {
     return flowKind(currentFlow);
   }
@@ -596,6 +625,7 @@ export function createPromptConsole({
     if (k === 'induct') return inductBoard;
     if (k === 'tradeoff') return tradeoffBoard;
     if (k === 'constraint') return constraintBoard;
+    if (k === 'multi') return multiBoard;
     return stele;
   }
 
@@ -640,6 +670,7 @@ export function createPromptConsole({
     inductBoard.root.hidden = !guided || k !== 'induct';
     tradeoffBoard.root.hidden = !guided || k !== 'tradeoff';
     constraintBoard.root.hidden = !guided || k !== 'constraint';
+    multiBoard.root.hidden = !guided || k !== 'multi';
     const zhLabel = guidedLabel.querySelector('.zh');
     if (zhLabel) zhLabel.textContent = KIND_LABEL[k];
     const enLabel = guidedLabel.querySelector('.en');
@@ -1695,6 +1726,9 @@ export function createPromptConsole({
     get constraintBoard() {
       return constraintBoard;
     },
+    get multiBoard() {
+      return multiBoard;
+    },
     get tradeoffBoard() {
       return tradeoffBoard;
     },
@@ -1793,6 +1827,7 @@ export function createPromptConsole({
       inductBoard.load(k === 'induct' ? currentFlow.inductFlow : null, currentFlow.slots);
       tradeoffBoard.load(k === 'tradeoff' ? currentFlow.tradeoffFlow : null, currentFlow.slots);
       constraintBoard.load(k === 'constraint' ? currentFlow.constraintFlow : null);
+      multiBoard.load(k === 'multi' ? currentFlow.multiFlow : null, currentFlow.slots);
       mode = normalizeMode(progression.state.settings.promptMode);
       if (!currentFlow) mode = 'free';
       applyMode();

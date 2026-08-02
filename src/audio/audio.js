@@ -163,6 +163,25 @@ export const REGION_MOODS = Object.freeze({
     bellEvery: 18,
     detune: 2,
   }),
+  /*
+   * 校驗場（課程 v2 · Phase G）：兩面鏡子互相照著的院子。
+   * 音樂上的「照自己」＝同一個音程在上下兩個八度同時出現（0 / 12 / 24），
+   * 中間夾一個小三度讓它不會空到像號角；鐘聲每一聲都會在稍後重複一次（bellEvery 短）。
+   * **這一區沒有配樂音檔**（見 SYNTH_ONLY_REGIONS）。
+   */
+  refinery: Object.freeze({
+    id: 'refinery',
+    name: '照回來的那一句',
+    root: 82.41,
+    scale: Object.freeze([0, 3, 12, 15, 24]),
+    bellScale: Object.freeze([0, 3, 7, 12, 15, 24]),
+    voicing: Object.freeze(['sine', 'sine', 'triangle']),
+    cutoff: 560,
+    lfoRate: 0.034,
+    bellDensity: 0.44,
+    bellEvery: 8,
+    detune: 3,
+  }),
   // 角色與參數：Mixolydian 的暖色，pad 較厚，鐘聲中等
   config: Object.freeze({
     id: 'config',
@@ -362,7 +381,7 @@ export const BGM_TRACKS = Object.freeze({
  * 那比誠實地播一段自己的合成 pad 更糟。站長之後補上 `bgm_forms.m4a` 時，
  * 只要在 `BGM_TRACKS` 加一行、把 id 從這裡移走即可（其餘程式碼一個字都不必動）。
  */
-export const SYNTH_ONLY_REGIONS = Object.freeze(['forms', 'toolcraft', 'wards']);
+export const SYNTH_ONLY_REGIONS = Object.freeze(['forms', 'toolcraft', 'wards', 'refinery']);
 
 /**
  * 鄰區：走過一座橋就到得了的地方（中央高原是樞紐，四片土地各自接一條橋）。
@@ -382,6 +401,8 @@ export const REGION_NEIGHBORS = Object.freeze({
   toolcraft: Object.freeze(['foundations']),
   // 護欄崗沒有橋 —— 它是走出沉書檔案庫北緣就到的加建院落，回程那一首是檔案庫的
   wards: Object.freeze(['grounding']),
+  // 校驗場同樣是加建（齒輪工坊西南外緣的院子），回程那一首是工坊的
+  refinery: Object.freeze(['orchestration']),
 });
 
 /**

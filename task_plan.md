@@ -408,13 +408,52 @@ Exit criteria（逐條實測）：
 
 ### Phase G — `multi`＋校驗場 `refinery` 11＋orchestration 收尾
 
-狀態：`pending`
+狀態：`done`（2026-08-02）
 
 - 第三幕支援兩輪／多輪，但仍共用同一 rubric、手掌印與不失敗文法。
 - 新增預寫中間輸出資料層，全部標 `authored: "game"`，不可偽裝成模型真實輸出。
 - 校驗場加建；draft→review→refine、矛盾修復、eval、自評有真正的第二輪體感。
 
 Exit：刷新頁面／切幕／切 mode 不會丟失或串錯輪次；multi 至少覆蓋成功、錯誤、Esc、reduced-motion、鍵盤 e2e。
+
+Exit criteria（逐條實測）：
+
+- [x] **兩輪刻印（`multi`）＝石碑刻印的變體，不是第二套框架**：`src/prompt/multi.js` 共用
+      `slots.js` 的刻寫台與 `palm.js` 的結尾，送出的是同一段文字、走同一支離線引擎（護欄 3）。
+      **輪次是 `flow.slots` 的一個切法**（每一輪只宣告 `count`，`sum(count) === slots.length`）——
+      這條契約同時買到「退回石碑刻印時字一模一樣」「結構上不可能串錯輪次」「測試不必知道題型」。
+- [x] **中間那一段輸出是遊戲自撰的，而且畫面上說得出來**：資料層強制 `authored: "game"`，
+      回話卡旁邊永遠掛一顆 ⓘ 明講「這一段回話是遊戲自己寫好的示範，不是真的模型跑出來的結果」；
+      回話卡不自帶任何連結（教學與出處仍只在第二幕與圖鑑）。rubric ＋ playtest ＋ e2e 三層各守一次。
+- [x] **輪次狀態的設計已裁決並寫進 WORLD.md §3.3b 第 9 條**：只活在記憶體裡 ——
+      切幕／切模式輪次原封不動；重開這一關一律回到第一輪；**重新整理＝這一關從第一輪重來**
+      （誠實地「重新開始」，不為 multi 破例做落地存檔）。**硬要求「不串輪」由結構保證**。
+- [x] **第二輪真的在加分**（不是裝飾）：playtest 逐關驗「只刻完第一輪還沒滿分」——
+      這條斷言先紅一次（6 座中有 4 座第一輪就滿分），因此把輪次切法改成「第一輪＝先寫一版」。
+- [x] **校驗場 11 座教學神廟**：新蓋 9 座 ＋ 由流程與代理搬過來的 2 座
+      （`draft-review-wheel-32` → `draft-review-refine`、`echo-workshop-35` → `meta-iterate`，
+      manifest 新增 `phaseG` 區塊逐欄記錄）。11 條技能一對一、無重複（C2）。
+- [x] **流程與代理收尾到 12 座**：既有 2 關改造（`subtask-workbench-31` → order、
+      `irreversible-gate-34` → workshop）＋ 新蓋 10 座。既有五區之外的遷移到此告一段落。
+- [x] **C1／C4**：23 座一律「主檢查 3 ＋ 地基 `assignsTask` 0.5、pass 2」；
+      題型序列 orchestration ＝ order・constraint・choice・tradeoff・workshop・spot・order・multi・
+      workshop・workshop・fix・choice；refinery ＝ choice・multi・workshop・multi・order・spot・
+      tradeoff・fix・workshop・order・multi —— 兩區最長連續同型都是 2，各用了 8 種題型。
+- [x] **backlog 的兩座換裝到位**：量器坊 `for-newcomer-59`（`len-readable`）與
+      示範與推理 `well-pause-22`（`think-after-tool`）由佔位 kind 換成 §3 指定的 `multi`。
+- [x] **12 個新檢查器**（§7.4）：`statesSuccessCriteria`／`tunesAutonomyLevel`／`limitsScope`／
+      `asksForPlanFirst`／`definesHandoffState`／`delegatesWithCriteria`／`extractsStandingRules`／
+      `setsActionBudget`／`definesEvalSet`／`asksModelToRewritePrompt`／`decisionTree`／
+      `definesWordedScale`，全部結構性偵測 ＋ 中英雙語 ＋ good／weak／bad fixture ＋ 反作弊
+      ＋ `coach.json` 白話教學（實測照著填就會亮）。其中四個是**非單調**的。
+- [x] **校驗場是第二座加建**（`annexOf: 'orchestration'`，沒有橋、閘門立在頸口）；
+      **知識式軟門檻新開一種條件 `masteredAny`**（任一區精通，定義完全沿用 `regionMastery()`）；
+      `skippedGates` 先行前往照樣走得通且一分 XP 都不加。
+- [x] **世界成本實測**（在 node／瀏覽器裡把世界蓋起來，不採文件舊數字）：見 `progress.md` 的表。
+- [x] fonts（CJK 1822 字）＋rubric（49,756 → **58,760**）＋playtest（1,275 → **1,642**）
+      ＋build ＋ **完整 e2e（2,493 → 2,637 項全過、零 console error、零重跑）** 全綠。
+      第一輪 14 條紅燈的分類與處置逐條記在 `progress.md`（1 條快照、5 條舊播放器沒接 multi、
+      6 條是我自己測試寫錯、2 條連帶）。
 
 ### Phase H — `sim`＋減法之庭 `frugality` 7
 
@@ -473,6 +512,7 @@ Exit：跨世界素材有 reload/reset/e2e；或有一份明確的「不實作�
 - **R1（A）**：重複度手術在 dev 穩定；是否上 main 取決於 legacy collection 體驗是否無退化。
 - **R2（D）**：既有五區 v2 化完成，適合第一次公開發布。**已於 2026-08-01 抵達**（見 Phase D exit criteria 與 `progress.md` 的 release-readiness 數字）。
 - **R3（F）**：8 區、工具與護欄線完成。**已於 2026-08-02 抵達**（見 Phase F exit criteria 與 `progress.md` 的 release-readiness 數字）。
+- **（G）**：9 區、既有五區之外的遷移完成、迭代類技巧第一次有體感。不是 release checkpoint，但 R4 的路已經走了一半。
 - **R4（J）**：12 區／142 關／130 技能正式完成。
 - **R5（K optional）**：探索與關卡真正接起來。
 

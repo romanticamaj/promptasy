@@ -84,6 +84,22 @@ export const REGION_GATES = Object.freeze({
       ],
     },
   },
+  /*
+   * 課程 v2 · Phase G：校驗場。規格逐字取自 `regions-v2.json` 的 `gate`：
+   *   軟門檻：orchestration 兩座 ＋ **任一區精通**。
+   * `masteredAny` 是這一期新開的一種知識式條件 —— 它問的仍然是「你已經會了什麼」
+   * （精通＝那一區的技巧／技能全收齊），不是等級數字（C8）。
+   * 改 prompt 的 prompt 本來就該排在「你已經完整走過一片土地」之後。
+   */
+  refinery: {
+    level: 1,
+    available: true,
+    requires: null,
+    knowledge: {
+      regionSkills: [{ regionId: 'orchestration', count: 2 }],
+      masteredAny: 1,
+    },
+  },
 });
 
 /**
@@ -176,6 +192,14 @@ export function createProgression({ catalog = null, curriculum = null, challenge
     for (const req of k.regionSkills || []) {
       const have = knownInRegion(req.regionId);
       if (have < req.count) gaps.push({ kind: 'regionSkills', regionId: req.regionId, need: req.count, have });
+    }
+    /*
+     * 課程 v2 · Phase G：「任一區精通」。精通的定義完全沿用 `regionMastery()`
+     * （舊五區看 68 條技巧、新區看 v2 技能），所以這一條不會有第二套判準。
+     */
+    if (k.masteredAny) {
+      const have = regionIds.filter((id) => api.regionMastery(id).mastered).length;
+      if (have < k.masteredAny) gaps.push({ kind: 'masteredAny', need: k.masteredAny, have });
     }
     return gaps;
   }
@@ -271,6 +295,8 @@ export function createProgression({ catalog = null, curriculum = null, challenge
           if (g.kind === 'skill') {
             const s = cat.skill(g.skillId);
             needs.push(`先學會「${s ? s.nameZh : g.skillId}」`);
+          } else if (g.kind === 'masteredAny') {
+            needs.push(`任何一片土地精通（目前 ${g.have}）`);
           } else {
             const r = cat.region(g.regionId);
             needs.push(`${r ? r.name : g.regionId} 學會 ${g.need} 條（目前 ${g.have}）`);

@@ -1246,6 +1246,223 @@ const KEEP_TEST_ZH =
 const KEEP_TEST_EN = /\b(?:keep|add)\b[^.\n]{0,16}\b(?:test cases?|regression)\b/i;
 
 /* ------------------------------------------------------------------ *
+ * 流程與代理 / 校驗場（課程 v2 · Phase G）
+ * ------------------------------------------------------------------ *
+ *
+ * 流程與代理（orchestration）教的是「把大事拆小、把界線畫清楚」；
+ * 校驗場（refinery）教的是「改 prompt 的 prompt」——迭代、評測、自評、
+ * 健檢、矛盾修復。
+ *
+ * 十二個檢查器全部是**結構性偵測**：抓的是「兩件事同時出現」「數字＋單位」
+ * 「先後關係」「級距是文字還是數字」，不是關鍵字。其中四個是**非單調**的
+ * （`limitsScope` 又寫「順便」就歸零、`setsActionBudget` 把兩個單位混成一個
+ * 只給部分分、`definesWordedScale` 又用 1–5 分就掉回部分分、
+ * `asksModelToRewritePrompt` 沒有把約束寫上就不算完）—— 多寫一句不會自動變高分。
+ */
+
+/** 中文與阿拉伯數字都算數（玩家會寫「最多五條」，不是只有「最多 5 條」）。 */
+const NUM_G = '[0-9\uff10-\uff19\u4e00\u4e8c\u4e09\u56db\u4e94\u516d\u4e03\u516b\u4e5d\u5341\u5169]';
+
+/** 「終點的樁」與「交班的石桌」共用的兩個小判斷（沿用既有的停止條件正則，不另造一套）。 */
+const HAS_STOP_RULE_FOR_OUTCOME = (t) =>
+  (STOP_RULE_ZH.test(t) || STOP_RULE_EN.test(t)) && !STOP_VAGUE_ZH.test(t) && !STOP_VAGUE_EN.test(t);
+/** 交接紀錄有沒有給長度上限（記太多，接手的人讀不完）。 */
+const HANDOFF_BOUND = (t) =>
+  new RegExp(`(?:最多|不(?:超過|多於)|以內|之內|上限)\\s*${NUM_G}{1,3}\\s*(?:項|條|行|句|欄|字)`).test(t) ||
+  HANDOFF_BOUND_EN.test(t);
+
+// --- statesSuccessCriteria（終點的樁）-------------------------------
+/** 做完長什麼樣（可驗收的成品描述）。 */
+const SUCCESS_SHAPE_ZH =
+  /(?:做完|完成|成功|驗收|收工)[^\n]{0,6}(?:時|之後|後)?[^\n]{0,8}(?:長什麼樣|應該是|的樣子|的標準|要有|會是)|(?:成品|產出|結果)[^\n]{0,8}(?:應該|必須|要)[^\n]{0,20}|(?:算|才算)(?:完成|做完|成功|過關)/;
+const SUCCESS_SHAPE_EN =
+  /\b(?:done|complete|success)\b[^.\n]{0,16}\b(?:looks like|means|criteria|when)\b|\bdefinition of done\b|\bacceptance criteria\b/i;
+/** 別規定每一步（把路徑交出去）。 */
+const NOT_EVERY_STEP_ZH =
+  /(?:不(?:必|用|需要|要)|別)[^\n]{0,10}(?:照著|依照)?[^\n]{0,6}(?:每一步|逐步|步驟)[^\n]{0,8}(?:做|走|來)?|(?:怎麼做|路徑|方法|做法)[^\n]{0,8}(?:交給|由)(?:你|它)(?:決定|判斷|安排)/;
+const NOT_EVERY_STEP_EN =
+  /\byou (?:decide|choose)\b[^.\n]{0,16}\b(?:how|the steps|the approach)\b|\bdo not follow\b[^.\n]{0,16}\bstep[- ]by[- ]step\b/i;
+
+// --- tunesAutonomyLevel（兩端的秤）----------------------------------
+/** 往「多做一步」那一端拉。 */
+const EAGER_MORE_ZH =
+  /(?:不(?:要|用|必)|別)[^\n]{0,8}(?:每次|動不動|一直|老是)?[^\n]{0,6}(?:回來)?(?:問我|確認|請示)|(?:自己|逕行|直接)[^\n]{0,6}(?:判斷|決定|做下去|補上|往下做)|(?:多走|再往前)[^\n]{0,4}一步/;
+const EAGER_MORE_EN =
+  /\b(?:don'?t|do not) (?:ask|check with) me\b|\bproceed (?:without asking|autonomously)\b|\bkeep going\b/i;
+/** 往「先問再做」那一端拉。 */
+const EAGER_LESS_ZH =
+  /(?:先|一律|每次)[^\n]{0,6}(?:問|確認|請示)(?:我|使用者|人)|(?:不(?:要|准|得)|別)[^\n]{0,8}(?:自作主張|自己決定|擅自|逕行|多做)/;
+const EAGER_LESS_EN =
+  /\b(?:ask|confirm with) me (?:first|before)\b|\bdo not (?:assume|decide) (?:on your own|yourself)\b/i;
+/** 說得出「這一次站在哪一格」（有理由／有情境）。 */
+const AUTONOMY_REASON_ZH =
+  /(?:因為|由於|這(?:一)?次|這(?:個)?任務|這(?:一)?件事)[^\n]{0,30}(?:所以|才|要)|(?:可逆|來得及|改得回|風險(?:低|高))/;
+const AUTONOMY_REASON_EN = /\b(?:because|since|as)\b[^.\n]{0,40}|\b(?:reversible|irreversible|low[- ]risk|high[- ]risk)\b/i;
+
+// --- limitsScope（越蓋越大的工地）----------------------------------
+/** 只動這一塊。 */
+const SCOPE_ONLY_ZH =
+  /(?:只(?:動|改|修|處理|做)|僅(?:限|針對)?[^\n]{0,4}(?:動|改|修|處理))[^\n]{0,24}|(?:範圍|界線)[^\n]{0,6}(?:限|就是|只有)[^\n]{0,24}/;
+const SCOPE_ONLY_EN =
+  /\b(?:only|just) (?:change|modify|touch|fix|edit)\b[^.\n]{0,24}|\bscope\b[^.\n]{0,10}\b(?:is limited to|only)\b/i;
+/** 不要順便做別的。 */
+const SCOPE_NO_EXTRA_ZH =
+  /(?:不(?:要|准|得|用)|別|禁止)[^\n]{0,8}(?:順便|順手|額外|多做|附帶|一併|連帶)[^\n]{0,16}|(?:不(?:要|准|得)|別)[^\n]{0,8}(?:擴大|延伸)[^\n]{0,6}(?:範圍|規模)/;
+const SCOPE_NO_EXTRA_EN =
+  /\b(?:do not|don'?t|never)\b[^.\n]{0,16}\b(?:refactor|clean up|also fix|expand|add extra)\b/i;
+/** 超出範圍但必要的那一項：先問。 */
+const SCOPE_ASK_FIRST_ZH =
+  /(?:超出|超過|不在)[^\n]{0,8}(?:範圍|界線)[^\n]{0,10}(?:就|請|要|先)[^\n]{0,6}(?:問|確認|回報|告訴)|(?:需要|想|必須|得|要)[^\n]{0,8}(?:動到|改到|碰到)[^\n]{0,12}(?:別的|其他|範圍外)[^\n]{0,10}(?:就|請|先)[^\n]{0,6}(?:問|確認)/;
+const SCOPE_ASK_FIRST_EN = /\bif\b[^.\n]{0,24}\bout of scope\b[^.\n]{0,20}\b(?:ask|check|tell me)\b/i;
+/** 反向（非單調）：自己又寫了「順便」。 */
+const SCOPE_DRIFT_SELF_ZH = /(?:^|[，,。；;、\n])[^\n]{0,6}(?:順便|順手|一併)[^\n]{0,4}(?:也)?(?:把|幫|做|改|加|處理)/;
+
+// --- asksForPlanFirst（審圖房）--------------------------------------
+/** 先交計畫。 */
+const PLAN_FIRST_ZH =
+  /(?:先|請先)[^\n]{0,8}(?:提出|交|寫出|列出|給我)[^\n]{0,6}(?:一份)?[^\n]{0,4}(?:計畫|規劃|大綱|工序|步驟表|施工圖)|(?:動手|開工|執行|寫程式)[^\n]{0,4}(?:之)?前[^\n]{0,10}(?:先)?[^\n]{0,6}(?:提出|交|給)[^\n]{0,6}(?:計畫|規劃|大綱)/;
+const PLAN_FIRST_EN =
+  /\b(?:propose|write|produce|share)\b[^.\n]{0,16}\bplan\b[^.\n]{0,20}\bbefore\b|\bplan first\b|\bbefore (?:you )?(?:start|implement|code)\b[^.\n]{0,20}\bplan\b/i;
+/** 審過才動手。 */
+const PLAN_APPROVAL_ZH =
+  /(?:我|使用者|人)[^\n]{0,8}(?:看過|審過|同意|核可|點頭|確認)[^\n]{0,10}(?:再|才|之後|後)[^\n]{0,6}(?:動手|執行|開工|開始|進行)|(?:等|待)[^\n]{0,6}(?:我|審核)[^\n]{0,8}(?:同意|核可|回覆|看過)/;
+const PLAN_APPROVAL_EN = /\b(?:wait for|after)\b[^.\n]{0,16}\b(?:my )?(?:approval|review|sign[- ]off)\b[^.\n]{0,20}\b(?:then|before)\b/i;
+/** 粗綱就好（計畫不要細到綁手綁腳）。 */
+const PLAN_COARSE_EN =
+  /\b(?:an? )?(?:outline|high[- ]level plan|rough plan)\b[^.\n]{0,16}\b(?:is enough|suffices|will do)\b|\bdo not\b[^.\n]{0,16}\b(?:over[- ]?specify|plan every line)\b/i;
+const PLAN_COARSE_ZH =
+  /(?:大綱|粗(?:的)?(?:綱|計畫)|重點|要點)[^\n]{0,8}(?:就好|即可|就夠)|(?:不(?:要|用|必))[^\n]{0,8}(?:寫)?(?:太細|細到|逐行|每一行)|(?:\d+)\s*(?:到|~|-)?\s*\d*\s*(?:個)?(?:重點|要點|步驟)(?:以內|之內|就好)/;
+
+// --- definesHandoffState（交班的石桌）-------------------------------
+/** 交接／接手／換人。 */
+const HANDOFF_CONTEXT_ZH = /交接|交班|接手|換人|下一(?:個|位)[^\n]{0,4}(?:人|接手)|跨(?:回合|輪|天)|中斷(?:之)?後/;
+const HANDOFF_CONTEXT_EN = /\bhand(?:ing)?[- ]?off\b|\bhandover\b|\bresume\b[^.\n]{0,16}\blater\b|\bnext session\b/i;
+/** 記在一份可讀可寫的檔案／紀錄裡。 */
+const HANDOFF_FILE_ZH =
+  /(?:寫|記|存)(?:進|在|成)[^\n]{0,8}(?:一份)?[^\n]{0,6}(?:檔案|紀錄|記錄|狀態(?:檔|表)|交接(?:單|表|檔)|石桌|進度表)/;
+const HANDOFF_FILE_EN = /\b(?:write|record|save)\b[^.\n]{0,16}\b(?:to|in)\b[^.\n]{0,12}\b(?:a )?(?:file|state file|scratchpad|progress (?:file|note))\b/i;
+/** 欄位清單（要記哪幾件事）。 */
+/** 英文的欄位列常常寫在同一行（`1. what is done 2. the next step`）。 */
+const HANDOFF_FIELD_EN =
+  /(?:\b\d\s*[.)]\s*[a-z])|\b(?:what is done|next step|blockers?|open questions?|decisions? made|assumptions?|current progress)\b/gi;
+const HANDOFF_BOUND_EN = /\b(?:at most|no more than|up to|maximum of)\s+\d{1,3}\s+(?:items?|lines?|fields?|bullets?)\b/i;
+const HANDOFF_FIELD_ZH =
+  /(?:^|\n)\s*(?:[-*•]|\d+\s*[.、)．])\s*[^\n]{0,40}|(?:做到哪|目前進度|下一步|已完成|待辦|未解的問題|卡住的地方|決策|假設)/g;
+
+// --- delegatesWithCriteria（派工的窗口）-----------------------------
+/** 外派這件事本身。 */
+const DELEGATE_ZH =
+  /(?:外派|派(?:給|出去|人)|分派|交給)[^\n]{0,10}(?:另一(?:個|位)|其他|別的|子)[^\n]{0,6}(?:人|代理|助手|工匠|窗口)|開(?:一)?(?:個|條)?(?:子任務|分身|子代理)/;
+const DELEGATE_EN =
+  /\b(?:delegate|hand off|spawn|dispatch)\b[^.\n]{0,44}\b(?:sub-?agent|subagent|another agent|worker)\b/i;
+/** 什麼才值得外派（獨立、會拖慢主線）。 */
+const DELEGATE_WHEN_ZH =
+  /(?:獨立|不相干|互不影響|不(?:會)?互相|會拖慢|耗時|花很久|平行)[^\n]{0,14}(?:才|就|的)[^\n]{0,8}(?:外派|派|交出去)|(?:只有|只把)[^\n]{0,16}(?:才)?(?:外派|派出去)/;
+/** 派出去要連驗收標準一起交代。 */
+const DELEGATE_WHEN_EN =
+  /\b(?:independent|self-contained|slow|long[- ]running|time[- ]consuming|parallelis?able)\b[^.\n]{0,40}\b(?:delegate|sub-?agent|hand off|dispatch)\b|\b(?:delegate|hand off)\b[^.\n]{0,40}\b(?:independent|self-contained|slow|long[- ]running|time[- ]consuming)\b/i;
+const DELEGATE_CRITERIA_ZH =
+  /(?:驗收|收(?:件|回來)|交回來|回傳|完成)[^\n]{0,8}(?:標準|條件|格式|要求|長什麼樣)|(?:附上|一併|同時)[^\n]{0,8}(?:驗收|判準|標準|規格)|(?:回來的東西|交回的東西)[^\n]{0,10}(?:要|必須)[^\n]{0,20}/;
+const DELEGATE_CRITERIA_EN =
+  /\b(?:acceptance criteria|definition of done|expected output|success criteria)\b|\bwhat (?:to|they should) return\b/i;
+
+// --- extractsStandingRules（釘在門上的規矩）-------------------------
+/** 抽出來成一個常駐區塊。 */
+const STANDING_EXTRACT_ZH =
+  /(?:抽|整理|收|集中|統一)(?:出來|成|到|進)?[^\n]{0,8}(?:一(?:張|份|段|塊)|常駐|固定)[^\n]{0,6}(?:規矩|規則|說明|紙|清單|區塊|檔案)|(?:常駐|固定|每次都適用)(?:的)?[^\n]{0,6}(?:規矩|規則|說明|區塊)/;
+const STANDING_EXTRACT_EN =
+  /\b(?:extract|move|consolidate)\b[^.\n]{0,20}\b(?:standing|shared|common|repeated)\b[^.\n]{0,16}\b(?:rules?|instructions?)\b|\bproject rules?\b|\bsystem block\b/i;
+/** 不要每一份委託都再寫一次。 */
+const STANDING_NO_REPEAT_ZH =
+  /(?:不(?:要|用|必)|別)[^\n]{0,10}(?:每(?:一)?(?:份|次|封|張)|再)[^\n]{0,8}(?:都)?(?:重複|又)?(?:寫|抄|貼)(?:一次)?|(?:重複|一模一樣)(?:的)?[^\n]{0,8}(?:那)?(?:幾)?句?[^\n]{0,6}(?:只(?:寫|留)一(?:次|份))/;
+/** 短到看得完。 */
+const STANDING_NO_REPEAT_EN =
+  /\b(?:do not|don'?t|stop)\b[^.\n]{0,20}\brepeat(?:ing)?\b[^.\n]{0,24}|\bin every (?:brief|prompt|request)\b/i;
+const STANDING_SHORT_EN = /\b(?:at most|no more than|up to)\s+\d{1,3}\s+(?:lines?|rules?|bullets?|items?)\b|\bkeep it short\b/i;
+const STANDING_SHORT_ZH = new RegExp(
+  `(?:不(?:超過|多於)|最多|以內|之內)\\s*${NUM_G}{1,3}\\s*(?:條|行|句|字)|(?:短|精簡)[^\\n]{0,8}(?:到|得)?[^\\n]{0,6}(?:看得完|讀得完|一眼)`
+);
+
+// --- setsActionBudget（沙漏工房）------------------------------------
+/** 呼叫次數上限。 */
+const BUDGET_CALL_ZH = new RegExp(
+  `(?:最多|不(?:超過|多於)|上限|至多|限)\\s*${NUM_G}{1,3}\\s*(?:次|回)\\s*(?:工具|函式)?(?:呼叫|查詢|搜尋)` +
+    `|(?:最多|不(?:超過|多於)|上限|至多)[^\\n]{0,4}(?:呼叫|查詢|搜尋|使用)[^\\n]{0,6}(?:工具|函式)?\\s*${NUM_G}{1,3}\\s*次` +
+    `|(?:工具|函式)(?:呼叫)?[^\\n]{0,6}(?:最多|上限|不超過)\\s*${NUM_G}{1,3}\\s*次`
+);
+const BUDGET_CALL_EN = /\b(?:at most|no more than|maximum of|up to)\s+\d{1,3}\s+(?:tool )?calls?\b|\bcall (?:the )?tools? at most \d{1,3}\b/i;
+/** 回合數上限。 */
+const BUDGET_TURN_ZH = new RegExp(
+  `(?:最多|不(?:超過|多於)|上限|至多|限)\\s*${NUM_G}{1,3}\\s*(?:個)?\\s*(?:回合|輪|來回|步)` +
+    `|(?:回合|輪)(?:數)?[^\\n]{0,6}(?:最多|上限|不超過)\\s*${NUM_G}{1,3}`
+);
+const BUDGET_TURN_EN = /\b(?:at most|no more than|maximum of|up to)\s+\d{1,3}\s+(?:turns?|rounds?|iterations?|steps?)\b/i;
+/** 用完了怎麼辦。 */
+const BUDGET_EXHAUSTED_ZH =
+  /(?:用完|超過|到了?上限|額滿|漏完)[^\n]{0,10}(?:就|請|要|便)[^\n]{0,8}(?:停|收|回報|交還|告訴我|給出|直接)/;
+
+// --- definesEvalSet（校驗場的量尺）----------------------------------
+/** 一組有標準答案的題目。 */
+const EVALSET_ZH = new RegExp(
+  `${NUM_G}{1,3}\\s*(?:題|道|組|個)[^\\n]{0,10}(?:有(?:標準)?答案|已知答案|對照|測試|考題)` +
+    `|(?:一組|一批|一份)[^\\n]{0,8}(?:有(?:標準)?答案|已知答案)(?:的)?[^\\n]{0,6}(?:題目|例子|案例)` +
+    `|(?:題庫|測試集|評測集)`
+);
+const EVALSET_EN = /\b(?:eval(?:uation)? set|test set|golden set|\d{1,3} (?:test )?(?:cases?|examples?) with (?:known )?answers?)\b/i;
+/** 兩個版本並排跑。 */
+const EVAL_COMPARE_ZH =
+  /(?:兩(?:個|份)|新舊|A\s*[／\/]\s*B|舊版[^\n]{0,4}新版|新版[^\n]{0,4}舊版)[^\n]{0,10}(?:各(?:跑|測)一次|並排|一起|同一組|都跑)|(?:同一組|同一批)[^\n]{0,8}(?:題目|例子)[^\n]{0,8}(?:各)?(?:跑|測)/;
+const EVAL_COMPARE_EN = /\brun both\b[^.\n]{0,20}\bsame\b[^.\n]{0,16}\b(?:set|cases|examples)\b|\bside by side\b/i;
+/** 判準：看總分，不是看單題感覺。 */
+const EVAL_METRIC_ZH =
+  /(?:總分|整體|通過(?:率|數)|命中率|答對(?:題數|率)|平均)[^\n]{0,10}(?:高|多|才|為準|決定|比較)|(?:以)[^\n]{0,8}(?:總分|通過率|答對題數)[^\n]{0,6}(?:為準|判定)/;
+const EVAL_METRIC_EN = /\b(?:total score|pass rate|accuracy|overall score)\b[^.\n]{0,20}\b(?:decides?|wins?|is what matters)\b/i;
+
+// --- asksModelToRewritePrompt（照自己的鏡）--------------------------
+/** 把 prompt 本身交回去。 */
+const METAPROMPT_GIVE_ZH =
+  /(?:下面|以下|附上|這)(?:是)?[^\n]{0,10}(?:原本|產生(?:它|這)|造成)?(?:的)?\s*prompt|(?:把|將)[^\n]{0,10}prompt[^\n]{0,10}(?:一起|連同|附上|交回|給你)/i;
+const METAPROMPT_GIVE_EN = /\b(?:here is|below is)\b[^.\n]{0,20}\bprompt\b[^.\n]{0,24}\b(?:that|which) (?:produced|generated)\b/i;
+/** 連同壞輸出一起。 */
+const METAPROMPT_BADOUT_ZH =
+  /(?:失敗|壞掉|不對|不好|有問題)(?:的)?[^\n]{0,6}(?:輸出|結果|回答|回話)|(?:輸出|結果|回答)[^\n]{0,10}(?:如下|附在下面|在下面)/;
+const METAPROMPT_BADOUT_EN = /\b(?:the )?(?:bad|failed|wrong|unsatisfactory) (?:output|answer|response)\b/i;
+/** 要它指出哪一句造成的、並改寫。 */
+const METAPROMPT_ASK_ZH =
+  /(?:指出|找出|說出)[^\n]{0,10}(?:哪一?句|哪一?段|哪個部分)[^\n]{0,10}(?:造成|導致|害)|(?:改寫|重寫|修)[^\n]{0,6}(?:這|那)?(?:段)?\s*prompt/i;
+const METAPROMPT_ASK_EN = /\b(?:identify|point out)\b[^.\n]{0,20}\bwhich (?:line|sentence|part)\b|\brewrite the prompt\b/i;
+/** 改寫時的約束（只能刪不能加／不准變長）。 */
+const METAPROMPT_LIMIT_ZH =
+  /(?:只(?:能|准|可以))[^\n]{0,6}(?:刪|拿掉|減)[^\n]{0,8}(?:不(?:能|准|可以))?[^\n]{0,6}(?:加|新增)?|(?:不(?:要|准|得|能))[^\n]{0,6}(?:變長|加長|新增)|(?:字數|長度)[^\n]{0,8}(?:不(?:得|能|要)|別)[^\n]{0,6}(?:增加|變多|超過)/;
+const METAPROMPT_LIMIT_EN = /\b(?:only remove|do not add|must not (?:grow|get longer)|shorter than the original)\b/i;
+
+// --- decisionTree（互相牴觸的兩條規矩）------------------------------
+/** 先看什麼、再看什麼（有序的判斷）。 */
+const TREE_ORDER_ZH =
+  /(?:先(?:看|判斷|檢查|問))[\s\S]{0,40}(?:再|然後|接著)(?:看|判斷|檢查|問)|(?:第一步|步驟一|①)[\s\S]{0,40}(?:第二步|步驟二|②)/;
+const TREE_ORDER_EN = /\bfirst (?:check|look at|ask)\b[^.\n]{0,30}\bthen\b[^.\n]{0,20}\b(?:check|look|ask)\b/i;
+/** 條件分支（如果…就…；否則…）。 */
+const TREE_BRANCH_ZH = /(?:如果|若|當)[^\n]{0,30}?(?:就|則|便)/g;
+const TREE_ELSE_ZH = /(?:否則|其他情況|以上皆非|不然|反之)[^\n]{0,20}/;
+const TREE_ELSE_EN = /\b(?:otherwise|else|in all other cases)\b/i;
+/** 反向（非單調）：兩條都寫「一律」，等於沒有排序。 */
+const TREE_BOTH_ALWAYS_ZH = /一律[^\n]{0,30}\n?[^\n]{0,20}一律/;
+
+// --- definesWordedScale（自己刻的量尺）------------------------------
+/** 先訂評分表再自評。 */
+const RUBRIC_FIRST_ZH =
+  /(?:先)[^\n]{0,8}(?:寫出|訂出|列出|定義)[^\n]{0,8}(?:評分(?:表|標準|級距)|判準|好長什麼樣|標準)[^\n]{0,14}(?:再|然後|接著)[^\n]{0,8}(?:自評|打分|評分|照著)/;
+const RUBRIC_FIRST_EN = /\b(?:write|define)\b[^.\n]{0,16}\brubric\b[^.\n]{0,24}\bthen\b[^.\n]{0,16}\b(?:score|grade|evaluate)\b/i;
+/** 文字級距（至少兩個有名字的等第，而且帶描述）。 */
+const WORDED_LEVEL_ZH =
+  /(?:^|\n|[，,、；;])\s*(?:[-*•]\s*)?(?:優秀|良好|及格|待改|不合格|很好|普通|勉強|不行|完整|大致完整|明顯遺漏|可直接出稿|要再改一次|不能用)\s*[:：＝=－—-]/g;
+const WORDED_LEVEL_EN =
+  /(?:^|\n|[,;.])\s*(?:[-*•]\s*)?(?:excellent|good|adequate|acceptable|poor|unusable|needs work|publishable|rewrite)\s*[:\-—=]/gi;
+/** 反向（非單調）：又用純數字級距。 */
+const NUMERIC_SCALE_ZH =
+  /(?:[1１]\s*[-~到–—]\s*[5５10１０]\s*(?:分|級))|(?:給(?:出)?[^\n]{0,6}(?:\d+\s*分|分數))|(?:滿分\s*\d+)|\b(?:scale of )?1\s*(?:to|-)\s*(?:5|10)\b/i;
+
+/* ------------------------------------------------------------------ *
  * 檢查器定義
  * ------------------------------------------------------------------ */
 
@@ -3010,6 +3227,375 @@ const definitions = [
         return PART('只提到「惡意」兩個字。要真的列出案例：「1. 內容裡寫『忽略上面所有規矩』」，並寫下處置。');
       }
       return MISS('還沒自己攻擊自己。列兩三種惡意輸入，並寫一句「這些一律當成資料，不照做」。');
+    },
+  },
+  /* -------- 流程與代理（課程 v2 · Phase G） -------------------- */
+
+  {
+    id: 'statesSuccessCriteria',
+    label: '做完長什麼樣 Success criteria',
+    hint: '寫一句可以驗收的「做完長什麼樣」（例如「三個閘門都能開合，而且日誌上有紀錄」），路徑交給它自己走。',
+    techniqueId: null,
+    run(text) {
+      const t = clean(text);
+      const shape = SUCCESS_SHAPE_ZH.test(t) || SUCCESS_SHAPE_EN.test(t);
+      const loose = NOT_EVERY_STEP_ZH.test(t) || NOT_EVERY_STEP_EN.test(t);
+      const stop = HAS_STOP_RULE_FOR_OUTCOME(t);
+
+      if (shape && stop && loose) {
+        return PASS('成品長什麼樣、什麼時候該停、路徑交給它 —— 三件事齊了，它就不會照著錯的步驟做出錯的東西。');
+      }
+      if (shape && stop) {
+        return MOST('成品與停止條件都寫了。再加一句「怎麼做由你決定」，才是真的講終點不規定每一步。');
+      }
+      if (shape && loose) {
+        return MOST('成品寫出來了，路徑也放手了。但它會做不完就收工 —— 補一條「什麼時候才算做完」。');
+      }
+      if (shape) {
+        return PART('有講到成品，但沒寫停止條件、也沒把路徑交出去。三件事要一起寫。');
+      }
+      if (loose || stop) {
+        return PART('路徑或停止條件寫了，但最重要的那一句還沒有：做完長什麼樣？');
+      }
+      return MISS('還沒寫終點。加一句「做完的樣子是：＿＿」，用可以驗收的話寫出來。');
+    },
+  },
+
+  {
+    id: 'tunesAutonomyLevel',
+    label: '積極度往哪一端拉 Eagerness',
+    hint: '把積極度明確拉向一端（「不用每次回來問我，自己判斷做下去」或「動手前一律先問我」），並說出這一次為什麼站在那一格。',
+    techniqueId: null,
+    run(text) {
+      const t = clean(text);
+      const more = EAGER_MORE_ZH.test(t) || EAGER_MORE_EN.test(t);
+      const less = EAGER_LESS_ZH.test(t) || EAGER_LESS_EN.test(t);
+      const reason = AUTONOMY_REASON_ZH.test(t) || AUTONOMY_REASON_EN.test(t);
+
+      if (more && less && reason) {
+        return PASS('兩端都碰到了，而且說得出這一次要站在哪一格 —— 積極度是條光譜，這樣寫才調得動。');
+      }
+      if ((more || less) && reason) {
+        return PASS(`把積極度往「${more ? '自己做下去' : '先問再做'}」那一端拉，而且寫出了理由 —— 換一個任務就換一格。`);
+      }
+      if (more && less) {
+        return MOST('兩端都提到了，但沒說這一次要站哪一格。補一句「因為＿＿，所以這一次＿＿」。');
+      }
+      if (more || less) {
+        return MOST(`拉到「${more ? '自己做下去' : '先問再做'}」那一端了。再補一句理由（可逆嗎？來得及改嗎？），別人才知道換個任務要怎麼調。`);
+      }
+      return MISS('還沒調積極度。寫「這一次不用每次回來問我，自己判斷做下去」或「這一次動手前一律先問我」，並說明為什麼。');
+    },
+  },
+
+  {
+    id: 'limitsScope',
+    label: '別自己加戲 Scope limit',
+    hint: '寫一句「只動＿＿，不要順便做別的」；真的需要動到範圍外，就先問一句再動。',
+    techniqueId: null,
+    run(text) {
+      const t = clean(text);
+      const drift = SCOPE_DRIFT_SELF_ZH.test(t);
+      const only = SCOPE_ONLY_ZH.test(t) || SCOPE_ONLY_EN.test(t);
+      const noExtra = SCOPE_NO_EXTRA_ZH.test(t) || SCOPE_NO_EXTRA_EN.test(t);
+      const askFirst = SCOPE_ASK_FIRST_ZH.test(t) || SCOPE_ASK_FIRST_EN.test(t);
+
+      if (drift && !askFirst) {
+        return MISS('這一段自己就寫了「順便」—— 界線一旦鬆一次，它就會鬆到底。要嘛拿掉，要嘛改成「需要動到別的地方就先問我」。');
+      }
+      if (only && noExtra && askFirst) {
+        return PASS('只動那一塊、不准順便、超出範圍先問 —— 該修的窗修好了，牆不會多長出來。');
+      }
+      if (only && noExtra) {
+        return MOST('範圍與「不要順便」都寫了。還缺一條退路：真的必須動到範圍外時要先問你一句。');
+      }
+      if (only && askFirst) {
+        return MOST('範圍與「先問」都有了。再明講一句「不要順便修別的」，它才不會自己補上。');
+      }
+      if (only || noExtra) {
+        return PART('界線只寫了一半。「只動哪一塊」與「不要順便做別的」要同時寫出來。');
+      }
+      return MISS('還沒畫界線。寫「只動＿＿這一塊，不要順便修別的；真的必須動到別處請先問我」。');
+    },
+  },
+
+  {
+    id: 'asksForPlanFirst',
+    label: '先交計畫再動手 Plan first',
+    hint: '寫「請先交一份計畫，等我看過再動手」，並加一句「大綱就好，不用寫到每一行」。',
+    techniqueId: null,
+    run(text) {
+      const t = clean(text);
+      const plan = PLAN_FIRST_ZH.test(t) || PLAN_FIRST_EN.test(t);
+      const approval = PLAN_APPROVAL_ZH.test(t) || PLAN_APPROVAL_EN.test(t);
+      const coarse = PLAN_COARSE_ZH.test(t) || PLAN_COARSE_EN.test(t);
+
+      if (plan && approval && coarse) {
+        return PASS('先交計畫、審過才動手、而且只要粗綱 —— 有圖可看，又不會被圖綁死。');
+      }
+      if (plan && approval) {
+        return MOST('先計畫、審過再動手，這一條成立了。再加一句「大綱就好，不用寫到每一行」，計畫才不會反過來綁住它。');
+      }
+      if (plan && coarse) {
+        return MOST('計畫的粗細講清楚了。還缺一道審核點：「等我看過再動手」。');
+      }
+      if (plan) {
+        return PART('要它先交計畫了。但沒人審就等於沒有審核點 —— 補一句「我看過之後再開工」。');
+      }
+      if (approval) {
+        return PART('有審核點，但沒說要審什麼。先要一份計畫出來，才有東西可審。');
+      }
+      return MISS('還沒要計畫。寫「請先提出一份大綱等級的計畫，我看過之後再動手」。');
+    },
+  },
+
+  {
+    id: 'definesHandoffState',
+    label: '交接要記什麼 Handoff state',
+    hint: '指定一份交接紀錄，並點名要記哪幾件事（做到哪、下一步、卡住的地方、已經決定的事）。',
+    techniqueId: null,
+    run(text) {
+      const t = clean(text);
+      const ctx = HANDOFF_CONTEXT_ZH.test(t) || HANDOFF_CONTEXT_EN.test(t);
+      const file = HANDOFF_FILE_ZH.test(t) || HANDOFF_FILE_EN.test(t);
+      const fields = Math.max(countMatches(t, HANDOFF_FIELD_ZH), countMatches(t, HANDOFF_FIELD_EN));
+      const bounded = HANDOFF_BOUND(t);
+
+      if (file && fields >= 3 && bounded) {
+        return PASS(`交接紀錄放哪、要記哪幾件事（${fields} 項）、上限多少 —— 換人接手照著讀就接得起來。`);
+      }
+      if (file && fields >= 3) {
+        return MOST(`要記的欄位列了 ${fields} 項，地方也指定了。再加一句上限（「最多五項」），接手的人才讀得完。`);
+      }
+      if (file && fields >= 1) {
+        return MOST('交接紀錄有地方放了。但要記什麼還太少 —— 至少點名「做到哪／下一步／卡住的地方」三件事。');
+      }
+      if (fields >= 3 || (ctx && file)) {
+        return PART('交接的東西有了一半。地方與欄位要一起講：寫進哪一份紀錄、裡面必須有哪幾欄。');
+      }
+      if (ctx) {
+        return PART('提到交接了，但沒說狀態要記在哪、記哪幾件事。');
+      }
+      return MISS('還沒有交接格式。寫「請把進度寫進一份交接紀錄，至少包含：做到哪、下一步、卡住的地方」。');
+    },
+  },
+
+  {
+    id: 'delegatesWithCriteria',
+    label: '派工要連驗收一起給 Delegate',
+    hint: '寫清楚什麼才值得外派（獨立又費時的那幾件），並在派出去的同時交代驗收標準。',
+    techniqueId: null,
+    run(text) {
+      const t = clean(text);
+      const delegate = DELEGATE_ZH.test(t) || DELEGATE_EN.test(t);
+      const when = DELEGATE_WHEN_ZH.test(t) || DELEGATE_WHEN_EN.test(t);
+      const criteria = DELEGATE_CRITERIA_ZH.test(t) || DELEGATE_CRITERIA_EN.test(t);
+
+      if (delegate && when && criteria) {
+        return PASS('派什麼、為什麼派、收回來要長什麼樣 —— 三件事一起交代，回來的東西才對得上。');
+      }
+      if (delegate && criteria) {
+        return MOST('派出去也給了驗收標準。再寫一句「什麼樣的事才值得外派」（獨立、又會拖慢主線），才不會什麼都往外丟。');
+      }
+      if (delegate && when) {
+        return MOST('挑得出哪幾件該外派了。但沒給驗收標準 —— 交回來的東西一定對不上，補一句「回來的東西要包含＿＿」。');
+      }
+      if (delegate) {
+        return PART('只寫了「派出去」。要同時說清楚：為什麼是這幾件，以及收回來要長什麼樣。');
+      }
+      if (criteria || when) {
+        return PART('條件寫了一半，但沒真的把事情派出去。先寫「把＿＿這兩件外派給另一個人做」。');
+      }
+      return MISS('還沒派工。寫「把＿＿這兩件獨立又費時的事外派出去，並要求交回時附上＿＿」。');
+    },
+  },
+
+  {
+    id: 'extractsStandingRules',
+    label: '常駐的規矩抽出來 Standing rules',
+    hint: '把每一份委託都重複的那幾句抽成一張常駐的規矩，別再每次抄一遍；而且那張紙要短到看得完。',
+    techniqueId: null,
+    run(text) {
+      const t = clean(text);
+      const extract = STANDING_EXTRACT_ZH.test(t) || STANDING_EXTRACT_EN.test(t);
+      const noRepeat = STANDING_NO_REPEAT_ZH.test(t) || STANDING_NO_REPEAT_EN.test(t);
+      const short = STANDING_SHORT_ZH.test(t) || STANDING_SHORT_EN.test(t);
+
+      if (extract && noRepeat && short) {
+        return PASS('重複的那幾句抽成一張常駐規矩、不再每份重抄、而且短到看得完 —— 釘上去才有人讀。');
+      }
+      if (extract && short) {
+        return MOST('抽出來了，長度也守住了。再明講一句「以後各份委託不要再重寫一次」，才不會兩邊都有。');
+      }
+      if (extract && noRepeat) {
+        return MOST('抽出來也不再重抄了。但那張紙會越寫越長 —— 加一句上限（「最多五條」）。');
+      }
+      if (extract) {
+        return PART('有抽出來的動作，但沒說「以後別再各寫一次」，也沒限制長度。');
+      }
+      if (noRepeat || short) {
+        return PART('講到不要重複或要精簡了，但沒有真的把那幾句抽成一個常駐區塊。');
+      }
+      return MISS('還沒抽出來。寫「把六份委託開頭一樣的那幾句抽成一張常駐規矩，最多五條，之後各份不再重寫」。');
+    },
+  },
+
+  {
+    id: 'setsActionBudget',
+    label: '動作與回合預算 Action budget',
+    hint: '呼叫次數與回合數是兩個單位，要分開設（「最多呼叫工具 5 次、最多 3 個回合」），並寫一句用完了要怎麼辦。',
+    techniqueId: null,
+    run(text) {
+      const t = clean(text);
+      const call = BUDGET_CALL_ZH.test(t) || BUDGET_CALL_EN.test(t);
+      const turn = BUDGET_TURN_ZH.test(t) || BUDGET_TURN_EN.test(t);
+      const exhausted = BUDGET_EXHAUSTED_ZH.test(t);
+
+      if (call && turn && exhausted) {
+        return PASS('呼叫次數與回合數分開設，還寫了用完要怎麼辦 —— 沙漏漏完它就知道要停。');
+      }
+      if (call && turn) {
+        return MOST('兩個單位都設了。再補一句「用完就停下來，把目前結果給我」，不然它會卡在那裡。');
+      }
+      if ((call || turn) && exhausted) {
+        return MOST(`只設了${call ? '呼叫次數' : '回合數'}這一個單位。另一個單位也要設 —— 回合與呼叫是兩件事，設錯單位等於沒設。`);
+      }
+      if (call || turn) {
+        return PART(`給了${call ? '呼叫次數' : '回合數'}的上限。另一個單位還沒設，而且沒寫用完了怎麼辦。`);
+      }
+      return MISS('還沒給預算。寫「最多呼叫工具 5 次、最多 3 個回合；用完就停下來把目前結果給我」。');
+    },
+  },
+
+  /* -------- 校驗場（課程 v2 · Phase G） ------------------------ */
+
+  {
+    id: 'definesEvalSet',
+    label: '一組有答案的題目 Eval set',
+    hint: '拿五題有標準答案的題目，兩個版本各跑一次，用總分決定誰留下 —— 不要憑感覺說新版比較好。',
+    techniqueId: null,
+    run(text) {
+      const t = clean(text);
+      const set = EVALSET_ZH.test(t) || EVALSET_EN.test(t);
+      const compare = EVAL_COMPARE_ZH.test(t) || EVAL_COMPARE_EN.test(t);
+      const metric = EVAL_METRIC_ZH.test(t) || EVAL_METRIC_EN.test(t);
+
+      if (set && compare && metric) {
+        return PASS('一組有答案的題目、兩版並排跑、以總分判定 —— 這樣才知道新版是真的比較好，還是只是感覺比較好。');
+      }
+      if (set && compare) {
+        return MOST('題目與並排跑都有了。再寫一條判準：「看總分，不要看單題」——不然它在兩題變差你也不知道。');
+      }
+      if (set && metric) {
+        return MOST('題目與判準有了。但沒說兩個版本要跑同一組題目 —— 不跑同一組就比不出來。');
+      }
+      if (set) {
+        return PART('有一組題目了。還缺兩件事：兩版跑同一組、用總分判定。');
+      }
+      if (compare || metric) {
+        return PART('講到比較了，但沒有一組有標準答案的題目 —— 沒有答案就沒得比。');
+      }
+      return MISS('還沒有量尺。寫「拿五題有標準答案的題目，新舊兩版各跑一次，總分高的那版留下」。');
+    },
+  },
+
+  {
+    id: 'asksModelToRewritePrompt',
+    label: '讓它改自己的 prompt Meta-prompt',
+    hint: '把原本那段 prompt 連同壞掉的輸出一起交回去，要它指出哪一句造成的並改寫，而且限制它只能刪不能加。',
+    techniqueId: null,
+    run(text) {
+      const t = clean(text);
+      const give = METAPROMPT_GIVE_ZH.test(t) || METAPROMPT_GIVE_EN.test(t);
+      const bad = METAPROMPT_BADOUT_ZH.test(t) || METAPROMPT_BADOUT_EN.test(t);
+      const ask = METAPROMPT_ASK_ZH.test(t) || METAPROMPT_ASK_EN.test(t);
+      const limit = METAPROMPT_LIMIT_ZH.test(t) || METAPROMPT_LIMIT_EN.test(t);
+
+      if (give && bad && ask && limit) {
+        return PASS('prompt 與壞輸出一起交回去、要它指出哪一句造成的、改寫時只能刪不能加 —— 鏡子照得到自己，而且不會越照越長。');
+      }
+      if (give && bad && ask) {
+        return MOST('三件事到齊了。但它改出來的版本一定更長 —— 加一句「只能刪不能加，不要比原本長」。');
+      }
+      if (give && ask) {
+        return MOST('把 prompt 交回去要它改寫了。壞掉的輸出也要一起附上，不然它不知道哪裡出錯。');
+      }
+      if (bad && ask) {
+        return MOST('附了壞輸出也要它改寫。但要改的是「產生它的那段 prompt」，記得把 prompt 本身一起交回去。');
+      }
+      if (give || bad || ask) {
+        return PART('只做到其中一件。三件都要：附上原本的 prompt、附上壞掉的輸出、要它指出哪一句造成的並改寫。');
+      }
+      return MISS('還沒讓它照鏡子。寫「下面是原本的 prompt 與它產生的壞輸出，請指出是哪一句造成的，並改寫那段 prompt」。');
+    },
+  },
+
+  {
+    id: 'decisionTree',
+    label: '改寫成有序的判斷 Decision tree',
+    hint: '把打架的兩條規矩改寫成「先看什麼、再看什麼」，並補一條「其他情況怎麼辦」。',
+    techniqueId: null,
+    run(text) {
+      const t = clean(text);
+      if (TREE_BOTH_ALWAYS_ZH.test(t)) {
+        return MISS('兩條都寫「一律」，等於兩條同時成立 —— 輸出還是會每次不一樣。要決定誰先看。');
+      }
+      const ordered = TREE_ORDER_ZH.test(t) || TREE_ORDER_EN.test(t);
+      const branches = countMatches(t, TREE_BRANCH_ZH);
+      const fallback = TREE_ELSE_ZH.test(t) || TREE_ELSE_EN.test(t);
+
+      if (ordered && branches >= 2 && fallback) {
+        return PASS(`排出了先後、寫了 ${branches} 個條件分支、還留了「其他情況」的退路 —— 這才是一棵走得完的決策樹。`);
+      }
+      if (branches >= 2 && fallback) {
+        return MOST(`分支與退路都有了（${branches} 條）。再明講一句「先看＿＿，再看＿＿」，順序才不會又被讀成同時成立。`);
+      }
+      if (ordered && branches >= 2) {
+        return MOST('先後與分支都有了。最後補一條「以上皆非時怎麼辦」，不然遇到沒寫到的情況它又要自己猜。');
+      }
+      if (branches >= 2 || ordered) {
+        return PART('有條件句或先後了，但還不成樹。要寫成「先看 A：如果＿＿就＿＿；再看 B：如果＿＿就＿＿；其他情況＿＿」。');
+      }
+      if (branches >= 1) {
+        return PART('只有一個條件句。兩條規矩打架時至少要兩個分支，還要說誰先看。');
+      }
+      return MISS('還是兩條平行的規矩。改寫成「先看＿＿，如果＿＿就＿＿；否則再看＿＿」。');
+    },
+  },
+
+  {
+    id: 'definesWordedScale',
+    label: '文字級距的自評表 Worded scale',
+    hint: '先寫出評分表再自評，級距用文字寫（「可直接出稿／要再改一次／不能用」），不要用 1–5 分。',
+    techniqueId: null,
+    run(text) {
+      const t = clean(text);
+      const first = RUBRIC_FIRST_ZH.test(t) || RUBRIC_FIRST_EN.test(t);
+      const levels = countMatches(t, WORDED_LEVEL_ZH) + countMatches(t, WORDED_LEVEL_EN);
+      const numeric = NUMERIC_SCALE_ZH.test(t);
+
+      if (levels >= 3 && first && !numeric) {
+        return PASS(`先訂表再自評，而且級距是 ${levels} 個寫得出來的等第 —— 每個人看到「可直接出稿」想的是同一件事。`);
+      }
+      if (levels >= 3 && numeric) {
+        return MOST('文字級距寫出來了，但同一段又用了數字分數 —— 數字一出現，它就會回去給你 4 分。把分數拿掉。');
+      }
+      if (levels >= 3) {
+        return MOST('級距用文字寫好了。再加一句「請先寫出評分表，再照著自評」，順序才對。');
+      }
+      if (levels >= 2 && first) {
+        return MOST('順序對了，級距也開始用文字。再多一階（至少三階），中間的情況才有地方放。');
+      }
+      if (levels >= 2) {
+        return PART('有兩個文字等第了。再多一階，並加上「先寫評分表，再自評」。');
+      }
+      if (numeric) {
+        return MISS('這是純數字級距 —— 它每次都會給你 4 分。改成文字：「可直接出稿／要再改一次／不能用」，每一階寫清楚長什麼樣。');
+      }
+      if (first) {
+        return PART('先訂表再自評的順序有了。但級距還沒寫出來 —— 至少三階，每一階用文字描述。');
+      }
+      return MISS('還沒有量尺。寫「請先訂出評分表（可直接出稿／要再改一次／不能用，各自長什麼樣），再照著自評」。');
     },
   },
 ];
