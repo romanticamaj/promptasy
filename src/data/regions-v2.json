@@ -277,8 +277,8 @@
       "place": "中央高原北緣 · 高原上的院落",
       "theme": "學會拿掉：精簡、快取順序、脈絡壓縮。這一區的每一關都是「刪對地方」。",
       "landmark": "空的基座（一座什麼都沒放的基座，銘文寫著被拿走的東西）",
-      "engineCost": "高原加建",
-      "implemented": false,
+      "engineCost": "既有地形加建（Phase H 已上線）",
+      "implemented": true,
       "skillIds": [
         "lean-prompt",
         "lean-output",
@@ -292,7 +292,8 @@
         "hard": false,
         "masteredAnyCount": 1,
         "text": "軟門檻：任一區精通。"
-      }
+      },
+      "color": "#c3ccc7"
     },
     {
       "id": "refinery",

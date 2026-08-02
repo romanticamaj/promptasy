@@ -72,6 +72,29 @@ export const REGION_SITES = Object.freeze([
    * 半徑 40（比哨所大得多，因為它有 11 座神廟要站得下）。
    */
   { id: 'refinery', x: -129, z: 129, radius: 40, flat: 34, annexOf: 'orchestration' },
+  /*
+   * 課程 v2 · Phase H：減法之庭。**第三座加建**（curriculum-v2 §二：🟡 高原加建）——
+   * 「中央高原北緣 · 高原上的院落」。
+   *
+   * 與護欄崗、校驗場同一套機制：`annexOf` 指名母土地（這一次是中央高原本身），
+   * 所以**不生成新的橋**；閘門立在 `regionAt()` 的正規化距離分界上
+   * ——(0, -55.3)，正好就是高原的北緣，走出高原就到了。
+   *
+   * 中心 (0, -82)、半徑 32、**內圈 27**（整張地圖上最大的平坦比例 ——
+   * 這一片本來就該是最平的，東西都被搬走了）：兩片土地的**可站立範圍**
+   * （coverage > 0.45）一定要重疊，中間才不會出現一段虛空 ——
+   * 高原走得到離心 56.3、這座院子從離心 29.6 起算，兩段相加 85.9 > 82，
+   * 所以整條頸口沒有一步是虛空（e2e 逐點量過）。
+   * 半徑刻意停在 32：再大一點，高原北緣的石座就會被這座院子的
+   * 正規化距離搶走 —— 母土地一寸都不能被吃掉（測試逐關驗）。
+   * 與階梯迴廊 (-95,-95) 相距 95.9 > 32 + 46，中間仍留得出虛空。
+   *
+   * 高原北緣原本站著「岔路口」（`wordfork-12`）—— 它就在頸口正中央，
+   * 閘門的兩根柱子會卡進它的互動範圍，所以那一座往南挪了 16 公尺
+   * （只動座標，題目與評分一個位元組沒動；理由記在 findings.md）。
+   * 正北是兩條橋（西北 / 東北）中間的那一段空白 —— 這片院子不會壓到任何一條主動線。
+   */
+  { id: 'frugality', x: 0, z: -82, radius: 32, flat: 27, annexOf: 'foundations' },
 ]);
 
 const SITE_BY_ID = new Map(REGION_SITES.map((s) => [s.id, s]));
@@ -253,6 +276,16 @@ export const REGION_ATMOSPHERE = Object.freeze({
     exposure: 1.06,
     motes: 0.86,
   }),
+  // 減法之庭：拿掉之後剩下的空氣 —— 霧最淡、看得最遠、螢火最少（這裡本來就沒有東西）
+  frugality: Object.freeze({
+    fog: 0x1d2a33,
+    tint: 0xc9d4d2,
+    hemi: 0.6,
+    fogNear: 84,
+    fogFar: 320,
+    exposure: 1.07,
+    motes: 0.4,
+  }),
   // 護欄崗：哨所的夜 —— 最冷、看得最遠（守望的人要看得到有誰來），螢火少
   wards: Object.freeze({
     fog: 0x1b2733,
@@ -374,6 +407,19 @@ function detailFor(site, x, z) {
       const across = (lx + lz) * 0.7071; // 谷的橫向座標（垂直於工坊→院子那條線）
       const valley = Math.exp(-Math.pow(across / 7.5, 2)) * 1.1;
       return 2.9 - valley + smoothstep(26, 8, d) * 0.9 + Math.sin(across * 0.13) * 0.16;
+    }
+    case 'frugality': {
+      /*
+       * 減法之庭（課程 v2 · Phase H）：高原北緣的院落。
+       *
+       * 這是**整張地圖上最平的一片土地** —— 因為東西都被搬走了。
+       * 只留三樣起伏：中央那塊放基座的台（唯一被留下來的東西）、
+       * 靠高原那一側一道被踩平的門檻、以及地上幾道很淺的印子
+       * （原本擺著什麼的痕跡）。基準高度貼著高原北緣，走過來沒有斷崖。
+       */
+      const sill = Math.exp(-Math.pow((lz - 24) / 4.2, 2)) * 0.45;
+      const marks = Math.cos(lx * 0.22) * Math.cos(lz * 0.19) * 0.16;
+      return 0.9 + smoothstep(21, 7, d) * 0.95 + sill + marks;
     }
     case 'wards':
       /*
@@ -964,6 +1010,13 @@ const FLORA = Object.freeze({
     // 量規腳 0.2 寬 → 走得過去
     { geo: () => new THREE.CylinderGeometry(0.06, 0.1, 3.0, 4), tint: 0.52, scale: [0.5, 1.2], lift: 1.5, tilt: 0.09 },
   ],
+  // 減法之庭：被搬走之後留下的東西 —— 空的托座、薄薄的墊石、細細的量繩樁（三種剪影：環 / 片 / 樁）
+  frugality: [
+    { geo: () => new THREE.TorusGeometry(0.62, 0.16, 4, 10), tint: 0.34, scale: [0.5, 1.1], lift: 0.55, tilt: 0.45, solid: true },
+    { geo: () => new THREE.CylinderGeometry(1.05, 1.15, 0.26, 8), tint: 0.42, scale: [0.5, 1.2], lift: 0.14, tilt: 0.08 },
+    // 量繩樁 0.2 寬 → 走得過去
+    { geo: () => new THREE.CylinderGeometry(0.07, 0.1, 2.4, 4), tint: 0.5, scale: [0.5, 1.1], lift: 1.2, tilt: 0.06 },
+  ],
   // 護欄崗：哨所外的東西 —— 矮的拒馬、圓的警石、細的旗桿（三種剪影：叉 / 球 / 桿）
   wards: [
     { geo: () => new THREE.TetrahedronGeometry(0.85, 0), tint: 0.32, scale: [0.5, 1.2], lift: 0.5, tilt: 0.5, solid: true },
@@ -1522,6 +1575,75 @@ function buildRegionProps(site, color, quality, keepClear, pedestals = []) {
     walls.count = wN;
     walls.instanceMatrix.needsUpdate = true;
     group.add(walls);
+  } else if (site.id === 'frugality') {
+    /*
+     * 減法之庭（課程 v2 · Phase H）：高原北緣被清空的院落。
+     *
+     * 這一區的造景規則跟其他八片剛好相反 —— **東西要少**。
+     * 兩種東西，都是 InstancedMesh、都不新增光源（§6.1）：
+     *   · 空托座 —— 一個個矮矮的方座，上面什麼都沒有；座面上一圈自發光的
+     *     淺印子（那是「本來擺著什麼」的意思）
+     *   · 印子   —— 貼在地上的薄片，被搬走的東西留下的形狀（跨得過去，不擋路）
+     * 數量刻意壓到別區的一半：這片院子的內容就是「空」。
+     */
+    const plinthGeo = new THREE.BoxGeometry(1.5, 0.9, 1.5);
+    const PLINTH_N = 10;
+    const plinths = new THREE.InstancedMesh(plinthGeo, stoneMat, PLINTH_N);
+    plinths.castShadow = shadow;
+    const ringGeo = new THREE.TorusGeometry(0.5, 0.05, 4, 14);
+    const rings = new THREE.InstancedMesh(ringGeo, glowMat, PLINTH_N);
+    let plN = 0;
+    for (let i = 0; i < PLINTH_N; i += 1) {
+      /*
+       * `place()` 找不到空位時會退回一個固定點 —— 一整排托座疊在同一個地方，
+       * 既難看又會被穿模稽核抓（Phase G 的照面架就是這樣紅的）。
+       * 這裡自己多試幾次，真的找不到就這一座不擺（少一座比疊一堆好）。
+       */
+      let spot = null;
+      for (let k = 0; k < 12 && !spot; k += 1) {
+        const p2 = place(11, site.radius - 6);
+        if (!clear(p2.x, p2.z, 7)) spot = p2;
+      }
+      if (!spot) continue;
+      const { x, z } = spot;
+      const gy = terrainHeight(x, z);
+      const scale = 0.85 + rand() * 0.5;
+      p.set(x, gy + 0.45 * scale, z);
+      q.setFromEuler(new THREE.Euler(0, rand() * Math.PI, 0));
+      s.set(scale, scale, scale);
+      plinths.setMatrixAt(plN, m.compose(p, q, s));
+      p.set(x, gy + 0.92 * scale, z);
+      q.setFromEuler(new THREE.Euler(Math.PI / 2, 0, 0));
+      rings.setMatrixAt(plN, m.compose(p, q, s));
+      plN += 1;
+    }
+    plinths.count = plN;
+    rings.count = plN;
+    plinths.instanceMatrix.needsUpdate = true;
+    rings.instanceMatrix.needsUpdate = true;
+    // 及腰高的方座：擋得住人（Phase 20 的穿模鐵則 —— 看得到的份量就要有碰撞體）
+    plinths.userData.blocksCamera = true;
+    plinths.userData.solidRadius = 0.9;
+    group.add(plinths);
+    group.add(rings);
+
+    // 印子：貼在地上的薄片（0.12 公尺高）。跨得過去，所以不登記碰撞。
+    const markGeo = new THREE.BoxGeometry(2.2, 0.12, 1.6);
+    const MARK_N = 12;
+    const marks = new THREE.InstancedMesh(markGeo, stoneMat, MARK_N);
+    marks.receiveShadow = shadow;
+    let mkN = 0;
+    for (let i = 0; i < MARK_N; i += 1) {
+      const { x, z } = place(8, site.radius - 7);
+      p.set(x, terrainHeight(x, z) + 0.06, z);
+      q.setFromEuler(new THREE.Euler(0, rand() * Math.PI, 0));
+      s.set(0.7 + rand() * 0.7, 1, 0.7 + rand() * 0.6);
+      marks.setMatrixAt(mkN, m.compose(p, q, s));
+      mkN += 1;
+    }
+    marks.count = mkN;
+    marks.instanceMatrix.needsUpdate = true;
+    group.add(marks);
   }
 
   // 每區一盞主色補光：便宜又有效的「氣氛」

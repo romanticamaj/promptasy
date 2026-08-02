@@ -182,6 +182,26 @@ export const REGION_MOODS = Object.freeze({
     bellEvery: 8,
     detune: 3,
   }),
+  /*
+   * 減法之庭（課程 v2 · Phase H）：拿掉之後剩下的空氣。
+   * 這一區的作法是**減法** —— 音階只有空心音（根音、八度、十二度、雙八度，
+   * 連五度都推到高音去了，一個三度也沒有，所以不帶情緒色彩）、pad 只用兩個聲部、鐘聲最稀（bellDensity 全場最低）。
+   * 根音 65.41（全場最低）：把空間讓出來，聽起來像一間空的院子。
+   * **這一區沒有配樂音檔**（見 SYNTH_ONLY_REGIONS）。
+   */
+  frugality: Object.freeze({
+    id: 'frugality',
+    name: '拿掉之後',
+    root: 65.41,
+    scale: Object.freeze([0, 12, 19, 24]),
+    bellScale: Object.freeze([0, 12, 19, 24, 31]),
+    voicing: Object.freeze(['sine', 'sine']),
+    cutoff: 480,
+    lfoRate: 0.017,
+    bellDensity: 0.2,
+    bellEvery: 22,
+    detune: 1,
+  }),
   // 角色與參數：Mixolydian 的暖色，pad 較厚，鐘聲中等
   config: Object.freeze({
     id: 'config',
@@ -381,7 +401,7 @@ export const BGM_TRACKS = Object.freeze({
  * 那比誠實地播一段自己的合成 pad 更糟。站長之後補上 `bgm_forms.m4a` 時，
  * 只要在 `BGM_TRACKS` 加一行、把 id 從這裡移走即可（其餘程式碼一個字都不必動）。
  */
-export const SYNTH_ONLY_REGIONS = Object.freeze(['forms', 'toolcraft', 'wards', 'refinery']);
+export const SYNTH_ONLY_REGIONS = Object.freeze(['forms', 'toolcraft', 'wards', 'refinery', 'frugality']);
 
 /**
  * 鄰區：走過一座橋就到得了的地方（中央高原是樞紐，四片土地各自接一條橋）。
@@ -403,6 +423,8 @@ export const REGION_NEIGHBORS = Object.freeze({
   wards: Object.freeze(['grounding']),
   // 校驗場同樣是加建（齒輪工坊西南外緣的院子），回程那一首是工坊的
   refinery: Object.freeze(['orchestration']),
+  // 減法之庭是高原北緣的加建（沒有橋），回程那一首就是中央高原的
+  frugality: Object.freeze(['foundations']),
 });
 
 /**

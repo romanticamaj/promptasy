@@ -43,6 +43,9 @@ import { isSlotList } from './slots.js';
 import { createTradeoffBoard, isTradeoffFlow } from './tradeoff.js';
 import { createConstraintBoard, isConstraintFlow } from './constraint.js';
 import { createMultiBoard, isMultiFlow } from './multi.js';
+import { createSimBoard, isSimFlow, registerSimDials } from './sim.js';
+
+export { registerSimDials };
 
 const GRADE_LABEL = { S: '完美', A: '優秀', B: '良好', C: '通過' };
 
@@ -127,6 +130,8 @@ export const PROMPT_MODES = Object.freeze(['guided', 'free']);
  *   induct    推規碑：牆上的對照一組一組浮出來，你要先看出規律再刻（教「規律怎麼來的」）
  *   tradeoff  雙面碑：兩個都可行的做法，換一張卡就換一個贏家（教「什麼時候用哪一面」）
  *   constraint 合尺：委託人給你幾把尺，挑石片拼出同時合尺的委託（教「一次滿足好幾條規格」）
+ *   multi     兩輪刻印：刻完第一輪先看一段自撰的回話，第二輪才動手修它（教「迭代」）
+ *   sim       轉鈕：轉一格旋鈕，神諭的回話跟著換（教「這個旋鈕到底在調什麼」）
  *
  * 八種都住在第三幕，結尾都是同一隻手掌印，送出的都是同一段文字、
  * 走同一支離線評分引擎（護欄 3）。
@@ -148,6 +153,7 @@ export const FLOW_KINDS = Object.freeze([
   'tradeoff',
   'constraint',
   'multi',
+  'sim',
 ]);
 
 /**
@@ -169,6 +175,8 @@ export function flowKind(flow) {
   if (k === 'constraint' && isConstraintFlow(flow.constraintFlow) && isSlotList(flow.slots)) return 'constraint';
   // 兩輪刻印：輪次是同一份 slots 的切法，所以 slots 一定要在（見 multi.js 的契約）
   if (k === 'multi' && isMultiFlow(flow.multiFlow, flow.slots)) return 'multi';
+  // 轉鈕：樣本住在 sim-samples.json，沒有註冊樣本時一律退回石碑刻印（見 sim.js 的契約）
+  if (k === 'sim' && isSimFlow(flow.simFlow, flow.slots)) return 'sim';
   return 'choice';
 }
 
@@ -183,6 +191,7 @@ export const KIND_LABEL = Object.freeze({
   tradeoff: '雙面碑',
   constraint: '合尺',
   multi: '兩輪刻印',
+  sim: '轉鈕',
 });
 
 /** 對應的 Latin meta label（版面上那一行小字）。 */
@@ -196,6 +205,7 @@ export const KIND_EN = Object.freeze({
   tradeoff: 'Weigh',
   constraint: 'Fit',
   multi: 'Rounds',
+  sim: 'Dial',
 });
 
 /** 正規化模式字串（未知值一律回到預設的石碑刻印）。 */
@@ -610,6 +620,31 @@ export function createPromptConsole({
   });
   steleSlot.appendChild(multiBoard.root);
 
+  /* ---------------------------------------------------------------- *
+   * 轉鈕（課程 v2 · Phase H）
+   *
+   * 旋鈕上有三檔，每一檔配一段**遊戲自撰**的離線回話（絕不呼叫任何服務）。
+   * 三檔都轉過了才開放刻印 —— 觀察就是這一關的內容，不是可以跳過的過場。
+   * ---------------------------------------------------------------- */
+  const simBoard = createSimBoard({
+    onTurn: ({ index, total }) => {
+      onCarve?.({ index: index + 1, total });
+    },
+    onObserved: () => runPreflight({ silent: true }),
+    onCarve: ({ index, total }) => {
+      runPreflight();
+      onCarve?.({ index, total });
+    },
+    onReject: ({ feedback }) => onReject?.({ feedback }),
+    onComplete: () => {
+      onSeal?.();
+      goAct(4, { force: true });
+    },
+    onPress: ({ text }) => submit(text),
+    onTap: () => onTap?.(),
+  });
+  steleSlot.appendChild(simBoard.root);
+
   /** 這一關的引導式題型（choice / order / workshop / fix / spot / induct / tradeoff / constraint / multi）。 */
   function kind() {
     return flowKind(currentFlow);
@@ -626,6 +661,7 @@ export function createPromptConsole({
     if (k === 'tradeoff') return tradeoffBoard;
     if (k === 'constraint') return constraintBoard;
     if (k === 'multi') return multiBoard;
+    if (k === 'sim') return simBoard;
     return stele;
   }
 
@@ -671,6 +707,7 @@ export function createPromptConsole({
     tradeoffBoard.root.hidden = !guided || k !== 'tradeoff';
     constraintBoard.root.hidden = !guided || k !== 'constraint';
     multiBoard.root.hidden = !guided || k !== 'multi';
+    simBoard.root.hidden = !guided || k !== 'sim';
     const zhLabel = guidedLabel.querySelector('.zh');
     if (zhLabel) zhLabel.textContent = KIND_LABEL[k];
     const enLabel = guidedLabel.querySelector('.en');
@@ -1729,6 +1766,10 @@ export function createPromptConsole({
     get multiBoard() {
       return multiBoard;
     },
+    /** 轉鈕的把手（測試與除錯用）。 */
+    get simBoard() {
+      return simBoard;
+    },
     get tradeoffBoard() {
       return tradeoffBoard;
     },
@@ -1828,6 +1869,7 @@ export function createPromptConsole({
       tradeoffBoard.load(k === 'tradeoff' ? currentFlow.tradeoffFlow : null, currentFlow.slots);
       constraintBoard.load(k === 'constraint' ? currentFlow.constraintFlow : null);
       multiBoard.load(k === 'multi' ? currentFlow.multiFlow : null, currentFlow.slots);
+      simBoard.load(k === 'sim' ? currentFlow.simFlow : null, currentFlow.slots);
       mode = normalizeMode(progression.state.settings.promptMode);
       if (!currentFlow) mode = 'free';
       applyMode();

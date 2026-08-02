@@ -457,13 +457,56 @@ Exit criteria（逐條實測）：
 
 ### Phase H — `sim`＋減法之庭 `frugality` 7
 
-狀態：`pending`
+狀態：`done`（2026-08-02）
 
 - 先做 3 座 spike（temperature、effort、action budget），每座 3 檔、共 9 段離線樣本；體感驗證後才擴。
 - 離線樣本另檔、`authored: "game"`、帶模型／時代條件，絕不暗示為即時 LLM 結果。
 - 減法之庭加建；改造火力熔爐與刻度儀之室。
 
 Exit：斷網完全可玩；旋鈕各檔差異可讀且不冒充普遍真理；sample 數量受 schema/test 約束。
+
+Exit criteria（逐條實測）：
+
+- [x] **轉鈕（`sim`）＝石碑刻印的變體，不是第二套框架**：`src/prompt/sim.js` 共用 `slots.js` 的
+      刻寫台與 `palm.js` 的結尾，送出的是同一段文字、走同一支離線引擎（護欄 3）。
+      **旋鈕不參與評分** —— `api.text` 只回 `stage.text`（測試剝掉註解之後掃原始碼），
+      轉旋鈕一百次也不會改變被評分的內容。
+- [x] **三座 spike 上線**（§3 指定的三個 `sim` 神廟，全部是既有神廟換裝第三幕）：
+      火力熔爐（`knob-effort`）／刻度儀之室（`knob-temperature`）／沙漏工房（`action-budget`）。
+      三座的 **rubric、pass、示範解答、`slots`、官方出處一個位元組都沒動**（manifest 的 `phaseH`
+      區塊逐欄記錄；退回石碑刻印時玩家刻出來的字一模一樣）。§3 的第四座 `sim`
+      （`contrast-same-name`）屬 Phase J 的區域，本期不做。
+- [x] **9 段離線樣本**：`src/data/sim-samples.json`（`authored: "game"`）—— 3 個旋鈕 × 剛好 3 檔，
+      每一檔一段回話 ＋ 一句「這一檔怎麼讀」；`SIM_NOTCHES = 3` 是 schema 硬性約束，
+      三檔的回話**彼此不同**（資料層強制，轉了沒差別這一課就不存在）。
+- [x] **絕不暗示為即時 LLM 結果**：畫面上永遠掛一顆 ⓘ 明講「這些輸出是遊戲預先寫好的示範，
+      不是真的模型跑出來的結果，也沒有連到任何服務」；每一個旋鈕都寫得出 `condition`
+      （在哪一台機器、哪一個時間點成立），那句話永遠跟樣本一起顯示。
+- [x] **斷網完全可玩**：`sim.js` 裡沒有 `fetch`／`XMLHttpRequest`／`WebSocket`／任何網址
+      （rubric 掃原始碼），e2e 再用 `performance.getEntriesByType('resource')` 量一次
+      「整段轉鈕沒有向外要過任何東西」。樣本註冊失敗時安靜退回石碑刻印（相容契約）。
+- [x] **觀察是內容，不是過場**：三檔都轉過了才開放刻印（與推規碑「想通才給刻」同一個文法），
+      而且刻印只有一個開放入口（測試數 `stage.unlock()` 的呼叫次數）。
+- [x] **減法之庭 7 座教學神廟**（`lean-prompt`／`lean-output`／`cache-static-first`／
+      `ctx-compaction`／`ctx-pruning`／`ctx-new-chat`／`ctx-reuse-reasoning`），一對一、無重複（C2）；
+      題型 fix・spot・order・multi・spot・choice・choice —— 最長連續同型 2（C4），用了 5 種題型；
+      全部「主檢查 3 ＋ 地基 `assignsTask` 0.5、pass 2」（C1）。
+- [x] **高原加建**（curriculum-v2 §二：🟡 高原加建）：`frugality (0,-82) r=32 flat=27,
+      annexOf: 'foundations'` —— **第三座沒有橋的加建**，閘門立在高原正北的邊緣 (0,-55.3)；
+      地貌是整張地圖上**最平**的一片土地（起伏 < 3.2 公尺，測試逐點量）。
+      母土地一寸都沒有被吃掉（15 座石座的區域判定逐關驗），代價是原本站在頸口正中央的
+      `wordfork-12` 往南挪了 16 公尺（只動座標）。
+- [x] **知識式軟門檻（C8）**：`REGION_GATES.frugality` 只有一條 `masteredAny: 1`
+      （逐字取自 `regions-v2.json`），不看等級、不看前一區通關數；`skippedGates`
+      先行前往照樣走得通且一分 XP 都不加。
+- [x] **3 個新檢查器**（§7.4）：`staticBeforeVariable`／`asksToCompact`／`carriesForwardEssentials`，
+      結構性偵測 ＋ 中英雙語 ＋ good／weak／bad fixture ＋ 反作弊 ＋ `coach.json` 白話教學。
+      其中 `staticBeforeVariable` 是**非單調**的（一邊說固定的放前面、一邊又把今天日期擺最前面 → 整條歸零）。
+- [x] **配樂**：減法之庭**沒有**音檔，誠實登記進 `SYNTH_ONLY_REGIONS`，配一組自己的
+      `REGION_MOODS.frugality`（根音 65.41 全場最低、只有空心音、鐘聲全場最稀）。
+- [x] fonts（CJK **1832** 字）＋rubric（58,760 → **62,415**）＋playtest（1,642 → **1,768**）
+      ＋build ＋ **完整 e2e（2,637 → 2,750 項全過、零 console error）** 全綠。
+      新斷言逐條先紅後綠（詳見 `progress.md`）。
 
 ### Phase I — 觀象臺 `sight` 8（可獨立延後）
 

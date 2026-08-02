@@ -1049,3 +1049,132 @@ fix・workshop・order・multi —— 兩區最長連續同型都是 **2**，各
 130 條技能中的 **104 條**已經接上自己的神廟（`primarySkillId`）；59 個新檢查器已實作 **51** 個；
 `curriculum.json` sha256 未變；存檔 additive（**這一期沒有新增任何欄位**）、reset 正常；
 快檢 ＋ playtest ＋ build 全綠。
+
+## Phase H — 轉鈕（`sim`）＋ 減法之庭（`frugality`）：第十區、第三座加建（2026-08-02）
+
+狀態：`done`（未 commit／push）
+
+**一句話**：第三幕第一次出現**旋鈕** —— 轉一格，神諭的回話就換一段（全部是遊戲預先寫好的
+離線樣本，斷網照樣轉得動）；高原北緣長出第三座加建 **減法之庭**（7 座），
+三座舊神廟（火力熔爐／刻度儀之室／沙漏工房）換裝成轉鈕。
+
+### 做了什麼
+
+**新題型：轉鈕（`sim`）** — `src/prompt/sim.js` ＋ `src/data/sim-samples.json`
+
+- 是**石碑刻印的變體**：共用 `slots.js` 的刻寫台與 `palm.js` 的結尾，送出的是同一段文字、
+  走同一支離線引擎（護欄 3）。**旋鈕不參與評分**（`api.text` 只回 `stage.text`）。
+- **三檔都轉過了才開放刻印** —— 觀察就是這一關的內容，不是可以跳過的過場
+  （與推規碑「想通才給刻」同一個文法；刻印只有一個開放入口，測試數 `stage.unlock()` 的呼叫次數）。
+- **樣本住在獨立資料層**（`sim-samples.json`，`authored: "game"`），由 `main.js` 開機時
+  `registerSimDials()` 註冊 —— `sim.js` 刻意**不 import JSON**，node 端的測試才能直接 import 它、
+  自己餵一份樣本進來。樣本壞掉／沒註冊 → `flowKind` 安靜退回石碑刻印（相容契約，rubric 有守）。
+- **9 段離線輸出樣本**（3 個旋鈕 × 剛好 3 檔，`SIM_NOTCHES = 3` 是硬性 schema）：
+  思考火力 `reasoning_effort`（低火漏掉步驟／中火剛好／高火慢又囉嗦）、
+  亂度 `temperature`（1.2 三次三種答案／0.7 還是會飄／0 這一台直接回絕）、
+  動作預算（不設上限就查不完／只設回合數等於沒設／兩個單位分開設才收得住）。
+- **誠實**：畫面上永遠掛一顆 ⓘ 明講「這些輸出是遊戲預先寫好的示範，不是真的模型跑出來的結果，
+  也沒有連到任何服務」；每個旋鈕都寫得出 `condition`（在哪一台機器、哪一個時間點成立），
+  那句話永遠跟樣本一起顯示 —— 旋鈕的行為不是普遍真理。
+- **斷網完全可玩**：`sim.js` 裡沒有 `fetch`／連線／任何網址（rubric 掃原始碼），
+  e2e 再用 `performance.getEntriesByType('resource')` 量一次「整段轉鈕沒有向外要過任何東西」。
+
+**三座 spike（只換第三幕，評分那一面一個位元組沒動）**
+
+| id | 神廟 | 技能 | 旋鈕 | 換裝前 |
+|---|---|---|---|---|
+| `effort-forge-15` | 火力熔爐 | `knob-effort` | 思考火力 low／medium／high | choice |
+| `dial-room-43` | 刻度儀之室 | `knob-temperature` | 亂度 1.2／0.7／0 | choice |
+| `hourglass-shop-90` | 沙漏工房 | `action-budget` | 不設上限／只設回合／兩個單位分開設 | choice |
+
+manifest 新增 `phaseH` 區塊逐欄記錄；因為同一關現在有兩個期別講到題型，
+`test-rubric` 的「第三幕題型」斷言改成**只跟最後一個講到題型的期別**比對（manifest 只增不改）。
+
+**減法之庭 7 座**（全部新蓋）
+
+| # | id | 神廟名 | 技能 | 題型 | 主檢查 |
+|---|---|---|---|---|---|
+| 1 | `empty-plinth-100` | 空的基座 | `lean-prompt` | fix | `keepsPromptLean` |
+| 2 | `twice-copied-101` | 抄了兩遍的抄寫人 | `lean-output` | spot | `keepsPromptLean` |
+| 3 | `stacking-order-102` | 疊石的順序 | `cache-static-first` | order | 🆕`staticBeforeVariable` |
+| 4 | `piling-table-103` | 越堆越高的桌 | `ctx-compaction` | multi | 🆕`asksToCompact` |
+| 5 | `stale-tray-104` | 過期的托盤 | `ctx-pruning` | spot | 🆕`asksToCompact` |
+| 6 | `unturnable-page-105` | 翻不動的那一頁 | `ctx-new-chat` | choice | 🆕`carriesForwardEssentials` |
+| 7 | `memoryless-artisan-106` | 沒有記憶的工匠 | `ctx-reuse-reasoning` | choice | 🆕`carriesForwardEssentials` |
+
+題型序列 fix・spot・order・multi・spot・choice・choice —— 最長連續同型 **2**（C4），用了 5 種題型；
+rubric 一律「主檢查 3 ＋ 地基 `assignsTask` 0.5、`pass` 2」（C1）；
+`source` 逐條回查 `skill-codex-v2.json` 裡解析自 master list 的真實官方連結。
+
+**世界**：`REGION_SITES` 新增 `frugality (0,-82) r=32 flat=27, annexOf: 'foundations'` ——
+**第三座沒有橋的加建**，閘門立在高原正北的邊緣 (0,-55.3)。地貌是**整張地圖上最平的一片土地**
+（起伏 < 3.2 公尺，因為東西都被搬走了）；`REGION_ATMOSPHERE`（霧最淡、看得最遠、螢火 0.4）、
+`FLORA`（空托座／薄墊石／量繩樁）、`buildRegionProps`（空托座 10 ＋ 印子 12，**刻意是別區的一半**）、
+地標**空的基座**（高 18、留白 13、**零實體光源**：銘文、光印子、被拿走那件東西的輪廓全部自發光）、
+三組故事小景、路網全部跟上。配樂 `REGION_MOODS.frugality`（根音 65.41 全場最低、只有空心音、
+鐘聲全場最稀）並登記進 `SYNTH_ONLY_REGIONS`。
+
+**知識式軟門檻**：`REGION_GATES.frugality` 只有一條 `masteredAny: 1`（逐字取自 `regions-v2.json`）。
+
+### 驗證
+
+| 指令 | Phase G | Phase H |
+|---|---|---|
+| `npm run fonts` | CJK 1822 字 | ✓ CJK **1832** 字／**1454.3 KB**（指紋測試綠） |
+| `npm run test:rubric` | 58,760 | ✓ **62,415** |
+| `npm run test:playtest` | 1,642 | ✓ **1,768** |
+| `npm run build` | ✓ | ✓ |
+| `npm run test:e2e` | 2,637 全過 | ✓ **2,750 項全過、零 console error** |
+
+**世界量測**（在 node 裡把世界蓋起來實測，非引用文件）
+
+| 項目 | Phase G | Phase H | 上限 |
+|---|---:|---:|---:|
+| 三角形（高畫質） | 172,602 | **179,574** | 420,000 |
+| 光源（高畫質） | 32 | **34** | 56 |
+| 碰撞體（高畫質） | 856 | **902** | 1,400 |
+| mesh | 1,977 | **2,101** | — |
+| InstancedMesh／實例 | 74 ／ 1,218 | **84 ／ 1,311** | — |
+| 低畫質三角形／燈 | 112,284 ／ 17 | **118,258 ／ 18** | — |
+
+新增的兩盞燈：一盞是減法之庭的「每區一盞主色補光」（與其他九片同一個模式），
+另一盞是搬過去的小景裡本來就有的那一盞。**地標本身零實體光源**。
+
+### 先紅後綠（逐條實測）
+
+- **新檢查器一上線 rubric 立刻紅 20 條**（3 條 fixture、3 條 coach、7 條英文對照解答、
+  題型清單／關卡數／區域數／合成專用區的契約、字型語料）—— 全部是預期中的紅燈。
+- **`carriesForwardEssentials` 的 bad fixture 拿到 0.5 分**（只寫「換一頁」也給部分分）——
+  改的是 fixture（換成一個連換頁都沒說的壞寫法），不是放寬檢查器。
+- **`twice-copied-101` 的「一片都沒點就已經滿分」**：點碑那一關的原始草稿太短，
+  `keepsPromptLean` 直接給滿分 → 這一關不用玩。**改的是設計不是斷言**：
+  把要被點掉的那一句加上逐步鷹架，草稿變成真的有病灶。
+- **`empty-plinth-100`／`twice-copied-101` 的「只刻第一段就滿分」**：兩關的主檢查都是
+  `keepsPromptLean`，第一段（任務）自己就滿足它 → 把第一段改成「這一份是寫給誰看的」
+  （不是指令，所以單獨不成立），任務往後挪一段。
+- **e2e 第一輪：轉鈕的 `seen` 從 0 開始**（一進來停在某一檔卻沒算看過），連帶 9 條紅。
+  修的是 `sim.js`（載入時就把當下那一檔記成看過的 —— 它的回話本來就在畫面上）。
+- **e2e 第一輪：加建的頸口有 3 步是虛空**（`coverage ≤ 0.45`）——
+  兩片土地的**可站立範圍**沒有重疊。第一版 `(0,-90) r30 flat22` 的可站立半徑只有 ~26.5，
+  高原走得到 56.3，中間空了 7 公尺。最後定在 `(0,-82) r32 flat27`（可站立到 29.6，重疊 3.9 公尺）。
+- **e2e 第二／三輪：76 條紅、同一個地方中斷**（而且與第一輪不同 —— 是真的回歸）。
+  診斷出來的原因很有意思：手感量測是「一路往北走」的，Phase H 之後正北 54 公尺處
+  多了一道門（減法之庭的頸口），走進自動詢問半徑 → 門一問就把操控權交給對話框 →
+  後面每一個按鍵都落空。**這是對的遊戲行為**（Phase 29 的設計），所以修的是測試：
+  量鏡頭之前先把門收起來、回到出生點，並把「它真的會問」記成一條斷言。
+- **e2e 第四輪：圖鑑那一張卡的官方出處數是 0** —— 那一輪的存檔是「什麼都還沒學」的，
+  七條都還是剪影。斷言改成驗「七條都是剪影」（收集之後才長出出處，那件事量器坊那一節已經驗過）。
+
+### 未做／留給後續
+
+- **減法之庭沒有石碑（lore）／刻文小語／會回應的東西／動得了的器物**（與量器坊、契約鍛冶場、
+  護欄崗、校驗場同樣的範圍控制）。
+- §3 指定的第四座 `sim`（`contrast-same-name`「同名的兩個旋鈕」）屬 Phase J 的區域，本期不做。
+- `bgm_frugality.m4a` 尚未錄製；補上時只要在 `BGM_TRACKS` 加一行、把 id 從
+  `SYNTH_ONLY_REGIONS` 移走即可。
+- 未 commit／push；未動 `CLAUDE.md`、`vite.config.js`、port 5175、`src/data/curriculum.json`（sha256 仍綠）。
+
+**H readiness（2026-08-02）**：10 區／**115 關**（既有 27 關 ＋ 課程 v2 新蓋的 88 座）／
+130 條技能中的 **111 條**已經接上自己的神廟（`primarySkillId`）；59 個新檢查器已實作 **54** 個；
+`curriculum.json` sha256 未變；存檔 additive（**這一期沒有新增任何欄位**）、reset 正常；
+快檢 ＋ playtest ＋ build ＋ 完整 e2e 全綠、console error 為 0。

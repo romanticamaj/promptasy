@@ -21,6 +21,7 @@ import inscriptionFile from './data/inscriptions.json';
 import secretFile from './data/secrets.json';
 import handleFile from './data/handles.json';
 import datedFile from './data/dated-notes.json';
+import simSamples from './data/sim-samples.json';
 import './styles.css';
 
 import { createEngine } from './engine/engine.js';
@@ -30,7 +31,7 @@ import { createContent } from './challenges/content.js';
 import { createCatalog } from './challenges/catalog.js';
 import { createPrologueContent } from './challenges/prologue.js';
 import { createProgression } from './progression/progression.js';
-import { createPromptConsole } from './prompt/console.js';
+import { createPromptConsole, registerSimDials } from './prompt/console.js';
 import { createPractice } from './prompt/practice.js';
 import { createPrologue } from './ui/prologue.js';
 import { createHud } from './ui/hud.js';
@@ -73,6 +74,13 @@ function boot() {
    * `implementedRegions()`（就是既有五區），所以仍然是 27 關 / 68 條 / 5 區。
    */
   const catalog = createCatalog({ curriculum, skillCodex: skillCodexV2, regions: regionsV2 });
+
+  /*
+   * 課程 v2 · Phase H：轉鈕（sim）的離線輸出樣本。
+   * 樣本是**遊戲自撰**的示範（`authored: "game"`），不呼叫任何服務；
+   * 註冊失敗（檔案壞掉／被清空）時那幾關會安靜退回石碑刻印，不會開到空白的碑。
+   */
+  registerSimDials(simSamples);
 
   const content = createContent(
     curriculum,

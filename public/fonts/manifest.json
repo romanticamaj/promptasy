@@ -15,6 +15,7 @@
     "src/data/ranks.json",
     "src/data/regions-v2.json",
     "src/data/secrets.json",
+    "src/data/sim-samples.json",
     "src/data/skill-codex-v2.json",
     "src/audio/audio.js",
     "src/challenges/catalog.js",
@@ -36,6 +37,7 @@
     "src/prompt/order.js",
     "src/prompt/palm.js",
     "src/prompt/practice.js",
+    "src/prompt/sim.js",
     "src/prompt/slots.js",
     "src/prompt/spot.js",
     "src/prompt/stele.js",
@@ -67,7 +69,7 @@
     "src/world/reactive.js",
     "src/world/world.js"
   ],
-  "corpusHash": "5b68d95ae0896b17",
+  "corpusHash": "e197992d48b985a2",
   "coverage": {
     "latin": [
       32,
@@ -651,6 +653,7 @@
       22132,
       22144,
       22151,
+      22160,
       22184,
       22196,
       22217,
@@ -735,6 +738,7 @@
       22996,
       23039,
       23041,
+      23130,
       23146,
       23376,
       23380,
@@ -908,6 +912,7 @@
       24687,
       24688,
       24730,
+      24739,
       24744,
       24758,
       24773,
@@ -1078,6 +1083,7 @@
       25964,
       25970,
       25972,
+      25975,
       25976,
       25986,
       25991,
@@ -1319,6 +1325,7 @@
       28404,
       28414,
       28415,
+      28417,
       28418,
       28422,
       28431,
@@ -1410,6 +1417,7 @@
       30001,
       30002,
       30003,
+      30008,
       30028,
       30041,
       30050,
@@ -1553,6 +1561,7 @@
       31881,
       31890,
       31895,
+      31929,
       31934,
       31946,
       31961,
@@ -1730,6 +1739,7 @@
       34746,
       34802,
       34892,
+      34893,
       34899,
       34909,
       34913,
@@ -2036,6 +2046,7 @@
       38592,
       38597,
       38598,
+      38614,
       38617,
       38620,
       38626,
@@ -2115,6 +2126,7 @@
       40165,
       40180,
       40441,
+      40569,
       40573,
       40599,
       40635,
@@ -2499,7 +2511,7 @@
       "id": "serif-tc",
       "family": "Arcade Serif TC",
       "file": "arcade-serif-tc.woff2",
-      "bytes": 658088,
+      "bytes": 662312,
       "role": "cjk",
       "variable": true,
       "weight": null,
@@ -2510,7 +2522,7 @@
           "default": 400
         }
       },
-      "requested": 1822,
+      "requested": 1832,
       "missing": 0,
       "source": "NotoSerifTC.ttf",
       "author": "Google (Noto Project)",
@@ -2522,7 +2534,7 @@
       "id": "sans-tc",
       "family": "Arcade Sans TC",
       "file": "arcade-sans-tc.woff2",
-      "bytes": 500904,
+      "bytes": 503576,
       "role": "cjk",
       "variable": true,
       "weight": null,
@@ -2533,7 +2545,7 @@
           "default": 400
         }
       },
-      "requested": 1822,
+      "requested": 1832,
       "missing": 0,
       "source": "NotoSansTC.ttf",
       "author": "Google (Noto Project)",
@@ -2542,5 +2554,5 @@
       "url": "https://github.com/google/fonts/tree/main/ofl/notosanstc"
     }
   ],
-  "totalBytes": 1482336
+  "totalBytes": 1489232
 }

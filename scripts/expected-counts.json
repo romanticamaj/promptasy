@@ -1,11 +1,11 @@
 {
   "note": "測試用的「這是契約，不是快照」清單。凡是能從 runtime catalog 或資料檔算出來的數字（技巧數、區域數、技能數、flow 數…），測試一律現算，不寫在這裡；只有『這個數字本身就是當期的驗收目標』才登記在這裡，改動它＝有意識地改變契約。每一格都寫得出為什麼。",
   "updatedAt": "2026-08-02",
-  "updatedBy": "課程 v2 · Phase G（multi 兩輪刻印 ＋ refinery 校驗場加建 11 座 ＋ orchestration 收尾 12 座）",
+  "updatedBy": "課程 v2 · Phase H（sim 轉鈕 ＋ 減法之庭 frugality 高原加建 7 座 ＋ 火力熔爐／刻度儀之室／沙漏工房換裝 sim）",
   "contract": {
     "challenges": {
-      "value": 108,
-      "why": "現行關卡數＝既有 27 關 ＋ 課程 v2 新蓋的教學神廟。終點是 130 教學神廟＋12 應用關；每一期新增神廟時要一起把這個數字往上調（task_plan §3）。"
+      "value": 115,
+      "why": "現行關卡數＝既有 27 關 ＋ 課程 v2 新蓋的教學神廟。終點是 130 教學神廟＋12 應用關；每一期新增神廟時要一起把這個數字往上調（task_plan §3）。Phase H 新增減法之庭 7 座。"
     },
     "flowKinds": {
       "value": [
@@ -17,9 +17,10 @@
         "induct",
         "tradeoff",
         "constraint",
-        "multi"
+        "multi",
+        "sim"
       ],
-      "why": "目前上線的刻印題型。Phase B 加了 fix（改碑）與 spot（點碑），Phase C 加了 induct（推規碑）與 tradeoff（雙面碑），Phase D 加了 constraint（合尺），Phase G 加了 multi（兩輪刻印）；之後每加一種都要一起改這裡（flows.json 缺 kind 時預設 choice 的相容契約不變）。"
+      "why": "目前上線的刻印題型。Phase B 加了 fix（改碑）與 spot（點碑），Phase C 加了 induct（推規碑）與 tradeoff（雙面碑），Phase D 加了 constraint（合尺），Phase G 加了 multi（兩輪刻印），Phase H 加了 sim（轉鈕：轉一格旋鈕，離線樣本跟著換）；之後每加一種都要一起改這裡（flows.json 缺 kind 時預設 choice 的相容契約不變）。"
     },
     "v2Skills": {
       "value": 130,
@@ -30,8 +31,8 @@
       "why": "curriculum-v2 §二的區域規劃。"
     },
     "v2ImplementedRegions": {
-      "value": 9,
-      "why": "世界裡真的蓋好的區域。Phase E（forms · 量器坊）＋ Phase F（toolcraft · 契約鍛冶場／wards · 護欄崗）＋ Phase G（refinery · 校驗場）已上線；H（frugality）、I（sight）、J（divergence）各自上線時 +1。"
+      "value": 10,
+      "why": "世界裡真的蓋好的區域。Phase E（forms · 量器坊）＋ Phase F（toolcraft · 契約鍛冶場／wards · 護欄崗）＋ Phase G（refinery · 校驗場）＋ Phase H（frugality · 減法之庭）已上線；I（sight）、J（divergence）各自上線時 +1。"
     },
     "v2SkillsWithoutSource": {
       "value": 0,
@@ -54,9 +55,11 @@
         "asksForRationaleNotTranscript",
         "asksModelToRewritePrompt",
         "asksMultipleSamples",
+        "asksToCompact",
         "avoidsPressureLanguage",
         "avoidsSelfCounting",
         "bansFillerPhrases",
+        "carriesForwardEssentials",
         "citesInline",
         "decisionTree",
         "definesEvalSet",
@@ -95,12 +98,13 @@
         "statesScope",
         "statesSuccessCriteria",
         "statesToolTriggers",
+        "staticBeforeVariable",
         "toolNamesDistinct",
         "tunesAutonomyLevel",
         "usesOneSkeleton",
         "usesRareDelimiter"
       ],
-      "why": "curriculum-v2 §7.4 的 59 個新檢查器只按期開；Phase B 開了撰寫基本功五座用得到的，Phase C 再開示範與推理四座用得到的，Phase D 再開脈絡與長文／角色與參數十二座用得到的（含撰寫基本功欠著的 rulesBeforeData 與 usesRareDelimiter），Phase E 再開量器坊十四座用得到的九個，Phase F 再開契約鍛冶場與護欄崗十六座用得到的九個，Phase G 再開流程與代理與校驗場二十三座用得到的十二個。清單要跟 checks.js 完全一致，避免有人開了沒有神廟在用的檢查器。"
+      "why": "curriculum-v2 §7.4 的 59 個新檢查器只按期開；Phase B 開了撰寫基本功五座用得到的，Phase C 再開示範與推理四座用得到的，Phase D 再開脈絡與長文／角色與參數十二座用得到的（含撰寫基本功欠著的 rulesBeforeData 與 usesRareDelimiter），Phase E 再開量器坊十四座用得到的九個，Phase F 再開契約鍛冶場與護欄崗十六座用得到的九個，Phase G 再開流程與代理與校驗場二十三座用得到的十二個，Phase H 再開減法之庭七座用得到的三個。清單要跟 checks.js 完全一致，避免有人開了沒有神廟在用的檢查器。"
     },
     "reasoningShrines": {
       "value": 15,
@@ -123,7 +127,8 @@
         "forms",
         "toolcraft",
         "wards",
-        "refinery"
+        "refinery",
+        "frugality"
       ],
       "why": "已上線但還沒有配樂音檔的區域 —— 它們走合成 pad（護欄 3：合成引擎是備援，不是遺跡）。站長補上音檔時把 id 從這裡與 audio.js 的 SYNTH_ONLY_REGIONS 移走即可。"
     },
@@ -142,6 +147,10 @@
     "refineryShrines": {
       "value": 11,
       "why": "校驗場這一區的關卡數：curriculum-v2 §3 的 refinery 總表就是 11 座教學神廟（含由流程與代理搬過來的 draft-review-wheel-32 與 echo-workshop-35；本區的應用關等 Phase J）。"
+    },
+    "frugalityShrines": {
+      "value": 7,
+      "why": "減法之庭這一區的關卡數：curriculum-v2 §3 的 frugality 總表就是 7 座教學神廟（本區的應用關等 Phase J）。"
     }
   }
 }

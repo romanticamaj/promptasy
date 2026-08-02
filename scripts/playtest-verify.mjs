@@ -758,6 +758,72 @@ export function runPlaytestVerify({ ok, eq }) {
     }
   }
 
+  /* ------------------------------------------------------------------ *
+   * H：轉鈕（sim · 課程 v2 · Phase H）
+   *
+   * 轉鈕是「觀察」的舞台，不是答案 —— 所以這裡守兩件事：
+   *   1. 轉旋鈕本身不會給分（分數只來自刻上去的那段字）
+   *   2. 三檔的離線樣本真的不一樣，而且每一檔都寫得出「這一檔在幹嘛」
+   * ------------------------------------------------------------------ */
+  {
+    const simSamples = readJson('src/data/sim-samples.json');
+    const dialById = new Map((simSamples.dials || []).map((d) => [d.id, d]));
+    const simIds = Object.entries(flowFile.flows)
+      .filter(([, f]) => (f.kind || '') === 'sim')
+      .map(([id]) => id);
+    ok(simIds.length >= 3, `playtest：至少三座神廟用轉鈕（實際 ${simIds.length}）`, simIds.join(','));
+    for (const id of simIds) {
+      const tag = `[${id}]`;
+      const c = byId.get(id);
+      const f = flowFile.flows[id];
+      const dial = dialById.get(f.simFlow.dialId);
+      ok(Boolean(dial), `${tag} playtest：轉的是真的存在的旋鈕`, f.simFlow.dialId);
+      if (!dial || !c) continue;
+      ok(dial.notches.length === 3, `${tag} playtest：旋鈕剛好三檔`, String(dial.notches.length));
+      ok(
+        new Set(dial.notches.map((n) => n.output.trim())).size === dial.notches.length,
+        `${tag} playtest：三檔的回話真的不一樣（轉了要看得出差別）`
+      );
+      /*
+       * 旋鈕上那句「每一檔都送同一句話」本身不是答案 —— 轉完之後玩家還是要
+       * 把設定刻出來才過得了關（轉鈕是觀察的舞台，不是替玩家作答）。
+       */
+      const ev = evaluate(c, dial.prompt);
+      ok(
+        !ev.passed,
+        `${tag} playtest：旋鈕上那句委託本身還不會過關（觀察完還是要自己刻）`,
+        `earned=${ev.earned}/${ev.total}`
+      );
+      /* 刻上去的那段字仍然是同一段（退回石碑刻印時一模一樣） */
+      const picks = f.slots.map((sl) => sl.options.find((o) => o.correct).text).join('\n');
+      eq(picks, c.sample, `${tag} playtest：全部選對的整段文字就是示範解答`);
+    }
+  }
+
+  /* --- 減法之庭（課程 v2 · Phase H）：7 座、C1、做對＝滿分 --- */
+  {
+    const list = challenges.filter((c) => c.region === 'frugality');
+    ok(list.length === 7, `playtest：減法之庭有 7 座教學神廟（實際 ${list.length}）`);
+    const skills = list.map((c) => c.primarySkillId).filter(Boolean);
+    ok(skills.length === list.length, 'playtest：減法之庭每一關都接上了 v2 技能');
+    ok(new Set(skills).size === skills.length, 'playtest：減法之庭的技能一條只教一次');
+    for (const c of list) {
+      const tag = `[${c.id}]`;
+      const f = flowFile.flows[c.id];
+      ok(!!f, `${tag} playtest：減法之庭的神廟有第三幕流程`);
+      if (!f) continue;
+      const picks = f.slots.map((sl) => sl.options.find((o) => o.correct).text).join('\n');
+      const ev = evaluate(c, picks);
+      ok(
+        ev.results.every((r) => r.passed),
+        `${tag} playtest：全部選對時每一條檢查都滿分`,
+        ev.results.filter((r) => !r.passed).map((r) => `${r.check}=${r.earned}/${r.weight}`).join('、')
+      );
+      ok(c.rubric.length === 2, `${tag} playtest：收斂成「一條主檢查 ＋ 一條地基」（C1）`, String(c.rubric.length));
+      ok(c.pass === 2, `${tag} playtest：門檻是 2 分`, String(c.pass));
+    }
+  }
+
   /* --- D：檢查器回歸案例 --- */
   for (const cse of CHECK_CASES) {
     const out = runCheck(cse.check, cse.text, cse.options || {});

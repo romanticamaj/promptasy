@@ -783,8 +783,8 @@
       "title": "一字之差的岔路",
       "npc": "路碑 · 雙口",
       "position": [
-        0,
-        -52
+        -4,
+        -36
       ],
       "xp": 40,
       "teaches": [],
@@ -6450,6 +6450,410 @@
       "primarySkillId": "two-stage-filter",
       "sample": "請把下面這批來信拆成兩個步驟，一步一步完成。\n第一步：先把所有提到金額的來信全部列出來，這一步先不要篩選。\n第二步：再從上一步的清單裡，篩出金額超過一千元的那幾封。\n篩選的標準只有金額，其他一律留著不要丟。",
       "craft": "拆成「先找齊」與「再篩選」兩段，而且兩段各有各的標準。"
+    },
+    {
+      "id": "empty-plinth-100",
+      "region": "frugality",
+      "order": 100,
+      "title": "空的基座",
+      "npc": "石匠 · 只刻該刻的",
+      "position": [
+        -9.4,
+        -57.3
+      ],
+      "xp": 70,
+      "teaches": [],
+      "primaryTechniqueId": null,
+      "primarySkillId": "lean-prompt",
+      "scenario": "院子中央那座基座上什麼都沒有。石匠拍掉手上的石粉：「本來擺著一卷四百字的委託，同一件事講了三遍。我把它拿走了——你來寫一份新的，短到刻得下這座基座。」",
+      "mission": "替市集入口那面告示寫一份委託，短到刻得進這座基座。",
+      "craft": "每件事只講一次：留下讀者、任務與一條驗收得了的條件，鋪陳一句都不要。",
+      "material": {
+        "label": "被拿走的那一卷（節錄）",
+        "text": "這面告示只給趕市集的人看。\n請你務必仔細地、一步一步想過之後再動筆。\n請把它改寫成一句話。\n再說一次：要改寫成一句話。\n總之要寫得很好、很完整，愈詳細愈好。"
+      },
+      "clue": "石匠說：這裡不收鋪陳。「一步一步想」「愈詳細愈好」刻上去只會佔位置——留下任務，再加一條量得出來的條件（幾個字、要有什麼）。",
+      "placeholder": "例如：這面告示只給＿＿看。請把它改寫成＿＿。不超過＿＿個字。",
+      "quickFills": [
+        {
+          "label": "寫給誰看",
+          "text": "這面告示只給趕市集的人看。"
+        },
+        {
+          "label": "寫出任務",
+          "text": "請把它改寫成一句話。"
+        },
+        {
+          "label": "長度上限",
+          "text": "不超過 20 個字。"
+        },
+        {
+          "label": "要有什麼",
+          "text": "要寫出時間與地點。"
+        }
+      ],
+      "sample": "這面告示只給趕市集的人看。\n請把它改寫成一句話。\n不超過 20 個字，要寫出時間與地點。",
+      "rubric": [
+        {
+          "check": "keepsPromptLean",
+          "weight": 3,
+          "primary": true,
+          "skillId": "lean-prompt"
+        },
+        {
+          "check": "assignsTask",
+          "weight": 0.5,
+          "foundation": true,
+          "techniqueId": "clarity-02"
+        }
+      ],
+      "pass": 2,
+      "source": "https://developers.openai.com/api/docs/guides/latest-model#prompting-best-practices",
+      "starter": "幫我把告示寫好一點，愈詳細愈好，你先一步一步想過再動筆。"
+    },
+    {
+      "id": "twice-copied-101",
+      "region": "frugality",
+      "order": 101,
+      "title": "抄了兩遍的抄寫人",
+      "npc": "抄寫人 · 抄了兩遍",
+      "position": [
+        -25.1,
+        -74
+      ],
+      "xp": 70,
+      "teaches": [],
+      "primaryTechniqueId": null,
+      "primarySkillId": "lean-output",
+      "scenario": "抄寫人把整張收成帳一字不漏抄了一遍，才在最後一行寫下答案。「我怕你看不懂，所以先抄一次給你對。」他抄了一夜，你要的只有一個日期。",
+      "mission": "重寫這份委託，讓抄寫人只交出你真正要的那一行。",
+      "craft": "只叫它產出你真的要的東西；把「重抄一遍」的要求點掉，但真正當依據的那一句要留著。",
+      "material": {
+        "label": "抄寫人交回來的東西（節錄）",
+        "text": "（整張收成帳被一字不漏抄了一遍，共四十二行）\n……\n最後一行：三月十九日缺貨。"
+      },
+      "clue": "抄寫人說：它讀比寫快得多。叫它重述一遍是白花的力氣——但「附上依據的那一筆」不是重述，那是查證的憑據，要留著。",
+      "placeholder": "例如：下面這張＿＿共＿＿行。請回答＿＿，只給＿＿。",
+      "quickFills": [
+        {
+          "label": "手上是什麼",
+          "text": "下面這張收成帳共四十二行。"
+        },
+        {
+          "label": "只要那一行",
+          "text": "請回答哪一天缺貨，只給日期那一行。"
+        },
+        {
+          "label": "留下依據",
+          "text": "答案請附上依據的那一筆原文。"
+        }
+      ],
+      "sample": "下面這張收成帳共四十二行。\n請回答哪一天缺貨，只給日期那一行。\n答案請附上你依據的那一筆原文。",
+      "rubric": [
+        {
+          "check": "keepsPromptLean",
+          "weight": 3,
+          "primary": true,
+          "skillId": "lean-output"
+        },
+        {
+          "check": "assignsTask",
+          "weight": 0.5,
+          "foundation": true,
+          "techniqueId": "clarity-02"
+        }
+      ],
+      "pass": 2,
+      "source": "https://docs.mistral.ai/models/best-practices/prompt-engineering",
+      "starter": "回答之前請先把整張收成帳一字不漏抄一遍，再把你想到的每一種可能都列出來。"
+    },
+    {
+      "id": "stacking-order-102",
+      "region": "frugality",
+      "order": 102,
+      "title": "疊石的順序",
+      "npc": "疊石人 · 每天從頭疊",
+      "position": [
+        -21.6,
+        -96.4
+      ],
+      "xp": 70,
+      "teaches": [],
+      "primaryTechniqueId": null,
+      "primarySkillId": "cache-static-first",
+      "scenario": "「我每天早上第一件事，是把今天的日期刻在最上面那一塊。」疊石人指著整疊石頭：「然後底下這一整疊就得重疊一次。三年了，天天如此。」",
+      "mission": "替疊石人排出委託的次序，讓不動的那幾塊留在原地。",
+      "craft": "不會變的規則與資料排最前面、這一次才有的排最後面，並交代開頭那一段之後不要再改。",
+      "material": {
+        "label": "疊石人現在的疊法",
+        "text": "最上面：今天是三月十九日，客人問的是漁網的價錢。\n中間：收費規則三條（每天都一樣）。\n最下面：完整價目表（每天都一樣）。"
+      },
+      "clue": "疊石人說：前綴一改，後面整疊就白疊了。把每次都一樣的東西放最前面、這一次才有的放最後面——順序換了，昨天疊好的那一段今天還在。",
+      "placeholder": "例如：（不會變的）＿＿放最前面。（這一次的）＿＿放最後面。",
+      "quickFills": [
+        {
+          "label": "交代委託",
+          "text": "請照下面的規矩，回覆今天的詢價。"
+        },
+        {
+          "label": "不動的放前面",
+          "text": "不會變的規矩與價目表放在最前面：每次都一樣的那三條收費規則，以及完整價目表。"
+        },
+        {
+          "label": "會變的放後面",
+          "text": "今天的日期與這一位客人的問題放在最後面。"
+        },
+        {
+          "label": "開頭不要動",
+          "text": "開頭那一段之後不要再改動，一個字都不要動。"
+        }
+      ],
+      "sample": "請照下面的規矩，回覆今天的詢價。\n不會變的規矩與價目表放在最前面：每次都一樣的那三條收費規則，以及完整價目表。\n今天的日期與這一位客人的問題放在最後面。\n開頭那一段之後不要再改動。",
+      "rubric": [
+        {
+          "check": "staticBeforeVariable",
+          "weight": 3,
+          "primary": true,
+          "skillId": "cache-static-first"
+        },
+        {
+          "check": "assignsTask",
+          "weight": 0.5,
+          "foundation": true,
+          "techniqueId": "clarity-02"
+        }
+      ],
+      "pass": 2,
+      "source": "https://developers.openai.com/api/docs/guides/prompt-caching"
+    },
+    {
+      "id": "piling-table-103",
+      "region": "frugality",
+      "order": 103,
+      "title": "越堆越高的桌",
+      "npc": "桌主 · 看不見桌面的人",
+      "position": [
+        -2.2,
+        -107.9
+      ],
+      "xp": 70,
+      "teaches": [],
+      "primaryTechniqueId": null,
+      "primarySkillId": "ctx-compaction",
+      "scenario": "桌上堆到看不見桌面。「這四十回合的東西我一份都不敢丟。」桌主兩手撐著桌沿：「可是新的東西已經放不上來了——你替我壓一壓，但別壓掉不能壓的。」",
+      "mission": "替桌主交接這張桌子，把前面的過程壓成摘要之後，讓第三批料的排程做得完。",
+      "craft": "先壓成一段摘要，再寫出「一定要保留」的那幾件事，並把過期的東西換成一行。",
+      "material": {
+        "label": "桌上那一疊（節錄）",
+        "text": "第 1–40 回合：試過三種尺寸、兩種模具。\n第 12 回合：客人把交期提前到四月一日。\n第 27 回合：兩個方案被否決（成本、交期各一）。\n第 31–40 回合：十次查詢結果，其中八次已經過期。"
+      },
+      "clue": "桌主說：壓縮不是刪除。壓成一段摘要之後，一定要另外寫出「哪幾件不准丟」——摘要漏掉一個關鍵決定，後面整批都會歪。",
+      "placeholder": "例如：請把前面的過程壓成＿＿。一定要保留：＿＿。過期的＿＿換成＿＿。",
+      "quickFills": [
+        {
+          "label": "交代委託",
+          "text": "請接手這張桌上的工作，把第三批料的排程做完。"
+        },
+        {
+          "label": "先壓成摘要",
+          "text": "先把前面的過程壓成一段摘要，不超過 200 字。"
+        },
+        {
+          "label": "必留清單",
+          "text": "一定要保留：客人要的交期、以及已經被否決的那兩個方案。"
+        },
+        {
+          "label": "過期的怎麼辦",
+          "text": "過期的查詢結果換成一行摘要，原始依據請留原文。"
+        }
+      ],
+      "sample": "請接手這張桌上的工作，把第三批料的排程做完。\n先把前面的過程壓成一段摘要，不超過 200 字。\n一定要保留：客人要的交期、以及已經被否決的那兩個方案。\n過期的查詢結果換成一行摘要，原始依據留原文。",
+      "rubric": [
+        {
+          "check": "asksToCompact",
+          "weight": 3,
+          "primary": true,
+          "skillId": "ctx-compaction"
+        },
+        {
+          "check": "assignsTask",
+          "weight": 0.5,
+          "foundation": true,
+          "techniqueId": "clarity-02"
+        }
+      ],
+      "pass": 2,
+      "source": "https://docs.x.ai/developers/advanced-api-usage/context-compaction"
+    },
+    {
+      "id": "stale-tray-104",
+      "region": "frugality",
+      "order": 104,
+      "title": "過期的托盤",
+      "npc": "托盤管事 · 十份都捨不得丟",
+      "position": [
+        18.9,
+        -99.9
+      ],
+      "xp": 70,
+      "teaches": [],
+      "primaryTechniqueId": null,
+      "primarySkillId": "ctx-pruning",
+      "scenario": "托盤裡疊著十份查詢結果，八份是上個月的。「留著比較保險。」管事把托盤推過來：「可是它每次回答都要先把十份讀一遍——而且愈讀愈慢。」",
+      "mission": "整理這個托盤，讓管事問得出西倉那批貨到底缺幾件。",
+      "craft": "把過期的換成一行摘要，但唯一的那份依據要留原文；其餘過程壓成一段摘要並寫出必留。",
+      "material": {
+        "label": "托盤裡的十份（節錄）",
+        "text": "第一至第八份：上個月的庫存查詢（數字都已經被覆蓋過）。\n第三份：西倉盤點原始紀錄——這是唯一寫著初始數量的一份。\n第九、第十份：本週的兩筆入庫確認。"
+      },
+      "clue": "管事說：舊不等於沒用。第三份雖然舊，卻是唯一寫著初始數量的——那一份要留原文，其餘的換成一行就好。",
+      "placeholder": "例如：過期的＿＿換成＿＿。＿＿是唯一的依據，請保留＿＿。",
+      "quickFills": [
+        {
+          "label": "交代委託",
+          "text": "請根據托盤裡的查詢結果，回答西倉那批貨到底缺幾件。"
+        },
+        {
+          "label": "過期的怎麼辦",
+          "text": "過期的查詢結果換成一行摘要。"
+        },
+        {
+          "label": "唯一的依據",
+          "text": "第三份查詢雖然舊，但它是唯一的依據，請保留原文。"
+        },
+        {
+          "label": "其餘的壓一壓",
+          "text": "其餘過程壓成一段摘要，一定要保留已經確認的那兩筆數量與日期。"
+        }
+      ],
+      "sample": "請根據托盤裡的查詢結果，回答西倉那批貨到底缺幾件。\n過期的查詢結果換成一行摘要。\n第三份查詢雖然舊，但它是唯一的依據，請保留原文。\n其餘過程壓成一段摘要，一定要保留已經確認的那兩筆數量。",
+      "rubric": [
+        {
+          "check": "asksToCompact",
+          "weight": 3,
+          "primary": true,
+          "skillId": "ctx-pruning"
+        },
+        {
+          "check": "assignsTask",
+          "weight": 0.5,
+          "foundation": true,
+          "techniqueId": "clarity-02"
+        }
+      ],
+      "pass": 2,
+      "source": "https://developers.openai.com/cookbook/examples/o-series/o3o4-mini_prompting_guide"
+    },
+    {
+      "id": "unturnable-page-105",
+      "region": "frugality",
+      "order": 105,
+      "title": "翻不動的那一頁",
+      "npc": "記事人 · 同一頁講到第五件事",
+      "position": [
+        25.7,
+        -78.4
+      ],
+      "xp": 70,
+      "teaches": [],
+      "primaryTechniqueId": null,
+      "primarySkillId": "ctx-new-chat",
+      "scenario": "這一頁從船期講到帳目、又講到誰家的婚事，現在講到第五件事。「它開始敷衍了。」記事人翻著那張沉甸甸的紙：「同樣的問題，昨天它答得又快又準。」",
+      "mission": "替記事人開新的一頁，重新問出這批貨要走哪一條航線。",
+      "craft": "換一頁重新問，並寫出「上一頁的哪幾件事要帶過來」，其他的留在原地。",
+      "material": {
+        "label": "翻不動的那一頁（節錄）",
+        "text": "第一件：三月的船期。\n第二件：上季的帳目。\n第三件：誰家的婚事。\n第四件：漁網的價錢。\n第五件：這批貨要走哪一條航線？（回答開始變短、變含糊）"
+      },
+      "clue": "記事人說：舊主題的殘影會讓它變懶。換一頁比任何咒語都有效——但走之前要說清楚「哪幾件事要帶過去」，不然它連交期都不知道。",
+      "placeholder": "例如：請在新的一頁重新回答＿＿。只把上一頁的這＿＿件事帶過來：＿＿。",
+      "quickFills": [
+        {
+          "label": "換一頁重新問",
+          "text": "請在新的一頁重新回答這個問題：這批貨要走哪一條航線。"
+        },
+        {
+          "label": "帶走該帶的",
+          "text": "只把上一頁的這三件事帶過來：客人要的交期、已經否決的兩條航線、船的載重上限。"
+        },
+        {
+          "label": "其他留在原地",
+          "text": "其他的內容不要一起貼過來，留在原本那一頁就好。"
+        }
+      ],
+      "sample": "請在新的一頁重新回答這個問題：這批貨要走哪一條航線。\n只把上一頁的這三件事帶過來：客人要的交期、已經否決的兩條航線、船的載重上限。\n其他的內容不要一起貼過來。",
+      "rubric": [
+        {
+          "check": "carriesForwardEssentials",
+          "weight": 3,
+          "primary": true,
+          "skillId": "ctx-new-chat"
+        },
+        {
+          "check": "assignsTask",
+          "weight": 0.5,
+          "foundation": true,
+          "techniqueId": "clarity-02"
+        }
+      ],
+      "pass": 2,
+      "source": "https://developers.openai.com/cookbook/examples/o-series/o3o4-mini_prompting_guide",
+      "starter": "這一頁再幫我想仔細一點：這批貨到底要走哪一條航線？"
+    },
+    {
+      "id": "memoryless-artisan-106",
+      "region": "frugality",
+      "order": 106,
+      "title": "沒有記憶的工匠",
+      "npc": "工匠 · 每一輪都從零開始",
+      "position": [
+        13.2,
+        -59.6
+      ],
+      "xp": 70,
+      "teaches": [],
+      "primaryTechniqueId": null,
+      "primarySkillId": "ctx-reuse-reasoning",
+      "scenario": "兩份草稿攤在檯子上，推導的是同一件事。「每一輪它都從頭想一次。」工匠敲了敲檯面：「想得一樣慢，還常常想出不一樣的答案。」",
+      "mission": "替工匠寫下一輪的委託，讓上一輪想過的東西不必再想一次。",
+      "craft": "把上一輪推導過的結論帶回去，寫得出是哪幾條；過期的那一條不要帶，其他推理也不要整段貼。",
+      "material": {
+        "label": "檯子上的兩份草稿（節錄）",
+        "text": "第一輪：算出每箱損耗率 4%（推導了六步）。\n第二輪：又從頭算了一次每箱損耗率，這次得到 5%。\n附註：上週的舊報價已被本週新報價取代。"
+      },
+      "clue": "工匠說：想過的東西帶回去，既省力也更準——但只帶還成立的那幾條。過期的推理帶回去，比忘記更糟。",
+      "placeholder": "例如：請接著上一輪，＿＿。把上一輪推導過的那＿＿條結論帶回去：＿＿。",
+      "quickFills": [
+        {
+          "label": "接著上一輪",
+          "text": "請接著上一輪，算出第三批料要訂多少。"
+        },
+        {
+          "label": "帶回想過的",
+          "text": "把上一輪已經推導過的那兩條結論帶回去：每箱的損耗率、以及已經確認的交期。"
+        },
+        {
+          "label": "過期的不要帶",
+          "text": "上週那份舊報價已經過期，不要帶；其他推理也不要整段貼過來。"
+        }
+      ],
+      "sample": "請接著上一輪，算出第三批料要訂多少。\n把上一輪已經推導過的那兩條結論帶回去：每箱的損耗率、以及已經確認的交期。\n上週那份舊報價已經過期，其他推理也不要整段貼過來。",
+      "rubric": [
+        {
+          "check": "carriesForwardEssentials",
+          "weight": 3,
+          "primary": true,
+          "skillId": "ctx-reuse-reasoning"
+        },
+        {
+          "check": "assignsTask",
+          "weight": 0.5,
+          "foundation": true,
+          "techniqueId": "clarity-02"
+        }
+      ],
+      "pass": 2,
+      "source": "https://developers.openai.com/api/docs/guides/reasoning-best-practices"
     }
   ]
 }

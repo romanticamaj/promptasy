@@ -7701,3 +7701,191 @@ select option:disabled {
     animation: none;
   }
 }
+
+/* ================================================================
+   轉鈕（sim · 課程 v2 · Phase H）
+
+   視覺語言完全沿用 .stele / .carve / .opt：這裡只加三樣東西 ——
+   旋鈕的檔位（刻印牌的 quiet 階，選中的那一格受光顛倒＝真的被按進去）、
+   神諭那一段**遊戲自撰**的回話（引文式左邊線 ＋ 等寬字，跟玩家自己刻的
+   碑面分得開，旁邊永遠掛一顆 ⓘ 說明它是誰寫的），以及那一行「這一檔
+   在哪一台機器上成立」的條件註記 —— 旋鈕的行為不是普遍真理。
+   ================================================================ */
+.simboard[hidden] {
+  display: none;
+}
+.simboard {
+  display: grid;
+  gap: var(--s4);
+}
+.dial {
+  display: grid;
+  gap: var(--s3);
+  padding: var(--s3);
+  border-left: 1px solid var(--rule);
+  background: linear-gradient(180deg, rgba(19, 27, 38, 0.6), rgba(8, 11, 17, 0.4));
+}
+.dial__eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin: 0;
+  font-size: var(--t-micro);
+  letter-spacing: 0.02em;
+  color: var(--paper-4);
+}
+.dial__lead {
+  margin: 0;
+  font-size: var(--t-body);
+  line-height: 1.8;
+  color: #eef4fa;
+}
+.dial__prompt {
+  margin: 0;
+  padding: var(--s2) var(--s3);
+  border-left: 1px solid var(--rule);
+  font-family: var(--font-input);
+  font-size: var(--t-micro);
+  line-height: 1.85;
+  color: var(--paper-3);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.dial__notches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+}
+.notch {
+  position: relative;
+  isolation: isolate;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  min-height: 44px;
+  padding: var(--s2) var(--s3);
+  border: 0;
+  background: transparent;
+  color: var(--paper-2);
+  font: inherit;
+  font-size: var(--t-micro);
+  cursor: pointer;
+  --cut: 7px;
+  clip-path: var(--seal-shape);
+  transition: translate var(--d-fast) var(--e-out), color var(--d-fast) var(--e-out);
+}
+.notch::before,
+.notch::after {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  clip-path: var(--seal-shape);
+  pointer-events: none;
+}
+.notch::before {
+  inset: 0;
+  background: linear-gradient(180deg, var(--seal-lit), var(--seal-shade));
+}
+.notch::after {
+  inset: 1px;
+  clip-path: var(--seal-shape-in);
+  background: linear-gradient(180deg, var(--seal-face-a), var(--seal-face-b));
+}
+.notch:hover {
+  translate: 0 -1px;
+  color: #eef4fa;
+}
+.notch.is-seen .notch__label::after {
+  content: ' ·';
+  color: var(--gold, #c6a05e);
+}
+.notch.is-now {
+  color: #10161f;
+}
+.notch.is-now::after {
+  background: linear-gradient(180deg, #e9dcc0, #c9b389);
+}
+.notch.is-now::before {
+  background: linear-gradient(180deg, var(--seal-shade), var(--seal-lit));
+}
+.notch__key {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  font-size: var(--t-micro);
+  color: inherit;
+  opacity: 0.7;
+}
+.notch__cost {
+  color: inherit;
+  opacity: 0.66;
+}
+.dial__progress {
+  margin: 0;
+  font-size: var(--t-micro);
+  letter-spacing: 0.02em;
+  color: var(--paper-4);
+}
+.dial__out {
+  display: grid;
+  gap: var(--s2);
+  animation: opt-in var(--d-mid) var(--e-out) both;
+}
+.dial__outhead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--s2);
+  margin: 0;
+  font-size: var(--t-micro);
+  letter-spacing: 0.02em;
+  color: var(--paper-4);
+}
+.dial__value {
+  font-family: var(--font-input);
+  color: #f2ead9;
+}
+.dial__body {
+  margin: 0;
+  padding: var(--s2) var(--s3);
+  border-left: 1px solid var(--rule);
+  font-family: var(--font-input);
+  font-size: var(--t-micro);
+  line-height: 1.85;
+  color: var(--paper-2);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.dial__read {
+  margin: 0;
+  padding-left: var(--s3);
+  border-left: 1px solid var(--rule-gold);
+  font-size: var(--t-micro);
+  line-height: 1.8;
+  color: var(--paper-3);
+}
+.dial__cond,
+.dial__conclusion {
+  margin: 0;
+  font-size: var(--t-micro);
+  line-height: 1.8;
+  color: var(--paper-4);
+}
+.dial__conclusion {
+  padding-left: var(--s3);
+  border-left: 1px solid var(--rule-gold);
+  color: var(--paper-3);
+}
+.dial__conclusion[hidden] {
+  display: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .dial__out {
+    animation: none;
+  }
+  .notch:hover {
+    translate: none;
+  }
+}

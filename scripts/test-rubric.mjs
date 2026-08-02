@@ -1191,6 +1191,51 @@ const FIXTURES = {
     ],
     bad: ['請寫一則水井停用的公告，寫完之後給自己打一個 1 到 5 分的分數。', 'Write the notice and then rate yourself on a scale of 1 to 5.'],
   },
+
+  /* -------- 減法之庭（課程 v2 · Phase H） ---------------------- */
+  staticBeforeVariable: {
+    good: [
+      '請照下面的規矩，回覆今天的詢價。\n不會變的規矩與價目表放在最前面：每次都一樣的那三條收費規則。\n今天的日期與這一位客人的問題放在最後面。\n開頭那一段之後不要再改動。',
+      'Answer with the rules below. Put the fixed rules first, at the top. Put the per-request parts last, at the end: today date and this user question. Keep the prefix stable afterwards.',
+    ],
+    weak: [
+      '請照下面的規矩，回覆今天的詢價。\n不會變的規矩與價目表放在最前面。\n今天的日期與這一位客人的問題放在最後面。',
+      '請照下面的規矩，回覆今天的詢價。\n不會變的規矩放在最前面。\n開頭那一段之後不要再改動。',
+    ],
+    bad: [
+      // 非單調：一邊說固定的放前面，一邊又把今天日期擺在最前面 → 整條歸零
+      '請照下面的規矩回覆詢價。\n不會變的規矩放在最前面。\n今天的日期放在最前面比較好找。',
+      '請照下面的規矩回覆今天的詢價，順序你自己決定就好。',
+    ],
+  },
+  asksToCompact: {
+    good: [
+      '請接手這張桌上的工作。\n先把前面的過程壓成一段摘要，不超過 200 字。\n一定要保留：客人要的交期、以及已經被否決的那兩個方案。\n過期的查詢結果換成一行摘要，原始依據留原文。',
+      'Take over this job. First summarise the earlier steps into one short block. You must keep the delivery date and the two rejected options. Replace the stale tool results with a one-line note.',
+    ],
+    weak: [
+      '請接手這張桌上的工作。\n先把前面的過程壓成一段摘要。\n一定要保留：客人要的交期。',
+      '請接手這張桌上的工作。\n先把前面的過程壓成一段摘要。\n過期的查詢結果換成一行摘要。',
+    ],
+    bad: [
+      '請接手這張桌上的工作，前面四十回合的東西原封不動全部帶著。',
+      'Take over this job and keep every single earlier message exactly as it is.',
+    ],
+  },
+  carriesForwardEssentials: {
+    good: [
+      '請在新的一頁重新回答這個問題：這批貨要走哪一條航線。\n只把上一頁的這三件事帶過來：客人要的交期、已經否決的兩條航線、船的載重上限。\n其他的內容不要一起貼過來。',
+      'Answer this on a new page: which route should this shipment take. Carry forward from the last turn only these 3 facts: the delivery date, the two rejected routes, the load limit. Do not carry everything else.',
+    ],
+    weak: [
+      '請在新的一頁重新回答這個問題。\n只把上一頁的這三件事帶過來：交期、兩條否決的航線、載重上限。',
+      '請在新的一頁重新回答這個問題。\n把上一輪的結論帶過來，其他的不要帶。',
+    ],
+    bad: [
+      '請把整頁的內容原封不動全部貼過去，再回答我這批貨要走哪一條航線。',
+      'Just paste everything we have so far and answer again.',
+    ],
+  },
 };
 
 
@@ -1805,6 +1850,39 @@ const LEGACY_EN_SOLUTIONS = {
     '1. First list every letter that mentions an amount; do not filter at this step.\n' +
     '2. Then, from that list, pick the ones above one thousand.\n' +
     'The only filter is the amount; keep everything else.',
+
+  /* -------- 減法之庭（課程 v2 · Phase H） ---------------------- */
+  'empty-plinth-100':
+    'This notice is only for people rushing to the market.\n' +
+    'Rewrite it as one sentence.\n' +
+    'At most 20 characters; it must state the time and the place.',
+  'twice-copied-101':
+    'The harvest ledger below has 42 lines.\n' +
+    'Answer which day ran out of stock; give the date line only.\n' +
+    'Attach the one line you based the answer on.',
+  'stacking-order-102':
+    'Answer today enquiry with the rules below.\n' +
+    'Put the fixed rules first, at the top; they are the same every day.\n' +
+    'Put the per-request parts last, at the end: today date and this user question.\n' +
+    'Keep the prefix stable afterwards.',
+  'piling-table-103':
+    'Take over the job on this table and finish the schedule for the third batch.\n' +
+    'First summarise the earlier steps into one short block, at most 200 words.\n' +
+    'You must keep the delivery date and the two options that were already rejected.\n' +
+    'Replace the stale tool results with a one-line note; keep the original source text.',
+  'stale-tray-104':
+    'Using the query results on the tray, answer how many items the west store is short of.\n' +
+    'Replace the stale results with a one-line note.\n' +
+    'The third query is old but it is the only source we have; keep it verbatim.\n' +
+    'Summarise the remaining history; you must keep the two confirmed quantities.',
+  'unturnable-page-105':
+    'Answer this on a new page: which route should this shipment take.\n' +
+    'Carry forward from the last turn only these 3 facts: the delivery date, the two rejected routes, the load limit.\n' +
+    'Do not carry everything else.',
+  'memoryless-artisan-106':
+    'Continue from the last turn and work out how much of the third batch to order.\n' +
+    'Carry forward from the last turn only these 2 conclusions: the loss rate per crate and the confirmed delivery date.\n' +
+    'The quote from last week is out of date; do not carry everything else either.',
 };
 for (const c of challenges) {
   const en = LEGACY_EN_SOLUTIONS[c.id];
@@ -3018,6 +3096,12 @@ eq(prog.isRegionUnlocked('wards'), true, '檔案庫讀完＋鍛冶場的祖先�
 clearRegion('toolcraft');
 clearRegion('wards');
 clearRegion('refinery');
+/*
+ * 課程 v2 · Phase H：減法之庭的門檻是「任一區精通」（regions-v2 的 gate 逐字）。
+ * 走到這裡時前面幾片土地早就全破了，所以它該是開著的。
+ */
+eq(prog.isRegionUnlocked('frugality'), true, '已經有土地精通 → 減法之庭自己開了（知識即升級）');
+clearRegion('frugality');
 eq(prog.state.collected.length, curriculum.techniques.length, '全破所有關卡 → 68 條技巧全收集');
 for (const g of catalog.implementedRegions()) {
   eq(prog.regionMastery(g.id).mastered, true, `[${g.id}] 全收集 → 精通`);
@@ -4899,6 +4983,17 @@ console.log('\n▸ 排序刻印與神諭工坊（Phase 27）');
 
 const { flowKind, FLOW_KINDS, KIND_LABEL } = await import('../src/prompt/console.js');
 
+/*
+ * 課程 v2 · Phase H：轉鈕（sim）的離線樣本住在獨立資料層，開機時由 main.js 註冊。
+ * 這裡照做一次 —— 沒有註冊樣本時 `flowKind` 會（照相容契約）把那幾關退回石碑刻印，
+ * 所以「樣本註冊了沒有」本身也是一條要驗的事（見下方 Phase H 專節）。
+ */
+const simSamples = readJson('src/data/sim-samples.json');
+const { registerSimDials, simDial, isSimDial, isSimFlow, SIM_NOTCHES, AUTHORED_NOTE: SIM_NOTE } =
+  await import('../src/prompt/sim.js');
+const { isSlotList } = await import('../src/prompt/slots.js');
+registerSimDials(simSamples);
+
 eq(flowKind(undefined), 'choice', '沒有流程資料 → 石碑刻印');
 eq(flowKind({}), 'choice', '沒寫 kind → 石碑刻印（預設值，24 關零變化）');
 eq(flowKind({ kind: 'nonsense' }), 'choice', '亂填的 kind → 石碑刻印');
@@ -6518,6 +6613,316 @@ console.log('\n▸ 兩輪刻印與校驗場（課程 v2 · Phase G）');
   }
 }
 
+/* ================================================================== */
+/* 課程 v2 · Phase H：轉鈕（sim）＋ 減法之庭（frugality）              */
+/*                                                                    */
+/*   守六件事：                                                        */
+/*     1. 離線樣本是**遊戲自撰**的，而且資料層與畫面都說得出這件事      */
+/*     2. 每一個旋鈕剛好三檔、三檔的回話真的不一樣、附得出「在哪一台     */
+/*        機器上成立」的條件（旋鈕的行為不是普遍真理）                  */
+/*     3. 斷網完全可玩：這個題型不碰網路、不 import 任何服務            */
+/*     4. 換裝的三座只換第三幕 —— rubric／示範解答／slots 一個位元組沒動 */
+/*     5. 減法之庭 7 座一對一接上技能（C1／C2），沒有連續三座同型（C4） */
+/*     6. 高原北緣真的長出一座院落（加建、沒有橋），軟門檻是知識式的      */
+/* ================================================================== */
+console.log('\n▸ 轉鈕與減法之庭（課程 v2 · Phase H）');
+
+{
+  /* --- 離線樣本的資料契約 --- */
+  eq(simSamples.authored, 'game', '離線樣本標明是遊戲自撰的（不是官方引文、也不是模型輸出）');
+  ok(
+    nonEmptyStr(simSamples.note) && /遊戲自己寫|不是任何模型|不會呼叫/.test(simSamples.note),
+    '樣本檔的檔頭把「這不是模型跑出來的」寫清楚',
+    simSamples.note || ''
+  );
+  ok(
+    nonEmptyStr(simSamples.disclosure) && /不是真的模型/.test(simSamples.disclosure),
+    '樣本檔帶一句給畫面用的實話',
+    simSamples.disclosure || ''
+  );
+  ok(!/https?:\/\//.test(JSON.stringify(simSamples)), '樣本層不自帶連結（官方出處只在關卡與圖鑑）');
+  ok(Array.isArray(simSamples.dials) && simSamples.dials.length >= 3, `至少三個旋鈕（實際 ${simSamples.dials.length}）`);
+  eq(new Set(simSamples.dials.map((d) => d.id)).size, simSamples.dials.length, '旋鈕 id 沒有重複');
+
+  const simFlowIds = Object.keys(flowData.flows).filter((id) => (flowData.flows[id].kind || '') === 'sim');
+  eq(simFlowIds.length, 3, `Phase H 先做三座 spike（實際 ${simFlowIds.length}）`, simFlowIds.join(','));
+
+  for (const dial of simSamples.dials) {
+    const tag = `[dial:${dial.id}]`;
+    ok(isSimDial(dial), `${tag} 通過旋鈕的資料契約`);
+    eq(dial.notches.length, SIM_NOTCHES, `${tag} 剛好 ${SIM_NOTCHES} 檔（太少看不出趨勢，太多變成翻頁）`);
+    ok(nonEmptyStr(dial.prompt), `${tag} 寫得出「每一檔送出去的是同一句話」`);
+    ok(CJK_ANY.test(dial.condition), `${tag} 條件註記是中文`, dial.condition);
+    ok(
+      /模型|機器|版本|官方|20\d\d/.test(dial.condition),
+      `${tag} 條件註記說得出「在哪一台機器、哪一個時間點成立」`,
+      dial.condition
+    );
+    ok(!ENGLISH(dial.condition), `${tag} 條件註記不是整句英文`, dial.condition);
+    ok(CJK_ANY.test(dial.conclusion) && dial.conclusion.length >= 20, `${tag} 有一句收尾的結論`, dial.conclusion);
+    const outs = dial.notches.map((n) => n.output.trim());
+    eq(new Set(outs).size, outs.length, `${tag} 三檔的回話真的不一樣（轉了卻沒差別，這一課就不存在）`);
+    for (const n of dial.notches) {
+      ok(nonEmptyStr(n.label) && CJK_ANY.test(n.label), `${tag} 檔位 ${n.id} 的名字是中文`, n.label);
+      ok(nonEmptyStr(n.value), `${tag} 檔位 ${n.id} 寫得出旋鈕實際被轉到哪裡`, n.value);
+      ok(n.output.length >= 8, `${tag} 檔位 ${n.id} 的回話夠長`, String(n.output.length));
+      ok(CJK_ANY.test(n.read) && !ENGLISH(n.read), `${tag} 檔位 ${n.id} 的解讀是中文`, n.read);
+    }
+    /* 樣本掛在真的存在的關卡與技能上 */
+    const owner = challenges.find((c) => c.id === dial.challengeId);
+    ok(Boolean(owner), `${tag} 掛在真的存在的關卡上`, dial.challengeId);
+    if (owner) eq(owner.primarySkillId, dial.skillId, `${tag} 旋鈕教的技能＝那一關的主技能`);
+    ok(Boolean(catalog.skill(dial.skillId)), `${tag} 技能 ${dial.skillId} 真的存在`);
+  }
+
+  /* --- 畫面上那一句實話 --- */
+  ok(
+    /遊戲預先寫好|不是真的模型/.test(SIM_NOTE),
+    '轉鈕在畫面上永遠掛得出「這不是真的模型跑出來的結果」',
+    SIM_NOTE
+  );
+
+  /* --- 斷網完全可玩：這個題型不碰網路 --- */
+  {
+    const simSrc = readFileSync(resolve(root, 'src/prompt/sim.js'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+    ok(!/\bfetch\s*\(/.test(simSrc), '轉鈕不 fetch 任何東西（護欄 3：核心迴圈離線）');
+    ok(!/XMLHttpRequest|WebSocket|EventSource/.test(simSrc), '轉鈕不開任何連線');
+    ok(!/https?:\/\//.test(simSrc), '轉鈕的程式碼裡沒有任何網址');
+    ok(!/import\s+[^;]*\.json/.test(simSrc), '轉鈕不直接 import JSON（樣本由外面註冊進來）');
+    /* 旋鈕不參與評分：被送出去的永遠只有刻在碑上的那段字（護欄 3：同一支引擎、同一段文字） */
+    ok(
+      /get text\(\) \{\s*return stage\.text;/.test(simSrc),
+      '轉鈕送出去的是刻在碑上的那段字（轉旋鈕本身不會改變被評分的內容）'
+    );
+    /* 觀察是這一關的內容，不是可以跳過的過場：三檔都轉過才開放刻印 */
+    ok(
+      /if \(observedAll\(\) && stage\.locked\)\s*\{\s*\n\s*stage\.unlock\(\);/.test(simSrc),
+      '三檔都轉過了才開放刻印（想通才給刻，與推規碑同一個文法）'
+    );
+    ok(
+      (simSrc.match(/stage\.unlock\(\)/g) || []).length === 1,
+      '刻印只有一個開放的入口（沒有別條路可以跳過觀察）'
+    );
+  }
+
+  /* --- 每一關的轉鈕資料 --- */
+  for (const id of simFlowIds) {
+    const tag = `[${id}]`;
+    const f = flowData.flows[id];
+    const c = challenges.find((x) => x.id === id);
+    ok(Boolean(c), `${tag} 轉鈕掛在真的存在的關卡上`);
+    eq(f.simFlow.authored, 'game', `${tag} 資料層標明樣本是自撰的`);
+    ok(nonEmptyStr(f.simFlow.ask) && CJK_ANY.test(f.simFlow.ask), `${tag} 有一句中文導言`, f.simFlow.ask);
+    ok(Boolean(simDial(f.simFlow.dialId)), `${tag} dialId 指得到真的旋鈕`, f.simFlow.dialId);
+    ok(isSlotList(f.slots), `${tag} 轉完之後還是回到同一組刻印段落`);
+    eq(flowKind(f), 'sim', `${tag} 宣告的題型 sim 通過它自己的資料契約`);
+    ok(isSimFlow(f.simFlow, f.slots), `${tag} isSimFlow 認得這一份資料`);
+  }
+
+  /* --- 相容契約：沒有註冊樣本時安靜退回石碑刻印（不會開到空白的碑） --- */
+  {
+    eq(registerSimDials(null), 0, '樣本檔壞掉時註冊 0 個旋鈕（不丟例外）');
+    for (const id of simFlowIds) {
+      eq(flowKind(flowData.flows[id]), 'choice', `[${id}] 沒有樣本時退回石碑刻印（相容契約）`);
+    }
+    eq(registerSimDials(simSamples), simSamples.dials.length, '重新註冊之後旋鈕都回來了');
+    for (const id of simFlowIds) eq(flowKind(flowData.flows[id]), 'sim', `[${id}] 註冊之後又是轉鈕`);
+  }
+
+  /* --- 換裝的三座：只換第三幕，評分那一面一個位元組都沒動 --- */
+  for (const id of simFlowIds) {
+    const c = challenges.find((x) => x.id === id);
+    const tag = `[${id}]`;
+    eq(c.rubric.length, 2, `${tag} 仍然是「一條主檢查 ＋ 一條地基」（C1）`);
+    const main = c.rubric.find((r) => r.primary);
+    ok(Boolean(main) && main.weight === 3, `${tag} 主檢查仍是 3 分`);
+    eq(c.pass, 2, `${tag} 門檻仍是 2 分`);
+    const picks = flowData.flows[id].slots.map((sl) => sl.options.find((o) => o.correct).text).join('\n');
+    eq(picks, c.sample, `${tag} 全部選對＝示範解答（退回石碑刻印時字一模一樣）`);
+  }
+
+  /* --- 減法之庭：7 座、C1／C2／C4 --- */
+  {
+    const here = challenges.filter((c) => c.region === 'frugality');
+    eq(here.length, EXPECT.frugalityShrines.value, `減法之庭有 ${EXPECT.frugalityShrines.value} 座教學神廟`);
+    ok(
+      here.every((c) => nonEmptyStr(c.primarySkillId)),
+      '減法之庭每一關都接上了 v2 技能',
+      here.filter((c) => !c.primarySkillId).map((c) => c.id).join('、')
+    );
+    const skills = here.map((c) => c.primarySkillId);
+    eq(new Set(skills).size, skills.length, '[frugality] 每條技能只有一座神廟（C2）');
+    eq(
+      skills.slice().sort().join(','),
+      catalog.regionSkills('frugality').map((x) => x.id).slice().sort().join(','),
+      '[frugality] 這一區的技能全部有神廟了（一條不多、一條不少）'
+    );
+    for (const c of here) {
+      const tag = `[${c.id}]`;
+      eq(c.rubric.length, 2, `${tag} 收斂成「一條主檢查 ＋ 一條地基」（C1）`);
+      const main = c.rubric.find((r) => r.primary);
+      ok(Boolean(main) && main.weight === 3, `${tag} 主檢查是 3 分`);
+      eq(main && main.skillId, c.primarySkillId, `${tag} 主檢查那一列掛著這一關的技能`);
+      eq(c.pass, 2, `${tag} 門檻是 2 分`);
+      ok(CHECK_IDS.includes(main.check), `${tag} 主檢查是真的實作了的檢查器`, main.check);
+      /* 出處：一定是這條技能自己的官方連結（不是別條技能借來的） */
+      const skill = catalog.skill(c.primarySkillId);
+      ok(
+        (skill.sources || []).some((x) => x.url === c.source),
+        `${tag} 出處是這條技能自己的官方連結`,
+        c.source
+      );
+    }
+    const kinds = here.map((c) => kindOf(c.id));
+    let run = 1;
+    let worst = 1;
+    for (let i = 1; i < kinds.length; i += 1) {
+      run = kinds[i] === kinds[i - 1] ? run + 1 : 1;
+      worst = Math.max(worst, run);
+    }
+    ok(worst <= 2, '[frugality] 整區沒有連續三座同一種題型（C4）', kinds.join(','));
+    ok(new Set(kinds).size >= 5, '[frugality] 至少用了五種題型', [...new Set(kinds)].join(','));
+  }
+
+  /* --- 這一期開的三個新檢查器 --- */
+  {
+    const PHASE_H_CHECKS = ['staticBeforeVariable', 'asksToCompact', 'carriesForwardEssentials'];
+    const usedHere = new Set(
+      challenges.filter((c) => c.region === 'frugality').flatMap((c) => c.rubric.map((r) => r.check))
+    );
+    for (const id of PHASE_H_CHECKS) {
+      ok(CHECK_IDS.includes(id), `新檢查器 ${id} 真的實作了`);
+      ok(usedHere.has(id), `新檢查器 ${id} 真的被減法之庭用到（不開沒人用的）`);
+      ok(EXPECT.v2CheckersLanded.value.includes(id), `新檢查器 ${id} 登記進 expected-counts`);
+      ok(Boolean(coachData.entries.find((e) => e.check === id)), `新檢查器 ${id} 有白話教學`);
+    }
+    /* 非單調：一邊說固定的放前面、一邊又把今天日期擺最前面 → 整條歸零 */
+    eq(
+      runCheck(
+        'staticBeforeVariable',
+        '請回覆詢價。\n不會變的規矩放在最前面。\n今天的日期放在最前面比較好找。'
+      ).score,
+      0,
+      'staticBeforeVariable 是非單調的：又把會變的東西放最前面就整條歸零'
+    );
+    ok(
+      runCheck('asksToCompact', '請把前面的過程壓成一段摘要。').score < 1,
+      'asksToCompact：只壓縮不寫必留清單不算完（摘要一定會壓掉某個關鍵決定）'
+    );
+    ok(
+      runCheck(
+        'carriesForwardEssentials',
+        '請在新的一頁重新問，把上一輪的重點帶過來。'
+      ).score < 1,
+      'carriesForwardEssentials：說不出「哪幾件」就不算完（「重點」它挑不出來）'
+    );
+  }
+
+  /* --- 世界：高原北緣的加建（沒有自己的橋） --- */
+  {
+    const site = World.REGION_SITES.find((s) => s.id === 'frugality');
+    ok(Boolean(site), '世界上有減法之庭這片土地');
+    eq(site.annexOf, 'foundations', '減法之庭是中央高原的加建（curriculum-v2 §二：🟡 高原加建）');
+    ok(!World.CORRIDORS.some((c) => c.region === 'frugality'), '加建不生成新的橋');
+    const link = World.ANNEX_LINKS.find((l) => l.region === 'frugality');
+    ok(Boolean(link), '減法之庭接在母土地上（頸口）');
+    const gateHere = World.regionAt(link.gate.x, link.gate.z);
+    ok(Boolean(gateHere), '閘門站在實地上', JSON.stringify(gateHere));
+    ok(
+      Math.abs(link.gate.x) < 1 && link.gate.z < -50,
+      '閘門立在高原正北的邊緣上',
+      `${link.gate.x.toFixed(1)},${link.gate.z.toFixed(1)}`
+    );
+    /* 母土地一寸都沒有被吃掉：撰寫基本功的 15 座石座區域判定沒有變 */
+    for (const c of challenges.filter((x) => x.region === 'foundations')) {
+      const r = World.regionAt(c.position[0], c.position[1]);
+      eq(r && r.id, 'foundations', `[${c.id}] 加建之後仍然屬於中央高原`);
+    }
+    /*
+     * 這一片是整張地圖上最平的土地（東西都被搬走了）。
+     * 只量**站得住的地方**（coverage > 0.85）—— 再往外就是虛空，那裡的高度
+     * 本來就會塌下去，量它等於在量虛空的深度。
+     */
+    let lo = Infinity;
+    let hi = -Infinity;
+    let sampled = 0;
+    for (let a = 0; a < 24; a += 1) {
+      for (const d of [4, 10, 16, 20, 22]) {
+        const x = site.x + Math.cos((a / 24) * Math.PI * 2) * d;
+        const z = site.z + Math.sin((a / 24) * Math.PI * 2) * d;
+        if (World.coverage(x, z) <= 0.85) continue;
+        const h = World.terrainHeight(x, z);
+        lo = Math.min(lo, h);
+        hi = Math.max(hi, h);
+        sampled += 1;
+      }
+    }
+    ok(sampled >= 100, '真的量到夠多個點（不是空過）', String(sampled));
+    ok(hi - lo < 3.2, '減法之庭是最平的一片土地（起伏 < 3.2 公尺）', `${(hi - lo).toFixed(2)}`);
+    ok(
+      World.terrainHeight(site.x, site.z) > World.terrainHeight(site.x, site.z + 26),
+      '中央那塊放基座的台比外圈高'
+    );
+    /* 氣氛表：它有自己的空氣，不是抄別區的 */
+    const air = World.atmosphereFor('frugality');
+    ok(Boolean(air) && air !== World.atmosphereFor('foundations'), '減法之庭有自己的氣氛設定');
+    ok(air.motes <= 0.5, '螢火最少（這裡本來就沒有東西）', String(air.motes));
+    /* 地標：空的基座，零實體光源 */
+    const spec = Props.LANDMARKS.find((l) => l.region === 'frugality');
+    ok(Boolean(spec), '減法之庭有自己的地標');
+    eq(spec.name, '空的基座', '地標就是 curriculum-v2 §二寫的那一座');
+    const built = Props.buildLandmark('frugality', kit, World.terrainHeight, 'high');
+    ok(Boolean(built), '地標蓋得起來');
+    let lightCount = 0;
+    built.group.traverse((o) => {
+      if (o.isLight) lightCount += 1;
+    });
+    eq(lightCount, 0, '空的基座一盞實體光源都沒加（只用自發光材質）');
+  }
+
+  /* --- 軟門檻：知識式（C8），規格與 regions-v2 逐字對得上 --- */
+  {
+    const spec = (regionsV2.regions.find((r) => r.id === 'frugality') || {}).gate || {};
+    const { REGION_GATES } = await import('../src/progression/progression.js');
+    const gate = REGION_GATES.frugality;
+    ok(Boolean(gate), 'REGION_GATES 上有減法之庭');
+    ok(Boolean(gate.knowledge), '減法之庭的門檻是知識式的（不是等級數字）');
+    eq(gate.knowledge.masteredAny, spec.masteredAnyCount, '「任一區精通」＝regions-v2 的規格');
+    eq(gate.requires, null, '減法之庭不看「前一區通關幾關」（知識即升級）');
+    memory.clear();
+    const skipProg = createProgression({ catalog, challenges });
+    eq(skipProg.isRegionUnlocked('frugality'), false, '新存檔時減法之庭是鎖著的');
+    const st = skipProg.gateStatus('frugality');
+    ok(st.knowledgeGaps.length > 0, '閘門說得出還差什麼', JSON.stringify(st.knowledgeGaps));
+    ok(
+      st.knowledgeGaps.some((g) => g.kind === 'masteredAny'),
+      '缺口就是「任一區精通」',
+      JSON.stringify(st.knowledgeGaps)
+    );
+    ok(/也可以先行前往/.test(st.text), '減法之庭的閘門一樣會問「想先過去看看嗎」', st.text);
+    skipProg.skipGate('frugality');
+    eq(skipProg.isRegionUnlocked('frugality'), true, '先行前往照樣開得了減法之庭的門');
+    eq(skipProg.state.xp, 0, '先行前往一分 XP 都不加');
+    memory.clear();
+  }
+
+  /* --- 配樂：這一區沒有音檔，走合成 pad（護欄 3） --- */
+  {
+    const { REGION_MOODS: MOODS, BGM_TRACKS: TRACKS, SYNTH_ONLY_REGIONS } = await import('../src/audio/audio.js');
+    ok(SYNTH_ONLY_REGIONS.includes('frugality'), '減法之庭誠實登記成「還沒有配樂音檔」');
+    ok(!TRACKS.frugality, '減法之庭沒有音檔條目（不假裝有一首）');
+    ok(Boolean(MOODS.frugality), '減法之庭有自己的合成配樂性格');
+    ok(
+      MOODS.frugality.bellDensity <= Math.min(...Object.values(MOODS).map((m) => m.bellDensity)),
+      '鐘聲全場最稀（這一區的作法是減法）',
+      String(MOODS.frugality.bellDensity)
+    );
+    for (const other of Object.keys(MOODS).filter((k) => k !== 'frugality')) {
+      ok(MOODS.frugality.root !== MOODS[other].root, `減法之庭的根音與 ${other} 不同（不是拿別區的來墊）`);
+    }
+  }
+}
+
 console.log('\n▸ 稱號與分享卡（Phase 21）');
 
 const ranksFile = readJson('src/data/ranks.json');
@@ -8015,6 +8420,16 @@ console.log('\n▸ 課程 v2 遷移契約（Phase 0／A）');
       eq(main && main.skillId, r.phaseC.skillId, `${r.id} 的主檢查那一列掛著 v2 技能`);
       eq(live.rubric.length, 2, `${r.id} 收斂成「一條主檢查 ＋ 一條地基」（C1）`);
     }
+    /*
+     * 課程 v2 · Phase H：manifest 是**只增不改**的歷史 —— 同一關可以在後面的期別
+     * 被換裝成別的題型（例如刻度儀之室 Phase D 是 choice、Phase H 換成 sim）。
+     * 所以「第三幕題型」這一條只跟**最後一個講到題型的期別**比對，
+     * 前面那些期別的 kindAfterX 留在檔案裡當歷史，不再拿來斷言。
+     */
+    const kindOverridden = (phase) =>
+      ['C', 'D', 'E', 'F', 'G', 'H']
+        .filter((p) => p > phase)
+        .some((p) => r[`phase${p}`] && r[`phase${p}`][`kindAfter${p}`]);
     if (r.phaseE) {
       /* Phase E 的一關（擬態之鏡）：收斂成新神廟的形狀、接上 v2 技能，並整座搬進量器坊 */
       eq(live.primarySkillId, r.phaseE.skillId, `${r.id} 接上 v2 技能 ${r.phaseE.skillId}`);
@@ -8025,11 +8440,13 @@ console.log('\n▸ 課程 v2 遷移契約（Phase 0／A）');
       eq(mainE && mainE.weight, r.phaseE.mainWeightAfterE, `${r.id} 的主檢查權重升到 ${r.phaseE.mainWeightAfterE}`);
       eq(mainE && mainE.skillId, r.phaseE.skillId, `${r.id} 的主檢查那一列掛著 v2 技能`);
       eq(live.rubric.length, 2, `${r.id} 收斂成「一條主檢查 ＋ 一條地基」（C1）`);
-      eq(
-        flowData.flows[r.id] && (flowData.flows[r.id].kind || 'choice'),
-        r.phaseE.kindAfterE,
-        `${r.id} 的第三幕題型＝manifest 記的 ${r.phaseE.kindAfterE}`
-      );
+      if (!kindOverridden('E')) {
+        eq(
+          flowData.flows[r.id] && (flowData.flows[r.id].kind || 'choice'),
+          r.phaseE.kindAfterE,
+          `${r.id} 的第三幕題型＝manifest 記的 ${r.phaseE.kindAfterE}`
+        );
+      }
       ok(nonEmptyStr(r.phaseE.note) && r.phaseE.note.length >= 20, `${r.id} 的 Phase E 條目有寫下理由`);
     }
     if (r.phaseF) {
@@ -8042,11 +8459,13 @@ console.log('\n▸ 課程 v2 遷移契約（Phase 0／A）');
       eq(mainF && mainF.weight, r.phaseF.mainWeightAfterF, `${r.id} 的主檢查權重升到 ${r.phaseF.mainWeightAfterF}`);
       eq(mainF && mainF.skillId, r.phaseF.skillId, `${r.id} 的主檢查那一列掛著 v2 技能`);
       eq(live.rubric.length, 2, `${r.id} 收斂成「一條主檢查 ＋ 一條地基」（C1）`);
-      eq(
-        flowData.flows[r.id] && (flowData.flows[r.id].kind || 'choice'),
-        r.phaseF.kindAfterF,
-        `${r.id} 的第三幕題型＝manifest 記的 ${r.phaseF.kindAfterF}`
-      );
+      if (!kindOverridden('F')) {
+        eq(
+          flowData.flows[r.id] && (flowData.flows[r.id].kind || 'choice'),
+          r.phaseF.kindAfterF,
+          `${r.id} 的第三幕題型＝manifest 記的 ${r.phaseF.kindAfterF}`
+        );
+      }
       ok(nonEmptyStr(r.phaseF.note) && r.phaseF.note.length >= 20, `${r.id} 的 Phase F 條目有寫下理由`);
     }
     if (r.phaseG) {
@@ -8060,11 +8479,13 @@ console.log('\n▸ 課程 v2 遷移契約（Phase 0／A）');
       eq(mainG && mainG.weight, r.phaseG.mainWeightAfterG, `${r.id} 的主檢查權重升到 ${r.phaseG.mainWeightAfterG}`);
       eq(mainG && mainG.skillId, r.phaseG.skillId, `${r.id} 的主檢查那一列掛著 v2 技能`);
       eq(live.rubric.length, 2, `${r.id} 收斂成「一條主檢查 ＋ 一條地基」（C1）`);
-      eq(
-        flowData.flows[r.id] && (flowData.flows[r.id].kind || 'choice'),
-        r.phaseG.kindAfterG,
-        `${r.id} 的第三幕題型＝manifest 記的 ${r.phaseG.kindAfterG}`
-      );
+      if (!kindOverridden('G')) {
+        eq(
+          flowData.flows[r.id] && (flowData.flows[r.id].kind || 'choice'),
+          r.phaseG.kindAfterG,
+          `${r.id} 的第三幕題型＝manifest 記的 ${r.phaseG.kindAfterG}`
+        );
+      }
       eq(live.pass, r.phaseG.passAfterG, `${r.id} 的門檻＝manifest 記的 ${r.phaseG.passAfterG}`);
       ok(nonEmptyStr(r.phaseG.note) && r.phaseG.note.length >= 20, `${r.id} 的 Phase G 條目有寫下理由`);
     }
@@ -8077,12 +8498,35 @@ console.log('\n▸ 課程 v2 遷移契約（Phase 0／A）');
       eq(mainRow && mainRow.weight, r.phaseD.mainWeightAfterD, `${r.id} 的主檢查權重升到 ${r.phaseD.mainWeightAfterD}`);
       eq(mainRow && mainRow.skillId, r.phaseD.skillId, `${r.id} 的主檢查那一列掛著 v2 技能`);
       eq(live.rubric.length, 2, `${r.id} 收斂成「一條主檢查 ＋ 一條地基」（C1）`);
+      if (!kindOverridden('D')) {
+        eq(
+          flowData.flows[r.id] && (flowData.flows[r.id].kind || 'choice'),
+          r.phaseD.kindAfterD,
+          `${r.id} 的第三幕題型＝manifest 記的 ${r.phaseD.kindAfterD}`
+        );
+      }
+      ok(nonEmptyStr(r.phaseD.note) && r.phaseD.note.length >= 20, `${r.id} 的 Phase D 條目有寫下理由`);
+    }
+    if (r.phaseH) {
+      /* Phase H 的兩關（火力熔爐 / 刻度儀之室）：只換第三幕的題型（choice → sim），
+         rubric、示範解答、slots、出處一個位元組都沒動 —— 這一條就是在守那件事 */
+      eq(live.primarySkillId, r.phaseH.skillId, `${r.id} 接上 v2 技能 ${r.phaseH.skillId}`);
+      const mainH = live.rubric.find((x) => x.primary);
+      eq(mainH && mainH.check, r.phaseH.mainCheck, `${r.id} 的主檢查＝manifest 指定的 ${r.phaseH.mainCheck}`);
+      eq(mainH && mainH.weight, r.phaseH.mainWeightAfterH, `${r.id} 的主檢查權重仍是 ${r.phaseH.mainWeightAfterH}`);
+      eq(live.rubric.length, 2, `${r.id} 收斂成「一條主檢查 ＋ 一條地基」（C1）`);
+      eq(live.pass, r.phaseH.passAfterH, `${r.id} 的門檻＝manifest 記的 ${r.phaseH.passAfterH}`);
       eq(
         flowData.flows[r.id] && (flowData.flows[r.id].kind || 'choice'),
-        r.phaseD.kindAfterD,
-        `${r.id} 的第三幕題型＝manifest 記的 ${r.phaseD.kindAfterD}`
+        r.phaseH.kindAfterH,
+        `${r.id} 的第三幕題型＝manifest 記的 ${r.phaseH.kindAfterH}`
       );
-      ok(nonEmptyStr(r.phaseD.note) && r.phaseD.note.length >= 20, `${r.id} 的 Phase D 條目有寫下理由`);
+      eq(
+        flowData.flows[r.id] && flowData.flows[r.id].simFlow && flowData.flows[r.id].simFlow.dialId,
+        r.phaseH.dialId,
+        `${r.id} 轉的是 manifest 記的那一個旋鈕（${r.phaseH.dialId}）`
+      );
+      ok(nonEmptyStr(r.phaseH.note) && r.phaseH.note.length >= 20, `${r.id} 的 Phase H 條目有寫下理由`);
     }
 
     /* 移除／降權清單：Phase A 的做完了，post-A 的一個都不准動 */

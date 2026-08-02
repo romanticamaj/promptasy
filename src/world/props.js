@@ -1302,6 +1302,47 @@ export const STORY_VIGNETTES = Object.freeze([
     ],
   },
 
+  /* --- frugality：學會拿掉（課程 v2 · Phase H） --- */
+  {
+    id: 'moved-out',
+    region: 'frugality',
+    name: '搬走之後留下的那一格',
+    at: [-12.8, -77.3],
+    rot: 0.6,
+    parts: [
+      ['crates', [0, 0, 0], 0, {}],
+      ['slate', [3.2, 0, 1.4], -0.3, { marks: 3 }],
+      ['column', [-3.6, 0, -2.4], 0, { h: 2.0 }],
+      ['cairn', [3.8, 0, -2.6], 0, {}],
+    ],
+  },
+  {
+    id: 'said-three-times',
+    region: 'frugality',
+    name: '同一句話寫了三遍的那一卷',
+    at: [-4.7, -94.8],
+    rot: -0.8,
+    parts: [
+      ['desk', [0, 0, 0], 0, { light: false }],
+      ['scrolls', [2.9, 0, 1.3], 0.4, {}],
+      ['scrolls', [-2.9, 0, 1.1], -0.4, {}],
+      ['ink', [1.0, 0.4, 0.4], 0.2, {}],
+    ],
+  },
+  {
+    id: 'stale-tray',
+    region: 'frugality',
+    name: '沒有人再看的那一疊托盤',
+    at: [12.8, -86.7],
+    rot: 2.1,
+    parts: [
+      ['drafttable', [0, 0, 0], 0, {}],
+      ['crates', [-3.4, 0, 1.8], 0.3, {}],
+      ['signpost', [3.6, 0, 1.0], -0.5, {}],
+      ['slate', [2.4, 0, -2.8], 0.6, { marks: 4 }],
+    ],
+  },
+
   {
     id: 'little-stage',
     region: 'config',
@@ -1335,6 +1376,8 @@ export const LANDMARKS = Object.freeze([
   { id: 'ajar-doors', region: 'wards', name: '不會關上的門', at: [101, -142], height: 19, clear: 13 },
   // 課程 v2 · Phase G：校驗場（§二：「兩面互相對照的鏡」）
   { id: 'facing-glass', region: 'refinery', name: '會回頭照自己的鏡', at: [-129, 129], height: 20, clear: 14 },
+  // 課程 v2 · Phase H：減法之庭（§二：「一座什麼都沒放的基座，銘文寫著被拿走的東西」）
+  { id: 'empty-plinth', region: 'frugality', name: '空的基座', at: [0, -82], height: 18, clear: 13 },
 ]);
 
 /** 斷環：一圈立起來的巨石環，缺了一角 —— 「有人試著把話說圓，還差一塊」。 */
@@ -1691,6 +1734,45 @@ function landmarkFacingGlass(kit) {
   return grp;
 }
 
+/**
+ * 空的基座（減法之庭）：一座什麼都沒放的基座。
+ *
+ * 這是整張地圖上唯一一座「地標本身不是東西」的地標 —— 被拿走的那件東西
+ * 只剩下一圈懸在半空的光輪廓，銘文刻在基座正面，寫的是被拿掉的清單。
+ * **零實體光源**（輪廓與銘文全部是自發光材質 ＋ 加色混合）。
+ */
+function landmarkEmptyPlinth(kit) {
+  const grp = new THREE.Group();
+  // 三階往上收的基座（唯一被留下來的東西）
+  put(grp, cyl(6.6, 7.8, 1.3, 12), stone(kit.dark), [0, 0.65, 0]);
+  bulky(put(grp, box(8.4, 3.2, 8.4), stone(kit.mid), [0, 1.3 + 1.6, 0]));
+  bulky(put(grp, box(6.2, 2.8, 6.2), stone(kit.mid), [0, 4.5 + 1.4, 0]));
+  bulky(put(grp, box(4.4, 2.4, 4.4), stone(kit.dark), [0, 7.3 + 1.2, 0]));
+
+  // 銘文：基座正面一行一行被刻上去的「拿掉了什麼」
+  for (let i = 0; i < 7; i += 1) {
+    put(grp, box(5.2 - i * 0.18, 0.14, 0.12), glow(kit.accent, 0.42), [0, 2.1 + i * 0.62, 4.24]);
+  }
+
+  // 頂面：一圈光印子（東西原本站的位置）
+  put(grp, torus(1.9, 0.1, 4, 22), glow(PALETTE.warm, 0.9), [0, 9.76, 0], [Math.PI / 2, 0, 0]);
+
+  // 被拿走的那件東西：只剩八條垂直的光線畫出它的輪廓，裡面什麼都沒有
+  for (let i = 0; i < 8; i += 1) {
+    const a = (i / 8) * Math.PI * 2;
+    const r = 1.9 - (i % 2) * 0.35;
+    put(grp, box(0.1, 7.2, 0.1), glow(kit.accent, 1.15 - (i % 2) * 0.35), [
+      Math.cos(a) * r,
+      9.8 + 3.6,
+      Math.sin(a) * r,
+    ]);
+  }
+  // 輪廓的頂：一圈更小的環（越往上越收，剪影才讀得出「那裡曾經有東西」）
+  put(grp, torus(1.15, 0.08, 4, 18), glow(kit.accent, 0.85), [0, 17.0, 0], [Math.PI / 2, 0, 0]);
+  put(grp, ico(0.3, 0), glow(PALETTE.warm, 1.6), [0, 17.6, 0]);
+  return grp;
+}
+
 const LANDMARK_BUILDERS = {
   'broken-ring': landmarkBrokenRing,
   'endless-stair': landmarkEndlessStair,
@@ -1701,6 +1783,7 @@ const LANDMARK_BUILDERS = {
   'nameless-keys': landmarkNamelessKeys,
   'ajar-doors': landmarkAjarDoors,
   'facing-glass': landmarkFacingGlass,
+  'empty-plinth': landmarkEmptyPlinth,
 };
 
 /* ------------------------------------------------------------------ *

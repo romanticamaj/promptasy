@@ -822,6 +822,16 @@
         "passAfterC": 2,
         "kindAfterC": "choice",
         "note": "Phase C（示範與推理 15 座）執行本列的 post-A 條目，並把 rubric 收斂成「主檢查 3 分 ＋ 地基 assignsTask 0.5 分、pass 2」——與課程 v2 新蓋的神廟同一個形狀（C1）。primaryTechniqueId 保留（它真的有祖先，收集不倒退），另外新增 primarySkillId 指向 v2 技能。"
+      },
+      "phaseH": {
+        "skillId": "knob-effort",
+        "mainCheck": "mentionsParameters",
+        "mainWeightAfterH": 3,
+        "totalWeightAfterH": 3.5,
+        "passAfterH": 2,
+        "kindAfterH": "sim",
+        "dialId": "reasoning-effort",
+        "note": "Phase H（轉鈕 sim）執行 curriculum-v2 §3 指定的互動型式：第三幕換成一個三檔的旋鈕，每一檔配一段**遊戲自撰**的離線輸出樣本（src/data/sim-samples.json，authored: \"game\"，畫面上永遠掛 ⓘ 明講不是模型跑出來的結果、並附「在哪一台機器上成立」的條件）。三檔都轉過了才開放刻印；rubric、pass、示範解答、slots 與官方出處一個位元組都沒動 —— 所以退回石碑刻印時玩家刻出來的字一模一樣（相容契約）。"
       }
     },
     {
@@ -1786,6 +1796,16 @@
         "passAfterD": 2,
         "kindAfterD": "choice",
         "note": "Phase D（脈絡與長文／角色與參數各 12 座）執行本列的 post-A 條目，並把 rubric 收斂成「主檢查 3 分 ＋ 地基 assignsTask 0.5 分、pass 2」——與課程 v2 新蓋的神廟同一個形狀（C1）。primaryTechniqueId 保留（它真的有祖先，收集不倒退），另外新增 primarySkillId 指向 v2 技能。"
+      },
+      "phaseH": {
+        "skillId": "knob-temperature",
+        "mainCheck": "mentionsParameters",
+        "mainWeightAfterH": 3,
+        "totalWeightAfterH": 3.5,
+        "passAfterH": 2,
+        "kindAfterH": "sim",
+        "dialId": "temperature",
+        "note": "Phase H（轉鈕 sim）執行 curriculum-v2 §3 指定的互動型式：第三幕換成一個三檔的旋鈕，每一檔配一段**遊戲自撰**的離線輸出樣本（src/data/sim-samples.json，authored: \"game\"，畫面上永遠掛 ⓘ 明講不是模型跑出來的結果、並附「在哪一台機器上成立」的條件）。三檔都轉過了才開放刻印；rubric、pass、示範解答、slots 與官方出處一個位元組都沒動 —— 所以退回石碑刻印時玩家刻出來的字一模一樣（相容契約）。"
       }
     },
     {
@@ -1942,5 +1962,5 @@
       }
     }
   ],
-  "updatedBy": "課程 v2 · Phase G（multi 兩輪刻印 ＋ refinery 校驗場 11 座 ＋ orchestration 收尾 12 座）"
+  "updatedBy": "課程 v2 · Phase G（multi 兩輪刻印 ＋ refinery 校驗場 11 座 ＋ orchestration 收尾 12 座） ｜ 課程 v2 · Phase H（sim 轉鈕）：火力熔爐與刻度儀之室的第三幕由 choice 換裝成 sim，rubric／示範解答／slots／出處一個位元組未動。"
 }

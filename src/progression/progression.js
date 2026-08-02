@@ -100,6 +100,20 @@ export const REGION_GATES = Object.freeze({
       masteredAny: 1,
     },
   },
+  /*
+   * 課程 v2 · Phase H：減法之庭。規格逐字取自 `regions-v2.json` 的 `gate`：
+   *   軟門檻：**任一區精通**。
+   * 只有一個條件，而且是最純粹的知識式門檻（C8）—— 學會拿掉之前，
+   * 你得先真的把某一片土地整個學完（不然「刪對地方」只會變成亂刪）。
+   */
+  frugality: {
+    level: 1,
+    available: true,
+    requires: null,
+    knowledge: {
+      masteredAny: 1,
+    },
+  },
 });
 
 /**

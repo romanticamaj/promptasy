@@ -1463,6 +1463,76 @@ const NUMERIC_SCALE_ZH =
   /(?:[1１]\s*[-~到–—]\s*[5５10１０]\s*(?:分|級))|(?:給(?:出)?[^\n]{0,6}(?:\d+\s*分|分數))|(?:滿分\s*\d+)|\b(?:scale of )?1\s*(?:to|-)\s*(?:5|10)\b/i;
 
 /* ------------------------------------------------------------------ *
+ * 減法之庭（課程 v2 · Phase H）
+ * ------------------------------------------------------------------ *
+ *
+ * 減法之庭（frugality）教的是「拿掉」：精簡、擺放順序、脈絡壓縮。
+ * 三個檢查器全部是**結構性偵測** —— 抓的是「兩件事同時出現而且有先後」
+ * （不動的在前、會變的在後）、「壓縮的同時列出必留」、「帶走的東西寫得出是哪幾件」，
+ * 不是關鍵字。其中 `staticBeforeVariable` 是**非單調**的：
+ * 一邊說「固定的放前面」一邊又說「每次都把今天日期寫在最前面」會整條歸零 ——
+ * 那是自打嘴巴，快取一樣會失效。
+ */
+
+// --- staticBeforeVariable（疊石的順序）------------------------------
+/** 不動的東西放前面。 */
+const STATIC_FIRST_ZH =
+  /(?:固定|不(?:會)?變(?:動)?|不動|每次都一樣|共用|常駐)(?:的)?[^\n]{0,12}(?:規則|規矩|說明|資料|指令|前綴|段落|部分|內容)?[^\n]{0,8}(?:放|擺|寫|排|置|留)(?:在|到)?[^\n]{0,4}(?:最前面|前面|開頭|最上面|上面)/;
+const STATIC_FIRST_EN =
+  /\b(?:static|fixed|unchanging|shared|reusable)\b[^.\n]{0,24}\b(?:first|at the (?:top|start|beginning)|up front)\b/i;
+/** 會變的東西放後面。 */
+const VARIABLE_LAST_ZH =
+  /(?:會變(?:動)?|變動|每次(?:都)?不(?:一樣|同)|這(?:一)?次|今天|當次|使用者(?:的)?問題|新的)(?:的)?[^\n]{0,12}(?:資料|日期|問題|內容|部分|那一段|欄位)?[^\n]{0,8}(?:放|擺|寫|排|附|接)(?:在|到)?[^\n]{0,4}(?:最後|後面|最下面|下面|結尾)/;
+const VARIABLE_LAST_EN =
+  /\b(?:variable|changing|dynamic|per-request|user(?:'s)? question)\b[^.\n]{0,24}\b(?:last|at the (?:end|bottom))\b/i;
+/** 前綴不要動（動一個字，前面整段就白疊了）。 */
+const PREFIX_STABLE_ZH =
+  /(?:開頭|前面|前綴|上面)(?:那)?(?:一)?(?:段|塊|部分)?[^\n]{0,10}(?:不(?:要|得|准|能)|別)[^\n]{0,6}(?:改|動|調整|重寫|加字)|(?:不(?:要|得|准|能)|別)[^\n]{0,8}(?:改|動)[^\n]{0,6}(?:開頭|前綴|前面那段)|(?:一個字都不(?:要|能|准)(?:改|動))/;
+const PREFIX_STABLE_EN =
+  /\b(?:do not|don'?t|never)\b[^.\n]{0,16}\b(?:change|edit|modify)\b[^.\n]{0,20}\b(?:prefix|opening|first (?:block|section))\b|\bkeep the prefix (?:stable|identical|byte-identical)\b/i;
+/** 反向（非單調）：又把「每次都變的東西」寫在最前面。 */
+const VARIABLE_FIRST_ZH =
+  /(?:今天(?:的)?日期|這(?:一)?次(?:的)?(?:問題|資料)|使用者(?:的)?問題|時間戳)[^\n]{0,10}(?:放|擺|寫|排)(?:在|到)?[^\n]{0,4}(?:最前面|開頭|最上面)/;
+
+// --- asksToCompact（越堆越高的桌 / 過期的托盤）----------------------
+/** 把過去的過程壓成一段摘要。 */
+const COMPACT_ZH =
+  /(?:壓縮|壓成|縮成|整理成|摘要成|收成|換成)[^\n]{0,10}(?:一(?:段|份|行|句|張)|簡短的?)?[^\n]{0,6}(?:摘要|重點|紀要|結論)|(?:把|將)[^\n]{0,14}(?:前面|過去|舊|先前|已經完成)(?:的)?[^\n]{0,10}(?:壓|縮|摘|整理)/;
+const COMPACT_EN =
+  /\b(?:compact|compress|summari[sz]e|condense|roll up)\b[^.\n]{0,24}\b(?:earlier|previous|prior|history|context|steps?|results?)\b/i;
+/** 必留清單：壓縮的時候有哪幾件事一定不能丟。 */
+const MUSTKEEP_ZH =
+  /(?:一定|務必|必須|絕對)[^\n]{0,6}(?:保留|留(?:下|著)|帶著)|(?:必留|要保留(?:的)?)[^\n]{0,6}[:：]|(?:保留)[^\n]{0,10}(?:這|以下|下面)(?:幾|三|兩|四)?(?:件|項|條|樣)|(?:保留)[^\n]{0,4}(?:原文|原始(?:數字|依據)|出處|依據)/;
+const MUSTKEEP_EN =
+  /\b(?:always|must) (?:keep|preserve|retain)\b|\bkeep (?:the )?(?:following|these)\b[^.\n]{0,20}\b(?:verbatim|as is|intact)\b/i;
+/** 過期的東西換成一行（或拿掉）。 */
+const DROP_STALE_ZH =
+  /(?:過期|過時|老舊|不再需要|已經沒用|舊)(?:的)?[^\n]{0,12}(?:結果|紀錄|查詢|工具|回覆|資料|那幾份)?[^\n]{0,8}(?:換成|改成|收成|刪掉|拿掉|丟掉|移除)/;
+const DROP_STALE_EN =
+  /\b(?:drop|remove|prune|replace)\b[^.\n]{0,20}\b(?:stale|outdated|obsolete|old)\b[^.\n]{0,20}\b(?:results?|entries|tool outputs?|context)\b/i;
+
+// --- carriesForwardEssentials（翻不動的那一頁 / 沒有記憶的工匠）-----
+/** 把該帶的帶過去（換頁、換一輪，仍要把某些東西搬過去）。 */
+const CARRY_ZH =
+  /(?:把|將)[^\n]{0,20}(?:上(?:一)?(?:輪|次|頁)|前面|先前|剛才)(?:的)?[^\n]{0,16}(?:帶|抄|貼|複製|搬)(?:過去|回去|進來|過來|上來|到新的)|(?:帶|抄|貼)(?:過去|回去|進來|過來)[^\n]{0,12}(?:上(?:一)?(?:輪|次|頁)|前面|先前)/;
+const CARRY_EN =
+  /\b(?:carry (?:over|forward)|bring (?:forward|back)|paste|copy)\b[^.\n]{0,24}\b(?:previous|prior|earlier|last (?:turn|round))\b[^.\n]{0,20}\b(?:conclusions?|decisions?|reasoning|facts?|lines?)\b/i;
+/** 寫得出是「哪幾件」（數量或條列，不是「重要的東西」）。 */
+const CARRY_LIST_ZH = new RegExp(
+  `(?:這|那|以下|下面)?\\s*${NUM_G}{1,2}\\s*(?:行|件|條|項|點|段)(?:[^\\n]{0,6}(?:結論|決定|事實|重點|規格|就好|即可|帶過去))?` +
+    `|(?:保留|帶(?:走|過去|回去))[^\\n]{0,6}[:：]\\s*\\S`
+);
+const CARRY_LIST_EN = /\b(?:these |the following )?\d{1,2} (?:lines?|items?|facts?|decisions?)\b|\bcarry (?:only )?the following\b/i;
+/** 其他的不要帶（不要把整頁舊對話貼過去）。 */
+const CARRY_DROP_ZH =
+  /(?:其他(?:的)?|其餘(?:的)?|剩下的|別的|舊的|過期的)[^\n]{0,14}(?:不(?:要|用|必|需)|別|就)[^\n]{0,6}(?:帶|抄|貼|複製|搬|留)|(?:不(?:要|用|必)|別)[^\n]{0,10}(?:把)?(?:整(?:頁|段|串)|全部)[^\n]{0,10}(?:貼|抄|帶)/;
+const CARRY_DROP_EN =
+  /\b(?:do not|don'?t)\b[^.\n]{0,20}\b(?:paste|carry|bring)\b[^.\n]{0,20}\b(?:the (?:whole|entire) (?:thread|history|page)|everything else)\b/i;
+/** 換一頁／開新的一頁（`ctx-new-chat` 那一座才需要，算加分不算必要）。 */
+const NEW_PAGE_ZH =
+  /(?:換|開)(?:一)?(?:個)?(?:新的)?(?:一)?(?:頁|張|串|輪|對話|聊天)[^\n]{0,8}(?:重(?:新|問)|再問|開始)?|(?:新(?:開|的))[^\n]{0,4}(?:一)?(?:頁|對話|聊天|串)/;
+
+/* ------------------------------------------------------------------ *
  * 檢查器定義
  * ------------------------------------------------------------------ */
 
@@ -3596,6 +3666,112 @@ const definitions = [
         return PART('先訂表再自評的順序有了。但級距還沒寫出來 —— 至少三階，每一階用文字描述。');
       }
       return MISS('還沒有量尺。寫「請先訂出評分表（可直接出稿／要再改一次／不能用，各自長什麼樣），再照著自評」。');
+    },
+  },
+
+  /* -------- 減法之庭（課程 v2 · Phase H） ---------------------- */
+
+  {
+    id: 'staticBeforeVariable',
+    label: '不動的放前面 Static first',
+    hint: '把每次都一樣的規則與資料放最前面、把這一次才會變的（今天日期、這次的問題）放最後，並交代開頭那一段不要再改。',
+    techniqueId: null,
+    run(text) {
+      const t = clean(text);
+      const staticFirst = STATIC_FIRST_ZH.test(t) || STATIC_FIRST_EN.test(t);
+      const variableLast = VARIABLE_LAST_ZH.test(t) || VARIABLE_LAST_EN.test(t);
+      const stable = PREFIX_STABLE_ZH.test(t) || PREFIX_STABLE_EN.test(t);
+      /* 非單調：一邊說「固定的放前面」，一邊又把今天日期擺在最前面 —— 前面整疊照樣白疊 */
+      if (VARIABLE_FIRST_ZH.test(t)) {
+        return MISS('這裡自打嘴巴了：又把「每次都會變的東西」放在最前面。開頭一變，前面整疊就白疊了 —— 會變的一律往後放。');
+      }
+
+      if (staticFirst && variableLast && stable) {
+        return PASS('不動的在前、會變的在後，而且交代了開頭那一段不要再改 —— 這一疊石頭下次還疊得上去。');
+      }
+      if (staticFirst && variableLast) {
+        return MOST('順序對了。再補一句「開頭那一段之後不要再改動」——前綴改一個字，前面整段就白疊了。');
+      }
+      if (staticFirst && stable) {
+        return MOST('固定的放前面、也講了不要改開頭。還缺一句「這一次才有的東西放最後面」。');
+      }
+      if (variableLast && stable) {
+        return MOST('會變的放後面了。再明講「每次都一樣的規則與資料放最前面」，順序才完整。');
+      }
+      if (staticFirst || variableLast) {
+        return PART('順序只講了一半。兩邊都要寫：不會變的放最前面、這一次才會變的放最後面。');
+      }
+      if (stable) {
+        return PART('講了開頭不要改，但沒有排出順序 —— 先說哪些是固定的、哪些是每次會變的。');
+      }
+      return MISS('還沒排順序。寫「固定的規則與資料放最前面，這一次的日期與問題放最後面，開頭那一段之後不要再改」。');
+    },
+  },
+
+  {
+    id: 'asksToCompact',
+    label: '壓縮脈絡 Compaction',
+    hint: '把前面那一長串壓成一段摘要，同時列出「一定要保留」的那幾件事，並把過期的東西換成一行。',
+    techniqueId: null,
+    run(text) {
+      const t = clean(text);
+      const compact = COMPACT_ZH.test(t) || COMPACT_EN.test(t);
+      const keep = MUSTKEEP_ZH.test(t) || MUSTKEEP_EN.test(t);
+      const drop = DROP_STALE_ZH.test(t) || DROP_STALE_EN.test(t);
+
+      if (compact && keep && drop) {
+        return PASS('壓成摘要、列出必留、把過期的換成一行 —— 桌面清出來了，該留的還在。');
+      }
+      if (compact && keep) {
+        return MOST('壓縮加必留清單有了。再處理過期的那幾份：明講「舊的查詢結果換成一行摘要」。');
+      }
+      if (compact && drop) {
+        return MOST('會壓也會丟了。但沒有必留清單 —— 摘要一定會漏掉一個關鍵決定，寫出「一定要保留：＿＿」。');
+      }
+      if (keep && drop) {
+        return MOST('該留的與該丟的都講了。還缺最重要的那個動作：把前面那一長串壓成一段摘要。');
+      }
+      if (compact) {
+        return PART('有壓縮的動作了。再加兩件事：一定要保留哪幾件，以及過期的東西怎麼處理。');
+      }
+      if (keep || drop) {
+        return PART('只講了要留什麼或要丟什麼。真正的動作是「把前面壓成一段摘要」，先把它寫出來。');
+      }
+      return MISS('還沒壓縮。寫「請把前面的過程壓成一段摘要，一定要保留：客戶要的交期、已經否決的兩個方案；過期的查詢結果換成一行」。');
+    },
+  },
+
+  {
+    id: 'carriesForwardEssentials',
+    label: '該帶的才帶 Carry forward',
+    hint: '換一頁／換一輪時，把上一輪的結論帶過去，寫得出是「哪幾件」，並明講其他的不要一起貼過來。',
+    techniqueId: null,
+    run(text) {
+      const t = clean(text);
+      const carry = CARRY_ZH.test(t) || CARRY_EN.test(t);
+      const list = CARRY_LIST_ZH.test(t) || CARRY_LIST_EN.test(t);
+      const drop = CARRY_DROP_ZH.test(t) || CARRY_DROP_EN.test(t);
+      const newPage = NEW_PAGE_ZH.test(t);
+
+      if (carry && list && drop) {
+        return PASS('帶走該帶的那幾件、其他的留在原地 —— 新的一頁乾淨，但不是從零開始。');
+      }
+      if (carry && list) {
+        return MOST('要帶的東西寫得很清楚了。再加一句「其他的不要一起貼過來」，不然整串舊的又跟著回來。');
+      }
+      if (carry && drop) {
+        return MOST('知道要挑著帶了。但沒寫出是哪幾件 —— 「重要的部分」它挑不出來，直接列出那三行。');
+      }
+      if (carry) {
+        return PART('有把上一輪的東西帶過去。再寫清楚是哪幾件，以及其他的不要帶。');
+      }
+      if (newPage && (list || drop)) {
+        return PART('換頁的動作有了，但沒說要把什麼帶過去 —— 全部重來它就不知道前面談過什麼。');
+      }
+      if (newPage) {
+        return PART('換一頁是對的第一步。接著要寫「上一輪的哪幾件事要帶過去」。');
+      }
+      return MISS('還沒交代要帶什麼。寫「這一頁重新開始，只把上一輪的這三件事帶過來：＿＿、＿＿、＿＿；其他的不要一起貼過來」。');
     },
   },
 ];
