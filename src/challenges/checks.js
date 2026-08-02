@@ -76,7 +76,7 @@ const TASK_VERBS_EN = [
 const TASK_VERB_SET = new Set(TASK_VERBS_EN);
 
 const ZH_TASK_VERBS =
-  '寫出|寫一|寫個|寫成|寫下|寫好|撰寫|列出|列成|條列|分點|總結|摘要|翻譯|解釋|說明|分析|產生|生成|製作|做出|做成|做一|改寫|重寫|改成|換成|轉成|轉換|分類|擷取|抽取|比較|設計|規劃|整理|統整|彙整|判斷|建議|計算|算出|重算|排序|評估|回答|作答|回覆|回報|輸出|提供|歸納|標註|標出|標上|檢視|檢查|核對|確認|命名|挑出|找出|選出|選擇|畫出|補上|加上|保持|沿著|走到|前進|靠右|靠左|等我|停在|告訴|調整|設定|清理|清掉|安排|處理|完成|執行';
+  '寫出|寫一|寫個|寫成|寫下|寫好|撰寫|列出|列成|條列|分點|總結|摘要|翻譯|解釋|說明|分析|產生|生成|製作|做出|做成|做一|改寫|重寫|改成|換成|轉成|轉換|分類|擷取|抽取|比較|設計|規劃|整理|統整|彙整|判斷|建議|計算|算出|重算|排序|評估|回答|作答|回覆|回報|輸出|提供|歸納|標註|標出|標上|檢視|檢查|核對|確認|命名|挑出|找出|選出|選擇|畫出|畫一|畫成|補上|加上|保持|沿著|走到|前進|靠右|靠左|等我|停在|告訴|調整|設定|清理|清掉|安排|處理|完成|執行';
 
 /**
  * 有些「動詞」其實是複合名詞的前半（「輸出格式」「輸出上限」「完成前」）。
@@ -1531,6 +1531,134 @@ const CARRY_DROP_EN =
 /** 換一頁／開新的一頁（`ctx-new-chat` 那一座才需要，算加分不算必要）。 */
 const NEW_PAGE_ZH =
   /(?:換|開)(?:一)?(?:個)?(?:新的)?(?:一)?(?:頁|張|串|輪|對話|聊天)[^\n]{0,8}(?:重(?:新|問)|再問|開始)?|(?:新(?:開|的))[^\n]{0,4}(?:一)?(?:頁|對話|聊天|串)/;
+
+/* ------------------------------------------------------------------ *
+ * 觀象臺（課程 v2 · Phase I）
+ * ------------------------------------------------------------------ *
+ *
+ * 觀象臺（sight）教的是「不只讀字」：看圖、看影片、生圖、改圖、說話的聲音、
+ * 做東西的樣子。**遊戲仍然只評 prompt 的結構** —— 這裡沒有任何一條檢查器
+ * 會去看一張真的圖或跑一次生成，它們判定的是「你有沒有把該講的那件事寫進 prompt」。
+ *
+ * 五個檢查器全部是結構性偵測：
+ *   · `pointsAtRegion`       —— 指得出「看哪一塊」（方位／編號／時間戳），不是「看仔細一點」
+ *   · `preservesPriorState`  —— 一次一改 ＋ 明講保留前一步（**非單調**：一口氣塞三個修改會掉分）
+ *   · `namesShotElements`    —— 分鏡要素的**類別數**（主體／動作／場景／運鏡／構圖／氣氛／聲音）
+ *   · `usesProsodyPunctuation` —— 用標點與語音標記造停頓（**非單調**：只剩「請唸慢一點」會掉分）
+ *   · `namesStackAndScope`   —— 指名框架 ＋ 限定只動哪一塊 ＋ 保留既有設計系統
+ */
+
+// --- pointsAtRegion（觀象臺的第一格窗 / 看不清的那一角）--------------
+/** 圖片上的位置：方位、邊角、第幾行／第幾頁、框起來的那一塊。 */
+const REGION_SPOT_ZH = new RegExp(
+  `(?:左|右|正)?(?:上|下|中)?(?:角|方|側|緣|半部?)|` +
+    `第\\s*${NUM_G}{1,3}\\s*(?:行|列|頁|格|欄|張|幀|個字)|` +
+    `(?:紅|藍|黃|白)(?:色)?(?:方)?框(?:起來)?(?:的)?(?:那)?(?:一)?(?:塊|區|處)|` +
+    `(?:畫面|圖)(?:的)?(?:左|右|上|下|中央|中間|正中)`
+);
+const REGION_SPOT_EN =
+  /\b(?:top|bottom|upper|lower)[- ]?(?:left|right|centre|center)\b|\b(?:left|right) (?:half|side|edge)\b|\bline \d{1,3}\b|\bpage \d{1,3}\b|\bbounding box\b|\bregion\b\s*\(/i;
+/** 具體被指名的東西（木牌、看板、表格、標籤…）—— 「那塊招牌上的字」也是一種指位。 */
+const REGION_OBJECT_ZH =
+  /(?:那)?(?:一)?(?:塊|面|張|排|行)?\s*(?:木牌|招牌|看板|標籤|貼紙|表格|欄位|刻度|銘牌|字樣|標題列|價目表|門牌)(?:上|裡)?(?:的)?(?:字|數字|文字|那一行)/;
+/** 影片／音檔的時間戳（MM:SS、第 12 秒、00:12 到 00:25）。 */
+const TIMESTAMP_RE = new RegExp(
+  `\\b\\d{1,2}:\\d{2}(?::\\d{2})?\\b|第\\s*${NUM_G}{1,3}\\s*(?:秒|分鐘|分)|` +
+    `${NUM_G}{1,3}\\s*(?:秒|分)\\s*(?:到|至|-|~)\\s*${NUM_G}{1,3}\\s*(?:秒|分)`
+);
+/** 反例：只是「看仔細一點」「整張圖看清楚」——沒有縮小範圍。 */
+const VAGUE_LOOK_ZH =
+  /(?:看|讀|辨識)(?:得)?(?:仔細|清楚|認真)(?:一點)?|(?:整張|這張|那張)(?:圖|照片)(?:都)?(?:看|讀)(?:一下|一遍)?|好好看/;
+/** 要它在那一塊做什麼（指了位置還要交代要什麼）。 */
+const REGION_ASK_ZH =
+  /(?:抄|讀|唸|念|列|寫|說|判斷|辨識|數|比對|翻譯|整理|描述|解釋|回答|標)(?:出|下來|成|清楚)?/;
+const REGION_ASK_EN =
+  /\b(?:copy|transcribe|read|list|count|compare|translate|describe|identify|say|report|extract|quote|summari[sz]e|tell me)\b/i;
+
+// --- preservesPriorState（改壞的那張）-------------------------------
+/**
+ * 修改動作（改圖／改稿的一步）。
+ * 刻意只抓動詞本身而不吃前面的受詞 —— 會吃字的前綴會把「把 A 換成 B、把 C 改成 D」
+ * 併成一個 match，「一次交代了幾個修改」就數不出來（這一關的非單調判定靠它）。
+ */
+const EDIT_VERB_RE = /(?:換成|改成|改為|換掉|加上|補上|移除|拿掉|刪掉|去掉|調亮|調暗|重畫|上色|替換)/g;
+/** 明講保留（其餘不要動）。 */
+const PRESERVE_ZH =
+  /(?:其(?:他|餘)(?:的)?|剩下的|別的|畫面(?:的)?其他部分)[^\n]{0,10}(?:保持|維持|保留|不(?:要|准|得|能)(?:動|改|變))|(?:保持|維持)[^\n]{0,8}(?:原樣|不變|一模一樣)|(?:不(?:要|准|得|能)|別)[^\n]{0,6}(?:動|改)(?:到)?[^\n]{0,10}(?:構圖|光線|背景|其他|其餘|人物|色調)/;
+const PRESERVE_EN =
+  /\bkeep everything else (?:exactly )?the same\b|\bpreserv(?:e|ing) the (?:original|existing)\b|\bdo not (?:change|alter|touch)\b[^.\n]{0,24}\b(?:composition|lighting|background|rest)\b/i;
+/** 指名保留的是「前一步的結果」（連鎖編輯的關鍵）。 */
+const PRIOR_STEP_ZH =
+  /(?:上(?:一)?步|前(?:一)?步|第[一二三1-3]步|剛才|上一次|前一版|已經(?:改好|做好|完成)(?:的)?)[^\n]{0,14}(?:保留|留著|保持|不(?:要|准|得)(?:動|改)|沿用|接著|繼續)|(?:保留|沿用|接著用)[^\n]{0,10}(?:上(?:一)?步|前(?:一)?步|第[一二三1-3]步|前一版)(?:的)?(?:結果|成果|那張|改動)?/;
+const PRIOR_STEP_EN =
+  /\b(?:keep|preserve|retain|carry over)\b[^.\n]{0,24}\b(?:previous|prior|last) (?:step|edit|version|result)\b|\bbuild on the (?:previous|last) (?:image|edit)\b/i;
+/** 一次一步（明講「這一步只改一件事」）。 */
+const ONE_STEP_ZH =
+  /(?:這|本)(?:一)?步[^\n]{0,8}(?:只|僅)[^\n]{0,6}(?:改|動|處理)|(?:一次|每次)[^\n]{0,4}(?:只)?(?:改|動|處理)(?:一(?:件|處|個|樣))|(?:先|第一步)[^\n]{0,10}(?:只)(?:改|動)/;
+
+// --- namesShotElements（分鏡牆）-------------------------------------
+/** 分鏡的七類要素（Veo 六要素 ＋ 三種聲音）。 */
+const SHOT_ELEMENTS = [
+  {
+    id: '主體',
+    re: /(?:主體|主角|畫面裡(?:有|是)|鏡頭裡(?:有|是))|(?:一(?:位|個|隻|艘|盞|棟))[^\n]{0,10}(?:人|女子|男子|老人|旅人|貓|狗|船|燈|塔|屋)|\bsubject\s*[:：]|\b(?:a|an|one) [a-z ]{0,20}(?:man|woman|watchman|traveller|traveler|figure|cat|dog|boat|lamp|tower)\b/i,
+  },
+  {
+    id: '動作',
+    re: /(?:正在|緩緩|快速|慢慢)[^\n]{0,6}(?:走|跑|轉|抬|落下|升起|回頭|伸手|敲|推|飄)|(?:動作)\s*[:：]|\baction\s*[:：]|\b(?:slowly|quickly|gradually|steadily)\b[^.\n]{0,24}\b(?:walk|walking|run|running|turn|turning|push|pushing|open|opening|rise|rising|reach|reaching)\b/i,
+  },
+  {
+    id: '場景',
+    re: /(?:場景|背景|地點)\s*[:：]|(?:在|於)[^\n]{0,12}(?:街|山|海|林|屋|臺|殿|橋|房間|廣場|岸邊)(?:上|邊|裡|中)?|\b(?:setting|scene|location|background)\s*[:：]|\b(?:beside|inside|on|at) (?:a|the) [a-z ]{0,24}(?:bridge|street|hill|sea|forest|room|square|shore|wall|terrace)\b/i,
+  },
+  {
+    id: '運鏡',
+    re: /(?:鏡頭|攝影機)[^\n]{0,8}(?:推|拉|移|搖|升|降|環繞|跟)|推軌|空拍|俯拍|仰角|平視|環繞鏡頭|運鏡\s*[:：]|\b(?:dolly|pan|tilt|crane|aerial|tracking)(?: shot)?\b|\bcamera\b[^.\n]{0,20}\b(?:dollies|pans|tilts|pushes|moves|orbits|tracks)\b/i,
+  },
+  {
+    id: '構圖',
+    re: /(?:特寫|近景|中景|遠景|全景|廣角|微距|淺景深|深景深|單人鏡頭|雙人鏡頭)|\b(?:close[- ]?up|wide shot|medium shot|macro|shallow focus)\b|\bcomposition\s*[:：]/i,
+  },
+  {
+    id: '氣氛',
+    re: /(?:氣氛|色調|光線)\s*[:：]|(?:冷|暖|藍|金|灰)(?:色)?調|(?:夜色|黃昏|清晨|霧氣|逆光|月光|燭光)|\b(?:ambian?ce|mood|tone)\s*[:：]|\b(?:cool|warm|blue|golden|grey|gray) tones?\b|\b(?:dusk|dawn|moonlight|mist|candlelight)\b/i,
+  },
+  {
+    id: '聲音',
+    re: /(?:對白|台詞|音效|環境音|背景音)\s*[:：]|[「"][^」"\n]{2,40}[」"]\s*(?:他|她|它)?(?:低聲|輕聲)?(?:說|喊|問)|(?:聽得到|傳來)[^\n]{0,12}(?:聲|響)|\b(?:dialogue|sound effects?|ambient (?:noise|sound))\s*[:：]|\bwith the sound of\b/i,
+  },
+];
+
+// --- usesProsodyPunctuation（唸太快的傳聲石）------------------------
+/** 語音標記：行內 [pause] 與包夾 <whisper>…</whisper> 兩種語法。 */
+const SPEECH_TAG_INLINE = /\[(?:pause|laugh|laughs|sigh|sighs|breath|gasp|停頓|笑|輕笑|嘆氣|吸氣)\]/i;
+const SPEECH_TAG_WRAP = /<(whisper|shout|sing|slow|excited|耳語|唱|放慢)>[\s\S]{1,200}<\/\1>/i;
+/** 真的用來造停頓的標點（破折號、刪節號、分號、句號＋換行）。 */
+const PAUSE_PUNCT = /[—–…、；;]|\.\.\./;
+/** 標點總數（中英文都算）。 */
+const ANY_PUNCT_RE = /[，。？！,.?!—…；;]/g;
+/** 段落分隔（長文切段 → 自然停頓）。 */
+const PARAGRAPH_BREAK = /\n\s*\n/;
+/** 反例（非單調）：只是拜託它慢一點／自然一點。 */
+const PLEAD_SLOW_ZH =
+  /(?:唸|念|說|讀|講)(?:得)?[^\n]{0,4}(?:慢|快|自然|清楚)(?:一點|一些|些)|語氣[^\n]{0,4}(?:自然|好|溫柔)(?:一點|一些)?|(?:請)?(?:慢慢|好好)(?:地)?(?:唸|念|說|講)/;
+const PLEAD_SLOW_EN = /\b(?:speak|read|say it)\b[^.\n]{0,12}\b(?:slower|more slowly|naturally)\b|\bslow down\b/i;
+
+// --- namesStackAndScope（改了一顆鈕，塌了一面牆）--------------------
+/** 指名框架／函式庫（官方推薦的那幾套，也吃中文「用＿＿寫」）。 */
+const STACK_NAME_RE =
+  /\b(?:react|next\.?js|vue|svelte|tailwind(?:\s?css)?|shadcn(?:\/ui)?|radix|lucide|heroicons|material symbols|motion|typescript|html)\b/i;
+const STACK_NAME_ZH = /(?:用|以|沿用|照)[^\n]{0,8}(?:框架|函式庫|元件庫|樣式系統)[^\n]{0,6}(?:寫|做|改|實作)/;
+/** 只動這一塊（範圍限定）。 */
+const FE_SCOPE_ZH =
+  /(?:只|僅)(?:動|改|調整|修改|處理)[^\n]{0,14}(?:這|那)?(?:一)?(?:顆|個|塊|處|行|支|張|頁|元件|按鈕|區塊)|(?:不(?:要|准|得|能)|別)[^\n]{0,8}(?:順便|一併|順手)[^\n]{0,8}(?:改|動|重寫)|(?:其(?:他|餘)(?:的)?|別的地方)[^\n]{0,8}(?:不(?:要|准|得|能)|別)[^\n]{0,4}(?:動|改)/;
+const FE_SCOPE_EN =
+  /\bonly (?:change|modify|touch|edit)\b|\bdo not (?:refactor|rewrite|touch)\b[^.\n]{0,24}\b(?:anything else|other files|the rest)\b|\bscope(?:d)? to\b/i;
+/** 保留既有設計系統（tokens／元件／慣例）。 */
+const KEEP_SYSTEM_ZH =
+  /(?:沿用|保留|照著|依照|維持)[^\n]{0,10}(?:既有|現有|原本|現行|專案(?:裡)?)(?:的)?[^\n]{0,6}(?:設計系統|樣式|色票|變數|元件|規範|間距|命名)|(?:設計系統|色票|樣式變數|元件庫)[^\n]{0,8}(?:不(?:要|准|得)(?:動|改)|照舊|不變)/;
+const KEEP_SYSTEM_EN =
+  /\b(?:preserve|reuse|follow|inspect and preserve)\b[^.\n]{0,24}\b(?:existing|current)\b[^.\n]{0,16}\b(?:design (?:system|tokens?)|components?|patterns?|styles?)\b/i;
 
 /* ------------------------------------------------------------------ *
  * 檢查器定義
@@ -3772,6 +3900,166 @@ const definitions = [
         return PART('換一頁是對的第一步。接著要寫「上一輪的哪幾件事要帶過去」。');
       }
       return MISS('還沒交代要帶什麼。寫「這一頁重新開始，只把上一輪的這三件事帶過來：＿＿、＿＿、＿＿；其他的不要一起貼過來」。');
+    },
+  },
+
+  /* -------- 觀象臺（課程 v2 · Phase I） ------------------------- */
+
+  {
+    id: 'pointsAtRegion',
+    label: '指得出看哪裡 Point at the region',
+    hint: '講清楚要看畫面的哪一塊：「左下角那塊木牌上的字」；影片就用時間戳：「00:12 到 00:25 這一段」。',
+    techniqueId: null,
+    run(text) {
+      const t = clean(text);
+      const spot = REGION_SPOT_ZH.test(t) || REGION_SPOT_EN.test(t) || REGION_OBJECT_ZH.test(t);
+      const stamp = TIMESTAMP_RE.test(t);
+      const vague = VAGUE_LOOK_ZH.test(t);
+      const ask = REGION_ASK_ZH.test(t) || REGION_ASK_EN.test(t);
+
+      if ((spot || stamp) && ask) {
+        const where = stamp ? '時間戳' : '畫面上的位置';
+        return PASS(`指得出${where}，也說得出要在那裡拿到什麼 —— 它不必自己猜你在看哪一塊。`);
+      }
+      if (spot || stamp) {
+        return MOST('位置指到了。再補一句「在那裡要做什麼」（抄字？數數量？判斷真假？），它才知道拿什麼回來。');
+      }
+      if (vague) {
+        return PART('「看仔細一點」不會讓它看得更準 —— 把範圍縮小：「左下角那塊木牌」「00:12 到 00:25」。');
+      }
+      return MISS('還沒指出要看哪一塊。寫「請看照片左下角那塊木牌，把上面的三行字逐字抄出來」。');
+    },
+  },
+
+  {
+    id: 'preservesPriorState',
+    label: '保留前一步 Preserve prior state',
+    hint: '一次只改一件事，而且每一步都要寫「上一步改好的東西保留，其他地方不要動」。',
+    techniqueId: null,
+    run(text) {
+      const t = clean(text);
+      const edits = (t.match(EDIT_VERB_RE) || []).length;
+      const preserve = PRESERVE_ZH.test(t) || PRESERVE_EN.test(t);
+      const prior = PRIOR_STEP_ZH.test(t) || PRIOR_STEP_EN.test(t);
+      const oneStep = ONE_STEP_ZH.test(t);
+
+      /*
+       * 非單調：一口氣塞三個以上的修改，正是這一關要修的病 ——
+       * 就算後面補了「其他不要動」，整張圖還是會走樣。
+       */
+      if (edits >= 3 && !oneStep) {
+        return PART(`一次交代了 ${edits} 個修改 —— 這一課的重點就是「一次一步」。拆開來，每一步只改一件事。`);
+      }
+      if (prior && preserve) {
+        return PASS('這一步只改一處，而且明講前一步的成果要留著 —— 連鎖編輯不會把自己改掉的原因就是這句話。');
+      }
+      if (prior) {
+        return MOST('有交代要接著上一步做。再補一句「其他地方保持原樣」，它才不會順手重畫背景。');
+      }
+      if (preserve && oneStep) {
+        return MOST('一次一步、其他不動，很好。再指名「保留上一步改好的那一處」，第三步才不會把第一步改回去。');
+      }
+      if (preserve) {
+        return PART('有說其他地方不要動了。但沒指名「上一步的結果」——連鎖編輯就是從這裡走樣的。');
+      }
+      if (edits >= 1) {
+        return PART('修改的動作有了，但沒有半句保留。寫「其餘保持原樣，並保留上一步已經改好的那一處」。');
+      }
+      return MISS('還沒寫出要改哪裡。寫「這一步只把窗簾換成藍色；其餘保持原樣，保留上一步已經改好的燈光」。');
+    },
+  },
+
+  {
+    id: 'namesShotElements',
+    label: '點名分鏡要素 Name shot elements',
+    hint: '一段影片 prompt 至少要有主體、動作、場景、運鏡、構圖、氣氛，聲音（對白／音效／環境音）分開寫。',
+    techniqueId: null,
+    run(text) {
+      const t = clean(text);
+      const hit = [];
+      for (const e of SHOT_ELEMENTS) if (e.re.test(t)) hit.push(e.id);
+      const camera = hit.includes('運鏡') || hit.includes('構圖');
+      const mood = hit.includes('氣氛') || hit.includes('聲音');
+
+      if (hit.length >= 5 && camera && mood) {
+        return PASS(`點名了 ${hit.length} 類要素（${hit.join('、')}）—— 鏡頭怎麼動、聽起來像什麼都寫了，它不必自己編。`);
+      }
+      if (hit.length >= 4 && camera) {
+        return MOST(`已經有 ${hit.join('、')}。再補氣氛或聲音（冷色調、環境音），畫面才不會冷冰冰又沒有聲音。`);
+      }
+      if (hit.length >= 3) {
+        return MOST(`有 ${hit.join('、')}。缺的是鏡頭那一格 —— 補一句運鏡或構圖（推軌、特寫），鏡頭才不會亂飄。`);
+      }
+      if (hit.length >= 1) {
+        return PART(`只點名了「${hit.join('、')}」。一段分鏡至少要有主體、動作、場景、運鏡四類。`);
+      }
+      return MISS('還沒有任何分鏡要素。寫「一位守夜人（主體）緩緩推開木門（動作），在霧氣中的石橋邊（場景），鏡頭緩緩推近（運鏡），中景（構圖），冷藍色調、聽得到遠處的水聲（氣氛與聲音）」。');
+    },
+  },
+
+  {
+    id: 'usesProsodyPunctuation',
+    label: '標點就是韻律 Punctuation is prosody',
+    hint: '停頓要用標點做出來（逗號、句號、破折號、分段），或用 [pause] 這類語音標記，不是拜託它「唸慢一點」。',
+    techniqueId: null,
+    run(text) {
+      const t = clean(text);
+      const tags = SPEECH_TAG_INLINE.test(t) || SPEECH_TAG_WRAP.test(t);
+      const puncts = countMatches(t, ANY_PUNCT_RE);
+      const pause = PAUSE_PUNCT.test(t);
+      const para = PARAGRAPH_BREAK.test(t);
+      const plead = PLEAD_SLOW_ZH.test(t) || PLEAD_SLOW_EN.test(t);
+      // 「有沒有真的用標點造停頓」：句子被切得夠碎（平均每句 < 30 字）
+      const chopped = puncts >= 4 && t.replace(/\s/g, '').length / puncts < 30;
+      const device = tags || (chopped && (pause || para)) || (tags && plead);
+
+      if (device && !plead) {
+        return PASS(
+          tags
+            ? '停頓與語氣是用語音標記標出來的 —— 它照著標記走，不必猜你要的是多慢。'
+            : '停頓是用標點做出來的：句子切短了，該換氣的地方有逗點與破折號。'
+        );
+      }
+      if (device && plead) {
+        return MOST('標點已經把節奏做出來了 —— 那句「請唸慢一點」可以刪掉，它從來不是靠拜託才慢下來的。');
+      }
+      if (chopped) {
+        return MOST('句子切得夠短了。再補一個真正的停頓記號（破折號、分段，或 [pause]），呼吸才停得住。');
+      }
+      if (plead) {
+        return PART('「唸慢一點」是形容詞，它沒有刻度。把停頓寫進標點：該停的地方下逗號、要停久一點就用破折號。');
+      }
+      return MISS('整段還是一口氣。先把長句切開下標點，再在要換氣的地方加破折號或 [pause]。');
+    },
+  },
+
+  {
+    id: 'namesStackAndScope',
+    label: '指名與限界 Name the stack, scope the change',
+    hint: '要它動程式就得指名框架與函式庫，並限定「只動這一塊、沿用既有的設計系統」。',
+    techniqueId: null,
+    run(text) {
+      const t = clean(text);
+      const stack = STACK_NAME_RE.test(t) || STACK_NAME_ZH.test(t);
+      const scope = FE_SCOPE_ZH.test(t) || FE_SCOPE_EN.test(t);
+      const keep = KEEP_SYSTEM_ZH.test(t) || KEEP_SYSTEM_EN.test(t);
+
+      if (stack && scope && keep) {
+        return PASS('指名了要用什麼寫、只動哪一塊、既有的設計系統要沿用 —— 這三句話就是那面牆沒有塌的原因。');
+      }
+      if (stack && scope) {
+        return MOST('框架與範圍都寫了。再加一句「沿用專案既有的樣式變數與元件」，它才不會替你發明第二套。');
+      }
+      if (stack && keep) {
+        return MOST('指名與保留都有了。再限一句「只動這一顆按鈕，其他地方不要順便改」。');
+      }
+      if (scope && keep) {
+        return MOST('範圍與保留都寫了，但沒指名要用什麼寫 —— 它會挑自己順手的那一套，跟專案裡的不一樣。');
+      }
+      if (stack || scope || keep) {
+        return PART('三件事只寫到一件。指名框架、限定只動哪一塊、沿用既有設計系統，缺一個那面牆就會被重寫。');
+      }
+      return MISS('還沒指名任何東西。寫「用專案既有的 React ＋ Tailwind：只改結帳頁那一顆送出鈕，沿用現有的色票與元件，其他地方不要動」。');
     },
   },
 ];

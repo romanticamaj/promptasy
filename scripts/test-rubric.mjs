@@ -1236,6 +1236,91 @@ const FIXTURES = {
       'Just paste everything we have so far and answer again.',
     ],
   },
+
+  /* --- 觀象臺（課程 v2 · Phase I） --- */
+  pointsAtRegion: {
+    good: [
+      '請看圖的左下角那塊木牌，把牌上的三行字逐字抄出來。',
+      '紀錄的部分請看 00:12 到 00:25 這一段，說出這段時間裡木牌被搬去哪裡。',
+      'Look at the wooden sign in the bottom-left corner of the photo and copy the three lines on it word for word.',
+    ],
+    weak: [
+      // 指到位置了，卻沒說要在那裡拿到什麼
+      '請注意這張圖的左下角，那一塊就是我在意的地方。',
+      // 只會說「看仔細一點」—— 沒有把範圍縮小
+      '這張圖你看仔細一點再回答，整張圖都要看清楚。',
+    ],
+    bad: [
+      '這張照片裡有什麼東西呢，你自己判斷就好。',
+      'Tell me what this picture is about, whatever you think.',
+    ],
+  },
+  preservesPriorState: {
+    good: [
+      '把窗簾換成藍色——這一步只改這一件事。\n其餘保持原樣：構圖、人物、地面都不要動。\n下一步再處理燈光，並保留上一步已經改好的窗簾顏色。',
+      'This step changes one thing only: turn the curtain blue. Keep everything else exactly the same, and keep the previous step result.',
+    ],
+    weak: [
+      // 有保留、也一次一步，但沒指名「上一步的成果」
+      '這一步只改一件事，其餘保持原樣：構圖、人物、地面都不要動。',
+      // 只有保留，沒說接著上一步
+      '把窗簾換成藍色，其餘保持原樣。',
+      // 非單調：一次交代四個修改（就算後面補了保留也一樣）
+      '把窗簾換成藍色、天空改成黃昏、地面拿掉那攤水、再加上一盞燈，其餘保持原樣。',
+    ],
+    bad: [
+      '這張圖你看著調整一下，覺得怎樣好看就怎樣來。',
+      'Just make this picture look better, whatever you think works.',
+    ],
+  },
+  namesShotElements: {
+    good: [
+      '主體：一位守夜人，正緩緩推開一扇木門。\n場景：霧氣中的石橋邊。\n鏡頭緩緩推近。\n構圖用中景。\n冷藍色調，聽得到遠處的水聲。',
+      'Subject: a night watchman slowly pushing a wooden door open. Setting: beside a stone bridge in the mist. The camera dollies in slowly. Composition: a medium shot. Cool blue tones, with the sound of water far away.',
+    ],
+    weak: [
+      // 四類：主體、動作、場景、運鏡 —— 缺氣氛與聲音
+      '主體：一位守夜人，正緩緩推開一扇木門。\n場景：石橋邊。\n鏡頭緩緩推近。',
+      // 三類，缺鏡頭那一格
+      '主體：一位守夜人，正緩緩推開一扇木門。\n場景：霧氣中的石橋邊，冷藍色調。',
+    ],
+    bad: [
+      '請幫我生成一段感覺很有氣勢的短片，長度大概十秒就好。',
+      'Make me a short cinematic video, about ten seconds, something impressive.',
+    ],
+  },
+  usesProsodyPunctuation: {
+    good: [
+      '請把下面這段話唸成今晚的告示。\n各位，今晚的鐘會晚一刻敲。\n請先儲水——三桶就夠了。\n[pause]\n明天清晨，水就回來了，不必擔心。',
+      'Read this aloud as tonight notice.\nEveryone, the bell rings a quarter late tonight.\nStore water first — three buckets is enough.\n[pause]\nTomorrow at dawn, the water comes back.',
+    ],
+    weak: [
+      // 句子切短了，但沒有任何一個真正的停頓記號
+      '請唸成告示。各位，今晚的鐘會晚一刻敲。請先儲水，三桶就夠了，明天水就回來了。',
+      // 非單調：標點做好了，卻還留著那句「請唸慢一點」
+      '請把這段唸成告示，並且請唸慢一點。\n各位，今晚的鐘會晚一刻敲。\n請先儲水——三桶就夠了。\n[pause]\n明天清晨，水就回來了。',
+    ],
+    bad: [
+      '請把這段話唸成告示今晚的鐘會晚一刻敲請大家先儲水明天清晨水就回來了不必擔心',
+      'Read this out as tonight notice the bell rings late tonight so store water first and it comes back at dawn',
+    ],
+  },
+  namesStackAndScope: {
+    good: [
+      '請用專案既有的 React 與 Tailwind，不要新增任何函式庫。\n只改結帳頁那一顆送出鈕的顏色，其他頁面與檔案不要順便改。\n沿用現有的色票、間距與元件，設計系統不要動。',
+      'Use the React and Tailwind already in this project. Only change the submit button on the checkout page, and do not touch anything else. Preserve the existing design tokens and components.',
+    ],
+    weak: [
+      // 指名了、也限定了範圍，但沒說既有的設計系統要沿用
+      '請用專案既有的 React 與 Tailwind，只改結帳頁那一顆送出鈕的顏色。',
+      // 限定範圍 ＋ 沿用既有，但沒指名要用什麼寫
+      '只改結帳頁那一顆送出鈕的顏色，並沿用現有的色票、間距與元件。',
+    ],
+    bad: [
+      '把結帳頁的送出鈕改成綠色，順便看看有沒有可以優化的地方。',
+      'Change the checkout button to green and clean up whatever else looks off.',
+    ],
+  },
 };
 
 
@@ -1883,6 +1968,52 @@ const LEGACY_EN_SOLUTIONS = {
     'Continue from the last turn and work out how much of the third batch to order.\n' +
     'Carry forward from the last turn only these 2 conclusions: the loss rate per crate and the confirmed delivery date.\n' +
     'The quote from last week is out of date; do not carry everything else either.',
+
+  /* --- 觀象臺（課程 v2 · Phase I） --- */
+  'first-window-107':
+    'Read the harbour photo and the 40-second clip that goes with it.\n' +
+    'In the photo, look at the wooden sign in the bottom-left corner and copy the three lines on it word for word.\n' +
+    'In the clip, look at 00:12 to 00:25 and say where the sign was carried.\n' +
+    'Answer the photo and the clip separately.',
+  'blurred-corner-108':
+    'Handle the receipt scan below.\n' +
+    'Step 1: describe the bottom-right corner of the receipt first; say what you see and do not judge yet.\n' +
+    'Step 2: that line is tiny, so use a crop tool to zoom into the bottom-right corner and read it again.\n' +
+    'Step 3: copy out the amount and the date on that line; say "unreadable" if you cannot read it.',
+  'subjectless-picture-109':
+    'This is a recruitment poster for the stargazers, and the last version was rejected.\n' +
+    'Draw a portrait poster: the subject is a cloaked stargazer raising a small mirror towards the sky.\n' +
+    'The setting is an empty stone terrace at night, lit only by moonlight and its reflection on the ground.\n' +
+    'Use a low-poly illustration style with a low-angle wide lens.\n' +
+    'The frame holds only this stargazer, surrounded by empty stone ground.',
+  'overcorrected-plate-110':
+    'This step changes one thing only: turn the curtain blue.\n' +
+    'Keep everything else exactly the same: composition, people and ground must not change.\n' +
+    'Handle the lighting in the next step, and keep the curtain colour from the previous step.\n' +
+    'Show me each step before moving on.',
+  'storyboard-wall-111':
+    'Subject: a night watchman slowly pushing a wooden door open.\n' +
+    'Setting: beside a stone bridge in the mist.\n' +
+    'The camera dollies in slowly.\n' +
+    'Composition: a medium shot.\n' +
+    'Cool blue tones, with the sound of water far away.\n' +
+    'Generate a ten-second video from the items above.',
+  'breathless-stone-112':
+    'Read the text below aloud as tonight notice.\n' +
+    'Everyone, the bell will ring a quarter late tonight.\n' +
+    'Store water first — three buckets is enough.\n' +
+    '[pause]\n' +
+    'Tomorrow at dawn, the water comes back, so there is no need to worry.',
+  'same-three-faces-113':
+    'Rebuild the stargazers landing page.\n' +
+    'Use deep ink green as the dominant colour and a warm orange accent; push every other colour to greyscale.\n' +
+    'Set headlines in an old serif book face, make the layout asymmetric, and let the main image sit on the right and overlap the headline.\n' +
+    'Build the page load as one staggered reveal.',
+  'one-button-114':
+    'This is a small change on the checkout page.\n' +
+    'Use the React and Tailwind already in this project and add no new libraries.\n' +
+    'Only change the colour of the submit button on the checkout page; do not touch other pages or files.\n' +
+    'Reuse the existing colour tokens, spacing and components, and leave the design system alone.',
 };
 for (const c of challenges) {
   const en = LEGACY_EN_SOLUTIONS[c.id];
@@ -3102,6 +3233,13 @@ clearRegion('refinery');
  */
 eq(prog.isRegionUnlocked('frugality'), true, '已經有土地精通 → 減法之庭自己開了（知識即升級）');
 clearRegion('frugality');
+/*
+ * 課程 v2 · Phase I：觀象臺的門檻是「撰寫基本功整片精通」（regions-v2 的 gate 逐字）。
+ * 中央高原早就全破了，所以它在這個時間點該是開著的 —— 而且它刻意**不**接在
+ * 任何一區後面（多模態跟文字技巧沒有依賴關係，隨時可以岔出去）。
+ */
+eq(prog.isRegionUnlocked('sight'), true, '撰寫基本功整片精通 → 觀象臺自己開了（知識即升級）');
+clearRegion('sight');
 eq(prog.state.collected.length, curriculum.techniques.length, '全破所有關卡 → 68 條技巧全收集');
 for (const g of catalog.implementedRegions()) {
   eq(prog.regionMastery(g.id).mastered, true, `[${g.id}] 全收集 → 精通`);
@@ -6919,6 +7057,269 @@ console.log('\n▸ 轉鈕與減法之庭（課程 v2 · Phase H）');
     );
     for (const other of Object.keys(MOODS).filter((k) => k !== 'frugality')) {
       ok(MOODS.frugality.root !== MOODS[other].root, `減法之庭的根音與 ${other} 不同（不是拿別區的來墊）`);
+    }
+  }
+}
+
+/* ================================================================== */
+/* 課程 v2 · Phase I：觀象臺（sight）                                  */
+/*                                                                    */
+/*   守六件事：                                                        */
+/*     1. 8 座一對一接上技能（C1／C2），沒有連續三座同型（C4）          */
+/*     2. **遊戲仍然只評 prompt 的結構**：這一區沒有引進任何圖片／影片／ */
+/*        音檔，也沒有任何外部網址 —— 素材是抄寫人寫下來的文字          */
+/*     3. 五個新檢查器真的實作、真的被用到、真的有白話教學              */
+/*     4. 正東偏北真的長出一片小地形（自己一條橋、壓在網格內、留得出虛空）*/
+/*     5. 軟門檻是知識式的（指定的那一片土地精通），而且先行前往走得通    */
+/*     6. 這一區沒有配樂音檔 → 誠實登記成合成專用（護欄 3）             */
+/* ================================================================== */
+console.log('\n▸ 觀象臺（課程 v2 · Phase I）');
+
+{
+  const here = challenges.filter((c) => c.region === 'sight');
+
+  /* --- 8 座、C1／C2／C4 --- */
+  eq(here.length, EXPECT.sightShrines.value, `觀象臺有 ${EXPECT.sightShrines.value} 座教學神廟`);
+  ok(
+    here.every((c) => nonEmptyStr(c.primarySkillId)),
+    '觀象臺每一關都接上了 v2 技能',
+    here.filter((c) => !c.primarySkillId).map((c) => c.id).join('、')
+  );
+  const skills = here.map((c) => c.primarySkillId);
+  eq(new Set(skills).size, skills.length, '[sight] 每條技能只有一座神廟（C2）');
+  eq(
+    skills.slice().sort().join(','),
+    catalog.regionSkills('sight').map((x) => x.id).slice().sort().join(','),
+    '[sight] 這一區的技能全部有神廟了（一條不多、一條不少）'
+  );
+  for (const c of here) {
+    const tag = `[${c.id}]`;
+    eq(c.rubric.length, 2, `${tag} 收斂成「一條主檢查 ＋ 一條地基」（C1）`);
+    const mainRow = c.rubric.find((r) => r.primary);
+    ok(Boolean(mainRow) && mainRow.weight === 3, `${tag} 主檢查是 3 分`);
+    eq(mainRow && mainRow.skillId, c.primarySkillId, `${tag} 主檢查那一列掛著這一關的技能`);
+    eq(c.pass, 2, `${tag} 門檻是 2 分`);
+    ok(CHECK_IDS.includes(mainRow.check), `${tag} 主檢查是真的實作了的檢查器`, mainRow.check);
+    const skill = catalog.skill(c.primarySkillId);
+    ok(
+      (skill.sources || []).some((x) => x.url === c.source),
+      `${tag} 出處是這條技能自己的官方連結`,
+      c.source
+    );
+  }
+  const kinds = here.map((c) => kindOf(c.id));
+  {
+    let run = 1;
+    let worst = 1;
+    for (let i = 1; i < kinds.length; i += 1) {
+      run = kinds[i] === kinds[i - 1] ? run + 1 : 1;
+      worst = Math.max(worst, run);
+    }
+    ok(worst <= 2, '[sight] 整區沒有連續三座同一種題型（C4）', kinds.join(','));
+    ok(new Set(kinds).size >= 5, '[sight] 至少用了五種題型', [...new Set(kinds)].join(','));
+  }
+
+  /*
+   * --- 這一區教的是「怎麼寫多模態的 prompt」，不是真的看圖／生圖 ---
+   *
+   * 判準是可執行的：這 8 關的資料層（含第三幕的流程）不得出現任何媒體檔名、
+   * 也不得出現除了 rubric 出處以外的網址。素材一律是抄寫人寫下來的文字 ——
+   * 這樣既誠實（遊戲從來沒有真的看過那張圖）又不必背任何資產授權。
+   */
+  {
+    const MEDIA = /\.(?:png|jpe?g|gif|webp|svg|mp4|webm|mov|m4a|mp3|wav|ogg)\b/i;
+    for (const c of here) {
+      const tag = `[${c.id}]`;
+      const flow = flowData.flows[c.id];
+      const blobNoSource = JSON.stringify({ ...c, source: undefined });
+      ok(!MEDIA.test(blobNoSource), `${tag} 關卡資料沒有引用任何圖片／影片／音檔`);
+      ok(!MEDIA.test(JSON.stringify(flow)), `${tag} 第三幕的流程沒有引用任何圖片／影片／音檔`);
+      ok(!/https?:\/\//.test(blobNoSource), `${tag} 除了官方出處以外不自帶任何網址`);
+      ok(!/https?:\/\//.test(JSON.stringify(flow)), `${tag} 第三幕的流程不自帶連結`);
+      ok(Boolean(c.material) && nonEmptyStr(c.material.text), `${tag} 素材是抄寫人寫下來的文字`);
+    }
+  }
+
+  /* --- 這一期開的五個新檢查器 --- */
+  {
+    const PHASE_I_CHECKS = [
+      'pointsAtRegion',
+      'preservesPriorState',
+      'namesShotElements',
+      'usesProsodyPunctuation',
+      'namesStackAndScope',
+    ];
+    const usedHere = new Set(here.flatMap((c) => c.rubric.map((r) => r.check)));
+    for (const id of PHASE_I_CHECKS) {
+      ok(CHECK_IDS.includes(id), `新檢查器 ${id} 真的實作了`);
+      ok(usedHere.has(id), `新檢查器 ${id} 真的被觀象臺用到（不開沒人用的）`);
+      ok(EXPECT.v2CheckersLanded.value.includes(id), `新檢查器 ${id} 登記進 expected-counts`);
+      ok(Boolean(coachData.entries.find((e) => e.check === id)), `新檢查器 ${id} 有白話教學`);
+    }
+    /* 指位：「看仔細一點」永遠不算指位（那是願望，不是範圍） */
+    ok(
+      runCheck('pointsAtRegion', '這張圖你看仔細一點再回答，整張圖都要看清楚。').score < 1,
+      'pointsAtRegion：「看仔細一點」不算指出要看哪一塊'
+    );
+    /* 指位：時間戳是影片的座標 */
+    eq(
+      runCheck('pointsAtRegion', '影片請看 00:12 到 00:25 這一段，說出這段時間裡發生了什麼事。').score,
+      1,
+      'pointsAtRegion：時間戳算指到那一段'
+    );
+    /* 非單調：一次交代四個修改，就算補了「其餘保持原樣」也拿不到滿分 */
+    ok(
+      runCheck(
+        'preservesPriorState',
+        '把窗簾換成藍色、天空改成黃昏、地面拿掉那攤水、再加上一盞燈，其餘保持原樣。'
+      ).score < 1,
+      'preservesPriorState 是非單調的：一次塞四個修改就掉分（一次一步才是這一課）'
+    );
+    /* 非單調：標點做好了卻還留著「請唸慢一點」→ 掉一階 */
+    {
+      const withPlead = runCheck(
+        'usesProsodyPunctuation',
+        '請把這段唸成告示，並且請唸慢一點。\n各位，今晚的鐘會晚一刻敲。\n請先儲水——三桶就夠了。\n[pause]\n明天清晨，水就回來了。'
+      );
+      const without = runCheck(
+        'usesProsodyPunctuation',
+        '請把這段唸成告示。\n各位，今晚的鐘會晚一刻敲。\n請先儲水——三桶就夠了。\n[pause]\n明天清晨，水就回來了。'
+      );
+      ok(withPlead.score < without.score, 'usesProsodyPunctuation 是非單調的：多留一句「請唸慢一點」反而扣分');
+      eq(without.score, 1, 'usesProsodyPunctuation：標點與停頓記號做完就滿分');
+    }
+    /* 分鏡：只有主體與場景不算一段分鏡 */
+    ok(
+      runCheck('namesShotElements', '主體：一位守夜人，正緩緩推開一扇木門。\n場景：石橋邊。').score < 1,
+      'namesShotElements：缺了鏡頭與氣氛就不算一段分鏡'
+    );
+    /* 指名與限界：三件事缺一件都不算完 */
+    ok(
+      runCheck('namesStackAndScope', '請用專案既有的 React 與 Tailwind，只改結帳頁那一顆送出鈕的顏色。').score < 1,
+      'namesStackAndScope：沒說「沿用既有的設計系統」就還不算完'
+    );
+  }
+
+  /* --- 世界：正東偏北的一片小地形（自己一條橋，不是加建） --- */
+  {
+    const site = World.REGION_SITES.find((s) => s.id === 'sight');
+    ok(Boolean(site), '世界上有觀象臺這片土地');
+    ok(!site.annexOf, '觀象臺是自己一片土地（curriculum-v2 §二：🔴 新地形（小）），不是加建');
+    ok(
+      World.CORRIDORS.some((c) => c.region === 'sight'),
+      '觀象臺自己有一條橋接回中央高原（它不接在任何一區後面）'
+    );
+    ok(
+      Math.abs(site.x) + site.radius <= 168 && Math.abs(site.z) + site.radius <= 168,
+      '整片土地都在地形網格裡（±170）',
+      `${Math.abs(site.x) + site.radius} / ${Math.abs(site.z) + site.radius}`
+    );
+    const gnd = World.REGION_SITES.find((s) => s.id === 'grounding');
+    const gap = Math.hypot(site.x - gnd.x, site.z - gnd.z) - site.radius - gnd.radius;
+    ok(gap > 4, '與沉書檔案庫之間留得出虛空（兩片土地沒有黏在一起）', `${gap.toFixed(1)} 公尺`);
+    /* 橋不會擦過檔案庫（不然走過去會直接踩進別人的地界） */
+    {
+      const c = World.CORRIDORS.find((x) => x.region === 'sight');
+      const t = ((gnd.x - c.from.x) * c.dir.x + (gnd.z - c.from.z) * c.dir.z);
+      const px = c.from.x + c.dir.x * t;
+      const pz = c.from.z + c.dir.z * t;
+      ok(
+        Math.hypot(px - gnd.x, pz - gnd.z) > gnd.radius,
+        '通往觀象臺的橋不會擦過沉書檔案庫',
+        Math.hypot(px - gnd.x, pz - gnd.z).toFixed(1)
+      );
+    }
+    /* 地貌：一片斜著抬起來的高地（東北高、橋頭低），而且站得住 */
+    {
+      const ne = World.terrainHeight(site.x + 16, site.z - 16);
+      const sw = World.terrainHeight(site.x - 16, site.z + 16);
+      ok(ne > sw + 0.8, '整片坡由西南（橋頭）往東北抬起來', `${ne.toFixed(2)} vs ${sw.toFixed(2)}`);
+      let sampled = 0;
+      let lo = Infinity;
+      let hi = -Infinity;
+      for (let a = 0; a < 24; a += 1) {
+        for (const d of [4, 10, 16, 22, 26]) {
+          const x = site.x + Math.cos((a / 24) * Math.PI * 2) * d;
+          const z = site.z + Math.sin((a / 24) * Math.PI * 2) * d;
+          if (World.coverage(x, z) <= 0.85) continue;
+          const h = World.terrainHeight(x, z);
+          lo = Math.min(lo, h);
+          hi = Math.max(hi, h);
+          sampled += 1;
+        }
+      }
+      ok(sampled >= 100, '真的量到夠多個點（不是空過）', String(sampled));
+      ok(hi - lo < 6, '坡是走得上去的，不是斷崖', `${(hi - lo).toFixed(2)}`);
+    }
+    /* 氣氛表：它有自己的空氣 */
+    const air = World.atmosphereFor('sight');
+    ok(Boolean(air) && air !== World.atmosphereFor('foundations'), '觀象臺有自己的氣氛設定');
+    ok(air.fogFar >= 330, '看得最遠（觀象臺就是拿來看遠方的）', String(air.fogFar));
+    /* 地標：朝天的鏡，零實體光源，而且離石座夠遠 */
+    const spec = Props.LANDMARKS.find((l) => l.region === 'sight');
+    ok(Boolean(spec), '觀象臺有自己的地標');
+    eq(spec.name, '朝天的鏡', '地標就是 curriculum-v2 §二寫的那一面');
+    const built = Props.buildLandmark('sight', kit, World.terrainHeight, 'high');
+    ok(Boolean(built), '地標蓋得起來');
+    let lightCount = 0;
+    built.group.traverse((o) => {
+      if (o.isLight) lightCount += 1;
+    });
+    eq(lightCount, 0, '朝天的鏡一盞實體光源都沒加（只用自發光材質）');
+    /* 這一區的造景也不准新增光源（§6.1：亮的部分一律走自發光） */
+    {
+      const props = testScene.getObjectByName('props:sight');
+      ok(Boolean(props), '觀象臺的造景蓋起來了');
+      let n = 0;
+      if (props) props.traverse((o) => { if (o.isLight) n += 1; });
+      eq(n, 1, '觀象臺只有「每區一盞主色補光」那一盞（其餘全部自發光）', String(n));
+    }
+  }
+
+  /* --- 軟門檻：知識式（C8），規格與 regions-v2 逐字對得上 --- */
+  {
+    const spec = (regionsV2.regions.find((r) => r.id === 'sight') || {}).gate || {};
+    const { REGION_GATES } = await import('../src/progression/progression.js');
+    const gate = REGION_GATES.sight;
+    ok(Boolean(gate), 'REGION_GATES 上有觀象臺');
+    ok(Boolean(gate.knowledge), '觀象臺的門檻是知識式的（不是等級數字）');
+    eq(
+      (gate.knowledge.mastered || []).join(','),
+      (spec.masteredRegions || []).join(','),
+      '「指定的那一片土地精通」＝regions-v2 的規格'
+    );
+    eq(gate.requires, null, '觀象臺不看「前一區通關幾關」（知識即升級）');
+    memory.clear();
+    const skipProg = createProgression({ catalog, challenges });
+    eq(skipProg.isRegionUnlocked('sight'), false, '新存檔時觀象臺是鎖著的');
+    const st = skipProg.gateStatus('sight');
+    ok(st.knowledgeGaps.length > 0, '閘門說得出還差什麼', JSON.stringify(st.knowledgeGaps));
+    ok(
+      st.knowledgeGaps.some((g) => g.kind === 'mastered' && g.regionId === 'foundations'),
+      '缺口就是「撰寫基本功整片精通」',
+      JSON.stringify(st.knowledgeGaps)
+    );
+    ok(/也可以先行前往/.test(st.text), '觀象臺的閘門一樣會問「想先過去看看嗎」', st.text);
+    ok(!/sight|foundations/.test(st.text), '閘門說的是中文，不是資料層的 id', st.text);
+    skipProg.skipGate('sight');
+    eq(skipProg.isRegionUnlocked('sight'), true, '先行前往照樣開得了觀象臺的門');
+    eq(skipProg.state.xp, 0, '先行前往一分 XP 都不加');
+    memory.clear();
+  }
+
+  /* --- 配樂：這一區沒有音檔，走合成 pad（護欄 3） --- */
+  {
+    const { REGION_MOODS: MOODS, BGM_TRACKS: TRACKS, SYNTH_ONLY_REGIONS } = await import('../src/audio/audio.js');
+    ok(SYNTH_ONLY_REGIONS.includes('sight'), '觀象臺誠實登記成「還沒有配樂音檔」');
+    ok(!TRACKS.sight, '觀象臺沒有音檔條目（不假裝有一首）');
+    ok(Boolean(MOODS.sight), '觀象臺有自己的合成配樂性格');
+    ok(
+      MOODS.sight.root >= Math.max(...Object.values(MOODS).map((m) => m.root)),
+      '根音全場最高（這一區在最高的地方）',
+      String(MOODS.sight.root)
+    );
+    for (const other of Object.keys(MOODS).filter((k) => k !== 'sight')) {
+      ok(MOODS.sight.root !== MOODS[other].root, `觀象臺的根音與 ${other} 不同（不是拿別區的來墊）`);
     }
   }
 }

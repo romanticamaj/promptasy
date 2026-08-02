@@ -510,12 +510,49 @@ Exit criteria（逐條實測）：
 
 ### Phase I — 觀象臺 `sight` 8（可獨立延後）
 
-狀態：`pending`
+狀態：`done`（2026-08-02）
 
 - 新增小型地形與 8 座多模態提示神廟；遊戲仍只評 prompt 結構，不假裝真的看圖／生圖。
 - 圖片／影片素材若新增，逐檔記授權；畫面不依外部 CDN。
 
 Exit：8 座離線可玩；素材授權完整；新地形通過 WORLD 效能與碰撞預算。
+
+Exit criteria（逐條實測）：
+
+- [x] **8 座教學神廟上線**（全部新蓋，沒有搬動或改造既有 27 關中的任何一關 ——
+      manifest 的 `challenges` 一列都沒有動）：觀象臺的第一格窗（`mm-basics`）／
+      看不清的那一角（`mm-troubleshoot`）／無主體的畫（`img-generate`）／改壞的那張（`img-edit`）／
+      分鏡牆（`video-prompt`）／唸太快的傳聲石（`tts-writing`）／千篇一律的門面（`design-anti-slop`）／
+      改了一顆鈕，塌了一面牆（`fe-spec`）。8 條技能一對一、無重複（C1／C2）。
+- [x] **C1／C4**：8 座一律「主檢查 3 ＋ 地基 `assignsTask` 0.5、pass 2」；
+      題型序列 choice・fix・fix・multi・order・fix・tradeoff・fix ——
+      最長連續同型 2（C4），用了 5 種既有題型（**這一期沒有開新題型**）。
+- [x] **遊戲仍然只評 prompt 的結構**（本期最重要的那條線，寫成三條可執行的規則，
+      見 WORLD.md §3.3c）：素材是抄寫人寫下來的文字；資料層與畫面都不得出現任何
+      圖片／影片／音檔（rubric 掃資料、e2e 掃 DOM）；整段玩下來**零外部請求**
+      （e2e 用 `performance.getEntriesByType('resource')` 量過）。
+      **因此本期沒有新增任何媒體資產，`public/LICENSE.md` 不需要新增條目。**
+- [x] **5 個新檢查器**（§7.4）：`pointsAtRegion`／`preservesPriorState`／`namesShotElements`／
+      `usesProsodyPunctuation`／`namesStackAndScope`，全部結構性偵測 ＋ 中英雙語
+      ＋ good／weak／bad fixture ＋ 反作弊 ＋ `coach.json` 白話教學（實測照著填就會亮）。
+      其中兩個是**非單調**的：`preservesPriorState`（一次塞三個以上的修改就掉分）與
+      `usesProsodyPunctuation`（標點做好了卻還留著「請唸慢一點」就掉一階）。
+- [x] **新地形（小）**：`sight (134, -18) r=34 flat=27`，**自己一條橋**（不接在任何一區後面）。
+      設計寫的是「東北高地」，實際落在**正東偏北** —— 東北那一角已被沉書檔案庫（r=46）
+      與護欄崗佔滿，理由與算式記在 `findings.md`。與檔案庫留得出 6.3 公尺虛空、
+      橋線離檔案庫中心最近 81.5 公尺（不會擦過去）、`134 + 34 = 168` 壓在 ±170 網格內。
+- [x] **知識式軟門檻（C8）新開一種條件 `mastered`**（指名道姓的那一片土地精通）：
+      `REGION_GATES.sight` 只有 `mastered: ['foundations']`（逐字取自 `regions-v2.json`）；
+      `skippedGates` 先行前往照樣走得通且一分 XP 都不加。
+- [x] **世界成本實測**（在 node 裡把世界蓋起來，不採文件舊數字）：三角形 179,574 → **186,596**、
+      光源 34 → **36**（一盞主色補光 ＋ 小景裡本來就有的製圖桌燈；**地標零實體光源**）、
+      碰撞體 902 → **961**、穿模稽核 0 件；低畫質 125,156 tris ／ 19 盞。
+- [x] **配樂**：觀象臺**沒有**音檔，誠實登記進 `SYNTH_ONLY_REGIONS`，配一組自己的
+      `REGION_MOODS.sight`（根音 164.81 全場最高、截止頻率全場最高、鐘聲間隔最短之一）。
+- [x] fonts（CJK **1847** 字／1464.5 KB）＋rubric（62,415 → **67,077**）
+      ＋playtest（1,768 → **1,919**）＋build ＋ **完整 e2e（2,750 → 2,890 項全過、零 console error、
+      零重跑，第一輪就乾淨）** 全綠。新斷言另以**刻意破壞**跑了一輪完整 e2e 驗證會紅
+      （觀象臺那一段確實出現 3 個 x），還原後即為上述綠燈（詳見 `progress.md`）。
 
 ### Phase J — 分歧之廳＋12 應用關＋大師層
 

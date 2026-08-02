@@ -11654,6 +11654,506 @@ async function main() {
   eq(fgCodex.locked, 7, '還沒學的七條都是剪影（收集感延伸到新區域）');
   eq(fgCodex.cards, EXPECT.v2ImplementedRegions.value, `圖鑑列出 ${EXPECT.v2ImplementedRegions.value} 片土地`);
 
+  /* ================================================================== */
+  /* 課程 v2 · Phase I：觀象臺（sight）                                  */
+  /*   · 正東偏北的一片小地形，自己一條橋（不接在任何一區後面）           */
+  /*   · 軟門檻是「撰寫基本功整片精通」——指名道姓的那一種知識式門檻       */
+  /*   · 8 座神廟教多模態，但**遊戲仍然只評 prompt 的結構**：             */
+  /*     整段玩下來不會多要一張圖、一段影片、一個音檔（零外部請求）        */
+  /*   · 純鍵盤走完兩座（石碑刻印與改碑），其餘六座用各題型自己的把手      */
+  /* ================================================================== */
+  console.log('\n▸ 觀象臺（課程 v2 · Phase I）');
+
+  await evaluate(`
+    const g = window.__promptasy;
+    g.promptConsole.close();
+    g.codex.close();
+    g.shareCard.close();
+    return 1;
+  `);
+  await sleep(220);
+
+  /* --- 閘門：知識式軟門檻（指定的那一片土地精通） --- */
+  await evaluate(`
+    localStorage.setItem('promptasy.v1.save', JSON.stringify({
+      version: 1, xp: 0, level: 1,
+      unlockedRegions: ['foundations'],
+      collected: [], skillsV2: [], bestGrades: {},
+      badges: { openai: 0, anthropic: 0, google: 0, xai: 0 },
+      settings: { music: 'ambient-01', volume: 0, muted: true, quality: 'low', preflight: true, promptMode: 'guided' },
+      flags: { prologueDone: true, introSeen: true },
+      prologueSteps: [], guidanceSeen: [], loreRead: [], inscriptionsFound: [], secretsFound: [],
+      handlesUsed: [], skippedGates: []
+    }));
+    return 1;
+  `);
+  await reloadPage('重新載入（觀象臺：什麼都還沒學）');
+  await key('Enter', 'Enter', { vk: 13 });
+  await sleep(500);
+
+  const stGate = await evaluate(`
+    const g = window.__promptasy;
+    const st = g.progression.gateStatus('sight');
+    return {
+      unlocked: g.progression.isRegionUnlocked('sight'),
+      gaps: st.knowledgeGaps.map((x) => x.kind + ':' + (x.regionId || '')),
+      text: st.text,
+      hasGate: !!g.world.gates.find((x) => x.id === 'sight'),
+      bridges: g.world.corridors.filter((c) => c.region === 'sight').length,
+      hasLink: !!g.world.annexLinks.find((l) => l.region === 'sight'),
+    };
+  `);
+  eq(stGate.unlocked, false, '什麼都還沒學 → 觀象臺鎖著');
+  ok(
+    stGate.gaps.includes('mastered:foundations'),
+    '「撰寫基本功整片精通」就是觀象臺唯一的缺口',
+    stGate.gaps.join(',')
+  );
+  ok(/也可以先行前往/.test(stGate.text), '觀象臺的門一樣會問「想先過去看看嗎」', stGate.text);
+  ok(/撰寫基本功/.test(stGate.text), '門上說的是中文區域名，不是資料層的 id', stGate.text);
+  eq(stGate.hasGate, true, '觀象臺真的有一道閘門');
+  eq(stGate.bridges, 1, '觀象臺自己一條橋（新地形，不是加建）');
+  eq(stGate.hasLink, false, '觀象臺沒有加建的頸口');
+
+  const stSkip = await evaluate(`
+    const g = window.__promptasy;
+    const xpBefore = g.progression.state.xp;
+    g.progression.skipGate('sight');
+    g.world.openGate('sight', true);
+    return {
+      unlocked: g.progression.isRegionUnlocked('sight'),
+      xp: g.progression.state.xp,
+      xpBefore,
+      cleared: Object.keys(g.progression.state.bestGrades).length,
+    };
+  `);
+  eq(stSkip.unlocked, true, '先行前往開得了觀象臺的門');
+  eq(stSkip.xp, stSkip.xpBefore, '先行前往一分 XP 都不加');
+  eq(stSkip.cleared, 0, '先行前往不會偷偷記下任何一關的評價');
+
+  /* --- 走過那條橋：橋上沒有一步是虛空，走到底就換了一片天 --- */
+  const stEnter = await evaluate(`
+    const g = window.__promptasy;
+    const c = g.world.corridors.find((x) => x.region === 'sight');
+    let voids = 0;
+    for (let i = 0; i <= 40; i += 1) {
+      const t = i / 40;
+      const x = c.from.x + (c.to.x - c.from.x) * t;
+      const z = c.from.z + (c.to.z - c.from.z) * t;
+      if (g.world.coverage(x, z) <= 0.45) voids += 1;
+    }
+    g.player.position.set(c.to.x, g.world.terrainHeight(c.to.x, c.to.z) + 1, c.to.z);
+    await new Promise((r) => setTimeout(r, 900));
+    const here = g.world.regionAt(g.player.position.x, g.player.position.z);
+    return {
+      voids,
+      here: here && here.id,
+      hudRegion: g.hud.region,
+      hudLabel: document.querySelector('.hud__region [data-region]')?.textContent.trim() || '',
+      mood: g.audio.debug().region,
+      source: g.audio.debug().source,
+    };
+  `);
+  eq(stEnter.voids, 0, '橋的主動線上沒有一步是虛空');
+  eq(stEnter.here, 'sight', '走到底真的站在觀象臺的地界上');
+  eq(stEnter.hudRegion, 'sight', 'HUD 跟著換到觀象臺');
+  ok(/觀象臺/.test(stEnter.hudLabel), 'HUD 上寫的是中文區域名', stEnter.hudLabel);
+  eq(stEnter.mood, 'sight', '配樂也切到觀象臺');
+  eq(stEnter.source, 'synth', '觀象臺沒有音檔 → 聽到的是合成 pad（護欄 3）');
+
+  /* --- 世界：地標、造景、石座數、預算 --- */
+  const stWorld = await evaluate(`
+    const g = window.__promptasy;
+    let lights = 0;
+    let tris = 0;
+    g.engine.scene.traverse((o) => {
+      if (o.isLight) lights += 1;
+      if (o.isMesh && o.geometry) {
+        const idx = o.geometry.index ? o.geometry.index.count : (o.geometry.attributes.position?.count || 0);
+        tris += (idx / 3) * (o.isInstancedMesh ? o.count : 1);
+      }
+    });
+    const node = g.engine.scene.getObjectByName('landmark:sky-mirror');
+    let lmLights = 0;
+    if (node) node.traverse((o) => { if (o.isLight) lmLights += 1; });
+    const props = g.engine.scene.getObjectByName('props:sight');
+    let propLights = 0;
+    if (props) props.traverse((o) => { if (o.isLight) propLights += 1; });
+    return {
+      hasMirror: !!node,
+      lmLights,
+      propLights,
+      stMarkers: g.world.markers.filter((m) => g.content.challenge(m.id).region === 'sight').length,
+      props: !!props,
+      flora: !!g.engine.scene.getObjectByName('flora:sight'),
+      vignettes: ['vignette:unpointed-view', 'vignette:five-edits-at-once', 'vignette:breathless-line']
+        .filter((n) => !!g.engine.scene.getObjectByName(n)).length,
+      lights,
+      tris: Math.round(tris),
+      solids: g.world.solids.length,
+    };
+  `);
+  ok(stWorld.hasMirror, '朝天的鏡真的立在場景圖上');
+  eq(stWorld.lmLights, 0, '朝天的鏡一盞實體光源都沒加（全部自發光）');
+  eq(stWorld.propLights, 1, '觀象臺的造景只有「每區一盞主色補光」那一盞', String(stWorld.propLights));
+  eq(stWorld.stMarkers, 8, '觀象臺有 8 座石座');
+  eq(stWorld.props, true, '觀象臺有自己的造景（觀測架與落鏡）');
+  eq(stWorld.flora, true, '觀象臺有自己的植被剪影');
+  eq(stWorld.vignettes, 3, '觀象臺的三組故事小景都在場景圖上', String(stWorld.vignettes));
+  ok(stWorld.lights <= 56, '加了觀象臺之後燈光仍在預算內', `lights=${stWorld.lights}`);
+  ok(stWorld.tris < 420000, '加了觀象臺之後三角形仍在預算內', `tris=${stWorld.tris}`);
+  ok(stWorld.solids < 1400, '加了觀象臺之後碰撞體仍在預算內', `solids=${stWorld.solids}`);
+
+  /* --- 8 座神廟：五個新檢查器、C1／C4 --- */
+  const stPlan = await evaluate(`
+    const g = window.__promptasy;
+    const here = g.content.challenges.filter((c) => c.region === 'sight');
+    return here.map((c) => ({
+      id: c.id,
+      skill: c.primarySkillId,
+      check: c.rubric.find((r) => r.primary).check,
+      rows: c.rubric.length,
+      pass: c.pass,
+      kind: g.promptConsole.flowKindOf(g.content.flow(c.id)),
+    }));
+  `);
+  eq(stPlan.length, 8, '觀象臺有 8 座教學神廟');
+  {
+    const PHASE_I_CHECKS = [
+      'pointsAtRegion',
+      'preservesPriorState',
+      'namesShotElements',
+      'usesProsodyPunctuation',
+      'namesStackAndScope',
+    ];
+    const used = new Set(stPlan.map((x) => x.check));
+    for (const id of PHASE_I_CHECKS) ok(used.has(id), `新檢查器 ${id} 真的有一座神廟在教`);
+    for (const row of stPlan) {
+      eq(row.rows, 2, `[${row.id}] 收斂成「一條主檢查 ＋ 一條地基」（C1）`);
+      eq(row.pass, 2, `[${row.id}] 門檻是 2 分`);
+      ok(Boolean(row.skill), `[${row.id}] 接上了 v2 技能`);
+    }
+    const kinds = stPlan.map((x) => x.kind);
+    let run = 1;
+    let worst = 1;
+    for (let i = 1; i < kinds.length; i += 1) {
+      run = kinds[i] === kinds[i - 1] ? run + 1 : 1;
+      if (run > worst) worst = run;
+    }
+    ok(worst <= 2, '[sight] 整區沒有連續三座同一種題型（C4）', kinds.join(','));
+    ok(new Set(kinds).size >= 5, '[sight] 至少用了五種題型', [...new Set(kinds)].join(','));
+  }
+
+  /* --- 純鍵盤走完第一座（石碑刻印 · pointsAtRegion），§3.1 鐵則 --- */
+  const netBeforeSight = await evaluate(`return performance.getEntriesByType('resource').length;`);
+  {
+    const target = 'first-window-107';
+    const near = await evaluate(`
+      const g = window.__promptasy;
+      const m = g.world.markers.find((x) => x.id === '${target}');
+      g.player.position.set(m.position.x + 3, g.world.terrainHeight(m.position.x + 3, m.position.z + 2), m.position.z + 2);
+      await new Promise((r) => setTimeout(r, 700));
+      const el = document.querySelector('.hud__interact');
+      return { d: Math.hypot(g.player.position.x - m.position.x, g.player.position.z - m.position.z), hint: el && !el.hidden ? el.innerHTML : '' };
+    `);
+    ok(near.d < 6.5, '站到觀象臺第一座石座旁', near.d.toFixed(2));
+    ok(/<kbd>E<\/kbd>/.test(near.hint), '走近提示標著 E 這個鍵', near.hint.slice(0, 80));
+
+    await key('KeyE', 'e', { vk: 69 });
+    await sleep(520);
+    const kbOpen = await evaluate(`
+      const g = window.__promptasy;
+      return {
+        open: g.promptConsole.isOpen,
+        id: g.promptConsole.challenge?.id,
+        act: g.promptConsole.act,
+        links: document.querySelectorAll('#prompt-console .act--brief a[href]').length,
+        media: document.querySelectorAll('#prompt-console img, #prompt-console video, #prompt-console audio').length,
+      };
+    `);
+    eq(kbOpen.open, true, '按 E 打開了觀象臺的神廟');
+    eq(kbOpen.id, target, '打開的就是走過去那一座');
+    eq(kbOpen.act, 1, '從第一幕（委託）開始');
+    eq(kbOpen.links, 0, '第一幕只有題目，零官方連結（四幕分鏡沒有變）');
+    eq(kbOpen.media, 0, '多模態的關卡也沒有塞任何圖片／影片／音檔進畫面（只評 prompt 的結構）');
+
+    await key('Enter', 'Enter', { vk: 13 });
+    await sleep(420);
+    const kbGuide = await evaluate(`
+      const g = window.__promptasy;
+      return {
+        act: g.promptConsole.act,
+        glyphs: document.querySelectorAll('#prompt-console [data-guidance] .glyph').length,
+        srcs: document.querySelectorAll('#prompt-console [data-guidance] a.src').length,
+        srcHref: document.querySelector('#prompt-console [data-guidance] a.src')?.getAttribute('href') || '',
+      };
+    `);
+    eq(kbGuide.act, 2, 'Enter 推到第二幕（神諭刻文）');
+    eq(kbGuide.glyphs, 1, '第二幕只放大這一關教的那一條（C1）');
+    eq(kbGuide.srcs, 1, '那一條刻文掛著神諭原典');
+    ok(/^https:\/\//.test(kbGuide.srcHref), '神諭原典是可點的 https 連結', kbGuide.srcHref);
+
+    await evaluate(`document.querySelector('#prompt-console .act--guide').focus(); return 1;`);
+    await key('Enter', 'Enter', { vk: 13 });
+    await sleep(420);
+    const kbCarveStart = await evaluate(`
+      const g = window.__promptasy;
+      return {
+        act: g.promptConsole.act,
+        kind: g.promptConsole.kind,
+        focusedOnOption: document.activeElement?.classList.contains('opt'),
+      };
+    `);
+    eq(kbCarveStart.act, 3, 'Enter 推到第三幕（刻印）');
+    eq(kbCarveStart.kind, 'choice', '這一座是石碑刻印');
+    eq(kbCarveStart.focusedOnOption, true, '一進刻印，焦點就落在第一個選項上');
+
+    const slotCount = await evaluate(`return window.__promptasy.content.flow('${target}').slots.length;`);
+    for (let i = 0; i < slotCount; i += 1) {
+      const idx = await evaluate(`
+        const g = window.__promptasy;
+        const s = g.content.flow('${target}').slots[g.promptConsole.stele.progress.carved];
+        return s ? s.options.findIndex((o) => o.correct) : -1;
+      `);
+      ok(idx >= 0, `觀象臺：第 ${i + 1} 段找得到正確選項`);
+      const n = idx + 1;
+      await key(`Digit${n}`, String(n), { vk: 48 + n });
+      await sleep(400);
+    }
+    const kbFull = await evaluate(`
+      const g = window.__promptasy;
+      return {
+        carved: g.promptConsole.stele.progress.carved,
+        act: g.promptConsole.act,
+        palmFocused: document.activeElement === document.querySelector('#prompt-console [data-palm]'),
+      };
+    `);
+    eq(kbFull.carved, slotCount, '用數字鍵把觀象臺這一座刻滿');
+    eq(kbFull.act, 4, '刻滿之後鏡頭自己切到手印那一幕');
+    eq(kbFull.palmFocused, true, '焦點自己落在手掌印上');
+
+    await keyDown('Enter', 'Enter', { vk: 13 });
+    await sleep(900);
+    await keyUp('Enter', 'Enter', { vk: 13 });
+    await sleep(800);
+    const kbDone = await evaluate(`
+      const g = window.__promptasy;
+      return {
+        grade: document.querySelector('#prompt-console .grade__mark')?.textContent.trim() || '',
+        cleared: g.progression.isCleared('${target}'),
+        skill: g.progression.isSkillCollected('mm-basics'),
+        saved: JSON.parse(localStorage.getItem('promptasy.v1.save') || '{}').skillsV2 || [],
+      };
+    `);
+    eq(kbDone.grade, 'S', '全程不碰滑鼠也拿得到 S');
+    eq(kbDone.cleared, true, '觀象臺這一座記成通關（純鍵盤）');
+    eq(kbDone.skill, true, '技能「mm-basics」進了圖鑑');
+    ok(kbDone.saved.includes('mm-basics'), '而且真的寫進了存檔', kbDone.saved.join(','));
+    await key('Escape', 'Escape', { vk: 27 });
+    await sleep(320);
+  }
+
+  /* --- 純鍵盤走完一座改碑（usesProsodyPunctuation） --- */
+  {
+    const target = 'breathless-stone-112';
+    await evaluate(`
+      const g = window.__promptasy;
+      g.promptConsole.open(g.content.challenge('${target}'));
+      await new Promise((r) => setTimeout(r, 260));
+      g.promptConsole.goAct(3, { force: true });
+      await new Promise((r) => setTimeout(r, 320));
+      return 1;
+    `);
+    const fixStart = await evaluate(`
+      const g = window.__promptasy;
+      return {
+        kind: g.promptConsole.kind,
+        weak: document.querySelectorAll('#prompt-console .frag--weak').length,
+        palmHidden: document.querySelector('#prompt-console .fixboard .palmwrap').hidden,
+      };
+    `);
+    eq(fixStart.kind, 'fix', '唸太快的傳聲石是改碑');
+    eq(fixStart.weak, 3, '草稿上有三句被畫線（沒有標點的那幾句）');
+    eq(fixStart.palmHidden, true, '還沒改完，手掌印不會出現');
+
+    const fragIds = await evaluate(`
+      return window.__promptasy.content.flow('${target}').fixFlow.fragments.filter((f) => f.weak).map((f) => f.id);
+    `);
+    for (const fid of fragIds) {
+      await evaluate(`document.querySelector('#prompt-console [data-frag-btn="${fid}"]').focus(); return 1;`);
+      await key('Enter', 'Enter', { vk: 13 });
+      await sleep(240);
+      const idx = await evaluate(`
+        const f = window.__promptasy.content.flow('${target}').fixFlow;
+        return f.fragments.find((x) => x.id === '${fid}').options.findIndex((o) => o.correct);
+      `);
+      await evaluate(`document.querySelector('#prompt-console [data-frag="${fid}"][data-opt="${idx}"]').focus(); return 1;`);
+      await key('Enter', 'Enter', { vk: 13 });
+      await sleep(320);
+    }
+    const fixFull = await evaluate(`
+      const g = window.__promptasy;
+      return {
+        fixed: g.promptConsole.fixBoard.progress.fixed,
+        act: g.promptConsole.act,
+        palmFocused: document.activeElement === document.querySelector('#prompt-console .fixboard [data-palm]'),
+        text: g.promptConsole.fixBoard.text,
+        sample: g.content.challenge('${target}').sample,
+      };
+    `);
+    eq(fixFull.fixed, 3, '三句都用鍵盤改好了');
+    eq(fixFull.act, 4, '改完之後鏡頭切到手印那一幕');
+    eq(fixFull.palmFocused, true, '焦點自己落在手掌印上');
+    eq(fixFull.text, fixFull.sample, '改好的整段文字＝這一關的示範解答（兩種模式同一段字）');
+
+    await keyDown('Enter', 'Enter', { vk: 13 });
+    await sleep(900);
+    await keyUp('Enter', 'Enter', { vk: 13 });
+    await sleep(800);
+    const fixDone = await evaluate(`
+      const g = window.__promptasy;
+      return {
+        grade: document.querySelector('#prompt-console .grade__mark')?.textContent.trim() || '',
+        cleared: g.progression.isCleared('${target}'),
+        skill: g.progression.isSkillCollected('tts-writing'),
+      };
+    `);
+    eq(fixDone.grade, 'S', '純鍵盤改完傳聲石那一座也是 S');
+    eq(fixDone.cleared, true, '傳聲石那一座記成通關（純鍵盤）');
+    eq(fixDone.skill, true, '技能「tts-writing」進了圖鑑');
+    await key('Escape', 'Escape', { vk: 27 });
+    await sleep(320);
+  }
+
+  /* 其餘六座：用各題型自己的把手（跟鍵盤走的是同一條路） */
+  for (const shrine of stPlan.filter((s) => s.id !== 'first-window-107' && s.id !== 'breathless-stone-112')) {
+    const played = await evaluate(`
+      const g = window.__promptasy;
+      const id = '${shrine.id}';
+      const c = g.content.challenge(id);
+      const flow = g.content.flow(id);
+      g.promptConsole.close();
+      await new Promise((r) => setTimeout(r, 140));
+      g.promptConsole.open(c);
+      await new Promise((r) => setTimeout(r, 200));
+      g.promptConsole.goAct(3, { force: true });
+      await new Promise((r) => setTimeout(r, 260));
+      const kind = g.promptConsole.kind;
+      const step = (n) => new Promise((r) => setTimeout(r, n));
+      const carve = async (board) => {
+        for (const slot of flow.slots) {
+          board.pick(slot.options.findIndex((o) => o.correct));
+          await step(90);
+        }
+      };
+      if (kind === 'choice') {
+        await carve(g.promptConsole.stele);
+        g.promptConsole.stele.press();
+      } else if (kind === 'fix') {
+        const b = g.promptConsole.fixBoard;
+        for (const fr of flow.fixFlow.fragments) {
+          if (!fr.weak) continue;
+          b.open(fr.id);
+          await step(70);
+          b.pick(fr.id, fr.options.findIndex((o) => o.correct));
+          await step(90);
+        }
+        b.press();
+      } else if (kind === 'order') {
+        const b = g.promptConsole.orderBoard;
+        b.arrange(b.correctOrder);
+        await step(200);
+        b.press();
+      } else if (kind === 'multi') {
+        const b = g.promptConsole.multiBoard;
+        let at = 0;
+        for (let r = 0; r < flow.multiFlow.rounds.length; r += 1) {
+          const n = flow.multiFlow.rounds[r].count;
+          for (let i = 0; i < n; i += 1) {
+            b.pick(flow.slots[at].options.findIndex((o) => o.correct));
+            at += 1;
+            await step(90);
+          }
+          if (r < flow.multiFlow.rounds.length - 1) {
+            b.advance();
+            await step(140);
+          }
+        }
+        b.press();
+      } else if (kind === 'tradeoff') {
+        const b = g.promptConsole.tradeoffBoard;
+        for (const r of flow.tradeoffFlow.rounds) {
+          b.weigh(r.favours);
+          await step(220);
+        }
+        await carve(b);
+        b.press();
+      }
+      await new Promise((r) => setTimeout(r, 900));
+      return {
+        kind,
+        grade: document.querySelector('#prompt-console .grade__mark')?.textContent.trim() || '',
+        cleared: g.progression.isCleared(id),
+        skill: g.progression.isSkillCollected(c.primarySkillId),
+        srcs: document.querySelectorAll('#prompt-console [data-result] a.src').length,
+        media: document.querySelectorAll('#prompt-console img, #prompt-console video, #prompt-console audio').length,
+      };
+    `);
+    eq(played.kind, shrine.kind, `[${shrine.id}] 第三幕的題型是 ${shrine.kind}`);
+    eq(played.grade, 'S', `[${shrine.id}] 照著畫面上的東西做就是 S（${shrine.check}）`, JSON.stringify(played));
+    eq(played.cleared, true, `[${shrine.id}] 記成通關`);
+    eq(played.skill, true, `[${shrine.id}] 技能「${shrine.skill}」進了圖鑑（skillsV2）`);
+    ok(played.srcs >= 1, `[${shrine.id}] 結果面板附得出可點的官方出處`, String(played.srcs));
+    eq(played.media, 0, `[${shrine.id}] 玩完整關都沒有出現任何圖片／影片／音檔`);
+  }
+
+  await evaluate(`window.__promptasy.promptConsole.close(); return 1;`);
+  await sleep(240);
+
+  /* --- 零外部請求：整段觀象臺玩下來沒有多要任何媒體或外部資源 --- */
+  const stNet = await evaluate(`
+    const rows = performance.getEntriesByType('resource').slice(${netBeforeSight});
+    const here = location.origin;
+    return {
+      added: rows.length,
+      external: rows.filter((r) => !r.name.startsWith(here) && !r.name.startsWith('data:') && !r.name.startsWith('blob:')).map((r) => r.name).slice(0, 5),
+      media: rows.filter((r) => /\\.(?:png|jpe?g|gif|webp|svg|mp4|webm|mov|m4a|mp3|wav|ogg)(?:\\?|$)/i.test(r.name)).map((r) => r.name).slice(0, 5),
+    };
+  `);
+  eq(stNet.external.length, 0, '整段觀象臺玩下來沒有向任何外部網域要過東西', stNet.external.join(','));
+  eq(stNet.media.length, 0, '也沒有多要任何圖片／影片／音檔（遊戲只評 prompt 的結構）', stNet.media.join(','));
+
+  /* --- 全破之後：這一區精通、圖鑑列得出它與它的八條技能 --- */
+  const stCodex = await evaluate(`
+    const g = window.__promptasy;
+    g.codex.open();
+    await new Promise((r) => setTimeout(r, 420));
+    const cards = [...document.querySelectorAll('#codex .region-card')];
+    const card = cards.find((c) => /觀象臺/.test(c.querySelector('h3')?.textContent || ''));
+    const out = {
+      hasCard: !!card,
+      skills: card ? card.querySelectorAll('.tech').length : -1,
+      locked: card ? card.querySelectorAll('.tech--locked').length : -1,
+      srcs: card ? card.querySelectorAll('a.src').length : -1,
+      firstSrc: card ? (card.querySelector('a.src')?.getAttribute('href') || '') : '',
+      mastered: card ? card.classList.contains('is-mastered') : false,
+      masteryFlag: g.progression.regionMastery('sight').mastered,
+      cards: cards.length,
+    };
+    g.codex.close();
+    await new Promise((r) => setTimeout(r, 240));
+    return out;
+  `);
+  eq(stCodex.hasCard, true, '圖鑑上有觀象臺那一張卡');
+  eq(stCodex.skills, 8, '卡上列著這一區的 8 條技能');
+  eq(stCodex.locked, 0, '八座全破之後一條都不再是剪影');
+  ok(stCodex.srcs >= 8, '每一條技法都附得出可點的官方出處', String(stCodex.srcs));
+  ok(/^https:\/\//.test(stCodex.firstSrc), '出處是可點的 https 連結', stCodex.firstSrc);
+  eq(stCodex.mastered, true, '觀象臺蓋上精通封印');
+  eq(stCodex.masteryFlag, true, '進程也認定觀象臺精通了');
+  eq(stCodex.cards, EXPECT.v2ImplementedRegions.value, `圖鑑列出 ${EXPECT.v2ImplementedRegions.value} 片土地`);
+
+
 
   console.log('\n▸ 改名（Promptasy）與舊存檔搬家（Phase 29）');
 

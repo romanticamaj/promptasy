@@ -759,6 +759,58 @@ export function runPlaytestVerify({ ok, eq }) {
   }
 
   /* ------------------------------------------------------------------ *
+   * J：觀象臺 8 座（課程 v2 · Phase I）
+   *
+   * 這一區教的是「怎麼寫多模態的 prompt」——遊戲**沒有**真的看圖、也沒有真的生圖，
+   * 所以這裡守的就是那條線：8 座全部是純文字題，走的是同一支離線引擎；
+   * 而且兩座共用 `pointsAtRegion` 的神廟教的不是同一件事（一座教指位置、一座教放大）。
+   * ------------------------------------------------------------------ */
+  {
+    const list = challenges.filter((c) => c.region === 'sight');
+    ok(list.length === 8, `playtest：觀象臺有 8 座教學神廟（實際 ${list.length}）`);
+    const skills = list.map((c) => c.primarySkillId).filter(Boolean);
+    ok(skills.length === list.length, 'playtest：觀象臺每一關都接上了 v2 技能');
+    ok(new Set(skills).size === skills.length, 'playtest：觀象臺的技能一條只教一次');
+    for (const c of list) {
+      const tag = `[${c.id}]`;
+      const f = flowFile.flows[c.id];
+      ok(!!f, `${tag} playtest：觀象臺的神廟有第三幕流程`);
+      if (!f) continue;
+      const picks = f.slots.map((sl) => sl.options.find((o) => o.correct).text).join('\n');
+      const ev = evaluate(c, picks);
+      ok(
+        ev.results.every((r) => r.passed),
+        `${tag} playtest：全部選對時每一條檢查都滿分`,
+        ev.results.filter((r) => !r.passed).map((r) => `${r.check}=${r.earned}/${r.weight}`).join('、')
+      );
+      ok(c.rubric.length === 2, `${tag} playtest：收斂成「一條主檢查 ＋ 一條地基」（C1）`, String(c.rubric.length));
+      ok(c.pass === 2, `${tag} playtest：門檻是 2 分`, String(c.pass));
+      /* 純文字：素材是抄寫人寫下來的文字，資料層不引用任何媒體檔 */
+      ok(
+        !/\.(?:png|jpe?g|gif|webp|svg|mp4|webm|mov|m4a|mp3|wav|ogg)\b/i.test(
+          JSON.stringify({ ...c, source: undefined }) + JSON.stringify(f)
+        ),
+        `${tag} playtest：這一關沒有引用任何圖片／影片／音檔（只評 prompt 的結構）`
+      );
+    }
+    /* 兩座共用 pointsAtRegion 的神廟：教的不是同一件事 */
+    {
+      const first = byId.get('first-window-107');
+      const second = byId.get('blurred-corner-108');
+      ok(Boolean(first && second), 'playtest：兩座指位神廟都在');
+      if (first && second) {
+        ok(/\d{1,2}:\d{2}/.test(first.sample), 'playtest：第一格窗教的是「影片用時間戳」', first.sample.slice(0, 40));
+        ok(
+          /放大|裁切/.test(second.sample),
+          'playtest：看不清的那一角教的是「語言解決不了就放大」',
+          second.sample.slice(0, 40)
+        );
+        ok(first.sample !== second.sample, 'playtest：兩座的示範解答不是同一段字');
+      }
+    }
+  }
+
+  /* ------------------------------------------------------------------ *
    * H：轉鈕（sim · 課程 v2 · Phase H）
    *
    * 轉鈕是「觀察」的舞台，不是答案 —— 所以這裡守兩件事：

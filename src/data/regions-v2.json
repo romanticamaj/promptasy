@@ -372,8 +372,9 @@
       "place": "東北高地 · 新地形（小）",
       "theme": "不只讀字：看圖、看影片、生圖、生影片、說話的聲音、做東西的樣子。",
       "landmark": "一面朝天的鏡（斜插在坡上、映著整片星空的巨鏡）",
-      "engineCost": "新地形（小）",
-      "implemented": false,
+      "engineCost": "新地形（小）（Phase I 已上線）",
+      "implemented": true,
+      "color": "#b0c0e6",
       "skillIds": [
         "mm-basics",
         "mm-troubleshoot",

@@ -114,6 +114,23 @@ export const REGION_GATES = Object.freeze({
       masteredAny: 1,
     },
   },
+  /*
+   * 課程 v2 · Phase I：觀象臺。規格逐字取自 `regions-v2.json` 的 `gate`：
+   *   軟門檻：**foundations 全區精通**。與其他區互不相依（可最早或最晚玩）。
+   * `mastered` 是這一期新開的一種知識式條件 —— 它問的是「你已經把**哪一片**土地學完了」
+   * （`masteredAny` 問的是「隨便哪一片」）。精通的定義完全沿用 `regionMastery()`，
+   * 所以這一條不會有第二套判準。
+   * 為什麼是撰寫基本功：看圖、生圖、寫給人聽的話，判準仍然是「你有沒有把話說清楚」——
+   * 多模態不是另一套規矩，是同一套規矩換一種輸入。
+   */
+  sight: {
+    level: 1,
+    available: true,
+    requires: null,
+    knowledge: {
+      mastered: ['foundations'],
+    },
+  },
 });
 
 /**
@@ -215,6 +232,13 @@ export function createProgression({ catalog = null, curriculum = null, challenge
       const have = regionIds.filter((id) => api.regionMastery(id).mastered).length;
       if (have < k.masteredAny) gaps.push({ kind: 'masteredAny', need: k.masteredAny, have });
     }
+    /*
+     * 課程 v2 · Phase I：「指定的那一片土地精通」。與 `masteredAny` 同一個判準
+     * （`regionMastery()`），差別只在指名道姓。
+     */
+    for (const id of k.mastered || []) {
+      if (!api.regionMastery(id).mastered) gaps.push({ kind: 'mastered', regionId: id });
+    }
     return gaps;
   }
 
@@ -311,6 +335,9 @@ export function createProgression({ catalog = null, curriculum = null, challenge
             needs.push(`先學會「${s ? s.nameZh : g.skillId}」`);
           } else if (g.kind === 'masteredAny') {
             needs.push(`任何一片土地精通（目前 ${g.have}）`);
+          } else if (g.kind === 'mastered') {
+            const r = cat.region(g.regionId);
+            needs.push(`${r ? r.name : g.regionId} 整片精通`);
           } else {
             const r = cat.region(g.regionId);
             needs.push(`${r ? r.name : g.regionId} 學會 ${g.need} 條（目前 ${g.have}）`);

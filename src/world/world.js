@@ -95,6 +95,22 @@ export const REGION_SITES = Object.freeze([
    * 正北是兩條橋（西北 / 東北）中間的那一段空白 —— 這片院子不會壓到任何一條主動線。
    */
   { id: 'frugality', x: 0, z: -82, radius: 32, flat: 27, annexOf: 'foundations' },
+  /*
+   * 課程 v2 · Phase I：觀象臺。**小塊的新地形**（curriculum-v2 §二：🔴 新地形（小）），
+   * 自己一條橋 —— 它刻意不接在任何一區後面（多模態跟文字技巧沒有依賴關係，
+   * 玩家隨時可以岔出去看一眼）。
+   *
+   * 位置：設計寫的是「東北高地」，但東北那一角已經被沉書檔案庫（(95,-95) r46）
+   * 與它北緣的護欄崗（(101,-142) r26）佔滿了 —— 任何離檔案庫中心 < 76 公尺的點
+   * 都會把兩片土地黏在一起。所以這片高地落在**正東偏北**（(134, -18)，
+   * 從中央高原看出去是右前方偏上），與檔案庫相距 86.3 公尺 > 34 + 46，
+   * 中間留得出 6.3 公尺的虛空；理由記在 findings.md。
+   *
+   * 半徑 34（比四片舊土地小，只有 8 座神廟）同樣壓在網格邊界上：
+   * 134 + 34 = 168，剛好在 `buildTerrain()` 的 ±170 網格內。
+   * 通往這裡的橋不會擦到檔案庫：橋線離檔案庫中心最近 81.5 公尺 > 46。
+   */
+  { id: 'sight', x: 134, z: -18, radius: 34, flat: 27 },
 ]);
 
 const SITE_BY_ID = new Map(REGION_SITES.map((s) => [s.id, s]));
@@ -286,6 +302,16 @@ export const REGION_ATMOSPHERE = Object.freeze({
     exposure: 1.07,
     motes: 0.4,
   }),
+  // 觀象臺：一整片仰起來的天 —— 空氣最乾淨、看得最遠，星光被鏡面折回地面（螢火偏多、偏冷藍紫）
+  sight: Object.freeze({
+    fog: 0x1c2440,
+    tint: 0xc0cdf2,
+    hemi: 0.5,
+    fogNear: 92,
+    fogFar: 344,
+    exposure: 1.1,
+    motes: 1.18,
+  }),
   // 護欄崗：哨所的夜 —— 最冷、看得最遠（守望的人要看得到有誰來），螢火少
   wards: Object.freeze({
     fog: 0x1b2733,
@@ -420,6 +446,19 @@ function detailFor(site, x, z) {
       const sill = Math.exp(-Math.pow((lz - 24) / 4.2, 2)) * 0.45;
       const marks = Math.cos(lx * 0.22) * Math.cos(lz * 0.19) * 0.16;
       return 0.9 + smoothstep(21, 7, d) * 0.95 + sill + marks;
+    }
+    case 'sight': {
+      /*
+       * 觀象臺（課程 v2 · Phase I）：一片斜著抬起來的高地。
+       *
+       * 整片坡由西南（橋頭）往東北緩緩升上去 —— 走上來這件事本身就是「往上看」；
+       * 巨鏡斜插在最高的那一側。坡面上有幾道很淺的觀測溝（對準天空的刻線），
+       * 深度只有半公尺，跨得過去也擋不住視線。
+       * 橋頭那一側刻意壓到 2.7 上下（橋面 1.1–1.8），走上來沒有斷崖。
+       */
+      const rise = (lx - lz) * 0.0345; // 東北高、西南低
+      const grooves = Math.pow(Math.abs(Math.sin(d * 0.28)), 6) * 0.45;
+      return 4.2 + rise + smoothstep(34, 11, d) * 0.5 - grooves;
     }
     case 'wards':
       /*
@@ -1016,6 +1055,14 @@ const FLORA = Object.freeze({
     { geo: () => new THREE.CylinderGeometry(1.05, 1.15, 0.26, 8), tint: 0.42, scale: [0.5, 1.2], lift: 0.14, tilt: 0.08 },
     // 量繩樁 0.2 寬 → 走得過去
     { geo: () => new THREE.CylinderGeometry(0.07, 0.1, 2.4, 4), tint: 0.5, scale: [0.5, 1.1], lift: 1.2, tilt: 0.06 },
+  ],
+  // 觀象臺：照過天的東西 —— 立著的碎鏡片、磨過的礦塊、細細的測桿（三種剪影：片 / 塊 / 桿）
+  sight: [
+    // 碎鏡片：薄，但立起來又轉過角度之後外接盒的最薄兩軸都 ≥ 0.9 → 依 Phase 20 的鐵則要擋人
+    { geo: () => new THREE.BoxGeometry(1.15, 1.7, 0.24), tint: 0.34, scale: [0.5, 1.2], lift: 0.85, tilt: 0.34, solid: true },
+    { geo: () => new THREE.OctahedronGeometry(0.85, 0), tint: 0.28, scale: [0.4, 1.1], lift: 0.5, tilt: 0.5, solid: true },
+    // 測桿 0.18 寬 → 走得過去
+    { geo: () => new THREE.CylinderGeometry(0.05, 0.09, 3.4, 4), tint: 0.5, scale: [0.5, 1.2], lift: 1.7, tilt: 0.05 },
   ],
   // 護欄崗：哨所外的東西 —— 矮的拒馬、圓的警石、細的旗桿（三種剪影：叉 / 球 / 桿）
   wards: [
@@ -1644,6 +1691,68 @@ function buildRegionProps(site, color, quality, keepClear, pedestals = []) {
     marks.count = mkN;
     marks.instanceMatrix.needsUpdate = true;
     group.add(marks);
+  } else if (site.id === 'sight') {
+    /*
+     * 觀象臺（課程 v2 · Phase I）：坡上放著一整批「拿來看東西的東西」。
+     *
+     * 兩種，都是 InstancedMesh、**都不新增光源**（§6.1 —— 亮的部分一律走自發光）：
+     *   · 觀測架 —— 一根短柱撐著一只斜著的環，環是自發光的（那是「對準了什麼」的意思）
+     *   · 落鏡   —— 平躺在坡面上的薄鏡片，映著天（跨得過去，所以不登記碰撞）
+     * 這一區的東西刻意都「朝著同一個方向」：全部往東北那一側傾斜，
+     * 剪影讀起來就是一整片抬頭在看的器械。
+     */
+    const postGeo = new THREE.CylinderGeometry(0.3, 0.42, 3.2, 5);
+    const FRAME_N = 14;
+    const posts = new THREE.InstancedMesh(postGeo, stoneMat, FRAME_N);
+    posts.castShadow = shadow;
+    const hoopGeo = new THREE.TorusGeometry(0.8, 0.07, 4, 16);
+    const hoops = new THREE.InstancedMesh(hoopGeo, glowMat, FRAME_N);
+    let frameN = 0;
+    for (let i = 0; i < FRAME_N; i += 1) {
+      const { x, z } = place(10, site.radius - 5);
+      const gy = terrainHeight(x, z);
+      const scale = 0.8 + rand() * 0.5;
+      const spin = rand() * Math.PI;
+      p.set(x, gy + 1.6 * scale, z);
+      q.setFromEuler(new THREE.Euler(0, spin, 0));
+      s.set(scale, scale, scale);
+      posts.setMatrixAt(frameN, m.compose(p, q, s));
+      /*
+       * 環一律往東北仰起來（約 52 度）—— 整片器械朝著同一片天。
+       * 高度 3.62 不是美感決定的：仰起來之後環的外接盒垂直半徑約 0.6×scale，
+       * 底緣要離地 ≥ 1.6 公尺（穿模稽核的 FLOAT_MIN）人才走得過去、不必放一道看不見的牆。
+       */
+      p.set(x, gy + 3.62 * scale, z);
+      q.setFromEuler(new THREE.Euler(-0.9, spin, 0));
+      hoops.setMatrixAt(frameN, m.compose(p, q, s));
+      frameN += 1;
+    }
+    posts.count = frameN;
+    hoops.count = frameN;
+    posts.instanceMatrix.needsUpdate = true;
+    hoops.instanceMatrix.needsUpdate = true;
+    posts.userData.blocksCamera = true;
+    posts.userData.solidRadius = 0.5;
+    group.add(posts);
+    group.add(hoops);
+
+    // 落鏡：平躺在坡上的薄鏡片（0.1 公尺高）。跨得過去，所以不登記碰撞。
+    const plateGeo = new THREE.BoxGeometry(2.4, 0.1, 1.5);
+    const PLATE_N = 16;
+    const plates = new THREE.InstancedMesh(plateGeo, glowMat, PLATE_N);
+    plates.receiveShadow = shadow;
+    let plateN = 0;
+    for (let i = 0; i < PLATE_N; i += 1) {
+      const { x, z } = place(8, site.radius - 6);
+      p.set(x, terrainHeight(x, z) + 0.05, z);
+      q.setFromEuler(new THREE.Euler(0, rand() * Math.PI, 0));
+      s.set(0.6 + rand() * 0.7, 1, 0.6 + rand() * 0.6);
+      plates.setMatrixAt(plateN, m.compose(p, q, s));
+      plateN += 1;
+    }
+    plates.count = plateN;
+    plates.instanceMatrix.needsUpdate = true;
+    group.add(plates);
   }
 
   // 每區一盞主色補光：便宜又有效的「氣氛」

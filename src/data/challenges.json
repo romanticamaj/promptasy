@@ -6854,6 +6854,449 @@
       ],
       "pass": 2,
       "source": "https://developers.openai.com/api/docs/guides/reasoning-best-practices"
+    },
+    {
+      "id": "first-window-107",
+      "region": "sight",
+      "order": 107,
+      "title": "觀象臺的第一格窗",
+      "npc": "觀星人 · 第一次把圖交出去",
+      "position": [
+        114,
+        -2.5
+      ],
+      "xp": 70,
+      "teaches": [],
+      "primaryTechniqueId": null,
+      "primarySkillId": "mm-basics",
+      "scenario": "「我只問了一句『這是什麼』。」觀星人把抄本推過來：「神諭把整片天講了一遍——就是沒講我要的那一塊。它不會知道我在看哪裡。」",
+      "mission": "替觀星人重寫這一次的問話，讓神諭看得到你要它看的那一塊。",
+      "craft": "指名畫面上的哪一塊、說出在那裡要拿到什麼；影片沒有角落可以指，要改用時間戳指到那一段。",
+      "material": {
+        "label": "抄寫人記下的那一格窗（觀測紀錄）",
+        "text": "圖：夜裡的港口。左下角有一塊木牌，牌上三行小字；右上角是雲；中央是水面。\n紀錄：同一個港口的一段影像，全長 40 秒。木牌在中途被人搬走了。\n觀星人問的是：「這是什麼？」"
+      },
+      "clue": "觀星人說：它看得到整張圖，卻不知道你在看哪一塊。指到那個角落、說出你要什麼；影片只有時間可以指——用 00:12 這種寫法。",
+      "placeholder": "例如：請看＿＿（哪一塊），把＿＿抄出來。影片請看＿＿到＿＿這一段。",
+      "quickFills": [
+        {
+          "label": "指到那一塊",
+          "text": "請看圖的左下角那塊木牌，把牌上的三行字逐字抄出來。"
+        },
+        {
+          "label": "影片用時間戳",
+          "text": "紀錄的部分請看 00:12 到 00:25 這一段，說出這段時間裡木牌被搬去哪裡。"
+        },
+        {
+          "label": "分開回答",
+          "text": "圖與紀錄分開回答，各寫一段。"
+        }
+      ],
+      "sample": "請幫我讀這張夜裡的港口觀測圖，另外還有同一個地方的一段紀錄。\n請看圖的左下角那塊木牌，把牌上的三行字逐字抄出來。\n紀錄的部分請看 00:12 到 00:25 這一段，說出這段時間裡木牌被搬去哪裡。\n圖與紀錄分開回答，各寫一段。",
+      "rubric": [
+        {
+          "check": "pointsAtRegion",
+          "weight": 3,
+          "primary": true,
+          "skillId": "mm-basics"
+        },
+        {
+          "check": "assignsTask",
+          "weight": 0.5,
+          "foundation": true,
+          "techniqueId": "clarity-02"
+        }
+      ],
+      "pass": 2,
+      "source": "https://ai.google.dev/gemini-api/docs/video-understanding",
+      "starter": "這張圖是什麼？紀錄那一段也麻煩你看仔細一點。"
+    },
+    {
+      "id": "blurred-corner-108",
+      "region": "sight",
+      "order": 108,
+      "title": "看不清的那一角",
+      "npc": "校對人 · 同一個數字讀錯兩次",
+      "position": [
+        123,
+        -17
+      ],
+      "xp": 70,
+      "teaches": [],
+      "primaryTechniqueId": null,
+      "primarySkillId": "mm-troubleshoot",
+      "scenario": "「兩次都讀成七。」校對人把收據抄本攤平：「那一行明明是一。我一直叫它看清楚一點，它就一直看不清楚——好像我在跟一個聽不懂『清楚』的人說話。」",
+      "mission": "把校對人這份問話修好，讓神諭真的讀得到右下角那一行。",
+      "craft": "先要它描述那一塊、再判斷；字太小就明講要放大那一塊，最後才要它把讀到的抄出來。",
+      "material": {
+        "label": "校對人手上的收據抄本",
+        "text": "收據上半：品項與數量（字很大，讀得清楚）。\n右下角：一行手寫的金額與日期，字很小，紙又皺。\n校對人現在的問話：「你看仔細一點就讀得出來了吧。」"
+      },
+      "clue": "校對人說：「看仔細一點」不是指令，是願望。先叫它把那一塊描述一遍，再叫它放大——字太小這件事，語言解決不了。",
+      "placeholder": "例如：第一步請先描述＿＿那一塊；第二步把那一塊放大再讀；第三步把＿＿抄出來。",
+      "quickFills": [
+        {
+          "label": "先描述再判斷",
+          "text": "第一步：請先描述收據右下角那一塊，看到什麼就說什麼，先不要下判斷。"
+        },
+        {
+          "label": "放大那一塊",
+          "text": "第二步：那一行字太小，請用裁切工具把右下角放大之後再讀一次。"
+        },
+        {
+          "label": "讀不出就說",
+          "text": "讀不清楚就直接說讀不清楚，不要猜一個數字給我。"
+        }
+      ],
+      "sample": "請幫我處理下面這張收據的抄本。\n第一步：請先描述收據右下角那一塊，看到什麼就說什麼，先不要下判斷。\n第二步：那一行字太小，請用裁切工具把右下角放大之後再讀一次。\n第三步：把那一行的金額與日期抄出來，讀不清楚就直接說讀不清楚。",
+      "rubric": [
+        {
+          "check": "pointsAtRegion",
+          "weight": 3,
+          "primary": true,
+          "skillId": "mm-troubleshoot"
+        },
+        {
+          "check": "assignsTask",
+          "weight": 0.5,
+          "foundation": true,
+          "techniqueId": "clarity-02"
+        }
+      ],
+      "pass": 2,
+      "source": "https://ai.google.dev/gemini-api/docs/files#troubleshooting-your-multimodal-prompt"
+    },
+    {
+      "id": "subjectless-picture-109",
+      "region": "sight",
+      "order": 109,
+      "title": "無主體的畫",
+      "npc": "製圖人 · 第三版還是一團霧",
+      "position": [
+        128.5,
+        6.5
+      ],
+      "xp": 70,
+      "teaches": [],
+      "primaryTechniqueId": null,
+      "primarySkillId": "img-generate",
+      "scenario": "「我寫了『不要有人』。」製圖人把三張草稿疊起來：「三張都有人。我又加了『不要有車』，它就畫了一台停在角落的車。它好像只聽得到我唸的那個東西。」",
+      "mission": "把製圖人這份委託改寫成神諭畫得出來的那一種。",
+      "craft": "主體、場景、光線、風格與鏡頭依序寫出來，並把每一句「不要有 X」改寫成「畫面裡有什麼」。",
+      "material": {
+        "label": "製圖人現在的委託（第三版）",
+        "text": "「畫一張好看的圖。」\n「不要太暗。」\n「風格不要太奇怪。」\n「不要有別人、不要有車、不要有樹。」"
+      },
+      "clue": "製圖人說：它會照著你唸出來的東西畫——你唸了車，它就畫車。要空的街，就寫「空無一人的街道，路面乾淨」。",
+      "placeholder": "例如：主體是＿＿；場景是＿＿；光線是＿＿；風格是＿＿；畫面裡只有＿＿。",
+      "quickFills": [
+        {
+          "label": "寫出主體",
+          "text": "請畫一張直式海報：主體是一位披斗篷的觀星人，正把一面小鏡舉向天空。"
+        },
+        {
+          "label": "場景與光線",
+          "text": "場景是夜裡的空曠石臺，光線只有月光與地面的反光。"
+        },
+        {
+          "label": "正面說空景",
+          "text": "畫面裡只有這一位觀星人，四周是空的石地。"
+        }
+      ],
+      "sample": "這是觀星社的招募海報，上一版被退回來了。\n請畫一張直式海報：主體是一位披斗篷的觀星人，正把一面小鏡舉向天空。\n場景是夜裡的空曠石臺，光線只有月光與地面的反光。\n風格請用低多邊形插畫，鏡頭用低角度的廣角。\n畫面裡只有這一位觀星人，四周是空的石地。",
+      "rubric": [
+        {
+          "check": "positiveFraming",
+          "weight": 3,
+          "primary": true,
+          "skillId": "img-generate"
+        },
+        {
+          "check": "assignsTask",
+          "weight": 0.5,
+          "foundation": true,
+          "techniqueId": "clarity-02"
+        }
+      ],
+      "pass": 2,
+      "source": "https://ai.google.dev/gemini-api/docs/image-generation#best-practices"
+    },
+    {
+      "id": "overcorrected-plate-110",
+      "region": "sight",
+      "order": 110,
+      "title": "改壞的那張",
+      "npc": "修圖人 · 改到第五次就不認得了",
+      "position": [
+        141,
+        -8.5
+      ],
+      "xp": 70,
+      "teaches": [],
+      "primaryTechniqueId": null,
+      "primarySkillId": "img-edit",
+      "scenario": "「五件事我一次講完，它一次全做了。」修圖人把五版改動排開：「窗簾對了、燈光走樣了；第三次把第一次改好的又改回去。現在這張圖誰都不認得。」",
+      "mission": "替修圖人重寫改圖的委託，讓每一步只改一處、而且改過的留得住。",
+      "craft": "一次只交代一個修改，並在每一步明講「其餘保持原樣、保留上一步已經改好的那一處」。",
+      "material": {
+        "label": "修圖人的五次改動紀錄",
+        "text": "第一次：窗簾換成藍色。（成功）\n第二次：同一句話裡又要改燈光、天空、地面。（燈光走樣）\n第三次：重畫了整個房間。（窗簾變回原色）\n第四、五次：想改回來，愈改愈遠。"
+      },
+      "clue": "修圖人說：連鎖編輯是把上一次的成果當成這一次的底稿。所以每一步都要說清楚「這一步只改什麼」，還要說「上一步改好的留著」。",
+      "placeholder": "例如：把＿＿換成＿＿——這一步只改這一件事；其餘保持原樣；保留上一步改好的＿＿。",
+      "quickFills": [
+        {
+          "label": "一次一改",
+          "text": "把窗簾換成藍色——這一步只改這一件事。"
+        },
+        {
+          "label": "其餘不要動",
+          "text": "其餘保持原樣：構圖、人物、地面都不要動。"
+        },
+        {
+          "label": "保留上一步",
+          "text": "下一步再處理燈光，並保留上一步已經改好的窗簾顏色。"
+        }
+      ],
+      "sample": "把窗簾換成藍色——這一步只改這一件事。\n其餘保持原樣：構圖、人物、地面都不要動。\n下一步再處理燈光，並保留上一步已經改好的窗簾顏色。\n每一步改完先給我看過，再往下一步。",
+      "rubric": [
+        {
+          "check": "preservesPriorState",
+          "weight": 3,
+          "primary": true,
+          "skillId": "img-edit"
+        },
+        {
+          "check": "assignsTask",
+          "weight": 0.5,
+          "foundation": true,
+          "techniqueId": "clarity-02"
+        }
+      ],
+      "pass": 2,
+      "source": "https://ai.google.dev/gemini-api/docs/image-generation#image-editing-prompts",
+      "starter": "窗簾換成藍色、天空改成黃昏、地面拿掉那攤水、再加上一盞燈。"
+    },
+    {
+      "id": "storyboard-wall-111",
+      "region": "sight",
+      "order": 111,
+      "title": "分鏡牆",
+      "npc": "分鏡師 · 只寫了一行主體",
+      "position": [
+        153.5,
+        -2
+      ],
+      "xp": 70,
+      "teaches": [],
+      "primaryTechniqueId": null,
+      "primarySkillId": "video-prompt",
+      "scenario": "「主體我寫了。」分鏡師指著牆上那一行字：「守夜人。然後鏡頭就自己亂飄——一下俯拍一下特寫，聲音也不知道從哪裡冒出來的。」",
+      "mission": "替分鏡師把牆上這幾片石版排成一段神諭讀得懂的分鏡。",
+      "craft": "主體、動作、場景、運鏡、構圖、氣氛與聲音依序排；排在前面的那一片，份量就重。",
+      "material": {
+        "label": "分鏡牆上現有的石版",
+        "text": "「一位守夜人。」（只有這一行是寫好的）\n其餘五片散在地上：一片寫著推近、一片寫著中景、一片寫著霧氣中的石橋、\n一片寫著推開木門、一片寫著冷藍色調與水聲。"
+      },
+      "clue": "分鏡師說：六件事都要有——是誰、在做什麼、在哪裡、鏡頭怎麼動、畫面多大、什麼氣氛與聲音。順序換了，重點就換了。",
+      "placeholder": "例如：主體是＿＿，正在＿＿，在＿＿；鏡頭＿＿；＿＿景；＿＿色調，聽得到＿＿。",
+      "quickFills": [
+        {
+          "label": "主體與動作",
+          "text": "主體：一位守夜人，正緩緩推開一扇木門。"
+        },
+        {
+          "label": "運鏡與構圖",
+          "text": "鏡頭緩緩推近。"
+        },
+        {
+          "label": "氣氛與聲音",
+          "text": "冷藍色調，聽得到遠處的水聲。"
+        }
+      ],
+      "sample": "主體：一位守夜人，正緩緩推開一扇木門。\n場景：霧氣中的石橋邊。\n鏡頭緩緩推近。\n構圖用中景。\n冷藍色調，聽得到遠處的水聲。\n請照上面這幾件事生成一段十秒的影片。",
+      "rubric": [
+        {
+          "check": "namesShotElements",
+          "weight": 3,
+          "primary": true,
+          "skillId": "video-prompt"
+        },
+        {
+          "check": "assignsTask",
+          "weight": 0.5,
+          "foundation": true,
+          "techniqueId": "clarity-02"
+        }
+      ],
+      "pass": 2,
+      "source": "https://ai.google.dev/gemini-api/docs/veo#basics"
+    },
+    {
+      "id": "breathless-stone-112",
+      "region": "sight",
+      "order": 112,
+      "title": "唸太快的傳聲石",
+      "npc": "傳令 · 一口氣唸完就沒氣了",
+      "position": [
+        159,
+        -15
+      ],
+      "xp": 70,
+      "teaches": [],
+      "primaryTechniqueId": null,
+      "primarySkillId": "tts-writing",
+      "scenario": "「我叫它唸慢一點，它就把每個字都拖長。」傳令拍著傳聲石：「聽起來像睡著了。可是不叫它慢，它就一路衝到底，一個字都聽不清。」",
+      "mission": "替傳令重寫這段告示，讓傳聲石自己停在該停的地方。",
+      "craft": "把長句切開下標點、在要換氣的地方放破折號或停頓記號，並把「請唸慢一點」那句刪掉。",
+      "material": {
+        "label": "傳令現在交給傳聲石的那一段",
+        "text": "「今晚的鐘會晚一刻敲請大家先儲水三桶就夠了明天清晨水就回來了不必擔心」\n（傳令另外交代：請唸慢一點，語氣自然一點。）"
+      },
+      "clue": "傳令說：傳聲石不懂「慢」，它只認標點。逗號是小停、句號是大停、破折號是拉長的那一口氣；分段就是換一口氣。",
+      "placeholder": "例如：各位，＿＿。請先＿＿——＿＿。[pause] 明天清晨，＿＿。",
+      "quickFills": [
+        {
+          "label": "切開下標點",
+          "text": "各位，今晚的鐘會晚一刻敲。"
+        },
+        {
+          "label": "拉長那一口氣",
+          "text": "請先儲水——三桶就夠了。"
+        },
+        {
+          "label": "停頓記號",
+          "text": "[pause]\n明天清晨，水就回來了，不必擔心。"
+        }
+      ],
+      "sample": "請把下面這段話唸成今晚的告示。\n各位，今晚的鐘會晚一刻敲。\n請先儲水——三桶就夠了。\n[pause]\n明天清晨，水就回來了，不必擔心。",
+      "rubric": [
+        {
+          "check": "usesProsodyPunctuation",
+          "weight": 3,
+          "primary": true,
+          "skillId": "tts-writing"
+        },
+        {
+          "check": "assignsTask",
+          "weight": 0.5,
+          "foundation": true,
+          "techniqueId": "clarity-02"
+        }
+      ],
+      "pass": 2,
+      "source": "https://docs.x.ai/developers/model-capabilities/audio/text-to-speech#writing-effective-text"
+    },
+    {
+      "id": "same-three-faces-113",
+      "region": "sight",
+      "order": 113,
+      "title": "千篇一律的門面",
+      "npc": "門面師 · 三份稿長得一模一樣",
+      "position": [
+        130,
+        -29.5
+      ],
+      "xp": 70,
+      "teaches": [],
+      "primaryTechniqueId": null,
+      "primarySkillId": "design-anti-slop",
+      "scenario": "「三次，三個不同的委託。」門面師把三張版面攤開：「同一種字、同一種漸層、同一種排法。我說『不要那樣』，它就換成另一種一模一樣。」",
+      "mission": "替門面師重寫這一次的委託，讓它做出一個不像預設值的門面。",
+      "craft": "把「不要那樣」換成寫得出來的替代方案：指名字體方向、主色與強調色、版面與進場方式。",
+      "material": {
+        "label": "門面師手上的三張稿",
+        "text": "三張都是：白底、紫色漸層、置中大標、四張並排的卡片，進場動畫是一堆小動作。\n門面師寫過的話：「乾淨一點」「不要那種紫色」「標題再有質感一些」。"
+      },
+      "clue": "門面師說：「不要那樣」只會讓它換到另一組預設值。要嘛把替代方案講死，要嘛先叫它提幾個方向再挑一個。",
+      "placeholder": "例如：主色用＿＿、強調色用＿＿；標題用＿＿那一類字；版面請＿＿。",
+      "quickFills": [
+        {
+          "label": "講死主色",
+          "text": "主色用深墨綠，強調色用一種暖橘，其他顏色一律壓成灰階。"
+        },
+        {
+          "label": "講死字與版面",
+          "text": "標題用有襯線的舊書體，版面請左右不對稱，主圖靠右並壓在標題上。"
+        },
+        {
+          "label": "先提方向",
+          "text": "請在動手之前先列出四個不同的視覺方向，每個寫一行理由，我挑完你再做那一個。"
+        }
+      ],
+      "sample": "請重新設計觀星社的門面。\n主色用深墨綠，強調色用一種暖橘，其他顏色一律壓成灰階。\n標題用有襯線的舊書體，版面請左右不對稱，主圖靠右並壓在標題上。\n進場動畫做成整頁一次的錯開浮現。",
+      "rubric": [
+        {
+          "check": "positiveFraming",
+          "weight": 3,
+          "primary": true,
+          "skillId": "design-anti-slop"
+        },
+        {
+          "check": "assignsTask",
+          "weight": 0.5,
+          "foundation": true,
+          "techniqueId": "clarity-02"
+        }
+      ],
+      "pass": 2,
+      "source": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5#design-and-frontend-defaults"
+    },
+    {
+      "id": "one-button-114",
+      "region": "sight",
+      "order": 114,
+      "title": "改了一顆鈕，塌了一面牆",
+      "npc": "工造人 · 只想換一顆鈕的顏色",
+      "position": [
+        134,
+        -43.5
+      ],
+      "xp": 70,
+      "teaches": [],
+      "primaryTechniqueId": null,
+      "primarySkillId": "fe-spec",
+      "scenario": "「我只說了『把送出鈕改成綠色』。」工造人把整面牆的圖紙攤開：「它把整套樣式重寫了一遍，連別的頁的間距都變了。它還很得意，說順手一起整理了。」",
+      "mission": "替工造人重寫這份改動委託，讓那面牆留在原地。",
+      "craft": "指名要用專案既有的哪一套框架與函式庫、限定只動哪一塊，並明講既有的設計系統要沿用。",
+      "material": {
+        "label": "工造人交出去的那一句",
+        "text": "「把結帳頁的送出鈕改成綠色，順便看看有沒有可以優化的地方。」\n（回來的結果：新增了兩個函式庫、色票全換、三個頁面的間距被改。）"
+      },
+      "clue": "工造人說：「順便」兩個字是那面牆塌掉的原因。指名它要用什麼寫、只准動哪一塊、既有的東西照舊——三句話就夠了。",
+      "placeholder": "例如：用專案既有的＿＿；只改＿＿；沿用現有的＿＿；其他地方不要動。",
+      "quickFills": [
+        {
+          "label": "指名框架",
+          "text": "請用專案既有的 React 與 Tailwind，不要新增任何函式庫。"
+        },
+        {
+          "label": "限定範圍",
+          "text": "只改結帳頁那一顆送出鈕的顏色，其他頁面與檔案不要順便改。"
+        },
+        {
+          "label": "沿用既有",
+          "text": "沿用現有的色票、間距與元件，設計系統不要動。"
+        }
+      ],
+      "sample": "這是結帳頁的一次小改動。\n請用專案既有的 React 與 Tailwind，不要新增任何函式庫。\n只改結帳頁那一顆送出鈕的顏色，其他頁面與檔案不要順便改。\n沿用現有的色票、間距與元件，設計系統不要動。",
+      "rubric": [
+        {
+          "check": "namesStackAndScope",
+          "weight": 3,
+          "primary": true,
+          "skillId": "fe-spec"
+        },
+        {
+          "check": "assignsTask",
+          "weight": 0.5,
+          "foundation": true,
+          "techniqueId": "clarity-02"
+        }
+      ],
+      "pass": 2,
+      "source": "https://developers.openai.com/api/docs/guides/prompt-guidance-gpt-5p6",
+      "starter": "把結帳頁的送出鈕改成綠色，順便看看有沒有可以優化的地方。"
     }
   ]
 }

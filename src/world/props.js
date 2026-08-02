@@ -1343,6 +1343,47 @@ export const STORY_VIGNETTES = Object.freeze([
     ],
   },
 
+  /* --- sight：看得見，不代表看清楚（課程 v2 · Phase I） --- */
+  {
+    id: 'unpointed-view',
+    region: 'sight',
+    name: '沒有指名要看哪裡的那一面',
+    at: [110.5, -26.6],
+    rot: 0.9,
+    parts: [
+      ['mirror', [0, 0, 0], 0, { h: 3.4 }],
+      ['signpost', [3.2, 0, 1.4], -0.6, {}],
+      ['slate', [-3.0, 0, 1.2], 0.5, { marks: 5 }],
+      ['cairn', [2.6, 0, -2.8], 0, {}],
+    ],
+  },
+  {
+    id: 'five-edits-at-once',
+    region: 'sight',
+    name: '一次改了五處的那一張',
+    at: [142.6, 5.5],
+    rot: -1.7,
+    parts: [
+      ['drafttable', [0, 0, 0], 0, {}],
+      ['mirror', [3.4, 0, 0.8], -0.5, { h: 2.6 }],
+      ['ink', [1.0, 0.4, 0.5], 0.2, {}],
+      ['crates', [-3.4, 0, 1.6], 0.4, {}],
+    ],
+  },
+  {
+    id: 'breathless-line',
+    region: 'sight',
+    name: '沒有留下呼吸的那一段話',
+    at: [120.0, -40.0],
+    rot: 2.4,
+    parts: [
+      ['pool', [0, 0, 0], 0, { r: 2.6 }],
+      ['column', [3.6, 0, 1.2], 0, { h: 2.2 }],
+      ['slate', [-3.2, 0, 1.6], -0.4, { marks: 14 }],
+      ['dial', [3.0, 0, -2.6], 0.6, {}],
+    ],
+  },
+
   {
     id: 'little-stage',
     region: 'config',
@@ -1378,6 +1419,8 @@ export const LANDMARKS = Object.freeze([
   { id: 'facing-glass', region: 'refinery', name: '會回頭照自己的鏡', at: [-129, 129], height: 20, clear: 14 },
   // 課程 v2 · Phase H：減法之庭（§二：「一座什麼都沒放的基座，銘文寫著被拿走的東西」）
   { id: 'empty-plinth', region: 'frugality', name: '空的基座', at: [0, -82], height: 18, clear: 13 },
+  // 課程 v2 · Phase I：觀象臺（§二：「一面朝天的鏡（斜插在坡上、映著整片星空的巨鏡）」）
+  { id: 'sky-mirror', region: 'sight', name: '朝天的鏡', at: [149, -31], height: 21, clear: 14 },
 ]);
 
 /** 斷環：一圈立起來的巨石環，缺了一角 —— 「有人試著把話說圓，還差一塊」。 */
@@ -1773,6 +1816,66 @@ function landmarkEmptyPlinth(kit) {
   return grp;
 }
 
+/**
+ * 朝天的鏡（觀象臺）：一面斜插在坡上的巨鏡，鏡面朝著天。
+ *
+ * 遠遠看過去它不像一座塔，而像一塊被掀起來的天 —— 走近才發現那是鏡子，
+ * 映著的是你頭上那片星空（Phase 4 就有的星空與極光，這裡把它拉到地面上）。
+ * **零實體光源**：鏡面、星點、鏡框上的刻度全部是自發光材質。
+ * 鏡框用 `solidSpan` 沿著整片寬度排一串小圓 —— 12 公尺寬的東西不能只放一個圓
+ * （那會讓玩家從鏡子的兩邊穿過去，Phase 20 的穿模鐵則）。
+ */
+function landmarkSkyMirror(kit) {
+  const grp = new THREE.Group();
+  // 埋進坡裡的臺座（斜的，因為鏡子是插進去的、不是立起來的）
+  bulky(put(grp, cyl(6.0, 7.2, 1.4, 10), stone(kit.dark), [0, 0.7, 0]));
+  const wedge = put(grp, box(11.4, 3.4, 6.2), stone(kit.mid), [0, 2.5, -1.2], [0.2, 0, 0]);
+  bulky(wedge);
+  wedge.userData.solidSpan = [5.7, 1.6];
+
+  // 鏡子本體：往後仰 35 度的一整片
+  const panel = new THREE.Group();
+  panel.position.set(0, 3.4, -1.6);
+  panel.rotation.x = -0.61;
+  grp.add(panel);
+
+  const frame = put(panel, box(12.4, 20.2, 1.0), stone(kit.mid), [0, 10.1, -0.6]);
+  bulky(frame);
+  frame.userData.solidSpan = [6.2, 1.5];
+
+  // 鏡面（自發光的薄片，不是燈）
+  put(panel, box(10.8, 18.6, 0.22), glow(kit.accent, 0.72), [0, 10.2, 0.05]);
+
+  // 映在鏡面上的星：越往鏡頂越密（那一頭照的是天頂）
+  for (let i = 0; i < 22; i += 1) {
+    const t = i / 21;
+    const x = (((i * 37) % 19) / 18 - 0.5) * 9.2;
+    const y = 2.2 + t * t * 16.0;
+    put(panel, ico(0.12 + (i % 3) * 0.05, 0), glow(PALETTE.warm, 0.6 + t * 1.1), [x, y, 0.24]);
+  }
+
+  // 鏡框兩側的刻度：觀測用的，一格一格往上（讀得出「這是量天的東西」）
+  for (const side of [-1, 1]) {
+    for (let i = 0; i < 9; i += 1) {
+      put(panel, box(0.9 - (i % 2) * 0.35, 0.12, 0.16), glow(kit.accent, 0.5), [
+        side * 6.0,
+        1.8 + i * 2.1,
+        0.22,
+      ]);
+    }
+  }
+
+  // 鏡頂：一圈環與一顆亮點（整片剪影的最高處）
+  put(panel, torus(1.5, 0.12, 4, 18), glow(kit.accent, 0.95), [0, 19.4, 0.3]);
+  put(panel, ico(0.34, 0), glow(PALETTE.warm, 1.8), [0, 19.4, 0.5]);
+
+  // 撐住鏡背的兩根斜柱（不然它看起來會倒）
+  for (const side of [-1, 1]) {
+    bulky(put(grp, cyl(0.36, 0.5, 9.4, 5), stone(kit.dark), [side * 4.2, 4.6, -4.4], [0.62, 0, 0]));
+  }
+  return grp;
+}
+
 const LANDMARK_BUILDERS = {
   'broken-ring': landmarkBrokenRing,
   'endless-stair': landmarkEndlessStair,
@@ -1784,6 +1887,7 @@ const LANDMARK_BUILDERS = {
   'ajar-doors': landmarkAjarDoors,
   'facing-glass': landmarkFacingGlass,
   'empty-plinth': landmarkEmptyPlinth,
+  'sky-mirror': landmarkSkyMirror,
 };
 
 /* ------------------------------------------------------------------ *

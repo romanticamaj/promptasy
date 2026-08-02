@@ -202,6 +202,27 @@ export const REGION_MOODS = Object.freeze({
     bellEvery: 22,
     detune: 1,
   }),
+  /*
+   * 觀象臺（課程 v2 · Phase I）：一整片仰起來的天。
+   * 根音 164.81（全場最高 —— 這一區在最高的地方，聲音也該離地最遠）、
+   * 音階是拉開的九度與大三度（0, 4, 11, 16, 23：明亮，但沒有暖意），
+   * 截止頻率全場最高（1100，泛音留得住 —— 鏡面反射的是光不是土），
+   * 鐘聲密度中等偏高、間隔最短之一：星光一顆一顆亮起來。
+   * **這一區沒有配樂音檔**（見 SYNTH_ONLY_REGIONS）。
+   */
+  sight: Object.freeze({
+    id: 'sight',
+    name: '鏡裡的星',
+    root: 164.81,
+    scale: Object.freeze([0, 4, 11, 16, 23]),
+    bellScale: Object.freeze([0, 4, 11, 16, 23, 28]),
+    voicing: Object.freeze(['sine', 'triangle', 'triangle']),
+    cutoff: 1100,
+    lfoRate: 0.036,
+    bellDensity: 0.62,
+    bellEvery: 7,
+    detune: 3,
+  }),
   // 角色與參數：Mixolydian 的暖色，pad 較厚，鐘聲中等
   config: Object.freeze({
     id: 'config',
@@ -401,7 +422,14 @@ export const BGM_TRACKS = Object.freeze({
  * 那比誠實地播一段自己的合成 pad 更糟。站長之後補上 `bgm_forms.m4a` 時，
  * 只要在 `BGM_TRACKS` 加一行、把 id 從這裡移走即可（其餘程式碼一個字都不必動）。
  */
-export const SYNTH_ONLY_REGIONS = Object.freeze(['forms', 'toolcraft', 'wards', 'refinery', 'frugality']);
+export const SYNTH_ONLY_REGIONS = Object.freeze([
+  'forms',
+  'toolcraft',
+  'wards',
+  'refinery',
+  'frugality',
+  'sight',
+]);
 
 /**
  * 鄰區：走過一座橋就到得了的地方（中央高原是樞紐，四片土地各自接一條橋）。
@@ -425,6 +453,8 @@ export const REGION_NEIGHBORS = Object.freeze({
   refinery: Object.freeze(['orchestration']),
   // 減法之庭是高原北緣的加建（沒有橋），回程那一首就是中央高原的
   frugality: Object.freeze(['foundations']),
+  // 觀象臺自己一條橋接回中央高原；它自己沒有音檔，所以只預抓回程那一首
+  sight: Object.freeze(['foundations']),
 });
 
 /**
