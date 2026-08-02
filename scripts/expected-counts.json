@@ -130,15 +130,9 @@
     },
     "synthOnlyRegions": {
       "value": [
-        "forms",
-        "toolcraft",
-        "wards",
-        "refinery",
-        "frugality",
-        "sight",
-        "divergence"
+        "wards"
       ],
-      "why": "已上線但還沒有配樂音檔的區域 —— 它們走合成 pad（護欄 3：合成引擎是備援，不是遺跡）。站長補上音檔時把 id 從這裡與 audio.js 的 SYNTH_ONLY_REGIONS 移走即可。"
+      "why": "已上線但還沒有配樂音檔的區域 —— 它們走合成 pad（護欄 3：合成引擎是備援，不是遺跡）。issue #3 交付了六首（量器坊 / 契約鍛冶場 / 減法之庭 / 校驗場 / 觀象臺 / 分歧之廳），所以只剩沒有自己一首的護欄崗。站長補上音檔時把 id 從這裡與 audio.js 的 SYNTH_ONLY_REGIONS 移走即可。"
     },
     "toolcraftShrines": {
       "value": 11,

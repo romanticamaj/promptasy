@@ -58,7 +58,8 @@ import { createEntryGate } from './ui/entrygate.js';
 import { createKeyHelp } from './ui/keyhelp.js';
 import { glossary } from './ui/glossary.js';
 import { createAchievement } from './ui/achievement.js';
-import { createAudio } from './audio/audio.js';
+import { createAudio, REGION_CARVE_CUES, REGION_SEAL_CUES } from './audio/audio.js';
+import { isApplicationTrial } from './challenges/trial.js';
 
 function boot() {
   const app = document.getElementById('app');
@@ -225,6 +226,29 @@ function boot() {
     }
   }
 
+  /*
+   * issue #3：五片新土地各自有自己的「刻上一段」音（量測 / 鍛打 / 刪除 / 重跑 / 對焦）。
+   * 沒列到的區域仍然是通用的那一聲 —— 換皮的是材質，不是文法。
+   */
+  let carveRegion = null;
+  const carveCue = () => (carveRegion && REGION_CARVE_CUES[carveRegion]) || 'stamp';
+  const sealCue = () => (carveRegion && REGION_SEAL_CUES[carveRegion]) || 'seal';
+
+  /**
+   * 一片土地開了的時候該響哪一聲。
+   * 硬門檻（分歧之廳 —— 全場唯一沒有「先行前往」那條路的門）是**厚重閂鎖**：
+   * 你是達成條件把它解開的，不是走過去它讓開的。其餘的門仍然是微光 ＋ 石門。
+   */
+  function unlockCue(regionId) {
+    let hard = false;
+    try {
+      hard = Boolean(progression.gateStatus(regionId).hard);
+    } catch {
+      hard = false;
+    }
+    return hard ? 'hardGate' : 'unlock';
+  }
+
   const promptConsole = createPromptConsole({
     content,
     progression,
@@ -233,13 +257,18 @@ function boot() {
     onChime: () => audio.cue('spark'),
     // Phase 11 石碑刻印：刻上一段 / 石碑不收 / 刻滿了
     onCarve: () => {
-      audio.cue('stamp');
+      audio.cue(carveCue());
       engine.pulse(0.28);
     },
     onReject: () => audio.cue('reject'),
     onSeal: () => {
-      audio.cue('seal');
+      audio.cue(sealCue());
       engine.pulse(0.45);
+    },
+    // 轉鈕轉到某一檔（issue #3：三檔各一顆卡榫聲，音高越高＝檔位越高）
+    onDial: ({ index }) => {
+      audio.cue('simDial', { notch: index });
+      engine.pulse(0.18);
     },
     // 刻印牌被按下去的那一下（節流在音訊那邊）
     onTap: () => audio.cue('click'),
@@ -247,7 +276,17 @@ function boot() {
     onResult: ({ challenge, evaluation, outcome }) => {
       hud.refresh();
       if (evaluation.passed) {
-        audio.cue('pass', { grade: evaluation.grade });
+        /*
+         * 應用關（試煉）過關響的是**鑼**，不是頌缽 —— 同一件事變大了，
+         * 不是換一套語言（issue #3 的音效交付就是照這個道理挑的）。
+         */
+        if (isApplicationTrial(challenge)) audio.cue('trialPass');
+        else audio.cue('pass', { grade: evaluation.grade });
+        /*
+         * 大師層印記（無筆之印 / 默寫之印）：公證章 ＋ 微光。
+         * 讓過關那一聲先站穩再進來 —— 兩個都是好消息，不該撞在一起。
+         */
+        if (outcome.newPenless || outcome.newScribe) setTimeout(() => audio.cue('masterSeal'), 700);
         player.celebrate?.(); // 旅人舉手歡呼一下（1.2 秒後自己收回去）
         const marker = world.markers.find((m) => m.id === challenge.id);
         if (marker) marker.setCleared(progression.bestGrade(challenge.id));
@@ -262,7 +301,7 @@ function boot() {
           hud.toast(`新區域解鎖：${g ? g.name : regionId} —— 橋上的閘門開了`, 'good');
           // 解鎖當下立刻在畫面上方說一次「○○ 已開啟，往前走吧」（不受冷卻限制）
           nudge.announceUnlock(regionId);
-          audio.cue('unlock');
+          audio.cue(unlockCue(regionId));
           engine.pulse(1.0);
         }
         world.refreshGates();
@@ -536,6 +575,11 @@ function boot() {
   function openPanel(panel, ...args) {
     if (openedPanel && openedPanel !== panel) openedPanel.close();
     openedPanel = panel;
+    /*
+     * issue #3：記下這一關站在哪片土地上 —— 「刻上一段」與「刻滿了」要放
+     * 那片土地自己的聲音（量測 / 鍛打 / 刪除 / 重跑 / 對焦）。
+     */
+    if (panel === promptConsole) carveRegion = (args[0] && args[0].region) || null;
     // 打開任何面板都代表「玩家沒有迷路」→ 導航提示的閒置計時歸零
     nudge.noteActivity();
     player.setInputEnabled(false);
@@ -621,7 +665,7 @@ function boot() {
       world.openGate(regionId, true);
       hud.toast(`新區域解鎖：${g ? g.name : regionId} —— 橋上的閘門開了`, 'good');
       nudge.announceUnlock(regionId);
-      audio.cue('unlock');
+      audio.cue(unlockCue(regionId));
       engine.pulse(1.0);
     }
     if ((outcome.newlyUnlocked || []).length) {
@@ -800,7 +844,7 @@ function boot() {
         world.openGate(regionId, true);
         hud.toast(`新區域解鎖：${g ? g.name : regionId} —— 橋上的閘門開了`, 'good');
         nudge.announceUnlock(regionId);
-        audio.cue('unlock');
+        audio.cue(unlockCue(regionId));
         engine.pulse(1.0);
       }
       if (outcome.newlyUnlocked.length) world.refreshGates();

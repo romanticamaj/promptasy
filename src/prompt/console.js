@@ -233,6 +233,7 @@ export function createPromptConsole({
   onSeal,
   onShare,
   onTap,
+  onDial,
 }) {
   let current = null;
   let currentFlow = null;
@@ -657,8 +658,13 @@ export function createPromptConsole({
    * 三檔都轉過了才開放刻印 —— 觀察就是這一關的內容，不是可以跳過的過場。
    * ---------------------------------------------------------------- */
   const simBoard = createSimBoard({
+    /*
+     * 轉一格：放的是**旋鈕自己的卡榫聲**（issue #3 交付的三檔），
+     * 不是刻印那一聲 —— 轉旋鈕跟刻字是兩件事，聽起來也該是兩件事。
+     * 音高越高＝檔位越高，不看畫面也分得出剛剛轉到哪一檔。
+     */
     onTurn: ({ index, total }) => {
-      onCarve?.({ index: index + 1, total });
+      onDial?.({ index, total });
     },
     onObserved: () => runPreflight({ silent: true }),
     onCarve: ({ index, total }) => {

@@ -3553,7 +3553,12 @@ for (const file of [...AUDIO_MANIFEST.bgm, ...AUDIO_MANIFEST.sfx]) {
 }
 const audioTotal = [...audioSizes.values()].reduce((a, b) => a + b, 0);
 ok(audioTotal > 1024 * 1024, '音檔總量看起來是真的檔案（> 1 MB）', `${(audioTotal / 1e6).toFixed(1)} MB`);
-ok(audioTotal < 20 * 1024 * 1024, '音檔總量在 20 MB 預算內', `${(audioTotal / 1e6).toFixed(1)} MB`);
+/*
+ * issue #3 之後配樂從 6 首變成 12 首（每首約 2.9 MB），總量約 36 MB。
+ * 這個預算是**磁碟上的總量**，不是玩家一次要下載的量 ——
+ * 載入策略仍然是「當區優先、鄰區排隊、其餘不抓」（見 audio.js 的載入策略）。
+ */
+ok(audioTotal < 45 * 1024 * 1024, '音檔總量在 45 MB 預算內', `${(audioTotal / 1e6).toFixed(1)} MB`);
 for (const file of AUDIO_MANIFEST.bgm) {
   ok((audioSizes.get(file) || 0) > 500 * 1024, `配樂 ${file} 是完整的一首（> 0.5 MB）`);
 }
@@ -3567,10 +3572,19 @@ for (const [kind, spec] of Object.entries(SFX_FILES)) {
   ok(Boolean(SFX[kind]), `音效 ${kind} 有合成備援（音檔載不到也有聲音）`);
   ok(nonEmptyStr(spec.file) && spec.file.endsWith('.m4a'), `音效 ${kind} 指到 m4a 檔`, spec.file);
   ok(AUDIO_MANIFEST.sfx.includes(spec.file), `音效 ${kind} 的檔案在 manifest 裡`);
-  ok(spec.gain > 0 && spec.gain <= 1, `音效 ${kind} 的相對音量在 0..1（不會削波）`, String(spec.gain));
+  /*
+   * gain 可以大於 1 —— v2 的素材峰值正規化到 -12 dBFS，留了 12 dB 的餘裕，
+   * 要拉到 -19 LUFS 的系統本來就得往上推。真正的護欄是「套下去不會削波」，
+   * 那一條在下面的響度系統一節逐檔用 true peak 驗。
+   */
+  ok(spec.gain > 0 && spec.gain <= 4, `音效 ${kind} 的相對音量在合理範圍`, String(spec.gain));
   if (spec.layer) {
     ok(AUDIO_MANIFEST.sfx.includes(spec.layer.file), `音效 ${kind} 疊的第二層也在 manifest 裡`);
     ok(spec.layer.delay >= 0 && spec.layer.delay < 1, `音效 ${kind} 的第二層延遲合理`);
+  }
+  if (spec.alt) {
+    ok(AUDIO_MANIFEST.sfx.includes(spec.alt.file), `音效 ${kind} 輪播的另一顆也在 manifest 裡`);
+    ok(spec.alt.file !== spec.file, `音效 ${kind} 輪播的兩顆是不同的素材`);
   }
 }
 // 兩支解鎖音：真的解鎖有微光 ＋ 石門，先行前往只有石門
@@ -3579,6 +3593,195 @@ eq(SFX_FILES.gateOpen.file, 'sfx_unlock_door.m4a', '先行前往只用石門那�
 eq(Boolean(SFX_FILES.gateOpen.layer), false, '先行前往沒有慶祝的微光');
 ok(SFX_FILES.pass.duck > 0, '過關的頌缽會把配樂壓低（讓它響完）');
 ok(SFX_FILES.click.throttle > 0, '刻印牌的按鍵音有節流');
+
+/* ------------------------------------------------------------------ *
+ * issue #3：響度系統（檔案不做響度處理，統一發生在播放時的 gain）
+ *
+ * 每一個檔案存著量到的 integrated LUFS 與 true peak，gain 由公式算出來：
+ *   配樂 gain = 10^((-20 - lufs) / 20)
+ *   音效 gain = 10^(((-19 + trim) - lufs) / 20)，套下去的峰值不准超過 -3 dBFS
+ * 這一節就是逐檔把那條公式再算一次 —— 數字改錯了會當場紅。
+ * ------------------------------------------------------------------ */
+{
+  const { MUSIC_TARGET_LUFS, SFX_TARGET_LUFS, SFX_PEAK_CEILING, gainForLufs } = Audio;
+  eq(MUSIC_TARGET_LUFS, -20, '配樂床的目標是 -20 LUFS');
+  eq(SFX_TARGET_LUFS, -19, '音效的目標是 -19 LUFS（只比床高 1 LU —— 跳出來一點點就好）');
+  eq(SFX_PEAK_CEILING, -3, '音效套上 gain 之後的峰值上限是 -3 dBFS');
+  ok(Math.abs(gainForLufs(-20, -20) - 1) < 1e-9, '量到剛好等於目標時 gain 是 1');
+  ok(Math.abs(gainForLufs(-26, -20) - 2) < 0.01, '差 6 dB 就是兩倍');
+
+  const db = (lin) => 20 * Math.log10(lin);
+
+  for (const [id, t] of Object.entries(BGM_TRACKS)) {
+    ok(Number.isFinite(t.lufs), `配樂 ${id} 記著量到的響度`, String(t.lufs));
+    ok(Number.isFinite(t.peak), `配樂 ${id} 記著量到的峰值`, String(t.peak));
+    ok(t.lufs > -30 && t.lufs < -8, `配樂 ${id} 的響度落在合理範圍`, String(t.lufs));
+    ok(t.peak <= 0, `配樂 ${id} 的峰值不超過 0 dBFS`, String(t.peak));
+    const want = gainForLufs(t.lufs, MUSIC_TARGET_LUFS);
+    ok(
+      Math.abs(t.gain - want) < 0.002,
+      `配樂 ${id} 的 gain ＝ 目標 − 量到的（-20 LUFS 統一）`,
+      `${t.gain} vs ${want.toFixed(4)}`
+    );
+    ok(t.peak + db(t.gain) <= 0, `配樂 ${id} 套上 gain 之後不會削波`, `${(t.peak + db(t.gain)).toFixed(1)} dBFS`);
+  }
+  // 站長自己烘到 -20 的那一批（v1）：gain 應該就是 1.0 上下
+  for (const id of ['title', 'foundations', 'reasoning', 'grounding', 'orchestration', 'config']) {
+    ok(Math.abs(BGM_TRACKS[id].gain - 1) < 0.03, `v1 的配樂 ${id} 本來就烘在 -20，gain ≈ 1`, String(BGM_TRACKS[id].gain));
+  }
+  // v2 交來的是 raw（沒有做響度處理）→ 一定要被壓下來
+  for (const id of ['forms', 'toolcraft', 'frugality', 'refinery', 'sight', 'divergence']) {
+    ok(BGM_TRACKS[id].gain < 0.8, `v2 的配樂 ${id} 交來是 raw，被 gain 壓回 -20`, String(BGM_TRACKS[id].gain));
+  }
+
+  const sfxRows = [];
+  for (const [kind, spec] of Object.entries(SFX_FILES)) {
+    sfxRows.push([kind, spec]);
+    if (spec.layer) sfxRows.push([`${kind}/layer`, spec.layer]);
+    if (spec.alt) sfxRows.push([`${kind}/alt`, spec.alt]);
+  }
+  for (const [label, spec] of sfxRows) {
+    ok(Number.isFinite(spec.lufs), `音效 ${label} 記著量到的響度`, String(spec.lufs));
+    ok(Number.isFinite(spec.peak), `音效 ${label} 記著量到的峰值`, String(spec.peak));
+    ok(Number.isFinite(spec.trim), `音效 ${label} 寫得出它比頭條事件低幾 dB`, String(spec.trim));
+    ok(spec.trim <= 1 && spec.trim >= -20, `音效 ${label} 的 trim 在合理範圍`, String(spec.trim));
+    const ideal = gainForLufs(spec.lufs, SFX_TARGET_LUFS + spec.trim);
+    const after = spec.peak + db(spec.gain);
+    ok(after <= SFX_PEAK_CEILING + 0.15, `音效 ${label} 套上 gain 之後不會削波`, `${after.toFixed(1)} dBFS`);
+    if (spec.clamped) {
+      ok(spec.gain < ideal, `音效 ${label} 標了 clamped，gain 真的被峰值上限壓下來過`, `${spec.gain} < ${ideal.toFixed(3)}`);
+      ok(
+        Math.abs(after - SFX_PEAK_CEILING) < 0.25,
+        `音效 ${label} 被壓到剛好貼著上限（不是隨手調的數字）`,
+        `${after.toFixed(1)} dBFS`
+      );
+    } else {
+      ok(
+        Math.abs(spec.gain - ideal) < 0.004,
+        `音效 ${label} 的 gain ＝（-19 ＋ trim）− 量到的`,
+        `${spec.gain} vs ${ideal.toFixed(3)}`
+      );
+    }
+  }
+  // 頭條事件（試煉那一記鑼）的 trim 就是 0 —— 其餘全部比它低
+  eq(SFX_FILES.trialPass.trim, 0, '試煉的鑼是頭條事件（trim = 0）');
+  for (const [label, spec] of sfxRows) {
+    if (label === 'trialPass') continue;
+    ok(spec.trim <= 1, `音效 ${label} 不比頭條事件響太多`, String(spec.trim));
+  }
+}
+
+/* ------------------------------------------------------------------ *
+ * issue #3：音效交付清單（`sfx-v2-manifest.json`）怎麼說，資料層就怎麼寫
+ *
+ * 清單替每一顆音效指定了三件事：觸發時機、**相對 BGM 的建議衰減量**、
+ * **最短間隔（cooldown_ms）** 與 **同時發聲數（polyphony）**。
+ * 這一節把那張表逐列釘死 —— 之後誰改了 throttle / poly / trim，
+ * 就必須回頭確認自己是不是在推翻音效設計者的交代。
+ *
+ *   trim = recommended_gain_db + 4   （以最大的那一支「試煉鑼 -4」對齊成 0）
+ *   throttle = cooldown_ms / 1000    （0 ms → 不設節流）
+ *   poly = polyphony
+ * ------------------------------------------------------------------ */
+{
+  // cue → [recommended_gain_db, cooldown_ms, polyphony]（逐列抄自交付清單）
+  const DELIVERY = {
+    simLow: [-16, 80, 1],
+    simMid: [-16, 80, 1],
+    simHigh: [-16, 80, 1],
+    trialPass: [-4, 0, 1],
+    masterSeal: [-8, 0, 1],
+    'masterSeal/layer': [-16, 0, 1],
+    hardGate: [-6, 0, 1],
+    formsTap: [-15, 70, 2],
+    toolcraftStrike: [-12, 60, 3],
+    'toolcraftStrike/alt': [-12, 60, 3],
+    toolcraftComplete: [-10, 0, 1],
+    frugalityRemove: [-12, 150, 1],
+    refineryRerun: [-14, 120, 1],
+    sightFocus: [-14, 200, 1],
+  };
+  eq(Object.keys(DELIVERY).length, 14, '交付清單的 14 支音效逐支登記');
+  for (const [label, [rec, cooldownMs, poly]] of Object.entries(DELIVERY)) {
+    const [kind, part] = label.split('/');
+    const top = SFX_FILES[kind];
+    ok(Boolean(top), `交付的 ${label} 在音效表裡`);
+    const spec = part === 'layer' ? top.layer : part === 'alt' ? top.alt : top;
+    ok(Boolean(spec), `交付的 ${label} 有自己的一列`);
+    eq(spec.trim, rec + 4, `${label} 的 trim ＝ 清單的建議衰減量 ＋ 4（以試煉鑼對齊）`);
+    // 節流與同時發聲數只寫在 cue 上（層與替身跟著同一個 cue 走）
+    if (cooldownMs > 0) {
+      ok(
+        Math.abs((top.throttle || 0) * 1000 - cooldownMs) < 1,
+        `${label} 的最短間隔＝清單的 ${cooldownMs} ms`,
+        String((top.throttle || 0) * 1000)
+      );
+    } else {
+      ok(!top.throttle, `${label} 的清單沒有要求最短間隔，資料層也沒有加`, String(top.throttle));
+    }
+    eq(top.poly, poly, `${label} 的同時發聲數＝清單的 polyphony`);
+  }
+  // 上限真的被執行（不是只寫在資料裡）：超過就掐掉最舊的那一把
+  const audioSrc = readFileSync(new URL('../src/audio/audio.js', import.meta.url), 'utf8');
+  ok(/trackVoice\(kind, spec\.poly, voice\)/.test(audioSrc), '放音檔音效時把 poly 交給同時發聲數的把手');
+  ok(/while \(list\.length > poly\)/.test(audioSrc), '超過上限時掐掉最舊的那一把（而不是吃掉新的那一下）');
+  ok(/linearRampToValueAtTime\(0\.0001, t \+ 0\.012\)/.test(audioSrc), '掐掉時是淡出，不是直接 stop（避免 click）');
+  // v1 那一批清單沒有指定，維持不設限
+  for (const kind of ['pass', 'submit', 'stamp', 'open', 'codex', 'unlock', 'gateOpen', 'click', 'ratchet', 'shrine', 'finale']) {
+    ok(SFX_FILES[kind].poly === undefined, `v1 的 ${kind} 清單沒有指定同時發聲數，維持不設限`);
+  }
+}
+
+/* --- issue #3：新的 cue 與它們接到哪裡 --- */
+{
+  const { SIM_NOTCH_CUES, REGION_CARVE_CUES, REGION_SEAL_CUES } = Audio;
+  eq(SIM_NOTCH_CUES.length, 3, '轉鈕剛好三檔各一顆卡榫聲');
+  for (const k of SIM_NOTCH_CUES) {
+    ok(Boolean(SFX_FILES[k]), `轉鈕的 ${k} 有音檔`);
+    ok(Boolean(SFX[k]), `轉鈕的 ${k} 有合成備援`);
+  }
+  // 音高越高＝檔位越高（合成備援也要守住這件事）
+  ok(SFX.simLow.base < SFX.simMid.base && SFX.simMid.base < SFX.simHigh.base, '三檔的音高由低到高');
+  // 三檔量到的響度不同，所以 gain 一定不同 —— 拉到同一個位置才會等響
+  const simGains = SIM_NOTCH_CUES.map((k) => SFX_FILES[k].gain);
+  eq(new Set(simGains).size, 3, '三檔各自的 gain 不同（把它們拉到同一個響度）');
+  for (const k of SIM_NOTCH_CUES) {
+    ok(SFX_FILES[k].trim === SFX_FILES.simLow.trim, `轉鈕 ${k} 的 trim 與其他兩檔相同（設計上等響）`);
+  }
+
+  for (const [regionId, cue] of Object.entries(REGION_CARVE_CUES)) {
+    ok(catalog.implementedRegionIds().includes(regionId), `刻印音的區域 ${regionId} 是真的已上線區域`);
+    ok(Boolean(SFX_FILES[cue]), `${regionId} 的刻印音 ${cue} 有音檔`);
+    ok(Boolean(SFX[cue]), `${regionId} 的刻印音 ${cue} 有合成備援`);
+  }
+  eq(new Set(Object.values(REGION_CARVE_CUES)).size, Object.keys(REGION_CARVE_CUES).length, '每片土地的刻印音各不相同');
+  for (const [regionId, cue] of Object.entries(REGION_SEAL_CUES)) {
+    ok(catalog.implementedRegionIds().includes(regionId), `刻滿音的區域 ${regionId} 是真的已上線區域`);
+    ok(Boolean(SFX_FILES[cue]) && Boolean(SFX[cue]), `${regionId} 的刻滿音 ${cue} 有音檔與合成備援`);
+  }
+  // 試煉的鑼與一般過關的頌缽是兩支不同的素材（同一種語言的放大版）
+  ok(SFX_FILES.trialPass.file !== SFX_FILES.pass.file, '試煉的鑼與一般過關的頌缽不是同一個檔案');
+  ok(SFX_FILES.trialPass.duck > 0, '試煉的鑼響的時候把配樂讓開');
+  // 大師層印記是兩層（章 ＋ 微光），硬門檻是單層厚重閂鎖
+  ok(Boolean(SFX_FILES.masterSeal.layer), '大師層印記是「章 ＋ 微光」兩層');
+  ok(SFX_FILES.masterSeal.layer.delay > 0, '微光那一層晚一點進來');
+  eq(Boolean(SFX_FILES.hardGate.layer), false, '硬門檻沒有慶祝的微光');
+  ok(SFX_FILES.hardGate.file !== SFX_FILES.unlock.file, '硬門檻與一般解鎖不是同一個聲音');
+  // 鍛打兩顆輪播（連打不會像機器）
+  ok(Boolean(SFX_FILES.toolcraftStrike.alt), '鍛打有第二顆素材可以輪播');
+  // 逐 cue 節流：兩支不同的 cue 不會互相把對方變啞
+  const src = readFileSync(resolve(root, 'src/audio/audio.js'), 'utf8');
+  ok(/lastCueAt\.get\(kind\)/.test(src), '節流是逐 cue 各自算的（不是一個共用的時戳）');
+  ok(/kind === 'simDial'/.test(src), "cue('simDial', { notch }) 會轉成三檔裡的那一支");
+  const mainSrc = readFileSync(resolve(root, 'src/main.js'), 'utf8');
+  ok(/isApplicationTrial\(challenge\)\) audio\.cue\('trialPass'\)/.test(mainSrc), '應用關過關響的是鑼');
+  ok(/newPenless \|\| outcome\.newScribe/.test(mainSrc), '拿到大師層印記時會響一聲');
+  ok(/audio\.cue\('masterSeal'\)/.test(mainSrc), '大師層印記接的是 masterSeal');
+  ok(/hard \? 'hardGate' : 'unlock'/.test(mainSrc), '硬門檻開的時候響的是閂鎖，不是一般解鎖');
+  ok(/audio\.cue\('simDial', \{ notch: index \}\)/.test(mainSrc), '轉鈕轉一格會放那一檔的卡榫聲');
+  ok(/REGION_CARVE_CUES\[carveRegion\]/.test(mainSrc), '刻上一段會用該片土地自己的聲音');
+  ok(/REGION_SEAL_CUES\[carveRegion\]/.test(mainSrc), '刻滿了會用該片土地自己的聲音');
+}
 
 // 評價只影響力度，不會把音量調成 0（不是懲罰）
 for (const grade of ['S', 'A', 'B', 'C']) {
@@ -6330,8 +6533,10 @@ console.log('\n▸ 量器坊（課程 v2 · Phase E）');
   /* --- 配樂：這一區沒有音檔，走合成 pad（護欄 3） --- */
   {
     const { REGION_MOODS: MOODS, BGM_TRACKS: TRACKS, SYNTH_ONLY_REGIONS } = await import('../src/audio/audio.js');
-    ok(SYNTH_ONLY_REGIONS.includes('forms'), '量器坊誠實登記成「還沒有配樂音檔」');
-    ok(!TRACKS.forms, '量器坊沒有音檔條目（不假裝有一首）');
+    ok(!SYNTH_ONLY_REGIONS.includes('forms'), '量器坊已經有自己的配樂音檔（issue #3）');
+    ok(Boolean(TRACKS.forms), '量器坊在配樂表上有自己的一首');
+    ok(Boolean(MOODS.forms), '量器坊仍然留著自己的合成配樂性格（檔案抓不到時的備援）');
+    ok(Number.isFinite(TRACKS.forms.gain), '量器坊的配樂記著把它拉到 -20 LUFS 的 gain');
     ok(Boolean(MOODS.forms), '量器坊有自己的合成配樂性格');
     for (const other of Object.keys(MOODS).filter((k) => k !== 'forms')) {
       ok(MOODS.forms.root !== MOODS[other].root, `量器坊的根音與 ${other} 不同（不是拿別區的來墊）`);
@@ -6586,9 +6791,13 @@ console.log('\n▸ 契約鍛冶場與護欄崗（課程 v2 · Phase F）');
     memory.clear();
   }
 
-  /* --- 配樂：兩區都沒有音檔，走合成 pad（護欄 3） --- */
+  /* --- 配樂：契約鍛冶場有自己的一首了；護欄崗仍然走合成 pad（護欄 3） --- */
   {
-    for (const [regionId, zh] of [['toolcraft', '契約鍛冶場'], ['wards', '護欄崗']]) {
+    ok(Boolean(MOODS.toolcraft), '契約鍛冶場仍然留著自己的合成配樂性格（檔案抓不到時的備援）');
+    ok(!SYNTH_ONLY_REGIONS.includes('toolcraft'), '契約鍛冶場已經有自己的配樂音檔（issue #3）');
+    ok(Boolean(TRACKS.toolcraft), '契約鍛冶場在配樂表上有自己的一首');
+    ok(Number.isFinite(TRACKS.toolcraft.gain), '契約鍛冶場的配樂記著把它拉到 -20 LUFS 的 gain');
+    for (const [regionId, zh] of [['wards', '護欄崗']]) {
       ok(SYNTH_ONLY_REGIONS.includes(regionId), `${zh}誠實登記成「還沒有配樂音檔」`);
       ok(!TRACKS[regionId], `${zh}沒有音檔條目（不假裝有一首）`);
       ok(Boolean(MOODS[regionId]), `${zh}有自己的合成配樂性格`);
@@ -6891,8 +7100,10 @@ console.log('\n▸ 兩輪刻印與校驗場（課程 v2 · Phase G）');
     const vign = propsModule.STORY_VIGNETTES.filter((v) => v.region === 'refinery');
     ok(vign.length >= 2 && vign.length <= 4, '校驗場有 2–4 組故事小景', `n=${vign.length}`);
     const { REGION_MOODS: MOODS, BGM_TRACKS: TRACKS, SYNTH_ONLY_REGIONS } = await import('../src/audio/audio.js');
-    ok(SYNTH_ONLY_REGIONS.includes('refinery'), '校驗場誠實登記成「還沒有配樂音檔」');
-    ok(!TRACKS.refinery, '校驗場沒有音檔條目（不假裝有一首）');
+    ok(!SYNTH_ONLY_REGIONS.includes('refinery'), '校驗場已經有自己的配樂音檔（issue #3）');
+    ok(Boolean(TRACKS.refinery), '校驗場在配樂表上有自己的一首');
+    ok(Boolean(MOODS.refinery), '校驗場仍然留著自己的合成配樂性格（檔案抓不到時的備援）');
+    ok(Number.isFinite(TRACKS.refinery.gain), '校驗場的配樂記著把它拉到 -20 LUFS 的 gain');
     ok(Boolean(MOODS.refinery), '校驗場有自己的合成配樂性格');
     for (const other of Object.keys(MOODS).filter((k) => k !== 'refinery')) {
       ok(MOODS.refinery.root !== MOODS[other].root, `校驗場的根音與 ${other} 不同（不是拿別區的來墊）`);
@@ -7232,8 +7443,10 @@ console.log('\n▸ 轉鈕與減法之庭（課程 v2 · Phase H）');
   /* --- 配樂：這一區沒有音檔，走合成 pad（護欄 3） --- */
   {
     const { REGION_MOODS: MOODS, BGM_TRACKS: TRACKS, SYNTH_ONLY_REGIONS } = await import('../src/audio/audio.js');
-    ok(SYNTH_ONLY_REGIONS.includes('frugality'), '減法之庭誠實登記成「還沒有配樂音檔」');
-    ok(!TRACKS.frugality, '減法之庭沒有音檔條目（不假裝有一首）');
+    ok(!SYNTH_ONLY_REGIONS.includes('frugality'), '減法之庭已經有自己的配樂音檔（issue #3）');
+    ok(Boolean(TRACKS.frugality), '減法之庭在配樂表上有自己的一首');
+    ok(Boolean(MOODS.frugality), '減法之庭仍然留著自己的合成配樂性格（檔案抓不到時的備援）');
+    ok(Number.isFinite(TRACKS.frugality.gain), '減法之庭的配樂記著把它拉到 -20 LUFS 的 gain');
     ok(Boolean(MOODS.frugality), '減法之庭有自己的合成配樂性格');
     ok(
       MOODS.frugality.bellDensity <= Math.min(...Object.values(MOODS).map((m) => m.bellDensity)),
@@ -7495,8 +7708,10 @@ console.log('\n▸ 觀象臺（課程 v2 · Phase I）');
   /* --- 配樂：這一區沒有音檔，走合成 pad（護欄 3） --- */
   {
     const { REGION_MOODS: MOODS, BGM_TRACKS: TRACKS, SYNTH_ONLY_REGIONS } = await import('../src/audio/audio.js');
-    ok(SYNTH_ONLY_REGIONS.includes('sight'), '觀象臺誠實登記成「還沒有配樂音檔」');
-    ok(!TRACKS.sight, '觀象臺沒有音檔條目（不假裝有一首）');
+    ok(!SYNTH_ONLY_REGIONS.includes('sight'), '觀象臺已經有自己的配樂音檔（issue #3）');
+    ok(Boolean(TRACKS.sight), '觀象臺在配樂表上有自己的一首');
+    ok(Boolean(MOODS.sight), '觀象臺仍然留著自己的合成配樂性格（檔案抓不到時的備援）');
+    ok(Number.isFinite(TRACKS.sight.gain), '觀象臺的配樂記著把它拉到 -20 LUFS 的 gain');
     ok(Boolean(MOODS.sight), '觀象臺有自己的合成配樂性格');
     ok(
       MOODS.sight.root >= Math.max(...Object.values(MOODS).map((m) => m.root)),
@@ -7847,9 +8062,11 @@ console.log('\n▸ 分歧之廳與拆碑（課程 v2 · Phase J1）');
   /* --- 配樂：這一區沒有音檔，走合成 pad（護欄 3） --- */
   {
     const { REGION_MOODS: MOODS, BGM_TRACKS: TRACKS, SYNTH_ONLY_REGIONS } = await import('../src/audio/audio.js');
-    ok(SYNTH_ONLY_REGIONS.includes('divergence'), '分歧之廳誠實登記成「還沒有配樂音檔」');
-    ok(EXPECT.synthOnlyRegions.value.includes('divergence'), '合成專用清單登記進 expected-counts');
-    ok(!TRACKS.divergence, '分歧之廳沒有音檔條目（不假裝有一首）');
+    ok(!SYNTH_ONLY_REGIONS.includes('divergence'), '分歧之廳已經有自己的配樂音檔（issue #3）');
+    ok(!EXPECT.synthOnlyRegions.value.includes('divergence'), '分歧之廳已經從合成專用清單移走');
+    ok(Boolean(TRACKS.divergence), '分歧之廳在配樂表上有自己的一首');
+    ok(Boolean(MOODS.divergence), '分歧之廳仍然留著自己的合成配樂性格（檔案抓不到時的備援）');
+    ok(Number.isFinite(TRACKS.divergence.gain), '分歧之廳的配樂記著把它拉到 -20 LUFS 的 gain');
     ok(Boolean(MOODS.divergence), '分歧之廳有自己的合成配樂性格');
     for (const other of Object.keys(MOODS).filter((k) => k !== 'divergence')) {
       ok(MOODS.divergence.root !== MOODS[other].root, `分歧之廳的根音與 ${other} 不同（不是拿別區的來墊）`);

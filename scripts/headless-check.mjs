@@ -313,6 +313,77 @@ async function main() {
     await cdp.send('Input.dispatchKeyEvent', { type: 'keyUp', ...base }, sessionId);
   }
 
+  /**
+   * issue #3：六片新土地現在都有自己的配樂音檔了。
+   *
+   * 抓 ＋ 解碼要一點時間（那段時間合成 pad 頂著 —— 這是設計好的行為，不是 bug），
+   * 所以用輪詢等它接上去，不用固定 sleep。這台機器解不開 AAC 時會誠實停在合成 pad，
+   * 那條路也要通過（護欄 3）。
+   *
+   * @param {string} regionId
+   * @returns {Promise<{source:string, decodable:boolean, file:string|null, targetGain:number, gain:number, playing:boolean, loopSeconds:number}>}
+   */
+  async function awaitRegionBgm(regionId) {
+    return evaluate(`
+      const g = window.__promptasy;
+      let decodable = false;
+      try {
+        const res = await fetch('audio/sfx_click.m4a');
+        const raw = await res.arrayBuffer();
+        const probe = new (window.AudioContext || window.webkitAudioContext)();
+        const buf = await probe.decodeAudioData(raw.slice(0));
+        decodable = !!buf && buf.duration > 0;
+        probe.close();
+      } catch (err) { decodable = false; }
+      /*
+       * 等的是「接上去而且淡完」：source 在交叉淡入的第一拍就變成 file，
+       * 但 gain 那時候還在往上爬（等功率淡入約 3 秒）。要驗「淡到它自己的
+       * 響度位置」就得等它走完，所以兩個條件一起等。
+       */
+      const settled = (d) => {
+        const row = d.bgm['${regionId}'] || {};
+        return d.source === 'file' && row.targetGain > 0 && Math.abs((row.gain || 0) - row.targetGain) < 0.05;
+      };
+      const t0 = Date.now();
+      let d = g.audio.debug();
+      while (decodable && !settled(d) && Date.now() - t0 < 25000) {
+        await new Promise((r) => setTimeout(r, 250));
+        d = g.audio.debug();
+      }
+      const row = d.bgm['${regionId}'] || {};
+      return {
+        source: d.source,
+        decodable,
+        file: row.file || null,
+        targetGain: row.targetGain || 0,
+        gain: row.gain || 0,
+        playing: !!row.playing,
+        loopSeconds: row.loopSeconds || 0,
+        lufs: row.lufs,
+      };
+    `);
+  }
+
+  /** 走進新土地之後，配樂音檔要真的接上去（解不開 AAC 的機器則誠實停在合成 pad）。 */
+  async function expectRegionBgmFile(regionId, zh) {
+    const bgm = await awaitRegionBgm(regionId);
+    ok(Boolean(bgm.file), `${zh}在配樂表上有自己的一首`, String(bgm.file));
+    ok(Number.isFinite(bgm.lufs), `${zh}的配樂記著量到的響度`, String(bgm.lufs));
+    ok(bgm.targetGain > 0 && bgm.targetGain <= 1.05, `${zh}的配樂 gain 由響度算出來`, String(bgm.targetGain));
+    if (bgm.decodable) {
+      eq(bgm.source, 'file', `${zh}聽到的是自己的配樂音檔（issue #3）`);
+      eq(bgm.playing, true, `${zh}的配樂用 AudioBufferSourceNode 播出來了`);
+      ok(bgm.loopSeconds > 60, `${zh}的配樂是完整的一首`, `${bgm.loopSeconds}s`);
+      ok(
+        Math.abs(bgm.gain - bgm.targetGain) < 0.08,
+        `${zh}的配樂淡到它自己的響度位置（不是硬拉到 1）`,
+        `${bgm.gain} vs ${bgm.targetGain}`
+      );
+    } else {
+      eq(bgm.source, 'synth', `${zh}：這台機器解不開 AAC → 合成 pad 誠實頂上（護欄 3）`);
+    }
+  }
+
   /* --- 純鍵盤操作用的三支（Phase 23）：按下、放開、真的打字 --- */
   async function keyDown(code, keyName, extra = {}) {
     await cdp.send(
@@ -615,6 +686,10 @@ async function main() {
     const d = g.audio.debug();
     return {
       audioRequests: performance.getEntriesByType('resource').filter((r) => /\\.m4a(\\?|$)/.test(r.name)).length,
+      bgmRequests: performance.getEntriesByType('resource').filter((r) => /bgm_[a-z]+\\.m4a(\\?|$)/.test(r.name)).length,
+      audioBytes: performance.getEntriesByType('resource')
+        .filter((r) => /\\.m4a(\\?|$)/.test(r.name))
+        .reduce((a, r) => a + (r.transferSize || r.encodedBodySize || 0), 0),
       started: d.started,
       pending: d.pending,
       source: d.source,
@@ -626,10 +701,20 @@ async function main() {
    * 所以「手勢之前零音檔、零 AudioContext」已經不是現在要守的東西。
    * 現在要守的是護欄 5 的本意：**別在第一個畫面就把 15 MB 全抓下來**。
    */
+  /*
+   * issue #3 之後音效變成 24 支（共約 0.77 MB，全部要一按下去就有聲音，所以一起抓），
+   * 但**配樂 12 首共約 35 MB 絕不能全拉下來** —— 標題卡上只該有開場曲與一首鄰區的。
+   * 所以這裡分開看：支數看配樂，總量看位元組。
+   */
   ok(
-    beforeGesture.audioRequests <= 14,
-    '標題卡上只抓該抓的那幾支（沒有把整包音檔全拉下來）',
-    `requests=${beforeGesture.audioRequests}`
+    beforeGesture.bgmRequests <= 2,
+    '標題卡上只抓開場曲與一首鄰區的配樂（12 首沒有全拉下來）',
+    `bgm=${beforeGesture.bgmRequests} / all=${beforeGesture.audioRequests}`
+  );
+  ok(
+    beforeGesture.audioBytes < 9 * 1024 * 1024,
+    '標題卡上下載的音檔總量沒有失控（整包 35 MB 沒有被拉下來）',
+    `${(beforeGesture.audioBytes / 1e6).toFixed(1)} MB`
   );
   ok(beforeGesture.pending <= 4, '標題卡上排隊中的音檔沒有失控', `pending=${beforeGesture.pending}`);
 
@@ -3857,7 +3942,9 @@ async function main() {
     g.audio.useFiles(false);
     await new Promise((r) => setTimeout(r, 1400));
     const d = g.audio.debug();
-    const cues = ['pass', 'unlock', 'gateOpen', 'click', 'shrine', 'finale', 'submit', 'open', 'codex']
+    const cues = ['pass', 'unlock', 'gateOpen', 'click', 'shrine', 'finale', 'submit', 'open', 'codex',
+      'trialPass', 'masterSeal', 'hardGate', 'simLow', 'simMid', 'simHigh',
+      'formsTap', 'toolcraftStrike', 'toolcraftComplete', 'frugalityRemove', 'refineryRerun', 'sightFocus']
       .map((k) => g.audio.cue(k));
     return {
       source: d.source,
@@ -3880,6 +3967,56 @@ async function main() {
     return g.audio.debug().usesFiles;
   `);
   eq(restored, true, '可以再切回音檔');
+
+  /* ---------------------------------------------------------------- *
+   * issue #3：新的 cue（轉鈕三檔 / 試煉的鑼 / 大師層印記 / 硬門檻 / 五片新土地）
+   * 與響度系統（檔案不做響度處理，統一在播放時的 gain）
+   * ---------------------------------------------------------------- */
+  const v2Audio = await evaluate(`
+    const g = window.__promptasy;
+    const d = g.audio.debug();
+    const dialCues = [];
+    for (const notch of [0, 1, 2]) {
+      g.audio.cue('simDial', { notch });
+      dialCues.push(g.audio.debug().lastCue);
+      await new Promise((r) => setTimeout(r, 120));
+    }
+    return {
+      sfx: d.sfx,
+      dialCues,
+      trialPassFile: d.sfx.trialPass ? d.sfx.trialPass.file : null,
+      passFile: d.sfx.pass ? d.sfx.pass.file : null,
+      strikeAlt: d.sfx.toolcraftStrike ? d.sfx.toolcraftStrike.alt : null,
+      bgm: Object.fromEntries(Object.entries(d.bgm).map(([k, v]) => [k, { file: v.file, lufs: v.lufs, targetGain: v.targetGain }])),
+    };
+  `);
+  eq(
+    JSON.stringify(v2Audio.dialCues),
+    JSON.stringify(['simLow', 'simMid', 'simHigh']),
+    "cue('simDial', { notch }) 真的轉成三檔各自的那一支"
+  );
+  for (const kind of [
+    'trialPass', 'masterSeal', 'hardGate', 'simLow', 'simMid', 'simHigh',
+    'formsTap', 'toolcraftStrike', 'toolcraftComplete', 'frugalityRemove', 'refineryRerun', 'sightFocus',
+  ]) {
+    const row = v2Audio.sfx[kind];
+    ok(Boolean(row), `新音效 ${kind} 登記在音效表上`);
+    ok(Boolean(row) && row.synthFallback, `新音效 ${kind} 留著合成備援（護欄 3）`);
+    ok(Boolean(row) && row.fetch !== 'failed', `新音效 ${kind} 抓得到`, row && `${row.file} / ${row.fetch}`);
+    ok(Boolean(row) && Number.isFinite(row.lufs), `新音效 ${kind} 記著量到的響度`, row && String(row.lufs));
+    ok(Boolean(row) && row.gain > 0, `新音效 ${kind} 有算出來的 gain`, row && String(row.gain));
+  }
+  ok(v2Audio.trialPassFile !== v2Audio.passFile, '試煉的鑼與一般過關的頌缽不是同一個檔案');
+  ok(Boolean(v2Audio.strikeAlt), '鍛打有第二顆素材可以輪播', String(v2Audio.strikeAlt));
+  // 十二區配樂：六首 v1 的 gain ≈ 1（本來就烘在 -20），六首 v2 的被壓下來
+  for (const id of ['title', 'foundations', 'reasoning', 'grounding', 'orchestration', 'config']) {
+    ok(Math.abs(v2Audio.bgm[id].targetGain - 1) < 0.03, `v1 的配樂 ${id} 本來就烘在 -20，gain ≈ 1`, String(v2Audio.bgm[id].targetGain));
+  }
+  for (const id of ['forms', 'toolcraft', 'frugality', 'refinery', 'sight', 'divergence']) {
+    ok(Boolean(v2Audio.bgm[id].file), `${id} 有自己的配樂音檔（issue #3）`, String(v2Audio.bgm[id].file));
+    ok(v2Audio.bgm[id].targetGain < 0.8, `${id} 交來是 raw，被 gain 壓回 -20`, String(v2Audio.bgm[id].targetGain));
+  }
+  ok(!v2Audio.bgm.wards.file, '護欄崗誠實地還沒有自己的一首（走合成 pad）');
 
   /* ================================================================ */
   console.log('\n▸ 閘門與跨區（含氣氛切換）');
@@ -9870,7 +10007,7 @@ async function main() {
   eq(fmEnter.hudRegion, 'forms', 'HUD 跟著換到量器坊');
   ok(/量器坊/.test(fmEnter.hudLabel), 'HUD 上寫的是中文區域名', fmEnter.hudLabel);
   eq(fmEnter.mood, 'forms', '配樂也切到量器坊');
-  eq(fmEnter.source, 'synth', '量器坊沒有音檔 → 聽到的是合成 pad（護欄 3）');
+  await expectRegionBgmFile('forms', '量器坊');
 
   /* --- 地標：刻度之柱真的在場景圖上，而且沒有新增光源 --- */
   const fmWorld = await evaluate(`
@@ -10336,7 +10473,7 @@ async function main() {
   eq(tfEnter.hudRegion, 'toolcraft', 'HUD 跟著換到契約鍛冶場');
   ok(/契約鍛冶場/.test(tfEnter.hudLabel), 'HUD 上寫的是中文區域名', tfEnter.hudLabel);
   eq(tfEnter.mood, 'toolcraft', '配樂也切到契約鍛冶場');
-  eq(tfEnter.source, 'synth', '契約鍛冶場沒有音檔 → 聽到的是合成 pad（護欄 3）');
+  await expectRegionBgmFile('toolcraft', '契約鍛冶場');
 
   /* --- 走進護欄崗：沒有橋，走出檔案庫北緣就到了 --- */
   const tfAnnex = await evaluate(`
@@ -10933,7 +11070,7 @@ async function main() {
   eq(rfEnter.hudRegion, 'refinery', 'HUD 跟著換到校驗場');
   ok(/校驗場/.test(rfEnter.hudLabel), 'HUD 上寫的是中文區域名', rfEnter.hudLabel);
   eq(rfEnter.mood, 'refinery', '配樂也切到校驗場');
-  eq(rfEnter.source, 'synth', '校驗場沒有音檔 → 聽到的是合成 pad（護欄 3）');
+  await expectRegionBgmFile('refinery', '校驗場');
 
   /* --- 世界：地標、造景、石座數、預算 --- */
   const rfWorld = await evaluate(`
@@ -11390,7 +11527,7 @@ async function main() {
   eq(fgEnter.hudRegion, 'frugality', 'HUD 跟著換到減法之庭');
   ok(/減法之庭/.test(fgEnter.hudLabel), 'HUD 上寫的是中文區域名', fgEnter.hudLabel);
   eq(fgEnter.mood, 'frugality', '配樂也切到減法之庭');
-  eq(fgEnter.source, 'synth', '減法之庭沒有音檔 → 聽到的是合成 pad（護欄 3）');
+  await expectRegionBgmFile('frugality', '減法之庭');
 
   /* --- 世界：地標、造景、石座數、預算 --- */
   const fgWorld = await evaluate(`
@@ -11562,6 +11699,7 @@ async function main() {
         text: b.text,
         live: b.announcement,
         nowCount: document.querySelectorAll('#prompt-console .simboard .notch.is-now').length,
+        lastCue: g.audio.debug().lastCue,
       };
     `);
     ok(sAfter.after !== sTurn.before, '轉一檔，神諭的回話真的換了一段', `${sTurn.before.slice(0, 18)} → ${sAfter.after.slice(0, 18)}`);
@@ -11571,6 +11709,15 @@ async function main() {
     eq(sAfter.text, sTurn.textBefore, '轉旋鈕不會改變被評分的那段字（轉鈕是觀察，不是作答）');
     ok(sAfter.live.length > 0, '轉檔會用 aria-live 講出來（純鍵盤讀得到）', sAfter.live.slice(0, 40));
     eq(sAfter.nowCount, 1, '同一時間只有一檔是亮的');
+    /*
+     * issue #3：轉一格放的是**旋鈕自己的卡榫聲**（三檔各一顆），不是刻印那一聲。
+     * 轉旋鈕跟刻字是兩件事，聽起來也該是兩件事。
+     */
+    ok(
+      ['simLow', 'simMid', 'simHigh'].includes(sAfter.lastCue),
+      '轉一檔放的是那一檔的卡榫聲（不是刻印音）',
+      String(sAfter.lastCue)
+    );
 
     /* 轉完第三檔 → 刻印區才開放 */
     await evaluate(`
@@ -11897,7 +12044,7 @@ async function main() {
   eq(stEnter.hudRegion, 'sight', 'HUD 跟著換到觀象臺');
   ok(/觀象臺/.test(stEnter.hudLabel), 'HUD 上寫的是中文區域名', stEnter.hudLabel);
   eq(stEnter.mood, 'sight', '配樂也切到觀象臺');
-  eq(stEnter.source, 'synth', '觀象臺沒有音檔 → 聽到的是合成 pad（護欄 3）');
+  await expectRegionBgmFile('sight', '觀象臺');
 
   /* --- 世界：地標、造景、石座數、預算 --- */
   const stWorld = await evaluate(`
@@ -13217,6 +13364,7 @@ async function main() {
       links: el.querySelectorAll('a[href^="http"]').length,
       tail: (el.querySelector('.result__source') || {}).textContent || '',
       penless: g.progression.masterSeals().penless.length,
+      cues: g.audio.debug().cues,
     };
   `);
   eq(trialResult.grade, 'S', '純鍵盤打完整段 → 拿到 S');
@@ -13227,6 +13375,16 @@ async function main() {
   eq(trialResult.links, 0, '結果面板上也沒有官方連結（試煉不教新技巧）');
   ok(/不教新的技法/.test(trialResult.tail), '結果面板誠實說明這是試煉', trialResult.tail.slice(0, 40));
   eq(trialResult.penless, 0, '應用關不發無筆之印');
+  /*
+   * issue #3：試煉過關響的是**鑼**，不是一般過關的頌缽 ——
+   * 同一件事變大了，不是換一套語言。
+   */
+  ok(trialResult.cues.includes('trialPass'), '試煉過關響的是鑼（trialPass）', trialResult.cues.join(','));
+  ok(
+    trialResult.cues.lastIndexOf('trialPass') > trialResult.cues.lastIndexOf('pass'),
+    '試煉那一次響的是鑼，不是一般過關的頌缽',
+    trialResult.cues.join(',')
+  );
 
   await key('Escape', 'Escape', { vk: 27 });
   await sleep(260);
@@ -13268,6 +13426,7 @@ async function main() {
       scribe: m.scribe,
       savedPenless: saved.penlessSeals || [],
       savedScribe: saved.scribeSeals || [],
+      cues: g.audio.debug().cues,
     };
   `);
   eq(penlessOut.grade, 'S', '一次就把整段寫對 → S');
@@ -13275,6 +13434,18 @@ async function main() {
   ok(penlessOut.scribe.includes(penlessRun.id), '同一次也拿到默寫之印（自由書寫模式的 S）');
   ok(penlessOut.savedPenless.includes(penlessRun.id), '無筆之印寫進 localStorage');
   ok(penlessOut.savedScribe.includes(penlessRun.id), '默寫之印寫進 localStorage');
+  /*
+   * issue #3：拿到大師層印記時會響一聲（公證章 ＋ 微光）。
+   * 它刻意晚 700ms 進來 —— 過關那一聲要先站穩，兩個好消息不該撞在一起。
+   * 所以用輪詢等它，不用固定 sleep。
+   */
+  let sealCues = [];
+  for (let i = 0; i < 16; i += 1) {
+    sealCues = await evaluate(`return window.__promptasy.audio.debug().cues;`);
+    if (sealCues.includes('masterSeal')) break;
+    await sleep(150);
+  }
+  ok(sealCues.includes('masterSeal'), '拿到大師層印記時真的響了一聲（masterSeal）', sealCues.join(','));
 
   /* --- 作弊面：先翻開範例，關掉重開再拿 S 也不算 --- */
   await key('Escape', 'Escape', { vk: 27 });

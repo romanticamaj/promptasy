@@ -271,7 +271,7 @@ otherwise.
 
 ## Credits
 
-- **Music** — 6 original tracks by **Gary Hsieh**, produced with **SUNO.ai** assistance; licensed for use in this project.
+- **Music** — 12 original tracks by **Gary Hsieh**, produced with **SUNO.ai** assistance; licensed for use in this project.
 - **Sound effects** — Splice samples under the Splice sample license (licensed to the author's account).
 - **Fonts** — all **SIL OFL 1.1**, self-hosted as subsets, license texts redistributed in `public/fonts/`:
   [Fraunces](https://github.com/google/fonts/tree/main/ofl/fraunces),
@@ -341,7 +341,7 @@ npm run build    # 靜態輸出 dist/
 
 142 個關卡（130 座教學神廟 ＋ 12 座應用關）· 12 片土地 · 130 條技能（底下仍逐字保留 68 條原技巧）·
 81 個離線檢查器 · 11 種題型 ＋ 自由書寫 · 520 段刻印題（1,233 個選項）· 12 座地標 · 12 塊世界觀石碑 ·
-13 則刻文小語 · 22 件動得了的器物 · 4 個藏起來的地方 · 6 首原創配樂 · 1.1 MB 自架 OFL 字型 ·
+13 則刻文小語 · 22 件動得了的器物 · 4 個藏起來的地方 · 12 首原創配樂 · 1.1 MB 自架 OFL 字型 ·
 **零 CDN、零外部請求、零後端**。
 
 > 更長期的目標、開發護欄與逐 phase 變更紀錄都在 [`CLAUDE.md`](./CLAUDE.md)。

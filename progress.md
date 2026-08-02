@@ -2089,3 +2089,104 @@ master 條目的官方引文落在哪一節 → 文字片段。**一個 anchor �
 
 - `CLAUDE.md`、`vite.config.js`、port 5175、`src/data/curriculum.json`（sha256 仍綠）。
 - 未 commit／未 push。
+
+## 2026-08-03 · issue #3 音訊交付整合（v2 六區 BGM ＋ 14 支音效）· `done`
+
+### 做了什麼
+
+1. **轉檔（零響度處理）**：六首 BGM（48k/16bit stereo raw wav，各約 180 s）與 14 支 SFX wav
+   全部 `ffmpeg -vn -c:a aac -b:a 128k` 進 `public/audio/`，指令裡**沒有任何 volume filter**。
+   命名沿用既有慣例（`bgm_<region>.m4a` / `sfx_<name>.m4a`）。
+
+2. **響度系統（站長規格：檔案不做響度處理，統一在播放時的 gain）**：
+   量測用 `ffmpeg ebur128`（量的是**編碼後**、遊戲真的會播的那一份 m4a），
+   逐檔把 integrated LUFS 與 true peak 存進 `BGM_TRACKS` / `SFX_FILES`，
+   gain 由公式算出來：配樂 `10^((-20 - lufs)/20)`、音效 `10^(((-19 + trim) - lufs)/20)`。
+   **音效床是 −19 LUFS（只比配樂高 1 LU）**：站長的原話是「整體音量差不多，音效跳出來一點點即可」，
+   音效設計者在交付清單裡也寫了「配樂全是沒有 attack transient 的 pad，音效是全場唯一的瞬態來源，
+   寧可太小聲不要太大聲」—— 所以每一個要取捨的地方一律往安靜那一邊靠。
+   新增 `MUSIC_TARGET_LUFS` / `SFX_TARGET_LUFS` / `SFX_PEAK_CEILING` / `gainForLufs()`。
+   全表與算式寫進 `docs/design/audio-loudness.md`，WORLD.md §6.5 加了一條硬規則。
+   - v1 六首配樂實測 −20.0 / −20.1 → gain ≈ 1.0（證實當年就烘在 −20，沒有被動到）。
+   - v1 音效改成「從已上線的混音反推 trim → 用同一條公式重算 gain」：**內部的相對平衡一個 dB 都沒動**，
+     整組跟著新的音效床低了 1 dB（逐檔 −0.76 ～ −1.18 dB，平均 −0.94 dB），
+     數字從此是算得出來、測得到的。
+   - **偏離規格並記錄**：一次性音效不能用 short-term max 當代理（3 秒視窗對 0.25 秒的敲擊
+     低估 9–11 dB，據此算出來的 gain 會把峰值推到 0 dBFS 以上），改用它自己內容的
+     integrated LUFS ＋ −3 dBFS 峰值天花板；四支頂到天花板的在資料層標 `clamped: true`。
+
+3. **BGM**：六首進 `BGM_TRACKS`（曲名 ＋ 交付 README 的調式），`SYNTH_ONLY_REGIONS`
+   由 7 個收到只剩 `wards`。六區的 `REGION_MOODS` **一個字都沒拆**，角色改成「檔案還沒到 / 抓不到」的備援。
+   `REGION_NEIGHBORS` 刻意不動（foundations 若把六個新區都當鄰區預抓 = 背景下載 29 MB）。
+
+4. **SFX 接線**：
+   - 轉鈕三檔 → 新 cue `cue('simDial', { notch })` → `simLow/simMid/simHigh`
+     （console 新增 `onDial`，sim 的 `onTurn` 從「刻印音」改成「旋鈕自己的卡榫聲」）。
+   - 應用關（試煉）通過 → `trialPass`（鑼；一般過關仍是頌缽）。
+   - 大師層印記（無筆之印 / 默寫之印）→ `masterSeal`（公證章 ＋ 延遲 200 ms 的微光；
+     依交付清單的 `layer_with`，兩支是同一個 cue 的兩層，不是兩個事件）。
+   - 分歧之廳硬門檻 → `hardGate`（厚重閂鎖；`unlockCue()` 依 `gateStatus().hard` 分流）。
+   - 五片新土地的「刻上一段」→ `REGION_CARVE_CUES`（量測 / 鍛打 / 刪除 / 重跑 / 對焦），
+     契約鍛冶場的「刻滿了」→ `toolcraftComplete`（`REGION_SEAL_CUES`）。
+   - 新增 `alt`（同一動作兩顆素材隨機輪播，鍛打連打不會像機器）與**逐 cue 節流**
+     （原本是一個共用時戳，加了多支有 throttle 的 cue 之後會互相把對方變啞）。
+   - **交付清單的 `cooldown_ms` 與 `polyphony` 逐支落進資料層並真的被執行**：
+     `throttle = cooldown_ms / 1000`（80 / 70 / 60 / 150 / 120 / 200 ms 各就各位），
+     新的 `poly` 欄位＝清單的同時發聲數（轉鈕卡榫 1、敲模 2、鍛打 3、其餘 1），
+     `trackVoice()` 在超過上限時**掐掉最舊的那一把**（12 ms 淡出，不是直接 stop）——
+     新的那一下永遠聽得見。v1 那一批清單沒有指定，維持不設限（行為未變）。
+     rubric 新增一節把清單那張表逐列釘死（trim ＝ `recommended_gain_db + 4`、節流、同時發聲數）。
+   - 每一支新 cue 都補了**合成備援**（護欄 3：把 `public/audio/` 清空照樣有聲音）。
+
+5. **授權**：`public/LICENSE.md` 六列 BGM（Gary Hsieh × SUNO.ai 原創授權引文）
+   ＋ 14 列 SFX（Splice sample license）逐檔登記，並改寫總量與載入策略那一段。
+
+### 驗證
+
+| 指令 | 之前 | 之後 |
+|---|---|---|
+| `npm run fonts` | — | 語料 73 檔 / Latin 258 · CJK 1847 · Display 104 / 1464.1 KB |
+| `npm run test:rubric` | 79,830 | **80,332 全部通過** |
+| `npm run test:playtest` | 2,372 | **2,372**（未動） |
+| `npm run build` | ✓ | ✓（`dist/audio/` 36 個檔案 / 34.6 MB；整個 `dist/` 38.4 MB / 56 個檔案） |
+| `npm run test:e2e` | 3,206 | **3,323 項全部通過、零 console error**（第二輪；見下方誠實記錄） |
+
+**先紅後綠**（實測）：改完資料層先跑 rubric → 16 條紅（六區的「誠實登記成還沒有配樂音檔」、
+`expected-counts` 的合成專用清單、字型語料指紋）→ 逐條改成「已經有自己的一首 ＋ 仍留著合成備援」
+並重跑 `npm run fonts` 之後全綠。
+
+**新增的測試**
+- rubric：響度系統逐檔重算（配樂 12 首 ＋ 音效 26 列，含 layer 與 alt）、
+  套上 gain 之後不削波、標了 `clamped` 的真的被天花板壓下來且剛好貼著天花板、
+  `trialPass` 的 trim 是 0（頭條事件，其餘全部比它低）、v1 gain ≈ 1 / v2 被壓下來、
+  新 cue 的音檔與合成備援都在、三檔的 gain 互異但 trim 相同（設計上等響）、
+  逐 cue 節流不是共用時戳、main.js 的五處接線（鑼 / 印記 / 閂鎖 / 卡榫 / 分區刻印音）；
+  **交付清單那張表逐列釘死**（14 支：`trim = recommended_gain_db + 4`、
+  `throttle = cooldown_ms / 1000`、`poly = polyphony`，v1 那批維持不設限），
+  以及「同時發聲數真的被執行」（`trackVoice` 掐最舊的那一把、12 ms 淡出不是直接 stop）。
+- e2e：新增 `awaitRegionBgm()` / `expectRegionBgmFile()` 輪詢輔助（抓 ＋ 解碼要時間，
+  合成 pad 在那之前頂著是設計好的行為），五片新土地的 `source: 'synth'` 斷言翻成
+  「音檔真的接上去、gain 淡到它自己的響度位置」；轉一檔放的是卡榫聲不是刻印音；
+  試煉過關響的是鑼；大師層印記那一聲（輪詢，不用固定 sleep）；
+  把音檔關掉時 21 支 cue 一支都不啞。
+
+**e2e 誠實記錄**：跑了兩輪。**第二輪 3,323 項全部通過、零 console error**；
+第一輪 3,322 通過、1 項失敗 —— Phase 35 的「390px 下小卡照樣開得起來」
+（`mouseover` 之後固定 sleep 320 ms 再量，屬 AGENTS.md 已列的「動畫時序」家族），
+第二輪同一條自己過了，與本期改動（音效 gain / 同時發聲數 / 文件）沒有交集。
+**與音訊有關的每一項兩輪都過**：12 首配樂的檔案路徑真的接上、五片新土地的 BGM
+由合成翻成音檔、轉鈕三檔、試煉的鑼、大師層印記、硬門檻的閂鎖、
+把音檔關掉時 21 支 cue 一支都不啞。
+
+### 這一期沒有動到的東西
+
+- `CLAUDE.md`、`vite.config.js`、port 5175、`src/data/curriculum.json`。
+- `REGION_NEIGHBORS`（預抓策略）、合成引擎本體、既有的混音平衡（相對關係）。
+- 配樂的循環接點（見 findings：頭尾淡入淡出的素材疊在一起，每 3 分鐘有一段淺凹陷；
+  這是 v1 以來就有的行為，交付 README 給的解法是「取中段做環」，本期刻意不動架構）。
+- 未 commit／未 push。
+
+**誠實記帳**：`SYNTH_ONLY_REGIONS` 收到只剩 `['wards']` —— **不是空的**。
+issue #3 交付了六首，剛好是六個新地形；**護欄崗**（沉書檔案庫北緣的加建院落）
+從上線起就沒有自己的一首，這次也沒有。它照舊誠實登記、走自己的合成 pad
+（不借別區的來墊，見 WORLD.md §6.5）。

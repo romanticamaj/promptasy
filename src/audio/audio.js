@@ -112,7 +112,7 @@ export const REGION_MOODS = Object.freeze({
   /*
    * 量器坊（課程 v2 · Phase E）：熄了火的鑄場。
    * 大二度堆疊的空心和聲 ＋ 最低的鐘聲密度 —— 像一個量完了、沒有人再說話的地方。
-   * **這一區沒有配樂音檔**（見 SYNTH_ONLY_REGIONS），聽到的就是這段合成 pad。
+   * **這一區現在有配樂音檔了**（issue #3），這段合成 pad 是檔案還沒到 / 抓不到時的備援。
    */
   forms: Object.freeze({
     id: 'forms',
@@ -130,7 +130,7 @@ export const REGION_MOODS = Object.freeze({
   /*
    * 契約鍛冶場（課程 v2 · Phase F）：還熱著的工坊。
    * 小三度 ＋ 純四度的鐵味和聲、sawtooth 被濾得很暗、鐘聲最密（那是敲打聲）。
-   * **這一區沒有配樂音檔**（見 SYNTH_ONLY_REGIONS）。
+   * **這一區現在有配樂音檔了**（issue #3），這段合成 pad 是檔案還沒到 / 抓不到時的備援。
    */
   toolcraft: Object.freeze({
     id: 'toolcraft',
@@ -167,7 +167,7 @@ export const REGION_MOODS = Object.freeze({
    * 校驗場（課程 v2 · Phase G）：兩面鏡子互相照著的院子。
    * 音樂上的「照自己」＝同一個音程在上下兩個八度同時出現（0 / 12 / 24），
    * 中間夾一個小三度讓它不會空到像號角；鐘聲每一聲都會在稍後重複一次（bellEvery 短）。
-   * **這一區沒有配樂音檔**（見 SYNTH_ONLY_REGIONS）。
+   * **這一區現在有配樂音檔了**（issue #3），這段合成 pad 是檔案還沒到 / 抓不到時的備援。
    */
   refinery: Object.freeze({
     id: 'refinery',
@@ -187,7 +187,7 @@ export const REGION_MOODS = Object.freeze({
    * 這一區的作法是**減法** —— 音階只有空心音（根音、八度、十二度、雙八度，
    * 連五度都推到高音去了，一個三度也沒有，所以不帶情緒色彩）、pad 只用兩個聲部、鐘聲最稀（bellDensity 全場最低）。
    * 根音 65.41（全場最低）：把空間讓出來，聽起來像一間空的院子。
-   * **這一區沒有配樂音檔**（見 SYNTH_ONLY_REGIONS）。
+   * **這一區現在有配樂音檔了**（issue #3），這段合成 pad 是檔案還沒到 / 抓不到時的備援。
    */
   frugality: Object.freeze({
     id: 'frugality',
@@ -208,7 +208,7 @@ export const REGION_MOODS = Object.freeze({
    * 音階是拉開的九度與大三度（0, 4, 11, 16, 23：明亮，但沒有暖意），
    * 截止頻率全場最高（1100，泛音留得住 —— 鏡面反射的是光不是土），
    * 鐘聲密度中等偏高、間隔最短之一：星光一顆一顆亮起來。
-   * **這一區沒有配樂音檔**（見 SYNTH_ONLY_REGIONS）。
+   * **這一區現在有配樂音檔了**（issue #3），這段合成 pad 是檔案還沒到 / 抓不到時的備援。
    */
   sight: Object.freeze({
     id: 'sight',
@@ -224,7 +224,7 @@ export const REGION_MOODS = Object.freeze({
     detune: 3,
   }),
   /*
-   * 分歧之廳（課程 v2 · Phase J1）：**這一區沒有配樂音檔**（見 SYNTH_ONLY_REGIONS）。
+   * 分歧之廳（課程 v2 · Phase J1）：**這一區現在有配樂音檔了**（issue #3），這段合成 pad 是檔案還沒到 / 抓不到時的備援。
    * 兩份相反的守則同時亮著 —— 所以這一組的性格是「兩個聲音疊在一起，誰也沒有蓋過誰」：
    * 音階刻意同時放大三度與小三度（0 / 3 / 4），pad 走純三角波、失諧最大（8 音分），
    * 聽起來永遠像有兩台機器在同時說話。鐘聲密度全場最高。
@@ -392,6 +392,56 @@ export const SFX = Object.freeze({
     gain: 0.08,
     seq: [[0, 0, 0.9, 1], [5, 0.18, 1.0, 0.6], [12, 0.4, 1.2, 0.35]],
   },
+  /* --- issue #3：v2 交付的音效，這裡一樣放「檔案不在時」的備援合成版 --- */
+  // 轉鈕的三檔（同一顆卡榫，音高越高＝檔位越高 —— 不看畫面也分得出轉到哪一檔）
+  simLow: { type: 'triangle', base: 174.61, gain: 0.038, seq: [[0, 0, 0.08, 1], [7, 0.02, 0.06, 0.45], [19, 0.035, 0.04, 0.22]] },
+  simMid: { type: 'triangle', base: 196.0, gain: 0.038, seq: [[0, 0, 0.08, 1], [7, 0.02, 0.06, 0.45], [19, 0.035, 0.04, 0.22]] },
+  simHigh: { type: 'triangle', base: 220.0, gain: 0.038, seq: [[0, 0, 0.08, 1], [7, 0.02, 0.06, 0.45], [19, 0.035, 0.04, 0.22]] },
+  // 應用關（試煉）通過：一記鑼 —— 一般過關的頌缽放大版，不是換一套語言
+  trialPass: {
+    type: 'sine',
+    base: 98.0,
+    gain: 0.09,
+    seq: [
+      [0, 0, 3.2, 1],
+      [7, 0.01, 2.8, 0.7],
+      [12, 0.03, 2.4, 0.5],
+      [19, 0.06, 2.0, 0.32],
+      [24, 0.12, 1.6, 0.18],
+      [31, 0.2, 1.2, 0.1],
+    ],
+  },
+  // 大師層印記：一記下壓的章 ＋ 後面一層很細的微光
+  masterSeal: {
+    type: 'triangle',
+    base: 130.81,
+    gain: 0.07,
+    seq: [[0, 0, 0.18, 1], [12, 0.01, 0.12, 0.5], [24, 0.2, 0.5, 0.3], [31, 0.26, 0.7, 0.2]],
+  },
+  // 分歧之廳的硬門檻：厚重閂鎖被拉開（比一般解鎖更沉、沒有慶祝的微光）
+  hardGate: {
+    type: 'sine',
+    base: 73.42,
+    gain: 0.085,
+    seq: [[0, 0, 0.5, 1], [5, 0.1, 0.6, 0.7], [12, 0.28, 1.0, 0.5], [19, 0.5, 1.4, 0.28]],
+  },
+  // 量器坊：敲模的那一下（很短、很準）
+  formsTap: { type: 'triangle', base: 659.25, gain: 0.026, seq: [[0, 0, 0.07, 1], [12, 0.015, 0.05, 0.4]] },
+  // 契約鍛冶場：鍛打（全區唯一的實體敲擊）
+  toolcraftStrike: { type: 'triangle', base: 246.94, gain: 0.045, seq: [[0, 0, 0.1, 1], [12, 0.01, 0.08, 0.5], [26, 0.025, 0.05, 0.25]] },
+  // 契約鍛冶場：契約完成（要低於試煉那一記鑼）
+  toolcraftComplete: {
+    type: 'sine',
+    base: 196.0,
+    gain: 0.055,
+    seq: [[0, 0, 0.6, 0.8], [7, 0.1, 0.7, 0.7], [12, 0.24, 0.9, 0.5]],
+  },
+  // 減法之庭：東西被抽走（倒著長出來的一聲）
+  frugalityRemove: { type: 'sine', base: 261.63, gain: 0.04, seq: [[0, 0, 0.9, 0.35], [7, 0.3, 0.6, 0.6], [12, 0.55, 0.35, 0.9]] },
+  // 校驗場：倒帶回上一版
+  refineryRerun: { type: 'sawtooth', base: 392.0, gain: 0.022, seq: [[0, 0, 0.1, 1], [-5, 0.06, 0.1, 0.7], [-12, 0.12, 0.12, 0.4]] },
+  // 觀象臺：對焦鎖定（高、透明、克制）
+  sightFocus: { type: 'sine', base: 1046.5, gain: 0.02, seq: [[0, 0, 0.5, 0.7], [7, 0.12, 0.6, 0.6], [12, 0.26, 0.9, 0.4]] },
   // 全數收集：最長、最厚的一支
   finale: {
     type: 'triangle',
@@ -412,21 +462,167 @@ export const SFX = Object.freeze({
 /** 音檔目錄（相對於網站根目錄；`base: './'` 的部署也算得出來）。 */
 export const AUDIO_DIR = 'audio/';
 
+/* ------------------------------------------------------------------ *
+ * 響度系統（issue #3 · v2 音訊交付）
+ *
+ * **音檔本身一律不做響度處理**（交來什麼就編碼什麼，轉檔指令裡沒有任何
+ * volume filter）。統一是在**播放時**用 Web Audio 的 gain 做的 ——
+ * 換一批素材只要重新量一次、改一個數字，不必重新編碼、不必動任何邏輯。
+ *
+ *   配樂床（music bus） → -20 LUFS
+ *   音效（sfx bus）     → -19 LUFS（只比床高 1 LU —— 站長的原話是「整體音量差不多，
+ *                        音效跳出來一點點即可」。十二區的配樂全部沒有 attack transient，
+ *                        音效是全場唯一的瞬態來源，本來就會自己跳出來，
+ *                        所以音效設計者的交代是「寧可太小聲不要太大聲」。）
+ *
+ * 每一個檔案都在 `lufs` 欄位存著**編碼後**（也就是遊戲真的會播的那一份 m4a）
+ * 用 `ffmpeg ebur128` 量到的 integrated LUFS，`gain` 則是由它算出來的線性倍率：
+ *
+ *   gain = 10 ^ ((目標 - lufs) / 20)
+ *
+ * 音效多一個 `trim`：這一聲**刻意**比「頭條事件」低幾 dB 的量（單位 dB，0 =
+ * 頭條）。它是美術決定、不是量測結果，所以跟量測值分開存 ——
+ * 目標 = -19 + trim，gain 仍然是同一條公式算出來的。
+ * v2 的 trim 取自音效交付清單的 `recommended_gain_db`（以試煉鑼 -4 為 0 對齊）；
+ * v1 的 trim 是從已上線的混音反推出來的，所以這次校準**聽起來不會有任何變化**
+ * （逐檔誤差 < 3%），只是把當年手調的數字換成算得出來的數字。
+ *
+ * 唯一的例外是削波保護：gain 套下去之後的 true peak 不准超過 `SFX_PEAK_CEILING`。
+ * 會踩到上限的那幾支在資料層標了 `clamped: true`（誠實記帳，不是偷偷改）。
+ * ------------------------------------------------------------------ */
+
+/** 配樂床的目標響度（LUFS integrated）。 */
+export const MUSIC_TARGET_LUFS = -20;
+/** 音效的目標響度（LUFS integrated；只比床高 1 LU —— 跳出來一點點就好）。 */
+export const SFX_TARGET_LUFS = -19;
+/** 音效套上 gain 之後的 true peak 上限（dBFS）。 */
+export const SFX_PEAK_CEILING = -3;
+
 /**
- * 五區配樂（站長以 Suno 創作，見 `public/LICENSE.md`）。
+ * 響度 → 線性倍率。
+ * @param {number} lufs   量到的 integrated LUFS
+ * @param {number} target 目標 LUFS
+ * @returns {number} 線性 gain
+ */
+export function gainForLufs(lufs, target) {
+  return Math.pow(10, (target - lufs) / 20);
+}
+
+/**
+ * 十二區配樂 ＋ 開場曲（站長以 Suno 創作，見 `public/LICENSE.md`）。
  * `mood` 指到合成備援的性格 —— 檔案沒到的時候放的就是它。
+ * `lufs` 是編碼後量到的 integrated LUFS，`gain` 是把它拉到 -20 LUFS 的倍率。
+ * `mode` 是交付清單寫的調式 —— 十二區共用同一組七音音級，所以任兩區交叉淡入都不會撞音。
  */
 export const BGM_TRACKS = Object.freeze({
-  title: Object.freeze({ region: 'title', file: 'bgm_title.m4a', title: 'Promptasy Overture' }),
-  foundations: Object.freeze({ region: 'foundations', file: 'bgm_foundations.m4a', title: 'Night Plateau Pad' }),
-  reasoning: Object.freeze({ region: 'reasoning', file: 'bgm_reasoning.m4a', title: 'Thinking Corridor Float' }),
-  grounding: Object.freeze({ region: 'grounding', file: 'bgm_grounding.m4a', title: 'Sunken Archive Bowed' }),
+  title: Object.freeze({
+    region: 'title',
+    file: 'bgm_title.m4a',
+    peak: -8.3,
+    title: 'Promptasy Overture',
+    lufs: -20.0,
+    gain: 1.0,
+  }),
+  foundations: Object.freeze({
+    region: 'foundations',
+    file: 'bgm_foundations.m4a',
+    peak: -8.4,
+    title: 'Night Plateau Pad',
+    mode: 'C Mixolydian',
+    lufs: -20.1,
+    gain: 1.0116,
+  }),
+  reasoning: Object.freeze({
+    region: 'reasoning',
+    file: 'bgm_reasoning.m4a',
+    peak: -8.2,
+    title: 'Thinking Corridor Float',
+    mode: 'B♭ Lydian',
+    lufs: -20.0,
+    gain: 1.0,
+  }),
+  grounding: Object.freeze({
+    region: 'grounding',
+    file: 'bgm_grounding.m4a',
+    peak: -7.7,
+    title: 'Sunken Archive Bowed',
+    mode: 'F Ionian',
+    lufs: -20.0,
+    gain: 1.0,
+  }),
   orchestration: Object.freeze({
     region: 'orchestration',
     file: 'bgm_orchestration.m4a',
+    peak: -6.7,
     title: 'Gear Workshop Pulse',
+    mode: 'G Dorian',
+    lufs: -20.0,
+    gain: 1.0,
   }),
-  config: Object.freeze({ region: 'config', file: 'bgm_config.m4a', title: 'Mask Theatre Veil' }),
+  config: Object.freeze({
+    region: 'config',
+    file: 'bgm_config.m4a',
+    peak: -7.0,
+    title: 'Mask Theatre Veil',
+    mode: 'A Phrygian',
+    lufs: -20.0,
+    gain: 1.0,
+  }),
+  /* --- issue #3：v2 的六首（量器坊 / 契約鍛冶場 / 減法之庭 / 校驗場 / 觀象臺 / 分歧之廳） --- */
+  forms: Object.freeze({
+    region: 'forms',
+    file: 'bgm_forms.m4a',
+    peak: -2.7,
+    title: 'Foundry of Measures',
+    mode: 'D Aeolian',
+    lufs: -13.7,
+    gain: 0.4842,
+  }),
+  toolcraft: Object.freeze({
+    region: 'toolcraft',
+    file: 'bgm_toolcraft.m4a',
+    peak: -4.9,
+    title: 'Contract Forge',
+    mode: 'G Dorian',
+    lufs: -16.1,
+    gain: 0.6383,
+  }),
+  frugality: Object.freeze({
+    region: 'frugality',
+    file: 'bgm_frugality.m4a',
+    peak: -2.2,
+    title: 'Garden of Subtraction',
+    mode: 'C Mixolydian',
+    lufs: -14.9,
+    gain: 0.5559,
+  }),
+  refinery: Object.freeze({
+    region: 'refinery',
+    file: 'bgm_refinery.m4a',
+    peak: -3.7,
+    title: 'Proving Yard',
+    mode: 'F Ionian',
+    lufs: -15.1,
+    gain: 0.5689,
+  }),
+  sight: Object.freeze({
+    region: 'sight',
+    file: 'bgm_sight.m4a',
+    peak: -3.5,
+    title: 'Observatory Terrace',
+    mode: 'B♭ Lydian',
+    lufs: -14.0,
+    gain: 0.5012,
+  }),
+  divergence: Object.freeze({
+    region: 'divergence',
+    file: 'bgm_divergence.m4a',
+    peak: -4.0,
+    title: 'Hall of Divergence',
+    mode: 'E Locrian',
+    lufs: -14.1,
+    gain: 0.507,
+  }),
 });
 
 /**
@@ -438,18 +634,14 @@ export const BGM_TRACKS = Object.freeze({
  * 沒有 `BGM_TRACKS` 條目，所以 `requestBgm()` 直接回 false，合成 pad 接手。
  *
  * **刻意不共用別區的音檔**：拿面具劇場那一首來墊，跨橋時聽起來像沒換地方，
- * 那比誠實地播一段自己的合成 pad 更糟。站長之後補上 `bgm_forms.m4a` 時，
+ * 那比誠實地播一段自己的合成 pad 更糟。站長之後補上該區的音檔時，
  * 只要在 `BGM_TRACKS` 加一行、把 id 從這裡移走即可（其餘程式碼一個字都不必動）。
+ *
+ * issue #3 交付了六首（量器坊 / 契約鍛冶場 / 減法之庭 / 校驗場 / 觀象臺 / 分歧之廳），
+ * 所以那六個 id 已經搬進 `BGM_TRACKS`；這條路走了一遍，證明它真的只要改一行。
+ * 現在只剩護欄崗 —— 它是沉書檔案庫北緣的加建院落，還沒有自己的一首。
  */
-export const SYNTH_ONLY_REGIONS = Object.freeze([
-  'forms',
-  'toolcraft',
-  'wards',
-  'refinery',
-  'frugality',
-  'sight',
-  'divergence',
-]);
+export const SYNTH_ONLY_REGIONS = Object.freeze(['wards']);
 
 /**
  * 鄰區：走過一座橋就到得了的地方（中央高原是樞紐，四片土地各自接一條橋）。
@@ -481,36 +673,113 @@ export const REGION_NEIGHBORS = Object.freeze({
 
 /**
  * 音效檔對照表：key 是既有的 cue 名稱 —— 有檔案就用檔案，沒有（或還沒載到）就用上面的合成版。
- * `gain` 是相對音量（音檔本身峰值 −6 dBFS，這裡再壓到與 −20 LUFS 的配樂床平衡）。
- * `layer` 是疊在同一次 cue 上的第二個檔案（解鎖＝微光 ＋ 稍慢一點的石門）。
- * `duck` 是這一聲期間把配樂壓低幾秒（讓 9 秒的頌缽有地方響）。
+ *
+ * `lufs`  這個檔案編碼後量到的 integrated LUFS（`ffmpeg ebur128`）。
+ * `trim`  刻意比「頭條事件」低幾 dB（美術決定，0 = 頭條）。
+ * `gain`  線性倍率 = 10^(((-18 + trim) - lufs) / 20)（削波保護見 `clamped`）。
+ * `clamped` 套下去會超過 `SFX_PEAK_CEILING`，所以 gain 被上限壓下來過。
+ * `layer` 疊在同一次 cue 上的第二個檔案（解鎖＝微光 ＋ 稍慢一點的石門）。
+ * `alt`   同一個動作的另一顆素材，每次隨機挑一顆（連打才不會像機器）。
+ * `duck`  這一聲期間把配樂壓低幾秒（讓 9 秒的頌缽有地方響）。
+ * `throttle` 連按時最短間隔（秒）—— 逐 cue 各自算，彼此不干擾（＝交付清單的 `cooldown_ms`）。
+ * `poly`  最多幾把同時響（＝交付清單的 `polyphony`）；超過就掐掉最舊的那一把。
+ *        沒寫的（v1 那一批，清單沒有替它們指定）維持不設限。
  */
 export const SFX_FILES = Object.freeze({
   // 過關：9 秒頌缽 —— 讓它響完，期間配樂壓 3 dB
-  pass: Object.freeze({ file: 'sfx_pass.m4a', gain: 0.95, duck: 5.5 }),
+  pass: Object.freeze({ file: 'sfx_pass.m4a', peak: -5.8, lufs: -19.5, trim: -2, gain: 0.8414, duck: 5.5 }),
   // 呈給神諭（手掌按下去）：一陣風
-  submit: Object.freeze({ file: 'sfx_submit.m4a', gain: 0.8 }),
+  submit: Object.freeze({ file: 'sfx_submit.m4a', peak: -4.4, lufs: -17.8, trim: -1.5, gain: 0.7328 }),
   // 石碑收下一段（選對了）：確認的漲聲
-  stamp: Object.freeze({ file: 'sfx_select.m4a', gain: 0.5 }),
+  stamp: Object.freeze({ file: 'sfx_select.m4a', peak: -5.7, lufs: -18.7, trim: -6.5, gain: 0.4571 }),
   // 面板打開：翻頁（整座檔案館的味道）
-  open: Object.freeze({ file: 'sfx_page.m4a', gain: 0.5 }),
-  codex: Object.freeze({ file: 'sfx_page.m4a', gain: 0.6 }),
+  open: Object.freeze({ file: 'sfx_page.m4a', peak: -3.0, lufs: -22.6, trim: -10.5, gain: 0.4519 }),
+  codex: Object.freeze({ file: 'sfx_page.m4a', peak: -3.0, lufs: -22.6, trim: -9, gain: 0.537 }),
   // 真的解鎖：微光 ＋ 石門（門稍微慢一點進來）
   unlock: Object.freeze({
     file: 'sfx_unlock_shimmer.m4a',
-    gain: 0.85,
-    layer: Object.freeze({ file: 'sfx_unlock_door.m4a', gain: 0.72, delay: 0.28 }),
+    peak: -5.0,
+    lufs: -19.3,
+    trim: -2.5,
+    gain: 0.7762,
+    layer: Object.freeze({ file: 'sfx_unlock_door.m4a', peak: -6.0, lufs: -19.8, trim: -4.5, gain: 0.6531, delay: 0.28 }),
   }),
   // 先行前往：只有石門，沒有慶祝的微光（比較重、比較沉）
-  gateOpen: Object.freeze({ file: 'sfx_unlock_door.m4a', gain: 0.9 }),
+  gateOpen: Object.freeze({ file: 'sfx_unlock_door.m4a', peak: -6.0, lufs: -19.8, trim: -2.5, gain: 0.8222 }),
   // 刻印牌被按下去
-  click: Object.freeze({ file: 'sfx_click.m4a', gain: 0.5, throttle: 0.07 }),
+  click: Object.freeze({ file: 'sfx_click.m4a', peak: -5.5, lufs: -30.3, trim: -18.5, gain: 0.4365, throttle: 0.07 }),
   // 絞盤咬進一格 / 齒輪工坊的器物
-  ratchet: Object.freeze({ file: 'sfx_gear.m4a', gain: 0.6 }),
+  ratchet: Object.freeze({ file: 'sfx_gear.m4a', peak: -6.4, lufs: -28.4, trim: -15, gain: 0.5248 }),
   // 起始祭壇的門檻 ＋ 刻文小語
-  shrine: Object.freeze({ file: 'sfx_shrine.m4a', gain: 0.7 }),
+  shrine: Object.freeze({ file: 'sfx_shrine.m4a', peak: -5.1, lufs: -14.0, trim: 1, gain: 0.631 }),
   // 隱藏成就：68 條全收集
-  finale: Object.freeze({ file: 'sfx_finale.m4a', gain: 0.9, duck: 4.5 }),
+  finale: Object.freeze({ file: 'sfx_finale.m4a', peak: -6.0, lufs: -20.0, trim: -3, gain: 0.7943, duck: 4.5 }),
+
+  /* --- issue #3：v2 交付的音效（trim 取自交付清單，以試煉鑼為 0 對齊） --- */
+  // 轉鈕的三檔：同一支素材移調而成，量出來的響度不同 → gain 各自把它們拉到同一個位置
+  simLow: Object.freeze({ file: 'sfx_sim_low.m4a', peak: -12.1, lufs: -35.6, trim: -12, gain: 1.6982, throttle: 0.08, poly: 1 }),
+  simMid: Object.freeze({ file: 'sfx_sim_mid.m4a', peak: -14.5, lufs: -37.9, trim: -12, gain: 2.2131, throttle: 0.08, poly: 1 }),
+  simHigh: Object.freeze({ file: 'sfx_sim_high.m4a', peak: -13.6, lufs: -36.2, trim: -12, gain: 1.8197, throttle: 0.08, poly: 1 }),
+  // 應用關（試煉）通過：一記鑼 —— 頌缽的放大版，期間把配樂讓開
+  trialPass: Object.freeze({ file: 'sfx_trial_pass.m4a', peak: -11.9, lufs: -26.2, trim: 0, gain: 2.2909, duck: 5.0, poly: 1 }),
+  // 大師層印記（無筆之印 / 默寫之印）：公證章下壓 ＋ 200ms 後那層微光
+  masterSeal: Object.freeze({
+    file: 'sfx_seal_stamp.m4a',
+    peak: -12.2,
+    lufs: -32.3,
+    trim: -4,
+    gain: 2.884,
+    clamped: true,
+    poly: 1,
+    layer: Object.freeze({ file: 'sfx_seal_sparkle.m4a', peak: -5.8, lufs: -29.7, trim: -12, gain: 0.861, delay: 0.2 }),
+  }),
+  // 分歧之廳的硬門檻開啟（全場唯一一道沒有「先行前往」的門）
+  hardGate: Object.freeze({ file: 'sfx_hard_gate.m4a', peak: -8.2, lufs: -27.5, trim: -2, gain: 1.82, clamped: true, poly: 1 }),
+  // 量器坊：刻上一段＝敲模的那一下
+  formsTap: Object.freeze({ file: 'sfx_forms_tap.m4a', peak: -11.9, lufs: -36.0, trim: -11, gain: 1.9953, throttle: 0.07, poly: 2 }),
+  // 契約鍛冶場：刻上一段＝鍛打（兩顆隨機輪播，連打才不會像機器）
+  toolcraftStrike: Object.freeze({
+    file: 'sfx_toolcraft_strike_1.m4a',
+    peak: -12.0,
+    lufs: -37.0,
+    trim: -8,
+    gain: 2.818,
+    clamped: true,
+    alt: Object.freeze({ file: 'sfx_toolcraft_strike_2.m4a', peak: -12.0, lufs: -35.8, trim: -8, gain: 2.7542 }),
+    throttle: 0.06,
+    poly: 3,
+  }),
+  // 契約鍛冶場：石碑刻滿＝契約打完了（刻意低於試煉那一記鑼）
+  toolcraftComplete: Object.freeze({ file: 'sfx_toolcraft_complete.m4a', peak: -10.3, lufs: -28.6, trim: -6, gain: 1.5136, poly: 1 }),
+  // 減法之庭：刻上一段＝把多餘的抽走（倒放鋼琴，語意上就是「被拿掉」）
+  frugalityRemove: Object.freeze({ file: 'sfx_frugality_remove.m4a', peak: -11.8, lufs: -25.0, trim: -8, gain: 0.7943, throttle: 0.15, poly: 1 }),
+  // 校驗場：刻上一段＝再跑一輪（倒帶回上一版）
+  refineryRerun: Object.freeze({ file: 'sfx_refinery_rerun.m4a', peak: -12.8, lufs: -26.1, trim: -10, gain: 0.7161, throttle: 0.12, poly: 1 }),
+  // 觀象臺：刻上一段＝看見了（高、透明、克制）
+  sightFocus: Object.freeze({ file: 'sfx_sight_focus.m4a', peak: -13.2, lufs: -28.4, trim: -10, gain: 0.9333, throttle: 0.2, poly: 1 }),
+});
+
+/**
+ * 轉鈕三檔各自的 cue —— `cue('simDial', { notch: 0 | 1 | 2 })` 會轉成這裡的其中一支。
+ * 音高越高＝檔位越高，不看畫面也分得出剛剛轉到哪一檔。
+ */
+export const SIM_NOTCH_CUES = Object.freeze(['simLow', 'simMid', 'simHigh']);
+
+/**
+ * 五片新土地各自的「刻上一段」音（其餘區域仍然是通用的 `stamp`）。
+ * 對照交付清單的 `zone` 欄位：量測 / 鍛打 / 刪除 / 重跑 / 對焦。
+ */
+export const REGION_CARVE_CUES = Object.freeze({
+  forms: 'formsTap',
+  toolcraft: 'toolcraftStrike',
+  frugality: 'frugalityRemove',
+  refinery: 'refineryRerun',
+  sight: 'sightFocus',
+});
+
+/** 五片新土地各自的「石碑刻滿了」音（沒列到的仍然是通用的 `seal`）。 */
+export const REGION_SEAL_CUES = Object.freeze({
+  toolcraft: 'toolcraftComplete',
 });
 
 /** 全部會被載入的檔名（測試用：驗證 `public/audio/` 真的有這些檔）。 */
@@ -519,7 +788,9 @@ export const AUDIO_MANIFEST = Object.freeze({
   sfx: Object.freeze(
     Array.from(
       new Set(
-        Object.values(SFX_FILES).flatMap((s) => (s.layer ? [s.file, s.layer.file] : [s.file]))
+        Object.values(SFX_FILES).flatMap((s) =>
+          [s.file, s.layer && s.layer.file, s.alt && s.alt.file].filter(Boolean)
+        )
       )
     )
   ),
@@ -635,7 +906,8 @@ export function createAudio({ volume = 0.5, muted = false, region = 'foundations
   let currentRegion = REGION_MOODS[region] ? region : 'foundations';
   const layers = new Map(); // regionId → { gain, oscs }
   let lastStepAt = 0;
-  let lastClickAt = 0;
+  /** cue → 上一次真的放出去的時間（逐 cue 節流，彼此不干擾）。 */
+  const lastCueAt = new Map();
   /*
    * 最近放過的幾聲（除錯 / 自動化測試用）。純記帳，不影響播放 ——
    * 「推開入場門有沒有真的響一聲」這種事，從外面看不到 AudioContext 裡面，
@@ -839,6 +1111,16 @@ export function createAudio({ volume = 0.5, muted = false, region = 'foundations
     }, Math.max(50, (nextAt - ctx.currentTime - 1) * 1000));
   }
 
+  /**
+   * 這一首該用多大的 gain 播 —— 響度統一（-20 LUFS）就是在這裡發生的。
+   * 音檔本身沒有做過任何響度處理，數字全部來自 `BGM_TRACKS[].gain`。
+   */
+  function trackGain(regionId) {
+    const t = BGM_TRACKS[regionId];
+    const g = t && Number.isFinite(t.gain) ? t.gain : 1;
+    return Math.max(0.01, Math.min(4, g));
+  }
+
   /** 開始播某一區的配樂（buffer 必須已經解好）。 */
   function startBgm(regionId, seconds = REGION_CROSSFADE) {
     if (!filesEnabled) return false;
@@ -846,7 +1128,7 @@ export function createAudio({ volume = 0.5, muted = false, region = 'foundations
     if (!p || !p.buffer || !ctx) return false;
     const now = ctx.currentTime;
     const from = holdParam(p.gain.gain, now);
-    equalPowerRamp(p.gain.gain, now, Math.max(0.2, seconds), from, 1);
+    equalPowerRamp(p.gain.gain, now, Math.max(0.2, seconds), from, trackGain(regionId));
     if (!p.playing) {
       p.playing = true;
       startSegment(p, now + 0.02);
@@ -939,10 +1221,14 @@ export function createAudio({ volume = 0.5, muted = false, region = 'foundations
     });
   }
 
-  /** 播一個音檔音效。 */
+  /**
+   * 播一個音檔音效。
+   * @returns {{src: AudioBufferSourceNode, gain: GainNode}|null} 放出去的那一把聲音（給
+   *   同時發聲數上限用的把手）；沒有解好 / 沒有 AudioContext 就回 null。
+   */
   function playFile(file, { gain = 1, delay = 0, rate = 1 } = {}) {
     const buffer = decoded.get(file);
-    if (!buffer || !ctx || !sfxBus) return false;
+    if (!buffer || !ctx || !sfxBus) return null;
     const src = ctx.createBufferSource();
     src.buffer = buffer;
     src.playbackRate.value = rate;
@@ -954,7 +1240,7 @@ export function createAudio({ volume = 0.5, muted = false, region = 'foundations
     try {
       src.start(when);
     } catch {
-      return false;
+      return null;
     }
     src.onended = () => {
       try {
@@ -963,7 +1249,44 @@ export function createAudio({ volume = 0.5, muted = false, region = 'foundations
         /* 已經斷開 */
       }
     };
-    return true;
+    return { src, gain: g };
+  }
+
+  /**
+   * 同時發聲數上限（音效交付清單的 `polyphony`）。
+   *
+   * 清單替每一顆音效寫了「最多幾把同時響」：轉鈕的卡榫是 1（轉快了應該是**換一下**，
+   * 不是兩下疊在一起）、量測的敲模是 2、鍛打是 3（連打要疊得起來才像手工）。
+   * 超過上限時**掐掉最舊的那一把**（12 ms 淡出，直接 stop 會有 click），
+   * 這樣新的一下永遠聽得見 —— 而不是讓新的被吃掉。
+   *
+   * 沒有寫 `poly` 的 cue（v1 那一批）維持原本的行為：不設限。
+   */
+  const voices = new Map();
+  function trackVoice(kind, poly, voice) {
+    if (!voice || !Number.isFinite(poly) || poly <= 0) return;
+    let list = voices.get(kind);
+    if (!list) {
+      list = [];
+      voices.set(kind, list);
+    }
+    voice.src.addEventListener('ended', () => {
+      const i = list.indexOf(voice);
+      if (i >= 0) list.splice(i, 1);
+    });
+    list.push(voice);
+    while (list.length > poly) {
+      const oldest = list.shift();
+      try {
+        const t = ctx.currentTime;
+        oldest.gain.gain.cancelScheduledValues(t);
+        oldest.gain.gain.setValueAtTime(oldest.gain.gain.value, t);
+        oldest.gain.gain.linearRampToValueAtTime(0.0001, t + 0.012);
+        oldest.src.stop(t + 0.014);
+      } catch {
+        /* 已經停了 */
+      }
+    }
   }
 
   /** 過關的頌缽響很久 —— 期間把配樂壓 3 dB，缽聲才浮得出來。 */
@@ -1185,15 +1508,26 @@ export function createAudio({ volume = 0.5, muted = false, region = 'foundations
   function playFileCue(kind, gainScale = 1) {
     if (!filesEnabled || isMuted || !ctx) return false;
     const spec = SFX_FILES[kind];
-    if (!spec || !decoded.has(spec.file)) return false;
-    const ok = playFile(spec.file, { gain: (spec.gain ?? 1) * gainScale, rate: spec.rate ?? 1 });
-    if (!ok) return false;
+    if (!spec) return false;
+    /*
+     * 同一個動作的兩顆素材隨機挑一顆（鍛打連打才不會像機器）。
+     * 挑到的那一顆還沒解好就退回主素材；兩顆都沒解好就回 false 走合成備援。
+     */
+    let take = spec;
+    if (spec.alt && decoded.has(spec.alt.file) && Math.random() < 0.5) take = spec.alt;
+    if (!decoded.has(take.file)) take = spec;
+    if (!decoded.has(take.file)) return false;
+    const voice = playFile(take.file, { gain: (take.gain ?? 1) * gainScale, rate: take.rate ?? 1 });
+    if (!voice) return false;
+    trackVoice(kind, spec.poly, voice);
     // 疊在同一次 cue 上的第二層（解鎖＝微光 ＋ 稍慢一點進來的石門）
     if (spec.layer && decoded.has(spec.layer.file)) {
-      playFile(spec.layer.file, {
+      const layerVoice = playFile(spec.layer.file, {
         gain: (spec.layer.gain ?? 1) * gainScale,
         delay: spec.layer.delay || 0,
       });
+      // 第二層跟著同一個 cue 的上限走（它是同一件事的另一半，不是另一件事）
+      trackVoice(`${kind}:layer`, spec.poly, layerVoice);
     }
     if (spec.duck) duckMusic(spec.duck);
     return true;
@@ -1377,17 +1711,26 @@ export function createAudio({ volume = 0.5, muted = false, region = 'foundations
      * @param {keyof SFX | keyof SFX_FILES} kind
      */
     cue(kind = 'pass', opts = {}) {
+      /*
+       * 轉鈕：一個 cue、三檔 —— `cue('simDial', { notch: 1 })`。
+       * 呼叫端不必知道三支檔案叫什麼，只要說「轉到第幾檔」。
+       */
+      if (kind === 'simDial') {
+        const n = Math.max(0, Math.min(SIM_NOTCH_CUES.length - 1, Number(opts.notch) || 0));
+        kind = SIM_NOTCH_CUES[n];
+      }
       const spec = SFX[kind];
       const fileSpec = SFX_FILES[kind];
       if (!spec && !fileSpec) return false;
       cueLog.push(kind);
       if (cueLog.length > 12) cueLog.shift();
 
-      // 連按的 UI 音要節流（刻印牌可以按很快，但聲音不能疊成一片）
+      // 連按的 UI 音要節流（刻印牌可以按很快，但聲音不能疊成一片）。
+      // 逐 cue 各自算 —— 敲一下鍛打不該讓刻印牌的按鍵音變啞。
       if (fileSpec && fileSpec.throttle && ctx) {
         const t = ctx.currentTime;
-        if (t - lastClickAt < fileSpec.throttle) return true;
-        lastClickAt = t;
+        if (t - (lastCueAt.get(kind) || -1e9) < fileSpec.throttle) return true;
+        lastCueAt.set(kind, t);
       }
 
       const gainScale = Number.isFinite(opts.gain) ? opts.gain : 1;
@@ -1429,6 +1772,9 @@ export function createAudio({ volume = 0.5, muted = false, region = 'foundations
           playing: Boolean(p && p.playing),
           segments: p ? p.segments.length : 0,
           gain: p ? Number(p.gain.gain.value.toFixed(4)) : 0,
+          /** 這一首播滿時的 gain（＝把它拉到 -20 LUFS 的倍率）。 */
+          targetGain: track ? trackGain(id) : 0,
+          lufs: track && Number.isFinite(track.lufs) ? track.lufs : null,
           loopSeconds: p && p.buffer ? Number(p.buffer.duration.toFixed(2)) : 0,
           synthGain: layers.has(id) ? Number(layers.get(id).gain.gain.value.toFixed(4)) : 0,
         };
@@ -1440,6 +1786,9 @@ export function createAudio({ volume = 0.5, muted = false, region = 'foundations
           ready: decoded.has(spec.file),
           fetch: fetchState.get(spec.file) || 'idle',
           synthFallback: Boolean(SFX[kind]),
+          gain: spec.gain ?? 1,
+          lufs: Number.isFinite(spec.lufs) ? spec.lufs : null,
+          alt: spec.alt ? spec.alt.file : null,
         };
       }
       return {
