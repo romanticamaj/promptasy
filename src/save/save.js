@@ -56,6 +56,28 @@ export function defaultSave() {
      * 有祖先的照舊寫進 `collected`（D2：收集不倒退），技能本身寫進這裡。
      */
     skillsV2: [],
+    /**
+     * 課程 v2（Phase J2）：已經拿到的**土地印記**（區域 id，12 枚）。
+     * 通過一片土地的應用關（試煉）就入袋，冪等、重玩不會重複給。
+     * 純加法：它不影響 XP、圖鑑、徽章、解鎖，只是「這片土地你走完了」的憑證。
+     */
+    seals: [],
+    /**
+     * 課程 v2（Phase J2）· 大師層印記（P14：可選，永不擋路 —— C9）。
+     *
+     *   penlessSeals 無筆之印：一座**教學神廟**，沒用快速填入、沒開提示球、
+     *                          沒看過範例、刻印時一次都沒被退，而且開關卡以來
+     *                          的**第一次呈遞**就拿到 S。
+     *   scribeSeals  默寫之印：一座**教學神廟**，用**自由書寫模式**拿到 S
+     *                          （同樣要求從沒看過這一關的範例）。
+     *   samplesSeen  看過範例的關卡 id —— 這一欄是**防作弊面**：
+     *                看過就永久記下來，關掉重開再拿 S 也不算「沒看範例」。
+     *
+     * 三欄都是純加法，也都**不是任何東西的解鎖條件**。
+     */
+    penlessSeals: [],
+    scribeSeals: [],
+    samplesSeen: [],
     badges: { openai: 0, anthropic: 0, google: 0, xai: 0 },
     settings: {
       music: 'ambient-01',
@@ -174,6 +196,11 @@ export function normalize(raw) {
     skippedGates: [...new Set(strArr(d.skippedGates) || [])],
     // 課程 v2 Phase B：舊存檔沒有 skillsV2 → 空陣列（純加法，不影響任何既有欄位）
     skillsV2: [...new Set(strArr(d.skillsV2) || [])],
+    // 課程 v2 Phase J2：土地印記與大師層印記 → 舊存檔一律補空陣列（純加法）
+    seals: [...new Set(strArr(d.seals) || [])],
+    penlessSeals: [...new Set(strArr(d.penlessSeals) || [])],
+    scribeSeals: [...new Set(strArr(d.scribeSeals) || [])],
+    samplesSeen: [...new Set(strArr(d.samplesSeen) || [])],
     bestGrades,
     badges,
     settings,

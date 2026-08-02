@@ -44,6 +44,8 @@ import { createTradeoffBoard, isTradeoffFlow } from './tradeoff.js';
 import { createConstraintBoard, isConstraintFlow } from './constraint.js';
 import { createMultiBoard, isMultiFlow } from './multi.js';
 import { createSimBoard, isSimFlow, registerSimDials } from './sim.js';
+import { createReverseBoard, isReverseFlow } from './reverse.js';
+import { isApplicationTrial, effectiveChallenge } from '../challenges/trial.js';
 
 export { registerSimDials };
 
@@ -154,6 +156,7 @@ export const FLOW_KINDS = Object.freeze([
   'constraint',
   'multi',
   'sim',
+  'reverse',
 ]);
 
 /**
@@ -177,6 +180,8 @@ export function flowKind(flow) {
   if (k === 'multi' && isMultiFlow(flow.multiFlow, flow.slots)) return 'multi';
   // 轉鈕：樣本住在 sim-samples.json，沒有註冊樣本時一律退回石碑刻印（見 sim.js 的契約）
   if (k === 'sim' && isSimFlow(flow.simFlow, flow.slots)) return 'sim';
+  // 拆碑：先把一份寫好的委託拆開標名字，標完才回到同一份 slots 刻印（見 reverse.js 的契約）
+  if (k === 'reverse' && isReverseFlow(flow.reverseFlow) && isSlotList(flow.slots)) return 'reverse';
   return 'choice';
 }
 
@@ -192,6 +197,7 @@ export const KIND_LABEL = Object.freeze({
   constraint: '合尺',
   multi: '兩輪刻印',
   sim: '轉鈕',
+  reverse: '拆碑',
 });
 
 /** 對應的 Latin meta label（版面上那一行小字）。 */
@@ -206,6 +212,7 @@ export const KIND_EN = Object.freeze({
   constraint: 'Fit',
   multi: 'Rounds',
   sim: 'Dial',
+  reverse: 'Unbuild',
 });
 
 /** 正規化模式字串（未知值一律回到預設的石碑刻印）。 */
@@ -234,6 +241,18 @@ export function createPromptConsole({
   /** 這一關這次開啟以來，送出後沒過的次數。 */
   let fails = 0;
   let sampleShown = false;
+  /*
+   * 課程 v2 · Phase J2：大師層印記（無筆之印 / 默寫之印）的判定材料。
+   * 全部是「這一次開啟關卡以來」的計數 —— 關掉重開就重來（判定寫在 progression）。
+   */
+  /** 這一次開啟以來呈遞了幾次（第 1 次就是 attempt === 1）。 */
+  let attempts = 0;
+  /** 這一次有沒有按過快速填入 / 技巧積木 / 提示球的「幫我填」。 */
+  let usedQuickFill = false;
+  /** 這一次有沒有開過提示球。 */
+  let usedCoach = false;
+  /** 這一次刻印被石碑退回幾次（引導式題型的「一次就對」）。 */
+  let rejects = 0;
   /** 上一次預檢時「已經亮起來」的檢查 id —— 用來偵測「這一項剛剛才亮」。 */
   let litBefore = new Set();
   /** 漂浮提示球目前指著哪一條檢查（在還沒做到的項目之間循環）。 */
@@ -402,6 +421,8 @@ export function createPromptConsole({
   const actSections = Array.from(overlay.body.querySelectorAll('[data-in-acts]'));
   const actNavEl = overlay.body.querySelector('[data-acts]');
   const actBtns = Array.from(overlay.body.querySelectorAll('[data-act-go]'));
+  const actRules = Array.from(overlay.body.querySelectorAll('.acts__rule'));
+  const act1NextBtn = overlay.body.querySelector('.act--brief [data-act-next]');
   const craftEl = overlay.body.querySelector('[data-craft]');
   const guidanceEl = overlay.body.querySelector('[data-guidance]');
   const guidanceExtraEl = overlay.body.querySelector('[data-guidance-extra]');
@@ -423,12 +444,18 @@ export function createPromptConsole({
    * 刻上一段 → 跑一次預檢（同一支引擎），左邊的檢查清單就跟著亮一盞燈；
    * 刻滿 → 手掌印出現 → 按住 → 呈給神諭（走的還是 submit()）。
    * ---------------------------------------------------------------- */
+  /** 石碑退回一次（大師層印記要求「一次就對」，所以要數）。 */
+  function noteReject(info) {
+    rejects += 1;
+    onReject?.({ feedback: info && info.feedback });
+  }
+
   const stele = createStele({
     onCarve: ({ index, total }) => {
       runPreflight();
       onCarve?.({ index, total });
     },
-    onReject: ({ feedback }) => onReject?.({ feedback }),
+    onReject: (info) => noteReject(info),
     onComplete: () => {
       onSeal?.();
       // 刻滿了 → 鏡頭切到第四幕：整個畫面只剩下那隻手掌
@@ -470,7 +497,7 @@ export function createPromptConsole({
       runPreflight();
       onCarve?.({ index: 1, total: 1 });
     },
-    onReject: ({ feedback }) => onReject?.({ feedback }),
+    onReject: (info) => noteReject(info),
     onStage: () => runPreflight({ silent: true }),
     onComplete: () => {
       onSeal?.();
@@ -491,7 +518,7 @@ export function createPromptConsole({
       runPreflight();
       onCarve?.({ index, total });
     },
-    onReject: ({ feedback }) => onReject?.({ feedback }),
+    onReject: (info) => noteReject(info),
     onRestore: () => runPreflight({ silent: true }),
     onComplete: () => {
       onSeal?.();
@@ -513,7 +540,7 @@ export function createPromptConsole({
       runPreflight();
       onCarve?.({ index: right, total });
     },
-    onReject: ({ feedback }) => onReject?.({ feedback }),
+    onReject: (info) => noteReject(info),
     onRestore: () => runPreflight({ silent: true }),
     onComplete: () => {
       onSeal?.();
@@ -539,7 +566,7 @@ export function createPromptConsole({
       runPreflight();
       onCarve?.({ index, total });
     },
-    onReject: ({ feedback }) => onReject?.({ feedback }),
+    onReject: (info) => noteReject(info),
     onComplete: () => {
       onSeal?.();
       goAct(4, { force: true });
@@ -564,7 +591,7 @@ export function createPromptConsole({
       runPreflight();
       onCarve?.({ index, total });
     },
-    onReject: ({ feedback }) => onReject?.({ feedback }),
+    onReject: (info) => noteReject(info),
     onComplete: () => {
       onSeal?.();
       goAct(4, { force: true });
@@ -586,7 +613,7 @@ export function createPromptConsole({
       runPreflight();
       onCarve?.({ index: lit, total });
     },
-    onReject: ({ feedback }) => onReject?.({ feedback }),
+    onReject: (info) => noteReject(info),
     onRestore: () => runPreflight({ silent: true }),
     onComplete: () => {
       onSeal?.();
@@ -609,7 +636,7 @@ export function createPromptConsole({
       runPreflight();
       onCarve?.({ index, total });
     },
-    onReject: ({ feedback }) => onReject?.({ feedback }),
+    onReject: (info) => noteReject(info),
     onRound: () => runPreflight({ silent: true }),
     onComplete: () => {
       onSeal?.();
@@ -635,7 +662,7 @@ export function createPromptConsole({
       runPreflight();
       onCarve?.({ index, total });
     },
-    onReject: ({ feedback }) => onReject?.({ feedback }),
+    onReject: (info) => noteReject(info),
     onComplete: () => {
       onSeal?.();
       goAct(4, { force: true });
@@ -645,12 +672,39 @@ export function createPromptConsole({
   });
   steleSlot.appendChild(simBoard.root);
 
+  /* ---------------------------------------------------------------- *
+   * 拆碑（課程 v2 · Phase J）
+   *
+   * 牆上釘著一份**已經寫得很好**的舊委託，被拆成幾塊；玩家要一塊一塊
+   * 說出「它為什麼在這裡」。貼錯只會「碑不收這個名字 ＋ 就地教學」，
+   * `Esc` 把剛剛貼好的那一塊拆回來（見 reverse.js 的鍵位契約）；
+   * 整份拆完之後，才回到同一組 slots 刻印。
+   * ---------------------------------------------------------------- */
+  const reverseBoard = createReverseBoard({
+    onLabel: ({ index, total }) => {
+      onCarve?.({ index, total });
+    },
+    onCarve: ({ index, total }) => {
+      runPreflight();
+      onCarve?.({ index, total });
+    },
+    onReject: (info) => noteReject(info),
+    onRestore: () => runPreflight({ silent: true }),
+    onComplete: () => {
+      onSeal?.();
+      goAct(4, { force: true });
+    },
+    onPress: ({ text }) => submit(text),
+    onTap: () => onTap?.(),
+  });
+  steleSlot.appendChild(reverseBoard.root);
+
   /** 這一關的引導式題型（choice / order / workshop / fix / spot / induct / tradeoff / constraint / multi）。 */
   function kind() {
     return flowKind(currentFlow);
   }
 
-  /** 現在在台上的那一塊石碑（五種題型共用同一組介面）。 */
+  /** 現在在台上的那一塊石碑（所有題型共用同一組介面）。 */
   function board() {
     const k = kind();
     if (k === 'order') return orderBoard;
@@ -662,6 +716,7 @@ export function createPromptConsole({
     if (k === 'constraint') return constraintBoard;
     if (k === 'multi') return multiBoard;
     if (k === 'sim') return simBoard;
+    if (k === 'reverse') return reverseBoard;
     return stele;
   }
 
@@ -697,7 +752,7 @@ export function createPromptConsole({
     freeWrap.hidden = guided;
     freeLabel.hidden = guided;
     guidedLabel.hidden = !guided;
-    // 七種題型共用一個舞台，一次只有一種在上面
+    // 所有題型共用一個舞台，一次只有一種在上面
     stele.root.hidden = !guided || k !== 'choice';
     orderBoard.root.hidden = !guided || k !== 'order';
     workshop.root.hidden = !guided || k !== 'workshop';
@@ -708,6 +763,7 @@ export function createPromptConsole({
     constraintBoard.root.hidden = !guided || k !== 'constraint';
     multiBoard.root.hidden = !guided || k !== 'multi';
     simBoard.root.hidden = !guided || k !== 'sim';
+    reverseBoard.root.hidden = !guided || k !== 'reverse';
     const zhLabel = guidedLabel.querySelector('.zh');
     if (zhLabel) zhLabel.textContent = KIND_LABEL[k];
     const enLabel = guidedLabel.querySelector('.en');
@@ -742,6 +798,17 @@ export function createPromptConsole({
    * 幕內的每一行再照 .reveal .d1 .d2 .d3 依序浮出來（參考自 llm-agent-playground）。
    * ---------------------------------------------------------------- */
 
+  /**
+   * 這一關走哪幾幕。
+   *
+   * 課程 v2 · Phase J2：應用關（試煉）**不教任何新技巧**，所以第二幕
+   * （神諭刻文）整幕不存在 —— 不是「被鎖住」，是這一關根本沒有那一幕
+   * （curriculum-v2 §5.2）。指示器上因此不會畫出第二幕，`Alt + 2` 也不會有反應。
+   */
+  function actOrder() {
+    return isApplicationTrial(current) ? [1, 3, 4] : [1, 2, 3, 4];
+  }
+
   /** 第四幕在兩種模式下的名字：石碑刻印＝手印，自由書寫＝呈遞。 */
   function act4Zh() {
     return isGuided() ? ACTS[3].zh : ACT4_FREE_ZH;
@@ -755,18 +822,28 @@ export function createPromptConsole({
   function canGoAct(n) {
     if (!current) return false;
     if (!Number.isInteger(n) || n < 1 || n > ACTS.length) return false;
+    const seq = actOrder();
+    if (!seq.includes(n)) return false;
     if (n === 4) {
       if (isGuided() ? !board().done : resultEl.hidden) return false;
     }
-    return visited.has(n) || n === act + 1;
+    // 「往前推一幕」＝這一關真的走得到的下一幕（試煉是 1 → 3 → 4）
+    return visited.has(n) || n === seq[seq.indexOf(act) + 1];
   }
 
   /** 進度指示器：目前這一幕標亮，走不到的幕按不下去。 */
   function renderActNav() {
     const guided = isGuided();
     actNavEl.hidden = !current;
+    const seq = actOrder();
+    // 試煉沒有第二幕：整塊封印石與它後面那一段軌道都不畫出來（誠實，不是鎖住）
+    for (const btn of actBtns) btn.hidden = !seq.includes(Number(btn.getAttribute('data-act-go')));
+    actRules.forEach((rule, i) => {
+      rule.hidden = !(seq.includes(i + 1) && seq.includes(i + 2));
+    });
     for (const btn of actBtns) {
       const n = Number(btn.getAttribute('data-act-go'));
+      if (btn.hidden) continue;
       const isNow = n === act;
       btn.classList.toggle('is-now', isNow);
       btn.classList.toggle('is-done', visited.has(n) && !isNow);
@@ -808,6 +885,9 @@ export function createPromptConsole({
   function goAct(n, { force = false, focus = true } = {}) {
     if (!current) return act;
     if (!Number.isInteger(n) || n < 1 || n > ACTS.length) return act;
+    // 試煉沒有第二幕：任何想去第二幕的請求（含 Enter 推進）一律落到刻印
+    const seq = actOrder();
+    if (!seq.includes(n)) n = seq[Math.min(seq.indexOf(act) + 1, seq.length - 1)];
     if (!force && !canGoAct(n)) return act;
     const changed = n !== act;
     act = n;
@@ -844,18 +924,24 @@ export function createPromptConsole({
   function guidanceRow(row, { techniqueId = null, skillId = null } = {}) {
     const entry = content.coach(row.check);
     const def = CHECKS[row.check];
-    // 主教學目標用的是這一關的 primaryTechniqueId（Phase A：一關只教一條）；
-    // 其他列仍然掛自己的 techniqueId，只是不再有自己的教學段落。
+    /*
+     * 課程 v2 · Phase J3（D2 相容層拆除）：
+     * 「這一關教什麼」一律以 **v2 技能**（`skillId`）為正典 —— 130 座教學神廟
+     * 每一座都掛得出自己的 `primarySkillId`，所以再也沒有「找不到就退回舊技巧」
+     * 這條路。舊的 `techniqueId` 只剩兩個用途，都不是「教學語意」：
+     *   · 收集誠實層：這一列對應的舊 68 條技巧（圖鑑／四廠徽章靠它，不倒退）；
+     *   · Phase 26 的時代註記（`dated-notes.json` 是掛在舊技巧 id 上的）。
+     */
     const techId = techniqueId || row.techniqueId;
     const tech = content.technique(techId);
     // 退回官方 tip 時也走中文譯寫層（Phase 14：畫面上不出現整句英文）
     const view = content.displayTechnique(techId);
     /**
-     * 課程 v2（Phase B）新蓋的神廟教的是 v2 技能，祖先不一定在舊 68 條裡 ——
-     * 這時原典改從 catalog 拿（一樣是真實官方文件名 ＋ 可點連結，護欄 2）。
+     * 教學神廟的原典一律從 catalog 拿（v2 技能的官方文件，護欄 2）。
+     * `content.sourceFor(techId)` 只留給**沒有主技能的那幾列**（地基、應用關的候選列）。
      */
     const skill = skillId ? content.skill(skillId) : null;
-    const src = (skillId && content.sourceForSkill(skillId)) || content.sourceFor(techId);
+    const src = skillId ? content.sourceForSkill(skillId) : content.sourceFor(techId);
     return {
       check: row.check,
       title: (entry && entry.title) || (def && def.label) || row.check,
@@ -887,9 +973,13 @@ export function createPromptConsole({
   function guidancePrimary(challenge) {
     const row = primaryRow(challenge);
     if (!row) return null;
+    /*
+     * D2 相容層拆除（Phase J3）：主教學目標＝這一關的 `primarySkillId`，沒有退路。
+     * `primaryTechniqueId` 只是舊 68 條的祖先（收集與時代註記用），可以是 null。
+     */
     return guidanceRow(row, {
-      techniqueId: challenge.primaryTechniqueId || row.techniqueId,
-      skillId: challenge.primarySkillId || row.skillId || null,
+      techniqueId: challenge.primaryTechniqueId,
+      skillId: challenge.primarySkillId,
     });
   }
 
@@ -935,9 +1025,9 @@ export function createPromptConsole({
         </li>`
       : /*
          * 沒有主教學目標的關卡＝應用關（不教新技巧，只考已經學過的東西）。
-         * 它們維持 Phase 12 的樣子：每一條檢查各一段刻文 ＋ 各自的原典 ——
-         * 因為那本來就不是「一次教四條」，而是「把四條學過的用出來」。
-         * 真正的應用關型式（跳過第二幕）等 Phase J。
+         * Phase J2 之後它們**整個第二幕都不存在**（`actOrder()` 是 [1,3,4]、
+         * 第三幕的側頁籤也是 hidden），所以這一段只在資料異常時才會被看到；
+         * 留著是為了「資料壞掉也不會白畫面」的降級路徑。
          */
         challenge.rubric
           .map((row) => guidanceRow(row))
@@ -1019,7 +1109,8 @@ export function createPromptConsole({
     const t = e.target;
     if (t && t.closest && t.closest('a, button, summary, input, textarea, [contenteditable]')) return;
     e.preventDefault();
-    goAct(act + 1, { force: true });
+    const seq = actOrder();
+    goAct(seq[seq.indexOf(act) + 1] || act, { force: true });
   });
 
   /* ---------------------------------------------------------------- *
@@ -1155,6 +1246,7 @@ export function createPromptConsole({
 
   on(overlay.body, '[data-fragment]', 'click', (e, target) => {
     const fragment = target.getAttribute('data-fragment');
+    usedQuickFill = true;
     insertAtCursor(`${fragment}\n`);
     // 撿走過的石籤：和快速填入同一套「用過」的樣式（Phase 18）
     target.classList.add('is-used');
@@ -1167,6 +1259,7 @@ export function createPromptConsole({
     const idx = Number(target.getAttribute('data-fill'));
     const fill = ((current && current.quickFills) || [])[idx];
     if (!fill) return;
+    usedQuickFill = true;
     insertAtCursor(`${fill.text}\n`);
     target.classList.add('is-used');
     runPreflight();
@@ -1176,6 +1269,8 @@ export function createPromptConsole({
   sampleBtn.addEventListener('click', () => {
     if (sampleBtn.disabled || !current || !current.sample) return;
     sampleShown = true;
+    // 大師層的防作弊面：範例翻開過就**永久**記著（關掉重開再拿 S 也不算「沒看範例」）
+    progression.markSampleSeen?.(current.id);
     textarea.value = current.sample;
     updateCount();
     runPreflight();
@@ -1234,14 +1329,21 @@ export function createPromptConsole({
    */
   function renderChecklist(challenge, evaluation = null, fresh = []) {
     const freshSet = new Set(fresh);
+    /** 試煉不教新技巧 —— 對照表上也不放官方連結（curriculum-v2 §5.2）。 */
+    const trial = isApplicationTrial(challenge);
+    /** 學過的候選列不到兩條時被補進來的那幾條（誠實標出來，不軟鎖）。 */
+    const short = new Set(((challenge.__trial && challenge.__trial.shortfall) || []).map((r) => r.check));
     checklistEl.innerHTML = challenge.rubric
       .map((row, i) => {
         // 主檢查掛的是這一關真正教的那條技巧（Phase A），其餘掛自己的
         const techId = (row.primary && challenge.primaryTechniqueId) || row.techniqueId;
-        // 課程 v2 的神廟：主檢查那一列掛的是 v2 技能，原典從 catalog 拿
-        const skillId = (row.primary && challenge.primarySkillId) || row.skillId || null;
+        /*
+         * 課程 v2 · Phase J3：主檢查那一列的技能＝`primarySkillId`（沒有退路，
+         * 130 座教學神廟每一座都有）；其餘的列（地基、應用關的候選列）掛自己的。
+         */
+        const skillId = row.primary ? challenge.primarySkillId || null : row.skillId || null;
         const skill = skillId ? content.skill(skillId) : null;
-        const src = (skillId && content.sourceForSkill(skillId)) || content.sourceFor(techId);
+        const src = trial ? null : (skillId && content.sourceForSkill(skillId)) || content.sourceFor(techId);
         const def = CHECKS[row.check];
         const tech = skill ? { title: skill.nameZh } : content.technique(techId);
         const r = evaluation ? evaluation.results[i] : null;
@@ -1258,13 +1360,27 @@ export function createPromptConsole({
           <span class="checklist__text">
             <b>${esc(def ? def.label : row.check)}</b>
             ${row.primary ? '<em class="checklist__tag">這一關教的</em>' : ''}
-            ${tech ? `<i>${esc(tech.title)}</i>` : ''}
+            ${row.candidate && !short.has(row.check) ? '<em class="checklist__tag">你已經學過</em>' : ''}
+            ${short.has(row.check) ? '<em class="checklist__tag">這一條你還沒學過</em>' : ''}
+            ${trial && skill ? `<i>${esc(skill.nameZh)}</i>` : tech ? `<i>${esc(tech.title)}</i>` : ''}
           </span>
           <span class="checklist__w">${formatScore(row.weight)} 分</span>
           ${src ? `<a class="src" href="${esc(src.url)}" target="_blank" rel="noopener">出處 ↗</a>` : ''}
         </li>`;
       })
       .join('');
+    /*
+     * 試煉的對照表上多一句話：這幾條是**你已經學過的**（沒學過的不列）。
+     * 少於兩條時會照資料層的順序補到兩條，並且誠實說出來 —— 不軟鎖（P9）。
+     */
+    if (trial) {
+      const li = document.createElement('li');
+      li.className = 'checklist__note';
+      li.textContent = short.size
+        ? `這是試煉：只考你在這片土地上學過的。其中 ${short.size} 條你還沒學過，先看一眼再寫。`
+        : '這是試煉：上面每一條，你都已經在這片土地上學過了。';
+      checklistEl.appendChild(li);
+    }
   }
 
   /**
@@ -1462,6 +1578,7 @@ export function createPromptConsole({
   function setCoachOpen(next, { focus = true } = {}) {
     const before = coachOpen;
     coachOpen = typeof next === 'boolean' ? next : !coachOpen;
+    if (coachOpen) usedCoach = true;
     orbEl.classList.remove('is-nudging');
     renderCoach();
     if (!focus || coachOpen === before) return coachOpen;
@@ -1547,8 +1664,22 @@ export function createPromptConsole({
 
   function renderResult(evaluation) {
     const challenge = current;
-    const outcome = progression.recordResult(evaluation);
+    /*
+     * 課程 v2 · Phase J2：大師層印記的判定材料一起送進去。
+     * 判定本身寫在 progression（`masterSealFor`），這裡只負責誠實回報
+     * 「這一次到底用了什麼輔助」。
+     */
+    const outcome = progression.recordResult(evaluation, {
+      mode: isGuided() ? 'guided' : 'free',
+      attempt: attempts,
+      usedQuickFill,
+      usedCoach,
+      rejects,
+      sampleShown,
+    });
     lastEvaluation = evaluation;
+    /** 試煉不教新技巧 —— 畫面上不放官方連結（curriculum-v2 §5.2）。 */
+    const trial = isApplicationTrial(challenge);
 
     const rows = evaluation.results
       .map((r, i) => {
@@ -1556,9 +1687,11 @@ export function createPromptConsole({
         const icon = r.passed ? '✓' : r.partial ? '◐' : '✕';
         // 課程 v2 的神廟：這一列教的是 v2 技能時，原典從 catalog 拿（一樣是官方連結）
         const rowSpec = (challenge && challenge.rubric && challenge.rubric[i]) || {};
-        const skillId = (rowSpec.primary && challenge && challenge.primarySkillId) || rowSpec.skillId || null;
+        const skillId = rowSpec.primary
+          ? (challenge && challenge.primarySkillId) || null
+          : rowSpec.skillId || null;
         const skill = skillId ? content.skill(skillId) : null;
-        const src = (skillId && content.sourceForSkill(skillId)) || content.sourceFor(r.techniqueId);
+        const src = trial ? null : (skillId && content.sourceForSkill(skillId)) || content.sourceFor(r.techniqueId);
         const tech = skill ? { title: skill.nameZh } : content.technique(r.techniqueId);
         return `<li class="row row--${state}" style="--i:${i}">
           <span class="row__icon">${icon}</span>
@@ -1639,11 +1772,17 @@ export function createPromptConsole({
               .join('')}</ul></div>`
           : ''
       }
-      <p class="result__source reveal" style="--i:${tail + 2}">本關技巧的官方出處
+      ${
+        trial
+          ? `<p class="result__source reveal" style="--i:${
+              tail + 2
+            }">這是試煉 —— 它不教新的技法，只把你在這片土地上學過的再用一次。</p>`
+          : `<p class="result__source reveal" style="--i:${tail + 2}">本關技巧的官方出處
         <a class="src" href="${esc(challenge.source)}" target="_blank" rel="noopener">${esc(
           content.sourceName(challenge.source)
         )} ↗</a>
-      </p>
+      </p>`
+      }
       ${
         evaluation.passed
           ? `<div class="result__share reveal" style="--i:${tail + 3}">
@@ -1683,6 +1822,7 @@ export function createPromptConsole({
    */
   function submit(textOverride) {
     if (!current) return;
+    attempts += 1;
     onSubmit?.(current);
     const evaluation = evaluate(current, typeof textOverride === 'string' ? textOverride : currentText());
     if (!evaluation.passed) {
@@ -1770,10 +1910,14 @@ export function createPromptConsole({
     get simBoard() {
       return simBoard;
     },
+    /** 拆碑的把手（測試與除錯用）。 */
+    get reverseBoard() {
+      return reverseBoard;
+    },
     get tradeoffBoard() {
       return tradeoffBoard;
     },
-    /** 現在台上是哪一種題型（七種其一）。 */
+    /** 現在台上是哪一種題型（FLOW_KINDS 其一）。 */
     get kind() {
       return kind();
     },
@@ -1783,7 +1927,7 @@ export function createPromptConsole({
     get flowKinds() {
       return FLOW_KINDS;
     },
-    /** 現在台上的那一塊石碑（七種題型共用同一組介面）。 */
+    /** 現在台上的那一塊石碑（所有題型共用同一組介面）。 */
     get board() {
       return board();
     },
@@ -1817,11 +1961,20 @@ export function createPromptConsole({
       return mode;
     },
     open(challenge) {
-      current = challenge;
+      /*
+       * 課程 v2 · Phase J2：應用關（試煉）的 rubric 是**在這一刻**組出來的 ——
+       * 只列你已經學會的那幾條（`knowsSkill`），門檻用同一條公式重算
+       * （見 src/challenges/trial.js）。其餘關卡原樣傳進來，零行為變化。
+       */
+      current = effectiveChallenge(challenge, (id) => progression.knowsSkill?.(id) ?? true);
       currentFlow = content.flow ? content.flow(challenge.id) : null;
       lastEvaluation = null;
       fails = 0;
       sampleShown = false;
+      attempts = 0;
+      usedQuickFill = false;
+      usedCoach = false;
+      rejects = 0;
       const best = progression.bestGrade(challenge.id);
       const group = content.group(challenge.region);
       const siblings = content.challengesOf(challenge.region);
@@ -1860,16 +2013,22 @@ export function createPromptConsole({
       lastPreflight = null;
       // 石碑：這一關的作答流程（沒有流程資料的關卡自動退回自由書寫）
       const k = flowKind(currentFlow);
+      /*
+       * 課程 v2 · Phase J2：自由書寫的試煉**沒有流程資料**（那就是鷹架撤除的
+       * 最後一格）—— 所有石碑一律載入空的，`f` 這個安全取值讓這條路不會爆。
+       */
+      const f = currentFlow || {};
       stele.load(k === 'choice' ? currentFlow : null);
-      orderBoard.load(k === 'order' ? currentFlow.orderFlow : null);
-      workshop.load(k === 'workshop' ? currentFlow.workshop : null);
-      fixBoard.load(k === 'fix' ? currentFlow.fixFlow : null);
-      spotBoard.load(k === 'spot' ? currentFlow.spotFlow : null);
-      inductBoard.load(k === 'induct' ? currentFlow.inductFlow : null, currentFlow.slots);
-      tradeoffBoard.load(k === 'tradeoff' ? currentFlow.tradeoffFlow : null, currentFlow.slots);
-      constraintBoard.load(k === 'constraint' ? currentFlow.constraintFlow : null);
-      multiBoard.load(k === 'multi' ? currentFlow.multiFlow : null, currentFlow.slots);
-      simBoard.load(k === 'sim' ? currentFlow.simFlow : null, currentFlow.slots);
+      orderBoard.load(k === 'order' ? f.orderFlow : null);
+      workshop.load(k === 'workshop' ? f.workshop : null);
+      fixBoard.load(k === 'fix' ? f.fixFlow : null);
+      spotBoard.load(k === 'spot' ? f.spotFlow : null);
+      inductBoard.load(k === 'induct' ? f.inductFlow : null, f.slots);
+      tradeoffBoard.load(k === 'tradeoff' ? f.tradeoffFlow : null, f.slots);
+      constraintBoard.load(k === 'constraint' ? f.constraintFlow : null);
+      multiBoard.load(k === 'multi' ? f.multiFlow : null, f.slots);
+      simBoard.load(k === 'sim' ? f.simFlow : null, f.slots);
+      reverseBoard.load(k === 'reverse' ? f.reverseFlow : null, f.slots);
       mode = normalizeMode(progression.state.settings.promptMode);
       if (!currentFlow) mode = 'free';
       applyMode();
@@ -1879,9 +2038,17 @@ export function createPromptConsole({
        * 選擇權在玩家手上（進度指示器上的 ③ 會是可按的）。
        */
       visited = new Set([1]);
-      if (progression.hasSeenGuidance?.(challenge.id)) {
+      if (!isApplicationTrial(current) && progression.hasSeenGuidance?.(challenge.id)) {
         visited.add(2);
         visited.add(3);
+      }
+      // 試煉沒有指引可以翻回去：側頁籤整個收起來（那裡本來就沒有東西）
+      const trialNow = isApplicationTrial(current);
+      if (guideTabEl) guideTabEl.hidden = trialNow;
+      // 第一幕的出口：一般關卡去聽指引，試煉直接進刻印（沒有第二幕）
+      if (act1NextBtn) {
+        act1NextBtn.setAttribute('data-act-next', trialNow ? '3' : '2');
+        act1NextBtn.textContent = trialNow ? '接下試煉 →' : '聆聽指引 →';
       }
       act = 1;
       goAct(1, { force: true, focus: false });

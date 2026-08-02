@@ -1673,6 +1673,16 @@ a.src:hover {
   color: var(--paper-3);
   margin-top: 2px;
 }
+/* 課程 v2 · Phase J2：試煉的對照表底下那一句話（安靜，不搶戲）。 */
+.checklist__note {
+  display: block;
+  margin-top: var(--s3);
+  padding-top: var(--s3);
+  border-top: 1px solid var(--rule);
+  font-size: var(--t-micro);
+  line-height: 1.7;
+  color: var(--paper-4);
+}
 .checklist__w {
   font-family: var(--font-mono);
   font-size: var(--t-micro);
@@ -2135,6 +2145,63 @@ a.src:hover {
 
 /* ================================================================ codex
    收藏品的目錄：像美術館的圖錄，不像清單。 */
+/* ------------------------------------------------------------------ *
+ * 課程 v2 · Phase J2：印記（土地印記 ＋ 大師層）
+ *
+ * 它們是選配的（C9：永不擋路），所以刻意做得比廠家徽章更安靜：
+ * 沒有色塊、沒有動畫，只有一枚小小的刻痕與名字。
+ * ------------------------------------------------------------------ */
+.seals {
+  margin-bottom: var(--s7);
+}
+.seals h4 {
+  margin: 0;
+}
+.seals__list {
+  list-style: none;
+  margin: 0 0 var(--s4);
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s3) var(--s5);
+}
+.seal {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  font-size: var(--t-micro);
+  color: var(--paper-4);
+  /* 窄畫面上寧可換行也不要把面板撐寬（12 片土地的名字加起來很長） */
+  min-width: 0;
+}
+.seal__mark {
+  color: var(--ink-4);
+  font-size: 1.1em;
+}
+.seal.is-on {
+  color: var(--paper-1);
+}
+.seal.is-on .seal__mark {
+  color: var(--gold);
+}
+.seal.is-pure b::after {
+  content: ' ✒';
+  color: var(--gold);
+}
+.mseals {
+  margin-left: var(--s2);
+  white-space: nowrap;
+}
+.mseal {
+  color: var(--gold);
+  font-size: var(--t-micro);
+  margin-left: 2px;
+}
+.region-card__trial {
+  margin: 0 0 var(--s4);
+  font-size: var(--t-micro);
+  color: var(--gold);
+}
 .badges {
   margin-bottom: var(--s7);
 }
@@ -5511,11 +5578,142 @@ select option:disabled {
 .tradelog__side {
   color: #eef4fa;
 }
+/* 模型卡上的官方出處（課程 v2 · Phase J 的反差題）：兩張卡秤完之後並排留著 */
+.twoface__srcs,
+.tradelog__srcs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2) var(--s3);
+  margin: 0;
+}
+.twoface__src {
+  font-size: var(--t-micro);
+  line-height: 1.7;
+  color: var(--gold);
+  text-decoration: none;
+  border-bottom: 1px solid var(--rule-gold);
+}
+.twoface__src:hover,
+.twoface__src:focus-visible {
+  color: #f4dcb4;
+}
 @media (prefers-reduced-motion: reduce) {
   .wallrow.is-fresh,
   .wallrow.is-bounce,
   .face,
   .tradelog {
+    animation: none;
+  }
+}
+
+/* ================================================================
+   拆碑（課程 v2 · Phase J）—— 一份寫好的委託被拆開來讀
+
+   還是石碑刻印的變體：視覺語言沿用 .stele / .carve / .opt，
+   這裡只加「被拆開的那一份」與名牌自己的部分。
+   已經標好名字的那一塊走暖金（那是成就熱點），沒標的安靜地等。
+   ================================================================ */
+.reverseboard[hidden] {
+  display: none;
+}
+.reverseboard {
+  display: grid;
+  gap: var(--s4);
+}
+.taken {
+  padding: var(--s3);
+  border-left: 1px solid var(--rule);
+  background: linear-gradient(180deg, rgba(19, 27, 38, 0.6), rgba(8, 11, 17, 0.4));
+}
+.taken__eyebrow {
+  margin: 0 0 var(--s2);
+  font-size: var(--t-micro);
+  letter-spacing: 0.02em;
+  color: var(--paper-4);
+}
+.taken__lead {
+  margin: 0 0 var(--s3);
+  font-size: var(--t-micro);
+  line-height: 1.8;
+  color: var(--paper-3);
+}
+.taken__parts {
+  display: grid;
+  gap: var(--s2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.takenpart {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  align-items: start;
+  gap: var(--s3);
+  padding: var(--s2) var(--s3);
+  font-family: var(--font-input);
+  font-size: var(--t-micro);
+  line-height: 1.85;
+  color: var(--paper-3);
+  box-shadow: inset 0 0 0 1px rgba(214, 232, 244, 0.07);
+}
+.takenpart.is-now {
+  color: #eef4fa;
+  box-shadow: inset 0 1px 0 rgba(214, 232, 244, 0.08), inset 0 0 0 1px var(--rule);
+}
+.takenpart.is-named {
+  color: #f2ead9;
+  box-shadow: inset 0 1px 0 rgba(230, 199, 155, 0.2), inset 0 0 0 1px var(--rule-gold);
+  animation: opt-in var(--d-mid) var(--e-out) both;
+}
+.takenpart__n {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  margin-top: 3px;
+  font-size: var(--t-micro);
+  color: var(--paper-4);
+}
+.takenpart__body {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.takenpart__text {
+  overflow-wrap: anywhere;
+}
+.takenpart__tag {
+  font-family: var(--font-ui);
+  font-size: var(--t-micro);
+  letter-spacing: 0.02em;
+  color: var(--gold);
+}
+.takenpart__why {
+  font-family: var(--font-ui);
+  font-size: var(--t-micro);
+  line-height: 1.8;
+  color: var(--paper-3);
+}
+.takenpart.is-bounce {
+  animation: spot-bounce 320ms var(--e-out);
+}
+.taken__rule {
+  margin: var(--s3) 0 0;
+  padding-left: var(--s3);
+  border-left: 1px solid var(--rule-gold);
+  font-size: var(--t-micro);
+  line-height: 1.8;
+  color: var(--paper-3);
+}
+.opt__gist {
+  display: block;
+  font-size: var(--t-micro);
+  line-height: 1.7;
+  color: var(--paper-4);
+}
+@media (prefers-reduced-motion: reduce) {
+  .takenpart.is-named,
+  .takenpart.is-bounce {
     animation: none;
   }
 }
@@ -7391,6 +7589,7 @@ select option:disabled {
   .spot__text,
   .frag__text,
   .slip__text,
+  .takenpart__text,
   .gauge__want {
     overflow-wrap: anywhere;
   }
@@ -7404,6 +7603,7 @@ select option:disabled {
   .block,
   .face,
   .wallrow,
+  .takenpart,
   .slip,
   .btn,
   .modeswitch,

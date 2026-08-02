@@ -26,6 +26,7 @@ const readJson = (p) => JSON.parse(readFileSync(resolve(root, p), 'utf8'));
 
 const { evaluate } = await import('../src/challenges/rubric.js');
 const { runCheck } = await import('../src/challenges/checks.js');
+const TRIAL_API = await import('../src/challenges/trial.js');
 
 const GRADE_RANK = { C: 0, B: 1, A: 2, S: 3 };
 
@@ -290,6 +291,13 @@ export function runPlaytestVerify({ ok, eq }) {
   const challengeData = readJson('src/data/challenges.json');
   const challenges = challengeData.challenges;
   const flowFile = readJson('src/data/flows.json');
+  /*
+   * 課程 v2 · Phase J2：關卡分成教學神廟（130 座）與應用關（12 座試煉）。
+   * 「每一區 N 座教學神廟」「一條主檢查 ＋ 一條地基」這種斷言只對神廟成立；
+   * 試煉的 rubric 是 runtime 依「你已經學會什麼」組出來的，另有自己的一節。
+   */
+  const shrines = challenges.filter((c) => c.application !== true);
+  const trials = challenges.filter((c) => c.application === true);
 
   /* --- A/B/C：26 關的通關門檻 --- */
   for (const c of challenges) {
@@ -302,18 +310,22 @@ export function runPlaytestVerify({ ok, eq }) {
       `grade=${sample.grade} earned=${sample.earned}/${sample.total}`
     );
 
-    // 零思考路徑：把所有快速填入依序按下去
+    // 零思考路徑：把所有快速填入依序按下去（試煉刻意沒有快速填入 —— 鷹架撤除）
     const chips = (c.quickFills || []).map((q) => q.text);
-    ok(chips.length >= 2, `${tag} playtest：至少兩顆快速填入`, `n=${chips.length}`);
-    const joined = chips.join('\n');
-    const quick = evaluate(c, joined);
-    ok(
-      quick.passed,
-      `${tag} playtest：快速填入全按下去就過關（零思考路徑）`,
-      `earned=${quick.earned}/${quick.total} pass=${c.pass}｜缺：${quick.missing
-        .map((m) => m.check)
-        .join('、')}`
-    );
+    if (c.application === true) {
+      ok(chips.length === 0, `${tag} playtest：試煉沒有快速填入（鷹架撤除的最後一格）`, `n=${chips.length}`);
+    } else {
+      ok(chips.length >= 2, `${tag} playtest：至少兩顆快速填入`, `n=${chips.length}`);
+      const joined = chips.join('\n');
+      const quick = evaluate(c, joined);
+      ok(
+        quick.passed,
+        `${tag} playtest：快速填入全按下去就過關（零思考路徑）`,
+        `earned=${quick.earned}/${quick.total} pass=${c.pass}｜缺：${quick.missing
+          .map((m) => m.check)
+          .join('、')}`
+      );
+    }
 
     if ('starter' in c) {
       const weak = evaluate(c, c.starter);
@@ -352,6 +364,11 @@ export function runPlaytestVerify({ ok, eq }) {
 
     /* --- E：石碑刻印（預設玩法）的門檻 --- */
     const flow = flowFile.flows[c.id];
+    if (c.application === true && !flow) {
+      // 自由書寫的試煉：沒有石碑就是它的設計（C5 鷹架遞減的最後一格）
+      ok(true, `${tag} playtest：自由書寫的試煉沒有石碑（鷹架撤除）`);
+      continue;
+    }
     ok(!!flow, `${tag} playtest：有石碑刻印流程（預設玩法）`);
     if (!flow) continue;
     const picks = flow.slots.map((s) => s.options.find((o) => o.correct).text);
@@ -653,7 +670,7 @@ export function runPlaytestVerify({ ok, eq }) {
    *   · 起手的壞寫法一定還沒學到那一條（不然玩家沒有東西可以學）
    * ------------------------------------------------------------------ */
   {
-    const forms = challenges.filter((c) => c.region === 'forms');
+    const forms = shrines.filter((c) => c.region === 'forms');
     ok(forms.length === 14, `playtest：量器坊有 14 座教學神廟（實際 ${forms.length}）`);
     const skills = forms.map((c) => c.primarySkillId).filter(Boolean);
     ok(skills.length === forms.length, 'playtest：量器坊每一關都接上了 v2 技能');
@@ -734,7 +751,7 @@ export function runPlaytestVerify({ ok, eq }) {
    * I：校驗場 11 座 ＋ 流程與代理 12 座（課程 v2 · Phase G）
    * ------------------------------------------------------------------ */
   for (const [regionId, zh, want] of [['orchestration', '流程與代理', 12], ['refinery', '校驗場', 11]]) {
-    const list = challenges.filter((c) => c.region === regionId);
+    const list = shrines.filter((c) => c.region === regionId);
     ok(list.length === want, `playtest：${zh}有 ${want} 座教學神廟（實際 ${list.length}）`);
     const skills = list.map((c) => c.primarySkillId).filter(Boolean);
     ok(skills.length === list.length, `playtest：${zh}每一關都接上了 v2 技能`);
@@ -766,7 +783,7 @@ export function runPlaytestVerify({ ok, eq }) {
    * 而且兩座共用 `pointsAtRegion` 的神廟教的不是同一件事（一座教指位置、一座教放大）。
    * ------------------------------------------------------------------ */
   {
-    const list = challenges.filter((c) => c.region === 'sight');
+    const list = shrines.filter((c) => c.region === 'sight');
     ok(list.length === 8, `playtest：觀象臺有 8 座教學神廟（實際 ${list.length}）`);
     const skills = list.map((c) => c.primarySkillId).filter(Boolean);
     ok(skills.length === list.length, 'playtest：觀象臺每一關都接上了 v2 技能');
@@ -807,6 +824,87 @@ export function runPlaytestVerify({ ok, eq }) {
         );
         ok(first.sample !== second.sample, 'playtest：兩座的示範解答不是同一段字');
       }
+    }
+  }
+
+  /* ------------------------------------------------------------------ *
+   * K：分歧之廳 9 座 ＋ 拆碑（課程 v2 · Phase J1）
+   *
+   * 三件事：
+   *   1. 9 座一對一、C1（主檢查 3 ＋ 地基 0.5、pass 2）、做對＝每一條檢查滿分
+   *   2. 拆碑「只標對還不算滿分」—— 標名字是想通的那一段，真正的分數在刻印
+   *   3. 反差題的模型卡真的掛得出官方出處（兩張卡的立場並排）
+   * ------------------------------------------------------------------ */
+  {
+    const list = shrines.filter((c) => c.region === 'divergence');
+    ok(list.length === 9, `playtest：分歧之廳有 9 座教學神廟（實際 ${list.length}）`);
+    const skills = list.map((c) => c.primarySkillId).filter(Boolean);
+    ok(skills.length === list.length, 'playtest：分歧之廳每一關都接上了 v2 技能');
+    ok(new Set(skills).size === skills.length, 'playtest：分歧之廳的技能一條只教一次');
+    for (const c of list) {
+      const tag = `[${c.id}]`;
+      const f = flowFile.flows[c.id];
+      ok(!!f, `${tag} playtest：分歧之廳的神廟有第三幕流程`);
+      if (!f) continue;
+      const picks = f.slots.map((sl) => sl.options.find((o) => o.correct).text).join('\n');
+      const ev = evaluate(c, picks);
+      ok(
+        ev.results.every((r) => r.passed),
+        `${tag} playtest：全部選對時每一條檢查都滿分`,
+        ev.results.filter((r) => !r.passed).map((r) => `${r.check}=${r.earned}/${r.weight}`).join('、')
+      );
+      ok(c.rubric.length === 2, `${tag} playtest：收斂成「一條主檢查 ＋ 一條地基」（C1）`, String(c.rubric.length));
+      ok(c.pass === 2, `${tag} playtest：門檻是 2 分`, String(c.pass));
+      ok('starter' in c, `${tag} playtest：有一段起手的壞寫法可以修`);
+      if ('starter' in c) {
+        ok(!evaluate(c, c.starter).passed, `${tag} playtest：起手的壞寫法一定不過關`, `earned=${evaluate(c, c.starter).earned}`);
+      }
+    }
+  }
+
+  /* ------------------------------------------------------------------ *
+   * K2：拆碑（reverse · 課程 v2 · Phase J1）
+   *
+   * 「把一份寫好的委託拆開讀」是想通的那一段 —— 想通不等於作答。
+   * 所以這裡守的是：**只把名字標對還拿不到分數**（分數只來自刻上去的字），
+   * 而且拆碑退回石碑刻印時玩家刻出來的字一個都不會少。
+   * ------------------------------------------------------------------ */
+  {
+    const reverseIds = Object.entries(flowFile.flows)
+      .filter(([, f]) => (f.kind || '') === 'reverse')
+      .map(([id]) => id);
+    ok(reverseIds.length >= 1, `playtest：至少一座神廟用拆碑（實際 ${reverseIds.length}）`, reverseIds.join(','));
+    for (const id of reverseIds) {
+      const tag = `[${id}]`;
+      const c = byId.get(id);
+      const rf = flowFile.flows[id].reverseFlow;
+      ok(Boolean(c && rf), `${tag} playtest：拆碑掛在真的關卡上、而且有 reverseFlow`);
+      if (!c || !rf) continue;
+      /*
+       * 只把名字標對還不算作答 —— 牆上那一份是**別人寫好的**委託，
+       * 它當然是一份好 prompt（拆開來讀就是這一關的內容）。真正被評分的
+       * 是玩家自己刻上去的那一段，所以這裡守的是「兩段字不是同一段」，
+       * 以及「刻到一半還不會滿分」（送出的內容只來自刻印，見 reverse.js 的 `text`）。
+       */
+      const wall = rf.parts.map((p) => p.text).join('\n');
+      const carved = flowFile.flows[id].slots.map((sl) => sl.options.find((o) => o.correct).text).join('\n');
+      ok(wall.trim() !== carved.trim(), `${tag} playtest：牆上那一份不是玩家要刻的那一段（拆完還是要自己寫）`);
+      const half = evaluate(c, flowFile.flows[id].slots[0].options.find((o) => o.correct).text);
+      ok(
+        half.grade !== 'S',
+        `${tag} playtest：只刻第一段還不算滿分（要真的刻完才算作答）`,
+        `earned=${half.earned}/${half.total} grade=${half.grade}`
+      );
+      /* 每一個名牌都寫得出「貼錯的時候要教什麼」 */
+      for (const t of rf.tags) {
+        ok(String(t.miss || '').trim().length >= 12, `${tag} playtest：名牌「${t.id}」貼錯時有教學`, t.miss);
+      }
+      /* 一定要有一個「看起來很像、其實不是」的誘餌名牌（那就是這一關的轉） */
+      const used = new Set(rf.parts.map((p) => p.tagId));
+      ok(rf.tags.length > used.size, `${tag} playtest：有一個從頭到尾都不是正解的誘餌名牌`);
+      /* 刻上去的那段字仍然是同一段（退回石碑刻印時一模一樣） */
+      const picks = flowFile.flows[id].slots.map((sl) => sl.options.find((o) => o.correct).text).join('\n');
+      eq(picks, c.sample, `${tag} playtest：全部選對的整段文字就是示範解答`);
     }
   }
 
@@ -854,7 +952,7 @@ export function runPlaytestVerify({ ok, eq }) {
 
   /* --- 減法之庭（課程 v2 · Phase H）：7 座、C1、做對＝滿分 --- */
   {
-    const list = challenges.filter((c) => c.region === 'frugality');
+    const list = shrines.filter((c) => c.region === 'frugality');
     ok(list.length === 7, `playtest：減法之庭有 7 座教學神廟（實際 ${list.length}）`);
     const skills = list.map((c) => c.primarySkillId).filter(Boolean);
     ok(skills.length === list.length, 'playtest：減法之庭每一關都接上了 v2 技能');
@@ -898,6 +996,72 @@ export function runPlaytestVerify({ ok, eq }) {
         `回歸 · ${cse.check}：回饋不該出現「${cse.evidenceNot}」（${cse.name}）`,
         out.evidence
       );
+    }
+  }
+
+  /* ------------------------------------------------------------------ *
+   * J：12 座應用關（試煉 · 課程 v2 · Phase J2）
+   *
+   * 試煉的 rubric 是 runtime 依「你已經學會什麼」組出來的，所以這裡守的是
+   * 兩種極端情境下**都玩得動**：
+   *   · 全部技能都學會了  → 示範解答 ≥ A（而且每一條都滿分）
+   *   · 只學會了兩條      → 示範解答照樣 ≥ A（門檻跟著入選權重降下來）
+   * 外加：弱起手一定不過、自由書寫那三座沒有答案卷。
+   * ------------------------------------------------------------------ */
+  {
+    const { resolveTrial, isCandidateRow } = TRIAL_API;
+    const trialList = challenges.filter((c) => c.application === true);
+    ok(trialList.length === 12, `playtest：12 座應用關（實際 ${trialList.length}）`);
+    for (const c of trialList) {
+      const tag = `[${c.id}]`;
+      const cands = c.rubric.filter(isCandidateRow).map((r) => r.skillId);
+
+      /* 情境一：全部學會 */
+      const full = resolveTrial(c, () => true);
+      const evFull = evaluate({ ...c, rubric: full.rubric, pass: full.pass }, c.sample);
+      ok(
+        evFull.passed && GRADE_RANK[evFull.grade] >= GRADE_RANK.A,
+        `${tag} playtest：全部技能都學過時，示範解答至少 A`,
+        `grade=${evFull.grade} earned=${evFull.earned}/${evFull.total} pass=${full.pass}`
+      );
+      ok(
+        evFull.results.every((r) => r.passed),
+        `${tag} playtest：全部技能都學過時，每一條檢查都滿分`,
+        evFull.results.filter((r) => !r.passed).map((r) => `${r.check}=${r.earned}/${r.weight}`).join('、')
+      );
+
+      /* 情境二：只學會前兩條 */
+      const two = resolveTrial(c, (id) => id === cands[0] || id === cands[1]);
+      ok(two.selected.length === 2, `${tag} playtest：只學過兩條時 rubric 就只列兩條`, String(two.selected.length));
+      ok(two.shortfall.length === 0, `${tag} playtest：學過兩條就不需要補位（不軟鎖）`);
+      const evTwo = evaluate({ ...c, rubric: two.rubric, pass: two.pass }, c.sample);
+      ok(
+        evTwo.passed && GRADE_RANK[evTwo.grade] >= GRADE_RANK.A,
+        `${tag} playtest：只學過兩條時，示範解答照樣至少 A`,
+        `grade=${evTwo.grade} earned=${evTwo.earned}/${evTwo.total} pass=${two.pass}`
+      );
+
+      /* 情境三：一條都沒學過 —— 打得開，也過得了（誠實的退路） */
+      const none = resolveTrial(c, () => false);
+      const evNone = evaluate({ ...c, rubric: none.rubric, pass: none.pass }, c.sample);
+      ok(evNone.passed, `${tag} playtest：一條都沒學過時仍然過得了（絕不軟鎖）`, `earned=${evNone.earned}/${evNone.total}`);
+      ok(none.pass < none.total, `${tag} playtest：門檻永遠低於總權重`);
+
+      /* 弱起手：三種情境下都不過 */
+      for (const [name, r] of [['全部學過', full], ['只學過兩條', two], ['都沒學過', none]]) {
+        const weak = evaluate({ ...c, rubric: r.rubric, pass: r.pass }, c.starter);
+        ok(!weak.passed, `${tag} playtest：${name}時，起手的壞寫法仍然不過關`, `earned=${weak.earned}/${weak.total}`);
+      }
+
+      /* 鷹架撤除：試煉一片快速填入都沒有 */
+      ok((c.quickFills || []).length === 0, `${tag} playtest：試煉沒有答案卷（快速填入 0 片）`);
+    }
+    /* 三座自由書寫的試煉：連石碑都沒有 */
+    const freeOnes = trialList.filter((c) => !flowFile.flows[c.id]);
+    ok(freeOnes.length === 3, `playtest：三座試煉走自由書寫（實際 ${freeOnes.length}）`, freeOnes.map((c) => c.id).join('、'));
+    for (const c of freeOnes) {
+      ok(!flowFile.flows[c.id], `[${c.id}] playtest：自由書寫的試煉沒有石碑流程`);
+      ok(typeof c.sample === 'string' && c.sample.length > 20, `[${c.id}] playtest：仍然寫得出一份可以拿 S 的參考解答`);
     }
   }
 }

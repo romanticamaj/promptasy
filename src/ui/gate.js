@@ -10,6 +10,14 @@
  * 兩個選擇：「直接前往」開門走人，「先留下修行」把門留著。
  * 這裡不放官方出處、不放技巧宣稱 —— 它是世界的一句話，不是課程（護欄 2）。
  * 焦點鎖、Esc、鍵盤操作都由 createOverlay 負責。
+ *
+ * ## 唯一的例外：硬門檻（課程 v2 · Phase J1）
+ *
+ * 分歧之廳是整個世界**唯一一道不能先行前往的門**（curriculum-v2 §5.4）。
+ * `status.hard` 為真時這裡**不畫出「直接前往」** —— 提了卻按不下去比擋住更糟。
+ * 換上去的是一句說得出理由的話（「這裡的每一關都建立在你已經知道通則之上」），
+ * 而且**不寫成失敗**：門沒有拒絕你，只是還沒有輪到這裡。
+ * 「先留下修行」與 `Esc` 照舊，鍵盤一樣走得完。
  */
 import { el, esc, createOverlay } from './dom.js';
 
@@ -60,9 +68,30 @@ export function createGateAsk({ onProceed, onStay, onClose }) {
     open(region, status = {}) {
       regionId = region.id;
       const needs = Array.isArray(status.needs) ? status.needs : [];
-      overlay.setTitle(`${region.name}的門`, '還沒走完的路，也可以先走過去');
+      overlay.setTitle(
+        `${region.name}的門`,
+        status.hard ? '這一道要走過去才開' : '還沒走完的路，也可以先走過去'
+      );
       overlay.setEyebrow('橋上的門');
-      article.innerHTML = `
+      const hard = Boolean(status.hard);
+      article.classList.toggle('gateask--hard', hard);
+      article.innerHTML = hard
+        ? `
+        <div class="gateask__mark" aria-hidden="true"></div>
+        <p class="gateask__line" style="--i:0">這一道門要走過去才開。</p>
+        ${
+          needs.length
+            ? `<p class="gateask__need" style="--i:1">還差：${needs.map((n) => esc(n)).join(' ＋ ')}</p>`
+            : ''
+        }
+        <p class="gateask__line" style="--i:2">這裡的每一關都從「你已經知道通則」開始。</p>
+        <p class="gateask__warn" style="--i:3">先看兩面之詞，學到的只會是混亂。門一直在，回來就好。</p>
+        <div class="gateask__acts">
+          <button class="btn btn--primary" data-stay type="button">先留下修行</button>
+        </div>
+        <p class="gateask__hint"><kbd>Enter</kbd> 或 <kbd>Esc</kbd> 先留下</p>
+      `
+        : `
         <div class="gateask__mark" aria-hidden="true"></div>
         <p class="gateask__line" style="--i:0">這道門的考驗還沒完成。</p>
         ${

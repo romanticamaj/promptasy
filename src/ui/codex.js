@@ -129,6 +129,61 @@ export function createCodex({
     </div>`;
   }
 
+  /* ---------------------------------------------------------------- *
+   * 課程 v2 · Phase J2：印記
+   *
+   *   土地印記（12 枚）：通過那一片土地的試煉就入袋。
+   *   大師層印記（可選、永不擋路 —— C9）：無筆之印 / 默寫之印 /
+   *   一區純手 / 分歧之證。它們**不是任何東西的解鎖條件**，所以在圖鑑上
+   *   只佔一小塊，安靜地放在徽章下面。
+   * ---------------------------------------------------------------- */
+
+  /** 一座神廟教的那條技能 / 技巧 → 那一關（拿來標大師層的小記號）。 */
+  function shrineOf(kind, id) {
+    const list = content.challenges || [];
+    return list.find((c) => c.application !== true && (kind === 'skill' ? c.primarySkillId === id : c.primaryTechniqueId === id)) || null;
+  }
+
+  /** 一座神廟的大師層小記號（沒拿到就什麼都不畫）。 */
+  function masterMark(kind, id) {
+    const c = shrineOf(kind, id);
+    if (!c || !progression.hasPenless) return '';
+    const pen = progression.hasPenless(c.id);
+    const scr = progression.hasScribe(c.id);
+    if (!pen && !scr) return '';
+    const bits = [];
+    if (pen) bits.push('<span class="mseal" title="無筆之印：沒用任何輔助，一次拿到 S">✒</span>');
+    if (scr) bits.push('<span class="mseal" title="默寫之印：自由書寫模式拿到 S">✍</span>');
+    return `<span class="mseals">${bits.join('')}</span>`;
+  }
+
+  /** 印記那一小塊（土地印記 ＋ 大師層）。 */
+  function sealStrip() {
+    if (!progression.masterSeals) return '';
+    const m = progression.masterSeals();
+    const regions = content.groupsOrdered();
+    const cells = regions
+      .map((g) => {
+        const got = m.seals.includes(g.id);
+        const pure = m.pureRegions.includes(g.id);
+        return `<li class="seal ${got ? 'is-on' : ''}${pure ? ' is-pure' : ''}" style="--c:${esc(g.color)}"
+          title="${esc(g.name)}${got ? ' · 試煉已通過' : ' · 試煉還沒通過'}${pure ? ' · 一區純手' : ''}">
+          <span class="seal__mark">${got ? '✦' : '·'}</span><b>${esc(g.name)}</b>
+        </li>`;
+      })
+      .join('');
+    return `<div class="seals">
+      <div class="meta-rule"><h4><span class="zh">土地印記</span><span class="en">Seals</span></h4></div>
+      <p class="muted" style="margin:0 0 var(--s4);font-size:var(--t-micro)">每一片土地的地標腳下都有一座試煉；通過了就把那一片的印記收進來（${m.seals.length} / ${regions.length}）。</p>
+      <ul class="seals__list">${cells}</ul>
+      <p class="codex__hint">大師層（完全選配，不給 XP、不解鎖任何東西）：無筆之印 ✒ ${
+        m.penless.length
+      } 枚 · 默寫之印 ✍ ${m.scribe.length} 枚 · 一區純手 ${m.pureRegions.length} 片${
+        m.divergenceProof ? ' · ✦ 分歧之證' : ''
+      }</p>
+    </div>`;
+  }
+
   function techniqueCard(tech) {
     const got = progression.isCollected(tech.id);
     const vendors = (tech.vendors || [])
@@ -161,7 +216,7 @@ export function createCodex({
       <details>
         <summary>
           <span class="tech__id">${esc(tech.id)}</span>
-          <b class="tech__title">${esc(tech.title)}</b>
+          <b class="tech__title">${esc(tech.title)}</b>${masterMark('technique', tech.id)}
           <span class="tech__chips">${vendors}</span>
         </summary>
         <div class="tech__body">
@@ -221,7 +276,7 @@ export function createCodex({
       <details>
         <summary>
           <span class="tech__id">${esc(skill.id)}</span>
-          <b class="tech__title">${esc(skill.nameZh)}</b>
+          <b class="tech__title">${esc(skill.nameZh)}</b>${masterMark('skill', skill.id)}
           <span class="tech__chips"><span class="chip" style="--c:var(--gold)">${esc(skill.tier)}</span></span>
         </summary>
         <div class="tech__body">
@@ -288,8 +343,10 @@ export function createCodex({
           })
           .join('');
 
+        const sealed = Boolean(progression.hasSeal && progression.hasSeal(g.id));
         return `<article class="region-card${mastery.mastered ? ' is-mastered' : ''}" style="--c:${esc(g.color)}">
           ${mastery.mastered ? '<span class="region-card__seal">✦ 精通 Mastered</span>' : ''}
+          ${sealed ? '<p class="region-card__trial">✦ 試煉已通過 —— 這片土地的印記在你身上。</p>' : ''}
           <header class="region-card__head">
             <div>
               <h3>${esc(g.name)} <span class="muted">${esc(g.nameEn)}</span></h3>
@@ -313,7 +370,7 @@ export function createCodex({
       })
       .join('');
 
-    overlay.body.innerHTML = `${rankBar()}${badgeStrip()}<div class="codex">${groups}</div>`;
+    overlay.body.innerHTML = `${rankBar()}${badgeStrip()}${sealStrip()}<div class="codex">${groups}</div>`;
     // 每次重繪都會換掉 ⓘ 節點，但事件是委派在 body 上，綁一次就夠
     bindInfoTips(overlay.body);
   }

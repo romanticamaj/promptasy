@@ -83,7 +83,9 @@ export function createHud({ content, progression, getObjective = null, onOpenCod
     regionEnEl.textContent = group ? group.nameEn : '';
 
     const remaining = content.challengesOf(currentRegion).filter((c) => !progression.isCleared(c.id));
-    const mark = mastery.mastered ? ' · ✦ 精通' : '';
+    /* 課程 v2 · Phase J2：這片土地的試煉過了就在區域名後面刻一枚印記（安靜，不搶戲）。 */
+    const sealed = Boolean(progression.hasSeal && progression.hasSeal(currentRegion));
+    const mark = `${mastery.mastered ? ' · ✦ 精通' : ''}${sealed ? ' · ✦ 印記' : ''}`;
     if (remaining.length) {
       objectiveEl.textContent = `下一個目標：${remaining[0].title}（本區還有 ${remaining.length} 關）· 圖鑑 ${mastery.collected}/${mastery.total}${mark}`;
       return;

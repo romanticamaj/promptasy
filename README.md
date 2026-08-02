@@ -8,7 +8,7 @@
 [![Vite](https://img.shields.io/badge/Vite-6-646CFF?style=flat-square&logo=vite&logoColor=white)](https://vitejs.dev/)
 [![Offline first](https://img.shields.io/badge/scoring-100%25%20offline-2ea043?style=flat-square)](#how-the-offline-scoring-works)
 [![No backend](https://img.shields.io/badge/backend-none-6e7681?style=flat-square)](#tech-stack)
-[![68 techniques cited](https://img.shields.io/badge/68%20techniques-every%20one%20cited-e6c79b?style=flat-square)](#content--sources)
+[![130 skills cited](https://img.shields.io/badge/130%20skills-every%20one%20cited-e6c79b?style=flat-square)](#content--sources)
 [![Language](https://img.shields.io/badge/game%20language-繁體中文-8ecae6?style=flat-square)](#繁體中文)
 [![License](https://img.shields.io/badge/license-TBD-lightgrey?style=flat-square)](#license)
 [![PRs welcome](https://img.shields.io/badge/PRs-welcome-blueviolet?style=flat-square)](#contributing)
@@ -25,9 +25,10 @@ Promptasy is a browser game where you learn prompt engineering by **playing**, n
 procedurally generated night world, walk up to a problem — a gatekeeper who can't understand you, an automaton
 full of "don't"s, a workshop that needs a dispatch order — and solve it by **constructing a prompt**.
 
-Every challenge teaches a real technique from the **official docs of OpenAI, Anthropic, Google and xAI**
-(68 techniques, 105 source links, all citable in-game). Scoring runs **entirely offline** — no model calls, no backend,
-no account — so the core loop works on a plane, in a classroom, or behind a firewall.
+Every teaching shrine covers exactly one real skill from **official vendor documentation** — OpenAI, Anthropic,
+Google, xAI and others (**130 skills, 445 source links**, all citable in-game; the original 68-technique compilation is
+preserved byte-for-byte underneath). Scoring runs **entirely offline** — no model calls, no backend, no account — so
+the core loop works on a plane, in a classroom, or behind a firewall.
 
 The game's default answering mode is **not typing**: you pick sentence fragments and carve them into a stele, so
 someone who has never written a prompt can still finish a challenge and learn *why* each fragment works.
@@ -39,7 +40,7 @@ someone who has never written a prompt can still finish a challenge and learn *w
 
 ## Screenshots
 
-| Guided challenge — carving a prompt | The codex — 68 techniques, every one cited |
+| Guided challenge — carving a prompt | The codex — every entry cited |
 | --- | --- |
 | <img src="docs/media/stele.png" alt="Act III of a challenge: the carved prompt so far on the left, a live rubric check on the right showing which techniques are already satisfied" width="100%"> | <img src="docs/media/codex.png" alt="The technique codex showing 26 of 68 techniques collected, an expanded entry with its explanation, example and a link to the Anthropic docs" width="100%"> |
 
@@ -49,31 +50,38 @@ someone who has never written a prompt can still finish a challenge and learn *w
 
 <div align="center"><img src="docs/media/title.png" alt="Title card: Promptasy — Learn Prompt Engineering by Playing" width="70%"></div>
 
+> **Screenshots were captured on 2026-07-31 (Phase 32/34), when the world had 5 regions and 27 challenges.**
+> They still show the real UI and art direction, but the counts on screen (challenge numbers, codex totals) predate
+> the 12-region / 142-challenge curriculum v2 build described below. Re-shooting them is tracked as open work.
+
 ---
 
 ## Features
 
-- **27 challenges across 5 regions** — foundations, reasoning, grounding, orchestration, config. All **68 techniques**
-  are taught by at least one challenge; regions unlock on level **and** progress in the previous region.
-- **Four ways to answer, one scoring engine** — *stele carving* (choice construction, 24 challenges), *order carving*
-  (drag or keyboard-sort the slabs; the order **is** the technique, 2 challenges), *oracle workshop* (pick tools, fill
-  parameters, order the calls, add an escape hatch, 1 challenge), and *free writing* for people who want to type the
-  whole prompt. All four submit the same text through the same offline engine, so grades are identical.
+- **142 challenges across 12 regions** — 130 *teaching shrines* (one shrine ↔ one skill, never taught twice) plus
+  12 *application trials*, one per region, that only test what you already learned there. Regions unlock on level,
+  on progress in the previous region, or — for the newer lands — on **what you actually know**
+  (a knowledge gate reads your collected skills, not your level).
+- **Twelve ways to answer, one scoring engine** — eleven board types (*stele carving*, *order carving*, *repair*,
+  *spot the flaw*, *induction*, *trade-off*, *constraint gauges*, *oracle workshop*, *two-round carving*, *dials*,
+  *take-apart*) plus *free writing* for people who want to type the whole prompt. Every one of them submits the same
+  text through the same offline engine, so grades are identical.
 - **You cannot fail, only learn** — a wrong pick is *not accepted* by the stele: it shakes, and a plain-language
   explanation grows next to that option telling you why the weaker phrasing is weaker. No score penalty, no fail screen.
 - **A guided prologue** — first boot walks you through four *teach-by-doing* gates (take a step, turn the camera,
   actually run, reach the shrine) and three hands-on lessons on core concepts, all quoted verbatim from vendor docs.
   Skippable, and replayable from settings.
-- **Offline rubric engine** — **22 reusable checks** (`hasRole`, `hasFewShot`, `specifiesFormat`, `hasConstraint`,
+- **Offline rubric engine** — **81 reusable checks** (`hasRole`, `hasFewShot`, `specifiesFormat`, `hasConstraint`,
   `decomposesTask`, `keepsPromptLean`, …) detect whether a *technique was applied*, using structure and bilingual
   pattern detection rather than string matching. Partial credit, evidence-based feedback, and anti-gaming
   (keyword soup scores zero).
-- **Codex you fill up** — 68 techniques in 15 topics, each expandable to its explanation, example, model differences and
-  **every original source link**; region mastery seals, four vendor badges, S/A/B/C grades, 8 rank titles and a
+- **Codex you fill up** — 130 skills across 12 regions plus the original 68 techniques in 15 topics, each expandable
+  to its explanation, example, model differences and **every original source link**; region mastery seals, 12 land
+  seals, an optional master layer (*penless* / *scribe* marks), four vendor badges, S/A/B/C grades, 8 rank titles and a
   shareable result card drawn locally on canvas (no third-party SDK, no tracking).
-- **A world worth walking** — a central plateau, four bridges and four regions with their own palette, fog, aurora
-  drift and generative lighting; 5 landmarks visible from spawn, 12 lore steles, 13 inscription whispers,
-  22 interactable objects across 8 kinds, and 4 map secrets. All procedural — zero model files.
+- **A world worth walking** — a central plateau, bridges and annexes leading to 12 lands, each with its own palette,
+  fog, aurora drift and generative lighting; 12 landmarks visible from far away, 12 lore steles, 13 inscription
+  whispers, 22 interactable objects across 8 kinds, and 4 map secrets. All procedural — zero model files.
 - **Real soundtrack** — 6 original tracks (title + one per region, cross-faded when you cross a bridge) and 10 SFX.
   If the audio files are missing or blocked, a **Web Audio synth fallback** takes over and the game still sounds alive.
 - **Keyboard-first** — the whole journey is playable without a mouse; focus traps, restored focus, visible focus rings,
@@ -183,10 +191,10 @@ promptasy/
 ├─ scripts/                # subset-fonts, rubric tests, playtest verifier, headless e2e, audits
 └─ src/
    ├─ engine/              # renderer, camera, sky/stars/aurora, post-processing, loop
-   ├─ world/               # 5 regions, bridges, gates, beacons, props, landmarks, lore steles
+   ├─ world/               # 12 regions, bridges, annexes, gates, beacons, props, landmarks, lore steles
    ├─ player/              # controller, follow camera, rigless procedural character
    ├─ challenges/          # offline rubric engine + checks
-   ├─ prompt/              # the four-act challenge console, stele carving, practice bench
+   ├─ prompt/              # the four-act challenge console, eleven board types, practice bench
    ├─ progression/         # XP, unlocks, codex, badges, ranks
    ├─ audio/               # file-first BGM/SFX with synth fallback
    ├─ ui/                  # title, HUD, codex, settings, share card, panels
@@ -200,10 +208,10 @@ promptasy/
 
 | Command | What it covers | Time | Latest run |
 | --- | --- | --- | --- |
-| `npm run test:rubric` | Scoring engine, data integrity, source health, collision audit, Chinese-only scan, font-corpus fingerprint, save migration | ~15 s | **16,469 assertions passing** |
-| `npm run test:playtest` | Every challenge is beatable by following the on-screen help: sample answer ≥ A, quick-fills always pass, weak starters always fail, misjudgement regressions | ~10 s | **226 assertions passing** |
+| `npm run test:rubric` | Scoring engine, data integrity, source health, collision audit, Chinese-only scan, font-corpus fingerprint, save migration | ~40 s | **76,757 assertions passing** |
+| `npm run test:playtest` | Every challenge is beatable by following the on-screen help: sample answer ≥ A, quick-fills always pass, weak starters always fail, misjudgement regressions | ~15 s | **2,372 assertions passing** |
 | `npm run build` | Vite build | ~2 s | passing |
-| `npm run test:e2e` | Headless Chrome playthrough over CDP (walking, prologue, carving, passing, sharing) — no puppeteer/playwright, just Node + system Chrome; a second browser instance replays the entry gate under the default autoplay policy | 15–20 min on software rendering | **1,735 checks** (a few known animation-timing flakes under SwiftShader) |
+| `npm run test:e2e` | Headless Chrome playthrough over CDP (walking, prologue, carving, passing, sharing) — no puppeteer/playwright, just Node + system Chrome; a second browser instance replays the entry gate under the default autoplay policy | 25–40 min on software rendering | **3,013 checks passing, zero console errors** (latest full run, first try, no reruns) |
 
 ---
 
@@ -213,7 +221,8 @@ Content accuracy is a hard rule in this repo:
 
 - **`src/data/curriculum.json` is byte-preserved.** Technique text, examples and links were extracted verbatim from the
   source compilation and are never edited — 68 techniques, 15 topics, 105 technique-level source links, and a
-  24-entry table of official documents.
+  24-entry table of official documents. The 130-skill v2 catalogue (`src/data/skill-codex-v2.json`) sits **beside** it
+  as a separate authored layer, with all 445 source rows parsed row-by-row out of the research master list.
 - **Anything the game writes itself lives in a separate layer** marked `authored: "game"` (plain-language coaching,
   Chinese demonstrations, challenge flows, rank titles, lore) and always points back to a real official link.
   A translation can never be displayed as if it were an official quote.
@@ -302,16 +311,17 @@ vendors.
 
 - **預設不用打字**。石碑刻印是一段一段的選擇建構題：一次只問你一句話該說什麼，從 2–3 個選項裡挑。
   選對就刻上石碑；**選錯不會失敗**，石碑只是「不收」，旁邊長出一句白話說明告訴你為什麼那樣寫比較弱。
-- **三種動手題型 ＋ 自由書寫**：石碑刻印（24 關）、排序刻印（2 關，順序本身就是技巧）、神諭工坊（1 關，
-  挑工具、填參數、排順序、留退路）；想自己打整段的人隨時可以切到自由書寫模式。四種送出的都是同一段文字、
-  走同一支離線評分引擎。
+- **十一種動手題型 ＋ 自由書寫**：石碑刻印、排序刻印、改碑、點碑、推規碑、雙面碑、合尺、神諭工坊、
+  兩輪刻印、轉鈕、拆碑；想自己打整段的人隨時可以切到自由書寫模式。全部送出的都是同一段文字、
+  走同一支離線評分引擎，所以評價完全一致。
 - **先上一堂引導課程**：序章「喚醒神諭」有四道要真的做到才過的門檻，再帶三堂核心概念實作課。可跳過、可重看。
 - **即時預檢**：還沒送出，畫面右邊就一盞一盞亮起「你已經做到哪幾項」；卡住時右下角的提示球會給你可以直接填的句子。
 
 ### 內容與出處（護欄）
 
 - `src/data/curriculum.json` **一個位元組都不改**：68 條技巧 / 15 主題 / 105 條技巧出處 / 24 條官方文件總表，
-  全部逐字保留，圖鑑每一條都點得到原始連結。
+  全部逐字保留，圖鑑每一條都點得到原始連結。130 條技能的 v2 課程（`src/data/skill-codex-v2.json`）是**另一層**
+  自撰資料，445 筆出處逐條解析自研究總表，每一座神廟都指得回真實官方文件。
 - 遊戲自撰的白話教學、中文示範、關卡流程一律放在標了 `authored: "game"` 的獨立資料層，並附真實官方連結 —— 
   **翻譯不可能被當成官方引文顯示**。
 - 官方文件過時的地方用「時代註記」層（`src/data/dated-notes.json`，最後查核 2026-07）標出來，不改原文；
@@ -329,7 +339,9 @@ npm run build    # 靜態輸出 dist/
 
 ### 規模
 
-27 個關卡 · 5 片土地 · 68 條技巧 · 22 個離線檢查器 · 116 段刻印題（345 個選項）· 12 塊世界觀石碑 ·
-22 件動得了的器物 · 6 首原創配樂 · 1.1 MB 自架 OFL 字型 · **零 CDN、零外部請求、零後端**。
+142 個關卡（130 座教學神廟 ＋ 12 座應用關）· 12 片土地 · 130 條技能（底下仍逐字保留 68 條原技巧）·
+81 個離線檢查器 · 11 種題型 ＋ 自由書寫 · 520 段刻印題（1,233 個選項）· 12 座地標 · 12 塊世界觀石碑 ·
+13 則刻文小語 · 22 件動得了的器物 · 4 個藏起來的地方 · 6 首原創配樂 · 1.1 MB 自架 OFL 字型 ·
+**零 CDN、零外部請求、零後端**。
 
 > 更長期的目標、開發護欄與逐 phase 變更紀錄都在 [`CLAUDE.md`](./CLAUDE.md)。

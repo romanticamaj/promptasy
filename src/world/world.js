@@ -56,11 +56,22 @@ export const REGION_SITES = Object.freeze([
    * 它是沉書檔案庫北緣長出去的一座哨所：`annexOf` 指名它的母土地，
    * 所以 **不生成新的橋**（`CORRIDORS` 會跳過它），而是靠兩片土地的覆蓋重疊
    * 直接走過去 —— 走出檔案庫北邊的書架就到了，中間沒有虛空。
-   * 半徑 26、中心 (101, -142)：142 + 26 = 168，同樣壓在網格邊界內。
-   * 中心刻意往東偏 6 公尺 —— 檔案庫西北角那座「抄書人的桌」（`extract-bench-33`）
-   * 才不會被算進哨所的地界（`regionAt` 的正規化距離逐點驗過）。
+   * 中心 (101, -142)，刻意往東偏 6 公尺 —— 檔案庫西北角那座「抄書人的桌」
+   * （`extract-bench-33`）才不會被算進哨所的地界（`regionAt` 的正規化距離逐點驗過）。
+   *
+   * 課程 v2 · Phase J2：中心 (101,-142) → **(108,-143)**、半徑 26 → **27**、內圈 18 → **20**，
+   * 而且地標「不會關上的門」從院子正中央搬到西南邊緣 (92.5,-153.5)。
+   *
+   * 原因是這一片是全場最小的院子，地標原本就站在正中央、淨空 13 公尺 ——
+   * 「石座離地標 ≥ 18 公尺」這條全域規則於是把整個內圈排除掉，
+   * 半徑 26 時**一個落得下第六座石座的點都沒有**（掃描器實測 0 個）。
+   * 只放大半徑不夠（實測 27 / 28 / 30 都排不出六座），真正的解法是把地標讓到邊緣，
+   * 中間才空得出六座石座（實測最小間距 14.53 公尺）。
+   * 中心往東移 7 公尺是為了讓整個院子離開母土地的「引文閱覽台」——
+   * 放大之後那一座的互動圈會被新長出來的道具擦到（e2e 之前就是這樣紅的）。
+   * 108 + 27 = 135、143 + 27 = 170，兩邊都壓在 `buildTerrain()` 的 ±170 網格內。
    */
-  { id: 'wards', x: 101, z: -142, radius: 26, flat: 18, annexOf: 'grounding' },
+  { id: 'wards', x: 108, z: -143, radius: 27, flat: 20, annexOf: 'grounding' },
   /*
    * 課程 v2 · Phase G：校驗場。**加建**（curriculum-v2 §二：🟡 既有地形加建）——
    * 「西南外緣 · 齒輪工坊旁的院子」。
@@ -111,6 +122,32 @@ export const REGION_SITES = Object.freeze([
    * 通往這裡的橋不會擦到檔案庫：橋線離檔案庫中心最近 81.5 公尺 > 46。
    */
   { id: 'sight', x: 134, z: -18, radius: 34, flat: 27 },
+  /*
+   * 課程 v2 · Phase J：分歧之廳。**第四座加建**（curriculum-v2 §二：🟢 高原建物）——
+   * 「中央高原 · 高原上的建物」。它不是一片新大陸，是高原邊上蓋起來的一座廳。
+   *
+   * 位置：從中央高原往**東偏南**（方位角約 103°）走出去。高原四周其實已經很擠 ——
+   * 六條橋（西北 / 東北 / 西南 / 東南 / 正南 / 正西）＋ 正東偏北通往觀象臺的那一條，
+   * 正北又是減法之庭。剩下唯一放得下一座廳的縫，就是東邊那條橋與東南那條橋中間這一段。
+   * 半徑 29（比其他加建都小）—— 它是一座建物，不是一片土地。
+   *
+   * 三個數字都是算出來的，不是隨手訂的：
+   *   · 與面具劇場 (95,95) r46 相距 80.3 → 留得出 5.3 公尺虛空
+   *   · 與觀象臺 (134,-18) r34 相距 67.7 → 留得出 4.7 公尺虛空
+   *   · 中心離高原 77.9，兩片土地的**可站立範圍**相加遠大於它，整條頸口沒有一步是虛空
+   *
+   * **內圈 25（而不是 21）是頸口決定的**：高度是依覆蓋權重混出來的，覆蓋一掉下來
+   * 地面就會沉（`terrainHeight` 的 `-(1 - cover) * 34`）。內圈 21 時閘門正下方
+   * 只有 0.84 的覆蓋 —— 那裡會凹下去 5 公尺，變成一道看得見的溝，
+   * 而且「走到門前」的 3D 距離會被垂直落差吃掉（門就不會問你了）。
+   * 內圈 25 之後閘門底下的覆蓋是 1.0，門就站在平地上。
+   *
+   * 母土地一寸都不能被吃掉（`regionAt` 的正規化距離逐關驗過）：高原 15 座石座
+   * 仍然全部屬於中央高原。代價是原本站在頸口正前方的「第一根軌」（`first-rail-10`）
+   * 往北挪了一段 —— 閘門的兩根柱子本來會卡進它的互動範圍（只動座標，
+   * 題目與評分一個位元組沒動；同 Phase H 搬 `wordfork-12` 的前例）。
+   */
+  { id: 'divergence', x: 76, z: 17, radius: 29, flat: 25, annexOf: 'foundations' },
 ]);
 
 const SITE_BY_ID = new Map(REGION_SITES.map((s) => [s.id, s]));
@@ -312,6 +349,16 @@ export const REGION_ATMOSPHERE = Object.freeze({
     exposure: 1.1,
     motes: 1.18,
   }),
+  // 分歧之廳：兩份相反的守則同時亮著 —— 霧偏中性的青灰、亮度最高（廳裡沒有暗處），螢火中等
+  divergence: Object.freeze({
+    fog: 0x2b2f3c,
+    tint: 0xd8d2e4,
+    hemi: 0.7,
+    fogNear: 54,
+    fogFar: 240,
+    exposure: 1.14,
+    motes: 0.92,
+  }),
   // 護欄崗：哨所的夜 —— 最冷、看得最遠（守望的人要看得到有誰來），螢火少
   wards: Object.freeze({
     fog: 0x1b2733,
@@ -460,6 +507,18 @@ function detailFor(site, x, z) {
       const grooves = Math.pow(Math.abs(Math.sin(d * 0.28)), 6) * 0.45;
       return 4.2 + rise + smoothstep(34, 11, d) * 0.5 - grooves;
     }
+    case 'divergence': {
+      /*
+       * 分歧之廳（課程 v2 · Phase J）：高原上的一座廳。
+       *
+       * 地貌是「一塊被鋪平的廣場」——中央抬高一階當廳的地面（五根柱子立在上面），
+       * 外圈是一圈很淺的階，走上來就知道自己進了一座建物而不是一片空地。
+       * 廣場上刻著兩道互相交錯的淺溝（兩份相反的守則，誰也沒有蓋過誰）。
+       * 基準高度貼著高原邊緣，兩片土地重疊處不會出現斷崖。
+       */
+      const grooves = Math.pow(Math.abs(Math.sin((lx - lz) * 0.16)), 8) * 0.42;
+      return 1.6 + smoothstep(24, 9, d) * 1.5 - grooves + Math.cos(d * 0.2) * 0.12;
+    }
     case 'wards':
       /*
        * 護欄崗（課程 v2 · Phase F）：檔案庫北緣的哨所。
@@ -556,7 +615,6 @@ export function regionAt(x, z) {
       owner = site;
     }
   }
-  if (owner) return { id: owner.id, onBridge: false };
   let best = null;
   let bestD = Infinity;
   for (const c of CORRIDORS) {
@@ -566,6 +624,20 @@ export function regionAt(x, z) {
       best = { id: c.region, onBridge: true };
     }
   }
+  /*
+   * 課程 v2 · Phase J1：**加建的地界不得吃掉別人的橋。**
+   *
+   * 加建的院落刻意與母土地重疊（那是「走出去就到了」的代價），但它的圓盤
+   * 有可能擦到另一片土地的橋 —— 分歧之廳蓋在高原東側那道縫裡，通往觀象臺的
+   * 那條橋就從它的北緣經過。如果讓院子把橋上的點也算成自己的地界，
+   * 後果是**閘門鎖著的時候整條橋都走不過去**（`isWalkable` 擋的是「屬於這座
+   * 院子的點」），而 HUD 也會在過橋時報錯區域名。
+   *
+   * 所以規則寫死一條：**點落在別人的橋上時，橋說了算**（只對加建的院落生效——
+   * 有自己的橋的土地不會與別人的橋重疊，行為完全不變，測試逐點比對過）。
+   */
+  if (owner && best && owner.annexOf && best.id !== owner.id) return best;
+  if (owner) return { id: owner.id, onBridge: false };
   return best;
 }
 
@@ -1063,6 +1135,14 @@ const FLORA = Object.freeze({
     { geo: () => new THREE.OctahedronGeometry(0.85, 0), tint: 0.28, scale: [0.4, 1.1], lift: 0.5, tilt: 0.5, solid: true },
     // 測桿 0.18 寬 → 走得過去
     { geo: () => new THREE.CylinderGeometry(0.05, 0.09, 3.4, 4), tint: 0.5, scale: [0.5, 1.2], lift: 1.7, tilt: 0.05 },
+  ],
+  // 分歧之廳：廳裡散落的東西 —— 立起來的半塊碑、兩面磨光的鎮石、細細的量繩桿（三種剪影：板 / 塊 / 桿）
+  divergence: [
+    // 半塊碑：立著、又薄又高，轉過角度之後最薄兩軸仍 ≥ 0.9 → 依 Phase 20 的鐵則要擋人
+    { geo: () => new THREE.BoxGeometry(1.25, 1.9, 0.34), tint: 0.32, scale: [0.5, 1.2], lift: 0.95, tilt: 0.22, solid: true },
+    { geo: () => new THREE.DodecahedronGeometry(0.75, 0), tint: 0.44, scale: [0.4, 1.0], lift: 0.4, tilt: 0.45, solid: true },
+    // 量繩桿 0.2 寬 → 走得過去
+    { geo: () => new THREE.CylinderGeometry(0.06, 0.1, 3.0, 4), tint: 0.5, scale: [0.5, 1.1], lift: 1.5, tilt: 0.06 },
   ],
   // 護欄崗：哨所外的東西 —— 矮的拒馬、圓的警石、細的旗桿（三種剪影：叉 / 球 / 桿）
   wards: [
@@ -1753,6 +1833,81 @@ function buildRegionProps(site, color, quality, keepClear, pedestals = []) {
     plates.count = plateN;
     plates.instanceMatrix.needsUpdate = true;
     group.add(plates);
+  } else if (site.id === 'divergence') {
+    /*
+     * 分歧之廳（課程 v2 · Phase J）：廳裡兩兩成對的東西。
+     *
+     * 兩種，都是 InstancedMesh、**都不新增光源**（§6.1 —— 亮的部分一律走自發光）：
+     *   · 對柱   —— 兩根並排的矮柱，中間夾一片自發光的薄板（一件事的兩種說法）
+     *   · 落碑   —— 平躺在地上的碑面（被換掉的那一版守則），跨得過去所以不登記碰撞
+     * 這一區的東西刻意都「成雙」：剪影讀起來就是一整廳的兩面之詞。
+     */
+    const postGeo = new THREE.CylinderGeometry(0.34, 0.46, 2.8, 6);
+    const PAIR_N = 12;
+    const posts = new THREE.InstancedMesh(postGeo, stoneMat, PAIR_N * 2);
+    posts.castShadow = shadow;
+    const leafGeo = new THREE.BoxGeometry(1.5, 1.9, 0.12);
+    const leaves = new THREE.InstancedMesh(leafGeo, glowMat, PAIR_N);
+    let pairN = 0;
+    for (let i = 0; i < PAIR_N; i += 1) {
+      let spot = null;
+      for (let k = 0; k < 12 && !spot; k += 1) {
+        const p2 = place(11, site.radius - 5);
+        if (!clear(p2.x, p2.z, 7)) spot = p2;
+      }
+      if (!spot) continue;
+      const { x, z } = spot;
+      const gy = terrainHeight(x, z);
+      const scale = 0.8 + rand() * 0.45;
+      const spin = rand() * Math.PI;
+      const half = 1.05 * scale;
+      for (const side of [-1, 1]) {
+        const px = x + Math.cos(spin) * side * half;
+        const pz = z - Math.sin(spin) * side * half;
+        p.set(px, terrainHeight(px, pz) + 1.4 * scale, pz);
+        q.setFromEuler(new THREE.Euler(0, spin, 0));
+        s.set(scale, scale, scale);
+        posts.setMatrixAt(pairN * 2 + (side > 0 ? 1 : 0), m.compose(p, q, s));
+      }
+      /*
+       * 夾在兩根柱子中間的那一片：1.5 × 1.9 公尺的板子，轉過角度之後外接盒的
+       * 最薄兩軸都 ≥ 0.9 —— 依 Phase 20 的鐵則它就得擋得住人（而且兩根柱子中間
+       * 本來就只剩 0.6 公尺，人也鑽不過去）。所以這一批**登記碰撞**，不是幽靈。
+       */
+      p.set(x, gy + 2.7 * scale, z);
+      q.setFromEuler(new THREE.Euler(0, spin + Math.PI / 2, 0));
+      s.set(scale, scale, scale);
+      leaves.setMatrixAt(pairN, m.compose(p, q, s));
+      pairN += 1;
+    }
+    posts.count = pairN * 2;
+    leaves.count = pairN;
+    posts.instanceMatrix.needsUpdate = true;
+    leaves.instanceMatrix.needsUpdate = true;
+    posts.userData.blocksCamera = true;
+    posts.userData.solidRadius = 0.55;
+    leaves.userData.blocksCamera = true;
+    leaves.userData.solidRadius = 0.8;
+    group.add(posts);
+    group.add(leaves);
+
+    // 落碑：平躺在地上的碑面（0.14 公尺高）。跨得過去，所以不登記碰撞。
+    const slabGeo = new THREE.BoxGeometry(2.2, 0.14, 1.4);
+    const SLAB_N = 14;
+    const slabs = new THREE.InstancedMesh(slabGeo, stoneMat, SLAB_N);
+    slabs.receiveShadow = shadow;
+    let slabN = 0;
+    for (let i = 0; i < SLAB_N; i += 1) {
+      const { x, z } = place(8, site.radius - 6);
+      p.set(x, terrainHeight(x, z) + 0.07, z);
+      q.setFromEuler(new THREE.Euler(0, rand() * Math.PI, 0));
+      s.set(0.6 + rand() * 0.7, 1, 0.6 + rand() * 0.6);
+      slabs.setMatrixAt(slabN, m.compose(p, q, s));
+      slabN += 1;
+    }
+    slabs.count = slabN;
+    slabs.instanceMatrix.needsUpdate = true;
+    group.add(slabs);
   }
 
   // 每區一盞主色補光：便宜又有效的「氣氛」

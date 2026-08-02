@@ -8,16 +8,26 @@
 
 把目前 27 關／68 技巧／5 區，逐步演進成 **130 座一關一技巧的教學神廟＋12 座應用關／12 區**，保持純靜態、離線評分、官方來源可追溯、鍵盤完整可玩、舊存檔相容、既有內容不刪除。
 
-全案完成需同時成立：
+全案完成需同時成立（**Phase J／R4 於 2026-08-02 逐條驗收，結果如下**）：
 
-- 130 技能各有且只有一座教學神廟；每關 1 主檢查＋最多 1 地基檢查。
-- 12 區與 mission graph 上線；130 教學神廟＋12 應用關可玩。
-- 14 種型式的規劃完成，其中 K 期 `disclose` 為選配；未做時必須明確標成選配未實作。
-- 59 個新檢查器只按需要實作，全部有 good／weak／bad、反作弊及中英 fixture。
-- `src/data/curriculum.json` 保持 byte-identical；新內容有獨立 authored/sourced 資料層。
-- `promptasy.v1.save` 舊存檔可讀、reset 正常；新增欄位全 additive 且有 `normalize()` 預設值。
-- 快檢、playtest、build 全綠；所有新增互動有 e2e，console error 為 0。
-- 每一期完成後更新 `CLAUDE.md` changelog、commit、push `dev`；只有 release gate 通過才合入 `main`。
+- [x] 130 技能各有且只有一座教學神廟；每關 1 主檢查＋最多 1 地基檢查。
+      → 142 關 ＝ 130 教學神廟（每座掛得出 `primarySkillId`、彼此不重複）＋ 12 應用關；C1 對全部 130 座成立。
+- [x] 12 區與 mission graph 上線；130 教學神廟＋12 應用關可玩。
+      → `v2ImplementedRegions` 12、`challenges` 142、`applicationTrials` 12；e2e 實走過。
+- [x] 14 種型式的規劃完成，其中 K 期 `disclose` 為選配；未做時必須明確標成選配未實作。
+      → 11 種 flow kind ＋ 自由書寫上線；**`disclose` 正式記錄為「選配，不實作」**（四條理由 ＋ 翻案條件在 `findings.md`／`progress.md`）。
+- [x] 59 個新檢查器只按需要實作，全部有 good／weak／bad、反作弊及中英 fixture。
+      → `CHECK_IDS` 共 **81**（22 原有 ＋ 59 新）；rubric 逐個驗「真的實作了」「真的被某座神廟用到」。
+- [x] `src/data/curriculum.json` 保持 byte-identical；新內容有獨立 authored/sourced 資料層。
+      → sha256 `53b0ca60…39062` 釘死測試綠（A–J 全期未動）；新內容全在 `authored: "game"` 層。
+- [x] `promptasy.v1.save` 舊存檔可讀、reset 正常；新增欄位全 additive 且有 `normalize()` 預設值。
+      → R4 種一份舊命名空間 `promptarcade.v1.save` 存檔實測：18 欄逐欄搬過來、4 個新欄位補空陣列、
+      閘門與收集不倒退、`resetAll()` 兩個 key 都清乾淨。
+- [x] 快檢、playtest、build 全綠；所有新增互動有 e2e，console error 為 0。
+      → 見 §5 的 R4 數字。
+- [ ] 每一期完成後更新 `CLAUDE.md` changelog、commit、push `dev`；只有 release gate 通過才合入 `main`。
+      → **A–J 期一律不由代理 commit／push**（本輪的工作協議明訂不動 `CLAUDE.md`、不 commit、不 push、不合 `main`）；
+      變更全部留在工作區，changelog 與 commit 由 repo 擁有者決定。這是唯一一條刻意未做的完成條件。
 
 ## 1. 長時間執行節奏
 
@@ -556,7 +566,7 @@ Exit criteria（逐條實測）：
 
 ### Phase J — 分歧之廳＋12 應用關＋大師層
 
-狀態：`pending`
+狀態：`done`（2026-08-02）— 這是 **R4 release checkpoint**，分三個切片（J1／J2／J3）做完
 
 - 高原加建 divergence 9 座與 `reverse`；依模型卡讓答案翻面，來源並排可點。
 - 上線 12 區應用關；第二幕跳過，只用已學技巧動態組 rubric。
@@ -565,9 +575,61 @@ Exit criteria（逐條實測）：
 
 Exit：130 教學＋12 應用全數可玩；130 技能每條只被教一次且平均有複習；舊 finale 不回退；全 suite 綠。
 
+Exit criteria（逐條實測）：
+
+- [x] **分歧之廳 9 座教學神廟**（J1）：兩面的柱·身分／兩面的柱·記憶／同名的兩個旋鈕／封起來的刻度／
+      換了介面的階梯／舊叮嚀／貼滿補丁的舊袍／搬家的清單／會改字的碑 —— 技能一對一、無重複（C2），
+      題型序列 tradeoff・tradeoff・sim・spot・fix・fix・spot・order・reverse 與 §三逐格相同
+      （最長連續 2、6 種題型，C4），一律「主檢查 3 ＋ 地基 `assignsTask` 0.5、`pass` 2」（C1），
+      **零新檢查器**（59/59 在 Phase I 就開完了）。
+- [x] **模型卡翻面**：反差題先發模型卡再出題，正解隨卡翻面；兩張卡的官方出處並排可點
+      （`tradeoffFlow.rounds[].card.sources[]`，測試強制 url 屬該技能官方清單、`name` 逐字等於 `docName`、
+      兩張卡至少兩家）。輸的一面只講「這張卡上要付什麼代價」，不得被寫成「錯」（Phase C 契約沿用）。
+- [x] **新題型 `reverse`（拆碑）**：`src/prompt/reverse.js` 走已驗證的 induct 模式 ——
+      拆開的委託一塊一塊貼名牌 → 貼錯只就地教學（不扣分／不前進／不失敗）→ 全部標對才開放刻印 →
+      共用 `slots.js` ＋ `palm.js` ＋ 同一支離線引擎（護欄 3）。缺資料／未知 kind → 退回石碑刻印。
+- [x] **`contrast-same-name` 的 `sim`**：`sim-samples.json` 新增第 4 組旋鈕（三檔＝三台機器、
+      同一行 `reasoning_effort: high`、三段回話互異、`condition` 帶年份），旋鈕不參與評分。
+- [x] **高原建物 ＋ 硬門檻**：`divergence (76,17) r=29 annexOf: 'foundations'`（第四座沒有橋的加建），
+      地標「兩面的柱」零實體光源；`REGION_GATES.divergence` 是**全場唯一的硬門檻**
+      （`masteredAny: 4` ＋ `hard: true`）—— 對話框不畫「直接前往」、`skipGate()` 進程層再擋一次、
+      divergence 永不進 `skippedGates`；其餘 11 區的「想先過去看看嗎」一字未動。例外寫進 WORLD.md §1.4。
+- [x] **12 座應用關**（J2）：每區一座、位置在該區地標腳下；沿用 `council-envoy-06`／`archive-seal-25`
+      ＋ 新蓋 10 座 → `challenges` **142**（130 教學 ＋ 12 應用）。型式分佈 free 3／constraint 2／
+      workshop 2／order 2／reverse 1／spot 1／tradeoff 1，與 §5.2 逐格相同（測試強制）。
+- [x] **應用關不教新技巧**：第二幕（神諭刻文）**整幕跳過**（幕指示器誠實地只有三幕、`Alt+2` 不會跳到不存在的幕）、
+      畫面上零官方連結、`primarySkillId`／`primaryTechniqueId` 一律 `null`、不計入 130 教學神廟的 C1/C2 統計。
+- [x] **動態 rubric（P9 完全資訊、不軟鎖）**：`src/challenges/trial.js` 是唯一真相 ——
+      候選列各掛一條該區技能，開關卡時用 `knowsSkill()` 過濾，
+      `pass = max(2, round(入選權重總和 × 0.5 × 2) / 2)`；已學 0／1／2／全部四種情境逐一實測
+      （示範解答全部 S、弱起手全部不過、門檻永遠 ≥2 且 < 總權重），已學 < 2 時照 `order` 補位並
+      在畫面上誠實標「你還沒學過」。
+- [x] **`seals[]` ＋ 大師層印記**：存檔新增四個純加法欄位 `seals`（12 枚土地印記，冪等）／
+      `penlessSeals`（無筆之印）／`scribeSeals`（默寫之印）／`samplesSeen`（防作弊面），
+      `normalize()` 補預設、去重、reset 清乾淨。判定寫在 `masterSealFor()`：
+      無筆之印＝教學神廟 ＋ 沒用快速填入／積木 ＋ 沒開提示球 ＋ 範例從沒被翻開過 ＋ 刻印零退回 ＋
+      **開關卡以來第一次呈遞**就 S；默寫之印＝自由書寫模式 S ＋ 同樣的範例條件。應用關不發。
+- [x] **既有 finale 不回退**：`vendors` 仍是四廠、`codex.js` 的 `TARGET = 5` 與「四廠全數集齊」文案未改；
+      rubric 靜態掃描確認 `seals`／`penlessSeals` 沒有出現在任何解鎖判定裡（C9：大師層永不擋路）；
+      e2e 掃圖鑑 DOM 確認徽章區沒有 Qwen／DeepSeek／Mistral（新廠只做支線）。
+- [x] **D2 相容層拆除**（J3）：最後兩座教學神廟接上技能（`gate-of-clarity-01` → `clear-specific`、
+      `lost-automaton-03` → `clear-positive`）→ **130 座教學神廟 ↔ 130 條技能一對一**；
+      `console.js` 的四處「主技巧找不到就退回 legacy」相容分支全部拿掉（教學面以技能為正典、沒有退路）；
+      `teaches` 逐字保留為**收集**清單（68 條涵蓋率仍滿、四廠徽章與隱藏成就一格未改）；
+      `knowsSkill()` 的祖先 fallback 正名為「收集誠實層」並補一次**純加法開機回填**
+      （`bestGrades × primarySkillId` → `skillsV2`，冪等）—— 收窄 fallback 會讓舊存檔倒退，故不收窄（理由在 `findings.md`）。
+- [x] **backlog 最終處置**：`mould-room-62`（`so-basics`）→ `workshop` 正式記為 **won't do**
+      （擋住的是 workshop 的四步語意「排呼叫順序」，schema 沒有那一步）；量繩之桌／零件表同樣 won't do；
+      `disclose`（Phase K）正式記錄為**選配未實作**（四條理由 ＋ 翻案條件：先有世界的觸控移動）。
+- [x] **R4 五項驗收全部實跑**（數字見下方 §5 與 `progress.md` 的 R4 報告）：全 suite、
+      碰撞／效能稽核、20 筆官方來源實際 curl、舊命名空間存檔的 migration／reset 實測、README 數字更新。
+
 ### Phase K — `disclose` 拾遺（選配）
 
-狀態：`optional`
+狀態：`not implemented（選配，正式不採用 · 2026-08-02）` —— 決策記錄見 `findings.md`／`progress.md` 的 Phase J3 一節：
+四條理由（會打破「任何一關隨時開得起來」的契約／會新增一個影響可玩性的存檔欄位／
+沒有世界觸控移動就等於行動裝置不可玩／不影響 130 條技能的完成度，`context-supply` 已有自己的神廟），
+翻案條件寫死：**先有世界的觸控移動，再談 `disclose`**。
 
 - 僅挑 2–3 座最適合的 grounding 神廟做素材背包與世界拾取點。
 - 新 save 欄位 additive；未撿齊只提示，不失敗、不封死。
@@ -593,8 +655,14 @@ Exit：跨世界素材有 reload/reset/e2e；或有一份明確的「不實作�
 - **R2（D）**：既有五區 v2 化完成，適合第一次公開發布。**已於 2026-08-01 抵達**（見 Phase D exit criteria 與 `progress.md` 的 release-readiness 數字）。
 - **R3（F）**：8 區、工具與護欄線完成。**已於 2026-08-02 抵達**（見 Phase F exit criteria 與 `progress.md` 的 release-readiness 數字）。
 - **（G）**：9 區、既有五區之外的遷移完成、迭代類技巧第一次有體感。不是 release checkpoint，但 R4 的路已經走了一半。
-- **R4（J）**：12 區／142 關／130 技能正式完成。
-- **R5（K optional）**：探索與關卡真正接起來。
+- **R4（J）**：12 區／142 關／130 技能正式完成。**已於 2026-08-02 抵達** —— 完整驗收見 `progress.md`
+  的「Phase J3 ＋ R4 release checkpoint 報告」。實跑數字：
+  `fonts` CJK 1,844／1,463.4 KB · `test:rubric` **76,757** · `test:playtest` **2,372** · `build` ✓ ·
+  `test:e2e` **3,013 項全過、零 console error、零重跑（第一輪就乾淨）** · 世界高畫質 194,083 tris／37 燈／957 碰撞體／穿模稽核 0 ·
+  來源抽查 **20/20 存活** · 舊命名空間存檔 migration／reset 逐欄實測通過 · README 數字已更新
+  （截圖未重拍，已在 README 誠實標註擷取時間落後）。
+  **尚未合入 `main`、尚未部署** —— 依工作協議由 repo 擁有者決定。
+- **R5（K optional）**：探索與關卡真正接起來。**不實作**（見 Phase K 的決策記錄）。
 
 每個 release 都需：完整 e2e、零 console error、來源抽查、存檔 migration/reset、README 數字與真實截圖更新，再由 `dev` 合入 `main` 與部署站。
 

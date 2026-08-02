@@ -189,12 +189,19 @@ export function createContent(
      * 「神諭原典」照樣接得出真實文件名 ＋ 可點的 https（護欄 2、WORLD.md §3.4）。
      *
      * 回傳的形狀刻意跟 `sourceFor()` 一樣（`{ url, name }`），UI 不必分兩套。
+     *
+     * Phase J3：`name` 補上廠商前綴（`Anthropic · Prompting best practices`），
+     * 與 `curriculum.json` 的出處寫法一模一樣 —— 拆掉 D2 相容層之後，
+     * 130 座教學神廟的「神諭原典」全部走這一支，畫面上必須看得出**是哪一家**
+     * 的文件，才不會只剩一個沒頭沒尾的文件名（護欄 2）。
      */
     sourceForSkill(skillId) {
       const s = catalog.skill(skillId);
       const first = s && (s.sources || [])[0];
       if (!first) return null;
-      return { url: first.url, name: first.docName || first.vendor, vendor: first.vendor };
+      const doc = first.docName || '';
+      const name = first.vendor ? (doc ? `${first.vendor} · ${doc}` : first.vendor) : doc;
+      return { url: first.url, name, vendor: first.vendor };
     },
   };
 }

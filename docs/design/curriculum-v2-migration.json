@@ -160,8 +160,17 @@
           "weightBefore": 1,
           "action": "remove",
           "weightAfter": 0,
-          "phase": "post-A",
+          "phase": "J",
           "reason": "主題搬去自己的神廟（C1 一關一技巧／C2 只教一次）：拆掉 hasAudience／assignsTask 兩條，只留「具體到可以驗收」；素材與 NPC 全部保留"
+        },
+        {
+          "check": "specifiesFormat",
+          "weightBefore": 2,
+          "action": "remove",
+          "weightAfter": 0,
+          "phase": "J",
+          "addedIn": "J",
+          "reason": "主題（指定輸出格式）在量器坊有自己的神廟（fmt-specify），C2 不重教；清晰之門只留「具體到可以驗收」。Phase 0 的產生器把它記成 foundationCheck，但 Phase A 之後全域的地基一律只有 assignsTask，所以它必須整條移除才符合 C1。"
         }
       ],
       "passBefore": 3,
@@ -174,7 +183,24 @@
         "clarity-03",
         "format-01"
       ],
-      "designNote": "拆掉 hasAudience／assignsTask 兩條，只留「具體到可以驗收」；素材與 NPC 全部保留"
+      "designNote": "拆掉 hasAudience／assignsTask 兩條，只留「具體到可以驗收」；素材與 NPC 全部保留",
+      "phaseJ": {
+        "skillId": "clear-specific",
+        "mainCheck": "hasConstraint",
+        "mainWeightAfterJ": 3,
+        "foundationCheckAfterJ": "assignsTask",
+        "totalWeightAfterJ": 3.5,
+        "passAfterJ": 2,
+        "kindAfterJ": "choice",
+        "rubricRowsBefore": 4,
+        "rubricRowsAfter": 2,
+        "slotsBefore": 4,
+        "slotsAfter": 3,
+        "sourceBefore": "curriculum：OpenAI · Best practices（clarity-03 的第一個出處）",
+        "sourceAfter": "skill-codex-v2：Microsoft · Prompt engineering techniques（Best practices）",
+        "teachesLegacyUnchanged": true,
+        "note": "課程 v2 · Phase J3（拆掉 D2 相容層）：補上 primarySkillId ＝ clear-specific，rubric 收斂成 C1 的形狀（主檢查 hasConstraint 3 ＋ 地基 assignsTask 0.5、pass 2），hasAudience／specifiesFormat 兩條的主題各自在自己的神廟（六面燈籠／量器坊 fmt-specify），第三幕的「寫給誰看」那一段一併收掉。source 換成這條技能自己的官方出處（skill-codex-v2 的 clear-specific）；teaches（clarity-02／clarity-03／format-01）逐字保留，68 條收集不倒退（D2）。"
+      }
     },
     {
       "id": "postbox-sprite-02",
@@ -290,7 +316,7 @@
           "weightBefore": 2,
           "action": "remove",
           "weightAfter": 0,
-          "phase": "post-A",
+          "phase": "J",
           "reason": "主題搬去自己的神廟（C1 一關一技巧／C2 只教一次）：Phase 9 已驗證「只靠教練提示一次過關」，只降權 assignsTask"
         }
       ],
@@ -303,7 +329,24 @@
         "positive-01",
         "clarity-05"
       ],
-      "designNote": "Phase 9 已驗證「只靠教練提示一次過關」，只降權 assignsTask"
+      "designNote": "Phase 9 已驗證「只靠教練提示一次過關」，只降權 assignsTask",
+      "phaseJ": {
+        "skillId": "clear-positive",
+        "mainCheck": "positiveFraming",
+        "mainWeightAfterJ": 3,
+        "foundationCheckAfterJ": "assignsTask",
+        "totalWeightAfterJ": 3.5,
+        "passAfterJ": 2,
+        "kindAfterJ": "choice",
+        "rubricRowsBefore": 3,
+        "rubricRowsAfter": 2,
+        "slotsBefore": 3,
+        "slotsAfter": 3,
+        "sourceBefore": "curriculum：OpenAI · Best practices（positive-01 的第一個出處）",
+        "sourceAfter": "skill-codex-v2：Anthropic · Prompting best practices（Control the format of responses）",
+        "teachesLegacyUnchanged": true,
+        "note": "課程 v2 · Phase J3（拆掉 D2 相容層）：補上 primarySkillId ＝ clear-positive，rubric 收斂成 C1 的形狀（主檢查 positiveFraming 3 ＋ 地基 assignsTask 0.5、pass 2）。explainsWhy 的主題（context-why）有自己的神廟，第三幕那一段「為什麼一定要靠右」換成「先把今晚的路線交代給它」——換掉之後第一段不再一次滿分（playtest 的「只刻第一段還不會滿分」才守得住）。source 換成這條技能自己的官方出處；teaches（positive-01／clarity-05）逐字保留，68 條收集不倒退（D2）。"
+      }
     },
     {
       "id": "mimic-mirror-04",
@@ -481,7 +524,14 @@
         "format-06",
         "positive-01"
       ],
-      "designNote": "本來就是 7 條 rubric 的綜合題 → 正式升格為 foundations 的應用關（不教新技巧，P11）"
+      "designNote": "本來就是 7 條 rubric 的綜合題 → 正式升格為 foundations 的應用關（不教新技巧，P11）",
+      "phaseJ2": {
+        "totalWeightAfterJ2": 6.5,
+        "passAfterJ2": 3.5,
+        "rubricRowsBefore": 7,
+        "rubricRowsAfter": 4,
+        "why": "課程 v2 · Phase J2：這兩關正式升格為應用關（試煉）——第二幕整幕不存在，rubric 改成「1 條地基 assignsTask 0.5 ＋ 3 條候選（每條掛一條該區的 v2 技能、權重 2）」，門檻由同一條公式重算（入選權重總和的 50%、四捨五入到 0.5、下限 2）。teachesLegacy 逐字保留，既有存檔的收集不倒退（D2）。"
+      }
     },
     {
       "id": "example-hall-11",
@@ -1143,7 +1193,14 @@
         "longcontext-01",
         "longcontext-03"
       ],
-      "designNote": "6 條 rubric 的綜合題 → grounding 的應用關"
+      "designNote": "6 條 rubric 的綜合題 → grounding 的應用關",
+      "phaseJ2": {
+        "totalWeightAfterJ2": 6.5,
+        "passAfterJ2": 3.5,
+        "rubricRowsBefore": 6,
+        "rubricRowsAfter": 4,
+        "why": "課程 v2 · Phase J2：這兩關正式升格為應用關（試煉）——第二幕整幕不存在，rubric 改成「1 條地基 assignsTask 0.5 ＋ 3 條候選（每條掛一條該區的 v2 技能、權重 2）」，門檻由同一條公式重算（入選權重總和的 50%、四捨五入到 0.5、下限 2）。teachesLegacy 逐字保留，既有存檔的收集不倒退（D2）。"
+      }
     },
     {
       "id": "subtask-workbench-31",
@@ -1962,5 +2019,5 @@
       }
     }
   ],
-  "updatedBy": "課程 v2 · Phase G（multi 兩輪刻印 ＋ refinery 校驗場 11 座 ＋ orchestration 收尾 12 座） ｜ 課程 v2 · Phase H（sim 轉鈕）：火力熔爐與刻度儀之室的第三幕由 choice 換裝成 sim，rubric／示範解答／slots／出處一個位元組未動。 ｜ 課程 v2 · Phase I（觀象臺 sight 8 座）：這一期沒有搬動、也沒有改造既有 27 關中的任何一關（8 座全部是新蓋的），所以 manifest 的 challenges 一列都沒有動。"
+  "updatedBy": "課程 v2 · Phase G（multi 兩輪刻印 ＋ refinery 校驗場 11 座 ＋ orchestration 收尾 12 座） ｜ 課程 v2 · Phase H（sim 轉鈕）：火力熔爐與刻度儀之室的第三幕由 choice 換裝成 sim，rubric／示範解答／slots／出處一個位元組未動。 ｜ 課程 v2 · Phase I（觀象臺 sight 8 座）：這一期沒有搬動、也沒有改造既有 27 關中的任何一關（8 座全部是新蓋的），所以 manifest 的 challenges 一列都沒有動。 ｜ 課程 v2 · Phase J3（拆掉 D2 相容層）：最後兩座還沒接上 v2 技能的教學神廟（清晰之門 → clear-specific、迷路的自動機 → clear-positive）補上 primarySkillId 並收斂成 C1 的形狀；兩列 post-A 的移除改標為 phase J 並各補一個 phaseJ 區塊逐欄記錄。130 座教學神廟 ↔ 130 條技能自此一對一。"
 }

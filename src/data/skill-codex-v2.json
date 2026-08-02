@@ -111,9 +111,9 @@
       "legacyTechniqueSource": "migration-manifest",
       "sources": [
         {
-          "vendor": "xAI",
-          "docName": "Code Execution Tool（Best Practices）",
-          "url": "https://docs.x.ai/developers/tools/code-execution#best-practices",
+          "vendor": "Microsoft",
+          "docName": "Prompt engineering techniques（Best practices）",
+          "url": "https://learn.microsoft.com/en-us/azure/ai-foundry/openai/concepts/prompt-engineering",
           "masterRef": 13
         },
         {
@@ -123,9 +123,9 @@
           "masterRef": 13
         },
         {
-          "vendor": "Microsoft",
-          "docName": "Prompt engineering techniques（Best practices）",
-          "url": "https://learn.microsoft.com/en-us/azure/ai-foundry/openai/concepts/prompt-engineering",
+          "vendor": "xAI",
+          "docName": "Code Execution Tool（Best Practices）",
+          "url": "https://docs.x.ai/developers/tools/code-execution#best-practices",
           "masterRef": 13
         },
         {

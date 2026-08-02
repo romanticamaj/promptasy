@@ -739,7 +739,7 @@ rubric 一律「主檢查 3 ＋ 地基 `assignsTask` 0.5、`pass` 2」（C1）�
 ③ 加上「純鍵盤走完量器坊第一座」的區段後做兩輪**先紅**（見下），最後一輪
 **2,308 項全過、零 console error**，零重跑。
 
-### e2e 的兩輪（誠實記錄）
+### e2e 的三輪（誠實記錄）
 
 ① 第一輪：**2,621 通過、14 失敗**，四組，全部是真的東西：
    · 1 條 Phase F 的快照斷言（「齒輪工坊現在有 4 關」→ 收尾之後是 12）；
@@ -1297,7 +1297,7 @@ OpenAI GPT-5.6 前端指引）。
   把 9 個只出現在註解／風味文字裡的生僻字換掉（撬／玻璃／甜／弧／貪婪／喘／啞／醉／晶…），
   最後停在 1464.5 KB。
 
-### e2e 的兩輪（誠實記錄）
+### e2e 的三輪（誠實記錄）
 
 ① **第一輪就全綠**：**2,890 項全過、零 console error、零重跑**（Phase H 是 2,750，新增 140 項）。
    GPU：SwiftShader 軟體渲染、每幀約 203 ms；`AGENTS.md` 登記的動畫時序 flaky 家族
@@ -1323,3 +1323,569 @@ OpenAI GPT-5.6 前端指引）。
 **I readiness（2026-08-02）**：11 區／**123 關**（既有 27 關 ＋ 課程 v2 新蓋的 96 座）／
 130 條技能中的 **119 條**已經接上自己的神廟（`primarySkillId`）；59 個新檢查器已實作 **59** 個；
 `curriculum.json` sha256 未變；存檔 additive（**這一期沒有新增任何欄位**）、reset 正常。
+
+---
+
+## Phase J1 — 分歧之廳（`divergence`）：第十二片土地、新題型「拆碑」、唯一一道硬門檻（2026-08-02）
+
+狀態：`done`（未 commit／push）
+
+**一句話**：中央高原東側的那道縫裡蓋起一座**廳**，9 座神廟教「兩家官方說法相反時怎麼辦」
+與「換模型的時候要改什麼」；新增第十一種題型 **拆碑（`reverse`）**；
+並且開了整個世界**唯一一道不能先行前往的門**（四區精通）。
+
+### 做了什麼
+
+**9 座神廟**（全部新蓋；既有 27 關與其他 11 區一格都沒動）
+
+| # | id | 神廟名 | 技能 | 題型 | 主檢查 | 出處（廠家） |
+|---|---|---|---|---|---|---|
+| 1 | `two-faced-pillar-115` | 兩面的柱 · 身分 | `contrast-persona` | tradeoff | `hasRole` | Mistral |
+| 2 | `two-faced-pillar-116` | 兩面的柱 · 記憶 | `contrast-carry-thinking` | tradeoff | `carriesForwardEssentials` | DeepSeek |
+| 3 | `same-name-dial-117` | 同名的兩個旋鈕 | `contrast-same-name` | sim | `mentionsParameters` | xAI |
+| 4 | `sealed-scale-118` | 封起來的刻度 | `migrate-params-deprecated` | spot | `mentionsParameters` | Google |
+| 5 | `changed-stair-119` | 換了介面的階梯 | `migrate-cot-to-knob` | fix | `mentionsParameters` | Google |
+| 6 | `old-reminder-120` | 舊叮嚀 | `migrate-recheck-concise` | fix | `hasConstraint` | Anthropic |
+| 7 | `patched-robe-121` | 貼滿補丁的舊袍 | `migrate-strip-patches` | spot | `keepsPromptLean` | xAI |
+| 8 | `moving-list-122` | 搬家的清單 | `migrate-checklist` | order | `decomposesTask` | Anthropic |
+| 9 | `rewritten-stele-123` | 會改字的碑 | `era-current-rules` | reverse | `asksToCiteSources` | Google |
+
+題型序列 tradeoff・tradeoff・sim・spot・fix・fix・spot・order・reverse ——
+**與 curriculum-v2 §三 指定的那一串逐格相同**，最長連續同型 2（C4），用了 6 種題型。
+rubric 一律「主檢查 3 ＋ 地基 `assignsTask` 0.5、`pass` 2」（C1）；
+`source` 逐條回查 `skill-codex-v2.json` 裡解析自 master list 的真實官方連結。
+**這一期一個新檢查器都沒開**（59/59 早就實作完）。
+
+**反差題：先發模型卡、再出題，兩家的立場並排掛出處**
+`tradeoffFlow.rounds[].card` 新增選填的 `sources[]`，渲染成「神諭原典：〈文件名〉↗」的可點連結；
+沒給就完全不顯示，既有的雙面碑一個像素都沒變。兩張卡秤完之後兩條判詞 ＋ 各自的出處
+**並排留在「秤過的帳」上**。測試強制：`url` 必須是這條技能自己的官方清單裡那一個、
+`name` 逐字等於 `docName`、兩張卡加起來至少兩家。正解隨模型卡翻面（`favours` 契約未動）。
+
+**新題型：拆碑（`reverse`）** —— `src/prompt/reverse.js`（+`.reverseboard` 樣式）
+牆上釘著一份**已經寫得很好**的舊委託，被拆成幾塊；玩家一塊一塊替它貼上名字
+（「這一塊是為了什麼在這裡」）。它是**石碑刻印的變體**：共用 `slots.js` 的刻寫台與
+`palm.js` 的結尾，送出的是同一段文字、走同一支離線引擎（護欄 3）。
+- 貼錯 → 「碑不收這個名字」＋ 就地長出一句白話教學，不扣分、不前進、不跳失敗面板。
+- **一定有一片誘餌名牌**（從頭到尾都不是正解）—— 那就是這一關的「轉」。
+- **`Esc` 是「拆回來」不是「關面板」**：先把最後貼上去的那一塊拆回來、焦點回到它身上、
+  `aria-live` 講出來；沒有東西可拆才冒泡收面板。
+- 整份拆完才 `stage.unlock()`（想通才給刻，與推規碑同一個文法）。
+- 鍵盤：方向鍵 roving、`Enter` / 數字鍵貼上、`prefers-reduced-motion` 只關動不關回應。
+- 相容契約未變：缺 `reverseFlow` / 缺 `slots` / 未知 kind → 一律退回石碑刻印。
+
+**轉鈕的第 4 組樣本**：`sim-samples.json` 新增 `same-name`（三檔＝三台機器、
+**送出去的是同一行設定**、三段回話彼此不同、寫得出 `condition` 與年份），掛在
+「同名的兩個旋鈕」上；旋鈕仍然不參與評分。
+
+**世界**：`REGION_SITES` 新增 `divergence (76, 17) r=29 flat=25 annexOf: 'foundations'`
+（**第四座加建、沒有自己的橋**，閘門立在頸口 `(51.8, 11.6)`）；
+地貌是「一塊被鋪平的廣場」（中央抬高一階 ＋ 兩道互相交錯的淺溝）；
+`REGION_ATMOSPHERE.divergence`（青灰、曝光 1.14 全場最高 —— 廳裡沒有暗處）、
+`FLORA.divergence`（半塊碑／鎮石／量繩桿）、`buildRegionProps` 的對柱與落碑（零光源）、
+地標 **兩面的柱**（五根等高的柱子，兩面刻著相反的神諭，高 22、留白 14、
+**零實體光源**，放在 `(90, 31)` 的外側 —— 中間讓給石座）、
+`REGION_NEIGHBORS` / `SYNTH_ONLY_REGIONS` / `REGION_MOODS.divergence`（「兩面之詞」：
+根音 138.59、同時放大三度與小三度、三個聲部同一種音色、失諧 8 —— 永遠像有兩台機器在說話）。
+
+**唯一一道硬門檻**：`REGION_GATES.divergence` = `{ hard: true, knowledge: { masteredAny: 4 } }`
+（規格逐字取自 `regions-v2.json`）。三層實作：資料層的旗標、`gate.js` 的對話框
+**不畫「直接前往」**（只留「先留下修行」與 `Esc`）、`skipGate()` 在進程層再擋一次
+—— 分歧之廳永遠不會被寫進 `skippedGates`。其餘 11 區的先行前往一字未動。
+
+**一條新的世界硬規則**：**加建的地界不得吃掉別人的橋**。
+`regionAt()` 新增「點落在別人的橋上時，橋說了算」（只對 `annexOf` 的加建生效）——
+不這樣做的話，通往觀象臺的那條橋會在分歧之廳解鎖之前整條走不過去。
+
+**搬了一座石座**：`first-rail-10` 由 `(49, 20)` → `(44.5, 23.5)`（往北 5.7 公尺）——
+新頸口的閘門柱子會卡進它的互動圈。**只動座標**，題目／評分／流程一個位元組沒動
+（同 Phase H 搬 `wordfork-12` 的前例）。
+
+### 世界量測（在 node 裡把世界蓋起來實測，非引用文件）
+
+| 項目 | Phase I | Phase J1 | 上限 |
+|---|---:|---:|---:|
+| 三角形（高畫質） | 186,596 | **191,462** | 420,000 |
+| 光源（高畫質） | 36 | **37** | 56 |
+| 碰撞體（高畫質） | 961 | **991** | 1,400 |
+| 網格 | 2,252 | **2,401** | — |
+| 低畫質三角形／燈／碰撞體 | 125,156 / 19 / — | **130,000 / 20 / 825** | — |
+| 穿模稽核（高／低畫質） | 0 / 0 | **0 / 0** | 0 |
+
+唯一新增的那一盞燈是「每區一盞主色補光」（與其他六片新土地同一個模式）；
+**地標零實體光源**。9 座石座在高／低兩種畫質下 24 個方向 × 4 段距離全部走得到；
+彼此最小間距 **13.69** 公尺；頸口最低覆蓋 **0.919**（> 0.45 的可站立門檻）；
+中央高原 15 座石座的區域判定一座都沒有改變。
+
+### 驗證
+
+| 指令 | Phase I | Phase J1 |
+|---|---|---|
+| `npm run fonts` | CJK 1847 字／1464.5 KB | ✓ CJK **1847** 字／**1464.5 KB**（指紋測試綠） |
+| `npm run test:rubric` | 67,077 | ✓ **71,927**（含 playtest 的 2,113） |
+| `npm run test:playtest` | 1,919 | ✓ **2,113** |
+| `npm run build` | ✓ | ✓ |
+| `npm run test:e2e` | 2,890 全過 | ✓ **3,050 通過／3 失敗**（全部是已登記的拖曳 flaky，見下） |
+
+契約數字（`scripts/expected-counts.json`）：`challenges` 123 → **132**、
+`v2ImplementedRegions` 11 → **12**（12 區到齊）、`flowKinds` 10 → **11**（加 `reverse`）、
+`synthOnlyRegions` 加 `divergence`、新增 `divergenceShrines: 9`。
+
+### 先紅後綠（逐條實測）
+
+一次**刻意破壞**跑出 **15 條紅燈**（還原後全綠）：
+
+| 破壞 | 紅的斷言 |
+|---|---|
+| 在「兩面的柱」裡偷加一盞 `PointLight` | 兩面的柱一盞實體光源都沒加 |
+| 拿掉 `REGION_GATES.divergence.hard` | 分歧之廳是硬門檻／整個世界只有這一道硬門檻／`gateStatus` 說得出這是硬門檻／門上的字不提「先行前往」／門上的字說得出這一道要走過去才開／先行前往開不了這一道門／`skipGate` 明講理由／被擋下來之後仍然鎖著／不會被寫進 `skippedGates`／一道門都沒被記成先行前往（共 10 條） |
+| 拿掉第一張模型卡的 `sources` | 第 1 張卡掛得出官方出處／兩張卡加起來至少兩家 |
+| 把一片名牌的 `miss` 改成「短」 | 名牌「role」貼錯時有教學回饋（rubric ＋ playtest 各一條） |
+
+另外 e2e 的第一輪本身就是一次真實的紅燈證據：新寫的 13 條斷言中有 7 條
+（走到門前門自己問、四區精通自己開、切自由書寫…）先紅，逐條查出原因後才綠（見下）。
+
+### e2e 的三輪（誠實記錄）
+
+① **第一輪：3,027 通過／25 失敗。** 分成三類：
+   - **既有的動畫時序 flaky（12 條）**：Phase 23 純鍵盤那一段的手掌印沒按下去
+     （連帶結果／評價／通關／分享共 9 條）＋ Phase 27 的滑鼠拖曳 3 條。
+     兩組都是 AGENTS.md 已登記的家族（固定 sleep ＋ 高負載），
+     且同一段程式在同一輪的其他地方（Phase I／J1 的手掌印）照樣過。
+   - **我自己漏改的契約（1 條）**：Phase H 的「三座神廟用轉鈕」→ 現在是 4 座。
+   - **新斷言 ＋ 一條 Phase I 舊斷言的固定 sleep 問題（12 條）**：
+     `teleport → sleep 900ms → 讀遊戲迴圈的結果` 在**剛 reload 完**的那幾秒可能連一個影格
+     都沒跑完（世界要重蓋、shader 要編譯）。依 AGENTS.md 改成**輪詢**（poll until）：
+     Phase I 的「HUD／配樂跟著換到觀象臺」、Phase J1 的「走到門前門自己問」。
+     另外兩條是我測試自己寫錯：`content.evaluate()` 不存在（改成種存檔 ＋ 走
+     `recordResult` 觸發 `refreshUnlocks`）、切模式應該用 `setMode()` 而不是 `KeyM`
+     （結果面板開著時單鍵快捷本來就不吃）。
+② **第二輪：3,048 通過／5 失敗** —— 第一輪那 12 條「動畫時序」全部自己綠了
+   （手掌印、拖曳、分享、Phase I 的跨區），剩下的 5 條全部是同一件事：
+   **「走到門前，門自己問了一句」沒有觸發**。查出來的原因不是測試寫錯，是**世界做錯**：
+   分歧之廳的內圈（`flat`）原本設 21，頸口閘門正下方的覆蓋只有 0.84 →
+   `terrainHeight` 的 `-(1 - cover) * 34` 讓那裡凹下去 5 公尺；
+   `nearestGate()` 量的是 3D 距離，站在門前 5 公尺處的垂直落差 6.4 公尺
+   直接把 7.5 公尺的判定半徑吃掉。**修的是世界不是測試**：內圈提到 25
+   （廣場本來就該是平的），閘門底下的覆蓋回到 1.0，頸口最低覆蓋 0.770 → **0.919**；
+   並新增一條 invariant「閘門正下方是平地（coverage > 0.98）」把這個坑釘死。
+③ **第三輪（本輪結果）：3,050 通過／3 失敗** —— 剩下的三條全部是
+   AGENTS.md 已登記的**拖曳家族**（Phase 27 排序刻印的「用真滑鼠把石版拖到最上面」
+   那一組，三條是同一次拖曳的連帶）。它在第一輪紅、第二輪**綠**、第三輪又紅 ——
+   跟這一期的改動沒有交集（分歧之廳與拆碑一條都沒碰到排序刻印），
+   純粹是軟體渲染 ＋ 高負載下逐格 `mouseMoved` 的時序問題。
+   **Phase J1 新寫的 13 組斷言（約 150 項）第三輪全數通過，全程零 console error。**
+   （要根治的話得把那一段改成輪詢式，屬於測試品質的獨立工作，不在這一期的範圍。）
+
+### 未做／留給後續
+
+- **分歧之廳沒有石碑（lore）／刻文小語／會回應的東西／動得了的器物**（與其他六片新土地
+  同樣的範圍控制）。
+- **12 座應用關、大師層印記 `seals[]`、拆掉 D2 相容層**屬於 J2／J3，這一期一格都沒動。
+- `bgm_divergence.m4a` 尚未錄製；補上時只要在 `BGM_TRACKS` 加一行、把 id 從
+  `SYNTH_ONLY_REGIONS` 移走即可。
+- 未 commit／push；未動 `CLAUDE.md`、`task_plan.md`、`README.md`、`vite.config.js`、
+  port 5175、`src/data/curriculum.json`（sha256 仍綠）。
+
+**J1 readiness（2026-08-02）**：**12 區／132 關**（既有 27 關 ＋ 課程 v2 新蓋的 105 座）／
+130 條技能中的 **128 條**已經接上自己的神廟（`primarySkillId`）——
+剩下兩條（`clear-specific` / `clear-positive`）是既有的清晰之門與迷路的自動機，
+它們走的仍然是 Phase A 的 `primaryTechniqueId`（`clarity-03` / `positive-01`），
+補上 `primarySkillId` 這件事屬於 J3 拆掉 D2 相容層時一起做；59 個新檢查器已實作 **59** 個；
+`curriculum.json` sha256 未變；存檔 additive（**這一期沒有新增任何欄位**）、reset 正常。
+
+## Phase J2 — 12 座應用關（試煉）＋ 土地印記 ＋ 大師層印記（2026-08-02）
+
+狀態：`done`（未 commit／push）
+
+**一句話**：每一片土地的地標腳下多了一座**試煉** —— 它不教任何新技巧
+（第二幕整幕不存在），只把你在那片土地上**已經學會的**那幾條組合起來考一次；
+通過就把那片土地的**印記**收進來，另外開一層完全選配的**大師層印記**。
+
+### 12 座應用關（區域／試煉名／型式／要求組合／候選列數）
+
+| 區域 | id | 試煉名 | 型式 | 要求組合（候選技能 → 檢查器） | 候選列 |
+|---|---|---|---|---|---:|
+| 撰寫基本功 | `council-envoy-06`（沿用） | 議會信使 | 自由書寫 | clear-specific→hasConstraint／context-why→explainsWhy／struct-delimiters→usesRareDelimiter | 3 |
+| 示範與推理 | `triple-echo-124` | 三重迴聲的考題 | 合尺 | fewshot-basics→hasFewShot／cot-explicit→hasStepByStep／knob-effort→mentionsParameters | 3 |
+| 脈絡與長文 | `archive-seal-25`（沿用） | 檔案庫封印 | 自由書寫 | long-query-last→putsQuestionLast／ground-strict→groundsInContext／ground-out→givesOutForUncertainty | 3 |
+| 流程與代理 | `nightlong-site-125` | 整夜的工地 | 派送／分流 | chain-serial→decomposesTask／outcome-first→statesSuccessCriteria／agent-approval-bounds→requiresConfirmation | 3 |
+| 角色與參數 | `full-cast-theatre-126` | 全員到齊的劇場 | 排序 | role-basics→hasRole／hierarchy→ranksInstructions／skeleton-ptcf→specifiesFormat＊ | 3 |
+| 量器坊 | `one-pour-cast-127` | 一次成形的鑄件 | 合尺 | fmt-specify→specifiesFormat／len-preserve→saysWhatToPreserve／answer-anchor→hasFallbackCategory | 3 |
+| 契約鍛冶場 | `unwatched-forge-128` | 無人看管的工坊 | 派送／分流 | tool-description→definesTools／tool-when-not→statesToolTriggers／tool-ask-missing→givesOutForUncertainty | 3 |
+| 減法之庭 | `one-line-left-129` | 只剩一句話 | 自由書寫 | lean-prompt→keepsPromptLean／ctx-pruning→asksToCompact＊／cache-static-first→staticBeforeVariable | 3 |
+| 校驗場 | `who-can-mend-130` | 誰改得動這一份 | 拆碑 | meta-iterate→asksToRefine／meta-eval→definesEvalSet／contradiction-fix→decisionTree | 3 |
+| 護欄崗 | `letters-in-disguise-131` | 假扮成委託的攻擊 | 點碑 | inj-concept→hasDelimiters／inj-input-channel→usesRareDelimiter／guardrail-hitl→requiresConfirmation | 3 |
+| 觀象臺 | `still-to-reel-132` | 一張圖到一支片 | 排序 | mm-basics→pointsAtRegion／img-generate→positiveFraming／video-prompt→namesShotElements | 3 |
+| 分歧之廳 | `three-machines-133` | 三台機器，同一題（終章） | 雙面碑 | contrast-persona→hasRole／contrast-carry-thinking→carriesForwardEssentials／migrate-recheck-concise→hasConstraint | 3 |
+
+型式分佈＝**自由書寫 3／合尺 2／派送 2／排序 2／拆碑 1／點碑 1／雙面碑 1**，
+與 `curriculum-v2.md` §5.2 逐格相同（測試強制）。
+＊ 兩處偏離設計表，理由見 `findings.md`：
+`skeleton-ptcf` 與 `role-basics` 的主檢查都是 `hasRole`（同一把尺不能量兩次）→ 前者改用 PTCF 的 F；
+`len-preserve` 的神廟在 Phase E 就搬去量器坊了（候選必須屬於本區）→ 減法之庭改用 `ctx-pruning`。
+
+每一座的 rubric 都是「**地基 `assignsTask` 0.5 ＋ 3 條候選 × 2 分**」，
+兩座合尺各多一列非單調的 `avoidsPressureLanguage`（0.5、地基）——
+不然「全部石片都挑上去」永遠合尺（見 findings）。
+
+### 動態 rubric 與門檻公式
+
+資料層宣告候選列（`candidate: true` ＋ `skillId`），開關卡時用 `knowsSkill()` 過濾，
+門檻用同一支 `trialPass()` 重算：
+
+```
+pass = max(2, round(入選權重總和 × 0.5 × 2) / 2)      // src/challenges/trial.js
+```
+
+四種情境實測（以三重迴聲為例，候選 3 條 × 2 分 ＋ 地基 0.5 ＋ 壓力尺 0.5）：
+
+| 已學 | 入選列 | 補位（誠實標出） | 總權重 | 門檻 | 示範解答 |
+|---|---:|---:|---:|---:|---|
+| 0 條 | 2（照 `order` 補） | 2 | 5.0 | 2.5 | S |
+| 1 條 | 2 | 1 | 5.0 | 2.5 | S |
+| 2 條 | 2 | 0 | 5.0 | 2.5 | S |
+| 全部 | 3 | 0 | 7.0 | 3.5 | S |
+
+**絕不軟鎖**：門檻永遠 ≥2、永遠 < 總權重；「打得開卻過不了」與「打不開」都不存在。
+12 座 × 三種情境的示範解答全部 ≥A（實測全部 S、每一條檢查滿分），
+弱起手在三種情境下都不過關。
+
+### seals 與大師層印記
+
+存檔新增四欄，全部純加法、`normalize()` 補空陣列、去重、reset 清乾淨、
+**一格都不影響解鎖**（rubric 靜態掃描 `progression.js` 確認）：
+
+| 欄位 | 內容 | 判定 |
+|---|---|---|
+| `seals[]` | 12 枚土地印記（區域 id） | 通過該區試煉就入袋，冪等 |
+| `penlessSeals[]` | 無筆之印 ✒ | 教學神廟：沒用快速填入／技巧積木、沒開提示球、**範例從沒被翻開過**、刻印零退回、**開關卡以來第一次呈遞**就 S |
+| `scribeSeals[]` | 默寫之印 ✍ | 教學神廟：**自由書寫模式**拿到 S（同樣要求範例從沒被翻開過） |
+| `samplesSeen[]` | 翻開過範例的關卡 id | 大師層的**防作弊面** —— 永久記著，關掉重開再拿 S 也不算 |
+
+推算（不落地）：**一區純手**＝該區教學神廟全部拿到無筆之印；
+**分歧之證**＝分歧之廳 9 座全通 ＋ 終章試煉 S。
+應用關**不發**大師層印記；沒給判定材料時一律不發（寧可漏發不可誤發）。
+
+**畫面**：圖鑑徽章下面多一塊安靜的「土地印記」（12 格 ＋ 大師層計數），
+每座拿到印記的神廟旁邊一枚 ✒／✍ 小記號，通過試煉的土地卡上一行「試煉已通過」；
+HUD 的目標列後面加一個「· ✦ 印記」。
+
+### 世界
+
+12 座試煉的石座落點由掃描器求出（區域內、`coverage > 0.79`、四周走得到、
+離地標 ≥18、離所有石座 >13、離橋的主動線 ≥8.5、避開小景／石碑／刻文小語／
+器物／祕密／反應物／閘門），並讓 13 座既有石座**只動座標**讓位（最大 12.6 公尺）。
+
+**護欄崗是唯一一處結構性改動**：它半徑 26、地標就站在正中央、淨空 13 ——
+「石座離地標 ≥18」把整個內圈排除掉，**放不下第六座**（掃描器實測 0 個落點）。
+放大半徑到 27／28／30 都排不出六座，而且 ≥28 會讓母土地的「引文閱覽台」
+被新道具擦到。**裁決**：地標讓到邊緣 (101,-142) → **(92.5,-153.5)**，
+中心 (101,-142) → **(108,-143)**、半徑 26 → **27**、內圈 18 → **20**，
+才空得出六座（實測最小間距 14.53）。母土地一寸都沒被吃掉（142 關逐關驗）。
+
+### 契約數字
+
+| 契約 | Phase J1 | Phase J2 |
+|---|---:|---:|
+| `challenges` | 132 | **142**（130 教學神廟 ＋ 12 應用關） |
+| `applicationTrials` | — | **12**（新增） |
+| `foundationsShrines` | 15 | **14**（這一格從此只算教學神廟） |
+| `groundingShrines` | 13 | **12**（同上） |
+
+### 驗證
+
+| 指令 | Phase J1 | Phase J2 |
+|---|---|---|
+| `npm run fonts` | CJK 1847／1464.5 KB | ✓ CJK **1855**／**1463.4 KB**（69 檔語料；先撞到 1.5 MB 硬牆，換掉 11 個新字才回到預算內） |
+| `npm run test:rubric` | 71,927 | ✓ **76,538**（含 playtest 的 2,372） |
+| `npm run test:playtest` | 2,113 | ✓ **2,372** |
+| `npm run build` | ✓ | ✓ |
+| `npm run test:e2e` | 3,050 通過／3 失敗 | ✓ **2,965 通過／9 失敗**（9 條全部是同一組已登記的 flaky，見下） |
+
+### 先紅後綠（逐條實測）
+
+e2e 第一輪本身就是最好的紅燈證據 —— 它抓到一個**真 bug**：
+
+| 紅的東西 | 原因 | 修法 |
+|---|---|---|
+| `console.open()` 丟 `Cannot read properties of null (reading 'slots')` | 自由書寫的試煉沒有流程資料，而 `open()` 從 Phase 11 起就假設每一關都有 | `const f = currentFlow || {}` |
+| 6 處「N 座教學神廟」 | 12 座試煉住在既有區域裡 | 三份腳本各建 `shrines` 過濾 |
+| 4 處 `.rubric.find(r => r.primary).check` | 應用關沒有主檢查 | 先取 row 再判空 |
+| 「每一關都有流程資料」 | 三座自由書寫的試煉刻意沒有 | 改成 `carveable`，並反向驗「剛好三座」 |
+| 圖鑑 800px 溢位 +73px、ⓘ 氣泡凸出 | 我新加的印記那一塊 | 拿掉那顆 ⓘ（改成一句話）＋ `.seal { min-width: 0 }` |
+
+另外在 rubric 層新寫的 Phase J2 一節（約 140 條）涵蓋：
+12 座的資料契約、型式分佈逐格比對、候選列的技能歸屬與檢查器互異、
+四種情境的動態 rubric 與門檻公式、四個新存檔欄位的 additive／去重／reset、
+印記的冪等與「不解鎖任何東西」、七種不合格情境下**拿不到**大師層印記、
+以及 finale 未回退的靜態掃描。
+
+### e2e 的輪次（誠實記錄）
+
+① 第一輪：抓到 `open()` 的 null 崩潰（真 bug）＋ 21 項契約失敗 → 全部修掉。
+② 第二輪：12 項失敗（區域石座數 ＋ HUD 換區的固定 sleep ＋ 我重建的 J1 斷言
+   用錯了 `skipGate` 的回傳形狀與 `world.scene`）→ 全部修掉，
+   並把「走進校驗場 → HUD 跟著換」那一段改成**輪詢**（AGENTS.md 的建議）。
+③ 第三輪：中途被我自己的孤兒 dev server（port 5199）撞掉 → 清乾淨後重跑。
+④ 第四輪：2,959 通過／14 失敗 —— 其中 8 條是我自己重建 J1 時猜錯的 API
+   （`skipGate` 的回傳形狀、`world.scene`、`reverseBoard.label()` 的簽章、
+   閘門對話框的焦點判定）與兩個 J2 的真問題：
+   幕指示器把第二幕內容區那顆 `data-act-go="1"` 的「回顧委託」也數進去了
+   （選擇器改成 `.acts [data-act-go]`），以及大師層那兩段忘了先 `goAct(3)`
+   —— 第一幕時書寫檯是 `hidden` 的，`Input.insertText` 打進虛空。全部修掉。
+⑤ 第五輪：2,960 通過／13 失敗 —— **Phase J2 的 45 條全綠**，
+   剩下 13 條分成三組：純鍵盤的手掌印（9）、滑鼠拖曳（3），
+   以及我把拆碑的 `done`（那是**刻印**完成，不是**拆完**）用錯（1）→ 改成 `progress.taken`。
+⑥ 第六輪（本輪結果）：**2,965 通過／9 失敗** ——
+   9 條全部是**同一組**已登記的 flaky：Phase 23「純鍵盤走完一圈」那一段的
+   手掌印沒按下去，以及跟著它連帶失敗的 8 條（結果／評價／通關／分享）。
+   它在第四、五、六輪都紅，但**同一支手掌印在 J1／J2／其他七個題型的段落照樣過**
+   —— 這一台是軟體渲染、每幀 203 ms，那一段用的是固定 sleep（AGENTS.md 已登記）。
+   Phase 27 的滑鼠拖曳這一輪自己綠了（第四、五輪紅），同樣是那個家族。
+   **Phase J1 重建的 39 條與 Phase J2 新寫的 45 條，本輪全數通過，全程零 console error。**
+
+### 未做／留給 J3
+
+- **D2 的 legacy teaching/collection bridge 還在**（拆掉它是 J3）。
+- **`backlog`、README 數字與截圖、R4 驗收**屬 J3。
+- **拆碑（reverse）的完整鍵盤走查**：我在修一次寫壞的檔案編輯時誤用
+  `git checkout --`，把 Phase J1 尚未 commit 的 e2e 段落（約 678 行）刪掉了。
+  已依 `progress.md`／`findings.md` 的描述**重寫**了一份分歧之廳與拆碑的 e2e，
+  但那一段「真的按鍵盤把碑拆完再刻到手印」的走查沒有逐字還原 —— 詳見 `findings.md`。
+- 未 commit／push；未動 `CLAUDE.md`、`task_plan.md`、`README.md`、`vite.config.js`、
+  port 5175、`src/data/curriculum.json`（sha256 仍綠）。
+
+## Phase J3 ＋ R4 release checkpoint 報告（2026-08-02）
+
+狀態：`done`（未 commit／push）
+
+**一句話**：D2 的相容層拆掉了 —— 130 座教學神廟從此**每一座都掛得出自己的 v2 技能**，
+教學面（第二幕刻文、第三幕的 primary 列、結果面板、教練）一律以技能為正典、沒有退路；
+收集面（68 條技巧、四廠徽章、隱藏成就）一格未動，舊存檔逐欄實測不倒退。
+然後把 R4 的五項驗收全部實跑了一次。
+
+### 1. 完成條件逐條（task_plan §0）
+
+| 完成條件 | 狀態 | 證據 |
+|---|---|---|
+| 130 技能各有且只有一座教學神廟；每關 1 主檢查＋最多 1 地基 | ✅ | rubric：`130 座教學神廟 ↔ 130 條技能`、`沒有兩座神廟教同一條技能（C2）`、逐條 `技能 X 有自己的神廟`；C1 invariant 對全部 130 座成立 |
+| 12 區與 mission graph 上線；130 教學神廟＋12 應用關可玩 | ✅ | `expected-counts`：challenges 142 / applicationTrials 12 / v2ImplementedRegions 12；e2e 走過 |
+| 14 種型式規劃完成，其中 K 期 `disclose` 為選配；未做要明確標成選配未實作 | ✅ | 11 種 flow kind ＋ 自由書寫上線；**`disclose` 正式記錄為「選配，不實作」**（findings.md 有逐條理由與翻案條件） |
+| 59 個新檢查器只按需要實作，全部有 good／weak／bad、反作弊及中英 fixture | ✅ | `checks.js` 共 **81** 個（22 原有 ＋ 59 新）；rubric 逐個驗「真的實作了」「真的被某座神廟用到」 |
+| `curriculum.json` byte-identical | ✅ | sha256 釘死測試綠（本期一個位元組都沒碰它） |
+| 舊存檔可讀、reset 正常、新欄位 additive 且有 `normalize()` 預設 | ✅ | 新增「R4：舊存檔搬家與重置實測」一節（見下） |
+| 快檢、playtest、build 全綠；新增互動有 e2e，console error 為 0 | ✅ | 見下方數字 |
+
+### 2. D2 拆除做了什麼
+
+**資料層（最後兩座）**
+
+| 關卡 | 接上的技能 | rubric（前 → 後） | pass | 第三幕 | source |
+|---|---|---|---|---|---|
+| `gate-of-clarity-01` 清晰之門 | `clear-specific` | assignsTask 0.5 ＋ specifiesFormat 2 ＋ **hasConstraint 2** ＋ hasAudience 1 → assignsTask 0.5（地基）＋ **hasConstraint 3**（主） | 2.5 → **2** | 4 段 → **3 段**（拿掉「寫給誰看」） | curriculum · OpenAI Best practices → **Microsoft · Prompt engineering techniques（Best practices）** |
+| `lost-automaton-03` 迷路的自動機 | `clear-positive` | **positiveFraming 3** ＋ assignsTask 0.5 ＋ explainsWhy 2 → **positiveFraming 3**（主）＋ assignsTask 0.5（地基） | 2.5 → **2** | 3 段（第一段換成「先把今晚的路線交代給它」） | curriculum · OpenAI Best practices → **Anthropic · Prompting best practices（Control the format of responses）** |
+
+移除的三條的主題都已經有自己的神廟（`hasAudience` → 六面燈籠、`specifiesFormat` → 量器坊 `fmt-specify`、
+`explainsWhy` → `context-why`），所以是 C2「不重教」而不是刪內容。
+`teaches` 逐字保留（測試比對 manifest 的 `teachesLegacy`），68 條的涵蓋率仍然是滿的。
+
+**為什麼第一段要換掉**：`lost-automaton-03` 拿掉 `explainsWhy` 之後只剩兩條檢查，
+原本的第一段「請一路靠右走到北門」自己就會拿滿分 —— playtest 有一條既有門檻
+「只刻第一段還不會滿分」會直接紅。改成沒有任務動詞的路線句之後，第一段 0 分、全部刻完 S（同 J1 的前例）。
+
+**程式層（三處相容分支拿掉）**
+
+| 位置 | 拆掉的東西 |
+|---|---|
+| `console.js` `guidancePrimary()`（第二幕刻文） | `challenge.primarySkillId \|\| row.skillId \|\| null` → `challenge.primarySkillId` |
+| `console.js` `renderChecklist()`（第三幕對照的 primary 列） | `(row.primary && challenge.primarySkillId) \|\|` → 三元式，主檢查沒有退路 |
+| `console.js` `renderResult()`（結果面板的主技巧） | 同上 |
+| `console.js` `guidanceRow()` | `(skillId && sourceForSkill(skillId)) \|\| sourceFor(techId)` → **有技能就走技能的出處**，不會偷偷退回舊技巧 |
+
+`content.sourceForSkill()` 的 `name` 補上廠商前綴（`Anthropic · Prompting best practices`），
+與 `curriculum.json` 的出處寫法一致 —— 拆掉相容層之後 130 座的原典全部走這一支，
+畫面上必須看得出是哪一家（護欄 2）。
+
+**`knowsSkill()`：留 fallback ＋ 加一次純加法回填**
+
+任務給的兩條路我選了 (a) 並補上 (b) 的回填部分，但**沒有收窄 fallback** ——
+收窄會真的讓人倒退（舊 68 條可以由多座關卡的 `teaches` 收到，回填補不齊），詳見 `findings.md`。
+- 回填：開機時照「`bestGrades` × `primarySkillId`」把漏掉的技能補進 `skillsV2`，
+  純加法、冪等、只補真的通關過的、補完立刻寫回 localStorage。
+- fallback 正名為 **收集誠實層**（程式碼註解 ＋ WORLD.md §5.3b）。
+
+### 3. 補回 J2 弄丟的 e2e 覆蓋
+
+重寫了**拆碑（`reverse`）的完整鍵盤走查**（約 200 行、38 條斷言）：
+第三幕焦點自己落在名牌上 → 誘餌真的存在 → 方向鍵 roving → 數字鍵貼錯（碑不收 ＋ 就地教學 ＋
+`aria-live` ＋ 不扣分不前進不跳失敗面板）→ 貼對一塊 → **`Esc` 拆回來**（面板不會被順手收掉）→
+一塊一塊真的按鍵盤貼完 → 焦點自己落到刻印 → 數字鍵刻滿（＝`sample`）→ 第四幕 →
+按住 `Enter`（輪詢，不是固定 sleep）→ S ＋ 石座轉已通關 ＋ 技能入袋 ＋ 寫進 localStorage ＋ 官方出處。
+J1 其他被刪的斷言在 J2 已重寫過，逐條核對後沒有缺口。
+
+### 4. J2 那 9 條 e2e 失敗的真因與處置
+
+**不是回歸，是測試自己的寫法。** 9 條全部指向 Phase 23「純鍵盤走完一圈」的那一次手掌印
+（其餘 8 條是連帶）。寫法是 `keyDown → sleep(900) → keyUp`，`PALM_HOLD_MS` 是 600 ——
+但 `sleep(900)` 量的是測試主機的牆鐘，而這台是 SwiftShader（每幀約 200 ms），
+CDP 的 `keyDown` 可能晚好幾百毫秒才被頁面處理，於是「按住 900 ms」在頁面看來只有 300 ms。
+
+**根治**：新增共用零件 `holdPalm()` —— 按下去 → **輪詢 `.palm.is-fired`** → 才放開；
+鍵盤與滑鼠兩條路都走它。全套 **11 處**手掌印的固定 sleep 一次清乾淨
+（純鍵盤、排序刻印、神諭工坊、改碑、點碑、量器坊、契約鍛冶場、兩輪刻印、轉鈕、觀象臺、改碑鍵盤版）。
+
+### 5. R4 五項驗收
+
+#### 5.1 全 suite 數字
+
+| 指令 | Phase J2 | Phase J3 |
+|---|---|---|
+| `npm run fonts` | CJK 1855／1463.4 KB | ✓ CJK **1844**／**1463.4 KB**（69 檔語料，指紋測試綠） |
+| `npm run test:rubric` | 76,538 | ✓ **76,757** |
+| `npm run test:playtest` | 2,372 | ✓ **2,372** |
+| `npm run build` | ✓ | ✓ |
+| `npm run test:e2e` | 2,965 通過／9 失敗 | ✓ **3,013 項全過、零 console error、零重跑**（見 §5.6） |
+
+rubric 的淨變化＝新增兩節（「拆掉 D2 相容層」約 190 條、「R4：舊存檔搬家與重置實測」約 47 條）
+減去兩座收斂掉的 rubric 列所帶的逐列斷言。
+
+#### 5.2 世界量測（在 node 裡把世界蓋起來實測，非引用文件）
+
+| 項目 | 上限 | 高畫質 | 低畫質 |
+|---|---:|---:|---:|
+| 三角形 | 420,000 | **194,083** | 132,674 |
+| 光源 | 56 | **37** | 20 |
+| 碰撞體 | 1,400 | **957** | 823 |
+| 網格 | — | **2,457** | 2,407 |
+| 幾何體／材質 | — | 1,317 / 1,213 | 1,267 / 1,210 |
+| 石座（markers） | — | **142** | 142 |
+| **穿模稽核** | 0 | **0** | **0** |
+
+（這一期沒有新增任何場景內容；數字與 J1／J2 的差異來自 J2 的落點重排與這次的實測本身。）
+
+#### 5.3 來源抽查（新區域的 20 個官方 URL，實際 curl、follow redirect）
+
+| # | URL | HTTP | 備註 |
+|---:|---|---:|---|
+| 1 | ai.google.dev/gemini-api/docs/prompting-strategies#completion | 200 | |
+| 2 | platform.claude.com/…/claude-prompting-best-practices#control-the-format-of-responses | 200 | 迷路的自動機的新出處 |
+| 3 | developers.openai.com/api/docs/guides/prompt-guidance-gpt-5p6 | 200 | 轉址到 `latest-model?model=gpt-5.6#prompting-best-practices`（官方自己的轉址，內容還在） |
+| 4 | developers.openai.com/api/docs/guides/function-calling | 200 | |
+| 5 | ai.google.dev/gemini-api/docs/agents#security-best-practices | 200 | |
+| 6 | platform.claude.com/…/prompting-claude-opus-5#capability-improvements | 200 | |
+| 7 | ai.google.dev/gemini-api/docs/files#troubleshooting-your-multimodal-prompt | 200 | |
+| 8 | huggingface.co/mistralai/Magistral-Small-2509 | 200 | |
+| 9 | docs.x.ai/…/audio/speech-to-speech#step-3--model-specific-best-practices | 200 | |
+| 10 | ai.google.dev/gemini-api/docs/prompting-strategies#format_responses_with_the_completion_strategy | 200 | |
+| 11 | platform.claude.com/…/prompting-claude-opus-5#written-deliverable-length | 200 | |
+| 12 | ai.google.dev/gemini-api/docs/structured-output#vs-function-calling | 200 | |
+| 13 | platform.claude.com/…/tool-use/define-tools#providing-tool-use-examples | 200 | |
+| 14 | docs.x.ai/developers/tools/code-execution#when-to-use-code-execution | 200 | |
+| 15 | developers.openai.com/api/docs/guides/prompt-engineering#message-formatting-with-markdown-and-xml | 200 | |
+| 16 | platform.claude.com/…/claude-prompting-best-practices#workflows-across-multiple-context-windows | 200 | |
+| 17 | developers.openai.com/api/docs/guides/prompting | 200 | |
+| 18 | docs.cloud.google.com/gemini-enterprise-agent-platform/models/prompts/zero-shot-optimizer | 200 | |
+| 19 | platform.claude.com/…/prompting-claude-sonnet-5#code-review-harnesses | 200 | |
+| 20 | developer.meta.com/ai/docs/how-to-guides/vision-capabilities/ | 200 | 用假的桌面 UA 會被 Meta 擋成 400，用 curl 預設 UA 是 200；內容還在 |
+
+**20 / 20 全部存活，沒有任何一條需要進 `dated-notes.json` 的下架註記層。**
+另外把清晰之門新出處的四個候選（Microsoft／Cohere／xAI／Google）也一起 curl 過，全部 200。
+
+#### 5.4 存檔 migration／reset 實測
+
+新增 rubric 的「R4：舊存檔搬家與重置實測」一節：種一份 **`promptarcade.v1.save`**（舊命名空間）
+的存檔，含 XP 1180／Lv.8／4 個已解鎖區域／5 條 collected／3 關 bestGrades／徽章／`loreRead`／
+`prologueSteps`／`guidanceSeen`／`inscriptionsFound`／`secretsFound`／`handlesUsed`／
+`skippedGates`／`skillsV2`／設定／flags，然後逐欄驗：
+
+- 18 欄逐欄搬過來、一格沒少；`seals` / `penlessSeals` / `scribeSeals` / `samplesSeen`
+  四個新欄位補成空陣列；新 key 立刻寫入、舊 key 留在原地。
+- 閘門與收集**不倒退**：4 個已解鎖區域仍然解鎖、5 條舊技巧仍在圖鑑、
+  `knowsSkill('clear-specific')` / `('clear-positive')` 仍為 true、
+  原本就在 `skillsV2` 的技能沒被弄丟、三座通關過的神廟的技能都補齊了、最佳評價沒有被回填動到。
+- `resetAll()` 之後**兩個 key 都清乾淨**，重載是全新存檔（技能／印記／區域全部回到起點）。
+
+#### 5.5 README 改了什麼（誠實）
+
+- 徽章：`68 techniques cited` → `130 skills cited`。
+- What is this：130 skills / 445 source links，並寫明 68 條原編譯**逐字保留在底下**。
+- Features：`27 challenges across 5 regions` → **142 challenges across 12 regions**
+  （130 教學神廟 ＋ 12 應用關），並補上知識式軟門檻；
+  `Four ways to answer` → **Twelve ways**（11 種題型 ＋ 自由書寫）；
+  `22 reusable checks` → **81**；圖鑑段落補上 12 枚土地印記與大師層。
+- 專案結構：`5 regions` → `12 regions, bridges, annexes`。
+- Testing 表：rubric **76,757**、playtest **2,372**、e2e 見 §5.6。
+- Content & sources：補上「130 技能的 v2 catalogue 是**另一層**，445 筆出處逐條解析自研究總表」。
+- 中文區塊的「規模」整段重寫。
+- **截圖沒有重拍**，但在圖片區塊上方加了一段誠實標註：這六張是 2026-07-31（Phase 32/34）拍的，
+  當時是 5 區 27 關，畫面上的數字落後於現況，重拍列為未完成的工作。
+
+#### 5.6 完整 e2e（R4 的最後一道門）
+
+**一輪跑完：`✓ headless 全部通過：3013 項檢查、零 console error`（exit 0，零重跑）。**
+
+| 項目 | Phase I | J1 | J2 | **R4（J3）** |
+|---|---:|---:|---:|---:|
+| e2e 檢查項數 | 2,890 | 3,050 通過／3 失敗 | 2,965 通過／9 失敗 | **3,013 全過** |
+| console error | 0 | 0 | 0 | **0** |
+| 重跑次數 | 0 | 2 | 5 | **0** |
+
+- 43 個區段全部走完，最後兩段是這一期的新內容：
+  「分歧之廳與拆碑（課程 v2 · Phase J1）」76 項、「應用關與印記（課程 v2 · Phase J2）」45 項。
+- **AGENTS.md 登記的動畫時序 flaky 家族這一輪一條都沒出現** —— 手掌印那 11 處固定 sleep 已由
+  `holdPalm()`（輪詢 `.palm.is-fired`）根治，Phase 27 的滑鼠拖曳家族也乾淨。
+  這是這台機器（SwiftShader 軟體渲染）上第一次**完整套件第一輪就零失敗**。
+- 環境：測試自己的 vite 走 5199、Chrome 走自己的 CDP 埠；**使用者的 5175 全程沒碰**；
+  收尾時整個 process group 清乾淨（跑完 `pgrep chrome|vite` 只剩使用者自己的 5175）。
+- 這一輪是 orchestrator 在 J1／J2／J3 三個切片全部落地之後**重新跑的一輪**（不是引用子代理的數字）。
+
+### 6. 先紅後綠（逐條實測）
+
+| 破壞 | 紅的斷言 |
+|---|---|
+| 拿掉 `gate-of-clarity-01` 的 `primarySkillId` | 10 條：`source 是 curriculum 裡真實存在的官方連結`／`source 屬於它所教技巧的出處`／`每一座教學神廟都掛得出 primarySkillId`／`技能 clear-specific 有自己的神廟`／`接上 §三 指定的技能`／`主技能有可點的官方出處`／`原典標籤寫得出廠商`／回填三條 |
+| 把 `guidancePrimary()` 的相容退路加回去 | 2 條：`第二幕刻文不再有「主技能找不到就退回這一列的技能」的相容路徑`／`第二幕直接用 primarySkillId` |
+| 拿掉開機回填 | 4 條：`開機時把已通關的那座神廟的技能回填進 skillsV2`／`兩座都回填了`／`回填立刻寫回 localStorage`／`再開一次不會重複回填（冪等）` |
+| 把 `normalize()` 的 `seals` 預設改成 `['BROKEN']` | 3 條：`舊存檔的 seals 補成空陣列（純加法）`／`seals 去重`／`R4：舊存檔沒有的 seals 補成空陣列` |
+
+另外 e2e 這一輪本身也是紅燈證據：新寫的拆碑鍵盤走查在第一輪就跑過（見 §5.6）。
+
+### 7. backlog 的最終處置（逐條）
+
+| 項目 | §3 指定 | 目前 | 最終狀態 | 一句話理由 |
+|---|---|---|---|---|
+| 鑄模房 `so-basics` | `workshop` | `choice` | **won't do** | 擋住的是 `workshop` 的四步語意（挑工具 → 填參數 → **排呼叫順序** → 立規矩）——schema 沒有「呼叫順序」那一步，硬套會把欄位教成有先後。做三步版等於為了一座神廟新開一套 stage contract（焦點／鍵盤／文字組裝／e2e）。 |
+| 量繩之桌 `clear-constraint` | `constraint` | `fix` | **won't do** | 純資料工作、隨時做得了，但在 release gate 前換一份沒玩測過的第三幕資料，風險大於收益；現行 `fix`（把「短一點」換成有單位的規格）已達成教學目標。 |
+| 零件表 `struct-anatomy` | `reverse` | `spot` | **won't do** | 同上；findings 早就記過「用 spot 幾乎等價」。 |
+| 一字之差的岔路 `word-choice` | `tradeoff` | `tradeoff` | ✅ 完成（Phase C） | |
+| 舊標籤的倉庫 `struct-xml` | `tradeoff` | `tradeoff` | ✅ 完成（Phase C） | |
+| 三口井 `three-wells` | `workshop` | `choice` | ✅ 已裁決（Phase C） | 依內容本質改用 choice，不列為 backlog |
+| 給沒看過的人／取水之後的停頓 | `multi` | `multi` | ✅ 完成（Phase G） | |
+| 火力熔爐／刻度儀之室／沙漏工房 | `sim` | `sim` | ✅ 完成（Phase H） | |
+| 空手的信使 `context-supply` | `disclose` | `fix` | **選配未實作** | 見下 |
+
+### 8. Phase K（`disclose` 拾遺）的正式決策記錄
+
+依 `task_plan.md` §0「K 期 `disclose` 為選配；未做時必須明確標成選配未實作」——
+**Promptasy 課程 v2 不實作 `disclose`**，理由四條（完整版在 `findings.md`）：
+
+1. 它是唯一一種會把**關卡**與**世界探索**綁在一起的題型，會打破「任何一關隨時開得起來」的契約，
+   而鍵盤可玩性、e2e 與「先行前往」全部建立在那個契約上。
+2. 它要新增一個**會影響可玩性**的存檔欄位（背包裡有什麼決定關卡打不打得開）——
+   既有的新欄位全部是純加法且不影響解鎖。
+3. 世界的觸控移動（虛擬搖桿）在 Phase D 就明確不做；沒有它，`disclose` 在手機上等於不可玩。
+4. 它**不影響 130 條技能的完成度**：`context-supply` 已經有自己的神廟（空手的信使，`fix`），
+   教的是同一件事。
+
+翻案條件寫死在這裡：**先有世界的觸控移動，再談 `disclose`。**
+
+### 9. 未做／留給後續
+
+- **截圖沒有重拍**（`docs/media/` 的六張是 2026-07-31 拍的，當時 5 區 27 關）。
+  README 已在圖片區塊上方**誠實標註**擷取時間與它落後於現況；重拍需要重新種存檔取景。
+- **三筆 kind-swap 維持現狀**（見 §7）。
+- **六個新區的配樂音檔仍未錄製**（誠實登記在 `SYNTH_ONLY_REGIONS`，跨區走合成 pad）。
+- **行動裝置的世界觸控移動仍然不做**（Phase D 的裁決未變）。
+- 未 commit／push；未動 `CLAUDE.md`、`task_plan.md`、`vite.config.js`、port 5175、
+  `src/data/curriculum.json`（sha256 仍綠）。

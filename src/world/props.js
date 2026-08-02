@@ -909,6 +909,19 @@ export const LANDMARK_SOLIDS = Object.freeze({
     [0, 0, 4.8],
     [0, 0, 2.3],
   ],
+  /*
+   * 兩面的柱：臺座 cyl(9.4, 10.6, 1.2) ＋ 五根 cyl(0.82, 1.08, 17.4) 的柱子。
+   * 臺座只有 1.2 公尺高（跨得上去），真正要擋人的是那五根柱子 ——
+   * 每根都細（半徑 1.08），所以一根一個圓就貼得住形狀。
+   * 柱頂那道楣懸在 20 公尺高，走得過去（也走不到），不登記。
+   */
+  'twin-pillars': [
+    [-7.0, 0.8, 1.3],
+    [-3.5, -0.1, 1.3],
+    [0, -0.8, 1.3],
+    [3.5, -0.1, 1.3],
+    [7.0, 0.8, 1.3],
+  ],
 });
 
 /* ------------------------------------------------------------------ *
@@ -1414,13 +1427,15 @@ export const LANDMARKS = Object.freeze([
   // 課程 v2 · Phase F：契約鍛冶場（§二：「半空中一圈懸浮的鑰匙，每一把都沒有刻名字」）
   { id: 'nameless-keys', region: 'toolcraft', name: '未命名的工具', at: [-124, 0], height: 23, clear: 15 },
   // 課程 v2 · Phase F：護欄崗（§二：「一道永遠留一條縫的雙層門」）
-  { id: 'ajar-doors', region: 'wards', name: '不會關上的門', at: [101, -142], height: 19, clear: 13 },
+  { id: 'ajar-doors', region: 'wards', name: '不會關上的門', at: [92.5, -153.5], height: 19, clear: 13 },
   // 課程 v2 · Phase G：校驗場（§二：「兩面互相對照的鏡」）
   { id: 'facing-glass', region: 'refinery', name: '會回頭照自己的鏡', at: [-129, 129], height: 20, clear: 14 },
   // 課程 v2 · Phase H：減法之庭（§二：「一座什麼都沒放的基座，銘文寫著被拿走的東西」）
   { id: 'empty-plinth', region: 'frugality', name: '空的基座', at: [0, -82], height: 18, clear: 13 },
   // 課程 v2 · Phase I：觀象臺（§二：「一面朝天的鏡（斜插在坡上、映著整片星空的巨鏡）」）
   { id: 'sky-mirror', region: 'sight', name: '朝天的鏡', at: [149, -31], height: 21, clear: 14 },
+  // 課程 v2 · Phase J：分歧之廳（§二：「五根兩面刻著相反神諭的柱」）
+  { id: 'twin-pillars', region: 'divergence', name: '兩面的柱', at: [90, 31], height: 22, clear: 14 },
 ]);
 
 /** 斷環：一圈立起來的巨石環，缺了一角 —— 「有人試著把話說圓，還差一塊」。 */
@@ -1876,6 +1891,45 @@ function landmarkSkyMirror(kit) {
   return grp;
 }
 
+/**
+ * 兩面的柱（分歧之廳）：五根並排的柱子，每一根的兩面刻著相反的神諭。
+ *
+ * 遠遠看過去是一排整齊的柱列；走近才發現**同一根柱子的兩面刻的是相反的話**——
+ * 一面的刻痕是冷星光、一面是暖金，中間一道細縫把它們隔開。
+ * 沒有一根比別根高：五根一樣高，因為沒有哪一面比較對。
+ * **零實體光源**：刻痕、縫、柱頂的環全部是自發光材質。
+ * 柱子是實心的，`solidSpan` 不需要（每根都是細長的圓柱，一個圓就貼得住）。
+ */
+function landmarkTwinPillars(kit) {
+  const grp = new THREE.Group();
+  // 廳的地面：一塊寬而扁的臺座（柱子立在上面）
+  bulky(put(grp, cyl(9.4, 10.6, 1.2, 14), stone(kit.dark), [0, 0.6, 0]));
+  put(grp, torus(9.0, 0.1, 4, 32), glow(kit.accent, 0.5), [0, 1.24, 0], [Math.PI / 2, 0, 0]);
+
+  const COUNT = 5;
+  for (let i = 0; i < COUNT; i += 1) {
+    const t = (i / (COUNT - 1) - 0.5) * 2; // -1 … 1
+    const x = t * 7.0;
+    const z = Math.abs(t) * 1.6 - 0.8; // 微微彎成一道弧，剪影才不是一堵牆
+    const h = 17.4;
+    bulky(put(grp, cyl(0.82, 1.08, h, 6), stone(kit.mid), [x, 1.2 + h / 2, z]));
+    // 兩面的刻痕：一面冷星光、一面暖金（同一根柱子，兩種相反的說法）
+    for (let k = 0; k < 7; k += 1) {
+      const y = 3.4 + k * 1.9;
+      put(grp, box(1.12 - (k % 2) * 0.3, 0.13, 0.1), glow(kit.accent, 0.62), [x, y, z + 0.86]);
+      put(grp, box(1.12 - ((k + 1) % 2) * 0.3, 0.13, 0.1), glow(PALETTE.warm, 0.58), [x, y + 0.9, z - 0.86]);
+    }
+    // 把兩面隔開的那一道細縫
+    put(grp, box(0.08, h - 2.2, 1.78), glow(kit.accent, 0.34), [x, 1.2 + h / 2, z]);
+    // 柱頂：一圈環（五根一樣高 —— 沒有哪一面比較對）
+    put(grp, torus(1.05, 0.11, 4, 16), glow(kit.accent, 0.9), [x, 1.2 + h + 0.5, z], [Math.PI / 2, 0, 0]);
+  }
+  // 廳的最高處：橫過五根柱頂的一道楣，中央一顆亮點
+  bulky(put(grp, box(15.4, 0.9, 1.5), stone(kit.dark), [0, 1.2 + 17.4 + 1.6, 0.0]));
+  put(grp, ico(0.36, 0), glow(PALETTE.warm, 1.9), [0, 1.2 + 17.4 + 2.6, 0]);
+  return grp;
+}
+
 const LANDMARK_BUILDERS = {
   'broken-ring': landmarkBrokenRing,
   'endless-stair': landmarkEndlessStair,
@@ -1888,6 +1942,7 @@ const LANDMARK_BUILDERS = {
   'facing-glass': landmarkFacingGlass,
   'empty-plinth': landmarkEmptyPlinth,
   'sky-mirror': landmarkSkyMirror,
+  'twin-pillars': landmarkTwinPillars,
 };
 
 /* ------------------------------------------------------------------ *

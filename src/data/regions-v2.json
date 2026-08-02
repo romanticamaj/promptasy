@@ -401,8 +401,8 @@
       "place": "中央高原 · 高原上的建物",
       "theme": "神諭彼此矛盾：廠家反差、同名不同義、遷移與時代警示。大師層的收束。",
       "landmark": "五根兩面刻著相反神諭的柱",
-      "engineCost": "高原建物",
-      "implemented": false,
+      "engineCost": "高原建物（Phase J1 已上線）",
+      "implemented": true,
       "skillIds": [
         "contrast-persona",
         "contrast-carry-thinking",
@@ -418,7 +418,8 @@
         "hard": true,
         "masteredAnyCount": 4,
         "text": "硬門檻：四區精通（等同既有 finale 的位階）。"
-      }
+      },
+      "color": "#d8b8c6"
     }
   ]
 }

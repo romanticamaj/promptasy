@@ -16,6 +16,14 @@
  *     一輪由 B 勝），玩家學到的因此是「什麼時候用哪一面」，不是「哪一面比較好」。
  *   · 秤完兩張卡才開放刻印；刻的那一段要寫得出「這一次為什麼選這一面」。
  *
+ * ## 模型卡的官方出處（課程 v2 · Phase J）
+ *
+ * 分歧之廳的反差題必須**先發模型卡、再出題**，而且每一張卡上那個立場
+ * 都要掛得出**可點的官方連結** —— 「兩家說法相反」是一句很重的話，
+ * 玩家要能當場點過去自己看。所以 `round.card.sources`（選填）會被渲染成
+ * 一排「神諭原典：〈文件名〉↗」的連結；沒有給就完全不顯示（既有的雙面碑
+ * 一個像素都沒變）。連結永遠只在這裡與第二幕出現，**選項與判詞裡不放連結**（護欄 2）。
+ *
  * ## 鍵位
  *   `←` `→`（`↑` `↓` 同義） 在兩面之間走 · `Enter` / `1` `2` 倒向那一面
  *   `Esc`                    這一層沒有東西可以還原 → 冒泡出去收起面板
@@ -84,6 +92,7 @@ export function createTradeoffBoard({
     <section class="twoface" data-twoface>
       <p class="twoface__eyebrow" data-card-label></p>
       <pre class="twoface__card" data-card></pre>
+      <p class="twoface__srcs" data-card-srcs hidden></p>
       <p class="carve__progress" data-weigh-progress></p>
       <p class="carve__ask" data-weigh-ask></p>
       <div class="twoface__sides" data-sides aria-live="polite"></div>
@@ -99,6 +108,7 @@ export function createTradeoffBoard({
   const twofaceEl = root.querySelector('[data-twoface]');
   const cardLabelEl = root.querySelector('[data-card-label]');
   const cardEl = root.querySelector('[data-card]');
+  const cardSrcEl = root.querySelector('[data-card-srcs]');
   const progressEl = root.querySelector('[data-weigh-progress]');
   const askEl = root.querySelector('[data-weigh-ask]');
   const sidesEl = root.querySelector('[data-sides]');
@@ -144,6 +154,23 @@ export function createTradeoffBoard({
 
   const sideById = (id) => (flow ? flow.sides.find((s) => s.id === id) : null);
 
+  /** 一張模型卡上的官方出處（沒有就整行收起來）。 */
+  const sourceLinks = (card) =>
+    ((card && card.sources) || [])
+      .filter((s) => s && typeof s.url === 'string' && /^https:\/\//.test(s.url))
+      .map(
+        (s) =>
+          `<a class="twoface__src" href="${esc(s.url)}" target="_blank" rel="noopener noreferrer">神諭原典：${esc(
+            s.name || s.url
+          )} ↗</a>`
+      );
+
+  function renderCardSources(card) {
+    const links = sourceLinks(card);
+    cardSrcEl.innerHTML = links.join('');
+    cardSrcEl.hidden = links.length === 0;
+  }
+
   function renderRound() {
     if (!flow) return;
     const r = flow.rounds[round];
@@ -151,6 +178,7 @@ export function createTradeoffBoard({
       twofaceEl.classList.add('is-settled');
       cardLabelEl.textContent = flow.settledLabel || '兩面都秤過了';
       cardEl.hidden = true;
+      renderCardSources(null);
       progressEl.textContent = `第 ${flow.rounds.length} / ${flow.rounds.length} 張卡 —— 秤完了`;
       askEl.textContent = flow.settled || '同一件事，換一張卡就換一個答案 —— 所以要說得出「這一次為什麼」。';
       sidesEl.innerHTML = '';
@@ -160,6 +188,7 @@ export function createTradeoffBoard({
     cardEl.hidden = false;
     cardLabelEl.textContent = (r.card && r.card.label) || '這一張卡';
     cardEl.textContent = (r.card && r.card.text) || '';
+    renderCardSources(r.card);
     progressEl.textContent = `第 ${round + 1} / ${flow.rounds.length} 張卡`;
     askEl.textContent = r.ask;
     sidesEl.innerHTML = flow.sides
@@ -187,6 +216,7 @@ export function createTradeoffBoard({
           <span class="tradelog__card">${esc((r.card && r.card.label) || `第 ${i + 1} 張卡`)}</span>
           <span class="tradelog__side">${esc(s ? s.title : p.side)}</span>
           <span class="tradelog__verdict">${esc(r.verdicts[p.side].text)}</span>
+          ${sourceLinks(r.card).length ? `<span class="tradelog__srcs">${sourceLinks(r.card).join('')}</span>` : ''}
         </li>`;
       })
       .join('');

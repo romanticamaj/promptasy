@@ -329,6 +329,28 @@ async function main() {
     );
   }
   /**
+   * 按住手掌印，直到它**真的發動**為止（poll-until，不用固定 sleep）。
+   *
+   * 這一台是軟體渲染（每幀 ~200ms），CDP 送進去的 keyDown 可能晚好幾百毫秒
+   * 才被頁面收到；固定 `sleep(900)` 於是變成「按不夠久」——那正是 AGENTS.md
+   * 登記的動畫時序 flaky 家族（Phase J2 最後一輪 9 條紅燈的真因）。
+   * 改成輪詢 `.palm.is-fired`：按住 → 等它亮 → 才放開。
+   *
+   * @param {{x:number,y:number}|null} [at] 給滑鼠用的座標；不給就用鍵盤（Enter）
+   */
+  async function holdPalm(at = null, label = '手掌印按滿') {
+    const fired = () => evaluate(`return !!document.querySelector('#prompt-console .palm.is-fired');`);
+    if (at) await mouse('mousePressed', at.x, at.y);
+    else await keyDown('Enter', 'Enter', { vk: 13 });
+    try {
+      await waitFor(fired, { label, every: 100, timeout: 20000 });
+    } finally {
+      if (at) await mouse('mouseReleased', at.x, at.y);
+      else await keyUp('Enter', 'Enter', { vk: 13 });
+    }
+  }
+
+  /**
    * 「原生啟動」用的 Enter。
    *
    * 只送 keyDown / keyUp 的話，我們自己寫的 keydown 監聽收得到，
@@ -1808,7 +1830,10 @@ async function main() {
       rubric: g.content.challenge('gate-of-clarity-01').rubric.length,
       // Phase A：一關只教一條 —— 主技巧來自資料層的 primaryTechniqueId
       primaryTechniqueId: g.content.challenge('gate-of-clarity-01').primaryTechniqueId,
-      primaryTitle: g.content.technique(g.content.challenge('gate-of-clarity-01').primaryTechniqueId).title,
+      // 課程 v2 · Phase J3：教學的正典是 v2 技能，刻文掛的是它的中文名
+      primarySkillId: g.content.challenge('gate-of-clarity-01').primarySkillId,
+      primaryTitle: g.content.skill(g.content.challenge('gate-of-clarity-01').primarySkillId).nameZh,
+      primaryVendor: g.content.sourceForSkill(g.content.challenge('gate-of-clarity-01').primarySkillId).vendor,
       primaryCount: document.querySelectorAll('#prompt-console .glyph--primary').length,
       glyphTech: glyphs.map((n) => n.querySelector('.glyph__title i')?.textContent.trim() || ''),
       // 其餘的檢查只用一行「順手會用到」帶過（沒有自己的刻文、沒有自己的原典）
@@ -1850,8 +1875,9 @@ async function main() {
   ok(act2.rubric > 1, '這一關的 rubric 不只一條（所以「只有一條刻文」是真的收斂過）', `rubric=${act2.rubric}`);
   eq(act2.glyphs, 1, '第二幕只有一段刻文 —— 一關只教一件事');
   eq(act2.primaryCount, 1, '而且那一段就是被放大的主刻文');
-  eq(act2.primaryTechniqueId, 'clarity-03', '主技巧來自資料層的 primaryTechniqueId');
-  eq(act2.glyphTech[0], act2.primaryTitle, '刻文掛的是主技巧的名字（與 curriculum 一字不差）', act2.glyphTech.join('｜'));
+  eq(act2.primaryTechniqueId, 'clarity-03', '祖先技巧仍記在資料層的 primaryTechniqueId（收集用）');
+  eq(act2.primarySkillId, 'clear-specific', '教學的正典是 v2 技能（D2 相容層已拆除）');
+  eq(act2.glyphTech[0], act2.primaryTitle, '刻文掛的是這一關教的那條 v2 技能的名字', act2.glyphTech.join('｜'));
   ok(act2.whats.every((n) => n >= 20), '那一段刻文有白話說明', act2.whats.join(','));
   eq(act2.extrasHidden, false, '其餘的檢查還是看得到（不是偷偷藏起來）');
   eq(act2.extrasLabel, '順手會用到', '它們被降到「順手會用到」的一行', act2.extrasLabel);
@@ -1864,9 +1890,9 @@ async function main() {
     act2.srcLabels.join(' ｜ ')
   );
   ok(
-    act2.srcLabels.every((t) => /OpenAI|Anthropic|Google|xAI/.test(t)),
+    act2.srcLabels.every((t) => t.includes(`：${act2.primaryVendor} · `)),
     '刻文不冒充官方引文：標籤上就寫出是哪一家的文件',
-    act2.srcLabels.join(' ｜ ')
+    `${act2.primaryVendor}｜${act2.srcLabels.join(' ｜ ')}`
   );
   ok(
     act2.srcHrefs.length > 0 && act2.srcHrefs.every((u) => /^https:\/\//.test(u)),
@@ -1955,6 +1981,9 @@ async function main() {
       foundationWeight: document.querySelector('#prompt-console .checklist li.is-foundation .checklist__w')?.textContent.trim() || '',
       weights: Array.from(document.querySelectorAll('#prompt-console .checklist .checklist__w')).map((n) => n.textContent.trim()),
       xp: g.progression.state.xp,
+      /* 課程 v2 · Phase J3：C1 收斂之後這一關就是「一條主檢查 ＋ 一條地基」 */
+      rubricLen: g.content.challenge('gate-of-clarity-01').rubric.length,
+      pass: g.content.challenge('gate-of-clarity-01').pass,
     };
   `);
   eq(consoleOpen.act, 3, '「開始刻印」切到第三幕');
@@ -1971,16 +2000,21 @@ async function main() {
   ok(consoleOpen.options >= 2, '每一段有 2–3 個選項', `n=${consoleOpen.options}`);
   eq(consoleOpen.palmHidden, true, '還沒刻完之前沒有手掌印');
   ok(/自由書寫/.test(consoleOpen.modeBtn), '有一顆安靜的「自由書寫模式」切換', consoleOpen.modeBtn);
-  eq(consoleOpen.checklist, 4, '主控台列出 4 條 rubric');
-  eq(consoleOpen.sources, 4, '每條 rubric 都有官方出處連結');
+  eq(consoleOpen.rubricLen, 2, '清晰之門收斂成「一條主檢查 ＋ 一條地基」（C1）');
+  eq(consoleOpen.checklist, consoleOpen.rubricLen, '主控台列出這一關的每一條 rubric');
+  eq(consoleOpen.sources, consoleOpen.rubricLen, '每條 rubric 都有官方出處連結');
   eq(consoleOpen.railVisible, true, '刻痕對照跟石碑同時在畫面上');
   eq(consoleOpen.lampVisible, true, '進度燈也在第三幕看得到');
   eq(consoleOpen.sideBySide, true, '刻痕對照在石碑「旁邊」，不是下面');
   ok(/神諭刻文/.test(consoleOpen.guideTab), '第三幕有一個翻回刻文的側頁籤', consoleOpen.guideTab);
   eq(consoleOpen.guideTabOpen, false, '側頁籤預設收著（不擋舞台）');
-  eq(consoleOpen.guideTabRows, 4, '側頁籤壓成一行一條');
+  eq(consoleOpen.guideTabRows, consoleOpen.rubricLen, '側頁籤壓成一行一條');
   eq(consoleOpen.guideTabSources, 1, '側頁籤上的原典只掛在「這一關教的」那一條');
-  eq(consoleOpen.guideTabQuiet, 3, '其餘三條在側頁籤上只留名字（安靜的一階）');
+  eq(
+    consoleOpen.guideTabQuiet,
+    consoleOpen.rubricLen - 1,
+    '其餘的在側頁籤上只留名字（安靜的一階）'
+  );
   /* --- Phase A：刻痕對照上，一關只有一條被標成「這一關教的」 --- */
   eq(consoleOpen.primaryRows, 1, '刻痕對照上恰好一條被標成主教學目標（C1）');
   eq(consoleOpen.primaryTag, '這一關教的', '主教學目標帶著一個看得懂的標記', consoleOpen.primaryTag);
@@ -2091,15 +2125,23 @@ async function main() {
   `);
   eq(consoleLive.empty.lampHidden, false, '進度燈一開始就看得到');
   ok(/再完成/.test(consoleLive.empty.lampText), '進度燈用「再完成 N 項」講話', consoleLive.empty.lampText);
-  /* Phase A：門檻降成小數之後，進度燈上的數字要讀得順（不是 2.50、更不是 2.4999999） */
-  ok(/需要 2\.5 分/.test(consoleLive.empty.lampText), '進度燈把小數門檻寫成「需要 2.5 分」', consoleLive.empty.lampText);
+  /*
+   * Phase A：門檻是小數時畫面上的數字要讀得順（不是 2.50、更不是 2.4999999）。
+   * 課程 v2 · Phase J3：教學神廟的門檻全部收斂成 2，帶半分的門檻現在住在應用關身上
+   * （`trialPass()` 算出來的 3.5）—— 所以這裡改成「照資料層寫出來、而且沒有浮點雜訊」。
+   */
+  ok(
+    new RegExp(`需要 ${consoleOpen.pass} 分`).test(consoleLive.empty.lampText),
+    `進度燈把門檻寫成「需要 ${consoleOpen.pass} 分」`,
+    consoleLive.empty.lampText
+  );
   ok(!/\d\.\d{3,}/.test(consoleLive.empty.lampText), '進度燈不會漏出浮點雜訊', consoleLive.empty.lampText);
   eq(consoleLive.empty.ready, false, '還沒達標時送出鍵不發光');
   ok(consoleLive.one.lit >= 1, '打字打到一項就亮一盞燈', `lit=${consoleLive.one.lit}`);
   ok(consoleLive.one.justlit >= 1, '剛亮起來的那一項有亮燈動畫', `justlit=${consoleLive.one.justlit}`);
   ok(/再完成/.test(consoleLive.one.lampText), '進度燈跟著更新剩幾項', consoleLive.one.lampText);
   ok(!/\d\.\d{3,}/.test(consoleLive.one.lampText), '做到一項之後的目前分數也是乾淨的數字', consoleLive.one.lampText);
-  ok(consoleLive.done.lit >= 3, '補齊之後亮起多盞燈', `lit=${consoleLive.done.lit}`);
+  eq(consoleLive.done.lit, consoleOpen.rubricLen, '補齊之後每一盞燈都亮了', `lit=${consoleLive.done.lit}`);
   eq(consoleLive.done.ready, true, '達到門檻時送出鍵發光');
   eq(consoleLive.done.lampReady, true, '達到門檻時進度燈轉成綠燈');
   ok(/可以呈上了/.test(consoleLive.done.submitText), '送出鍵直說「可以呈上了」', consoleLive.done.submitText);
@@ -2219,7 +2261,7 @@ async function main() {
   `);
   eq(bad.hidden, false, '送出爛 prompt 會有結果面板');
   eq(bad.fail, true, '爛 prompt 未通過');
-  ok(bad.hints >= 3, '未通過時給出具體缺失提示', `hints=${bad.hints}`);
+  eq(bad.hints, consoleOpen.rubricLen, '未通過時每一條缺失都給出具體提示', `hints=${bad.hints}`);
   eq(bad.xp, 0, '未通過不給 XP');
 
   const good = await evaluate(`
@@ -2256,7 +2298,11 @@ async function main() {
   eq(good.collectedRows, good.teaches.length, '結算面板列出每一條收到的技巧');
   eq(good.collectedHead, '✦ 順手收進圖鑑', 'legacy 收集放在「順手」的次要位階（D2 的 uiRule）', good.collectedHead);
   /* Phase A：小數門檻在結果面板上也要讀得順 */
-  ok(/通過門檻 2\.5/.test(good.scoreline), '結果面板寫出小數門檻「通過門檻 2.5」', good.scoreline);
+  ok(
+    new RegExp(`通過門檻 ${consoleOpen.pass}`).test(good.scoreline),
+    `結果面板寫出門檻「通過門檻 ${consoleOpen.pass}」`,
+    good.scoreline
+  );
   ok(!/\d\.\d{3,}/.test(good.scoreline), '結果面板的分數沒有浮點雜訊', good.scoreline);
   eq(good.best, 'S', '最佳評價記錄為 S');
   eq(good.markerCleared, true, '石座轉為已通關狀態');
@@ -4083,7 +4129,7 @@ async function main() {
   ok(crossing.regionText.includes('示範與推理'), 'HUD 區域名跟著更新', crossing.regionText);
   ok(crossing.fogBefore !== crossing.fogAfter, '跨區時霧色平滑漂移（M4 轉場）',
     `${crossing.fogBefore.toString(16)} → ${crossing.fogAfter.toString(16)}`);
-  eq(crossing.markersHere, 15, 'reasoning 區有 15 座石座（課程 v2 · Phase C）');
+  eq(crossing.markersHere, 16, 'reasoning 區有 16 座石座（15 座教學神廟 ＋ 1 座試煉）');
 
   /* ================================================================ */
   console.log('\n▸ 鏡頭避障（Phase 3 已知問題）');
@@ -4292,7 +4338,7 @@ async function main() {
       xpEarly, xpLate, xpTo,
     };
   `);
-  ok(revealSeq.n >= 3, '結果列出多條檢查', String(revealSeq.n));
+  ok(revealSeq.n >= 2, '結果逐條列出這一關的每一條檢查', String(revealSeq.n));
   ok(revealSeq.hasStyleIndex, '每一條檢查都帶著 --i（揭示序列的節拍）');
   ok(
     revealSeq.delays.every((d, i) => i === 0 || d > revealSeq.delays[i - 1]),
@@ -7234,10 +7280,11 @@ async function main() {
   ok(/Enter/.test(kbPalm.hint), '手掌印上寫著「Enter 也可以」', kbPalm.hint);
 
   // --- 按住 Enter 把手掌按上石碑 ---
-  await keyDown('Enter', 'Enter', { vk: 13 });
-  await sleep(900);
-  await keyUp('Enter', 'Enter', { vk: 13 });
-  await sleep(700);
+  await holdPalm(null, '純鍵盤：手掌印按滿');
+  await waitFor(() => evaluate(`return !document.querySelector('#prompt-console [data-result]').hidden;`), {
+    label: '純鍵盤：結果面板',
+    every: 150,
+  });
   const kbResult = await evaluate(`
     const g = window.__promptasy;
     return {
@@ -7609,8 +7656,17 @@ async function main() {
   const kinds = await evaluate(`
     const g = window.__promptasy;
     const flows = g.content.flowFile.flows;
-    const out = { total: g.content.challenges.length, byKind: Object.fromEntries(g.promptConsole.flowKinds.map((k) => [k, 0])), missing: [] };
-    for (const c of g.content.challenges) {
+    // 課程 v2 · Phase J2：自由書寫的試煉刻意沒有流程資料（鷹架撤除的最後一格）
+    const freeTrials = g.content.challenges.filter((c) => c.application && !flows[c.id]);
+    const carveable = g.content.challenges.filter((c) => !freeTrials.includes(c));
+    const out = {
+      total: g.content.challenges.length,
+      carveable: carveable.length,
+      freeTrials: freeTrials.map((c) => c.id).sort(),
+      byKind: Object.fromEntries(g.promptConsole.flowKinds.map((k) => [k, 0])),
+      missing: [],
+    };
+    for (const c of carveable) {
       const f = flows[c.id];
       if (!f) { out.missing.push(c.id); continue; }
       out.byKind[g.promptConsole.flowKindOf(f)] += 1;
@@ -7631,7 +7687,8 @@ async function main() {
     EXPECT.challenges.value,
     `世界上有 ${EXPECT.challenges.value} 關（課程 v2 · Phase E：量器坊 14 座）`
   );
-  eq(kinds.missing.length, 0, '每一關都有流程資料，而且都留著選擇題後備', kinds.missing.join(','));
+  eq(kinds.missing.length, 0, '每一座有石碑的關卡都有流程資料，而且都留著選擇題後備', kinds.missing.join(','));
+  eq(kinds.freeTrials.length, 3, '三座試煉走自由書寫（沒有石碑）', kinds.freeTrials.join(','));
   /*
    * Phase D：這裡原本寫死了「哪幾關是哪一種題型」（歷史快照）。課程 v2 每一期
    * 都在換裝與新增，那種斷言只會逼人為了過測試改數字 —— 改成不變式：
@@ -7642,8 +7699,8 @@ async function main() {
   }
   eq(
     Object.values(kinds.byKind).reduce((n, v) => n + v, 0),
-    kinds.total,
-    '每一關都落在某一種題型上（沒有無主的關卡）'
+    kinds.carveable,
+    '每一座有石碑的關卡都落在某一種題型上（沒有無主的關卡）'
   );
   ok(kinds.orderIds.includes('long-scroll-tower-23'), '長卷之塔仍然是排序刻印');
   ok(kinds.orderIds.includes('priority-stair-42'), '優先序階梯仍然是排序刻印');
@@ -7779,10 +7836,8 @@ async function main() {
 
   // 真的按住手掌 900ms（> PALM_HOLD_MS）
   const palmBox = await centerOf('#prompt-console .orderboard .palm');
-  await mouse('mousePressed', palmBox.x, palmBox.y);
-  await sleep(900);
-  await mouse('mouseReleased', palmBox.x, palmBox.y);
-  await sleep(700);
+  await holdPalm(palmBox, '排序刻印：手掌印按滿');
+  await sleep(400);
   const orderResult = await evaluate(`
     const g = window.__promptasy;
     return {
@@ -8291,10 +8346,8 @@ async function main() {
   ok(/把手掌按上石碑/.test(wsDone.lampText), '進度燈說「把手掌按上石碑就過關了」', wsDone.lampText);
 
   const wsPalm = await centerOf('#prompt-console .workshop .palm');
-  await mouse('mousePressed', wsPalm.x, wsPalm.y);
-  await sleep(900);
-  await mouse('mouseReleased', wsPalm.x, wsPalm.y);
-  await sleep(700);
+  await holdPalm(wsPalm, '神諭工坊：手掌印按滿');
+  await sleep(400);
   const wsResult = await evaluate(`
     const g = window.__promptasy;
     return {
@@ -8343,7 +8396,7 @@ async function main() {
   eq(pedestal.region, 'toolcraft', '石座擺在契約鍛冶場（課程 v2 · Phase F 搬家）');
   eq(pedestal.solidThere, true, '石座本體擋得住人（走不進石頭裡）');
   eq(pedestal.reachable, true, '石座四周走得到互動距離');
-  eq(pedestal.inRegion, 12, '齒輪工坊補齊到 12 關（課程 v2 · Phase G 收尾）');
+  eq(pedestal.inRegion, 13, '齒輪工坊 13 關（12 座教學神廟 ＋ 1 座試煉）');
 
   /* --- 換一種答題方式：自由書寫仍然照舊 --- */
   const wsFree = await evaluate(`
@@ -8644,9 +8697,7 @@ async function main() {
   eq(fixDone.isPalmStage, true, '第四幕把光打在手印上');
 
   // 按住 Enter 呈給神諭 → 結果面板、S、石座轉已通關、v2 技能入袋
-  await key('Enter', 'Enter', { vk: 13, type: 'keyDown' });
-  await sleep(900);
-  await key('Enter', 'Enter', { vk: 13, type: 'keyUp' });
+  await holdPalm();
   await waitFor(() => evaluate(`return !document.querySelector('#prompt-console [data-result]').hidden;`), {
     label: '改碑的結果面板',
   });
@@ -8785,9 +8836,7 @@ async function main() {
   eq(spotDone.goneCount, 3, '被拿掉的三片在畫面上留下痕跡（看得出自己刪了什麼）');
   ok(spotDone.lit >= 2, '左邊的刻痕對照全亮（做對就是完美）', String(spotDone.lit));
 
-  await key('Enter', 'Enter', { vk: 13, type: 'keyDown' });
-  await sleep(900);
-  await key('Enter', 'Enter', { vk: 13, type: 'keyUp' });
+  await holdPalm();
   await waitFor(() => evaluate(`return !document.querySelector('#prompt-console [data-result]').hidden;`), {
     label: '點碑的結果面板',
   });
@@ -9259,7 +9308,7 @@ async function main() {
     }
     return out;
   `);
-  eq(rsn.ids, 15, '示範與推理有 15 座石座');
+  eq(rsn.ids, 16, '示範與推理有 16 座石座（15 教學神廟 ＋ 1 試煉）');
   eq(rsn.missing.length, 0, '每一座都蓋出來了', rsn.missing.join(','));
   eq(rsn.blocked.length, 0, '新石座四周走得到（互動不會被擋）', rsn.blocked.join(' '));
 
@@ -9462,7 +9511,7 @@ async function main() {
     return out;
   `);
   eq(dRegions.grounding.n, 13, '脈絡與長文有 13 座石座（12 教學神廟 ＋ 1 應用關）');
-  eq(dRegions.config.n, 12, '角色與參數有 12 座石座');
+  eq(dRegions.config.n, 13, '角色與參數有 13 座石座（12 教學神廟 ＋ 1 試煉）');
   for (const region of ['grounding', 'config']) {
     eq(dRegions[region].missing.length, 0, `[${region}] 每一座石座都蓋出來了`, dRegions[region].missing.join(','));
     eq(dRegions[region].blocked.length, 0, `[${region}] 石座四周走得到`, dRegions[region].blocked.join(' '));
@@ -9767,7 +9816,7 @@ async function main() {
   `);
   eq(fmWorld.hasLandmark, true, '刻度之柱真的立在場景圖上');
   eq(fmWorld.landmarkLights, 0, '刻度之柱一盞實體光源都沒加（全部自發光）');
-  eq(fmWorld.formsMarkers, 14, '量器坊有 14 座石座');
+  eq(fmWorld.formsMarkers, 15, '量器坊有 15 座石座（14 教學神廟 ＋ 1 試煉）');
   eq(fmWorld.props, true, '量器坊有自己的造景（量尺柱與鑄槽）');
   eq(fmWorld.flora, true, '量器坊有自己的植被剪影');
   eq(fmWorld.vignettes, 3, '量器坊的三組故事小景都在場景圖上', String(fmWorld.vignettes));
@@ -9777,7 +9826,7 @@ async function main() {
   /* --- 14 座神廟：九個新檢查器各有一座，而且每一座都真的通得了 --- */
   const fmPlan = await evaluate(`
     const g = window.__promptasy;
-    const forms = g.content.challenges.filter((c) => c.region === 'forms');
+    const forms = g.content.challenges.filter((c) => c.region === 'forms' && !c.application);
     return forms.map((c) => ({
       id: c.id,
       skill: c.primarySkillId,
@@ -9890,9 +9939,7 @@ async function main() {
     eq(kbFull.act, 4, '刻滿之後鏡頭自己切到手印那一幕');
     eq(kbFull.palmFocused, true, '焦點自己落在手掌印上');
 
-    await keyDown('Enter', 'Enter', { vk: 13 });
-    await sleep(900);
-    await keyUp('Enter', 'Enter', { vk: 13 });
+    await holdPalm();
     await sleep(800);
     const kbDone = await evaluate(`
       const g = window.__promptasy;
@@ -10214,7 +10261,14 @@ async function main() {
       if (g.world.coverage(x, z) <= 0.45) voids += 1;
     }
     g.player.position.set(link.to.x, g.world.terrainHeight(link.to.x, link.to.z) + 1, link.to.z);
-    await new Promise((r) => setTimeout(r, 900));
+    /*
+     * HUD 與配樂是遊戲迴圈更新的 —— 軟體渲染下一幀可能要 200ms 以上，
+     * 固定 sleep 會偶發性地在換區之前就取樣（AGENTS.md 已登記的家族）。
+     * 改成輪詢：等 HUD 真的換過去，最多 6 秒。
+     */
+    for (let i = 0; i < 60 && g.hud.region !== 'refinery'; i += 1) {
+      await new Promise((r) => setTimeout(r, 100));
+    }
     const here = g.world.regionAt(g.player.position.x, g.player.position.z);
     return {
       voids,
@@ -10271,8 +10325,8 @@ async function main() {
   eq(tfWorld.keys.lights, 0, '未命名的工具一盞實體光源都沒加（全部自發光）');
   ok(Boolean(tfWorld.doors), '不會關上的門真的立在場景圖上');
   eq(tfWorld.doors.lights, 0, '不會關上的門一盞實體光源都沒加（全部自發光）');
-  eq(tfWorld.toolMarkers, 11, '契約鍛冶場有 11 座石座');
-  eq(tfWorld.wardMarkers, 5, '護欄崗有 5 座石座');
+  eq(tfWorld.toolMarkers, 12, '契約鍛冶場有 12 座石座（11 教學神廟 ＋ 1 試煉）');
+  eq(tfWorld.wardMarkers, 6, '護欄崗有 6 座石座（5 教學神廟 ＋ 1 試煉）');
   eq(tfWorld.propsT, true, '契約鍛冶場有自己的造景（工具架與鐵砧）');
   eq(tfWorld.propsW, true, '護欄崗有自己的造景（崗柱與矮牆）');
   eq(tfWorld.floraT, true, '契約鍛冶場有自己的植被剪影');
@@ -10284,7 +10338,7 @@ async function main() {
   /* --- 16 座神廟：九個新檢查器各有一座 --- */
   const tfPlan = await evaluate(`
     const g = window.__promptasy;
-    const here = g.content.challenges.filter((c) => c.region === 'toolcraft' || c.region === 'wards');
+    const here = g.content.challenges.filter((c) => !c.application && (c.region === 'toolcraft' || c.region === 'wards'));
     return here.map((c) => ({
       id: c.id,
       region: c.region,
@@ -10415,9 +10469,7 @@ async function main() {
     ok(/工具名：/.test(wsDone.text), '派工單上真的宣告了工具規格', wsDone.text.slice(0, 40));
 
     await evaluate(`document.querySelector('#prompt-console [data-palm]').focus(); return 1;`);
-    await keyDown('Enter', 'Enter', { vk: 13 });
-    await sleep(900);
-    await keyUp('Enter', 'Enter', { vk: 13 });
+    await holdPalm();
     await sleep(800);
     const wsResult = await evaluate(`
       const g = window.__promptasy;
@@ -10824,8 +10876,8 @@ async function main() {
   `);
   ok(rfWorld.hasGlass, '會回頭照自己的鏡真的立在場景圖上');
   eq(rfWorld.lmLights, 0, '會回頭照自己的鏡一盞實體光源都沒加（全部自發光）');
-  eq(rfWorld.refMarkers, 11, '校驗場有 11 座石座');
-  eq(rfWorld.orcMarkers, 12, '流程與代理補齊到 12 座石座');
+  eq(rfWorld.refMarkers, 12, '校驗場有 12 座石座（11 教學神廟 ＋ 1 試煉）');
+  eq(rfWorld.orcMarkers, 13, '流程與代理有 13 座石座（12 教學神廟 ＋ 1 試煉）');
   eq(rfWorld.props, true, '校驗場有自己的造景（照面架與稿堆）');
   eq(rfWorld.flora, true, '校驗場有自己的植被剪影');
   eq(rfWorld.vignettes, 3, '校驗場的三組故事小景都在場景圖上', String(rfWorld.vignettes));
@@ -10836,7 +10888,7 @@ async function main() {
   /* --- 23 座神廟：十二個新檢查器、C1／C4 --- */
   const rfPlan = await evaluate(`
     const g = window.__promptasy;
-    const here = g.content.challenges.filter((c) => c.region === 'orchestration' || c.region === 'refinery');
+    const here = g.content.challenges.filter((c) => !c.application && (c.region === 'orchestration' || c.region === 'refinery'));
     return here.map((c) => ({
       id: c.id,
       region: c.region,
@@ -11088,9 +11140,7 @@ async function main() {
     eq(mFinish.text, mFinish.sample, '兩輪刻出來的字＝資料層的示範解答（兩種模式同一段字）');
 
     await evaluate(`document.querySelector('#prompt-console [data-palm]').focus(); return 1;`);
-    await key('Enter', 'Enter', { vk: 13, type: 'rawKeyDown' });
-    await sleep(900);
-    await key('Enter', 'Enter', { vk: 13, type: 'keyUp' });
+    await holdPalm();
     await sleep(700);
 
     const mResult = await evaluate(`
@@ -11282,7 +11332,7 @@ async function main() {
   `);
   ok(fgWorld.hasPlinth, '空的基座真的立在場景圖上');
   eq(fgWorld.lmLights, 0, '空的基座一盞實體光源都沒加（全部自發光）');
-  eq(fgWorld.fgMarkers, 7, '減法之庭有 7 座石座');
+  eq(fgWorld.fgMarkers, 8, '減法之庭有 8 座石座（7 教學神廟 ＋ 1 試煉）');
   eq(fgWorld.props, true, '減法之庭有自己的造景（空托座與印子）');
   eq(fgWorld.flora, true, '減法之庭有自己的植被剪影');
   eq(fgWorld.vignettes, 3, '減法之庭的三組故事小景都在場景圖上', String(fgWorld.vignettes));
@@ -11293,7 +11343,7 @@ async function main() {
   /* --- 7 座神廟：三個新檢查器、C1／C4 --- */
   const fgPlan = await evaluate(`
     const g = window.__promptasy;
-    const here = g.content.challenges.filter((c) => c.region === 'frugality');
+    const here = g.content.challenges.filter((c) => !c.application && c.region === 'frugality');
     return here.map((c) => ({
       id: c.id,
       skill: c.primarySkillId,
@@ -11332,7 +11382,7 @@ async function main() {
       .map((c) => c.id);
     return { ids, count: ids.length };
   `);
-  eq(simOffline.count, 3, '三座神廟用轉鈕（Phase H 的三個 spike）', simOffline.ids.join(','));
+  eq(simOffline.count, 4, '四座神廟用轉鈕（Phase H 的三個 spike ＋ Phase J1 的同名旋鈕）', simOffline.ids.join(','));
 
   /* --- 純鍵盤走完一座轉鈕（本期的主場題型，§3.1 鐵則） --- */
   {
@@ -11510,9 +11560,7 @@ async function main() {
     eq(sCarve.focusedOnPalm, true, '焦點自己落在手掌印上（純鍵盤走得完）');
     eq(sCarve.act, 4, '刻滿自動切到第四幕（手印）');
 
-    await keyDown('Enter', 'Enter', { vk: 13 });
-    await sleep(900);
-    await keyUp('Enter', 'Enter', { vk: 13 });
+    await holdPalm();
     await sleep(700);
     const sResult = await evaluate(`
       const g = window.__promptasy;
@@ -11796,7 +11844,7 @@ async function main() {
   ok(stWorld.hasMirror, '朝天的鏡真的立在場景圖上');
   eq(stWorld.lmLights, 0, '朝天的鏡一盞實體光源都沒加（全部自發光）');
   eq(stWorld.propLights, 1, '觀象臺的造景只有「每區一盞主色補光」那一盞', String(stWorld.propLights));
-  eq(stWorld.stMarkers, 8, '觀象臺有 8 座石座');
+  eq(stWorld.stMarkers, 9, '觀象臺有 9 座石座（8 教學神廟 ＋ 1 試煉）');
   eq(stWorld.props, true, '觀象臺有自己的造景（觀測架與落鏡）');
   eq(stWorld.flora, true, '觀象臺有自己的植被剪影');
   eq(stWorld.vignettes, 3, '觀象臺的三組故事小景都在場景圖上', String(stWorld.vignettes));
@@ -11807,7 +11855,7 @@ async function main() {
   /* --- 8 座神廟：五個新檢查器、C1／C4 --- */
   const stPlan = await evaluate(`
     const g = window.__promptasy;
-    const here = g.content.challenges.filter((c) => c.region === 'sight');
+    const here = g.content.challenges.filter((c) => !c.application && c.region === 'sight');
     return here.map((c) => ({
       id: c.id,
       skill: c.primarySkillId,
@@ -11932,9 +11980,7 @@ async function main() {
     eq(kbFull.act, 4, '刻滿之後鏡頭自己切到手印那一幕');
     eq(kbFull.palmFocused, true, '焦點自己落在手掌印上');
 
-    await keyDown('Enter', 'Enter', { vk: 13 });
-    await sleep(900);
-    await keyUp('Enter', 'Enter', { vk: 13 });
+    await holdPalm();
     await sleep(800);
     const kbDone = await evaluate(`
       const g = window.__promptasy;
@@ -12006,9 +12052,7 @@ async function main() {
     eq(fixFull.palmFocused, true, '焦點自己落在手掌印上');
     eq(fixFull.text, fixFull.sample, '改好的整段文字＝這一關的示範解答（兩種模式同一段字）');
 
-    await keyDown('Enter', 'Enter', { vk: 13 });
-    await sleep(900);
-    await keyUp('Enter', 'Enter', { vk: 13 });
+    await holdPalm();
     await sleep(800);
     const fixDone = await evaluate(`
       const g = window.__promptasy;
@@ -12556,6 +12600,668 @@ async function main() {
     /* 已經關了 */
   }
 
+
+  /* ================================================================== */
+  /* 課程 v2 · Phase J1：分歧之廳（divergence）＋ 拆碑（reverse）          */
+  /*                                                                    */
+  /*   · 高原東側的一座建物（加建，沒有自己的橋）                        */
+  /*   · **硬門檻**：整個世界唯一一道不能先行前往的門                    */
+  /*   · 反差題先發模型卡、再出題，兩張卡的立場都掛得出可點的官方出處      */
+  /*   · 拆碑（reverse）純鍵盤走完一圈                                    */
+  /* ================================================================== */
+  console.log('\n▸ 分歧之廳與拆碑（課程 v2 · Phase J1）');
+
+  await evaluate(`
+    const g = window.__promptasy;
+    g.promptConsole.close();
+    g.codex.close();
+    return 1;
+  `);
+  await sleep(220);
+
+  /* --- 硬門檻：走到門前只會被問，而且問的那一句沒有「直接前往」 --- */
+  await evaluate(`
+    localStorage.setItem('promptasy.v1.save', JSON.stringify({
+      version: 1, xp: 0, level: 1,
+      unlockedRegions: ['foundations'],
+      collected: [], skillsV2: [], bestGrades: {},
+      badges: { openai: 0, anthropic: 0, google: 0, xai: 0 },
+      settings: { music: 'ambient-01', volume: 0, muted: true, quality: 'low', preflight: true, promptMode: 'guided' },
+      flags: { prologueDone: true, introSeen: true },
+      prologueSteps: [], guidanceSeen: [], loreRead: [], inscriptionsFound: [], secretsFound: [],
+      handlesUsed: [], skippedGates: []
+    }));
+    return 1;
+  `);
+  await reloadPage('重新載入（分歧之廳：什麼都還沒學）');
+  await key('Enter', 'Enter', { vk: 13 });
+  await sleep(500);
+
+  const dvGate = await evaluate(`
+    const g = window.__promptasy;
+    const st = g.progression.gateStatus('divergence');
+    return {
+      unlocked: g.progression.isRegionUnlocked('divergence'),
+      hard: st.hard,
+      gaps: st.knowledgeGaps.map((x) => x.kind + ':' + (x.need || '')),
+      text: st.text,
+      hasLink: !!g.world.annexLinks.find((l) => l.region === 'divergence'),
+      bridges: g.world.corridors.filter((c) => c.region === 'divergence').length,
+      shrines: g.content.challenges.filter((c) => c.region === 'divergence').length,
+    };
+  `);
+  eq(dvGate.unlocked, false, '什麼都還沒學 → 分歧之廳鎖著');
+  eq(dvGate.hard, true, '這是一道硬門檻');
+  ok(dvGate.gaps.includes('masteredAny:4'), '缺口就是「四區精通」', dvGate.gaps.join(','));
+  ok(!/先行前往/.test(dvGate.text), '門上的字不提「先行前往」', dvGate.text);
+  ok(/走過去才開/.test(dvGate.text), '門上的字說得出這一道要走過去才開', dvGate.text);
+  eq(dvGate.hasLink, true, '分歧之廳是加建（閘門立在頸口上）');
+  eq(dvGate.bridges, 0, '分歧之廳沒有自己的橋（走出高原就到了）');
+  eq(dvGate.shrines, 10, '分歧之廳有 9 座教學神廟 ＋ 1 座終章試煉');
+
+  /* 走到門前 → 對話框自己出現，而且只有「先留下修行」 */
+  await evaluate(`
+    const g = window.__promptasy;
+    const link = g.world.annexLinks.find((l) => l.region === 'divergence');
+    const back = 5;
+    const x = link.gate.x - link.dir.x * back;
+    const z = link.gate.z - link.dir.z * back;
+    g.player.position.set(x, g.world.terrainHeight(x, z) + 1, z);
+    return 1;
+  `);
+  await waitFor(
+    async () => ((await evaluate(`return window.__promptasy.gateAsk.isOpen;`)) ? true : null),
+    { timeout: 20000, every: 400, label: '走到門前，門自己問了一句' }
+  ).catch(() => null);
+  /*
+   * 焦點是在 `requestAnimationFrame` 裡搬進去的（見 `createOverlay.open()`）——
+   * 這台軟體渲染一幀約 200 ms，`isOpen` 變 true 的當下焦點可能還沒落定。
+   * 依 AGENTS.md 改成輪詢，不要用固定 sleep 對齊牆鐘。
+   */
+  await waitFor(
+    async () =>
+      (await evaluate(
+        `return !!(document.activeElement && document.activeElement.matches('[data-stay], [data-stay] *'));`
+      ))
+        ? true
+        : null,
+    { timeout: 15000, every: 200, label: '閘門對話框的焦點落到「先留下修行」' }
+  ).catch(() => null);
+  const dvAsk = await evaluate(`
+    const g = window.__promptasy;
+    const el = document.querySelector('#gate-ask');
+    return {
+      open: g.gateAsk.isOpen,
+      region: g.gateAsk.regionId,
+      go: document.querySelectorAll('#gate-ask [data-go]').length,
+      stay: document.querySelectorAll('#gate-ask [data-stay]').length,
+      links: el ? el.querySelectorAll('a[href]').length : -1,
+      text: el ? el.textContent.replace(/\s+/g, ' ').trim() : '',
+      focusStay: !!(document.activeElement && document.activeElement.matches('[data-stay], [data-stay] *')),
+    };
+  `);
+  eq(dvAsk.open, true, '走到門前，門自己問了一句');
+  eq(dvAsk.region, 'divergence', '問的就是分歧之廳那一道');
+  eq(dvAsk.go, 0, '硬門檻上沒有「直接前往」這顆按鈕');
+  eq(dvAsk.stay, 1, '仍然留著「先留下修行」');
+  eq(dvAsk.links, 0, '閘門不放官方連結（護欄 2）');
+  ok(/門一直在，回來就好/.test(dvAsk.text), '說法不是失敗，是「還沒輪到這裡」', dvAsk.text.slice(0, 60));
+  eq(dvAsk.focusStay, true, '焦點落在「先留下修行」上（鍵盤走得完）');
+
+  await key('Escape', 'Escape', { vk: 27 });
+  await sleep(360);
+  const dvStay = await evaluate(`
+    const g = window.__promptasy;
+    return {
+      open: g.gateAsk.isOpen,
+      unlocked: g.progression.isRegionUnlocked('divergence'),
+      skipResult: g.progression.skipGate('divergence'),
+      stillLocked: g.progression.isRegionUnlocked('divergence'),
+      saved: JSON.parse(localStorage.getItem('promptasy.v1.save') || '{}').skippedGates || [],
+    };
+  `);
+  eq(dvStay.open, false, 'Esc ＝ 先留下修行（門收起來）');
+  eq(dvStay.unlocked, false, '選了「先留下」門仍然關著');
+  eq(dvStay.skipResult.opened, false, '先行前往開不了這一道門');
+  eq(dvStay.skipResult.hard, true, 'skipGate 明講理由：這是一道硬門檻');
+  eq(dvStay.stillLocked, false, '被擋下來之後仍然鎖著');
+  eq(dvStay.saved.length, 0, '分歧之廳不會被寫進 skippedGates');
+
+  /* --- 世界：九座石座、地標零實體光源 --- */
+  const dvWorld = await evaluate(`
+    const g = window.__promptasy;
+    let lights = 0;
+    const lm = g.engine.scene.getObjectByName('landmark:twin-pillars');
+    if (lm) lm.traverse((o) => { if (o.isLight) lights += 1; });
+    return {
+      hasLandmark: !!lm,
+      lights,
+      pedestals: g.content.challenges.filter((c) => c.region === 'divergence').length,
+    };
+  `);
+  eq(dvWorld.hasLandmark, true, '「兩面的柱」真的在場景圖上');
+  eq(dvWorld.lights, 0, '兩面的柱一盞實體光源都沒加');
+  eq(dvWorld.pedestals, 10, '分歧之廳的石座都在資料裡');
+
+  /* ------------------------------------------------------------------ *
+   * 拆碑（reverse）：真的按鍵盤走完一圈
+   *
+   * Phase J2 誤用 `git checkout --` 把 J1 這一段刪掉了（見 findings.md），
+   * Phase J3 依 progress.md／findings.md 的描述**重新寫回來**，而且補上
+   * 當初真正少掉的那一段：貼 → Esc 拆回來 → 再貼 → 刻印 → 手掌印 → S。
+   * 全程只送鍵盤事件，一次滑鼠都沒有（Phase 23 的鐵則）。
+   * ------------------------------------------------------------------ */
+  await evaluate(`
+    const g = window.__promptasy;
+    const c = g.content.challenges.find((x) => x.id === 'rewritten-stele-123');
+    g.promptConsole.open(c);
+    g.promptConsole.goAct(3, { force: true });
+    return 1;
+  `);
+  await sleep(320);
+  const rvBoard = await evaluate(`
+    const g = window.__promptasy;
+    const b = g.promptConsole.reverseBoard;
+    const el = document.querySelector('#prompt-console .reverseboard');
+    const flow = g.content.flow('rewritten-stele-123').reverseFlow;
+    b.focusTarget.focus();
+    return {
+      kind: g.promptConsole.kind,
+      visible: !!el && !el.closest('[hidden]'),
+      parts: document.querySelectorAll('#prompt-console .reverseboard [data-part]').length,
+      tags: document.querySelectorAll('#prompt-console .reverseboard [data-tag]').length,
+      decoys: flow.tags.filter((t) => !flow.parts.some((p) => p.tagId === t.id)).length,
+      done: b.done,
+      taken: b.progress.taken,
+      focusedOnTag: !!document.activeElement?.closest('[data-tag]'),
+      palmHidden: !!document.querySelector('#prompt-console .reverseboard .palmwrap')?.hidden,
+    };
+  `);
+  eq(rvBoard.kind, 'reverse', '會改字的碑用的是拆碑（reverse）');
+  eq(rvBoard.visible, true, '拆碑的牆看得到');
+  ok(rvBoard.parts >= 3, '牆上釘著 3–6 塊', String(rvBoard.parts));
+  ok(rvBoard.tags > rvBoard.parts, '名牌比塊多（一定有一片誘餌）', `${rvBoard.tags} vs ${rvBoard.parts}`);
+  ok(rvBoard.decoys >= 1, '而且那片誘餌從頭到尾都不是正解', String(rvBoard.decoys));
+  eq(rvBoard.done, false, '一開始還沒刻');
+  eq(rvBoard.taken, false, '一開始還沒拆完');
+  eq(rvBoard.focusedOnTag, true, '焦點落在名牌上（純鍵盤走得完）');
+  eq(rvBoard.palmHidden, true, '還沒拆完，手掌印不會出現');
+
+  /* --- 方向鍵在名牌之間走 --- */
+  await key('ArrowRight', 'ArrowRight', { vk: 39 });
+  await sleep(200);
+  const rvRove = await evaluate(`
+    const list = Array.from(document.querySelectorAll('#prompt-console .reverseboard [data-tag]'));
+    return { at: list.indexOf(document.activeElement), total: list.length };
+  `);
+  eq(rvRove.at, 1, '方向鍵把焦點移到下一片名牌', JSON.stringify(rvRove));
+
+  /* --- 貼錯：碑不收，就地教學，不扣分、不前進、不跳失敗面板 --- */
+  const rvWrongIdx = await evaluate(`
+    const g = window.__promptasy;
+    const flow = g.content.flow('rewritten-stele-123').reverseFlow;
+    const want = flow.parts[0].tagId;
+    // 挑一片「不是這一塊正解」的名牌，回傳它的數字快捷（1-based）
+    const i = flow.tags.findIndex((t) => t.id !== want);
+    document.querySelector('#prompt-console .reverseboard [data-tag]').focus();
+    return { n: i + 1, id: flow.tags[i].id, textBefore: g.promptConsole.reverseBoard.text, at: g.promptConsole.reverseBoard.progress.at };
+  `);
+  await key(`Digit${rvWrongIdx.n}`, String(rvWrongIdx.n), { vk: 48 + rvWrongIdx.n });
+  await sleep(280);
+  const rvMiss = await evaluate(`
+    const g = window.__promptasy;
+    const b = g.promptConsole.reverseBoard;
+    const btn = document.querySelector('#prompt-console .reverseboard [data-tag].is-wrong');
+    return {
+      at: b.progress.at,
+      taken: b.progress.taken,
+      text: b.text,
+      rejected: !!btn,
+      feedback: btn ? btn.querySelector('[data-opt-fb]')?.textContent.trim() : '',
+      feedbackShown: btn ? !btn.querySelector('[data-opt-fb]')?.hidden : false,
+      announced: b.announcement,
+      resultHidden: document.querySelector('#prompt-console [data-result]').hidden,
+      xp: g.progression.state.xp,
+      act: g.promptConsole.act,
+    };
+  `);
+  eq(rvMiss.at, rvWrongIdx.at, '貼錯不會前進（還在同一塊）');
+  eq(rvMiss.taken, false, '也還沒拆完');
+  eq(rvMiss.text, rvWrongIdx.textBefore, '貼錯的名字不會被刻上去');
+  eq(rvMiss.rejected, true, '那片名牌就地標成「碑不收」');
+  eq(rvMiss.feedbackShown, true, '而且就地長出一句教學');
+  ok(rvMiss.feedback.length >= 8, '教學講得出「為什麼這一塊不是在做這件事」', rvMiss.feedback);
+  ok(rvMiss.announced.length > 0, 'aria-live 把它念出來（純鍵盤也知道發生了什麼）', rvMiss.announced);
+  eq(rvMiss.resultHidden, true, '不跳失敗面板');
+  eq(rvMiss.xp, 0, '不扣分（也不加分）');
+  eq(rvMiss.act, 3, '仍然停在第三幕');
+
+  /* --- 貼對第一塊 → Esc 把它拆回來 → 再貼一次（Esc 是「拆回來」不是「關面板」） --- */
+  const rvFirst = await evaluate(`
+    const g = window.__promptasy;
+    const flow = g.content.flow('rewritten-stele-123').reverseFlow;
+    const n = flow.tags.findIndex((t) => t.id === flow.parts[0].tagId) + 1;
+    document.querySelector('#prompt-console .reverseboard [data-tag]').focus();
+    return { n };
+  `);
+  await key(`Digit${rvFirst.n}`, String(rvFirst.n), { vk: 48 + rvFirst.n });
+  await sleep(280);
+  const rvAfterFirst = await evaluate(`
+    const b = window.__promptasy.promptConsole.reverseBoard;
+    return { at: b.progress.at, named: b.named.length, announced: b.announcement, focusedOnTag: !!document.activeElement?.closest('[data-tag]') };
+  `);
+  eq(rvAfterFirst.at, 1, '貼對了就往下一塊走');
+  eq(rvAfterFirst.named, 1, '第一塊被標好名字了');
+  ok(rvAfterFirst.announced.includes('對了'), 'aria-live 講出「對了」', rvAfterFirst.announced);
+  eq(rvAfterFirst.focusedOnTag, true, '焦點自己跟到下一輪的名牌');
+
+  await key('Escape', 'Escape', { vk: 27 });
+  await sleep(300);
+  const rvEsc = await evaluate(`
+    const g = window.__promptasy;
+    const b = g.promptConsole.reverseBoard;
+    return {
+      at: b.progress.at,
+      named: b.named.length,
+      announced: b.announcement,
+      consoleOpen: g.promptConsole.isOpen,
+      act: g.promptConsole.act,
+    };
+  `);
+  eq(rvEsc.at, 0, 'Esc 把最後貼上去的那一塊拆回來');
+  eq(rvEsc.named, 0, '名字取下來了');
+  ok(/拆回/.test(rvEsc.announced), 'aria-live 講出拆回了哪一塊', rvEsc.announced);
+  eq(rvEsc.consoleOpen, true, 'Esc 不會順手把整個關卡收掉（分段還原）');
+  eq(rvEsc.act, 3, '也還在第三幕');
+
+  /* --- 一塊一塊真的按鍵盤貼完 --- */
+  const rvTagOrder = await evaluate(`
+    const flow = window.__promptasy.content.flow('rewritten-stele-123').reverseFlow;
+    return flow.parts.map((p) => flow.tags.findIndex((t) => t.id === p.tagId) + 1);
+  `);
+  for (const n of rvTagOrder) {
+    await evaluate(`
+      const el = document.querySelector('#prompt-console .reverseboard [data-tag]:not(.is-wrong)') ||
+                 document.querySelector('#prompt-console .reverseboard [data-tag]');
+      el.focus();
+      return 1;
+    `);
+    await key(`Digit${n}`, String(n), { vk: 48 + n });
+    await sleep(220);
+  }
+  await waitFor(() => evaluate(`return window.__promptasy.promptConsole.reverseBoard.progress.taken === true;`), {
+    label: '拆碑：整份拆完',
+    every: 200,
+    timeout: 20000,
+  });
+  const rvTaken = await evaluate(`
+    const b = window.__promptasy.promptConsole.reverseBoard;
+    return {
+      taken: b.progress.taken,
+      at: b.progress.at,
+      parts: b.progress.parts,
+      announced: b.announcement,
+      carveFocused: !!document.activeElement?.closest('[data-slot-opt]'),
+      palmHidden: !!document.querySelector('#prompt-console .reverseboard .palmwrap')?.hidden,
+    };
+  `);
+  eq(rvTaken.taken, true, '整份拆完了（想通才給刻）');
+  eq(rvTaken.at, rvTaken.parts, '每一塊都貼上名字了', `${rvTaken.at}/${rvTaken.parts}`);
+  eq(rvTaken.carveFocused, true, '焦點自己落到刻印的第一個選項上');
+  eq(rvTaken.palmHidden, true, '刻印還沒開始，手掌印當然還沒出現');
+
+  /* --- 刻印：數字鍵一段一段刻上去 --- */
+  const rvSlotPicks = await evaluate(`
+    const flow = window.__promptasy.content.flow('rewritten-stele-123');
+    return flow.slots.map((s) => s.options.findIndex((o) => o.correct) + 1);
+  `);
+  for (const n of rvSlotPicks) {
+    await evaluate(`
+      const el = document.querySelector('#prompt-console .reverseboard [data-slot-opt]');
+      if (el) el.focus();
+      return 1;
+    `);
+    await key(`Digit${n}`, String(n), { vk: 48 + n });
+    await sleep(240);
+  }
+  await waitFor(() => evaluate(`return window.__promptasy.promptConsole.reverseBoard.done === true;`), {
+    label: '拆碑：刻滿',
+    every: 200,
+    timeout: 20000,
+  });
+  const rvCarved = await evaluate(`
+    const g = window.__promptasy;
+    const b = g.promptConsole.reverseBoard;
+    return {
+      done: b.done,
+      act: g.promptConsole.act,
+      text: b.text,
+      sample: g.content.challenge('rewritten-stele-123').sample,
+      palmShown: !document.querySelector('#prompt-console .reverseboard .palmwrap')?.hidden,
+      palmFocused: !!document.activeElement?.closest('[data-palm]'),
+    };
+  `);
+  eq(rvCarved.done, true, '刻滿了');
+  eq(rvCarved.act, 4, '刻滿自動切到第四幕（手掌印）');
+  eq(rvCarved.text, rvCarved.sample, '刻出來的字＝資料層的示範解答（兩種模式同一段字）');
+  eq(rvCarved.palmShown, true, '手掌印浮出來了');
+  eq(rvCarved.palmFocused, true, '焦點自己落在手掌印上');
+
+  /* --- 按住 Enter 把手掌按上去（poll-until，不用固定 sleep） --- */
+  await keyDown('Enter', 'Enter', { vk: 13 });
+  await waitFor(() => evaluate(`return window.__promptasy.promptConsole.reverseBoard.fired === true;`), {
+    label: '拆碑：手掌印按滿',
+    every: 100,
+    timeout: 15000,
+  });
+  await keyUp('Enter', 'Enter', { vk: 13 });
+  await waitFor(() => evaluate(`return !document.querySelector('#prompt-console [data-result]').hidden;`), {
+    label: '拆碑：結果面板',
+    every: 150,
+    timeout: 15000,
+  });
+  const rvResult = await evaluate(`
+    const g = window.__promptasy;
+    const marker = g.world.markers.find((m) => m.id === 'rewritten-stele-123');
+    const save = JSON.parse(localStorage.getItem('promptasy.v1.save') || '{}');
+    return {
+      grade: document.querySelector('#prompt-console .grade__mark')?.textContent.trim(),
+      cleared: g.progression.isCleared('rewritten-stele-123'),
+      markerCleared: !!marker && marker.cleared,
+      skill: g.content.challenge('rewritten-stele-123').primarySkillId,
+      knows: g.progression.knowsSkill(g.content.challenge('rewritten-stele-123').primarySkillId),
+      savedSkills: save.skillsV2 || [],
+      savedGrade: (save.bestGrades || {})['rewritten-stele-123'],
+      xp: g.progression.state.xp,
+      srcs: Array.from(document.querySelectorAll('#prompt-console [data-result] a.src')).map((a) => a.getAttribute('href')),
+    };
+  `);
+  eq(rvResult.grade, 'S', '全部貼對＋刻對＝S（全程沒碰滑鼠）', String(rvResult.grade));
+  eq(rvResult.cleared, true, '這一關記成通關');
+  eq(rvResult.markerCleared, true, '世界裡那座石座轉成已通關');
+  eq(rvResult.knows, true, '這一關教的技能入袋');
+  ok(rvResult.savedSkills.includes(rvResult.skill), '技能寫進 localStorage', rvResult.savedSkills.join(','));
+  eq(rvResult.savedGrade, 'S', '評價也寫進 localStorage');
+  ok(rvResult.xp > 0, '拿到 XP', String(rvResult.xp));
+  ok(
+    rvResult.srcs.length >= 1 && rvResult.srcs.every((u) => /^https:\/\//.test(u)),
+    '結果面板掛得出可點的官方出處',
+    rvResult.srcs.join(' ')
+  );
+
+  await key('Escape', 'Escape', { vk: 27 });
+  await sleep(320);
+
+  /* --- 反差題的模型卡掛得出可點的官方出處 --- */
+  const tfCards = await evaluate(`
+    const g = window.__promptasy;
+    const flows = g.content.flowsAll ? g.content.flowsAll() : null;
+    const ids = ['two-faced-pillar-115', 'two-faced-pillar-116'];
+    const out = [];
+    for (const id of ids) {
+      const f = g.content.flow(id);
+      if (!f || !f.tradeoffFlow) continue;
+      const srcs = f.tradeoffFlow.rounds.flatMap((r) => (r.card && r.card.sources) || []);
+      out.push({ id, n: srcs.length, https: srcs.every((s) => /^https:\\/\\//.test(s.url)), vendors: new Set(srcs.map((s) => s.vendor || s.name)).size });
+    }
+    return out;
+  `);
+  for (const card of tfCards) {
+    ok(card.n >= 2, `[${card.id}] 兩張模型卡都掛得出官方出處`, String(card.n));
+    eq(card.https, true, `[${card.id}] 出處是可點的 https 連結`);
+    ok(card.vendors >= 2, `[${card.id}] 兩張卡加起來至少講得出兩家的立場`, String(card.vendors));
+  }
+
+  await evaluate(`window.__promptasy.promptConsole.close(); return 1;`);
+  await sleep(220);
+
+  /* ================================================================== */
+  /* 課程 v2 · Phase J2：12 座應用關（試煉）＋ 土地印記 ＋ 大師層印記      */
+  /*                                                                    */
+  /*   · 試煉開起來**沒有第二幕**（整幕不存在，不是被鎖住）              */
+  /*   · rubric 只列你已經學會的那幾條（動態組成、門檻跟著重算）          */
+  /*   · 純鍵盤走完一座自由書寫的試煉 → S → 印記入袋 → 存檔 → 重整仍在    */
+  /*   · 大師層：無筆之印真的拿得到；看過範例就永遠拿不到；默寫之印       */
+  /*   · 圖鑑看得到印記與小記號；既有 finale（四廠）一格都沒變            */
+  /* ================================================================== */
+  console.log('\n▸ 應用關與印記（課程 v2 · Phase J2）');
+
+  /* --- 種一份「只學過兩條」的存檔，開撰寫基本功的試煉 --- */
+  await evaluate(`
+    const g = window.__promptasy;
+    const trial = g.content.challenges.find((c) => c.application && c.region === 'foundations');
+    const cands = trial.rubric.filter((r) => r.candidate).map((r) => r.skillId);
+    const legacy = cands.slice(0, 2).map((id) => (g.content.skill(id) || {}).legacyTechniqueId).filter(Boolean);
+    localStorage.setItem('promptasy.v1.save', JSON.stringify({
+      version: 1, xp: 900, level: 6,
+      unlockedRegions: ['foundations'],
+      collected: legacy,
+      skillsV2: cands.slice(0, 2),
+      bestGrades: {},
+      badges: { openai: 0, anthropic: 0, google: 0, xai: 0 },
+      settings: { music: 'ambient-01', volume: 0, muted: true, quality: 'low', preflight: true, promptMode: 'guided' },
+      flags: { prologueDone: true, introSeen: true },
+      prologueSteps: [], guidanceSeen: [], loreRead: [], inscriptionsFound: [], secretsFound: [],
+      handlesUsed: [], skippedGates: [], seals: [], penlessSeals: [], scribeSeals: [], samplesSeen: []
+    }));
+    return 1;
+  `);
+  await reloadPage('重新載入（應用關：只學過兩條）');
+  await key('Enter', 'Enter', { vk: 13 });
+  await sleep(500);
+
+  const trialOpen = await evaluate(`
+    const g = window.__promptasy;
+    const trial = g.content.challenges.find((c) => c.application && c.region === 'foundations');
+    g.promptConsole.open(trial);
+    const acts = [...document.querySelectorAll('#prompt-console .acts [data-act-go]')];
+    return {
+      id: trial.id,
+      act: g.promptConsole.act,
+      visibleActs: acts.filter((b) => !b.hidden).map((b) => Number(b.getAttribute('data-act-go'))),
+      act2Hidden: acts.find((b) => b.getAttribute('data-act-go') === '2').hidden,
+      canGo2: g.promptConsole.canGoAct(2),
+      rows: [...document.querySelectorAll('#prompt-console [data-checklist] li')].map((li) => li.textContent.replace(/\s+/g, ' ').trim()),
+      rubricLen: g.promptConsole.challenge.rubric.length,
+      candidates: g.promptConsole.challenge.rubric.filter((r) => r.candidate).map((r) => r.skillId),
+      pass: g.promptConsole.challenge.pass,
+      links: document.querySelectorAll('#prompt-console a[href^="http"]').length,
+      mode: g.promptConsole.mode,
+      nextLabel: (document.querySelector('#prompt-console .act--brief [data-act-next]') || {}).textContent,
+    };
+  `);
+  eq(trialOpen.act, 1, '試煉一開始也是第一幕（委託）');
+  eq(trialOpen.visibleActs.join(','), '1,3,4', '指示器上只有 ①③④ —— 第二幕整幕不存在');
+  eq(trialOpen.act2Hidden, true, '第二幕那一塊封印石根本沒有畫出來（不是被鎖住）');
+  eq(trialOpen.canGo2, false, '走不到第二幕（Alt + 2 不會有反應）');
+  eq(trialOpen.candidates.length, 2, '只列你已經學會的那兩條（動態 rubric）');
+  eq(trialOpen.rubricLen, 3, 'rubric ＝ 地基 ＋ 兩條候選');
+  eq(trialOpen.pass, 2.5, '門檻跟著入選權重重算（4.5 的一半 → 2.5）');
+  eq(trialOpen.links, 0, '試煉的畫面上一個官方連結都沒有');
+  eq(trialOpen.mode, 'free', '自由書寫的試煉直接進書寫檯（沒有石碑）');
+  ok(/接下試煉/.test(trialOpen.nextLabel || ''), '第一幕的出口寫的是「接下試煉」不是「聆聽指引」', trialOpen.nextLabel);
+  ok(trialOpen.rows.some((t) => /你已經學過/.test(t)), '對照表上標出「你已經學過」', trialOpen.rows.join(' ｜ '));
+
+  await key('Digit2', '2', { vk: 50, modifiers: 8 });
+  await sleep(200);
+  eq(await evaluate(`return window.__promptasy.promptConsole.act;`), 1, 'Alt + 2 不會跳到不存在的那一幕');
+
+  await evaluate(`document.querySelector('#prompt-console .act--brief').focus(); return 1;`);
+  await key('Enter', 'Enter', { vk: 13 });
+  await sleep(320);
+  const trialAct3 = await evaluate(`
+    const g = window.__promptasy;
+    return {
+      act: g.promptConsole.act,
+      visited: g.promptConsole.visitedActs.join(','),
+      guideTabHidden: (document.querySelector('#prompt-console [data-guidetab]') || {}).hidden,
+    };
+  `);
+  eq(trialAct3.act, 3, '第一幕的 Enter 直接推到刻印（跳過不存在的第二幕）');
+  eq(trialAct3.visited.includes('2'), false, '走過的幕裡沒有第二幕');
+  eq(trialAct3.guideTabHidden, true, '第三幕的「翻回指引」側頁籤整個收起來（那裡沒有東西）');
+
+  /* --- 純鍵盤把整段答案打進去 → 呈上 → S ＋ 印記入袋 --- */
+  const trialSample = await evaluate(`
+    const t = document.querySelector('#prompt-console .prompt-input');
+    t.focus();
+    t.setSelectionRange(t.value.length, t.value.length);
+    return window.__promptasy.promptConsole.challenge.sample;
+  `);
+  await evaluate(`document.querySelector('#prompt-console [data-clear]').click(); return 1;`);
+  await evaluate(`document.querySelector('#prompt-console .prompt-input').focus(); return 1;`);
+  await cdp.send('Input.insertText', { text: trialSample }, sessionId);
+  await sleep(300);
+  await key('Enter', 'Enter', { vk: 13, modifiers: 2 });
+  await sleep(800);
+  const trialResult = await evaluate(`
+    const g = window.__promptasy;
+    const el = document.querySelector('#prompt-console [data-result]');
+    const saved = JSON.parse(localStorage.getItem('promptasy.v1.save') || '{}');
+    return {
+      grade: (el.querySelector('.grade__mark') || {}).textContent,
+      act: g.promptConsole.act,
+      seals: g.progression.seals(),
+      savedSeals: saved.seals || [],
+      cleared: g.progression.isCleared(g.promptConsole.challenge.id),
+      links: el.querySelectorAll('a[href^="http"]').length,
+      tail: (el.querySelector('.result__source') || {}).textContent || '',
+      penless: g.progression.masterSeals().penless.length,
+    };
+  `);
+  eq(trialResult.grade, 'S', '純鍵盤打完整段 → 拿到 S');
+  eq(trialResult.act, 4, '呈上之後鏡頭切到第四幕');
+  eq(trialResult.seals.join(','), 'foundations', '這片土地的印記入袋');
+  eq(trialResult.savedSeals.join(','), 'foundations', '印記寫進 localStorage');
+  eq(trialResult.cleared, true, '試煉記成已通關');
+  eq(trialResult.links, 0, '結果面板上也沒有官方連結（試煉不教新技巧）');
+  ok(/不教新的技法/.test(trialResult.tail), '結果面板誠實說明這是試煉', trialResult.tail.slice(0, 40));
+  eq(trialResult.penless, 0, '應用關不發無筆之印');
+
+  await key('Escape', 'Escape', { vk: 27 });
+  await sleep(260);
+  await reloadPage('重新載入（印記還在嗎）');
+  await key('Enter', 'Enter', { vk: 13 });
+  await sleep(480);
+  const sealAfterReload = await evaluate(`
+    const g = window.__promptasy;
+    return { seals: g.progression.seals(), has: g.progression.hasSeal('foundations') };
+  `);
+  eq(sealAfterReload.seals.join(','), 'foundations', '重整之後印記還在');
+  eq(sealAfterReload.has, true, 'hasSeal 說得出來');
+
+  /* --- 無筆之印：一次 S、沒碰快速填入／提示球／範例 --- */
+  const penlessRun = await evaluate(`
+    const g = window.__promptasy;
+    const shrine = g.content.challenges.find((c) => !c.application && c.region === 'foundations');
+    g.promptConsole.open(shrine);
+    g.promptConsole.setMode('free');
+    g.promptConsole.goAct(3, { force: true });
+    await new Promise((r) => setTimeout(r, 200));
+    document.querySelector('#prompt-console [data-clear]').click();
+    const t = document.querySelector('#prompt-console .prompt-input');
+    t.focus();
+    t.setSelectionRange(0, 0);
+    return { id: shrine.id, sample: shrine.sample };
+  `);
+  await cdp.send('Input.insertText', { text: penlessRun.sample }, sessionId);
+  await sleep(300);
+  await key('Enter', 'Enter', { vk: 13, modifiers: 2 });
+  await sleep(800);
+  const penlessOut = await evaluate(`
+    const g = window.__promptasy;
+    const m = g.progression.masterSeals();
+    const saved = JSON.parse(localStorage.getItem('promptasy.v1.save') || '{}');
+    return {
+      grade: (document.querySelector('#prompt-console .grade__mark') || {}).textContent,
+      penless: m.penless,
+      scribe: m.scribe,
+      savedPenless: saved.penlessSeals || [],
+      savedScribe: saved.scribeSeals || [],
+    };
+  `);
+  eq(penlessOut.grade, 'S', '一次就把整段寫對 → S');
+  ok(penlessOut.penless.includes(penlessRun.id), '無筆之印真的拿得到', penlessOut.penless.join(','));
+  ok(penlessOut.scribe.includes(penlessRun.id), '同一次也拿到默寫之印（自由書寫模式的 S）');
+  ok(penlessOut.savedPenless.includes(penlessRun.id), '無筆之印寫進 localStorage');
+  ok(penlessOut.savedScribe.includes(penlessRun.id), '默寫之印寫進 localStorage');
+
+  /* --- 作弊面：先翻開範例，關掉重開再拿 S 也不算 --- */
+  await key('Escape', 'Escape', { vk: 27 });
+  await sleep(240);
+  const peekRun = await evaluate(`
+    const g = window.__promptasy;
+    const shrine = g.content.challenges.filter((c) => !c.application && c.region === 'foundations')[1];
+    g.promptConsole.open(shrine);
+    g.promptConsole.setMode('free');
+    const btn = document.querySelector('#prompt-console [data-sample]');
+    btn.disabled = false;
+    btn.click();
+    const seen = g.progression.hasSeenSample(shrine.id);
+    g.promptConsole.close();
+    return { id: shrine.id, seen, sample: shrine.sample };
+  `);
+  eq(peekRun.seen, true, '翻開範例會被永久記下來');
+  await evaluate(`
+    const g = window.__promptasy;
+    g.promptConsole.open(g.content.challenges.find((c) => c.id === ${JSON.stringify('__PEEK__')}));
+    g.promptConsole.setMode('free');
+    g.promptConsole.goAct(3, { force: true });
+    await new Promise((r) => setTimeout(r, 200));
+    document.querySelector('#prompt-console [data-clear]').click();
+    const t = document.querySelector('#prompt-console .prompt-input');
+    t.focus();
+    t.setSelectionRange(0, 0);
+    return 1;
+  `.replace('__PEEK__', peekRun.id));
+  await cdp.send('Input.insertText', { text: peekRun.sample }, sessionId);
+  await sleep(300);
+  await key('Enter', 'Enter', { vk: 13, modifiers: 2 });
+  await sleep(800);
+  const peekOut = await evaluate(`
+    const g = window.__promptasy;
+    const m = g.progression.masterSeals();
+    const id = ${JSON.stringify('__PEEK__')}.replace('__PEEK__', '') || null;
+    return {
+      grade: (document.querySelector('#prompt-console .grade__mark') || {}).textContent,
+      penless: m.penless,
+      scribe: m.scribe,
+    };
+  `);
+  eq(peekOut.grade, 'S', '看過範例之後照樣拿得到 S（評價不受影響）');
+  eq(peekOut.penless.includes(peekRun.id), false, '但看過範例就拿不到無筆之印（關掉重開也不算）');
+  eq(peekOut.scribe.includes(peekRun.id), false, '默寫之印同樣守住這條作弊面');
+
+  /* --- 圖鑑：印記那一塊看得到，而且 finale 一格沒變 --- */
+  await key('Escape', 'Escape', { vk: 27 });
+  await sleep(260);
+  await key('KeyC', 'c', { vk: 67 });
+  await sleep(560);
+  const codexSeals = await evaluate(`
+    const el = document.querySelector('#codex');
+    const seals = el.querySelector('.seals');
+    return {
+      hasBlock: !!seals,
+      cells: el.querySelectorAll('.seals__list .seal').length,
+      on: el.querySelectorAll('.seals__list .seal.is-on').length,
+      hint: seals ? seals.querySelector('.codex__hint').textContent.replace(/\s+/g, ' ').trim() : '',
+      marks: el.querySelectorAll('.mseals .mseal').length,
+      badgesText: el.querySelector('.badges').textContent.replace(/\s+/g, ' ').trim(),
+      trialLine: el.querySelectorAll('.region-card__trial').length,
+      overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    };
+  `);
+  eq(codexSeals.hasBlock, true, '圖鑑上有「土地印記」那一塊');
+  eq(codexSeals.cells, 12, '12 片土地各一格印記');
+  eq(codexSeals.on, 1, '拿到的那一枚亮著');
+  ok(/無筆之印/.test(codexSeals.hint), '大師層印記的計數看得到', codexSeals.hint.slice(0, 60));
+  ok(codexSeals.marks >= 1, '拿到印記的那座神廟旁邊有小記號', String(codexSeals.marks));
+  eq(codexSeals.trialLine, 1, '通過試煉的那片土地上寫著「試煉已通過」');
+  ok(/每廠集滿 5 個/.test(codexSeals.badgesText), '既有 finale 的條件一格都沒變（每廠 5 個標記）');
+  ok(!/Qwen|DeepSeek|Mistral/.test(codexSeals.badgesText), '四廠徽章沒有被新廠混進來（護欄 7）');
+  eq(codexSeals.overflow, 0, '圖鑑加了印記那一塊之後仍然沒有水平溢位');
+  await key('Escape', 'Escape', { vk: 27 });
+  await sleep(240);
   /* ================================================================ */
   await sleep(600);
   const realErrors = consoleErrors.filter((e) => !/favicon|DevTools|Autofill/i.test(e));

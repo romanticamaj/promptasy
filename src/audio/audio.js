@@ -223,6 +223,25 @@ export const REGION_MOODS = Object.freeze({
     bellEvery: 7,
     detune: 3,
   }),
+  /*
+   * 分歧之廳（課程 v2 · Phase J1）：**這一區沒有配樂音檔**（見 SYNTH_ONLY_REGIONS）。
+   * 兩份相反的守則同時亮著 —— 所以這一組的性格是「兩個聲音疊在一起，誰也沒有蓋過誰」：
+   * 音階刻意同時放大三度與小三度（0 / 3 / 4），pad 走純三角波、失諧最大（8 音分），
+   * 聽起來永遠像有兩台機器在同時說話。鐘聲密度全場最高。
+   */
+  divergence: Object.freeze({
+    id: 'divergence',
+    name: '兩面之詞',
+    root: 138.59,
+    scale: Object.freeze([0, 3, 4, 12, 15]),
+    bellScale: Object.freeze([0, 3, 4, 7, 12, 15]),
+    voicing: Object.freeze(['triangle', 'triangle', 'triangle']),
+    cutoff: 580,
+    lfoRate: 0.058,
+    bellDensity: 0.68,
+    bellEvery: 8,
+    detune: 8,
+  }),
   // 角色與參數：Mixolydian 的暖色，pad 較厚，鐘聲中等
   config: Object.freeze({
     id: 'config',
@@ -429,6 +448,7 @@ export const SYNTH_ONLY_REGIONS = Object.freeze([
   'refinery',
   'frugality',
   'sight',
+  'divergence',
 ]);
 
 /**
@@ -455,6 +475,8 @@ export const REGION_NEIGHBORS = Object.freeze({
   frugality: Object.freeze(['foundations']),
   // 觀象臺自己一條橋接回中央高原；它自己沒有音檔，所以只預抓回程那一首
   sight: Object.freeze(['foundations']),
+  // 分歧之廳是高原東側的加建（沒有橋），回程那一首就是中央高原的
+  divergence: Object.freeze(['foundations']),
 });
 
 /**
