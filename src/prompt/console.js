@@ -31,6 +31,7 @@ import {
   rovingList,
   sourceNoteHtml,
 } from '../ui/dom.js';
+import { glossary } from '../ui/glossary.js';
 import { evaluate, formatScore, nextGradeTarget } from '../challenges/rubric.js';
 import { CHECKS } from '../challenges/checks.js';
 import { createStele } from './stele.js';
@@ -423,6 +424,8 @@ export function createPromptConsole({
   const actBtns = Array.from(overlay.body.querySelectorAll('[data-act-go]'));
   const actRules = Array.from(overlay.body.querySelectorAll('.acts__rule'));
   const act1NextBtn = overlay.body.querySelector('.act--brief [data-act-next]');
+  const act1El = overlay.body.querySelector('.act--brief');
+  const act2El = overlay.body.querySelector('.act--guide');
   const craftEl = overlay.body.querySelector('[data-craft]');
   const guidanceEl = overlay.body.querySelector('[data-guidance]');
   const guidanceExtraEl = overlay.body.querySelector('[data-guidance-extra]');
@@ -1552,6 +1555,8 @@ export function createPromptConsole({
         }
       </div>
     `;
+    // 提示框也吃術語小卡（它本來就是講給看不懂的人聽的）
+    glossary.annotate(coachEl);
   }
 
   /** 停手太久 / 送出沒過 → 讓球輕輕發光一下（絕不擋畫面、絕不自動彈開）。 */
@@ -1996,6 +2001,13 @@ export function createPromptConsole({
       }
       clueEl.textContent = challenge.clue;
       renderGuidance(challenge);
+      /*
+       * Phase 35：術語小卡。委託（第一幕）與指引（第二幕）各掃一次，
+       * 每個名詞只標第一次出現的地方。輸入框 / 按鈕 / 鍵帽 / 出處連結
+       * 一律不碰（規則寫在 src/ui/glossary.js）。
+       */
+      glossary.annotate(act1El);
+      glossary.annotate(act2El);
       renderChecklist(challenge);
       renderBlocks();
       renderFills(challenge);

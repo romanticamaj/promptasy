@@ -1889,3 +1889,103 @@ rubric 的淨變化＝新增兩節（「拆掉 D2 相容層」約 190 條、「R
 - **行動裝置的世界觸控移動仍然不做**（Phase D 的裁決未變）。
 - 未 commit／push；未動 `CLAUDE.md`、`task_plan.md`、`vite.config.js`、port 5175、
   `src/data/curriculum.json`（sha256 仍綠）。
+
+---
+
+## 2026-08-03 · Phase 35（手掌印加寬 ＋ 術語小卡）
+
+站長點名兩件事，一件是手感、一件是彩蛋。
+
+### 1. 手掌印（palm）加寬與美化
+
+**站長原話**：「Enter stone 要加寬——長按 ENTER 的字串太擠、也沒有在適當位置換行，字體可以縮小，讓他美化。」
+
+**先量再改**（headless 1280×900 實測，牌子 168×254）：
+
+| | 之前 | 之後 |
+|---|---|---|
+| 牌子 | 168 × 254 px | **252 × 179 px**（900px 以下 232 × 171） |
+| 主句 | 「把手掌按上 / 石碑」**斷在詞中間**，高 68px（兩行） | 「把手掌按上石碑」**一行**，高 29px |
+| 提示 | 「按住不放（/ Enter 也可 / 以）」**三行**、括號被丟到下一行，高 94px | 兩行各自完整：「按住不放」／「或按住 <kbd>Enter</kbd>」，高 53px |
+| 提示字級 | `--t-micro`（21.3px） | `calc(--t-micro × 0.86)`（**18.3px**，比主句 23.4px 小一階） |
+
+作法：
+- `palm.js` 與 `stele.js` 兩份 DOM（本來就逐字相同，rubric 有斷言把關）同步把提示拆成
+  兩個 `.palm__hintline`，**用結構分行，不靠溢位換行**。
+- `.palm` 加寬到 252px ＋ `max-width: 100%`，拱頂半徑跟著放大；
+  `.palm__label` 與 `.palm__hintline` 都 `white-space: nowrap`（保證不會再斷在詞中間）；
+  `.palm__hint` 改成 grid 兩列。
+- 順手美化：石面加一層「上亮下暗」的線性漸層（跟刻印牌同一套受光方向），不再只有一圈暖光。
+- 呼吸光暈 / 蓄力環 / `is-holding` / `is-slipped` / `is-fired` 與**鍵盤行為一格未動**。
+
+**逐面複審**（e2e 實量，不是抽樣）：十一種題型的第三幕各開一次、把台上那一隻手掌叫出來量 ——
+`choice` 252px、其餘十種（`order` / `workshop` / `fix` / `spot` / `induct` / `tradeoff` /
+`constraint` / `multi` / `sim` / `reverse`）都是 250px，主句一律一行、提示一律兩行、
+`Enter` 鍵帽都在、水平溢位 0。390×844 另量三關（含工坊）：232px、在面板內、高 171px（> 44px 觸控門檻）。
+自由書寫模式沒有手掌印（它走「呈給神諭」那顆鍵，高 54px）—— 一併斷言，免得哪天被誤加。
+
+### 2. 術語小卡（工程關鍵字 hover 彩蛋）
+
+**站長要的**：畫面上出現的技術名詞（markdown / JSON / XML / temperature / token / few-shot /
+system prompt / schema / API / prompt / LLM / HTML / CSS / TTS…）滑上去能看到
+**白話說明 ＋ 用途 ＋ 一個小範例**。
+
+- **資料**：新增 `src/data/glossary.json`（`authored: "game"`）**24 條**術語，每條
+  `{ term, aliases[], zh, plain, use, example }`。這一層跟 `coach.json` 同性質 ——
+  **扶手不是課本**：不教技巧、不掛 `techniqueId`、**整份檔案一個連結都沒有**
+  （護欄 2 仍然成立：真正的教學與官方出處只在第二幕與圖鑑，rubric 逐條把關）。
+- **標記器**：新增 `src/ui/glossary.js`。一次 `annotate(el)` ＝ 對那一塊 DOM 走一次
+  `TreeWalker`，**沒有 MutationObserver、沒有輪詢**；跳過 `textarea` / `input` / `button` /
+  `kbd` / `a` / `code` / `summary` / 標題與 `.src`（官方出處）；**一個面板一個字只標第一次**；
+  只是把字包進 `<span class="gloss">`，`textContent` 一個位元組都不變。
+- **標記的地方**：第一幕（情境／委託／素材）、第二幕（神諭刻文）、提示框、圖鑑的每一條技巧
+  （圖鑑以「一條技巧」為一個面板 —— 整本掃一次的話 130 條裡只會有一個字被畫線）。
+- **小卡**：`position: fixed` 掛在 `<body>` 上（面板有 `overflow`，掛裡面會被裁掉），
+  下面塞不下就翻到上面，最後還有一道「一定留在畫面內」的夾。夜間檔案館語言、零外部資源。
+- **鍵盤**：標記**刻意不進 Tab 順序**（決策與理由寫進 `WORLD.md` §3.7）。
+  `Esc` 先收小卡、不順手關掉整個面板（`document` capture ＋ `stopPropagation`，實測有效）。
+- **字型預算差點爆掉**：glossary 的新中文讓 CJK 語料從 1844 → 1848 字，字型總量
+  **1,501,184 > 1,500,000 的硬上限**。沒有調高上限 —— 改成把只出現一次的四個字換掉
+  （`妝`→樣子、`瑣`→小、以及我自己註解裡的 `慘` `裸`），語料回到 1844、總量 1463.4 KB。
+  這件事本身是個發現：**這個專案的字型預算已經在 99.9%**（見 findings）。
+
+### 驗證
+
+| 套件 | 之前 | 之後 |
+|---|---|---|
+| `npm run fonts` | 語料 71 檔 / CJK 1844 | 語料 71 檔 / **CJK 1844**（換字後打平）／ 1463.4 KB，指紋綠 |
+| `npm run test:rubric` | 76,757 | **77,311** 全綠 |
+| `npm run test:playtest` | 2,372 | **2,372**（未動，符合預期） |
+| `npm run build` | ✓ | ✓ |
+| `npm run test:e2e` | 3,013 | **3,190 全部通過、零 console error、零重跑** |
+
+**先紅後綠**（實測）：把 `.palm` 寬度改回 168px → 2 條紅（`手掌印加寬到 252px`、
+`窄畫面下不會撐破面板`）；在 glossary 塞一個 `https://` → 2 條紅
+（`[gloss:temperature] example 不含連結`、`整份 glossary.json 一個連結都沒有`）；還原後全綠。
+
+**e2e 的一個真問題（自己寫的斷言先紅過）**：一開始用「先量座標 → 再送 `mouseMoved`」，
+小卡一直不出現。用 `elementsFromPoint` 追出來是 `.reveal` 入場動畫還在跑、
+**先量好的座標會過期**（實測差 30px 以上）。改成 AGENTS.md 建議的**輪詢式**：
+每一輪重新量、重新送滑鼠、再檢查卡片 —— 一次就過。
+
+### e2e 兩輪的誠實紀錄
+
+| 輪 | 結果 |
+|---|---|
+| 第一輪 | 3,054 通過 / **4 失敗** —— 全部是我自己新寫的「手掌印量得到嗎」那道守門，而且它抓到的是**真的問題**（見下） |
+| 第二輪 | **3,190 全部通過、零 console error**；AGENTS.md 登記的動畫時序 flaky 家族一條都沒出現，沒有重跑 |
+
+**第一輪為什麼紅**：前一段（`應用關與印記 · Phase J2`）呼叫了 `promptConsole.setMode('free')`，
+而 `setMode()` **會寫進設定** —— 手掌印只存在於引導式，所以我整段量測落在自由書寫的書寫檯上，
+一隻手掌都沒有。**這正是那道守門在防的事**（`每一種題型都有一隻量得到的手掌印（不會空過）`）：
+它讓「什麼都沒量到」變成紅燈，而不是跑完全綠。
+修法：量之前明確 `setMode('guided')` 並斷言 `modeAtStart === 'guided'`；
+固定 sleep 換成輪詢（最多 20 次 × 150ms）；失敗時回報 `act / mode / ovHidden / dataAct / wraps`。
+
+### 這一期沒有動到的東西
+
+- `CLAUDE.md`、`vite.config.js`、port 5175（使用者的 dev server 全程沒碰，跑完只剩它自己）、
+  `src/data/curriculum.json`（sha256 仍綠）。
+- 未 commit／未 push。
+- 字型的 6 個 `.woff2` **一個位元組都沒變**（換字之後語料字元集跟 HEAD 完全一樣），
+  只有 `manifest.json` 的語料指紋更新。

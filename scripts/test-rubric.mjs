@@ -10639,6 +10639,188 @@ console.log('\n▸ R4：舊存檔搬家與重置實測');
   memory.clear();
 }
 
+/* ================================================================== */
+/* Phase 35 · 手掌印加寬 ＋ 術語小卡                                    */
+/* ================================================================== */
+console.log('\n▸ 手掌印與術語小卡（Phase 35）');
+
+{
+  /* ---------------------------------------------------------------- */
+  /* (1) 手掌印：主句一行、提示自己分行、字級比主句小                  */
+  /* ---------------------------------------------------------------- */
+  const palmSrc = srcOf('src/prompt/palm.js');
+  const steleSrc = srcOf('src/prompt/stele.js');
+  const cssSrc = srcOf('src/styles.css');
+
+  for (const [tag, src] of [
+    ['palm.js', palmSrc],
+    ['stele.js', steleSrc],
+  ]) {
+    ok(/class="palm__label">把手掌按上石碑</.test(src), `${tag}：主句還在`);
+    ok(
+      (src.match(/class="palm__hintline"/g) || []).length === 2,
+      `${tag}：提示拆成兩行各自完整的短句`,
+      String((src.match(/class="palm__hintline"/g) || []).length)
+    );
+    ok(/<kbd>Enter<\/kbd>/.test(src), `${tag}：Enter 鍵帽還在（鍵盤路徑沒被拿掉）`);
+    ok(
+      !/按住不放（<kbd>/.test(src),
+      `${tag}：不再把提示與鍵帽擠在同一行（Phase 35 之前的寫法）`
+    );
+    // 兩份 DOM 必須逐字相同（palm.js 的註解就是這樣寫的）
+  }
+  {
+    const grab = (src) => (src.match(/<span class="palm__label">[\s\S]*?<\/span>\s*<span class="palm__hint">[\s\S]*?<\/span>/) || [''])[0].replace(/\s+/g, ' ');
+    eq(grab(palmSrc), grab(steleSrc), '兩份手掌印的 DOM 逐字相同（同一套 CSS）');
+  }
+
+  const palmCss = (cssSrc.match(/\n\.palm \{[\s\S]*?\n\}/) || [''])[0];
+  ok(/width: 252px/.test(palmCss), '手掌印加寬到 252px（主句一行寫得完）', palmCss.slice(0, 120));
+  ok(/max-width: 100%/.test(palmCss), '窄畫面下不會撐破面板');
+  ok(
+    /@media \(max-width: 900px\) \{\s*\.palm \{\s*width: 232px/.test(cssSrc),
+    '窄畫面的手掌印也是加寬過的（232px，不是舊的 148px）'
+  );
+  ok(!/\.palm \{\s*width: 148px/.test(cssSrc), '舊的 148px 沒有殘留');
+
+  const labelCss = (cssSrc.match(/\n\.palm__label \{[\s\S]*?\n\}/) || [''])[0];
+  ok(/white-space: nowrap/.test(labelCss), '主句不准在詞中間被擠斷');
+  const hintCss = (cssSrc.match(/\n\.palm__hint \{[\s\S]*?\n\}/) || [''])[0];
+  ok(
+    /font-size: calc\(var\(--t-micro\) \* 0\.86\)/.test(hintCss),
+    '提示字級比主句再小一階',
+    hintCss.slice(0, 160)
+  );
+  ok(/display: grid/.test(hintCss), '兩行提示是各自一列（不是靠溢位換行）');
+  ok(
+    /\.palm__hintline \{[\s\S]*?white-space: nowrap/.test(cssSrc),
+    '每一行提示自己也不換行'
+  );
+
+  /* ---------------------------------------------------------------- */
+  /* (2) 術語小卡的資料層（authored: game，扶手不是課本）              */
+  /* ---------------------------------------------------------------- */
+  const glossaryFile = readJson('src/data/glossary.json');
+  const GLOSS = glossaryFile.terms;
+
+  eq(glossaryFile.authored, 'game', 'glossary.json 標明是遊戲自撰（不是官方文字）');
+  ok(
+    nonEmptyStr(glossaryFile.note) && glossaryFile.note.length > 30,
+    'glossary.json 有一段說明它不是引文'
+  );
+  ok(Array.isArray(GLOSS) && GLOSS.length >= 20, `術語至少 20 條（實際 ${GLOSS.length}）`);
+
+  const glossIds = new Set();
+  const glossWords = new Map();
+  for (const t of GLOSS) {
+    const tag = `[gloss:${t.id}]`;
+    ok(nonEmptyStr(t.id) && !glossIds.has(t.id), `${tag} id 存在且不重複`);
+    glossIds.add(t.id);
+    ok(nonEmptyStr(t.term), `${tag} 有英文名詞本體`);
+    ok(nonEmptyStr(t.zh) && CJK.test(t.zh), `${tag} 有中文短標`);
+    ok(nonEmptyStr(t.plain) && CJK.test(t.plain), `${tag} 白話說明是中文`);
+    ok(nonEmptyStr(t.use) && CJK.test(t.use), `${tag} 用途是中文`);
+    ok(nonEmptyStr(t.example), `${tag} 有一個小範例`);
+    ok(t.plain.length >= 8 && t.plain.length <= 60, `${tag} 白話說明長度合理（${t.plain.length} 字）`);
+    ok(t.use.length >= 8 && t.use.length <= 60, `${tag} 用途長度合理（${t.use.length} 字）`);
+    ok(t.example.length <= 60, `${tag} 範例小到看得完（${t.example.length} 字）`);
+    ok(Array.isArray(t.aliases), `${tag} aliases 是陣列`);
+    // 護欄：這一層不放連結、不掛出處、不宣稱是官方說法
+    for (const key of ['zh', 'plain', 'use', 'example']) {
+      ok(!/https?:\/\//.test(String(t[key])), `${tag} ${key} 不含連結`);
+    }
+    ok(t.source === undefined && t.sources === undefined, `${tag} 沒有 source 欄位（出處只在課程層）`);
+    ok(t.techniqueId === undefined && t.teaches === undefined, `${tag} 不宣稱自己在教哪一條技巧`);
+    ok(!/官方|原典/.test(`${t.plain}${t.use}`), `${tag} 不假裝自己是官方說法`);
+    // 白話說明與用途不准是英文句子（護欄：對象是中文圈一般人）
+    ok(!ENGLISH(t.plain), `${tag} 白話說明沒有整句英文`, ENGLISH(t.plain) || '');
+    ok(!ENGLISH(t.use), `${tag} 用途沒有整句英文`, ENGLISH(t.use) || '');
+    // 比對用的寫法彼此不重複（重複＝到底要開哪一張卡沒有定論）
+    for (const w of [t.term, ...t.aliases]) {
+      const key = String(w).toLowerCase();
+      ok(!glossWords.has(key), `${tag} 的寫法「${w}」沒有跟 ${glossWords.get(key) || ''} 撞名`);
+      glossWords.set(key, t.id);
+    }
+  }
+  ok(!/https?:\/\//.test(JSON.stringify(glossaryFile)), '整份 glossary.json 一個連結都沒有');
+
+  /* ---------------------------------------------------------------- */
+  /* (3) 標記器：只標會讀的字，一個面板一個字只標一次                  */
+  /* ---------------------------------------------------------------- */
+  const glossSrc = srcOf('src/ui/glossary.js');
+  for (const tag of ['TEXTAREA', 'INPUT', 'BUTTON', 'KBD', 'A', 'CODE', 'SUMMARY']) {
+    ok(new RegExp(`'${tag}'`).test(glossSrc), `標記器跳過 <${tag.toLowerCase()}>`);
+  }
+  ok(/\.src/.test(glossSrc), '標記器跳過官方出處連結（.src）');
+  ok(/const seen = new Set\(\)/.test(glossSrc), '一次 annotate 裡同一個術語只標第一次');
+  ok(!/new MutationObserver/.test(glossSrc), '沒有 MutationObserver（一次標記一次掃描就好）');
+  ok(!/setInterval\(/.test(glossSrc), '沒有輪詢');
+  ok(/document\.createTreeWalker/.test(glossSrc), '用 TreeWalker 走一次文字節點');
+  // 鍵盤：刻意不進 Tab 順序（決策寫在 WORLD.md §3.7）
+  ok(!/tabindex/i.test(glossSrc), '標記不塞進 Tab 順序（不打亂 Phase 23 的焦點鏈）');
+  ok(/e\.key === 'Escape'/.test(glossSrc), 'Esc 先收小卡');
+  ok(/stopPropagation/.test(glossSrc), 'Esc 收小卡時不順手把面板也關掉');
+  ok(/document\.body\.appendChild\(card\)/.test(glossSrc), '卡片掛在 body 上（不會被面板裁掉）');
+
+  // 真的跑一次比對邏輯（不需要 DOM）
+  {
+    const { createGlossary } = await import('../src/ui/glossary.js');
+    const g = createGlossary(glossaryFile);
+    eq(g.count, GLOSS.length, '術語表載得進來');
+    ok(!!g.lookup('prompt'), 'lookup 查得到 prompt');
+    eq(g.lookup('沒有這一條'), null, '查不到的回 null');
+    // 沒有資料時安靜降級
+    const empty = createGlossary(null);
+    eq(empty.count, 0, '沒有資料時術語數是 0');
+    eq(empty.annotate(null), 0, '沒有資料時 annotate 不丟例外');
+    // 長的寫法要排在短的前面（system prompt 不可以被 prompt 先吃掉）
+    const idx = (w) => GLOSS.findIndex((t) => [t.term, ...t.aliases].includes(w));
+    ok(idx('system prompt') >= 0 && idx('prompt') >= 0, '兩個會互相包含的寫法都在表上');
+  }
+
+  /* ---------------------------------------------------------------- */
+  /* (4) 標記到的地方：畫面上真的有這些字                              */
+  /* ---------------------------------------------------------------- */
+  {
+    const consoleSrc = srcOf('src/prompt/console.js');
+    ok(/glossary\.annotate\(act1El\)/.test(consoleSrc), '第一幕（委託）會標記');
+    ok(/glossary\.annotate\(act2El\)/.test(consoleSrc), '第二幕（指引）會標記');
+    ok(/glossary\.annotate\(coachEl\)/.test(consoleSrc), '提示框會標記');
+    const codexSrc = srcOf('src/ui/codex.js');
+    ok(/glossary\.annotateEach\(overlay\.body, '\.tech__body'\)/.test(codexSrc), '圖鑑一條技巧各標一次');
+    const mainSrc2 = srcOf('src/main.js');
+    ok(/glossary\.install\(glossaryFile\)/.test(mainSrc2), '開機時把術語表裝進去');
+    ok(/glossary\.close\(\)/.test(mainSrc2), '面板收起來時小卡也收起來');
+  }
+  {
+    // 至少有一關的委託／情境裡真的出現了表上的術語（不然這個彩蛋永遠不會被看到）
+    const prose = challenges.map((c) =>
+      [c.scenario, c.mission, c.craft, c.clue].filter(Boolean).join('\n')
+    ).join('\n');
+    const hits = GLOSS.filter((t) =>
+      [t.term, ...t.aliases].some((w) => new RegExp(`\\b${w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i').test(prose))
+    );
+    ok(hits.length >= 4, `至少 4 條術語真的出現在關卡文案裡（實際 ${hits.length}）`, hits.map((h) => h.id).join(','));
+    ok(
+      hits.some((t) => t.id === 'prompt'),
+      'prompt 這個最常見的字一定標得到'
+    );
+  }
+
+  /* ---------------------------------------------------------------- */
+  /* (5) 樣式：標記看得出可以問，但不搶暖金的成就熱點                  */
+  /* ---------------------------------------------------------------- */
+  const glossCss = (cssSrc.match(/\n\.gloss \{[\s\S]*?\n\}/) || [''])[0];
+  ok(/border-bottom: 1px dotted/.test(glossCss), '標記是一條很淡的虛線');
+  ok(/cursor: help/.test(glossCss), '滑鼠變成「可以問」的樣子');
+  ok(/\.glosscard \{[\s\S]*?position: fixed/.test(cssSrc), '小卡是 fixed（不會被面板的 overflow 裁掉）');
+  ok(/\.glosscard \{[\s\S]*?z-index: 34/.test(cssSrc), '小卡疊在面板之上、標題卡之下');
+  ok(
+    /@media \(prefers-reduced-motion: reduce\) \{\s*\.glosscard \{/.test(cssSrc),
+    'reduce-motion 下不做位移'
+  );
+}
+
 /* ------------------------------------------------------------------ */
 console.log('');
 if (failures.length) {

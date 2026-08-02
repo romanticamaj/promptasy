@@ -22,6 +22,7 @@ import secretFile from './data/secrets.json';
 import handleFile from './data/handles.json';
 import datedFile from './data/dated-notes.json';
 import simSamples from './data/sim-samples.json';
+import glossaryFile from './data/glossary.json';
 import './styles.css';
 
 import { createEngine } from './engine/engine.js';
@@ -54,6 +55,7 @@ const camForward = { x: 0, z: 1 };
 import { createTitle } from './ui/title.js';
 import { createEntryGate } from './ui/entrygate.js';
 import { createKeyHelp } from './ui/keyhelp.js';
+import { glossary } from './ui/glossary.js';
 import { createAchievement } from './ui/achievement.js';
 import { createAudio } from './audio/audio.js';
 
@@ -81,6 +83,13 @@ function boot() {
    * 註冊失敗（檔案壞掉／被清空）時那幾關會安靜退回石碑刻印，不會開到空白的碑。
    */
   registerSimDials(simSamples);
+
+  /*
+   * Phase 35：術語小卡（`glossary.json`，authored: game）。
+   * 純扶手層：不教技巧、不放連結，真正的教學與官方出處仍然只在第二幕與圖鑑。
+   * 檔案缺席時 annotate() 安靜地什麼都不做（離線降級）。
+   */
+  glossary.install(glossaryFile);
 
   const content = createContent(
     curriculum,
@@ -538,6 +547,9 @@ function boot() {
   }
   function closePanel() {
     openedPanel = null;
+    // 術語小卡是掛在 <body> 上的（面板有 overflow，掛裡面會被裁掉）——
+    // 面板收起來的時候要記得順手把它也收掉，不然會有一張卡浮在世界上面
+    glossary.close();
     player.setInputEnabled(!intro.isOpen && !title.isOpen && !practice.isOpen);
   }
   /**
@@ -1036,6 +1048,8 @@ function boot() {
     perfmon,
     keyhelp,
     toggleKeyHelp,
+    /** Phase 35：術語小卡（測試 / 除錯用）。 */
+    glossary,
     title,
     entryGate,
     /** Phase 34：開場黑幕（測試 / 除錯用）。 */

@@ -7277,7 +7277,7 @@ async function main() {
   `);
   eq(kbPalm.act, 4, '刻滿之後鏡頭自己切到手印那一幕');
   eq(kbPalm.palmFocused, true, '焦點自己落在手掌印上（不用去找它）');
-  ok(/Enter/.test(kbPalm.hint), '手掌印上寫著「Enter 也可以」', kbPalm.hint);
+  ok(/Enter/.test(kbPalm.hint), '手掌印上寫著「或按住 Enter」', kbPalm.hint);
 
   // --- 按住 Enter 把手掌按上石碑 ---
   await holdPalm(null, '純鍵盤：手掌印按滿');
@@ -13262,6 +13262,473 @@ async function main() {
   eq(codexSeals.overflow, 0, '圖鑑加了印記那一塊之後仍然沒有水平溢位');
   await key('Escape', 'Escape', { vk: 27 });
   await sleep(240);
+
+  /* ================================================================ */
+  /* Phase 35 · 手掌印加寬 ＋ 術語小卡                                  */
+  /* ================================================================ */
+  console.log('\n▸ 手掌印與術語小卡（Phase 35）');
+
+  await cdp.send(
+    'Emulation.setDeviceMetricsOverride',
+    { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false },
+    sessionId
+  );
+  await sleep(320);
+
+  /*
+   * 手掌印是十一種題型共用的結尾（WORLD.md §3.3b 規則 1）——
+   * 所以量的不是「某一關的手掌印」，而是**每一種題型**台上的那一隻。
+   * 只量得到寬度的那一隻才算（隱藏的板子 rect 是 0×0，會空過）。
+   */
+  const palmAll = await evaluate(`
+    const g = window.__promptasy;
+    const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    /*
+     * 手掌印只存在於**引導式**（石碑刻印那一家）——前一段（Phase J2）
+     * 把答題方式切成自由書寫而且寫進了設定，所以這裡要先切回來，
+     * 不然整段會量到 0 個手掌印而「空過」。
+     */
+    g.promptConsole.setMode('guided');
+    await wait(200);
+    const modeAtStart = g.promptConsole.mode;
+    const out = [{ modeAtStart }];
+    for (const kind of g.promptConsole.flowKinds) {
+      const ch = g.content.challenges.find(
+        (c) => g.promptConsole.flowKindOf(g.content.flow(c.id)) === kind
+      );
+      if (!ch) { out.push({ kind, missing: true }); continue; }
+      g.promptConsole.close();
+      await wait(140);
+      g.promptConsole.open(ch);
+      await wait(220);
+      g.promptConsole.goAct(3, { force: true });
+      await wait(260);
+      // 只是要量版面，不跑完整條刻碑流程 —— 把台上那一隻手掌叫出來
+      // 輪詢到真的量得到為止（軟體渲染的機器上，固定 sleep 會量到還沒排版好的東西）
+      let shown = [];
+      for (let tries = 0; tries < 20 && !shown.length; tries += 1) {
+        for (const w of document.querySelectorAll('#prompt-console .palmwrap')) w.hidden = false;
+        await wait(150);
+        shown = [...document.querySelectorAll('#prompt-console .palm')]
+          .map((p) => ({ p, r: p.getBoundingClientRect() }))
+          .filter((x) => x.r.width > 0 && x.r.height > 0);
+      }
+      const panel = document.querySelector('#prompt-console .panel').getBoundingClientRect();
+      if (!shown.length) {
+        const cons = document.querySelector('#prompt-console .console');
+        out.push({ kind, id: ch.id, measurable: false, act: g.promptConsole.act,
+          mode: g.promptConsole.mode, ovHidden: document.getElementById('prompt-console').hidden,
+          dataAct: cons ? cons.getAttribute('data-act') : null,
+          wraps: document.querySelectorAll('#prompt-console .palmwrap').length });
+        continue;
+      }
+      const { p, r } = shown[0];
+      const label = p.querySelector('.palm__label');
+      const hint = p.querySelector('.palm__hint');
+      const lines = p.querySelectorAll('.palm__hintline');
+      const lr = label.getBoundingClientRect();
+      const ls = getComputedStyle(label);
+      const hs = getComputedStyle(hint);
+      out.push({
+        kind,
+        id: ch.id,
+        measurable: true,
+        w: Math.round(r.width),
+        h: Math.round(r.height),
+        inside: r.left >= panel.left - 1 && r.right <= panel.right + 1,
+        labelH: Math.round(lr.height),
+        labelLine: Math.round(parseFloat(ls.lineHeight)),
+        labelText: label.textContent.trim(),
+        hintLines: lines.length,
+        hintTexts: [...lines].map((n) => n.textContent.trim()),
+        hintFs: Math.round(parseFloat(hs.fontSize) * 10) / 10,
+        labelFs: Math.round(parseFloat(ls.fontSize) * 10) / 10,
+        kbd: p.querySelectorAll('.palm__hint kbd').length,
+        overflowX: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      });
+    }
+    g.promptConsole.close();
+    await wait(160);
+    return out;
+  `);
+
+  eq(palmAll[0].modeAtStart, 'guided', '量之前先切回引導式（手掌印只存在於那一家）');
+  const palmRows = palmAll.filter((x) => x.kind);
+  ok(palmRows.length >= 11, `十一種題型的手掌印都量到了（實際 ${palmRows.length} 種）`);
+  const palmMissing = palmRows.filter((x) => x.missing || x.measurable === false);
+  eq(
+    palmMissing.length,
+    0,
+    '每一種題型都有一隻量得到的手掌印（不會空過）',
+    JSON.stringify(palmMissing).slice(0, 400)
+  );
+  for (const p of palmRows.filter((x) => x.measurable)) {
+    const at = `[${p.kind}]`;
+    ok(p.w >= 240 && p.w <= 264, `${at} 手掌印加寬了（${p.w}px，Phase 35 之前是 168）`);
+    ok(p.h >= 44, `${at} 觸控／點擊目標夠大（${p.h}px）`);
+    eq(p.inside, true, `${at} 手掌印在面板裡`);
+    eq(p.labelText, '把手掌按上石碑', `${at} 主句沒變`);
+    ok(
+      p.labelH <= p.labelLine + 4,
+      `${at} 主句只有一行（高 ${p.labelH}px / 一行 ${p.labelLine}px）`
+    );
+    eq(p.hintLines, 2, `${at} 提示分成兩行各自完整的短句`);
+    ok(
+      p.hintTexts[0] === '按住不放' && /Enter/.test(p.hintTexts[1]),
+      `${at} 兩行提示斷在該斷的地方`,
+      p.hintTexts.join(' ｜ ')
+    );
+    ok(p.hintFs < p.labelFs, `${at} 提示字級比主句小一階（${p.hintFs} < ${p.labelFs}）`);
+    eq(p.kbd, 1, `${at} Enter 鍵帽還在（鍵盤路徑沒被拿掉）`);
+    eq(p.overflowX, 0, `${at} 沒有水平溢位`);
+  }
+
+  /* --- 390px（Phase D 的行動版版面）：一樣不擠、一樣按得到 --- */
+  await cdp.send(
+    'Emulation.setDeviceMetricsOverride',
+    { width: 390, height: 844, deviceScaleFactor: 1, mobile: false },
+    sessionId
+  );
+  await sleep(360);
+  const palmNarrow = await evaluate(`
+    const g = window.__promptasy;
+    const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    g.promptConsole.setMode('guided');
+    await wait(200);
+    const out = [];
+    for (const id of ['gate-of-clarity-01', 'long-scroll-tower-23', 'oracle-workshop-36']) {
+      g.promptConsole.close();
+      await wait(140);
+      g.promptConsole.open(g.content.challenge(id));
+      await wait(220);
+      g.promptConsole.goAct(3, { force: true });
+      await wait(260);
+      let shown = [];
+      for (let tries = 0; tries < 20 && !shown.length; tries += 1) {
+        for (const w of document.querySelectorAll('#prompt-console .palmwrap')) w.hidden = false;
+        await wait(150);
+        shown = [...document.querySelectorAll('#prompt-console .palm')]
+          .map((p) => ({ p, r: p.getBoundingClientRect() }))
+          .filter((x) => x.r.width > 0);
+      }
+      const panel = document.querySelector('#prompt-console .panel').getBoundingClientRect();
+      if (!shown.length) { out.push({ id, measurable: false, mode: g.promptConsole.mode, act: g.promptConsole.act }); continue; }
+      const { p, r } = shown[0];
+      const lr = p.querySelector('.palm__label').getBoundingClientRect();
+      out.push({
+        id,
+        measurable: true,
+        w: Math.round(r.width),
+        h: Math.round(r.height),
+        panelW: Math.round(panel.width),
+        inside: r.left >= panel.left - 1 && r.right <= panel.right + 1,
+        labelH: Math.round(lr.height),
+        lines: p.querySelectorAll('.palm__hintline').length,
+        overflowX: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      });
+    }
+    g.promptConsole.close();
+    await wait(160);
+    return out;
+  `);
+  for (const p of palmNarrow) {
+    const at = `[390 ${p.id}]`;
+    eq(p.measurable, true, `${at} 量得到手掌印`);
+    if (!p.measurable) continue;
+    ok(p.w >= 220 && p.w <= 240, `${at} 窄畫面的手掌印也加寬了（${p.w}px）`);
+    ok(p.w < p.panelW, `${at} 沒有把面板撐開（${p.w} < ${p.panelW}）`);
+    eq(p.inside, true, `${at} 手掌印在面板裡`);
+    ok(p.h >= 44, `${at} 觸控目標 ≥ 44px（${p.h}px）`);
+    ok(p.labelH <= 40, `${at} 主句仍然只有一行（${p.labelH}px）`);
+    eq(p.lines, 2, `${at} 提示仍然是兩行`);
+    eq(p.overflowX, 0, `${at} 沒有水平溢位`);
+  }
+  await cdp.send(
+    'Emulation.setDeviceMetricsOverride',
+    { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false },
+    sessionId
+  );
+  await sleep(320);
+
+  /* --- 自由書寫沒有手掌印（它走的是「呈給神諭」那顆鍵） --- */
+  const palmFree = await evaluate(`
+    const g = window.__promptasy;
+    const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    g.promptConsole.open(g.content.challenge('gate-of-clarity-01'));
+    await wait(220);
+    g.promptConsole.setMode('free');
+    await wait(260);
+    g.promptConsole.goAct(3, { force: true });
+    await wait(260);
+    const vis = [...document.querySelectorAll('#prompt-console .palm')]
+      .filter((p) => p.getBoundingClientRect().width > 0).length;
+    const submit = document.querySelector('#prompt-console [data-submit]');
+    const sr = submit.getBoundingClientRect();
+    g.promptConsole.setMode('guided');
+    await wait(200);
+    g.promptConsole.close();
+    await wait(160);
+    return { vis, submitText: submit.textContent.trim(), submitH: Math.round(sr.height) };
+  `);
+  eq(palmFree.vis, 0, '自由書寫模式沒有手掌印（它有自己的送出鍵）');
+  ok(/呈給神諭/.test(palmFree.submitText), '自由書寫的送出鍵還是「呈給神諭」', palmFree.submitText);
+  ok(palmFree.submitH >= 40, `自由書寫的送出鍵夠大（${palmFree.submitH}px）`);
+
+  /* ---------------------------------------------------------------- */
+  /* 術語小卡：畫線 → 滑上去 → 白話 ／ 用途 ／ 例                       */
+  /* ---------------------------------------------------------------- */
+  const glossOpen = await evaluate(`
+    const g = window.__promptasy;
+    const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    g.promptConsole.open(g.content.challenge('gate-of-clarity-01'));
+    await wait(320);
+    const root = document.getElementById('prompt-console');
+    const marks = [...root.querySelectorAll('[data-gloss]')];
+    return {
+      act: g.promptConsole.act,
+      count: marks.length,
+      terms: marks.map((m) => m.getAttribute('data-gloss')),
+      texts: marks.map((m) => m.textContent),
+      // 標記絕對不准長在這些東西裡面
+      inBad: root.querySelectorAll('textarea [data-gloss], button [data-gloss], kbd [data-gloss], a [data-gloss], h2 [data-gloss], h3 [data-gloss], summary [data-gloss]').length,
+      inTextarea: document.querySelector('#prompt-console textarea').value.includes('data-gloss'),
+      // 標記不進 Tab 順序（Phase 23 的焦點鏈沒被打亂）
+      tabbable: marks.filter((m) => m.hasAttribute('tabindex')).length,
+      cardExists: !!document.querySelector('.glosscard'),
+      dotted: marks[0] ? getComputedStyle(marks[0]).borderBottomStyle : '',
+      cursor: marks[0] ? getComputedStyle(marks[0]).cursor : '',
+      // 標記之後那段話的文字沒有變（只是包了一層 span）
+      missionText: root.querySelector('[data-mission]').textContent,
+    };
+  `);
+  eq(glossOpen.act, 1, '術語小卡是在第一幕（委託）就標好的');
+  ok(glossOpen.count >= 1, `委託那一幕上有術語標記（${glossOpen.count} 個）`, glossOpen.terms.join(','));
+  ok(glossOpen.terms.includes('prompt'), '「prompt」被標起來了', glossOpen.terms.join(','));
+  eq(glossOpen.inBad, 0, '標記沒有長進輸入框 / 按鈕 / 鍵帽 / 連結 / 標題裡');
+  eq(glossOpen.inTextarea, false, '玩家要打字的地方一個字都沒被動到');
+  eq(glossOpen.tabbable, 0, '標記不進 Tab 順序（不打亂 Phase 23 的焦點鏈）');
+  eq(glossOpen.dotted, 'dotted', '標記是一條虛線');
+  eq(glossOpen.cursor, 'help', '滑鼠變成「可以問」的樣子');
+  ok(
+    /prompt/.test(glossOpen.missionText),
+    '委託那句話的文字沒有被標記改掉',
+    glossOpen.missionText.slice(0, 40)
+  );
+  // 同一個術語一個面板只標第一次
+  {
+    const dupes = glossOpen.terms.filter((t, i) => glossOpen.terms.indexOf(t) !== i);
+    eq(dupes.length, 0, '同一個術語在一個面板裡只標第一次', dupes.join(','));
+  }
+
+  /* --- 真的用滑鼠移上去 ---
+   * 輪詢式（AGENTS.md）：每一輪都**重新量一次**那個字的位置再把滑鼠移過去。
+   * `.reveal` 的入場動畫還在跑時，先量好的座標會過期（實測會差 30px）。 */
+  const glossCard = await waitFor(
+    async () => {
+      const box = await evaluate(`
+        const m = document.querySelector('#prompt-console [data-gloss]');
+        m.scrollIntoView({ block: 'center' });
+        await new Promise((r) => setTimeout(r, 120));
+        const r = m.getBoundingClientRect();
+        return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) };
+      `);
+      await cdp.send(
+        'Input.dispatchMouseEvent',
+        { type: 'mouseMoved', x: 4, y: 4, button: 'none', buttons: 0 },
+        sessionId
+      );
+      await cdp.send(
+        'Input.dispatchMouseEvent',
+        { type: 'mouseMoved', x: box.x, y: box.y, button: 'none', buttons: 0 },
+        sessionId
+      );
+      await sleep(150);
+      return evaluate(`
+        const c = document.querySelector('.glosscard');
+        if (!c || c.hidden) return null;
+        const r = c.getBoundingClientRect();
+        return {
+          term: c.querySelector('[data-gc-term]').textContent.trim(),
+          zh: c.querySelector('[data-gc-zh]').textContent.trim(),
+          plain: c.querySelector('[data-gc-plain]').textContent.trim(),
+          use: c.querySelector('[data-gc-use]').textContent.trim(),
+          ex: c.querySelector('[data-gc-ex]').textContent.trim(),
+          links: c.querySelectorAll('a').length,
+          role: c.getAttribute('role'),
+          inView: r.top >= 0 && r.bottom <= innerHeight && r.left >= 0 && r.right <= innerWidth,
+          w: Math.round(r.width),
+          // 卡片掛在 body 上，所以不會被面板的 overflow 裁掉
+          parent: c.parentElement.tagName,
+          overflowX: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+        };
+      `);
+    },
+    { label: '術語小卡浮出來（真的用滑鼠）', every: 200, timeout: 14000 }
+  );
+  eq(glossCard.term, 'prompt', '卡片標題就是那個字');
+  ok(/[一-鿿]/.test(glossCard.zh), '有中文短標', glossCard.zh);
+  ok(glossCard.plain.length >= 8 && /[一-鿿]/.test(glossCard.plain), '有白話一句話', glossCard.plain);
+  ok(glossCard.use.length >= 8 && /[一-鿿]/.test(glossCard.use), '有用途', glossCard.use);
+  ok(glossCard.ex.length >= 4, '有一個小範例', glossCard.ex);
+  eq(glossCard.links, 0, '小卡不放連結（教學與出處仍然只在第二幕與圖鑑）');
+  eq(glossCard.role, 'tooltip', '小卡是 tooltip 語意');
+  eq(glossCard.parent, 'BODY', '小卡掛在 body 上（不會被面板裁掉）');
+  eq(glossCard.inView, true, '整張卡都在畫面裡');
+  eq(glossCard.overflowX, 0, '小卡沒有把頁面推寬');
+
+  /* --- Esc 先收小卡，關卡還開著 --- */
+  await key('Escape', 'Escape', { vk: 27 });
+  await sleep(260);
+  const glossEsc = await evaluate(`
+    return {
+      cardOpen: !document.querySelector('.glosscard').hidden,
+      consoleOpen: !document.getElementById('prompt-console').hidden,
+    };
+  `);
+  eq(glossEsc.cardOpen, false, 'Esc 先把小卡收起來');
+  eq(glossEsc.consoleOpen, true, '而且沒有順手把關卡也關掉');
+
+  /* --- 390px：小卡照樣完整看得到 --- */
+  await cdp.send(
+    'Emulation.setDeviceMetricsOverride',
+    { width: 390, height: 844, deviceScaleFactor: 1, mobile: false },
+    sessionId
+  );
+  await sleep(400);
+  const glossNarrow = await evaluate(`
+    const m = document.querySelector('#prompt-console [data-gloss]');
+    m.scrollIntoView({ block: 'center' });
+    await new Promise((r) => setTimeout(r, 300));
+    m.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+    await new Promise((r) => setTimeout(r, 320));
+    const c = document.querySelector('.glosscard');
+    const r = c.getBoundingClientRect();
+    return {
+      hidden: c.hidden,
+      inView: r.top >= 0 && r.bottom <= innerHeight && r.left >= 0 && r.right <= innerWidth,
+      w: Math.round(r.width),
+      vw: innerWidth,
+      overflowX: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    };
+  `);
+  eq(glossNarrow.hidden, false, '390px 下小卡照樣開得起來');
+  eq(glossNarrow.inView, true, '390px 下整張卡沒有被切掉');
+  ok(glossNarrow.w <= glossNarrow.vw - 8, `390px 下小卡沒有比畫面寬（${glossNarrow.w} / ${glossNarrow.vw}）`);
+  eq(glossNarrow.overflowX, 0, '390px 下沒有水平溢位');
+  await cdp.send(
+    'Emulation.setDeviceMetricsOverride',
+    { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false },
+    sessionId
+  );
+  await sleep(320);
+
+  /* --- 第二幕（指引）與圖鑑也標得到 --- */
+  const glossElsewhere = await evaluate(`
+    const g = window.__promptasy;
+    const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    const root = document.getElementById('prompt-console');
+    g.promptConsole.close();
+    await wait(200);
+    // 這一關的「工法」那句話裡就寫著 reasoning_effort —— 第二幕標得到
+    g.promptConsole.open(g.content.challenge('effort-forge-15'));
+    await wait(300);
+    g.promptConsole.goAct(2, { force: true });
+    await wait(340);
+    const act2 = [...root.querySelectorAll('.act--guide [data-gloss]')].map((m) => m.getAttribute('data-gloss'));
+    g.promptConsole.close();
+    await wait(220);
+
+    /*
+     * 圖鑑：只有「已收集」的條目才有內文可以標。
+     * 在記憶體裡先收齊（**不寫存檔**，量完就還原）—— 不然這一段會空過。
+     */
+    const before = g.progression.state.collected.slice();
+    const all = g.content
+      .groupsOrdered()
+      .flatMap((gr) => g.content.topicsOf(gr.id))
+      .flatMap((t) => g.content.techniquesOf(t.id))
+      .map((x) => x.id);
+    for (const id of all) {
+      if (!g.progression.state.collected.includes(id)) g.progression.state.collected.push(id);
+    }
+    g.codex.open();
+    await wait(700);
+    const bodies = document.querySelectorAll('#codex .tech__body').length;
+    const codexMarks = document.querySelectorAll('#codex .tech__body [data-gloss]').length;
+    const inSrc = document.querySelectorAll('#codex a [data-gloss], #codex .src [data-gloss], #codex summary [data-gloss]').length;
+    // 一條技巧＝一個面板：同一條裡同一個術語只准標一次
+    const dupes = [...document.querySelectorAll('#codex .tech__body')]
+      .map((b) => [...b.querySelectorAll('[data-gloss]')].map((m) => m.getAttribute('data-gloss')))
+      .filter((a) => a.length && new Set(a).size !== a.length).length;
+    g.codex.close();
+    await wait(240);
+    g.progression.state.collected.length = 0;
+    g.progression.state.collected.push(...before);
+
+    /*
+     * 標記規則的定點測試（合成一小塊 DOM 直接餵給標記器）——
+     * 這一段不受關卡文案改動影響，是「不准標進按鈕 / 鍵帽 / 輸入框」的看門狗。
+     */
+    const probe = document.createElement('div');
+    probe.innerHTML =
+      '<p>用 JSON 回覆，把 temperature 設成 0，再把這段 prompt 交出去；另一段 prompt 不要再標一次。</p>' +
+      '<button type="button">prompt</button><kbd>Enter</kbd><a href="#">JSON</a>' +
+      '<textarea>我的 prompt 草稿</textarea><h3>prompt 標題</h3>';
+    document.body.appendChild(probe);
+    const marked = g.glossary.annotate(probe);
+    const probeTerms = [...probe.querySelectorAll('[data-gloss]')].map((m) => m.getAttribute('data-gloss'));
+    const probeBad = probe.querySelectorAll(
+      'button [data-gloss], kbd [data-gloss], a [data-gloss], h3 [data-gloss]'
+    ).length;
+    const probeTextarea = probe.querySelector('textarea').value;
+    const probeText = probe.querySelector('p').textContent;
+    probe.remove();
+
+    return {
+      act2,
+      bodies,
+      codexMarks,
+      inSrc,
+      dupes,
+      marked,
+      probeTerms,
+      probeBad,
+      probeTextarea,
+      probeText,
+      cardHidden: document.querySelector('.glosscard').hidden,
+    };
+  `);
+  ok(
+    glossElsewhere.act2.includes('reasoning-effort'),
+    '第二幕（神諭刻文）裡的術語也標得到',
+    glossElsewhere.act2.join(',')
+  );
+  ok(glossElsewhere.bodies >= 20, `圖鑑真的有內文可以量（${glossElsewhere.bodies} 條）`);
+  ok(glossElsewhere.codexMarks >= 3, `圖鑑裡也標得到術語（${glossElsewhere.codexMarks} 個）`);
+  eq(glossElsewhere.inSrc, 0, '圖鑑的官方出處連結與標題上沒有被畫線');
+  eq(glossElsewhere.dupes, 0, '一條技巧裡同一個術語只標第一次');
+  eq(glossElsewhere.cardHidden, true, '面板收起來的時候小卡也跟著收起來');
+  // 定點測試：規則不隨關卡文案漂移
+  eq(glossElsewhere.probeBad, 0, '標記器不會標進按鈕 / 鍵帽 / 連結 / 標題');
+  eq(glossElsewhere.probeTextarea, '我的 prompt 草稿', '標記器一個字都沒動到玩家要打字的地方');
+  ok(
+    glossElsewhere.probeTerms.includes('json') &&
+      glossElsewhere.probeTerms.includes('temperature') &&
+      glossElsewhere.probeTerms.includes('prompt'),
+    '一段話裡三個術語都標得到',
+    glossElsewhere.probeTerms.join(',')
+  );
+  eq(
+    glossElsewhere.probeTerms.filter((t) => t === 'prompt').length,
+    1,
+    '同一段話裡出現兩次的術語只標第一次'
+  );
+  ok(
+    /用 JSON 回覆，把 temperature 設成 0/.test(glossElsewhere.probeText),
+    '標記之後那段話的文字一個字都沒變',
+    glossElsewhere.probeText.slice(0, 40)
+  );
+
   /* ================================================================ */
   await sleep(600);
   const realErrors = consoleErrors.filter((e) => !/favicon|DevTools|Autofill/i.test(e));

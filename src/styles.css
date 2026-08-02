@@ -6111,17 +6111,28 @@ select option:disabled {
   color: var(--paper-3);
   text-align: center;
 }
+/*
+ * Phase 35：加寬 ＋ 讓字自己換行在該換的地方。
+ *
+ * 168px 的牌子放不下「把手掌按上石碑」這七個字（會斷成「把手掌按上 /
+ * 石碑」），提示那一行更亂 ——「按住不放（Enter 也可以）」被擠成三行、
+ * 括號還被丟到下一行。加寬到 252px 讓主句一行寫得完，提示改成兩段
+ * 各自完整的短句（見 palm.js 的 .palm__hintline），不再靠溢位換行。
+ */
 .palm {
   --hold: 0;
   position: relative;
   display: grid;
   place-items: center;
-  gap: 2px;
-  width: 168px;
-  padding: var(--s4) var(--s3) var(--s3);
+  gap: var(--s1);
+  width: 252px;
+  max-width: 100%;
+  padding: var(--s4) var(--s4) var(--s3);
   border: 1px solid var(--rule-gold);
-  border-radius: 84px 84px var(--radius-lg) var(--radius-lg);
-  background: radial-gradient(70% 60% at 50% 34%, rgba(230, 199, 155, 0.14), rgba(230, 199, 155, 0) 70%);
+  border-radius: 126px 126px var(--radius-lg) var(--radius-lg);
+  /* 上亮下暗的石面（跟刻印牌同一套受光方向）＋ 掌心那圈暖光 */
+  background: radial-gradient(70% 60% at 50% 34%, rgba(230, 199, 155, 0.14), rgba(230, 199, 155, 0) 70%),
+    linear-gradient(180deg, rgba(233, 238, 245, 0.055), rgba(6, 10, 16, 0.22));
   color: var(--gold);
   font-family: var(--font-ui);
   cursor: pointer;
@@ -6222,12 +6233,25 @@ select option:disabled {
 }
 .palm__label {
   font-size: var(--t-small);
+  line-height: 1.25;
   letter-spacing: var(--tr-cjk);
   color: #f0e3cd;
+  /* 七個字一行寫得完 —— 不准在詞中間被擠斷 */
+  white-space: nowrap;
 }
+/* 提示比主句再小一階，安靜地待在下面；一行一句，不靠溢位換行 */
 .palm__hint {
-  font-size: var(--t-micro);
+  display: grid;
+  justify-items: center;
+  gap: 1px;
+  margin-top: 1px;
+  font-size: calc(var(--t-micro) * 0.86);
+  line-height: 1.4;
   color: rgba(230, 199, 155, 0.6);
+}
+.palm__hintline {
+  display: block;
+  white-space: nowrap;
 }
 .palm.is-slipped .palm__hint {
   color: var(--warn);
@@ -6267,7 +6291,9 @@ select option:disabled {
 
 @media (max-width: 900px) {
   .palm {
-    width: 148px;
+    width: 232px;
+    padding: var(--s3) var(--s3) var(--s2);
+    border-radius: 116px 116px var(--radius-lg) var(--radius-lg);
   }
 }
 
@@ -6871,6 +6897,109 @@ select option:disabled {
   .infotip__bubble {
     transition: none;
     transform: translate(-50%, 0);
+  }
+}
+
+/* ------------------------------------------------------------ 術語小卡（Phase 35）
+   畫面上順口出現的英文名詞（prompt / JSON / temperature…）底下多一條很淡的
+   虛線，滑上去或點一下就浮出一張小卡。標記本身要「看得出可以問」但不能
+   跟金色的成就熱點搶戲，所以線是冷星光色，只有亮起來的那一刻才轉暖金。
+
+   卡片掛在 <body> 上（position: fixed）—— 面板有 overflow，掛在裡面會被裁掉。 */
+.gloss {
+  border-bottom: 1px dotted rgba(157, 184, 209, 0.55);
+  cursor: help;
+  transition: color var(--d-fast) var(--e-out), border-color var(--d-fast) var(--e-out);
+}
+.gloss:hover,
+.gloss.is-on {
+  color: var(--gold);
+  border-bottom-color: var(--gold);
+  border-bottom-style: solid;
+}
+.glosscard {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 34; /* 面板 20 / 分享卡 24 / 操作一覽 26 之上，標題卡 40 之下 */
+  width: max-content;
+  max-width: min(34ch, calc(100vw - 24px));
+  --cut: 9px;
+  padding: var(--s3) var(--s4);
+  clip-path: var(--seal-shape);
+  background-color: rgba(230, 199, 155, 0.4);
+  color: var(--paper-2);
+  font-family: var(--font-ui);
+  font-size: var(--t-micro);
+  line-height: 1.7;
+  letter-spacing: var(--tr-cjk);
+  text-align: left;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(3px);
+  transition: transform var(--d-fast) var(--e-out);
+}
+.glosscard::before {
+  content: '';
+  position: absolute;
+  inset: 1px;
+  z-index: -1;
+  clip-path: var(--seal-shape-in);
+  background-color: rgba(9, 12, 18, 0.98);
+}
+.glosscard.is-on {
+  opacity: 1;
+  transform: none;
+}
+.glosscard__head {
+  margin: 0 0 var(--s1);
+  display: flex;
+  align-items: baseline;
+  gap: var(--s2);
+}
+.glosscard__head b {
+  color: var(--gold);
+  font-family: var(--font-mono);
+  font-size: var(--t-small);
+  font-weight: 500;
+}
+.glosscard__head i {
+  color: var(--paper-3);
+  font-style: normal;
+  font-size: calc(var(--t-micro) * 0.88);
+}
+.glosscard__plain {
+  margin: 0 0 var(--s2);
+  color: var(--paper-1);
+}
+.glosscard__row {
+  margin: 0;
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: var(--s2);
+  color: var(--paper-3);
+  font-size: calc(var(--t-micro) * 0.92);
+}
+.glosscard__k {
+  color: var(--gold);
+  opacity: 0.75;
+  white-space: nowrap;
+}
+.glosscard__row--ex {
+  margin-top: var(--s1);
+  padding-top: var(--s2);
+  border-top: 1px solid var(--rule);
+}
+.glosscard__row--ex code {
+  color: var(--paper-2);
+  font-family: var(--font-mono);
+  font-size: calc(var(--t-micro) * 0.86);
+  overflow-wrap: anywhere;
+}
+@media (prefers-reduced-motion: reduce) {
+  .glosscard {
+    transition: none;
+    transform: none;
   }
 }
 

@@ -84,7 +84,10 @@ export function createStele({ onCarve, onReject, onComplete, onPress, onTap } = 
           <span class="palm__thumb"></span><span class="palm__pad"></span>
         </span>
         <span class="palm__label">把手掌按上石碑</span>
-        <span class="palm__hint">按住不放（<kbd>Enter</kbd> 也可以）</span>
+        <span class="palm__hint">
+          <span class="palm__hintline">按住不放</span>
+          <span class="palm__hintline">或按住 <kbd>Enter</kbd></span>
+        </span>
       </button>
     </div>
   `;

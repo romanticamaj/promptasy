@@ -15,6 +15,7 @@ import {
   safeRich,
   sourceNoteHtml,
 } from './dom.js';
+import { glossary } from './glossary.js';
 
 export function createCodex({
   content,
@@ -373,6 +374,11 @@ export function createCodex({
     overlay.body.innerHTML = `${rankBar()}${badgeStrip()}${sealStrip()}<div class="codex">${groups}</div>`;
     // 每次重繪都會換掉 ⓘ 節點，但事件是委派在 body 上，綁一次就夠
     bindInfoTips(overlay.body);
+    /*
+     * Phase 35：術語小卡。這裡以「一條技巧」為單位各掃一次
+     * （整本圖鑑掃一次的話，130 條裡只會有一個字被畫線）。
+     */
+    glossary.annotateEach(overlay.body, '.tech__body');
   }
 
   /*
