@@ -95,7 +95,7 @@ export function shareText(model = {}) {
  * 網址單獨佔一行 —— 各家撰寫框都會把它認成連結，也不會黏在落款上。
  */
 export function shareCaption(model = {}) {
-  return `${shareText(model)}\n${SHARE_TAGLINE}\n${SHARE_URL}`;
+  return `${shareText(model)}\n${SHARE_TAGLINE} - ${SHARE_URL}`;
 }
 
 /* ------------------------------------------------------------------ *
