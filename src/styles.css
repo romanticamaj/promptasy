@@ -1469,15 +1469,20 @@ a.src:hover {
 .panel__head--bar .panel__eyebrow[hidden] {
   display: none;
 }
+/* 出口只留一個叉（Esc 那兩個字母收進 aria-label） */
 .panel__close {
   --cut: 6px;
   flex: none;
-  font-family: var(--font-meta);
-  font-size: var(--t-meta);
-  letter-spacing: var(--tr-meta-tight);
-  text-transform: uppercase;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-ui);
+  font-size: calc(var(--t-micro) * 1.05);
+  letter-spacing: 0;
+  line-height: 1;
   min-height: 40px;
-  padding: 6px 14px;
+  min-width: 40px;
+  padding: 6px 10px;
 }
 .panel__body {
   position: relative;
@@ -4331,99 +4336,75 @@ select option:disabled {
   }
 }
 
-/* -------------------------------------------------- 漂浮提示球 */
+/* -------------------------------------------------- 提示：一顆很小的燈
+   原本是一塊寫著「● 提示 H」的護符牌，貼在書寫檯左下角壓著說明文字。
+   現在只剩一顆燈泡：不寫字、不畫牌面、極慢地呼吸（7 秒一次，0.35 → 0.6）。
+   它是「想不出來時這裡有光」，不是一顆要人按的按鈕 —— 所以安靜到近乎背景。 */
 .orb {
-  /* 黏在第三幕的底部：石碑與輸入框永遠不會被蓋住 */
+  /* 黏在第三幕的左下角：石碑與輸入框永遠不會被蓋住 */
   position: sticky;
   bottom: var(--s4);
   z-index: 4;
+  align-self: flex-start;
   display: inline-flex;
   align-items: center;
-  gap: var(--s2);
+  justify-content: center;
   margin: var(--s4) 0 0;
-  --cut: 9px;
-  min-height: 40px;
-  padding: 8px 16px 8px 12px;
+  width: 40px;
+  height: 40px;
+  padding: 0;
   border: 0;
-  border-radius: 0;
-  isolation: isolate;
+  border-radius: 50%;
   background: transparent;
-  filter: drop-shadow(0 10px 22px rgba(0, 0, 0, 0.6));
-  font-family: var(--font-ui);
-  font-size: var(--t-meta);
-  letter-spacing: var(--tr-cjk);
   color: var(--gold);
   cursor: pointer;
+  opacity: 0.5;
+  animation: orb-breath 7.2s var(--e-inout) infinite;
   transition:
-    transform var(--d-fast) var(--e-snap),
-    box-shadow var(--d-mid) var(--e-out),
-    border-color var(--d-mid) var(--e-out);
+    opacity var(--d-mid) var(--e-out),
+    transform var(--d-fast) var(--e-snap);
 }
-/* 護符牌的邊與面（和刻印牌同一套作法，只是走暖色） */
-.orb::before,
-.orb::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  clip-path: var(--seal-shape);
-  background-image: linear-gradient(180deg, rgba(246, 227, 194, 0.72), rgba(230, 199, 155, 0.18) 46%,
-    rgba(0, 0, 0, 0.7));
-  transition: background-image var(--d-fast) var(--e-snap);
+.orb__bulb {
+  filter: drop-shadow(0 0 6px rgba(230, 199, 155, 0.32));
 }
-.orb::after {
-  inset: 1px;
-  clip-path: var(--seal-shape-in);
-  background-image: linear-gradient(180deg, rgba(34, 27, 16, 0.98), rgba(16, 13, 8, 0.98));
+@keyframes orb-breath {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 0.6;
+  }
 }
 .orb:hover {
-  transform: translateY(-2px);
-}
-.orb:hover::before {
-  background-image: linear-gradient(180deg, #fbeed6, rgba(230, 199, 155, 0.5) 46%, rgba(0, 0, 0, 0.7));
+  opacity: 1;
+  transform: translateY(-1px);
+  animation-play-state: paused;
 }
 .orb:focus-visible {
-  outline: none;
-}
-.orb:focus-visible::before {
-  background-image: linear-gradient(180deg, #fbeed6, rgba(230, 199, 155, 0.8));
-  filter: drop-shadow(0 0 9px rgba(230, 199, 155, 0.6));
+  outline: 2px solid var(--gold);
+  outline-offset: 3px;
+  opacity: 1;
+  animation-play-state: paused;
 }
 @media (max-width: 900px) {
   .coach {
     margin-right: 0;
   }
 }
-.orb__core {
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  background: radial-gradient(circle at 35% 32%, #fff4dd, var(--gold) 62%, rgba(230, 199, 155, 0.2));
-  box-shadow: 0 0 10px rgba(230, 199, 155, 0.55);
-  animation: orb-float 3.6s var(--e-inout) infinite;
-}
-@keyframes orb-float {
-  0%,
-  100% {
-    transform: translateY(0) scale(1);
-    opacity: 0.85;
-  }
-  50% {
-    transform: translateY(-3px) scale(1.08);
-    opacity: 1;
-  }
-}
-/* 發呆 20 秒、或送出沒過 → 溫和地招手（不是 modal、不搶焦點） */
+/* 發呆 20 秒、或送出沒過 → 亮一點點招手（仍然不是 modal、不搶焦點） */
 .orb.is-nudging {
-  animation: orb-nudge 1.5s var(--e-out) 4;
+  animation: orb-nudge 2.4s var(--e-inout) 4;
 }
 @keyframes orb-nudge {
   0%,
   100% {
-    box-shadow: 0 0 0 0 rgba(230, 199, 155, 0);
+    opacity: 0.45;
+    filter: none;
   }
-  35% {
-    box-shadow: 0 0 22px 4px rgba(230, 199, 155, 0.4);
+  50% {
+    opacity: 0.9;
+    filter: drop-shadow(0 0 9px rgba(230, 199, 155, 0.5));
   }
 }
 .orb.is-tucked {
@@ -4431,9 +4412,12 @@ select option:disabled {
   pointer-events: none;
   transform: translateY(6px);
 }
-.orb.is-done .orb__core {
-  background: radial-gradient(circle at 35% 32%, #e8fff2, var(--good) 62%, rgba(127, 209, 168, 0.2));
-  box-shadow: 0 0 10px rgba(127, 209, 168, 0.5);
+/* 每一項都做到了：燈轉成完成色（形狀不變，只換溫度） */
+.orb.is-done {
+  color: var(--good);
+}
+.orb.is-done .orb__bulb {
+  filter: drop-shadow(0 0 6px rgba(127, 209, 168, 0.32));
 }
 
 /* -------------------------------------------------- 黃色教學框 */
@@ -4666,7 +4650,8 @@ select option:disabled {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .orb__core,
+  /* 提示燈：不呼吸，改成穩定亮著（reduce 是換一種表達，不是關掉） */
+  .orb,
   .orb.is-nudging,
   .lamp.is-ready .lamp__dot,
   .btn--primary.is-ready,
@@ -4674,6 +4659,9 @@ select option:disabled {
   .checklist__row.is-justlit .checklist__dot,
   .coach {
     animation: none;
+  }
+  .orb {
+    opacity: 0.55;
   }
 }
 
@@ -6473,12 +6461,14 @@ select option:disabled {
 
    軌道的填色不需要 JS —— 用相鄰選擇器：某一塊亮了或蓋過章了，
    它後面那一段就注金。 */
+/* 這一排是**路標**，不是主角：整條收到原本的三分之二高，
+   讓第一眼落在題目上而不是進度條。軌道仍然對齊石頭的中線。 */
 .acts {
   display: flex;
   align-items: stretch;
   gap: 3px;
-  margin: 0 0 var(--s6);
-  padding-bottom: var(--s4);
+  margin: 0 0 var(--s4);
+  padding-bottom: var(--s2);
   border-bottom: 1px solid var(--rule);
   flex-wrap: wrap;
 }
@@ -6499,36 +6489,24 @@ select option:disabled {
 .acts__item.is-now + .acts__rule {
   background-size: 100% 100%;
 }
+/*
+ * 石頭上只刻名字（委託 / 指引 / 刻印 / 手印）。
+ * 編號（ACT I / 第一幕）留在 aria-label 與 title 裡 —— 讀得到，但不占畫面。
+ */
 .acts__item {
-  --cut: 8px;
+  --cut: 7px;
   --seal-lit: rgba(196, 220, 236, 0.22);
   --face: linear-gradient(180deg, rgba(20, 28, 39, 0.9), rgba(6, 9, 14, 0.94));
   display: inline-flex;
   align-items: center;
   gap: var(--s2);
-  min-height: 40px;
-  padding: 7px 15px;
+  min-height: 32px;
+  padding: 3px 14px;
   color: var(--paper-4);
   font-family: var(--font-ui);
-  font-size: var(--t-micro);
+  font-size: calc(var(--t-micro) * 0.86);
   font-weight: 500;
   letter-spacing: var(--tr-cjk);
-}
-/*
- * 幕號（Phase 35.1）：從 ①②③④ 換成 ACT I / II / III / IV。
- * 指示器與幕內的小標從此是同一句話 ——「ACT I 第一幕 · 委託」。
- */
-.acts__roman {
-  font-family: var(--font-meta);
-  font-size: var(--t-meta);
-  letter-spacing: var(--tr-meta);
-  text-transform: uppercase;
-  line-height: 1;
-  color: inherit;
-  opacity: 0.7;
-}
-.acts__item.is-now .acts__roman {
-  opacity: 1;
 }
 /* 還沒走到的幕：看得見但按不下去（不能跳過指引） */
 .acts__item:disabled {
@@ -6644,18 +6622,18 @@ select option:disabled {
 }
 
 /* ---------------------------------------------------------------- 神諭原典
-   一枚 14px 的書，永遠看得見（護欄 2）：hover / focus 說出是哪一份文件，
+   一本 20px 的典籍，永遠看得見（護欄 2）：hover / focus 說出是哪一份文件，
    按下去就開那份官方文件。氣泡沿用 ⓘ 那一套（不會自己彈出來）。 */
 .infotip--book {
   margin-left: 6px;
-  vertical-align: -0.12em;
+  vertical-align: -0.24em;
 }
 .bookicon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
+  width: 28px;
+  height: 28px;
   color: rgba(230, 199, 155, 0.72);
   text-decoration: none;
   transition: color var(--d-fast) var(--e-snap), filter var(--d-fast) var(--e-snap);
@@ -6708,11 +6686,6 @@ select option:disabled {
 }
 .act__foot .spacer {
   flex: 1;
-}
-.act__hint {
-  font-family: var(--font-mono);
-  font-size: var(--t-meta);
-  color: var(--paper-4);
 }
 
 /* 這一次要用上的工法：從 mission 搬出來的「怎麼答」（Phase 12 的資料重整） */
@@ -6829,9 +6802,6 @@ select option:disabled {
 }
 .carvehead .spacer {
   flex: 1;
-}
-.carvehead .act__kicker {
-  margin: 0;
 }
 .carvestage {
   display: grid;
@@ -8000,7 +7970,6 @@ select option:disabled {
 /* 戴在可按的東西身上的鍵帽：縮一號、稍微退到後面，不跟主要文字搶 */
 .btn kbd,
 .modeswitch kbd,
-.orb__label kbd,
 .clue > summary kbd,
 .guidetab > summary kbd,
 .palm__hint kbd,

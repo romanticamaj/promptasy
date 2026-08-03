@@ -2472,3 +2472,76 @@ OpenAI、Anthropic、Google、xAI 的官方文件。」）**會自己彈出來**
 - `palm__hintline` 是兩行 / 兩個節點；「面板內字級不得小於 12px」那一類掃描
   （手掌印提示現在是 7.32px，站長指定的 0.4×）。
 - `.slip__grip` 的 `animation` 在搬動後還在（現在被 `.is-settled` 關掉了）。
+
+## 2026-08-03 · 站長六件事（第二輪）：幕標小標 ／ 幕名只留名 ／ 典籍圖示 ／ ✕ ／ 提示燈 ／ 指示器高度
+
+依站長標註的截圖，六項精準的介面修正（**測試套件依指示未跑**，站長會自己手動驗）。
+
+### Fix 1 — 每一幕裡重複的小標整排拿掉
+
+第一幕的情境上方原本還有一行「ACT I 第一幕 · 委託」，跟上面的指示器講同一件事。
+console 與 practice 兩邊、四幕全部移除（`.act__kicker` 的節點與 `data-carve-kicker`），
+第三幕的標頭只剩「你的 prompt ／ 石碑刻印」與模式切換。省下的縱向空間直接讓給題目。
+
+### Fix 2 — 指示器的石頭只刻名字
+
+「ACT I 第一幕 · 委託」→ **委託**（指引 / 刻印 / 手印 · 呈遞同理）。
+編號沒有消失，只是離開畫面：`aria-label` 是「第一幕 · 委託」、`title` 仍然是
+「回到 ACT I 第一幕 · 委託　按 Alt + 1 也可以」。`.acts__roman` 的節點與樣式一併移除。
+
+### Fix 3 — 神諭原典換成一本典籍、放大、搬到導言那一行
+
+`BOOK_ICON` 重畫成**合起來的厚典籍**（書脊 ＋ 封面上的十字束帶 ＋ 右緣的扣環），
+14px → **20px**（外框 24 → 28px）。第二幕的**主出處**從刻文底下搬到
+「抄寫人用白話刻下這幾段。」**同一行的正後方** —— 讀完那句話下一眼就是那本原典。
+其餘掛書的地方（側頁籤、圖鑑、刻文小語、雙面碑、練習台）位置不動，只換圖與尺寸。
+刻文底下那一行只在「出處已下架」時才留（`sourceNoteHtml`）。
+
+### Fix 4 — 出口只留一個叉；`Enter` 鍵帽拿掉
+
+`createOverlay` 的關閉鍵從「Esc ✕」變成 **✕**（40×40，`aria-label` 仍是「關閉面板（Esc）」，
+行為一字未改，所有面板同時生效）。幕與幕之間那顆推進鍵旁邊的 `<kbd>Enter</kbd>` 小片
+（console ＋ practice 共四處）移除 —— Enter 照樣推得動，只是畫面上不再標它。
+
+### Fix 5 — 提示球換成一顆很小的燈泡
+
+原本是一塊寫著「● 提示 H」的護符牌（115×42），壓在書寫檯的說明文字上。
+現在只剩 **22px 的燈泡圖示**（40×40 命中範圍），貼在第三幕左下角，
+**7.2 秒一次的極慢呼吸**（opacity 0.35 → 0.6），hover / focus 才亮到 1.0 並停住呼吸；
+發呆 20 秒 / 送出沒過的招手改成同一顆燈亮一點（2.4s × 4），仍然不是 modal、不搶焦點。
+`prefers-reduced-motion` 下不呼吸、穩定停在 0.55。點擊 / `H` / `aria-label 提示` 全部照舊。
+
+### Fix 6 — 指示器整條收到三分之二高
+
+`.acts` 41px（原 62px，**66%**）：石頭 `min-height` 40 → 32px、`padding` 7/15 → 3/14、
+字級 ×0.86、`--cut` 8 → 7px，`.acts` 的下邊距 `s6 → s4`、內距 `s4 → s2`。
+軌道仍然對齊石頭中線、注金的相鄰選擇器一格未動；命中範圍 32px（≥390px 的觸控查詢
+仍然把它撐回 44px）。
+
+### 驗證
+
+- `npm run build` ✓（CSS 137.6 KB / gzip 25.5 KB）。
+- `npm run fonts` **不需要**：這一輪只**移除**玩家可見的中文（沒有新字進語料）。
+- headless（1280×900 / 820×900，自己的 port 5196・5195・CDP 9338・9339）實拍複審：
+  `after-act1.png`（無小標、指示器 41px、石頭只有兩個字、✕）、
+  `after-act2.png`（典籍就在導言後面）、`after-act3.png`（石碑刻印）、
+  `after-act3-free.png`（左下角的燈泡、無 Enter 鍵帽）、`after3-act3-coach.png`、
+  `after2-act3-guidetab.png`、`after2-codex.png`、`after2-practice.png`、
+  `after2-narrow-act2.png`（820px 零水平溢位：docW 820 / panel 769）。
+  全程 **零 console error**。
+- 功能探針：`H` 開得起提示框（焦點在面板內時，與改動前同一條件）、點燈泡開得起來、
+  `nudge()` 仍加得上 `is-nudging`、✕ 40×40 且點下去真的關掉、
+  四塊石頭的 `aria-label` / `title` 仍帶完整幕號。
+
+### 會紅的既有斷言（預期之內）
+
+- `.act__kicker` / `data-carve-kicker` / `act__kickerzh` 的存在與文字（Fix 1 移除）。
+- `.acts__roman`、指示器上的 `ACT I` / `第一幕 · 委託` 文字比對（Fix 2 只剩名字；
+  `aria-label` / `title` 仍查得到）。
+- `Esc ✕` 的按鈕文字比對（Fix 4 只剩 ✕；`aria-label` 未變）。
+- `.act__hint` / 幕尾的 `kbd` 是 `Enter`（Fix 4 移除）。
+- `.orb__core` / `.orb__label` / 提示球上的「提示」字樣與 `H` 鍵帽、球的寬高
+  （Fix 5 換成 `.orb__bulb` 圖示；`aria-label` 仍是「提示」）。
+- 指示器高度 / 石頭 `min-height` 40px 一類的幾何斷言（Fix 6 收到 32px）。
+- 第二幕「主出處在刻文底下的 `.srcrow`」的位置斷言（Fix 3 搬到 `[data-guide-lead]`）、
+  書的尺寸 14px / 外框 24px。

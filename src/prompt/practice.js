@@ -24,7 +24,7 @@ import { bindInfoTips, createOverlay, esc, on, safeRich, sourceBook } from '../u
 import { evaluate, formatScore } from '../challenges/rubric.js';
 import { CHECKS } from '../challenges/checks.js';
 import { createStele } from './stele.js';
-import { ACTS, GUIDE_TITLE, SOURCE_LABEL, SOURCE_NOTE, actLabelHtml, actLabelText } from './console.js';
+import { ACTS, GUIDE_TITLE, SOURCE_LABEL, SOURCE_NOTE, actLabelText } from './console.js';
 
 const GRADE_LABEL = { S: '完美', A: '優秀', B: '良好', C: '通過' };
 
@@ -73,15 +73,16 @@ export function createPractice({
     <div class="console console--practice" data-act="1">
       <nav class="acts" data-acts aria-label="四幕進度">
         ${ACTS.map(
-          (a) => `<button class="acts__item" type="button" data-act-go="${a.n}">
-            <span class="acts__roman" aria-hidden="true">${a.roman}</span>
-            <span class="acts__zh">${actLabelText(a.n, a.zh).zh}</span>
+          // 石頭上只刻名字（編號留給 aria-label —— 畫面上不重複講同一件事）
+          (a) => `<button class="acts__item" type="button" data-act-go="${a.n}" aria-label="${esc(
+            actLabelText(a.n, a.zh).zh
+          )}">
+            <span class="acts__zh">${a.zh}</span>
           </button>`
         ).join('<span class="acts__rule" aria-hidden="true"></span>')}
       </nav>
 
       <section class="act act--brief" data-in-acts="1" tabindex="-1" aria-label="第一幕 · 委託">
-        <p class="act__kicker reveal">${actLabelHtml(1, ACTS[0].zh)}</p>
         <p class="practice__echo reveal d1" data-echo></p>
         <p class="console__scenario reveal d2" data-brief></p>
         <figure class="artifact reveal d3">
@@ -94,27 +95,23 @@ export function createPractice({
         </div>
         <div class="act__foot reveal d4">
           <span class="spacer"></span>
-          <span class="act__hint"><kbd>Enter</kbd></span>
           <button class="btn btn--primary" type="button" data-act-next="2">聆聽指引 →</button>
         </div>
       </section>
 
       <section class="act act--guide" data-in-acts="2" tabindex="-1" aria-label="第二幕 · 指引">
-        <p class="act__kicker reveal">${actLabelHtml(2, ACTS[1].zh)}</p>
         <h3 class="act__head reveal d1">${GUIDE_TITLE}<span class="act__lead act__lead--inline" data-guide-lead>這一課只有一段刻文。</span></h3>
         <ol class="glyphs" data-inscription></ol>
         <div class="teach" data-teach></div>
         <div class="act__foot reveal">
           <button class="btn btn--ghost" type="button" data-act-go="1">← 回顧委託</button>
           <span class="spacer"></span>
-          <span class="act__hint"><kbd>Enter</kbd></span>
           <button class="btn btn--primary" type="button" data-act-next="3">開始刻印 →</button>
         </div>
       </section>
 
       <section class="act act--carve" data-in-acts="3 4" aria-label="第三幕 · 刻印">
         <div class="carvehead">
-          <p class="act__kicker" data-carve-kicker>${actLabelHtml(3, ACTS[2].zh)}</p>
           <span class="spacer"></span>
           <p class="console__label"><span class="zh">石碑刻印</span><span class="en">Carve</span></p>
         </div>
@@ -159,7 +156,6 @@ export function createPractice({
   const actSections = Array.from(overlay.body.querySelectorAll('[data-in-acts]'));
   const actNavEl = overlay.body.querySelector('[data-acts]');
   const actBtns = Array.from(overlay.body.querySelectorAll('[data-act-go]'));
-  const carveKickerEl = overlay.body.querySelector('[data-carve-kicker]');
 
   bindInfoTips(overlay.body);
 
@@ -199,11 +195,9 @@ export function createPractice({
       btn.disabled = !isNow && !canGoAct(n);
       btn.setAttribute('aria-current', isNow ? 'step' : 'false');
       const { roman, zh } = actLabelText(n, ACTS[n - 1].zh);
-      btn.setAttribute('aria-label', `${roman} ${zh}`);
+      btn.setAttribute('aria-label', zh);
       btn.title = isNow ? `${roman} ${zh}（現在在這裡）` : `回到 ${roman} ${zh}`;
     }
-    const meta = act === 4 ? ACTS[3] : ACTS[2];
-    carveKickerEl.innerHTML = actLabelHtml(meta.n, meta.zh);
     consoleEl.classList.toggle('is-palm', act === 4);
   }
 

@@ -308,14 +308,12 @@ export function createPromptConsole({
       <nav class="acts" data-acts aria-label="四幕進度">
         ${ACTS.map(
           (a) => `<button class="acts__item" type="button" data-act-go="${a.n}">
-            <span class="acts__roman" data-act-roman="${a.n}" aria-hidden="true">${a.roman}</span>
             <span class="acts__zh" data-act-zh="${a.n}">${a.zh}</span>
           </button>`
         ).join('<span class="acts__rule" aria-hidden="true"></span>')}
       </nav>
 
       <section class="act act--brief" data-in-acts="1" tabindex="-1" aria-label="第一幕 · 委託">
-        <p class="act__kicker reveal" data-kicker="1">${actLabelHtml(1, ACTS[0].zh)}</p>
         <p class="console__scenario reveal d1" data-scenario></p>
         <div class="mission reveal d2">
           <div class="meta-rule"><h4><span class="zh">你的任務</span><span class="en">Mission</span></h4></div>
@@ -327,13 +325,11 @@ export function createPromptConsole({
         </figure>
         <div class="act__foot reveal d4">
           <span class="spacer"></span>
-          <span class="act__hint"><kbd>Enter</kbd></span>
           <button class="btn btn--primary" type="button" data-act-next="2">聆聽指引 →</button>
         </div>
       </section>
 
       <section class="act act--guide" data-in-acts="2" tabindex="-1" aria-label="第二幕 · 指引">
-        <p class="act__kicker reveal" data-kicker="2">${actLabelHtml(2, ACTS[1].zh)}</p>
         <h3 class="act__head reveal d1">${GUIDE_TITLE}<span class="act__lead act__lead--inline" data-guide-lead></span></h3>
         <p class="craft reveal d2" data-craft hidden></p>
         <ol class="glyphs" data-guidance></ol>
@@ -345,14 +341,12 @@ export function createPromptConsole({
         <div class="act__foot reveal">
           <button class="btn btn--ghost" type="button" data-act-go="1">← 回顧委託</button>
           <span class="spacer"></span>
-          <span class="act__hint"><kbd>Enter</kbd></span>
           <button class="btn btn--primary" type="button" data-act-next="3">開始刻印 →</button>
         </div>
       </section>
 
       <section class="act act--carve" data-in-acts="3 4" aria-label="第三幕 · 刻印">
         <div class="carvehead">
-          <p class="act__kicker" data-carve-kicker>${actLabelHtml(3, ACTS[2].zh)}</p>
           <span class="spacer"></span>
           <label class="console__label" for="prompt-input" data-free-label hidden><span class="zh">你的 prompt</span><span class="en">Your Prompt</span></label>
           <p class="console__label" data-guided-label><span class="zh">石碑刻印</span><span class="en">Carve</span></p>
@@ -406,10 +400,11 @@ export function createPromptConsole({
             </details>
           </aside>
         </div>
+        <!-- 提示：一顆安靜的小燈泡，貼在第三幕的左下角。不寫字、不搶戲 ——
+             它只是很慢地呼吸，告訴你「想不出來的時候這裡有光」。 -->
         <button class="orb" type="button" data-orb aria-expanded="false" aria-controls="coach-box"
-          title="不知道怎麼寫？點我（或按 H）">
-          <span class="orb__core" aria-hidden="true"></span>
-          <span class="orb__label">提示<kbd>H</kbd></span>
+          aria-label="提示" title="不知道怎麼寫？點我（或按 H）">
+          <svg class="orb__bulb" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false"><path d="M12 2.6a6.6 6.6 0 0 0-3.8 12 3 3 0 0 1 1.1 1.8l.2 1h5l.2-1a3 3 0 0 1 1.1-1.8A6.6 6.6 0 0 0 12 2.6Z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M9.7 19.1h4.6" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M10.6 21.4h2.8" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M12 8.2v4.4" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" opacity="0.8"/></svg>
         </button>
         <div class="coach" id="coach-box" data-coach hidden role="dialog" aria-label="教學提示"></div>
       </section>
@@ -452,11 +447,6 @@ export function createPromptConsole({
   const actNavEl = overlay.body.querySelector('[data-acts]');
   const actBtns = Array.from(overlay.body.querySelectorAll('[data-act-go]'));
   const actRules = Array.from(overlay.body.querySelectorAll('.acts__rule'));
-  /** 第一幕與第二幕的小標（第三 / 四幕另有一顆會依模式改口的 carveKicker）。 */
-  const actKickers = Array.from(overlay.body.querySelectorAll('[data-kicker]')).map((node) => [
-    Number(node.getAttribute('data-kicker')),
-    node,
-  ]);
   const guideLeadEl = overlay.body.querySelector('[data-guide-lead]');
   const act1NextBtn = overlay.body.querySelector('.act--brief [data-act-next]');
   const act1El = overlay.body.querySelector('.act--brief');
@@ -466,7 +456,6 @@ export function createPromptConsole({
   const guidanceExtraEl = overlay.body.querySelector('[data-guidance-extra]');
   const guidanceCompactEl = overlay.body.querySelector('[data-guidance-compact]');
   const guideTabEl = overlay.body.querySelector('[data-guidetab]');
-  const carveKickerEl = overlay.body.querySelector('[data-carve-kicker]');
 
   // ⓘ 的 hover / focus / 點擊（事件委派，之後重繪的刻文也吃得到）
   bindInfoTips(overlay.body);
@@ -893,27 +882,26 @@ export function createPromptConsole({
       btn.disabled = !isNow && !canGoAct(n);
       btn.setAttribute('aria-current', isNow ? 'step' : 'false');
       const zh = n === 4 ? act4Zh() : ACTS[n - 1].zh;
-      // 編號一律照「這一關實際上的第幾幕」算（試煉沒有第二幕 → 刻印就是第二幕）
+      /*
+       * 石頭上只刻名字（委託 / 指引 / 刻印 / 手印）。
+       *
+       * 「ACT I」與「第一幕」是同一件事講兩次，而且講的是**編號**不是內容 ——
+       * 玩家要的是「我現在在哪一段」，不是它排第幾。編號留給讀螢幕的人
+       * （aria-label 與 title 仍然完整），畫面上只留一個詞。
+       */
       const { roman, zh: zhText } = actLabelText(seq.indexOf(n) + 1, zh);
-      const romanEl = btn.querySelector(`[data-act-roman="${n}"]`);
-      if (romanEl) romanEl.textContent = roman;
       const label = btn.querySelector(`[data-act-zh="${n}"]`);
-      if (label) label.textContent = zhText;
-      btn.setAttribute('aria-label', `${roman} ${zhText}`);
+      if (label) label.textContent = zh;
+      btn.setAttribute('aria-label', zhText);
       btn.title = isNow ? `${roman} ${zhText}（現在在這裡）` : `回到 ${roman} ${zhText}　按 Alt + ${n} 也可以`;
     }
-    // 每一幕的小標與指示器同一句話（第四幕還會依模式改成「手印 / 呈遞」）
-    for (const [n, node] of actKickers) {
+    // 每一幕的 aria-label 仍然帶著編號（畫面上不再有重複的小標）
+    for (const n of [1, 2]) {
       const pos = seq.indexOf(n) + 1;
       if (pos < 1) continue;
-      node.innerHTML = actLabelHtml(pos, ACTS[n - 1].zh);
       const section = actSections.find((s) => s.getAttribute('data-in-acts').split(' ')[0] === String(n));
       if (section) section.setAttribute('aria-label', `${actLabelText(pos, ACTS[n - 1].zh).zh}`);
     }
-    // 第三幕的小標在第四幕改成「手印 / 呈遞」——畫面上寫的一定要跟玩家在做的事一致
-    const carveAct = act === 4 ? 4 : 3;
-    const zh = act === 4 ? act4Zh() : ACTS[2].zh;
-    carveKickerEl.innerHTML = actLabelHtml(seq.indexOf(carveAct) + 1, zh);
     consoleEl.classList.toggle('is-palm', act === 4 && guided);
   }
 
@@ -1063,11 +1051,20 @@ export function createPromptConsole({
      * 那顆 ⓘ 講的是**出處**，所以它的內容跟著那本書走了 ——
      * 現在把游標停在主刻文那枚書上，就會一起讀到這句解釋（見 sourceBook 的 extra）。
      * 沒有主出處的關卡（資料異常的降級路徑）才留下原本那顆 ⓘ。
+     *
+     * 這一版再把**那本典籍本身**搬上來，就接在這句話後面：原本它落在刻文
+     * 底下、離「這一段是誰說的」很遠，小小一枚浮在段落之間。現在它跟導言
+     * 同一行 —— 讀到「抄寫人用白話刻下這幾段」的下一眼就是那本原典。
+     * （護欄 2：它仍然是一直看得見、一按就開官方文件的連結，只是換了位置。）
      */
     if (guideLeadEl) {
-      guideLeadEl.innerHTML = primary && primary.src
-        ? '抄寫人用白話刻下這幾段。'
-        : `抄寫人用白話刻下這幾段。${infoTip(SOURCE_NOTE, { label: `什麼是${SOURCE_LABEL}` })}`;
+      guideLeadEl.innerHTML =
+        primary && primary.src
+          ? `抄寫人用白話刻下這幾段。${sourceBook(primary.src, {
+              label: SOURCE_LABEL,
+              extra: SOURCE_NOTE,
+            })}`
+          : `抄寫人用白話刻下這幾段。${infoTip(SOURCE_NOTE, { label: `什麼是${SOURCE_LABEL}` })}`;
     }
     guidanceEl.innerHTML = primary
       ? `<li class="glyph glyph--primary reveal" style="--i:3">
@@ -1080,11 +1077,9 @@ export function createPromptConsole({
             ${primary.how ? `<p class="glyph__how">${esc(primary.how)}</p>` : ''}
             ${datedNoteHtml(primary.dated)}
             ${
-              primary.src
-                ? `<p class="srcrow">${sourceBook(primary.src, {
-                    label: SOURCE_LABEL,
-                    extra: SOURCE_NOTE,
-                  })}${sourceNoteHtml(primary.srcNote)}</p>`
+              /* 那本典籍搬到導言那一行去了；這裡只留「這份文件已下架」之類的狀態註記 */
+              primary.src && primary.srcNote
+                ? `<p class="srcrow">${sourceNoteHtml(primary.srcNote)}</p>`
                 : ''
             }
           </div>

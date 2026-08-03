@@ -75,8 +75,14 @@ export function infoTip(text, { label = '說明' } = {}) {
  *   · 一列有好幾份出處，就排好幾本書 —— 一本對一份，不合併
  * ------------------------------------------------------------------ */
 
-/** 書的剪影（行內 SVG，零外部資產）。 */
-export const BOOK_ICON = `<svg class="bookicon__glyph" viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" focusable="false"><path d="M4.8 4.4a2.4 2.4 0 0 1 2.4-2.4h11.4a.9.9 0 0 1 .9.9v15.4a.9.9 0 0 1-.9.9H7.2a2.4 2.4 0 0 0-2.4 2.4V4.4Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M8.4 6.6h7.2" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M8.4 10.2h5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>`;
+/**
+ * 典籍的剪影（行內 SVG，零外部資產）。
+ *
+ * 原本是一本很小的空白書，剪影跟「筆記本」分不出來。改成一本**合起來的厚典籍**：
+ * 有書脊、有壓在封面上的束帶與扣環、書口露出一截書籤緞帶 —— 一眼就讀得出
+ * 「這是一本被珍藏的原典」，而不是隨手一本冊子。20px，暖金（夜間檔案館色）。
+ */
+export const BOOK_ICON = `<svg class="bookicon__glyph" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false"><path d="M6.8 2.4h10.2a1.2 1.2 0 0 1 1.2 1.2v16.8a1.2 1.2 0 0 1-1.2 1.2H6.8a1.4 1.4 0 0 1-1.4-1.4V3.8a1.4 1.4 0 0 1 1.4-1.4Z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M8.1 2.4v19.2" fill="none" stroke="currentColor" stroke-width="1.2" opacity="0.6"/><path d="M13.3 6.2v11.6" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M10.9 10h4.8" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M18.2 10.8h1.5a1.1 1.1 0 0 1 1.1 1.1v.4a1.1 1.1 0 0 1-1.1 1.1h-1.5" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" opacity="0.9"/></svg>`;
 
 /** 畫面上對「官方出處」的世界觀說法（和 console.js 的 SOURCE_LABEL 同一句）。 */
 export const BOOK_LABEL = '神諭原典';
@@ -321,7 +327,8 @@ export function createOverlay({
   overlay.setAttribute('role', 'dialog');
   overlay.setAttribute('aria-modal', 'true');
   overlay.setAttribute('aria-labelledby', `${id}-title`);
-  const closeBtn = `<button class="btn btn--ghost panel__close" data-close type="button" aria-label="關閉面板（Esc）">Esc ✕</button>`;
+  // 出口只留一個叉：Esc 那兩個字母是給程式看的，玩家看到 ✕ 就知道這是關閉
+  const closeBtn = `<button class="btn btn--ghost panel__close" data-close type="button" aria-label="關閉面板（Esc）"><span aria-hidden="true">✕</span></button>`;
   const head = headBar
     ? `<header class="panel__head panel__head--bar">
         <div class="panel__headline">
