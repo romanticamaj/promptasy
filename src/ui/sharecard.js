@@ -1085,7 +1085,7 @@ export function createShareCard({ content, progression, ranksFile, onClose, onTo
       // 開卡的第一幀就決定「分享圖＋文」在不在 —— 焦點才不會落在別的地方之後又被搶走
       applySupport();
       // 副標留空：這句話已經在下面的說明裡，標頭少一行就能把高度讓給圖
-      overlay.setTitle('分享你的刻印紀錄', '');
+      overlay.setTitle('刻印記錄', '');
       overlay.resetScroll();
       // 焦點落在這個畫面的主角上（不是輸入框：那段話已經寫好了，想改再 Shift+Tab 回去）
       overlay.open({ focus: heroAction() });
