@@ -137,20 +137,18 @@ export const REGION_GATES = Object.freeze({
    *
    * 這是整個世界**唯一一道不能先行前往的門**（curriculum-v2 §5.4：全部是 soft
    * requirement，唯一的 hard requirement 是 divergence）。理由寫在課程設計裡：
-   * 這一區的每一關都建立在「你已經知道通則」之上 —— 沒有通則就先看反差，
-   * 學到的不是取捨而是混亂。所以 `hard: true` 讓橋上的門**不提供「直接前往」**，
-   * 只說得出還差哪幾片土地要精通（`gate.js` 依這個旗標換一套說法）。
+   * 這一區的每一關都建立在「你已經知道通則」之上 —— 條件仍是知識式的（C8）：
+   * `masteredAny: 2` 用與校驗場、減法之庭完全同一支 `regionMastery()`。
    *
-   * 條件本身仍然是知識式的（C8）：`masteredAny: 4` 用的是與校驗場、減法之庭
-   * 完全同一支 `regionMastery()`，不是等級數字、也不是通關數。
+   * 2026-08-03 站長裁決：原本的 `hard: true`（全場唯一不能先行前往的門）取消，
+   * 門檻也從 4 片降到 2 片 —— 比照其他區域，玩家自己決定要不要先進去看看。
    */
   divergence: {
     level: 1,
     available: true,
     requires: null,
-    hard: true,
     knowledge: {
-      masteredAny: 4,
+      masteredAny: 2,
     },
   },
 });

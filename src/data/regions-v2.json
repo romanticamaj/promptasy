@@ -415,9 +415,8 @@
         "era-current-rules"
       ],
       "gate": {
-        "hard": true,
-        "masteredAnyCount": 4,
-        "text": "硬門檻：四區精通（等同既有 finale 的位階）。"
+        "masteredAnyCount": 2,
+        "text": "軟門檻：任 2 片土地精通 —— 比照其他區域，可先行前往。"
       },
       "color": "#d8b8c6"
     }
