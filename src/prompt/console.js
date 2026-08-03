@@ -269,6 +269,8 @@ export function createPromptConsole({
     title: 'Prompt 主控台',
     eyebrow: '練習室',
     wide: true,
+    // 標頭壓成一條：關卡名 ＋ NPC 在左，進度小牌與 Esc 在右
+    headBar: true,
     onClose: () => api.close(),
   });
 

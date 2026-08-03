@@ -117,10 +117,28 @@ export function bindInfoTips(root) {
     for (const tip of root.querySelectorAll('[data-infotip].is-open')) setOpen(tip, false);
   };
 
-  // 滑鼠（mouseover / mouseout 會冒泡，pointerenter 不會 —— 委派要用前者）
-  root.addEventListener('mouseover', (e) => {
+  /*
+   * 滑鼠：**游標真的動過**才算 hover。
+   *
+   * 為什麼不是 mouseover：瀏覽器在版面變動之後會重算「游標底下是誰」，
+   * 並且對新出現的元素補送一次 mouseover。所以「面板換一幕、ⓘ 剛好長在
+   * 停住不動的游標底下」會被當成 hover —— 玩家什麼都沒做，說明卡就自己
+   * 彈出來（實測：把游標停在第二幕 ⓘ 會出現的位置，再從第一幕切過去，
+   * 氣泡直接是開著的）。
+   *
+   * mousemove 只在游標**真的移動**時才發，所以拿它當開啟訊號；
+   * 捲動時瀏覽器也會補送座標沒變的 mousemove，用座標比對擋掉。
+   * CSS 那邊的 `:hover` 顯示規則一併撤掉了 —— hover 只由這裡決定。
+   */
+  let lastX = NaN;
+  let lastY = NaN;
+  root.addEventListener('mousemove', (e) => {
+    const moved = e.clientX !== lastX || e.clientY !== lastY;
+    lastX = e.clientX;
+    lastY = e.clientY;
+    if (!moved) return;
     const tip = e.target.closest?.('[data-infotip]');
-    if (tip) setOpen(tip, true);
+    if (tip && !tip.classList.contains('is-open')) setOpen(tip, true);
   });
   root.addEventListener('mouseout', (e) => {
     const tip = e.target.closest?.('[data-infotip]');
@@ -221,31 +239,67 @@ export function focusableIn(root) {
 }
 
 /**
+ * 一層打開的時候，焦點該落在哪一顆上。
+ *
+ * 跟 `focusableIn` 差一件事：**ⓘ 不算**。焦點落上去等於把說明卡打開
+ * （focus 本來就算「打開」），玩家什麼都還沒做就先被塞一張註腳。
+ * ⓘ 仍然 Tab 走得到、走到了照樣打得開 —— 這裡只是不讓它當「第一顆」。
+ */
+export function initialFocusIn(root) {
+  return focusableIn(root).filter((node) => !node.closest('[data-infotip]'));
+}
+
+/**
  * 建立一個覆蓋層面板（含關閉鈕、Esc 關閉、Tab 焦點鎖）。
  *
  * 無障礙（M6）：
  *   · 開啟時把焦點移進面板，關閉時還給原本的元素
  *   · Tab / Shift+Tab 在面板內循環，不會跑到後面的 3D 畫布
  *   · aria-labelledby 指到標題
+ *
+ * @param {object} opts
+ * @param {boolean} [opts.headBar] 標頭壓成**一條**（關卡用）：
+ *   左邊是關卡名 ＋ 緊接在後面、小一號的 NPC（同一條基線）；
+ *   右邊是那顆安靜的進度小牌（「撰寫基本功 · 第 12 關 / 共 15 關」）與 Esc。
+ *   不給就是原本的三層堆疊（圖鑑 / 設定 / 成就那些一次只講一件事的面板）。
  */
-export function createOverlay({ id, title, subtitle = '', eyebrow = '', onClose, wide = false }) {
+export function createOverlay({
+  id,
+  title,
+  subtitle = '',
+  eyebrow = '',
+  onClose,
+  wide = false,
+  headBar = false,
+}) {
   const overlay = el('div', `overlay${wide ? ' overlay--wide' : ''}`);
   overlay.id = id;
   overlay.hidden = true;
   overlay.setAttribute('role', 'dialog');
   overlay.setAttribute('aria-modal', 'true');
   overlay.setAttribute('aria-labelledby', `${id}-title`);
-  overlay.innerHTML = `
-    <div class="overlay__scrim" data-close></div>
-    <section class="panel" tabindex="-1">
-      <header class="panel__head">
+  const closeBtn = `<button class="btn btn--ghost panel__close" data-close type="button" aria-label="關閉面板（Esc）">Esc ✕</button>`;
+  const head = headBar
+    ? `<header class="panel__head panel__head--bar">
+        <div class="panel__headline">
+          <h2 class="panel__title" id="${esc(id)}-title">${esc(title)}</h2>
+          <p class="panel__sub">${esc(subtitle)}</p>
+        </div>
+        <p class="meta-label meta-label--star panel__eyebrow" data-eyebrow>${esc(eyebrow)}</p>
+        ${closeBtn}
+      </header>`
+    : `<header class="panel__head">
         <div>
           <p class="meta-label meta-label--star panel__eyebrow" data-eyebrow>${esc(eyebrow)}</p>
           <h2 class="panel__title" id="${esc(id)}-title">${esc(title)}</h2>
           <p class="panel__sub">${esc(subtitle)}</p>
         </div>
-        <button class="btn btn--ghost panel__close" data-close type="button" aria-label="關閉面板（Esc）">Esc ✕</button>
-      </header>
+        ${closeBtn}
+      </header>`;
+  overlay.innerHTML = `
+    <div class="overlay__scrim" data-close></div>
+    <section class="panel" tabindex="-1">
+      ${head}
       <div class="panel__body"></div>
     </section>
   `;
@@ -323,8 +377,12 @@ export function createOverlay({ id, title, subtitle = '', eyebrow = '', onClose,
          * Phase 23 前是標頭那顆關閉鍵 —— 純鍵盤玩的人一開就站在出口上，
          * 每次都要先 Tab 過整個標頭才碰得到內容。內容區沒東西可按時
          * （石碑、刻文那種只有兩三行字的小窗）才退回關閉鍵。
+         *
+         * ⓘ 不算「第一顆」（見 initialFocusIn）—— 焦點落上去會讓說明卡
+         * 自己彈出來，那是面板打開的副作用，不是玩家想看它。
          */
-        const target = opts.focus || focusableIn(body)[0] || focusableIn(panel)[0] || panel;
+        const target =
+          opts.focus || initialFocusIn(body)[0] || initialFocusIn(panel)[0] || panel;
         try {
           target.focus({ preventScroll: true });
         } catch {

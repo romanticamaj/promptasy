@@ -1418,6 +1418,57 @@ a.src:hover {
 .panel__sub:empty {
   display: none;
 }
+
+/* ---------------------------------------------------------------- 一條式標頭
+   關卡（與序章練習台）的標頭原本疊三層：小標籤 / 關卡名 / NPC，再加一顆 Esc，
+   佔掉 170px 高才講完「這是哪一關」。現在壓成**一條**：
+
+     清晰之門  守門人 · 灰石            撰寫基本功 · 第 12 關 / 共 15 關   Esc ✕
+
+   關卡名與 NPC 同一條基線（NPC 小一號、安靜），進度收成右邊那面小牌。
+   窄畫面（≤720px）讓小牌掉到第二行，Esc 仍然守在第一行最右邊。 */
+.panel__head--bar {
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--s3) var(--s5);
+}
+.panel__headline {
+  display: flex;
+  align-items: baseline;
+  flex: 1 1 auto;
+  gap: var(--s3);
+  /* 沒有這一行，長標題會把整條撐開而不是自己截斷 */
+  min-width: 0;
+}
+.panel__head--bar .panel__title {
+  /* 位置不夠時先讓 NPC 縮（下面 shrink 給 3），關卡名是最後才動的那一個 */
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  text-wrap: nowrap;
+}
+.panel__head--bar .panel__sub {
+  flex: 0 3 auto;
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+/* 進度小牌：安靜的凹槽，不跟暖金的成就熱點搶戲 */
+.panel__head--bar .panel__eyebrow {
+  flex: none;
+  margin: 0 0 0 auto;
+  padding: 5px 12px;
+  clip-path: var(--seal-shape);
+  background-image: linear-gradient(180deg, rgba(157, 184, 209, 0.11), rgba(0, 0, 0, 0.28));
+  white-space: nowrap;
+}
+.panel__head--bar .panel__eyebrow[hidden] {
+  display: none;
+}
 .panel__close {
   --cut: 6px;
   flex: none;
@@ -3728,6 +3779,33 @@ select option:disabled {
   }
   .panel__close {
     align-self: flex-end;
+  }
+  /*
+   * 一條式標頭在窄畫面**不整個堆起來**：關卡名與 Esc 仍然是同一行
+   * （左邊講「這是哪一關」、右邊是出口），只有進度小牌掉到第二行。
+   * NPC 太長時自己換到標題底下，但仍在左欄。
+   */
+  .panel__head--bar {
+    flex-direction: row;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: var(--s2) var(--s4);
+  }
+  .panel__head--bar .panel__close {
+    order: 2;
+    align-self: baseline;
+  }
+  .panel__head--bar .panel__eyebrow {
+    order: 3;
+    flex-basis: 100%;
+    margin-left: 0;
+  }
+  /* 標題那一欄壓在同一行（title 與 npc 各自截斷），才擠得下右邊的 Esc */
+  .panel__head--bar .panel__headline {
+    flex: 1 1 0;
+    flex-wrap: nowrap;
+    gap: var(--s3);
+    min-width: 0;
   }
   .panel__body {
     padding: var(--s5);
@@ -6781,24 +6859,34 @@ select option:disabled {
   vertical-align: baseline;
   margin-left: 4px;
 }
-/* ⓘ ＝ 一顆嵌在文句裡的符文石 */
+/* ⓘ ＝ 一顆嵌在文句裡的符文石
+   註腳就該小：**看得見的石頭只有 13px**（Phase 14 放大後那顆 26px 太搶戲），
+   但**可點的範圍仍然是 22px**（WCAG 2.5.8 的 24×24 是給孤立目標的地板，
+   這顆貼在文句尾巴、四周沒有別的目標，22px 摸得到也按得到）。
+   作法：按鈕本體維持 22px 當命中範圍，兩層石面（::before / ::after）
+   往內縮 --infotip-inset，露出來的就只有中間那顆小石頭。 */
 .infotip__btn {
-  --cut: 8px;
+  --cut: 5px;
+  /* (22 - 13) / 2 = 4.5px：石面往內縮這麼多，視覺直徑就是 13px */
+  --infotip-inset: 4.5px;
   position: relative;
   isolation: isolate;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 26px;
-  height: 26px;
+  width: 22px;
+  height: 22px;
   padding: 0;
   border: 0;
   border-radius: 0;
   background: transparent;
   color: rgba(230, 199, 155, 0.72);
   font-family: var(--font-ui);
-  font-size: 1.2rem;
+  /* 1.2rem 的一半 —— 字跟著石頭一起縮，比例不變 */
+  font-size: 0.6rem;
   line-height: 1;
+  /* 小石頭要跟中文字腰身對齊，不然會掛在基線上顯得往下沉 */
+  vertical-align: -0.02em;
   cursor: help;
   transition: color var(--d-fast) var(--e-snap);
 }
@@ -6806,14 +6894,15 @@ select option:disabled {
 .infotip__btn::after {
   content: '';
   position: absolute;
-  inset: 0;
+  inset: var(--infotip-inset);
   z-index: -1;
   clip-path: var(--seal-shape);
   background-image: linear-gradient(180deg, rgba(230, 199, 155, 0.34), rgba(0, 0, 0, 0.4));
   transition: background-image var(--d-fast) var(--e-snap), filter var(--d-fast) var(--e-snap);
 }
 .infotip__btn::after {
-  inset: 1px;
+  /* 比外層再往內 1px —— 露出來那一圈就是石頭的邊 */
+  inset: calc(var(--infotip-inset) + 1px);
   clip-path: var(--seal-shape-in);
   background-image: linear-gradient(180deg, rgba(32, 26, 16, 0.9), rgba(10, 8, 5, 0.9));
 }
@@ -6871,7 +6960,14 @@ select option:disabled {
   clip-path: var(--seal-shape-in);
   background-color: rgba(9, 12, 18, 0.98);
 }
-.infotip:hover .infotip__bubble,
+/*
+ * 顯示條件刻意**不含 `:hover`**。
+ *
+ * 瀏覽器在版面變動後會重算「游標底下是誰」，所以「ⓘ 剛好長在停住不動的
+ * 游標底下」也會命中 `:hover` —— 玩家什麼都沒做，說明卡就自己彈出來。
+ * hover 改由 `bindInfoTips()` 的 mousemove 判定（游標真的動過才算），
+ * 判定結果寫成 `.is-open`。focus 是明確的意圖，留在 CSS 裡沒問題。
+ */
 .infotip:focus-within .infotip__bubble,
 .infotip.is-open .infotip__bubble {
   opacity: 1;
@@ -7213,10 +7309,12 @@ select option:disabled {
   pointer-events: auto;
   margin-left: 2px;
 }
+/* 石牌上的那顆再小一階（視覺 11px），命中範圍仍留 20px */
 .perfmon .infotip__btn {
-  width: 16px;
-  height: 16px;
-  font-size: 0.78rem;
+  --infotip-inset: 4.5px;
+  width: 20px;
+  height: 20px;
+  font-size: 0.55rem;
 }
 .perfmon .infotip__bubble {
   left: 0;
@@ -7228,7 +7326,6 @@ select option:disabled {
   font-size: 0.7rem;
   line-height: 1.55;
 }
-.perfmon .infotip:hover .infotip__bubble,
 .perfmon .infotip:focus-within .infotip__bubble,
 .perfmon .infotip.is-open .infotip__bubble {
   transform: translate(0, 0);
@@ -7792,6 +7889,20 @@ select option:disabled {
   .panel__head {
     padding: var(--s3);
   }
+  /*
+   * 390px：關卡名不截斷（那是玩家要認的東西），改讓 NPC 掉到它底下。
+   *   清晰之門                Esc ✕
+   *   守門人 · 灰石
+   *   撰寫基本功 · 第 01 關 / 共 15 關
+   */
+  .panel__head--bar .panel__headline {
+    flex-wrap: wrap;
+    gap: 0 var(--s3);
+  }
+  .panel__head--bar .panel__title,
+  .panel__head--bar .panel__sub {
+    flex: 0 1 100%;
+  }
   .console__actions {
     flex-wrap: wrap;
     gap: var(--s3);
@@ -7898,7 +8009,6 @@ select option:disabled {
     transform: translate(0, 4px);
   }
   .infotip.is-open .infotip__bubble,
-  .infotip:hover .infotip__bubble,
   .infotip:focus-within .infotip__bubble {
     transform: translate(0, 0);
   }

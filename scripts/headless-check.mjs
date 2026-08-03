@@ -1052,7 +1052,20 @@ async function main() {
   const tipHover = await evaluate(`
     const btn = document.querySelector('#practice .act--guide .infotip__btn');
     const bubble = document.querySelector('#practice .act--guide .infotip__bubble');
+    const box = btn.getBoundingClientRect();
+    /*
+     * 只補送 mouseover（＝游標沒動、只是內容換到它底下）不該打開任何東西 ——
+     * 那正是「ⓘ 自己彈出來」的根因。
+     */
     btn.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+    await new Promise((r) => setTimeout(r, 200));
+    const onStillPointer = getComputedStyle(bubble).visibility;
+    // 游標真的動到它上面 → 才打開
+    btn.dispatchEvent(new MouseEvent('mousemove', {
+      bubbles: true,
+      clientX: Math.round(box.x + box.width / 2),
+      clientY: Math.round(box.y + box.height / 2),
+    }));
     await new Promise((r) => setTimeout(r, 260));
     const onHover = getComputedStyle(bubble).visibility;
     btn.dispatchEvent(new MouseEvent('mouseout', { bubbles: true, relatedTarget: document.body }));
@@ -1064,8 +1077,9 @@ async function main() {
     const expanded = btn.getAttribute('aria-expanded');
     btn.blur();
     await new Promise((r) => setTimeout(r, 260));
-    return { onHover, afterOut, onFocus, expanded, afterBlur: getComputedStyle(bubble).visibility };
+    return { onStillPointer, onHover, afterOut, onFocus, expanded, afterBlur: getComputedStyle(bubble).visibility };
   `);
+  eq(tipHover.onStillPointer, 'hidden', '游標沒動、只是內容換到它底下 → ⓘ 不自己彈出來');
   eq(tipHover.onHover, 'visible', '滑鼠移上去 ⓘ 就看得到說明');
   eq(tipHover.afterOut, 'hidden', '移開就收回去');
   eq(tipHover.onFocus, 'visible', '鍵盤 focus 也看得到（不是只有滑鼠使用者）');
@@ -4016,7 +4030,17 @@ async function main() {
     ok(Boolean(v2Audio.bgm[id].file), `${id} 有自己的配樂音檔（issue #3）`, String(v2Audio.bgm[id].file));
     ok(v2Audio.bgm[id].targetGain < 0.8, `${id} 交來是 raw，被 gain 壓回 -20`, String(v2Audio.bgm[id].targetGain));
   }
-  ok(!v2Audio.bgm.wards.file, '護欄崗誠實地還沒有自己的一首（走合成 pad）');
+  /*
+   * 護欄崗《The Unclosing Door》補上之後，十二區全數有自己的一首、
+   * `SYNTH_ONLY_REGIONS` 清空 —— 這條斷言在那一次沒有跟著翻面（既有紅燈）。
+   * 現在守的是「它有自己的音檔，而且交來是 raw、被 gain 壓回 −20」。
+   */
+  ok(Boolean(v2Audio.bgm.wards.file), '護欄崗有自己的配樂音檔', String(v2Audio.bgm.wards.file));
+  ok(
+    v2Audio.bgm.wards.targetGain < 0.8,
+    '護欄崗的配樂交來是 raw，被 gain 壓回 -20',
+    String(v2Audio.bgm.wards.targetGain)
+  );
 
   /* ================================================================ */
   console.log('\n▸ 閘門與跨區（含氣氛切換）');
@@ -5114,6 +5138,25 @@ async function main() {
   ok(optSeal.keySize >= 24, '符文石夠大看得清楚', `${optSeal.keySize}px`);
 
   // 選錯 → 石籤上出現裂痕（多一層斜線漸層），而且不再有金線
+  /*
+   * 先把真的游標挪到角落 —— 不然它會停在前一段測試留下的座標上，
+   * 版面一動（例如標頭高度變了）就可能剛好壓在某一張石籤上，
+   * 讓下面那條「不會被滑鼠抬起來」量到的是 :hover 狀態。
+   */
+  await cdp.send(
+    'Input.dispatchMouseEvent',
+    { type: 'mouseMoved', x: 4, y: 4, button: 'none', buttons: 0 },
+    sessionId
+  );
+  /*
+   * 等到**真的沒有石籤還在 hover 狀態**才往下走。
+   * 固定 sleep 在這台軟體渲染的機器上不夠：hover 的重算與 translate 的
+   * 120ms 補間都是逐幀跑的，一幀約 200ms —— 睡 120ms 等於一幀都沒過。
+   */
+  await waitFor(
+    async () => (await evaluate(`return !document.querySelector('#prompt-console .opt:hover');`)) === true,
+    { timeout: 5000, every: 150, label: '游標離開所有石籤' }
+  ).catch(() => {});
   const crackTest = await evaluate(`
     const opts = [...document.querySelectorAll('#prompt-console .opt')];
     const layersBefore = getComputedStyle(opts[0], '::after').backgroundImage.split('gradient').length - 1;
@@ -5139,7 +5182,54 @@ async function main() {
     ok(/224, 128, 110/.test(crackTest.face), '「石碑不收」的石籤上多了赤色的裂痕', crackTest.face.slice(0, 80));
     ok(crackTest.inlayVar.trim() === '0px', '被拒絕的石籤沒有金線', crackTest.inlayVar);
     ok(/224, 128, 110/.test(crackTest.edge), '被拒絕的石籤邊緣轉成赤色', crackTest.edge.slice(0, 70));
-    eq(crackTest.lifted, 'none', '被拒絕的石籤不會再被滑鼠抬起來');
+    /*
+     * `translate` 有 120ms 的補間，而這台機器一幀約 200ms ——
+     * 剛加上 .is-wrong 的那一瞬間讀到的可能還是補間中的值。
+     * 輪詢到它落定（AGENTS.md：動畫時序類斷言不要用固定 sleep）。
+     */
+    const settled = await waitFor(
+      async () => {
+        const v = await evaluate(`
+          const w = document.querySelector('#prompt-console .opt.is-wrong');
+          return w ? getComputedStyle(w).translate : null;
+        `);
+        return v === 'none' ? v : null;
+      },
+      { timeout: 4000, every: 150, label: '被拒絕的石籤落回原位' }
+    ).catch(() => crackTest.lifted);
+    eq(settled, 'none', '被拒絕的石籤不會再被滑鼠抬起來');
+    /*
+     * 上面那條是「游標不在上面」的狀態；真正要守的是**游標壓上去也不抬**。
+     * 所以把真的游標移到那張石籤中心再量一次（先確認同一張石籤還在）。
+     */
+    const wrongAt = await evaluate(`
+      const w = document.querySelector('#prompt-console .opt.is-wrong');
+      if (!w) return null;
+      const r = w.getBoundingClientRect();
+      return [r.x + r.width / 2, r.y + r.height / 2];
+    `);
+    if (wrongAt) {
+      await cdp.send(
+        'Input.dispatchMouseEvent',
+        { type: 'mouseMoved', x: Math.round(wrongAt[0]), y: Math.round(wrongAt[1]), button: 'none', buttons: 0 },
+        sessionId
+      );
+      await sleep(240);
+      const hoveredWrong = await evaluate(`
+        const w = document.querySelector('#prompt-console .opt.is-wrong');
+        return { hover: w.matches(':hover'), lifted: getComputedStyle(w).translate };
+      `);
+      if (hoveredWrong.hover) {
+        eq(hoveredWrong.lifted, 'none', '游標真的壓在被拒絕的石籤上，它一樣不會被抬起來');
+      } else {
+        ok(true, '（游標沒壓到那張石籤，跳過「壓上去也不抬」這一條）');
+      }
+      await cdp.send(
+        'Input.dispatchMouseEvent',
+        { type: 'mouseMoved', x: 4, y: 4, button: 'none', buttons: 0 },
+        sessionId
+      );
+    }
   } else {
     ok(false, '找得到一個被石碑拒絕的選項');
   }
@@ -5398,7 +5488,13 @@ async function main() {
     const tipBtn = node.querySelector('.perfmon .infotip__btn');
     const bubble = node.querySelector('.perfmon .infotip__bubble');
     const bubbleBefore = bubble ? getComputedStyle(bubble).visibility : '';
-    tipBtn?.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+    // hover ＝ 游標真的動到它上面（只補送 mouseover 不算，見 bindInfoTips）
+    const tipBox = tipBtn?.getBoundingClientRect();
+    tipBtn?.dispatchEvent(new MouseEvent('mousemove', {
+      bubbles: true,
+      clientX: Math.round(tipBox.x + tipBox.width / 2),
+      clientY: Math.round(tipBox.y + tipBox.height / 2),
+    }));
     await new Promise((r) => setTimeout(r, 120));
     const bubbleAfter = bubble ? getComputedStyle(bubble).visibility : '';
     const tipText = bubble ? bubble.textContent : '';
@@ -9793,6 +9889,13 @@ async function main() {
         const small = smallEls.length;
         const tiny = [...document.querySelectorAll('#prompt-console .panel__body *')]
           .filter((el) => el.children.length === 0 && el.textContent.trim())
+          /*
+           * ⓘ 那顆不是「字」，是**圖示**：它的內容是一個 ⓘ 字形，
+           * 真正要讀的說明在氣泡裡（--t-micro，遠大於 12px），
+           * 而且它自己帶 aria-label。字級下限守的是「讀得動的內文」，
+           * 把圖示算進去只會逼我們把註腳畫成跟正文一樣大。
+           */
+          .filter((el) => !el.closest('[data-infotip-btn]'))
           .map((el) => parseFloat(getComputedStyle(el).fontSize))
           .filter((n) => n && n < 12).length;
         out.boards.push({
@@ -11235,7 +11338,13 @@ async function main() {
       }
       const card = document.querySelector('#prompt-console .handoff');
       const tipBtn = card?.querySelector('[data-infotip-btn]');
-      tipBtn?.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+      // hover ＝ 游標真的動到它上面（只補送 mouseover 不算，見 bindInfoTips）
+      const tipBox = tipBtn?.getBoundingClientRect();
+      tipBtn?.dispatchEvent(new MouseEvent('mousemove', {
+        bubbles: true,
+        clientX: Math.round(tipBox.x + tipBox.width / 2),
+        clientY: Math.round(tipBox.y + tipBox.height / 2),
+      }));
       await new Promise((r) => setTimeout(r, 240));
       return {
         handoffOpen: b.handoffOpen,
@@ -11641,7 +11750,13 @@ async function main() {
       const b = g.promptConsole.simBoard;
       const card = document.querySelector('#prompt-console .simboard .dial');
       const tipBtn = card?.querySelector('[data-infotip-btn]');
-      tipBtn?.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+      // hover ＝ 游標真的動到它上面（只補送 mouseover 不算，見 bindInfoTips）
+      const tipBox = tipBtn?.getBoundingClientRect();
+      tipBtn?.dispatchEvent(new MouseEvent('mousemove', {
+        bubbles: true,
+        clientX: Math.round(tipBox.x + tipBox.width / 2),
+        clientY: Math.round(tipBox.y + tipBox.height / 2),
+      }));
       await new Promise((r) => setTimeout(r, 240));
       return {
         act: g.promptConsole.act,
@@ -13989,6 +14104,288 @@ async function main() {
     '標記之後那段話的文字一個字都沒變',
     glossElsewhere.probeText.slice(0, 40)
   );
+
+  /* ================================================================ */
+  console.log('\n▸ ⓘ 不自己彈出來 ＋ 縮成註腳大小 ＋ 一條式關卡標頭');
+
+  {
+    /** 真的把游標放到某一點（不是合成事件 —— 要騙得過瀏覽器的 hover 重算）。 */
+    const park = async (x, y) =>
+      cdp.send(
+        'Input.dispatchMouseEvent',
+        { type: 'mouseMoved', x: Math.round(x), y: Math.round(y), button: 'none', buttons: 0 },
+        sessionId
+      );
+    /** 現在畫面上有幾顆 ⓘ 的說明是**看得見**的。 */
+    const visibleTips = `
+      return Array.from(document.querySelectorAll('[data-infotip]')).map((t) => {
+        const b = t.querySelector('[data-infotip-bubble]');
+        const cs = getComputedStyle(b);
+        return {
+          label: t.querySelector('[data-infotip-btn]').getAttribute('aria-label'),
+          visible: cs.visibility === 'visible' && Number(cs.opacity) > 0.02,
+        };
+      }).filter((t) => t.visible);
+    `;
+    const headRows = (sel) => `
+      const p = document.querySelector('${sel} .panel__head');
+      if (!p) return null;
+      const box = (n) => { const r = n.getBoundingClientRect(); return { top: Math.round(r.top), bottom: Math.round(r.bottom), left: Math.round(r.left), right: Math.round(r.right), h: Math.round(r.height), w: Math.round(r.width) }; };
+      const title = p.querySelector('.panel__title');
+      const sub = p.querySelector('.panel__sub');
+      const eyebrow = p.querySelector('[data-eyebrow]');
+      const close = p.querySelector('.panel__close');
+      const hr = p.getBoundingClientRect();
+      return {
+        bar: p.classList.contains('panel__head--bar'),
+        headH: Math.round(hr.height),
+        headW: Math.round(hr.width),
+        titleText: title.textContent.trim(),
+        subText: sub.textContent.trim(),
+        eyebrowText: eyebrow.textContent.trim(),
+        titleId: title.id,
+        labelledBy: document.querySelector('${sel}').getAttribute('aria-labelledby'),
+        closeLabel: close.getAttribute('aria-label'),
+        title: box(title), sub: box(sub), eyebrow: box(eyebrow), close: box(close),
+        titleFs: parseFloat(getComputedStyle(title).fontSize),
+        subFs: parseFloat(getComputedStyle(sub).fontSize),
+        overflowX: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      };
+    `;
+
+    await evaluate(`window.__promptasy.promptConsole.close(); return 1;`);
+    await sleep(300);
+
+    /* ---------------------------------------------------------------- */
+    /* (1) 一條式標頭（1280）                                            */
+    /* ---------------------------------------------------------------- */
+    await evaluate(`
+      const g = window.__promptasy;
+      g.promptConsole.open(g.content.challenge('gate-of-clarity-01'));
+      return 1;
+    `);
+    await sleep(900);
+    const head = await evaluate(headRows('#prompt-console'));
+    ok(head, '關卡標頭量得到（不是 0×0 空過）');
+    eq(head.bar, true, '關卡走的是一條式標頭');
+    ok(head.headH < 130, '標頭壓成一條（原本三層堆疊要 170px 以上）', `${head.headH}px`);
+    ok(head.titleText.length > 0, '左邊是關卡名', head.titleText);
+    ok(head.subText.length > 0, '關卡名後面緊接著 NPC', head.subText);
+    ok(head.subFs < head.titleFs, 'NPC 小一號（不跟關卡名搶）', `${head.subFs} < ${head.titleFs}`);
+    ok(
+      head.sub.left >= head.title.right - 1,
+      'NPC 在關卡名右邊（同一行，不是疊在下面）',
+      `sub.left=${head.sub.left} title.right=${head.title.right}`
+    );
+    ok(
+      Math.abs(head.sub.bottom - head.title.bottom) <= 6,
+      'NPC 與關卡名同一條基線',
+      `${head.sub.bottom} vs ${head.title.bottom}`
+    );
+    ok(/第 \d+ 關 \/ 共 \d+ 關/.test(head.eyebrowText), '右邊是進度小牌', head.eyebrowText);
+    ok(
+      head.eyebrow.left > head.sub.right,
+      '進度小牌在右半邊（不在標題左邊）',
+      `eyebrow.left=${head.eyebrow.left} sub.right=${head.sub.right}`
+    );
+    ok(
+      head.close.left >= head.eyebrow.right - 1,
+      'Esc 在最右邊（進度小牌之後）',
+      `close.left=${head.close.left} eyebrow.right=${head.eyebrow.right}`
+    );
+    ok(
+      Math.abs(head.eyebrow.top - head.close.top) <= 12,
+      '進度小牌與 Esc 在同一行',
+      `${head.eyebrow.top} vs ${head.close.top}`
+    );
+    eq(head.labelledBy, head.titleId, 'aria-labelledby 仍然指到關卡名（無障礙沒被改壞）');
+    ok(/Esc/.test(head.closeLabel), 'Esc 的 aria-label 沒被改掉', head.closeLabel);
+    eq(head.overflowX, 0, '1280 下標頭沒有水平溢位');
+    // 進度數字要跟著 catalog 走，不是寫死的
+    const headCount = await evaluate(`
+      const g = window.__promptasy;
+      const sib = g.content.challengesOf('foundations');
+      return { total: sib.length, text: document.querySelector('#prompt-console [data-eyebrow]').textContent.trim() };
+    `);
+    ok(
+      headCount.text.includes(`共 ${String(headCount.total).padStart(2, '0')} 關`),
+      '「共 M 關」＝這一片土地目前真正的關卡數（catalog 算出來的）',
+      `${headCount.text} / total=${headCount.total}`
+    );
+
+    /* ---------------------------------------------------------------- */
+    /* (2) ⓘ 縮成註腳大小，但仍然按得到                                  */
+    /* ---------------------------------------------------------------- */
+    await evaluate(`document.querySelector('#prompt-console [data-act-next="2"]').click(); return 1;`);
+    await sleep(900);
+    const tipSize = await evaluate(`
+      const btn = document.querySelector('#prompt-console .act--guide .infotip__btn');
+      const r = btn.getBoundingClientRect();
+      const before = getComputedStyle(btn, '::before');
+      const inset = parseFloat(getComputedStyle(btn).getPropertyValue('--infotip-inset'));
+      return {
+        hitW: Math.round(r.width), hitH: Math.round(r.height),
+        fontPx: parseFloat(getComputedStyle(btn).fontSize),
+        inset,
+        beforeInset: before.insetBlockStart || before.inset,
+        visual: Math.round(r.width - inset * 2),
+      };
+    `);
+    ok(tipSize.hitW >= 20 && tipSize.hitH >= 20, 'ⓘ 的命中範圍仍然 ≥ 20px', `${tipSize.hitW}×${tipSize.hitH}`);
+    ok(tipSize.hitW <= 24, 'ⓘ 的命中範圍沒有變大', `${tipSize.hitW}px`);
+    ok(
+      tipSize.visual >= 10 && tipSize.visual <= 14,
+      '看得見的那顆石頭大約 13px（原本 26px 的一半）',
+      `${tipSize.visual}px`
+    );
+    ok(tipSize.fontPx <= 11, 'ⓘ 的字級跟著砍半', `${tipSize.fontPx}px`);
+
+    /* ---------------------------------------------------------------- */
+    /* (3) 迴歸：ⓘ 絕不自己彈出來                                        */
+    /*                                                                   */
+    /* 真正的重現方式 —— 把游標停在「ⓘ 之後會長出來的位置」，再從第一幕  */
+    /* 切到第二幕。瀏覽器會重算 hover 並補送 mouseover，舊寫法就是在這裡  */
+    /* 把說明卡打開的（玩家什麼都沒做）。                                 */
+    /* ---------------------------------------------------------------- */
+    const tipPoint = await evaluate(`
+      const r = document.querySelector('#prompt-console .act--guide .infotip__btn').getBoundingClientRect();
+      return [r.x + r.width / 2, r.y + r.height / 2];
+    `);
+    await evaluate(`window.__promptasy.promptConsole.close(); return 1;`);
+    await sleep(320);
+    await park(tipPoint[0], tipPoint[1]);
+    await sleep(240);
+    await evaluate(`
+      const g = window.__promptasy;
+      g.promptConsole.open(g.content.challenge('gate-of-clarity-01'));
+      return 1;
+    `);
+    await sleep(900);
+    const tipsAct1 = await evaluate(visibleTips);
+    eq(tipsAct1.length, 0, '打開一關的時候畫面上沒有任何 ⓘ 的說明是開著的', JSON.stringify(tipsAct1));
+    await evaluate(`document.querySelector('#prompt-console [data-act-next="2"]').click(); return 1;`);
+    await sleep(1100);
+    const tipsParked = await evaluate(visibleTips);
+    eq(
+      tipsParked.length,
+      0,
+      '游標停在原地、ⓘ 長在它底下 → 說明卡不自己彈出來（迴歸）',
+      JSON.stringify(tipsParked)
+    );
+    /*
+     * 游標真的動到它上面 → 這才是 hover，該打得開。
+     * 先移開再移上去（保證「座標真的變了」），而且座標要**當場重量** ——
+     * .reveal 的入場動畫會讓先前量好的位置過期（findings 有記）。
+     */
+    await park(6, 6);
+    await sleep(200);
+    const tipsMoved = await waitFor(
+      async () => {
+        const at = await evaluate(`
+          const r = document.querySelector('#prompt-console .act--guide .infotip__btn').getBoundingClientRect();
+          return [r.x + r.width / 2, r.y + r.height / 2];
+        `);
+        await park(6, 6);
+        await park(at[0], at[1]);
+        await sleep(200);
+        const seen = await evaluate(visibleTips);
+        return seen.length ? seen : null;
+      },
+      { timeout: 8000, every: 200, label: '游標移上去 ⓘ 就打開' }
+    ).catch(() => []);
+    eq(tipsMoved.length, 1, '游標真的動到它上面就打得開（hover 沒有被關掉）', JSON.stringify(tipsMoved));
+    await park(6, 6);
+    await waitFor(async () => (await evaluate(visibleTips)).length === 0, {
+      timeout: 4000,
+      every: 150,
+      label: 'ⓘ 移開就收回去',
+    }).catch(() => {});
+    eq((await evaluate(visibleTips)).length, 0, '移開就收回去');
+    // 鍵盤 focus 也要打得開
+    const tipFocus = await evaluate(`
+      const btn = document.querySelector('#prompt-console .act--guide .infotip__btn');
+      btn.focus();
+      await new Promise((r) => setTimeout(r, 220));
+      const on = getComputedStyle(document.querySelector('#prompt-console .act--guide .infotip__bubble')).visibility;
+      const expanded = btn.getAttribute('aria-expanded');
+      btn.blur();
+      await new Promise((r) => setTimeout(r, 220));
+      return { on, expanded, off: getComputedStyle(document.querySelector('#prompt-console .act--guide .infotip__bubble')).visibility };
+    `);
+    eq(tipFocus.on, 'visible', 'Tab 走到 ⓘ 上照樣看得到說明（鍵盤不打折）');
+    eq(tipFocus.expanded, 'true', 'focus 時 aria-expanded 跟著更新');
+    eq(tipFocus.off, 'hidden', '離開 focus 就收回去');
+    // 面板打開時焦點不准落在 ⓘ 上
+    await evaluate(`window.__promptasy.promptConsole.close(); return 1;`);
+    await sleep(320);
+    await evaluate(`window.__promptasy.codex.open(); return 1;`);
+    await sleep(800);
+    const codexFocus = await evaluate(`
+      const a = document.activeElement;
+      return {
+        isTip: !!(a.closest && a.closest('[data-infotip]')),
+        text: (a.textContent || '').trim().slice(0, 16),
+      };
+    `);
+    eq(codexFocus.isTip, false, '圖鑑打開時焦點不會落在 ⓘ 上', codexFocus.text);
+    eq((await evaluate(visibleTips)).length, 0, '圖鑑打開時也沒有任何 ⓘ 自己開著');
+    await evaluate(`window.__promptasy.codex.close(); return 1;`);
+    await sleep(320);
+
+    /* ---------------------------------------------------------------- */
+    /* (4) 390px：關卡名不截斷、進度小牌掉到第二行、Esc 守在右上          */
+    /* ---------------------------------------------------------------- */
+    await cdp.send(
+      'Emulation.setDeviceMetricsOverride',
+      { width: 390, height: 844, deviceScaleFactor: 1, mobile: false },
+      sessionId
+    );
+    await sleep(420);
+    await evaluate(`
+      const g = window.__promptasy;
+      g.promptConsole.open(g.content.challenge('gate-of-clarity-01'));
+      return 1;
+    `);
+    await sleep(900);
+    const head390 = await evaluate(headRows('#prompt-console'));
+    ok(head390, '390px 下標頭量得到');
+    eq(head390.bar, true, '390px 下仍然是一條式標頭');
+    eq(head390.overflowX, 0, '390px 下整頁沒有水平溢位');
+    ok(head390.headH < 175, '390px 下的標頭仍然比原本三層堆疊矮', `${head390.headH}px`);
+    ok(
+      head390.close.top < head390.eyebrow.top,
+      '390px：Esc 留在第一行，進度小牌掉到底下',
+      `close.top=${head390.close.top} eyebrow.top=${head390.eyebrow.top}`
+    );
+    ok(
+      head390.close.right <= head390.headW + head390.close.left,
+      '390px：Esc 仍然靠右',
+      `close.right=${head390.close.right}`
+    );
+    ok(
+      head390.title.right <= 390 && head390.eyebrow.right <= 390 + 1,
+      '390px：標頭每一塊都在畫面內',
+      `title.right=${head390.title.right} eyebrow.right=${head390.eyebrow.right}`
+    );
+    const tip390 = await evaluate(`
+      document.querySelector('#prompt-console [data-act-next="2"]').click();
+      await new Promise((r) => setTimeout(r, 700));
+      const btn = document.querySelector('#prompt-console .act--guide .infotip__btn');
+      const r = btn.getBoundingClientRect();
+      return {
+        hit: Math.round(r.width),
+        fontPx: parseFloat(getComputedStyle(btn).fontSize),
+        overflowX: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      };
+    `);
+    ok(tip390.hit >= 20, '390px 下 ⓘ 的命中範圍仍然 ≥ 20px', `${tip390.hit}px`);
+    ok(tip390.fontPx <= 11, '390px 下 ⓘ 一樣是註腳大小', `${tip390.fontPx}px`);
+    eq(tip390.overflowX, 0, '390px · 第二幕沒有水平溢位');
+    eq((await evaluate(visibleTips)).length, 0, '390px 下切到第二幕也沒有 ⓘ 自己彈出來');
+    await evaluate(`window.__promptasy.promptConsole.close(); return 1;`);
+    await cdp.send('Emulation.clearDeviceMetricsOverride', {}, sessionId);
+    await sleep(420);
+  }
 
   /* ================================================================ */
   await sleep(600);

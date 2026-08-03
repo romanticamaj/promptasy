@@ -64,6 +64,8 @@ export function createPractice({
     title: '練習台',
     eyebrow: '序章 · 引導練習',
     wide: true,
+    // 與正式關卡同一條標頭（課名 ＋ 英文名在左，第幾課與 Esc 在右）
+    headBar: true,
     onClose: () => api.close(),
   });
 

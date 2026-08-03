@@ -11196,6 +11196,145 @@ console.log('\n▸ 手掌印與術語小卡（Phase 35）');
   );
 }
 
+/* ================================================================== */
+/* ⓘ 不再自己彈出來 ＋ 縮成註腳大小 ＋ 一條式關卡標頭                   */
+/* ================================================================== */
+console.log('\n▸ ⓘ 與關卡標頭');
+
+{
+  const dom = srcOf('src/ui/dom.js');
+  const cssSrc = srcOf('src/styles.css');
+  const consoleSrc = srcOf('src/prompt/console.js');
+  const practiceSrc = srcOf('src/prompt/practice.js');
+
+  /* ---------------------------------------------------------------- */
+  /* (1) 自己彈出來的根因：hover 不能靠 mouseover / CSS :hover         */
+  /*                                                                   */
+  /* 瀏覽器在版面變動之後會重算「游標底下是誰」並補送 mouseover，       */
+  /* 所以「ⓘ 剛好長在停住不動的游標底下」會被當成 hover。改用          */
+  /* mousemove（游標真的動過才發）＋ 座標比對。                         */
+  /* ---------------------------------------------------------------- */
+  const bind = (dom.match(/export function bindInfoTips[\s\S]*?\n\}/) || [''])[0];
+  ok(bind.length > 200, 'bindInfoTips 找得到');
+  ok(
+    !/addEventListener\('mouseover'/.test(bind),
+    'ⓘ 不再拿 mouseover 當開啟訊號（那是自己彈出來的根因）'
+  );
+  ok(/addEventListener\('mousemove'/.test(bind), 'ⓘ 的 hover 改由 mousemove 判定');
+  ok(
+    /e\.clientX !== lastX \|\| e\.clientY !== lastY/.test(bind),
+    '座標沒變的 mousemove（捲動時瀏覽器會補送）不算移動'
+  );
+  ok(/addEventListener\('mouseout'/.test(bind), '移開仍然收起來');
+  ok(/addEventListener\('focusin'/.test(bind), 'focus 仍然打得開（鍵盤使用者不打折）');
+  ok(/addEventListener\('click'/.test(bind), '點一下仍然打得開（觸控）');
+
+  const tipCss = (cssSrc.match(/\n\.infotip:focus-within \.infotip__bubble[\s\S]*?\n\}/) || [''])[0];
+  ok(tipCss.includes('visibility: visible'), 'ⓘ 的顯示規則找得到');
+  ok(
+    !/\.infotip:hover \.infotip__bubble/.test(cssSrc),
+    'CSS 不再用 :hover 顯示氣泡（停住不動的游標也會命中它）'
+  );
+  ok(
+    !/\.perfmon \.infotip:hover \.infotip__bubble/.test(cssSrc),
+    '效能監視器上那顆也一樣（同一條規則）'
+  );
+  ok(/\.infotip\.is-open \.infotip__bubble/.test(cssSrc), 'is-open 仍然是顯示的唯一開關');
+  ok(/\.infotip:focus-within \.infotip__bubble/.test(cssSrc), 'focus 的顯示規則留著');
+
+  /* ---------------------------------------------------------------- */
+  /* (2) 焦點不准自己落在 ⓘ 上（落上去＝說明卡自己開了）               */
+  /* ---------------------------------------------------------------- */
+  ok(/export function initialFocusIn/.test(dom), '有一支「開一層時焦點該落哪」的挑選函式');
+  ok(
+    /initialFocusIn[\s\S]{0,240}\.filter\(\(node\) => !node\.closest\('\[data-infotip\]'\)\)/.test(dom),
+    'initialFocusIn 把 ⓘ 排除在外'
+  );
+  ok(
+    /const target =\s*opts\.focus \|\| initialFocusIn\(body\)\[0\] \|\| initialFocusIn\(panel\)\[0\] \|\| panel;/.test(
+      dom
+    ),
+    '面板打開時走的是 initialFocusIn（不是 focusableIn）'
+  );
+  // Tab 的焦點鎖仍然要含 ⓘ —— 走到它就該打得開
+  ok(
+    /const items = focusableIn\(panel\);/.test(dom),
+    'Tab 焦點鎖仍然用 focusableIn（ⓘ 照樣 Tab 走得到）'
+  );
+
+  /* ---------------------------------------------------------------- */
+  /* (3) 尺寸：視覺砍半，命中範圍留著                                   */
+  /* ---------------------------------------------------------------- */
+  const btnCss = (cssSrc.match(/\n\.infotip__btn \{[\s\S]*?\n\}/) || [''])[0];
+  const w = Number((btnCss.match(/width: (\d+)px/) || [])[1]);
+  const h = Number((btnCss.match(/height: (\d+)px/) || [])[1]);
+  const inset = Number((btnCss.match(/--infotip-inset: ([\d.]+)px/) || [])[1]);
+  const fs = Number((btnCss.match(/font-size: ([\d.]+)rem/) || [])[1]);
+  ok(w === h && w > 0, 'ⓘ 是正方形的命中範圍', `${w}×${h}`);
+  ok(w >= 20, '命中範圍仍然 ≥ 20px（摸得到、按得到）', `${w}px`);
+  ok(Number.isFinite(inset) && inset > 0, '石面往內縮，露出來的才是那顆小石頭', `${inset}px`);
+  const visual = w - inset * 2;
+  ok(visual >= 10 && visual <= 14, '看得見的石頭大約 13px（原本 26px 的一半）', `${visual}px`);
+  ok(Math.abs(fs - 0.6) < 0.001, '字級是原本 1.2rem 的一半', `${fs}rem`);
+  ok(
+    /\.infotip__btn::after \{\s*[\s\S]{0,120}inset: calc\(var\(--infotip-inset\) \+ 1px\)/.test(cssSrc),
+    '內層石面跟著縮（不然邊會變粗）'
+  );
+  const perfTipCss = (cssSrc.match(/\n\.perfmon \.infotip__btn \{[\s\S]*?\n\}/) || [''])[0];
+  const pw = Number((perfTipCss.match(/width: (\d+)px/) || [])[1]);
+  ok(pw >= 20, '效能監視器上那顆的命中範圍也 ≥ 20px', `${pw}px`);
+  ok(/--infotip-inset/.test(perfTipCss), '石牌上那顆也走同一套內縮');
+
+  /* ---------------------------------------------------------------- */
+  /* (4) 一條式標頭：關卡名 ＋ NPC 同一條基線，進度與 Esc 靠右          */
+  /* ---------------------------------------------------------------- */
+  ok(/headBar = false/.test(dom), 'createOverlay 收 headBar 這個選項（預設關）');
+  ok(/panel__head panel__head--bar/.test(dom), '開了就換成一條式的標頭');
+  ok(/class="panel__headline"/.test(dom), '關卡名與 NPC 收在同一個 headline 欄裡');
+  // aria 不能被改壞
+  ok(
+    (dom.match(/class="panel__title" id="\$\{esc\(id\)\}-title"/g) || []).length === 2,
+    '兩種標頭的標題都保留 id（aria-labelledby 指得到）'
+  );
+  ok(
+    (dom.match(/data-eyebrow/g) || []).length >= 2,
+    '兩種標頭都留著 data-eyebrow（setEyebrow 仍然改得動）'
+  );
+  ok(
+    (dom.match(/aria-label="關閉面板（Esc）"/g) || []).length === 1,
+    'Esc 關閉鍵只寫一次（兩種標頭共用同一段）'
+  );
+  ok(/headBar: true/.test(consoleSrc), '關卡主控台用一條式標頭');
+  ok(/headBar: true/.test(practiceSrc), '序章練習台跟著同一套（兩邊一致）');
+
+  const barCss = (cssSrc.match(/\n\.panel__head--bar \{[\s\S]*?\n\}/) || [''])[0];
+  ok(/align-items: baseline/.test(barCss), '一條式標頭是基線對齊');
+  ok(/flex-wrap: wrap/.test(barCss), '窄畫面靠 wrap 讓小牌掉下去');
+  ok(
+    /\.panel__head--bar \.panel__title \{[\s\S]*?text-overflow: ellipsis/.test(cssSrc),
+    '關卡名太長會截斷，不會把整條撐開'
+  );
+  ok(
+    /\.panel__head--bar \.panel__eyebrow \{[\s\S]*?margin: 0 0 0 auto/.test(cssSrc),
+    '進度小牌靠右'
+  );
+  ok(
+    /@media \(max-width: 720px\)[\s\S]*?\.panel__head--bar \{[\s\S]*?flex-direction: row/.test(cssSrc),
+    '≤720px 仍然是一條（不整個堆起來）'
+  );
+  ok(
+    /@media \(max-width: 430px\)[\s\S]*?\.panel__head--bar \.panel__headline \{[\s\S]*?flex-wrap: wrap/.test(
+      cssSrc
+    ),
+    '390px 讓 NPC 掉到關卡名底下（關卡名不截斷）'
+  );
+  // 進度數字仍然是算出來的，不是寫死的
+  ok(
+    /siblings\.length/.test(consoleSrc) && /content\.challengesOf\(challenge\.region\)/.test(consoleSrc),
+    '「第 N 關 / 共 M 關」由該區真正的關卡數算出來（沒有寫死）'
+  );
+}
+
 /* ------------------------------------------------------------------ */
 console.log('');
 if (failures.length) {
