@@ -1004,23 +1004,29 @@ async function main() {
   const pAct2 = await evaluate(`
     const g = window.__promptasy;
     const glyphs = document.querySelectorAll('#practice .glyphs .glyph');
-    const src = document.querySelector('#practice .glyphs a.src');
+    // 出處＝刻文底下那一枚典籍（自己帶著「神諭原典：<文件名>」的小卡）
+    const src = document.querySelector('#practice .glyphs a.bookicon');
     const lead = document.querySelector('#practice .act--guide .act__lead');
-    const tip = lead.querySelector('.infotip');
-    const bubble = lead.querySelector('.infotip__bubble');
+    const tip = src ? src.closest('.infotip') : null;
+    const bubble = tip ? tip.querySelector('.infotip__bubble') : null;
     return {
       act: g.practice.act,
       glyphs: glyphs.length,
       title: document.querySelector('#practice .glyph__title')?.textContent || '',
-      srcText: src ? src.textContent : '',
+      srcText: src ? src.getAttribute('aria-label') : '',
       srcHref: src ? src.href : '',
-      srcVisible: src ? getComputedStyle(src).visibility : 'none',
+      srcTarget: src ? src.getAttribute('target') : '',
+      srcVisible: (() => {
+        if (!src) return 'none';
+        const r = src.getBoundingClientRect();
+        return getComputedStyle(src).visibility === 'visible' && r.width > 0 && r.height > 0 ? 'visible' : 'hidden';
+      })(),
       leadText: lead.textContent.trim(),
       leadOwn: Array.from(lead.childNodes).filter((n) => n.nodeType === 3).map((n) => n.textContent).join('').trim(),
       hasTip: !!tip,
       bubbleText: bubble ? bubble.textContent : '',
       bubbleHidden: bubble ? getComputedStyle(bubble).visibility : 'none',
-      describedBy: tip?.querySelector('.infotip__btn')?.getAttribute('aria-describedby'),
+      describedBy: src ? src.getAttribute('aria-describedby') : '',
       bubbleId: bubble ? bubble.id : '',
       bubbleRole: bubble ? bubble.getAttribute('role') : '',
       origins: document.querySelectorAll('#practice .teach .origin').length,
@@ -1031,9 +1037,10 @@ async function main() {
   eq(pAct2.act, 2, '第二幕是神諭刻文');
   eq(pAct2.glyphs, 1, '一課只講一個概念（刻文只有一條）');
   ok(pAct2.title.length > 0, '刻文有標題', pAct2.title);
-  ok(/神諭原典/.test(pAct2.srcText), '刻文掛著神諭原典', pAct2.srcText);
+  ok(/^神諭原典：/.test(pAct2.srcText), '刻文掛著神諭原典（螢幕閱讀器聽得到那份文件叫什麼）', pAct2.srcText);
   ok(/^https:\/\//.test(pAct2.srcHref), '神諭原典是真的官方連結', pAct2.srcHref);
-  eq(pAct2.srcVisible, 'visible', '出處連結永遠看得見（不收進 ⓘ）');
+  eq(pAct2.srcTarget, '_blank', '點下去開新分頁，不會把玩家踢出遊戲');
+  eq(pAct2.srcVisible, 'visible', '出處連結永遠看得見、量得到（不收進任何摺頁）');
   ok(pAct2.origins >= 1, '官方原文收在可展開的「原文 ↗」裡', `n=${pAct2.origins}`);
   eq(pAct2.originsClosed, true, '「原文 ↗」預設收起來（不干擾閱讀）');
   ok(
@@ -1041,16 +1048,18 @@ async function main() {
     '每一份原文都附得出官方出處連結'
   );
 
-  /* --- Phase 13 · ⓘ 資訊提示：預設看不見，hover / focus 才出現 --- */
-  eq(pAct2.hasTip, true, '「神諭原典是什麼」收進了一顆 ⓘ');
-  ok(pAct2.bubbleText.includes('官方文件'), 'ⓘ 裡確實留著那句解釋（內容沒有被刪掉）', pAct2.bubbleText);
-  eq(pAct2.bubbleHidden, 'hidden', 'ⓘ 的說明預設看不見（不再一直佔著版面）');
+  /* --- 那本典籍自己的小卡：預設看不見，hover / focus 才出現 --- */
+  eq(pAct2.hasTip, true, '那本典籍帶著一張小卡（不是一段常駐的旁白）');
+  ok(/^神諭原典：/.test(pAct2.bubbleText.trim()), '小卡上寫著「神諭原典：<文件名>」', pAct2.bubbleText);
+  ok(pAct2.bubbleText.length > 8, '小卡後面接得出真正的文件名（不是只有標籤）', pAct2.bubbleText);
+  eq(pAct2.bubbleHidden, 'hidden', '小卡預設看不見（不佔版面）');
   ok(!pAct2.leadOwn.includes('官方文件'), '導言只剩下短短一句（解釋不再內嵌在句子裡）', pAct2.leadOwn);
-  eq(pAct2.describedBy, pAct2.bubbleId, 'ⓘ 用 aria-describedby 指到說明（螢幕閱讀器讀得到）');
+  eq(pAct2.describedBy, pAct2.bubbleId, '那本典籍用 aria-describedby 指到小卡（螢幕閱讀器讀得到）');
   eq(pAct2.bubbleRole, 'tooltip', '說明的角色是 tooltip');
 
   const tipHover = await evaluate(`
-    const btn = document.querySelector('#practice .act--guide .infotip__btn');
+    // 那顆 ⓘ 已經換成典籍本身（.infotip--book）—— 開闔的規則一模一樣
+    const btn = document.querySelector('#practice .act--guide a.bookicon');
     const bubble = document.querySelector('#practice .act--guide .infotip__bubble');
     const box = btn.getBoundingClientRect();
     /*
@@ -1074,16 +1083,18 @@ async function main() {
     btn.focus();
     await new Promise((r) => setTimeout(r, 260));
     const onFocus = getComputedStyle(bubble).visibility;
-    const expanded = btn.getAttribute('aria-expanded');
+    const describes = btn.getAttribute('aria-describedby') === bubble.id;
     btn.blur();
     await new Promise((r) => setTimeout(r, 260));
-    return { onStillPointer, onHover, afterOut, onFocus, expanded, afterBlur: getComputedStyle(bubble).visibility };
+    return { onStillPointer, onHover, afterOut, onFocus, describes, afterBlur: getComputedStyle(bubble).visibility };
   `);
-  eq(tipHover.onStillPointer, 'hidden', '游標沒動、只是內容換到它底下 → ⓘ 不自己彈出來');
-  eq(tipHover.onHover, 'visible', '滑鼠移上去 ⓘ 就看得到說明');
+  eq(tipHover.onStillPointer, 'hidden', '游標沒動、只是內容換到它底下 → 小卡不自己彈出來');
+  eq(tipHover.onHover, 'visible', '滑鼠移上去就看得到那份文件叫什麼');
   eq(tipHover.afterOut, 'hidden', '移開就收回去');
   eq(tipHover.onFocus, 'visible', '鍵盤 focus 也看得到（不是只有滑鼠使用者）');
-  eq(tipHover.expanded, 'true', 'focus 時 aria-expanded 跟著更新');
+  // 典籍本身是一條連結（按下去就開官方文件）→ 它不是可展開的按鈕，
+  // 所以無障礙的關係走 aria-describedby，而不是 aria-expanded。
+  eq(tipHover.describes, true, 'focus 時螢幕閱讀器讀得到那張小卡');
   eq(tipHover.afterBlur, 'hidden', '離開 focus 就收回去');
 
   // --- 第三幕 · 刻印：選錯不失敗、選對就亮一盞燈（與正式關卡同一支石碑） ---
@@ -1253,7 +1264,7 @@ async function main() {
       document.querySelector('#practice [data-act-next="2"]').click();
       await sleep(220);
       const glyphs = document.querySelectorAll('#practice .glyphs .glyph').length;
-      const srcs = document.querySelectorAll('#practice .glyphs a.src').length;
+      const srcs = document.querySelectorAll('#practice .glyphs a.bookicon').length;
       document.querySelector('#practice [data-act-next="3"]').click();
       await sleep(220);
       // 先故意選錯一次 —— 石碑不收，但不會失敗
@@ -1920,7 +1931,12 @@ async function main() {
       briefVisible: vis('#prompt-console .act--brief'),
       guideVisible: vis('#prompt-console .act--guide'),
       carveVisible: vis('#prompt-console .act--carve'),
-      head: document.querySelector('#prompt-console .act--guide .act__head').textContent.trim(),
+      // 幕名的標題底下現在還接著導言與那本典籍（同一行）→ 只取標題自己的文字
+      head: Array.from(document.querySelector('#prompt-console .act--guide .act__head').childNodes)
+        .filter((n) => n.nodeType === 3)
+        .map((n) => n.textContent)
+        .join('')
+        .trim(),
       lead: document.querySelector('#prompt-console .act--guide .act__lead').textContent.trim(),
       leadOwn: Array.from(document.querySelector('#prompt-console .act--guide .act__lead').childNodes)
         .filter((n) => n.nodeType === 3)
@@ -1932,9 +1948,19 @@ async function main() {
         const b = document.querySelector('#prompt-console .act--guide .infotip__bubble');
         return b ? getComputedStyle(b).visibility : 'none';
       })(),
+      // 那本典籍就掛在導言那一行（它自己帶著小卡：「神諭原典：<文件名>」）
       tipDescribes:
-        document.querySelector('#prompt-console .act--guide .infotip__btn')?.getAttribute('aria-describedby') ===
+        document.querySelector('#prompt-console .act--guide [data-guide-lead] a.bookicon')?.getAttribute('aria-describedby') ===
         document.querySelector('#prompt-console .act--guide .infotip__bubble')?.id,
+      bookHref: document.querySelector('#prompt-console .act--guide [data-guide-lead] a.bookicon')?.getAttribute('href') || '',
+      bookTarget: document.querySelector('#prompt-console .act--guide [data-guide-lead] a.bookicon')?.getAttribute('target') || '',
+      bookAria: document.querySelector('#prompt-console .act--guide [data-guide-lead] a.bookicon')?.getAttribute('aria-label') || '',
+      bookVisible: (() => {
+        const a = document.querySelector('#prompt-console .act--guide [data-guide-lead] a.bookicon');
+        if (!a) return 'none';
+        const r = a.getBoundingClientRect();
+        return getComputedStyle(a).visibility === 'visible' && r.width > 0 && r.height > 0 ? 'visible' : 'hidden';
+      })(),
       craft: document.querySelector('#prompt-console [data-craft]').textContent.trim(),
       dataCraft: g.content.challenge('gate-of-clarity-01').craft,
       rubric: g.content.challenge('gate-of-clarity-01').rubric.length,
@@ -1946,18 +1972,12 @@ async function main() {
       primaryVendor: g.content.sourceForSkill(g.content.challenge('gate-of-clarity-01').primarySkillId).vendor,
       primaryCount: document.querySelectorAll('#prompt-console .glyph--primary').length,
       glyphTech: glyphs.map((n) => n.querySelector('.glyph__title i')?.textContent.trim() || ''),
-      // 其餘的檢查只用一行「順手會用到」帶過（沒有自己的刻文、沒有自己的原典）
-      extrasHidden: document.querySelector('#prompt-console [data-guidance-extra]').hidden,
-      extrasLabel: document.querySelector('#prompt-console .extras__label')?.textContent.trim() || '',
-      extrasItems: document.querySelectorAll('#prompt-console .extras__item').length,
-      extrasText: document.querySelector('#prompt-console [data-guidance-extra]').textContent.trim(),
-      extrasSources: document.querySelectorAll('#prompt-console [data-guidance-extra] a').length,
+      // 2026-08-03 站長裁決：「順手會用到」那一行整組移除（130 關全長一樣、零資訊量）
+      extrasNodes: document.querySelectorAll('#prompt-console [data-guidance-extra], #prompt-console .extras, #prompt-console .extras__item').length,
+      guideText: document.querySelector('#prompt-console .act--guide').textContent,
       glyphs: glyphs.length,
       titles: glyphs.map((n) => n.querySelector('.glyph__title')?.textContent.trim() || ''),
       whats: glyphs.map((n) => (n.querySelector('.glyph__what')?.textContent || '').length),
-      srcLabels: glyphs.map((n) => n.querySelector('a.src')?.textContent.trim() || ''),
-      srcHrefs: glyphs.map((n) => n.querySelector('a.src')?.getAttribute('href') || ''),
-      srcTargets: glyphs.map((n) => n.querySelector('a.src')?.getAttribute('target') || ''),
       backLabel: document.querySelector('#prompt-console .act--guide [data-act-go="1"]').textContent.trim(),
       nextLabel: document.querySelector('#prompt-console [data-act-next="3"]').textContent.trim(),
       navNow: nav.filter((b) => b.classList.contains('is-now')).map((b) => b.textContent.trim()),
@@ -1976,9 +1996,15 @@ async function main() {
   /* Phase 13：那句「＝各家官方文件」的旁白收進 ⓘ —— 內容還在，但不再一直佔著版面 */
   ok(!/官方文件/.test(act2.leadOwn), '導言本身只剩一句短的（解釋不再內嵌）', act2.leadOwn);
   ok(act2.leadOwn.length <= 24, '導言夠短', `${act2.leadOwn.length} 字：${act2.leadOwn}`);
-  ok(/官方文件/.test(act2.tipBubble), 'ⓘ 裡確實留著「神諭原典＝官方文件」的解釋', act2.tipBubble);
-  eq(act2.tipVisibility, 'hidden', 'ⓘ 的說明預設看不見');
-  eq(act2.tipDescribes, true, 'ⓘ 用 aria-describedby 指到說明');
+  /*
+   * 2026-08-03 站長定稿：那顆 ⓘ 換成**那本典籍本身**，就接在導言後面。
+   * 小卡上寫的不再是「＝各家官方文件」這種旁白，而是**這一段到底出自哪一份文件**
+   * —— 換皮但不說謊：後面接得出真實文件名，而且它一按就開官方文件（護欄 2）。
+   */
+  ok(/^神諭原典：/.test(act2.tipBubble.trim()), '那本典籍的小卡寫著「神諭原典：…」', act2.tipBubble);
+  ok(act2.tipBubble.includes(`${act2.primaryVendor} · `), '小卡後面接得出真正的文件名', act2.tipBubble);
+  eq(act2.tipVisibility, 'hidden', '小卡預設看不見（不佔版面）');
+  eq(act2.tipDescribes, true, '那本典籍用 aria-describedby 指到小卡');
   eq(act2.craft, act2.dataCraft, '第二幕接住從任務搬出來的「工法」');
   ok(act2.craft.length > 10, '工法講得出「這次要怎麼答」', act2.craft);
   /* Phase A · C1：第二幕只放大「這一關教的那一條」，不再一次攤開四段教學 */
@@ -1989,32 +2015,24 @@ async function main() {
   eq(act2.primarySkillId, 'clear-specific', '教學的正典是 v2 技能（D2 相容層已拆除）');
   eq(act2.glyphTech[0], act2.primaryTitle, '刻文掛的是這一關教的那條 v2 技能的名字', act2.glyphTech.join('｜'));
   ok(act2.whats.every((n) => n >= 20), '那一段刻文有白話說明', act2.whats.join(','));
-  eq(act2.extrasHidden, false, '其餘的檢查還是看得到（不是偷偷藏起來）');
-  eq(act2.extrasLabel, '順手會用到', '它們被降到「順手會用到」的一行', act2.extrasLabel);
-  eq(act2.extrasItems, act2.rubric - 1, '那一行剛好列出其餘每一條的名字', String(act2.extrasItems));
-  eq(act2.extrasSources, 0, '「順手會用到」不掛原典（它們不是這一關教的）');
-  ok(!/神諭原典/.test(act2.extrasText), '也不會冒充成官方教學', act2.extrasText);
+  // 「順手會用到」那一行整組移除 → 守住「不得回歸」（地基分由第三幕的刻痕對照承擔）
+  eq(act2.extrasNodes, 0, '第二幕不再有「順手會用到」那一行（連節點都沒有）');
+  ok(!/順手會用到/.test(act2.guideText), '第二幕的字裡也找不到「順手會用到」', act2.guideText.slice(0, 120));
+  /* 出處：那本典籍就在導言那一行，永遠看得見、一按就開官方文件（護欄 2） */
+  eq(act2.bookVisible, 'visible', '那本典籍一直看得見（量得到、沒有被收進任何摺頁）');
+  ok(/^https:\/\//.test(act2.bookHref), '那本典籍是可點的官方連結', act2.bookHref);
+  eq(act2.bookTarget, '_blank', '出處連結開新視窗，不會把玩家踢出遊戲');
   ok(
-    act2.srcLabels.every((t) => /^神諭原典：.+↗$/.test(t)),
-    '出處的標籤換成世界觀說法，但後面接得出真正的文件名',
-    act2.srcLabels.join(' ｜ ')
+    /^神諭原典：/.test(act2.bookAria) && act2.bookAria.includes(`：${act2.primaryVendor} · `),
+    '螢幕閱讀器聽得到「神諭原典：<哪一家> · <文件名>」',
+    act2.bookAria
   );
-  ok(
-    act2.srcLabels.every((t) => t.includes(`：${act2.primaryVendor} · `)),
-    '刻文不冒充官方引文：標籤上就寫出是哪一家的文件',
-    `${act2.primaryVendor}｜${act2.srcLabels.join(' ｜ ')}`
-  );
-  ok(
-    act2.srcHrefs.length > 0 && act2.srcHrefs.every((u) => /^https:\/\//.test(u)),
-    '每一段刻文的出處都是可點的官方連結（護欄 2）',
-    act2.srcHrefs.join(' ')
-  );
-  ok(act2.srcTargets.every((t) => t === '_blank'), '出處連結開新視窗，不會把玩家踢出遊戲');
+  ok(act2.bookAria.includes('開新分頁'), '也聽得到「會開新分頁」', act2.bookAria);
 
   /* --- 出處深連結：神諭原典要直接落在被引用的那一節，不是頁面最上面 --- */
   const deepAct2 = await evaluate(`
     const g = window.__promptasy;
-    const a = document.querySelector('#prompt-console .glyph a.src');
+    const a = document.querySelector('#prompt-console .act--guide [data-guide-lead] a.bookicon');
     const skillId = g.content.challenge('gate-of-clarity-01').primarySkillId;
     const data = g.content.sourceForSkill(skillId);
     const rows = g.content.catalog.sourcesForSkill(skillId);
@@ -2124,7 +2142,7 @@ async function main() {
       guideTab: document.querySelector('#prompt-console [data-guidetab] summary')?.textContent.trim() || '',
       guideTabOpen: document.querySelector('#prompt-console [data-guidetab]').open,
       guideTabRows: document.querySelectorAll('#prompt-console .guidetab__list li').length,
-      guideTabSources: document.querySelectorAll('#prompt-console .guidetab__list a.src').length,
+      guideTabSources: document.querySelectorAll('#prompt-console .guidetab__list a.bookicon').length,
       guideTabQuiet: document.querySelectorAll('#prompt-console .guidetab__list li.is-quiet').length,
       // Phase A：刻痕對照分兩種位階 —— 主教學目標 vs 地基／還沒搬家的舊項目
       primaryRows: document.querySelectorAll('#prompt-console .checklist li.is-primary').length,
@@ -2999,7 +3017,10 @@ async function main() {
       palmSpotlight: document.querySelector('#prompt-console .console').classList.contains('is-palm'),
       palmLead: document.querySelector('#prompt-console [data-palm-lead]').textContent.trim(),
       navNow: Array.from(document.querySelectorAll('#prompt-console .acts__item.is-now')).map((b) => b.textContent.trim()),
-      kicker: document.querySelector('#prompt-console [data-carve-kicker]').textContent.trim(),
+      // 幕的編號不再印在畫面上（「ACT IV」與「第四幕」是同一件事講兩次）——
+      // 它留給讀螢幕的人：指示器那一顆的 aria-label / title 仍然完整。
+      navNowAria: Array.from(document.querySelectorAll('#prompt-console .acts__item.is-now')).map((b) => b.getAttribute('aria-label')),
+      kickerNodes: document.querySelectorAll('#prompt-console [data-carve-kicker], #prompt-console .act__kicker').length,
     };
   `);
   for (const [i, s] of carveAll.steps.entries()) {
@@ -3031,7 +3052,8 @@ async function main() {
     carveAll.palmLead
   );
   ok(/手印/.test(carveAll.navNow[0] || ''), '指示器移到④手印', String(carveAll.navNow[0]));
-  ok(/第四幕/.test(carveAll.kicker), '幕標也跟著改口', carveAll.kicker);
+  eq(carveAll.kickerNodes, 0, '畫面上不再印幕的編號（重複的小標已移除）');
+  ok(/第四幕/.test(carveAll.navNowAria[0] || ''), '編號留給螢幕閱讀器（指示器的 aria-label）', String(carveAll.navNowAria[0]));
   eq(carveAll.resultHidden, true, '還沒按手掌就不會有結果');
   eq(carveAll.xp, wrongPick.xp, '刻完但還沒按手掌，一分都還沒給');
 
@@ -4415,13 +4437,14 @@ async function main() {
   );
   /*
    * 語料是保守超集，每一期新內容都會把它撐大：
-   * Phase 22 的 1583 字 → 課程 v2 Phase D 的 1750 字（脈絡與長文／角色與參數兩區的文案）。
-   * 上限再往上調一格，但仍遠低於完整字型（16 MB + 11 MB）。
+   * Phase 22 的 1583 字 → 課程 v2 Phase D 的 1750 字 → 142 關品檢之後的 1859 字。
+   * 上限跟著往上調一格（1.15 → 1.2 MiB，與 test-rubric 的總量上限用同一把 KiB 尺），
+   * 但仍遠低於完整字型（16 MB + 11 MB）—— 這條守的是「還是子集」，不是「不准長」。
    */
   ok(
-    fonts.serifBytes + fonts.sansBytes < 1_180_000,
-    '兩套中文字型合計在 1.15 MB 以內',
-    `${((fonts.serifBytes + fonts.sansBytes) / 1024).toFixed(0)} KB`
+    fonts.serifBytes + fonts.sansBytes < 1.2 * 1024 * 1024,
+    '兩套中文字型合計在 1.2 MiB 以內',
+    `${((fonts.serifBytes + fonts.sansBytes) / 1024).toFixed(0)} KiB`
   );
   eq(fonts.externalFontReqs, 0, '沒有任何外部字型 CDN 請求（護欄 3：可離線）');
   ok(
@@ -4965,6 +4988,7 @@ async function main() {
         borderWidth: cs.borderTopWidth,
         borderStyle: cs.borderTopStyle,
         height: Math.round(el.getBoundingClientRect().height),
+        width: Math.round(el.getBoundingClientRect().width),
         edgeClip: before.clipPath.slice(0, 8),
         faceClip: after.clipPath.slice(0, 8),
         edgeIsGradient: /gradient/.test(before.backgroundImage),
@@ -4987,18 +5011,31 @@ async function main() {
     eq(s.noExternalImage, true, `${name}：沒有任何外部圖檔`);
   }
   ok(seals.hero.height >= 44, '主要行動的命中高度 ≥ 44px（WCAG 2.5.5）', `${seals.hero.height}px`);
-  ok(seals.ghost.height >= 40, '幕指示器的命中高度 ≥ 40px', `${seals.ghost.height}px`);
+  /*
+   * 2026-08-03 站長定稿：幕指示器壓扁成一條細帶（原本 40px 高）。
+   * 這裡守的底線改成 WCAG 2.2 的 **2.5.8 AA（24×24 CSS px）**，
+   * 並且要求它橫向仍然很寬 —— 那是它真正好按的那一軸。
+   */
+  ok(seals.ghost.height >= 24, '幕指示器的命中高度 ≥ 24px（WCAG 2.5.8 AA）', `${seals.ghost.height}px`);
+  ok(seals.ghost.width >= 44, '幕指示器橫向仍然很寬（好按的那一軸）', `${seals.ghost.width}px`);
 
-  // 面板裡看得到的按鈕，命中範圍一律 ≥ 34px（次要碎件），.btn 一律 ≥ 40px
+  // 面板裡看得到的按鈕，命中範圍一律 ≥ 24px（WCAG 2.5.8 AA 的地板），.btn 一律 ≥ 40px
   const targets = await evaluate(`
     const els = [...document.querySelectorAll('#prompt-console button')].filter((b) => b.checkVisibility());
     const small = els
+      .map((b) => ({ cls: b.className, h: Math.round(b.getBoundingClientRect().height), w: Math.round(b.getBoundingClientRect().width) }))
+      .filter((x) => x.h < 24 || x.w < 24);
+    // 除了那條細帶（幕指示器）之外，其餘的按鈕仍然要 ≥ 34px
+    const smallish = els
+      .filter((b) => !b.classList.contains('acts__item'))
       .map((b) => ({ cls: b.className, h: Math.round(b.getBoundingClientRect().height) }))
       .filter((x) => x.h < 34);
     const btns = els.filter((b) => b.classList.contains('btn'));
-    return { n: els.length, small, minBtn: Math.min(...btns.map((b) => b.getBoundingClientRect().height)) };
+    return { n: els.length, small, smallish, minBtn: Math.min(...btns.map((b) => b.getBoundingClientRect().height)) };
   `);
-  eq(targets.small.length, 0, '面板裡沒有任何過小的命中範圍', JSON.stringify(targets.small));
+  ok(targets.n > 5, '量得到面板裡的按鈕（不是空過）', String(targets.n));
+  eq(targets.small.length, 0, '面板裡沒有任何小於 WCAG 地板的命中範圍', JSON.stringify(targets.small));
+  eq(targets.smallish.length, 0, '除了幕指示器那條細帶，其餘按鈕仍然 ≥ 34px', JSON.stringify(targets.smallish));
   ok(targets.minBtn >= 39.5, '所有 .btn 的高度 ≥ 40px', `min=${targets.minBtn.toFixed(1)}px`);
 
   // ── 四幕指示器：四塊封印石 ＋ 一條會注金的軌道 ──────────────────
@@ -5804,6 +5841,8 @@ async function main() {
       download: dl?.getAttribute('download') || '',
       caption: document.querySelector('#sharecard [data-caption]')?.value.trim() || '',
       model: g.shareCard.model(),
+      // 引擎現算的「已知技法數」—— 卡上那個數字該跟它一致
+      knownSkills: (g.content.catalog.skills || []).filter((s) => g.progression.knowsSkill(s.id)).length,
       focusInPanel: document.querySelector('#sharecard .panel').contains(document.activeElement),
       zShare: Number(getComputedStyle(document.getElementById('sharecard')).zIndex),
       zPlain: Number(getComputedStyle(document.getElementById('codex')).zIndex),
@@ -5827,11 +5866,19 @@ async function main() {
   ok(/\.png$/.test(card.download), '下載檔名是 .png', card.download);
   ok(card.download.includes('lv6'), '檔名帶著等級', card.download);
   ok(card.caption.includes('釋義者'), '那段話預設就寫好了（帶著稱號）', card.caption);
-  ok(!/https?:\/\//.test(card.caption), '那段話裡沒有任何連結', card.caption);
+  // 2026-08 站長決定：那段話的最後一行是站網址（落款）
+  ok(card.caption.trim().endsWith('https://garyhsieh.com/promptasy'), '那段話最後是站網址', card.caption);
+  eq((card.caption.match(/https?:\/\//g) || []).length, 1, '那段話裡只有一個網址');
   eq(card.model.rankTitle, '釋義者', '卡片資料的稱號正確');
   eq(card.model.level, 6, '卡片資料的等級正確');
-  eq(card.model.collected, 46, '卡片資料的收集數正確');
-  eq(card.model.total, TECHNIQUE_TOTAL, '卡片資料的技巧總數正確');
+  /*
+   * 課程 v2（Phase J3）之後卡上的「已收集」是**130 條 v2 技法**，
+   * 判定走 `knowsSkill()`（技能本身收了，或它的祖先技巧已在舊 collected 裡）——
+   * 種進去的那 46 條舊技巧因此換算成一個較小的技能數，這裡拿引擎現算的值比對。
+   */
+  eq(card.model.collected, card.knownSkills, '卡片資料的收集數＝引擎現算的已知技法數');
+  ok(card.knownSkills > 0 && card.knownSkills < card.model.total, '那份存檔確實只收了一部分', `${card.knownSkills} / ${card.model.total}`);
+  eq(card.model.total, CATALOG.counts.skills, `卡片資料的技法總數正確（${CATALOG.counts.skills} 條）`);
   eq(card.model.kind, 'codex', '這是「收集冊」變體');
   eq(card.model.regions.filter((r) => r.mastered).length, 2, '卡片標出兩片已精通的土地');
   eq(card.model.techniques.length, 3, '卡片列出三條最近收集的技法');
@@ -5913,13 +5960,23 @@ async function main() {
   ok(resultCard.techIds.length > 0, '卡片標亮這一關剛學到的技法', resultCard.techIds.join('、'));
   ok(resultCard.kindLabel.includes('刻印紀錄'), '右上角寫著這是哪一種卡', resultCard.kindLabel);
 
+  /*
+   * 課程 v2（Phase J3）之後卡上標亮的是**這一關教的那條 v2 技能**
+   * （`skillIds: [primarySkillId]`），舊的 legacy `teaches` 只是它的退路。
+   */
   const teachesMatch = await evaluate(`
     const g = window.__promptasy;
     const ch = g.content.challenge('gate-of-clarity-01');
     const ids = g.shareCard.model().techniques.map((t) => t.id);
-    return ids.every((id) => ch.teaches.includes(id));
+    return {
+      ids,
+      primary: ch.primarySkillId,
+      allKnown: ids.every((id) => id === ch.primarySkillId || (ch.teaches || []).includes(id)),
+    };
   `);
-  eq(teachesMatch, true, '卡片上的技法就是這一關教的那幾條');
+  ok(teachesMatch.ids.length > 0, '卡上真的標亮了技法（不是空過）', teachesMatch.ids.join('、'));
+  eq(teachesMatch.ids[0], teachesMatch.primary, '卡上第一條就是這一關教的那條技能');
+  eq(teachesMatch.allKnown, true, '卡片上的技法全部來自這一關（主技能或它順手收的舊技巧）', teachesMatch.ids.join('、'));
 
   // 800px 窄畫面下不會水平溢位
   await cdp.send('Emulation.setDeviceMetricsOverride',
@@ -6019,24 +6076,30 @@ async function main() {
   const sendPlain = await evaluate(`
     const g = window.__promptasy;
     const ready = ${plainReady};
-    const sys = document.querySelector('#sharecard [data-sysshare]');
     const dl = document.querySelector('#sharecard [data-download]');
     const copy = document.querySelector('#sharecard [data-copy]');
     const say = document.querySelector('#sharecard [data-caption]');
     return {
       open: g.shareCard.isOpen,
       ready,
-      sysHidden: sys.hidden,
-      sysDrawn: sys.getClientRects().length > 0,
-      copyLabel: copy ? copy.textContent.trim() : '',
+      // 2026-08-03 站長定稿：系統分享鈕整顆移除，複製鈕成為固定主角
+      sysNodes: document.querySelectorAll('#sharecard [data-sysshare]').length,
+      copyTitle: copy ? copy.getAttribute('title') : '',
+      copyAria: copy ? copy.getAttribute('aria-label') : '',
       copyClass: copy ? copy.className : '',
+      copyIcons: copy ? copy.querySelectorAll('svg').length : 0,
+      copyRect: copy ? (() => { const r = copy.getBoundingClientRect(); return { w: r.width, h: r.height }; })() : null,
       dlClass: dl.className,
+      dlTag: dl.tagName,
       dlLabel: dl.textContent.trim(),
-      // 那一排（Phase 31）：三個平台 ＋ 一顆「複製文案」
+      dlAria: dl.getAttribute('aria-label') || '',
+      // 那一排：兩個平台（Instagram 已移除）
       chips: document.querySelectorAll('#sharecard [data-chip]').length,
       chipIds: [...document.querySelectorAll('#sharecard [data-chip]')].map((n) => n.getAttribute('data-chip')),
-      chipLabels: [...document.querySelectorAll('#sharecard [data-chip]')].map((n) => n.textContent.trim()),
-      sendLabel: document.querySelectorAll('#sharecard .sharecard__sendlabel').length,
+      chipTitles: [...document.querySelectorAll('#sharecard [data-chip]')].map((n) => n.getAttribute('title') || ''),
+      // 那一排收斂成純圖示（名字走 title / aria-label）
+      chipTexts: [...document.querySelectorAll('#sharecard [data-chip]')].map((n) => n.textContent.trim()),
+      chipIcons: [...document.querySelectorAll('#sharecard [data-chip]')].map((n) => n.querySelectorAll('svg').length),
       // 那一排是按鈕不是連結 —— 因為要先把圖備好才開新頁（順序不能交給瀏覽器）
       newTabs: document.querySelectorAll('#sharecard a[target="_blank"]').length,
       chipTags: [...new Set([...document.querySelectorAll('#sharecard [data-chip]')].map((n) => n.tagName))],
@@ -6044,10 +6107,10 @@ async function main() {
       sayValue: say ? say.value : '',
       sayLabel: document.querySelector('#sharecard .sharecard__saylabel')?.textContent.trim() || '',
       sayFont: say ? getComputedStyle(say).fontFamily : '',
-      sayDescribed: say ? say.getAttribute('aria-describedby') : '',
       labelFor: document.querySelector('#sharecard .sharecard__saylabel')?.getAttribute('for') || '',
-      hints: [...document.querySelectorAll('#sharecard .sharecard__hint')].map((n) => n.textContent.trim()),
-      kbd: [...document.querySelectorAll('#sharecard .sharecard__hint kbd')].map((n) => n.textContent.trim()),
+      // 收掉的那些字：小標、灰字說明、鍵帽
+      hintNodes: document.querySelectorAll('#sharecard .sharecard__hint, #sharecard .sharecard__sendlabel').length,
+      kbdNodes: document.querySelectorAll('#sharecard kbd').length,
       data: g.shareCard.shareData(),
       focusOnCopy: document.activeElement.getAttribute('data-copy') !== null,
       file: g.shareCard.file
@@ -6058,52 +6121,53 @@ async function main() {
     };
   `);
   eq(sendPlain.open, true, '分享卡打得開');
-  eq(sendPlain.sysHidden, true, '這個瀏覽器帶不動檔案 → 系統分享的入口收起來（不給死路）');
-  eq(sendPlain.sysDrawn, false, '收起來的入口真的沒畫出來（鍵盤也走不到）');
-  eq(sendPlain.chips, 4, '那一排有四顆：三個平台 ＋ 一顆「複製文案」（Phase 31）');
-  eq(sendPlain.chipIds.join(','), 'threads,facebook,instagram,caption', '那一排的順序：最順的那條路排前面');
-  ok(
-    sendPlain.chipLabels.join(' ').includes('Threads') &&
-      sendPlain.chipLabels.join(' ').includes('Facebook') &&
-      sendPlain.chipLabels.join(' ').includes('Instagram') &&
-      sendPlain.chipLabels.join(' ').includes('複製文案'),
-    '那一排每一顆都寫著自己是什麼',
-    sendPlain.chipLabels.join(' ｜ ')
+  eq(sendPlain.sysNodes, 0, '「分享圖＋文」的系統分享鈕已整顆移除（不得回歸）');
+  eq(sendPlain.chips, 2, '那一排剩兩顆：Threads / Facebook');
+  eq(sendPlain.chipIds.join(','), 'threads,facebook', '那一排的順序：最順的那條路排前面');
+  ok(!sendPlain.chipIds.includes('instagram'), 'Instagram 那顆沒有回來（網頁版沒有撰寫入口）');
+  ok(!sendPlain.chipIds.includes('caption'), '獨立的「複製文案」那顆也沒有回來（複製鈕已經是主角）');
+  eq(
+    sendPlain.chipTitles.join(','),
+    'Threads,Facebook',
+    '每一顆都戴著平台自己的名字（滑鼠停著看得到）'
   );
-  eq(sendPlain.sendLabel, 1, '那一排有自己的標題');
+  eq(sendPlain.chipTexts.join(''), '', '那一排是純圖示（牌面上不寫字）');
+  ok(sendPlain.chipIcons.every((n) => n === 1), '每一顆都畫著自己的行內 SVG 圖示', sendPlain.chipIcons.join(','));
+  eq(sendPlain.hintNodes, 0, '「分享 · SHARE」小標與那兩行灰字說明都收掉了');
+  eq(sendPlain.kbdNodes, 0, '分享卡上不再印鍵帽（那一排是圖示，說明走 aria-label）');
   eq(sendPlain.newTabs, 0, '那一排是按鈕不是連結（先備好圖，才輪到開新頁）');
   eq(sendPlain.chipTags.join(','), 'BUTTON', '那一排全部是按鈕');
-  ok(sendPlain.copyLabel.includes('複製圖＋文'), '沒有系統分享時，那顆鈕寫著「複製圖＋文」', sendPlain.copyLabel);
-  ok(sendPlain.copyClass.includes('btn--primary'), '沒有系統分享時，「複製圖＋文」就是主角', sendPlain.copyClass);
-  ok(sendPlain.dlClass.includes('btn--ghost'), '「下載圖片」退成安靜的那一階（一個畫面只有一個主角）', sendPlain.dlClass);
-  ok(sendPlain.dlLabel.includes('下載圖片'), '「下載圖片」還在（保底那條路）', sendPlain.dlLabel);
+  eq(sendPlain.copyTitle, '複製圖＋文', '主角那一顆的名字是「複製圖＋文」');
+  ok(sendPlain.copyAria.includes('圖') && sendPlain.copyAria.includes('話'), '主角那一顆有給螢幕閱讀器的說明', sendPlain.copyAria);
+  ok(sendPlain.copyClass.includes('iconbtn'), '主角那一顆也是同一族的圖示鈕', sendPlain.copyClass);
+  eq(sendPlain.copyIcons, 2, '複製鈕有兩張臉（複製 / 勾記），按成功那一下就地翻面');
+  ok(sendPlain.copyRect && sendPlain.copyRect.w >= 40 && sendPlain.copyRect.h >= 40, '主角那一顆的命中範圍夠大', JSON.stringify(sendPlain.copyRect));
+  eq(sendPlain.dlTag, 'A', '「下載」是一條 <a download>（保底那條路）');
+  ok(sendPlain.dlClass.includes('sharecard__dl'), '「下載」有自己安靜的樣式', sendPlain.dlClass);
+  ok(sendPlain.dlLabel.includes('下載'), '「下載」還在（保底那條路）', sendPlain.dlLabel);
+  ok(sendPlain.dlAria.includes('存到裝置'), '「下載」有給螢幕閱讀器的說明', sendPlain.dlAria);
   eq(sendPlain.focusOnCopy, true, '開卡時焦點就落在主角上');
   eq(sendPlain.remoteNodes, 0, '分享卡仍然沒有任何外部資源節點（零 SDK）');
 
-  /* --- 那段話：一個真的能改的框，預設就寫好了，而且不帶連結 --- */
+  /* --- 那段話：一個真的能改的框，預設就寫好了，最後一行是站網址 --- */
   eq(sendPlain.sayTag, 'TEXTAREA', '那段話是一個可以改的框');
   ok(sendPlain.sayValue.includes('釋義者'), '那段話預設帶著稱號', sendPlain.sayValue);
-  ok(sendPlain.sayValue.includes('46 / 68'), '那段話預設帶著收集進度', sendPlain.sayValue);
+  ok(/\d+ \/ \d+ 條技法/.test(sendPlain.sayValue), '那段話預設帶著收集進度（現算的技法數）', sendPlain.sayValue);
   ok(sendPlain.sayValue.includes('Learn Prompt Engineering by Playing'), '那段話落款是品牌那一句');
-  ok(!/https?:\/\//.test(sendPlain.sayValue), '那段話裡沒有任何連結', sendPlain.sayValue);
+  // 2026-08 站長決定：落款後面接站網址 —— 看到卡片的人才走得過來
+  ok(
+    sendPlain.sayValue.trim().endsWith('https://garyhsieh.com/promptasy'),
+    '那段話的最後是站網址（自己一行的落款）',
+    sendPlain.sayValue
+  );
+  eq((sendPlain.sayValue.match(/https?:\/\//g) || []).length, 1, '那段話裡只有一個網址（落款，不是替代品）');
   ok(!/github/i.test(sendPlain.sayValue), '那段話裡沒有程式碼倉庫的字眼', sendPlain.sayValue);
-  ok(!/https?:\/\//.test(sendPlain.wholeText), '整張分享卡上都看不到網址', sendPlain.wholeText.slice(0, 120));
   ok(!/github/i.test(sendPlain.wholeText), '整張分享卡上都看不到程式碼倉庫的字眼');
   ok(sendPlain.sayLabel.includes('一段話'), '框上面寫著這是什麼', sendPlain.sayLabel);
   eq(sendPlain.labelFor, 'sharecard-say', '標籤綁得到那個框（螢幕閱讀器唸得出來）');
-  eq(sendPlain.sayDescribed, 'sharecard-sayhint', '框旁邊那句說明也綁得回框本身');
   ok(!/Arcade Sans|Arcade Serif/.test(sendPlain.sayFont), '玩家自己打的字走系統字型（子集缺字也不會破圖）', sendPlain.sayFont);
   ok(sendPlain.data.text === sendPlain.sayValue.trim(), '要送出去的那段話就是框裡的字');
-  eq(Object.keys(sendPlain.data).join(','), 'text,preset', '要送出去的東西只有那段話（沒有網址）');
-
-  /* --- 畫面上的說明：貼上之後會發生什麼 --- */
-  const plainHints = sendPlain.hints.join(' ');
-  ok(plainHints.includes('Facebook') && plainHints.includes('Instagram') && plainHints.includes('Threads'),
-    '說明點得出常見的那幾個地方', plainHints);
-  ok(plainHints.includes('貼上'), '說明講得出「直接貼上」這個動作', plainHints);
-  ok(plainHints.includes('圖和文字'), '說明講得出圖和文字會一起送出', plainHints);
-  ok(!plainHints.includes('連結'), '說明不再提「連結」（分享的是圖）', plainHints);
-  ok(sendPlain.kbd.includes('Tab') && sendPlain.kbd.includes('Enter'), '畫面上戴著 Tab / Enter 的鍵帽', sendPlain.kbd.join(' '));
+  eq(Object.keys(sendPlain.data).join(','), 'text,preset', '要送出去的東西就是那段話');
   eq(sendPlain.ready, true, '開卡之後 PNG 會自己備好（不用等玩家按下去才畫）');
   ok(!!sendPlain.file, '開卡的時候 PNG 就備好了（按下去才不會斷手勢）');
   eq(sendPlain.file.type, 'image/png', '備好的是 PNG');
@@ -6134,7 +6198,11 @@ async function main() {
   ok(copyClick.clip[0].types.includes('text/plain'), '剪貼簿裡也有那段話', JSON.stringify(copyClick.clip[0].types));
   ok(copyClick.clip[0].text.includes('（今晚刻完的）'), '剪貼簿裡那段話是玩家改過的版本', copyClick.clip[0].text);
   ok(copyClick.clip[0].text.includes('釋義者'), '剪貼簿裡那段話也帶著稱號');
-  ok(!/https?:\/\//.test(copyClick.clip[0].text), '剪貼簿裡那段話沒有連結', copyClick.clip[0].text);
+  ok(
+    copyClick.clip[0].text.includes('https://garyhsieh.com/promptasy'),
+    '剪貼簿裡那段話也帶著站網址（落款）',
+    copyClick.clip[0].text
+  );
   ok(copyClick.toast.some((t) => t.includes('貼上')), '提示告訴玩家貼上就行', copyClick.toast.join(' ｜ '));
 
   /* ================================================================ */
@@ -6203,7 +6271,7 @@ async function main() {
   const capNow = await evaluate(`return document.querySelector('#sharecard [data-caption]').value.trim();`);
   ok(capNow.includes('（今晚刻完的）'), '那段話還是玩家改過的版本', capNow);
 
-  /* --- ① Threads：文字用網址帶進去，剪貼簿只放圖 --- */
+  /* --- ① Threads：純文字分享（2026-08-03 站長指示）—— 文字進撰寫框，不動剪貼簿 --- */
   const th = await tapChip('threads');
   eq(th.opened.length, 1, 'Threads：真的開了一頁');
   ok(th.opened[0].url.startsWith('https://www.threads.com/intent/post?text='), 'Threads：開的是官方的撰寫入口', th.opened[0].url);
@@ -6212,49 +6280,43 @@ async function main() {
     'Threads：玩家改過的那段話真的被帶進網址（撰寫框會先填好）',
     th.opened[0].url
   );
-  ok(!/https?:\/\//.test(decodeURIComponent(th.opened[0].url.split('text=')[1])), 'Threads：帶過去的那段話裡沒有網址');
+  ok(
+    decodeURIComponent(th.opened[0].url.split('text=')[1]).includes('https://garyhsieh.com/promptasy'),
+    'Threads：帶過去的那段話也帶著站網址（落款）',
+    th.opened[0].url
+  );
   eq(th.opened[0].target, '_blank', 'Threads：開在新分頁');
   ok(String(th.opened[0].features).includes('noopener'), 'Threads：開出去的那一頁動不到這一頁', String(th.opened[0].features));
   eq(th.opened[0].gesture, true, 'Threads：開新頁時手勢還在（不會被當成彈出視窗擋掉）');
-  eq(th.clip.length, 1, 'Threads：只寫一次剪貼簿');
-  eq(th.clip[0].types.join(','), 'image/png', 'Threads：剪貼簿裡**只有圖**（那一下 Ctrl+V 不會變成貼出一段字）');
-  ok(th.toast.some((t) => t.includes('Ctrl+V')), 'Threads：提示直接寫出要按的那組鍵', th.toast.join(' ｜ '));
+  eq(th.clip.length, 0, 'Threads：純文字分享 —— 一個字都不寫剪貼簿（不會蓋掉玩家自己複製的東西）');
   ok(th.toast.some((t) => t.includes('文字')), 'Threads：提示說得出文字已經帶過去了', th.toast.join(' ｜ '));
-  eq(th.downloads.length, 0, 'Threads：走貼上，不用先下載');
-  eq(th.used, true, 'Threads：按過的石籤會變樣子');
+  eq(th.downloads.length, 0, 'Threads：不用先下載');
+  eq(th.used, true, 'Threads：按過的那一顆會變樣子');
 
-  /* --- ② Facebook：沒有帶得動內容的撰寫入口 → 開首頁，圖走剪貼簿 --- */
+  /* --- ② Facebook：sharer.php 會直接開貼文對話框；文字先進剪貼簿讓玩家 Ctrl+V --- */
   const fb = await tapChip('facebook');
   eq(fb.opened.length, 1, 'Facebook：真的開了一頁');
-  eq(fb.opened[0].url, 'https://www.facebook.com/', 'Facebook：開的是首頁（玩家自己登入著的那個帳號）');
-  ok(!fb.opened[0].url.includes('sharer'), 'Facebook：不走那個只送得出連結的舊入口', fb.opened[0].url);
+  eq(
+    fb.opened[0].url,
+    `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent('https://garyhsieh.com/promptasy')}`,
+    'Facebook：走 sharer.php 對話框（帶站網址與 og 預覽卡）'
+  );
   eq(fb.opened[0].gesture, true, 'Facebook：開新頁時手勢還在');
   eq(fb.clip.length, 1, 'Facebook：只寫一次剪貼簿');
-  eq(fb.clip[0].types.join(','), 'image/png', 'Facebook：剪貼簿裡只有圖（貼上就是貼圖）');
+  eq(fb.clip[0].types.join(','), 'text/plain', 'Facebook：剪貼簿裡是那段話（FB 政策不讓程式預填文字）');
+  ok(fb.clip[0].text.includes('（今晚刻完的）'), 'Facebook：複製的是玩家改過的版本', fb.clip[0].text);
   ok(fb.toast.some((t) => t.includes('Ctrl+V')), 'Facebook：提示寫出要按的那組鍵', fb.toast.join(' ｜ '));
-  ok(fb.toast.some((t) => t.includes('複製文案')), 'Facebook：帶不進文字 → 提示指得出補文字的那一顆', fb.toast.join(' ｜ '));
-  eq(fb.downloads.length, 0, 'Facebook：走貼上，不用先下載');
+  eq(fb.downloads.length, 0, 'Facebook：不用先下載');
 
-  /* --- ③ Instagram：網頁版只選得了檔案 → 先下載，不假裝貼得上 --- */
-  const ig = await tapChip('instagram');
-  eq(ig.opened.length, 1, 'Instagram：真的開了一頁');
-  eq(ig.opened[0].url, 'https://www.instagram.com/', 'Instagram：開首頁（沒有直接開撰寫的網址，也不編一個假的）');
-  ok(!ig.opened[0].url.includes('/create'), 'Instagram：不用那個伺服器根本不認的假深連結', ig.opened[0].url);
-  eq(ig.downloads.length, 1, 'Instagram：圖真的存到裝置上了（那邊只選得了檔案）');
-  eq(ig.downloads[0].isImage, true, 'Instagram：存下去的是那張 PNG');
-  ok(/^promptasy-.*\.png$/.test(ig.downloads[0].name), 'Instagram：檔名看得出是這個遊戲的卡', String(ig.downloads[0].name));
-  eq(ig.clip.length, 0, 'Instagram：不寫剪貼簿（那邊貼不上，寫了也是騙人）');
-  ok(ig.toast.some((t) => t.includes('建立')), 'Instagram：提示講得出要按那邊的「建立」', ig.toast.join(' ｜ '));
-  ok(ig.toast.some((t) => t.includes('下載')), 'Instagram：提示講得出圖已經存下來了', ig.toast.join(' ｜ '));
-
-  /* --- ④ 複製文案：帶不進文字的那兩顆靠它補 --- */
-  const capChip = await tapChip('caption');
-  eq(capChip.opened.length, 0, '複製文案：不開新頁（它只做一件事）');
-  eq(capChip.clip.length, 1, '複製文案：只寫一次剪貼簿');
-  eq(capChip.clip[0].types.join(','), 'text/plain', '複製文案：剪貼簿裡只有那段話');
-  ok(capChip.clip[0].text.includes('（今晚刻完的）'), '複製文案：複製的是玩家改過的版本', capChip.clip[0].text);
-  ok(!/https?:\/\//.test(capChip.clip[0].text), '複製文案：那段話裡沒有網址', capChip.clip[0].text);
-  eq(capChip.downloads.length, 0, '複製文案：不下載');
+  /* --- 移除的那兩顆：不得回歸 --- */
+  const goneChips = await evaluate(`
+    return {
+      instagram: document.querySelectorAll('#sharecard [data-chip="instagram"]').length,
+      caption: document.querySelectorAll('#sharecard [data-chip="caption"]').length,
+    };
+  `);
+  eq(goneChips.instagram, 0, 'Instagram 那顆不在畫面上（網頁版沒有撰寫入口，不做假按鈕）');
+  eq(goneChips.caption, 0, '獨立的「複製文案」那顆也不在（複製鈕已經是主角）');
 
   /* --- 玩家再改一次那段話 → 帶出去的跟著改（不是開卡當下的快照） --- */
   await typeIntoCaption('（第二次改）');
@@ -6278,8 +6340,12 @@ async function main() {
   eq(afterRight, 'facebook', '→ 走到下一顆');
   await key('ArrowRight', 'ArrowRight', { vk: 39 });
   await sleep(180);
-  const afterRight2 = await evaluate(`return document.activeElement.getAttribute('data-chip');`);
-  eq(afterRight2, 'instagram', '→ 再走到下一顆');
+  // 那一排與主角那一顆是同一族的圖示鈕（.iconbtn）→ 方向鍵一路走到複製鈕
+  const afterRight2 = await evaluate(`
+    return { chip: document.activeElement.getAttribute('data-chip'), copy: document.activeElement.hasAttribute('data-copy') };
+  `);
+  eq(afterRight2.chip, null, '→ 再走一步就離開平台那兩顆');
+  eq(afterRight2.copy, true, '→ 走到的是「複製圖＋文」（它跟那一排同一族）');
   await key('ArrowLeft', 'ArrowLeft', { vk: 37 });
   await sleep(180);
   const afterLeft = await evaluate(`return document.activeElement.getAttribute('data-chip');`);
@@ -6301,8 +6367,12 @@ async function main() {
     };
   `);
   eq(byEnter.opened.length, 1, 'Enter 就按得下去（不用滑鼠）');
-  eq(byEnter.opened[0].url, 'https://www.facebook.com/', 'Enter 按下去的是焦點所在的那一顆', String(byEnter.opened[0].url));
-  eq(byEnter.clip.length, 1, 'Enter 按下去一樣會把圖備好');
+  ok(
+    String(byEnter.opened[0].url).startsWith('https://www.facebook.com/sharer/sharer.php?u='),
+    'Enter 按下去的是焦點所在的那一顆',
+    String(byEnter.opened[0].url)
+  );
+  eq(byEnter.clip.length, 1, 'Enter 按下去一樣把那段話備進剪貼簿');
   ok(byEnter.toast.length > 0, 'Enter 按下去一樣說得出接下來要做什麼', byEnter.toast.join(' ｜ '));
 
   /* --- 每一顆都給螢幕閱讀器講清楚它會做什麼 --- */
@@ -6313,18 +6383,31 @@ async function main() {
       type: n.getAttribute('type'),
     }));
   `);
+  eq(chipA11y.length, 2, '那一排剛好兩顆（量得到，不是空過）');
   for (const c of chipA11y) {
     ok(c.aria.length >= 8, `${c.id} 有給螢幕閱讀器的說明`, c.aria);
     eq(c.type, 'button', `${c.id} 是 type="button"（不會誤送出表單）`);
   }
+  // 牌面上沒有字 → 說明必須自己講完「這是誰、按下去會發生什麼」
   ok(
-    chipA11y.find((c) => c.id === 'instagram').aria.includes('建立'),
-    'Instagram 的說明也講得出接下來要按什麼',
-    chipA11y.find((c) => c.id === 'instagram').aria
+    chipA11y.find((c) => c.id === 'threads').aria.startsWith('Threads：'),
+    'Threads 的說明先講自己是誰、再講按下去會怎樣',
+    chipA11y.find((c) => c.id === 'threads').aria
+  );
+  ok(
+    chipA11y.find((c) => c.id === 'facebook').aria.includes('Ctrl+V'),
+    'Facebook 的說明也講得出接下來要按什麼',
+    chipA11y.find((c) => c.id === 'facebook').aria
   );
 
-  /* --- ② 有系統分享面板：把「一個 PNG 檔案 ＋ 那段話」真的交出去 --- */
-  const sysShare = await evaluate(`
+  /* ---------------------------------------------------------------- *
+   * ② 系統分享面板：2026-08-03 站長定稿把那顆入口整個移除。
+   *
+   *   原本「瀏覽器帶得動檔案就露出 hero 階的『分享圖＋文』」那一整套沒有了 ——
+   *   複製鈕是固定主角。這裡守的是「**就算瀏覽器支援，也不准偷偷長回來**」：
+   *   把 canShare / share 都裝上去、重開一張卡，畫面仍然是同一個樣子。
+   * ---------------------------------------------------------------- */
+  const sysGone = await evaluate(`
     const g = window.__promptasy;
     window.__shared = null;
     Object.defineProperty(navigator, 'canShare', {
@@ -6333,87 +6416,87 @@ async function main() {
     });
     Object.defineProperty(navigator, 'share', {
       configurable: true,
-      value: async (data) => {
-        window.__shared = {
-          text: data.text,
-          keys: Object.keys(data),
-          files: (data.files || []).map((f) => ({
-            name: f.name, type: f.type, size: f.size, isFile: f instanceof File, isBlob: f instanceof Blob,
-          })),
-          // 手勢還在不在？（share() 前面只要 await 一次就會變 false）
-          gesture: navigator.userActivation ? navigator.userActivation.isActive : null,
-        };
-      },
+      value: async (data) => { window.__shared = { keys: Object.keys(data || {}) }; },
     });
     g.shareCard.close();
     g.shareCard.open({ kind: 'codex' });
     await new Promise((r) => setTimeout(r, 260));
-    const sys = document.querySelector('#sharecard [data-sysshare]');
     const dl = document.querySelector('#sharecard [data-download]');
     const copy = document.querySelector('#sharecard [data-copy]');
     return {
-      sysHidden: sys.hidden,
-      label: sys.textContent.trim(),
-      aria: sys.getAttribute('aria-label') || '',
-      hero: sys.className,
-      copyClass: copy.className,
+      sysNodes: document.querySelectorAll('#sharecard [data-sysshare]').length,
+      wholeText: document.querySelector('#sharecard .panel').textContent,
+      copyTitle: copy.getAttribute('title'),
+      copyRect: (() => { const r = copy.getBoundingClientRect(); return { w: r.width, h: r.height }; })(),
       dlClass: dl.className,
       focusInPanel: document.querySelector('#sharecard .panel').contains(document.activeElement),
-      focusOn: document.activeElement.getAttribute('data-sysshare') !== null,
+      focusOnCopy: document.activeElement.hasAttribute('data-copy'),
       chips: document.querySelectorAll('#sharecard [data-chip]').length,
       // 換一張卡 → 那段話回到預設（上一張改過的話不會跟過來）
       sayValue: document.querySelector('#sharecard [data-caption]').value,
     };
   `);
-  eq(sysShare.sysHidden, false, '瀏覽器帶得動檔案 → 系統分享的入口出現');
-  ok(sysShare.label.includes('分享圖＋文'), '那個入口寫著「分享圖＋文」', sysShare.label);
-  ok(sysShare.aria.includes('圖') && sysShare.aria.includes('話'), '那個入口有給螢幕閱讀器的說明', sysShare.aria);
-  ok(sysShare.hero.includes('btn--primary'), '系統分享是主角（hero 階）', sysShare.hero);
-  ok(sysShare.copyClass.includes('btn--ghost'), '這時「複製圖＋文」退成次要階', sysShare.copyClass);
-  ok(sysShare.dlClass.includes('btn--ghost'), '這時「下載圖片」也是次要階（畫面只有一個主角）', sysShare.dlClass);
-  eq(sysShare.focusInPanel, true, '重開之後焦點仍然在分享卡裡');
-  eq(sysShare.focusOn, true, '焦點落在「分享圖＋文」上（這個畫面的主角）');
-  eq(sysShare.chips, 4, '有系統分享時那一排照樣在（它們帶得走圖，不是死路）');
-  ok(!sysShare.sayValue.includes('（今晚刻完的）'), '重開一張卡 → 那段話回到預設', sysShare.sayValue);
+  eq(sysGone.sysNodes, 0, '就算瀏覽器帶得動檔案，系統分享的入口也沒有長回來');
+  ok(!/分享圖＋文/.test(sysGone.wholeText), '畫面上找不到「分享圖＋文」那顆鈕', sysGone.wholeText.slice(0, 160));
+  eq(sysGone.copyTitle, '複製圖＋文', '主角永遠是「複製圖＋文」（不隨瀏覽器能力換人）');
+  ok(sysGone.copyRect.w >= 40 && sysGone.copyRect.h >= 40, '主角那一顆量得到、命中範圍夠大', JSON.stringify(sysGone.copyRect));
+  eq(sysGone.focusInPanel, true, '重開之後焦點仍然在分享卡裡');
+  eq(sysGone.focusOnCopy, true, '焦點落在「複製圖＋文」上（這個畫面的主角）');
+  eq(sysGone.chips, 2, '那一排照樣是兩顆');
+  ok(!sysGone.sayValue.includes('（今晚刻完的）'), '重開一張卡 → 那段話回到預設', sysGone.sayValue);
 
   // 重開之後那張圖要重新編碼一次 → 等它備好再按（沒備好按下去只會叫你等）
   const sysReady = await waitShareFile();
   eq(sysReady, true, '重開之後 PNG 又備好了');
 
-  // 玩家先把那段話改成自己想說的，再真的按下去（Input 事件 → 真正的使用者手勢）
+  // 玩家先把那段話改成自己想說的，再真的用鍵盤按下主角那一顆
   await typeIntoCaption('（這一關卡了三次）');
   await evaluate(`
-    document.querySelector('#sharecard [data-sysshare]').focus();
+    window.__clip.length = 0;
+    document.querySelectorAll('.toast').forEach((n) => n.remove());
+    document.querySelector('#sharecard [data-copy]').focus();
     return true;
   `);
   await enterNative();
-  await sleep(400);
-  const shared = await evaluate(`return window.__shared;`);
-  ok(!!shared, '按下去真的呼叫了系統分享');
-  eq(shared.files.length, 1, '交出去的是一個檔案');
-  eq(shared.files[0].type, 'image/png', '交出去的是 PNG');
-  eq(shared.files[0].isFile, true, '交出去的真的是 File');
-  ok(shared.files[0].size > 20000, '交出去的圖有內容', `size=${shared.files[0].size}`);
-  ok(/^promptasy-.*\.png$/.test(shared.files[0].name), '檔名看得出是這個遊戲的卡', shared.files[0].name);
-  ok(shared.text.includes('（這一關卡了三次）'), '交出去的那段話是玩家改過的版本', shared.text);
-  ok(shared.text.includes('釋義者') && shared.text.includes('46 / 68'), '那段話帶著稱號與收集進度', shared.text);
-  ok(shared.text.includes('Learn Prompt Engineering by Playing'), '那段話帶著品牌落款');
-  ok(!/https?:\/\//.test(shared.text), '那段話裡沒有任何連結（收到的人看到的是圖，不是連結）', shared.text);
-  eq(shared.keys.sort().join(','), 'files,text', '交出去的只有圖與那段話（沒有 url、沒有 title）');
-  eq(shared.gesture, true, '呼叫時使用者手勢還在（share 之前沒有 await）');
-
-  // 玩家自己取消不該變成錯誤
-  const abort = await evaluate(`
-    Object.defineProperty(navigator, 'share', {
-      configurable: true,
-      value: async () => { const e = new Error('cancel'); e.name = 'AbortError'; throw e; },
-    });
-    const before = document.querySelectorAll('.toast').length;
-    document.querySelector('#sharecard [data-sysshare]').click();
-    await new Promise((r) => setTimeout(r, 340));
-    return { before, after: document.querySelectorAll('.toast').length };
+  await sleep(500);
+  const copiedByKey = await evaluate(`
+    return {
+      shared: window.__shared,
+      clip: window.__clip,
+      done: document.querySelector('#sharecard [data-copy]').classList.contains('is-done'),
+      toast: [...document.querySelectorAll('.toast')].map((n) => n.textContent.trim()),
+    };
   `);
-  eq(abort.after, abort.before, '玩家自己取消分享時什麼都不說（不是失敗）');
+  eq(copiedByKey.shared, null, '按下去不會去呼叫系統分享（那條路已經沒有了）');
+  eq(copiedByKey.clip.length, 1, 'Enter 按得下主角那一顆（不用滑鼠）');
+  ok(copiedByKey.clip[0].types.includes('image/png'), '交出去的是那張圖', JSON.stringify(copiedByKey.clip[0].types));
+  ok(copiedByKey.clip[0].types.includes('text/plain'), '同時也帶著那段話', JSON.stringify(copiedByKey.clip[0].types));
+  ok(copiedByKey.clip[0].text.includes('（這一關卡了三次）'), '那段話是玩家改過的版本', copiedByKey.clip[0].text);
+  ok(
+    copiedByKey.clip[0].text.includes('釋義者') && /\d+ \/ \d+ 條技法/.test(copiedByKey.clip[0].text),
+    '那段話帶著稱號與收集進度',
+    copiedByKey.clip[0].text
+  );
+  ok(copiedByKey.clip[0].text.includes('Learn Prompt Engineering by Playing'), '那段話帶著品牌落款');
+  eq(copiedByKey.done, true, '成功那一下就地翻成勾記（不用讀提示也知道按到了）');
+  ok(copiedByKey.toast.some((t) => t.includes('貼上')), '也說得出接下來要做什麼', copiedByKey.toast.join(' ｜ '));
+
+  // 複製失敗（瀏覽器不給）→ 說一句話並指回「下載」，不留死路
+  const copyFail = await evaluate(`
+    const realWrite = navigator.clipboard.write;
+    navigator.clipboard.write = async () => { throw new Error('denied'); };
+    document.querySelectorAll('.toast').forEach((n) => n.remove());
+    document.querySelector('#sharecard [data-copy]').click();
+    await new Promise((r) => setTimeout(r, 360));
+    const toast = [...document.querySelectorAll('.toast')].map((n) => n.textContent.trim());
+    navigator.clipboard.write = realWrite;
+    return { toast };
+  `);
+  ok(
+    copyFail.toast.some((t) => t.includes('下載')),
+    '複製不了的時候指回「下載」那條一定走得通的路',
+    copyFail.toast.join(' ｜ ')
+  );
 
   /* --- 窄畫面：那段話與按鈕都不會被擠到摺線下面 --- */
   await cdp.send(
@@ -6424,12 +6507,12 @@ async function main() {
   await sleep(520);
   const sendNarrow = await evaluate(`
     const panel = document.querySelector('#sharecard .panel');
-    const sys = document.querySelector('#sharecard [data-sysshare]');
+    const copy = document.querySelector('#sharecard [data-copy]');
     const say = document.querySelector('#sharecard [data-caption]');
     return {
       overflow: Math.max(0, panel.scrollWidth - panel.clientWidth),
       docOverflow: Math.max(0, document.documentElement.scrollWidth - window.innerWidth),
-      sysVisible: sys.getBoundingClientRect().bottom <= panel.getBoundingClientRect().bottom + 1,
+      heroVisible: copy.getBoundingClientRect().bottom <= panel.getBoundingClientRect().bottom + 1,
       sayInside: say.getBoundingClientRect().right <= panel.getBoundingClientRect().right + 1,
       sayH: say.getBoundingClientRect().height,
       // 那一排（Phase 31）：每一顆都要在面板寬度內，而且要真的量得到（不是 0×0 空過）
@@ -6442,10 +6525,10 @@ async function main() {
   `);
   eq(sendNarrow.overflow, 0, '820px 下分享卡無水平溢位');
   eq(sendNarrow.docOverflow, 0, '820px 下整頁無水平溢位');
-  eq(sendNarrow.sysVisible, true, '820px 下「分享圖＋文」仍然不用捲動就看得到');
+  eq(sendNarrow.heroVisible, true, '820px 下「複製圖＋文」仍然不用捲動就看得到');
   eq(sendNarrow.sayInside, true, '820px 下那段話的框在面板寬度內');
   ok(sendNarrow.sayH >= 60, '820px 下那個框還打得下幾行字', `h=${sendNarrow.sayH}`);
-  eq(sendNarrow.chips.length, 4, '820px 下那一排四顆都在');
+  eq(sendNarrow.chips.length, 2, '820px 下那一排兩顆都在');
   for (const c of sendNarrow.chips) {
     // 先確認真的量得到（0×0 的話下面那條會空過）
     ok(c.w > 20 && c.h > 12, `820px 下「${c.id}」量得到大小`, `${c.w}×${c.h}`);
@@ -6550,9 +6633,15 @@ async function main() {
   const nudgeApproach = await evaluate(`
     const g = window.__promptasy;
     const t = g.world.objectiveTarget(g.hud.region);
-    const before = Math.hypot(t.x - g.player.position.x, t.z - g.player.position.z);
-    // 明顯往目標走過去
-    g.player.teleport(t.x + 22, t.z + 16);
+    const dx = t.x - g.player.position.x;
+    const dz = t.z - g.player.position.z;
+    const before = Math.hypot(dx, dz);
+    /*
+     * 明顯往目標走過去 —— 沿著「玩家 → 目標」那條線把距離縮短 12 個單位。
+     * （原本寫死 t.x + 22 / t.z + 16：目標一換位置就可能反而變遠。）
+     */
+    const want = Math.max(2, before - 12);
+    g.player.teleport(t.x - (dx / before) * want, t.z - (dz / before) * want);
     g.nudge.update(0.2);
     const after = Math.hypot(t.x - g.player.position.x, t.z - g.player.position.z);
     return { before, after, state: g.nudge.state(), isOn: document.querySelector('.nudge').classList.contains('is-on') };
@@ -6729,9 +6818,16 @@ async function main() {
     out.tech = panel.querySelector('.inscribe__tech')?.textContent.trim() || '';
     out.tip = panel.querySelector('.inscribe__tip')?.textContent.trim() || '';
     out.how = panel.querySelector('.inscribe__how')?.textContent.trim() || '';
-    const src = panel.querySelector('a.src');
-    out.srcText = src ? src.textContent.trim() : '';
+    // 出處＝那枚典籍（圖示 ＋ 小卡；名字走 aria-label，畫面上不寫字）
+    const src = panel.querySelector('a.bookicon');
+    out.srcText = src ? src.getAttribute('aria-label') || '' : '';
     out.srcUrl = src ? src.getAttribute('href') : '';
+    out.srcVisible = src
+      ? (() => {
+          const r = src.getBoundingClientRect();
+          return getComputedStyle(src).visibility === 'visible' && r.width > 0 && r.height > 0;
+        })()
+      : false;
     out.note = panel.querySelector('.inscribe__note')?.textContent.trim() || '';
     // 沒有四幕、沒有石碑、沒有輸入框 —— 它就是一個很小的對話窗
     out.hasActs = !!panel.querySelector('.acts, .stele, textarea');
@@ -6763,6 +6859,7 @@ async function main() {
   ok(insFlow.how.length > 4, '顯示了一句可以照著做的白話提示', insFlow.how);
   eq(insFlow.srcUrl, insFlow.realUrl, '出處連結指向 curriculum 裡真正的官方網址');
   ok(/^https:\/\//.test(insFlow.srcUrl), '出處是 https 連結', insFlow.srcUrl);
+  eq(insFlow.srcVisible, true, '那枚典籍一直看得見、量得到（不收進任何摺頁）');
   ok(insFlow.srcText.includes('神諭原典'), '出處標成「神諭原典」（換皮）', insFlow.srcText);
   ok(insFlow.srcText.includes(insFlow.realName), '但後面接得出真實文件名（不說謊）', insFlow.srcText);
   ok(/\+\s*\d+\s*XP/.test(insFlow.note), '第一次讀有 XP 提示', insFlow.note);
@@ -7502,7 +7599,7 @@ async function main() {
     return {
       act: g.promptConsole.act,
       glyphs: document.querySelectorAll('#prompt-console [data-guidance] .glyph').length,
-      sources: document.querySelectorAll('#prompt-console [data-guidance] a.src').length,
+      sources: document.querySelectorAll('#prompt-console .act--guide a.bookicon').length,
     };
   `);
   eq(kbAct2.act, 2, 'Enter 推到第二幕（指引）');
@@ -8373,12 +8470,13 @@ async function main() {
     await new Promise((r) => setTimeout(r, 240));
     const act2 = {
       glyphs: document.querySelectorAll('#prompt-console .glyphs .glyph').length,
-      sources: [...document.querySelectorAll('#prompt-console .glyphs a.src')]
-        .filter((a) => a.textContent.trim().startsWith('神諭原典'))
+      // 出處是那枚典籍（純圖示）→ 標籤走 aria-label，不是牌面上的字
+      sources: [...document.querySelectorAll('#prompt-console .act--guide a.bookicon')]
+        .filter((a) => (a.getAttribute('aria-label') || '').startsWith('神諭原典'))
         .map((a) => a.href),
-      labels: [...document.querySelectorAll('#prompt-console .glyphs a.src')]
-        .filter((a) => a.textContent.trim().startsWith('神諭原典'))
-        .map((a) => a.textContent.trim()),
+      labels: [...document.querySelectorAll('#prompt-console .act--guide a.bookicon')]
+        .filter((a) => (a.getAttribute('aria-label') || '').startsWith('神諭原典'))
+        .map((a) => a.getAttribute('aria-label').trim()),
     };
     g.promptConsole.goAct(3, { force: true });
     await new Promise((r) => setTimeout(r, 320));
@@ -9896,8 +9994,16 @@ async function main() {
            * 把圖示算進去只會逼我們把註腳畫成跟正文一樣大。
            */
           .filter((el) => !el.closest('[data-infotip-btn]'))
-          .map((el) => parseFloat(getComputedStyle(el).fontSize))
-          .filter((n) => n && n < 12).length;
+          /*
+           * 2026-08-03 站長定稿：手掌印底下那一行提示縮成**腳註**
+           * （--t-micro × 0.86 × 0.4）—— 它重複的是同一個畫面上已經
+           * 用大字寫過的動作（「把手掌按上石碑」＋ 那顆手掌本身），
+           * 不是唯一的資訊來源。這是唯一被放行的例外，
+           * 其餘任何一處小於 12px 的內文照樣紅。
+           */
+          .filter((el) => !el.closest('.palm__hint'))
+          .map((el) => ({ cls: String(el.className || el.tagName).split(' ')[0], px: parseFloat(getComputedStyle(el).fontSize) }))
+          .filter((x) => x.px && x.px < 12);
         out.boards.push({
           id,
           label,
@@ -9907,7 +10013,8 @@ async function main() {
           targets: targets.length,
           small,
           smallEls: [...new Set(smallEls)].slice(0, 6),
-          tiny,
+          tiny: tiny.length,
+          tinyEls: [...new Set(tiny.map((x) => x.cls + ':' + x.px.toFixed(1)))].slice(0, 8),
         });
       }
       g.promptConsole.close();
@@ -9929,6 +10036,13 @@ async function main() {
         const br = body.getBoundingClientRect();
         const edge = br.right - parseFloat(getComputedStyle(body).paddingRight);
         const stickOut = [...body.querySelectorAll('*')]
+          /*
+           * 只算**畫得出來**的東西：出處那枚典籍的小卡預設是
+           * visibility: hidden 的浮層（絕對定位、置中於圖示），
+           * 它在版面上不佔位、玩家也看不到 —— 把它算成「凸出去」
+           * 等於逼我們去改一個不存在的問題。整頁的水平捲動另外有守（docOverflow）。
+           */
+          .filter((el) => (el.checkVisibility ? el.checkVisibility() : true))
           .filter((el) => el.getBoundingClientRect().right - edge > 1)
           .map((el) => String(el.className || el.tagName).split(' ')[0]);
         panels.push({
@@ -9952,7 +10066,7 @@ async function main() {
       ok(b.right <= w + 1, `${w}px：${b.label}的面板沒有被推出右緣`, String(b.right));
       ok(b.targets > 0, `${w}px：${b.label}上真的有可以按的東西`, String(b.targets));
       eq(b.small, 0, `${w}px：${b.label}的每一個可按元素都 ≥40px 高`, `太小的是：${b.smallEls.join('、')}`);
-      eq(b.tiny, 0, `${w}px：${b.label}沒有小於 12px 的字`, `${b.tiny} 處`);
+      eq(b.tiny, 0, `${w}px：${b.label}沒有小於 12px 的字`, (b.tinyEls || []).join('、') || `${b.tiny} 處`);
     }
     for (const p of narrowBoards.panels) {
       eq(p.overflowX, 0, `${w}px：${p.name}沒有任何內容凸出內容邊`, `凸出的是：${p.worst.join('、')}`);
@@ -10221,8 +10335,8 @@ async function main() {
       return {
         act: g.promptConsole.act,
         glyphs: document.querySelectorAll('#prompt-console [data-guidance] .glyph').length,
-        srcs: document.querySelectorAll('#prompt-console [data-guidance] a.src').length,
-        srcHref: document.querySelector('#prompt-console [data-guidance] a.src')?.getAttribute('href') || '',
+        srcs: document.querySelectorAll('#prompt-console .act--guide a.bookicon').length,
+        srcHref: document.querySelector('#prompt-console .act--guide a.bookicon')?.getAttribute('href') || '',
       };
     `);
     eq(kbGuide.act, 2, 'Enter 推到第二幕（神諭刻文）');
@@ -10399,8 +10513,8 @@ async function main() {
       meta: last.querySelector('.region-card__meta .muted')?.textContent.trim() || '',
       skillRows: last.querySelectorAll('.tech').length,
       locked: last.querySelectorAll('.tech--locked').length,
-      srcs: last.querySelectorAll('a.src').length,
-      firstSrc: last.querySelector('a.src')?.getAttribute('href') || '',
+      srcs: last.querySelectorAll('a.bookicon').length,
+      firstSrc: last.querySelector('a.bookicon')?.getAttribute('href') || '',
       masteryFlag: g.progression.regionMastery('forms').mastered,
       skillBased: g.progression.regionMastery('forms').skillBased,
     };
@@ -10973,7 +11087,7 @@ async function main() {
         g.promptConsole.goAct(2, { force: true });
         await new Promise((r) => setTimeout(r, 220));
         text += '\\n' + document.querySelector('#prompt-console .panel').innerText;
-        srcs = srcs.concat([...document.querySelectorAll('#prompt-console [data-guidance] a.src')].map((a) => a.getAttribute('href')));
+        srcs = srcs.concat([...document.querySelectorAll('#prompt-console .act--guide a.bookicon')].map((a) => a.getAttribute('href')));
       }
       g.promptConsole.close();
       return { text, srcs };
@@ -10999,7 +11113,7 @@ async function main() {
       mastered: card.classList.contains('is-mastered'),
       rows: card.querySelectorAll('.tech').length,
       locked: card.querySelectorAll('.tech--locked').length,
-      srcs: card.querySelectorAll('a.src').length,
+      srcs: card.querySelectorAll('a.bookicon').length,
     } : null;
     const out = { cards: cards.length, toolcraft: read(pick('契約鍛冶場')), wards: read(pick('護欄崗')) };
     g.codex.close();
@@ -11288,7 +11402,7 @@ async function main() {
         handoffOpen: b.handoffOpen,
         focusedOnOption: !!document.activeElement?.closest('[data-slot-opt]'),
         eyebrow: document.querySelector('#prompt-console .multiboard [data-round-label]')?.textContent.trim() || '',
-        label: document.querySelector('#prompt-console .prompt__mode .zh')?.textContent.trim() || '',
+        label: document.querySelector('#prompt-console [data-guided-label] .zh')?.textContent.trim() || '',
       };
     `);
     eq(mStart.act, 3, 'Enter 推到第三幕（兩輪刻印）');
@@ -12284,8 +12398,8 @@ async function main() {
       return {
         act: g.promptConsole.act,
         glyphs: document.querySelectorAll('#prompt-console [data-guidance] .glyph').length,
-        srcs: document.querySelectorAll('#prompt-console [data-guidance] a.src').length,
-        srcHref: document.querySelector('#prompt-console [data-guidance] a.src')?.getAttribute('href') || '',
+        srcs: document.querySelectorAll('#prompt-console .act--guide a.bookicon').length,
+        srcHref: document.querySelector('#prompt-console .act--guide a.bookicon')?.getAttribute('href') || '',
       };
     `);
     eq(kbGuide.act, 2, 'Enter 推到第二幕（神諭刻文）');
@@ -12530,8 +12644,8 @@ async function main() {
       hasCard: !!card,
       skills: card ? card.querySelectorAll('.tech').length : -1,
       locked: card ? card.querySelectorAll('.tech--locked').length : -1,
-      srcs: card ? card.querySelectorAll('a.src').length : -1,
-      firstSrc: card ? (card.querySelector('a.src')?.getAttribute('href') || '') : '',
+      srcs: card ? card.querySelectorAll('a.bookicon').length : -1,
+      firstSrc: card ? (card.querySelector('a.bookicon')?.getAttribute('href') || '') : '',
       mastered: card ? card.classList.contains('is-mastered') : false,
       masteryFlag: g.progression.regionMastery('sight').mastered,
       cards: cards.length,
@@ -13003,10 +13117,11 @@ async function main() {
     };
   `);
   eq(dvGate.unlocked, false, '什麼都還沒學 → 分歧之廳鎖著');
-  eq(dvGate.hard, true, '這是一道硬門檻');
-  ok(dvGate.gaps.includes('masteredAny:4'), '缺口就是「四區精通」', dvGate.gaps.join(','));
-  ok(!/先行前往/.test(dvGate.text), '門上的字不提「先行前往」', dvGate.text);
-  ok(/走過去才開/.test(dvGate.text), '門上的字說得出這一道要走過去才開', dvGate.text);
+  // 2026-08-03 站長裁決：全場唯一的硬門檻鬆綁 —— 比照其他區域改成可先行前往的軟門檻
+  eq(dvGate.hard, false, '分歧之廳不再是硬門檻（可以先行前往）');
+  ok(dvGate.gaps.includes('masteredAny:2'), '缺口是「任 2 片土地精通」', dvGate.gaps.join(','));
+  ok(/先行前往/.test(dvGate.text), '門上的字說得出可以先行前往', dvGate.text);
+  ok(!/走過去才開/.test(dvGate.text), '門上的字不再說「這一道要走過去才開」', dvGate.text);
   eq(dvGate.hasLink, true, '分歧之廳是加建（閘門立在頸口上）');
   eq(dvGate.bridges, 0, '分歧之廳沒有自己的橋（走出高原就到了）');
   eq(dvGate.shrines, 10, '分歧之廳有 9 座教學神廟 ＋ 1 座終章試煉');
@@ -13054,10 +13169,11 @@ async function main() {
   `);
   eq(dvAsk.open, true, '走到門前，門自己問了一句');
   eq(dvAsk.region, 'divergence', '問的就是分歧之廳那一道');
-  eq(dvAsk.go, 0, '硬門檻上沒有「直接前往」這顆按鈕');
+  eq(dvAsk.go, 1, '軟門檻上畫得出「直接前往」（玩家自己決定要不要先進去看看）');
   eq(dvAsk.stay, 1, '仍然留著「先留下修行」');
   eq(dvAsk.links, 0, '閘門不放官方連結（護欄 2）');
-  ok(/門一直在，回來就好/.test(dvAsk.text), '說法不是失敗，是「還沒輪到這裡」', dvAsk.text.slice(0, 60));
+  ok(/想先過去看看嗎/.test(dvAsk.text), '問的是「想先過去看看嗎」', dvAsk.text.slice(0, 80));
+  ok(/前方的試煉不會因此變簡單/.test(dvAsk.text), '也老實說了先進去不會比較簡單', dvAsk.text.slice(0, 120));
   eq(dvAsk.focusStay, true, '焦點落在「先留下修行」上（鍵盤走得完）');
 
   await key('Escape', 'Escape', { vk: 27 });
@@ -13073,11 +13189,12 @@ async function main() {
     };
   `);
   eq(dvStay.open, false, 'Esc ＝ 先留下修行（門收起來）');
-  eq(dvStay.unlocked, false, '選了「先留下」門仍然關著');
-  eq(dvStay.skipResult.opened, false, '先行前往開不了這一道門');
-  eq(dvStay.skipResult.hard, true, 'skipGate 明講理由：這是一道硬門檻');
-  eq(dvStay.stillLocked, false, '被擋下來之後仍然鎖著');
-  eq(dvStay.saved.length, 0, '分歧之廳不會被寫進 skippedGates');
+  eq(dvStay.unlocked, false, '選了「先留下」門仍然關著（Esc 絕不偷偷開門）');
+  // 門檻鬆綁之後：真的按下去才開，而且誠實記帳
+  eq(dvStay.skipResult.opened, true, '先行前往開得了這一道門');
+  ok(!dvStay.skipResult.hard, 'skipGate 不再回報「被硬門檻擋下來」');
+  eq(dvStay.stillLocked, true, '開過之後這一區就走得進去');
+  eq(dvStay.saved.length, 1, '分歧之廳也被誠實記進 skippedGates', dvStay.saved.join(','));
 
   /* --- 世界：九座石座、地標零實體光源 --- */
   const dvWorld = await evaluate(`
@@ -13748,13 +13865,14 @@ async function main() {
       p.labelH <= p.labelLine + 4,
       `${at} 主句只有一行（高 ${p.labelH}px / 一行 ${p.labelLine}px）`
     );
-    eq(p.hintLines, 2, `${at} 提示分成兩行各自完整的短句`);
+    // 2026-08-03 站長定稿：提示收成一行、字級縮到腳註位階（主角是手掌本身）
+    eq(p.hintLines, 1, `${at} 提示收成一行短句`);
     ok(
-      p.hintTexts[0] === '按住不放' && /Enter/.test(p.hintTexts[1]),
-      `${at} 兩行提示斷在該斷的地方`,
+      /^按住不放，或按住/.test(p.hintTexts[0]) && /Enter/.test(p.hintTexts[0]),
+      `${at} 那一行同時講得出滑鼠與鍵盤兩種按法`,
       p.hintTexts.join(' ｜ ')
     );
-    ok(p.hintFs < p.labelFs, `${at} 提示字級比主句小一階（${p.hintFs} < ${p.labelFs}）`);
+    ok(p.hintFs < p.labelFs * 0.6, `${at} 提示縮到腳註位階（${p.hintFs} < ${p.labelFs} 的 0.6 倍）`);
     eq(p.kbd, 1, `${at} Enter 鍵帽還在（鍵盤路徑沒被拿掉）`);
     eq(p.overflowX, 0, `${at} 沒有水平溢位`);
   }
@@ -13816,7 +13934,7 @@ async function main() {
     eq(p.inside, true, `${at} 手掌印在面板裡`);
     ok(p.h >= 44, `${at} 觸控目標 ≥ 44px（${p.h}px）`);
     ok(p.labelH <= 40, `${at} 主句仍然只有一行（${p.labelH}px）`);
-    eq(p.lines, 2, `${at} 提示仍然是兩行`);
+    eq(p.lines, 1, `${at} 提示仍然是一行`);
     eq(p.overflowX, 0, `${at} 沒有水平溢位`);
   }
   await cdp.send(
@@ -14116,13 +14234,20 @@ async function main() {
         { type: 'mouseMoved', x: Math.round(x), y: Math.round(y), button: 'none', buttons: 0 },
         sessionId
       );
-    /** 現在畫面上有幾顆 ⓘ 的說明是**看得見**的。 */
+    /**
+     * 現在畫面上有幾顆說明小卡是**看得見**的。
+     *
+     * 小卡有兩種載體：ⓘ 那顆符文石（`[data-infotip-btn]`），
+     * 以及 2026-08-03 之後接手第二幕的**那本典籍**（`a.bookicon`）——
+     * 兩種走的是同一支 `bindInfoTips()`，所以一起量。
+     */
     const visibleTips = `
       return Array.from(document.querySelectorAll('[data-infotip]')).map((t) => {
         const b = t.querySelector('[data-infotip-bubble]');
         const cs = getComputedStyle(b);
+        const trigger = t.querySelector('[data-infotip-btn], a.bookicon');
         return {
-          label: t.querySelector('[data-infotip-btn]').getAttribute('aria-label'),
+          label: trigger ? trigger.getAttribute('aria-label') : '(無)',
           visible: cs.visibility === 'visible' && Number(cs.opacity) > 0.02,
         };
       }).filter((t) => t.visible);
@@ -14216,10 +14341,20 @@ async function main() {
     /* ---------------------------------------------------------------- */
     /* (2) ⓘ 縮成註腳大小，但仍然按得到                                  */
     /* ---------------------------------------------------------------- */
-    await evaluate(`document.querySelector('#prompt-console [data-act-next="2"]').click(); return 1;`);
+    /*
+     * ⓘ 的尺寸在圖鑑那顆上量 —— 第二幕的說明卡 2026-08-03 之後掛在
+     * 那本典籍上（見下面第 (3) 段），ⓘ 這個元件本身仍然用在圖鑑、
+     * 兩輪刻印的回話卡、轉鈕的註記與效能監視器上，樣式是同一組 token。
+     */
+    await evaluate(`
+      const g = window.__promptasy;
+      g.promptConsole.close();
+      g.codex.open();
+      return 1;
+    `);
     await sleep(900);
     const tipSize = await evaluate(`
-      const btn = document.querySelector('#prompt-console .act--guide .infotip__btn');
+      const btn = document.querySelector('#codex .codex__hint .infotip__btn');
       const r = btn.getBoundingClientRect();
       const before = getComputedStyle(btn, '::before');
       const inset = parseFloat(getComputedStyle(btn).getPropertyValue('--infotip-inset'));
@@ -14239,6 +14374,8 @@ async function main() {
       `${tipSize.visual}px`
     );
     ok(tipSize.fontPx <= 11, 'ⓘ 的字級跟著砍半', `${tipSize.fontPx}px`);
+    await evaluate(`window.__promptasy.codex.close(); return 1;`);
+    await sleep(320);
 
     /* ---------------------------------------------------------------- */
     /* (3) 迴歸：ⓘ 絕不自己彈出來                                        */
@@ -14247,8 +14384,19 @@ async function main() {
     /* 切到第二幕。瀏覽器會重算 hover 並補送 mouseover，舊寫法就是在這裡  */
     /* 把說明卡打開的（玩家什麼都沒做）。                                 */
     /* ---------------------------------------------------------------- */
+    /*
+     * 2026-08-03 之後第二幕那顆說明卡掛在**那本典籍**上（`a.bookicon`），
+     * 走的仍然是同一支 `bindInfoTips()` —— 所以迴歸案例原封不動搬過來量它。
+     */
+    await evaluate(`
+      const g = window.__promptasy;
+      g.promptConsole.open(g.content.challenge('gate-of-clarity-01'));
+      g.promptConsole.goAct(2, { force: true });
+      return 1;
+    `);
+    await sleep(900);
     const tipPoint = await evaluate(`
-      const r = document.querySelector('#prompt-console .act--guide .infotip__btn').getBoundingClientRect();
+      const r = document.querySelector('#prompt-console .act--guide a.bookicon').getBoundingClientRect();
       return [r.x + r.width / 2, r.y + r.height / 2];
     `);
     await evaluate(`window.__promptasy.promptConsole.close(); return 1;`);
@@ -14282,7 +14430,7 @@ async function main() {
     const tipsMoved = await waitFor(
       async () => {
         const at = await evaluate(`
-          const r = document.querySelector('#prompt-console .act--guide .infotip__btn').getBoundingClientRect();
+          const r = document.querySelector('#prompt-console .act--guide a.bookicon').getBoundingClientRect();
           return [r.x + r.width / 2, r.y + r.height / 2];
         `);
         await park(6, 6);
@@ -14303,18 +14451,42 @@ async function main() {
     eq((await evaluate(visibleTips)).length, 0, '移開就收回去');
     // 鍵盤 focus 也要打得開
     const tipFocus = await evaluate(`
-      const btn = document.querySelector('#prompt-console .act--guide .infotip__btn');
+      const btn = document.querySelector('#prompt-console .act--guide a.bookicon');
       btn.focus();
       await new Promise((r) => setTimeout(r, 220));
       const on = getComputedStyle(document.querySelector('#prompt-console .act--guide .infotip__bubble')).visibility;
-      const expanded = btn.getAttribute('aria-expanded');
+      // 典籍是一條連結（按下去就開官方文件）→ 無障礙的關係走 aria-describedby
+      const describes =
+        btn.getAttribute('aria-describedby') ===
+        document.querySelector('#prompt-console .act--guide .infotip__bubble').id;
       btn.blur();
       await new Promise((r) => setTimeout(r, 220));
-      return { on, expanded, off: getComputedStyle(document.querySelector('#prompt-console .act--guide .infotip__bubble')).visibility };
+      return { on, describes, off: getComputedStyle(document.querySelector('#prompt-console .act--guide .infotip__bubble')).visibility };
     `);
-    eq(tipFocus.on, 'visible', 'Tab 走到 ⓘ 上照樣看得到說明（鍵盤不打折）');
-    eq(tipFocus.expanded, 'true', 'focus 時 aria-expanded 跟著更新');
+    eq(tipFocus.on, 'visible', 'Tab 走到那本典籍上照樣看得到說明（鍵盤不打折）');
+    eq(tipFocus.describes, true, 'focus 時螢幕閱讀器讀得到那張小卡');
     eq(tipFocus.off, 'hidden', '離開 focus 就收回去');
+    // ⓘ 那顆符文石仍然用 aria-expanded 表態（圖鑑那顆）
+    const tipExpanded = await evaluate(`
+      const g = window.__promptasy;
+      g.promptConsole.close();
+      g.codex.open();
+      await new Promise((r) => setTimeout(r, 500));
+      const btn = document.querySelector('#codex .codex__hint .infotip__btn');
+      const before = btn.getAttribute('aria-expanded');
+      btn.focus();
+      await new Promise((r) => setTimeout(r, 260));
+      const on = btn.getAttribute('aria-expanded');
+      btn.blur();
+      await new Promise((r) => setTimeout(r, 260));
+      const off = btn.getAttribute('aria-expanded');
+      g.codex.close();
+      await new Promise((r) => setTimeout(r, 260));
+      return { before, on, off };
+    `);
+    eq(tipExpanded.before, 'false', 'ⓘ 預設是收起來的（aria-expanded=false）');
+    eq(tipExpanded.on, 'true', 'focus 時 aria-expanded 跟著更新');
+    eq(tipExpanded.off, 'false', '離開 focus 又收回去');
     // 面板打開時焦點不准落在 ⓘ 上
     await evaluate(`window.__promptasy.promptConsole.close(); return 1;`);
     await sleep(320);
@@ -14370,18 +14542,20 @@ async function main() {
     const tip390 = await evaluate(`
       document.querySelector('#prompt-console [data-act-next="2"]').click();
       await new Promise((r) => setTimeout(r, 700));
-      const btn = document.querySelector('#prompt-console .act--guide .infotip__btn');
+      // 第二幕那顆說明卡掛在導言那本典籍上（2026-08-03 定稿）
+      const btn = document.querySelector('#prompt-console .act--guide a.bookicon');
       const r = btn.getBoundingClientRect();
       return {
         hit: Math.round(r.width),
-        fontPx: parseFloat(getComputedStyle(btn).fontSize),
+        hitH: Math.round(r.height),
+        inside: r.right <= 390 + 1 && r.left >= -1,
         overflowX: document.documentElement.scrollWidth - document.documentElement.clientWidth,
       };
     `);
-    ok(tip390.hit >= 20, '390px 下 ⓘ 的命中範圍仍然 ≥ 20px', `${tip390.hit}px`);
-    ok(tip390.fontPx <= 11, '390px 下 ⓘ 一樣是註腳大小', `${tip390.fontPx}px`);
+    ok(tip390.hit >= 16 && tip390.hitH >= 16, '390px 下那本典籍仍然按得到', `${tip390.hit}×${tip390.hitH}`);
+    eq(tip390.inside, true, '390px 下那本典籍在畫面內');
     eq(tip390.overflowX, 0, '390px · 第二幕沒有水平溢位');
-    eq((await evaluate(visibleTips)).length, 0, '390px 下切到第二幕也沒有 ⓘ 自己彈出來');
+    eq((await evaluate(visibleTips)).length, 0, '390px 下切到第二幕也沒有說明卡自己彈出來');
     await evaluate(`window.__promptasy.promptConsole.close(); return 1;`);
     await cdp.send('Emulation.clearDeviceMetricsOverride', {}, sessionId);
     await sleep(420);

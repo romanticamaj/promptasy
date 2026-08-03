@@ -3388,11 +3388,11 @@ clearRegion('frugality');
 eq(prog.isRegionUnlocked('sight'), true, '撰寫基本功整片精通 → 觀象臺自己開了（知識即升級）');
 clearRegion('sight');
 /*
- * 課程 v2 · Phase J1：分歧之廳是整個世界**唯一一道硬門檻**（四區精通）。
- * 走到這裡早就精通了好幾片土地，所以它該是開著的 —— 而且它從頭到尾
- * 不會被寫進 `skippedGates`（那條路在硬門檻上根本不存在）。
+ * 課程 v2 · Phase J1：分歧之廳的門檻（2026-08-03 站長裁決後是**軟門檻**，任 2 片精通）。
+ * 走到這裡早就精通了好幾片土地，所以它該是**自己走過去開的** —— 這條路上
+ * 沒有按過「直接前往」，所以它不會被寫進 `skippedGates`。
  */
-eq(prog.isRegionUnlocked('divergence'), true, '四區精通 → 分歧之廳自己開了（硬門檻也是知識式的）');
+eq(prog.isRegionUnlocked('divergence'), true, '任 2 片精通 → 分歧之廳自己開了（知識即升級）');
 ok(!prog.hasSkippedGate('divergence'), '分歧之廳是走過去開的，不是先行前往');
 clearRegion('divergence');
 eq(prog.state.collected.length, curriculum.techniques.length, '全破所有關卡 → 68 條技巧全收集');
@@ -3762,11 +3762,12 @@ ok(SFX_FILES.click.throttle > 0, '刻印牌的按鍵音有節流');
   // 試煉的鑼與一般過關的頌缽是兩支不同的素材（同一種語言的放大版）
   ok(SFX_FILES.trialPass.file !== SFX_FILES.pass.file, '試煉的鑼與一般過關的頌缽不是同一個檔案');
   ok(SFX_FILES.trialPass.duck > 0, '試煉的鑼響的時候把配樂讓開');
-  // 大師層印記是兩層（章 ＋ 微光），硬門檻是單層厚重閂鎖
+  // 大師層印記是兩層（章 ＋ 微光）；硬門檻的閂鎖是單層厚重版
+  // （2026-08-03 站長把全場唯一的硬門檻鬆綁後目前沒有任何一區觸發它，素材與 cue 留著當退路）
   ok(Boolean(SFX_FILES.masterSeal.layer), '大師層印記是「章 ＋ 微光」兩層');
   ok(SFX_FILES.masterSeal.layer.delay > 0, '微光那一層晚一點進來');
-  eq(Boolean(SFX_FILES.hardGate.layer), false, '硬門檻沒有慶祝的微光');
-  ok(SFX_FILES.hardGate.file !== SFX_FILES.unlock.file, '硬門檻與一般解鎖不是同一個聲音');
+  eq(Boolean(SFX_FILES.hardGate.layer), false, '硬門檻的閂鎖沒有慶祝的微光');
+  ok(SFX_FILES.hardGate.file !== SFX_FILES.unlock.file, '硬門檻的閂鎖與一般解鎖不是同一個聲音');
   // 鍛打兩顆輪播（連打不會像機器）
   ok(Boolean(SFX_FILES.toolcraftStrike.alt), '鍛打有第二顆素材可以輪播');
   // 逐 cue 節流：兩支不同的 cue 不會互相把對方變啞
@@ -3777,7 +3778,7 @@ ok(SFX_FILES.click.throttle > 0, '刻印牌的按鍵音有節流');
   ok(/isApplicationTrial\(challenge\)\) audio\.cue\('trialPass'\)/.test(mainSrc), '應用關過關響的是鑼');
   ok(/newPenless \|\| outcome\.newScribe/.test(mainSrc), '拿到大師層印記時會響一聲');
   ok(/audio\.cue\('masterSeal'\)/.test(mainSrc), '大師層印記接的是 masterSeal');
-  ok(/hard \? 'hardGate' : 'unlock'/.test(mainSrc), '硬門檻開的時候響的是閂鎖，不是一般解鎖');
+  ok(/hard \? 'hardGate' : 'unlock'/.test(mainSrc), '硬門檻真的存在時響的是閂鎖，不是一般解鎖（目前沒有任何一區是硬門檻，這是留著的退路）');
   ok(/audio\.cue\('simDial', \{ notch: index \}\)/.test(mainSrc), '轉鈕轉一格會放那一檔的卡榫聲');
   ok(/REGION_CARVE_CUES\[carveRegion\]/.test(mainSrc), '刻上一段會用該片土地自己的聲音');
   ok(/REGION_SEAL_CUES\[carveRegion\]/.test(mainSrc), '刻滿了會用該片土地自己的聲音');
@@ -7735,7 +7736,7 @@ console.log('\n▸ 觀象臺（課程 v2 · Phase I）');
 /*        官方出處（並排留在秤過的帳上）                                */
 /*     3. 拆碑的資料契約：每一塊指得到名牌、每個名牌貼錯有教學、有誘餌   */
 /*     4. 轉鈕的第 4 組樣本（同名旋鈕）合契約、三檔回話互異             */
-/*     5. **硬門檻**：唯一一道不能先行前往的門，而且不會被寫進 skippedGates */
+/*     5. **門檻**：2026-08-03 起是軟門檻（任 2 片精通、可先行前往、誠實記帳） */
 /*     6. 世界：高原上的建物、地標零光源、母土地一寸都沒被吃掉          */
 /*     7. 這一區沒有配樂音檔 → 誠實登記成合成專用（護欄 3）             */
 /* ================================================================== */
@@ -7907,52 +7908,61 @@ console.log('\n▸ 分歧之廳與拆碑（課程 v2 · Phase J1）');
     }
   }
 
-  /* --- 硬門檻：唯一一道不能先行前往的門 --- */
+  /* --- 門檻：2026-08-03 站長裁決把全場唯一的硬門檻鬆綁成軟門檻 --- */
   {
     const spec = (regionsV2.regions.find((r) => r.id === 'divergence') || {}).gate || {};
     const { REGION_GATES } = await import('../src/progression/progression.js');
     const gate = REGION_GATES.divergence;
     ok(Boolean(gate), 'REGION_GATES 上有分歧之廳');
-    eq(gate.hard, true, '分歧之廳是硬門檻（curriculum-v2 §5.4 唯一的 hard requirement）');
-    eq(spec.hard, true, 'regions-v2 的規格也寫著硬門檻');
-    eq(gate.knowledge.masteredAny, spec.masteredAnyCount, '「四區精通」＝regions-v2 的規格');
+    ok(!gate.hard, '分歧之廳不再是硬門檻（2026-08-03 站長裁決：比照其他區域可先行前往）');
+    ok(!spec.hard, 'regions-v2 的規格也拿掉了 hard 旗標');
+    eq(spec.masteredAnyCount, 2, '精通需求降到「任 2 片土地」');
+    eq(gate.knowledge.masteredAny, spec.masteredAnyCount, '「任 2 片精通」＝regions-v2 的規格');
     eq(gate.requires, null, '分歧之廳不看「前一區通關幾關」（知識即升級）');
     eq(
       Object.values(REGION_GATES).filter((g) => g.hard).length,
-      1,
-      '整個世界只有這一道硬門檻（其餘全部是可以先行前往的軟門檻）'
+      0,
+      '整個世界一道硬門檻都沒有（全部是可以先行前往的軟門檻）'
     );
     memory.clear();
-    const hardProg = createProgression({ catalog, challenges });
-    eq(hardProg.isRegionUnlocked('divergence'), false, '新存檔時分歧之廳是鎖著的');
-    const st = hardProg.gateStatus('divergence');
-    eq(st.hard, true, 'gateStatus 說得出這是一道硬門檻（gate.js 依它換一套說法）');
-    ok(st.knowledgeGaps.some((g) => g.kind === 'masteredAny' && g.need === 4), '缺口就是「四區精通」', JSON.stringify(st.knowledgeGaps));
-    ok(!/先行前往/.test(st.text), '門上的字不提「先行前往」（提了卻按不下去比擋住更糟）', st.text);
-    ok(/走過去才開/.test(st.text), '門上的字說得出這一道要走過去才開', st.text);
+    const softProg = createProgression({ catalog, challenges });
+    eq(softProg.isRegionUnlocked('divergence'), false, '新存檔時分歧之廳仍然是鎖著的（門檻鬆綁 ≠ 一開始就開）');
+    const st = softProg.gateStatus('divergence');
+    eq(st.hard, false, 'gateStatus 說得出這不是硬門檻（gate.js 依它決定要不要畫「直接前往」）');
+    ok(st.knowledgeGaps.some((g) => g.kind === 'masteredAny' && g.need === 2), '缺口就是「任 2 片精通」', JSON.stringify(st.knowledgeGaps));
+    ok(/先行前往/.test(st.text), '門上的字說得出可以先行前往', st.text);
+    ok(!/走過去才開/.test(st.text), '門上的字不再說「這一道要走過去才開」', st.text);
     ok(!/divergence|masteredAny/.test(st.text), '門上說的是中文，不是資料層的 id', st.text);
-    const res = hardProg.skipGate('divergence');
-    eq(res.opened, false, '先行前往開不了這一道門');
-    eq(res.hard, true, 'skipGate 明講被擋下來的理由是硬門檻');
-    eq(hardProg.isRegionUnlocked('divergence'), false, '被擋下來之後這一區仍然是鎖著的');
-    ok(!hardProg.hasSkippedGate('divergence'), '分歧之廳不會被寫進 skippedGates');
-    eq(hardProg.skippedGateCount(), 0, '一道門都沒有被記成先行前往');
+    const res = softProg.skipGate('divergence');
+    eq(res.opened, true, '先行前往開得了這一道門');
+    ok(!res.hard, 'skipGate 不再回報「被硬門檻擋下來」');
+    eq(softProg.isRegionUnlocked('divergence'), true, '開過之後這一區就走得進去');
+    ok(softProg.hasSkippedGate('divergence'), '分歧之廳也會被誠實記進 skippedGates');
+    eq(softProg.skippedGateCount(), 1, '記帳記得剛剛那一道');
     /* 其餘 11 區的先行前往一字未動 */
-    eq(hardProg.skipGate('reasoning').opened, true, '其他的門照樣先行前往得了（既有行為未變）');
-    ok(hardProg.hasSkippedGate('reasoning'), '先行前往的門仍然會被誠實記帳');
+    eq(softProg.skipGate('reasoning').opened, true, '其他的門照樣先行前往得了（既有行為未變）');
+    ok(softProg.hasSkippedGate('reasoning'), '先行前往的門仍然會被誠實記帳');
+    eq(softProg.skippedGateCount(), 2, '兩道門都記著');
     memory.clear();
   }
 
-  /* --- 閘門對話框：硬門檻不提供「直接前往」 --- */
+  /* --- 閘門對話框：每一道門都問得出「想先過去看看嗎」 --- */
   {
     const src = readFileSync(resolve(root, 'src/ui/gate.js'), 'utf8');
-    ok(/status\.hard/.test(src), '閘門對話框讀得到「這是不是硬門檻」');
-    ok(/hard\s*\n?\s*\?/.test(src) || /const hard = Boolean\(status\.hard\)/.test(src), '硬門檻走另一套版面');
-    const hardBlock = src.slice(src.indexOf('const hard = Boolean(status.hard)'), src.indexOf('        : `'));
-    ok(!/data-go/.test(hardBlock), '硬門檻的版面上沒有「直接前往」這顆按鈕');
-    ok(/data-stay/.test(hardBlock), '硬門檻仍然留著「先留下修行」');
-    ok(/門一直在，回來就好/.test(hardBlock), '硬門檻的說法不是失敗，是「還沒輪到這裡」');
-    ok(!/https?:\/\//.test(hardBlock), '閘門不放官方連結（護欄 2）');
+    ok(/status\.hard/.test(src), '閘門對話框仍然讀得到「這是不是硬門檻」（機制留著當退路，目前沒有任何一區用它）');
+    ok(/const hard = Boolean\(status\.hard\)/.test(src), '硬門檻的另一套版面仍在原地（將來要鎖哪一道門不必重寫 UI）');
+    const softStart = src.indexOf('        : `');
+    const softBlock = src.slice(softStart, src.indexOf('overlay.resetScroll()', softStart));
+    ok(softBlock.length > 200, '量得到軟門檻那一段版面（不是空字串空過）', String(softBlock.length));
+    ok(/data-go/.test(softBlock), '軟門檻（現在的每一道門）畫得出「直接前往」');
+    ok(/data-stay/.test(softBlock), '軟門檻也留著「先留下修行」');
+    ok(!/https?:\/\//.test(softBlock), '閘門不放官方連結（護欄 2）');
+    /* 分歧之廳走的就是這條軟門檻的路 —— 沒有任何一區踩得到 hard 分支 */
+    const { REGION_GATES } = await import('../src/progression/progression.js');
+    ok(
+      Object.values(REGION_GATES).every((g) => !g.hard),
+      '沒有任何一區會走到 hard 分支（含分歧之廳）'
+    );
   }
 
   /* --- 世界：高原上的建物（加建，沒有自己的橋） --- */
@@ -8279,14 +8289,16 @@ ok(APPROACH_DELTA >= 3, `「真的往那邊走」的判定距離合理（${APPRO
 ok(NEAR_ENOUGH >= 10, `已經走到附近就不再提示（${NEAR_ENOUGH} 單位內）`);
 
 /* ================================================================== */
-/* Phase 28：分享 ＝ 圖 ＋ 一段話                                       */
+/* 分享（Phase 28 → Phase 31 → 2026-08-03 站長定稿）                   */
 /*                                                                    */
-/*   · 分享出去的東西只有兩樣：那張卡的圖檔，加上玩家自己那段話          */
-/*   · 玩家貼出去的話裡**不准有網址** —— 收到的人要看到圖，不是一個連結  */
-/*   · Phase 24 那排「分享到 Facebook / Threads」的網頁入口已經拿掉      */
-/*     （它們帶不走圖片，收到的人只看得到連結 —— 那正是要修的 bug）      */
+/*   · 分享出去的主體仍然是那張卡的圖，加上玩家自己那段話              */
+/*   · 那段話的**最後一行是遊戲的網址**（2026-08 站長決定：卡片是主體， */
+/*     看到的人得走得過來才有下一個玩家；WORLD.md §3.5b 已同步修訂）    */
+/*   · 平台入口收斂成兩顆：Threads（純文字帶進撰寫框）與                */
+/*     Facebook（`sharer.php` 開貼文對話框、那段話先進剪貼簿）          */
+/*     —— Instagram 整顆移除（網頁版沒有撰寫入口，體驗太差）            */
+/*   · 「分享圖＋文」的系統分享鈕已移除 → 複製鈕成為固定主角            */
 /*   · 零 SDK、零註冊、零外部腳本 —— 全部是玩家按下去才發生的一次動作    */
-/*   · 圖片本身只能交給系統分享面板 → 支援才露出那個入口（feature detect）*/
 /* ================================================================== */
 console.log('\n▸ 分享 ＝ 圖 ＋ 一段話（Phase 28）');
 
@@ -8294,21 +8306,26 @@ const shareMod = await import('../src/ui/sharecard.js');
 const { SHARE_URL, SHARE_TAGLINE, shareText, shareCaption, systemShareSupported } = shareMod;
 const shareSrc = readFileSync(resolve(root, 'src/ui/sharecard.js'), 'utf8');
 
-/* --- 網址：留一個常數給部署用，但不進玩家看到的那段話 --- */
-eq(SHARE_URL, 'https://github.com/romanticamaj/promptasy', '網址常數還在（部署後才會改）');
-ok(/TODO 部署後改成正式網址/.test(shareSrc), '網址上面留著「部署後要改」的字條');
+/* --- 網址：已經上線的正式網址，而且進得了玩家看到的那段話 --- */
+eq(SHARE_URL, 'https://garyhsieh.com/promptasy', '網址常數＝已上線的正式網址');
+ok(!/TODO 部署後改成正式網址/.test(shareSrc), '「部署後要改」的字條已經拿掉（網址已經是正式的）');
 ok(/^https:\/\//.test(SHARE_URL), '網址常數是 https');
+eq((shareSrc.match(/https:\/\/garyhsieh\.com\/promptasy/g) || []).length, 1, '全遊戲只有一個網址常數（換網域只改一個地方）');
 // 檔案裡出現的每一個網域都要在這張清單上（不准偷偷冒出第三方服務）
 const shareHosts = [...new Set((shareSrc.match(/https?:\/\/[^\s'"`)]+/g) || []).map((u) => new URL(u).host))];
 eq(
   shareHosts.sort().join(','),
-  'github.com,www.facebook.com,www.instagram.com,www.threads.com',
-  '整份檔案只出現這幾個網域（部署網址 ＋ 三個平台，沒有第三方服務）'
+  'garyhsieh.com,www.facebook.com,www.threads.com',
+  '整份檔案只出現這幾個網域（站網址 ＋ 兩個平台，沒有第三方服務）'
 );
-ok(!/promptasy\.(app|com|io|dev)/.test(shareSrc), '沒有憑空發明的網域');
+ok(!shareHosts.includes('www.instagram.com'), 'Instagram 的網域已經整個不見了（那顆入口移除了）');
+ok(!/promptasy\.(app|io|dev)/.test(shareSrc), '沒有憑空發明的網域');
 eq(SHARE_TAGLINE, 'Learn Prompt Engineering by Playing', '品牌那一句和網站標題一致');
 
 /* --- 零 SDK / 零外部腳本（護欄 3） --- */
+// 只看真的會跑的程式：註解裡本來就會解釋「為什麼不用 app_id」「navigator.share 的手勢規則」
+const shareCode = shareSrc.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+ok(shareCode.length > 4000, '量得到剝掉註解之後的程式（不是空字串空過）', String(shareCode.length));
 for (const banned of [
   'connect.facebook.net',
   'platform.twitter.com',
@@ -8319,7 +8336,7 @@ for (const banned of [
   'fetch(',
   'XMLHttpRequest',
 ]) {
-  ok(!shareSrc.includes(banned), `分享不引入任何外部東西（沒有 ${banned}）`);
+  ok(!shareCode.includes(banned), `分享不引入任何外部東西（沒有 ${banned}）`);
 }
 ok(!/<script/i.test(shareSrc), '分享不塞任何 script 進頁面');
 
@@ -8349,27 +8366,31 @@ eq(shareText({}).includes('旅人'), true, '沒資料時退回「旅人」，不
 for (const banned of ['送出評分', '按鈕', '面板', 'localStorage', 'rubric', 'API key']) {
   ok(!codexText.includes(banned) && !resultText.includes(banned), `那句話不出現系統術語「${banned}」`);
 }
-/* --- 那段話：世界的說法 ＋ 品牌落款，**沒有網址** --- */
+/* --- 那段話：世界的說法 ＋ 品牌落款 ＋ 自己一行的網址（2026-08 站長定稿） --- */
 const caption = shareCaption(shareModel);
-ok(caption.startsWith(codexText), '那段話就是世界的說法 ＋ 品牌那一句');
+ok(caption.startsWith(codexText), '那段話就是世界的說法開頭');
 ok(caption.includes(SHARE_TAGLINE), '那段話帶著品牌那一句當落款');
-ok(!caption.includes(SHARE_URL), '那段話不帶網址（分享的是圖，不是連結）', caption);
+ok(caption.includes(SHARE_URL), '那段話帶著站網址（看到卡片的人才走得過來）', caption);
 for (const kind of ['codex', 'result', 'mastery', 'finale']) {
   const c = shareCaption({ ...shareModel, kind, headline: '清晰之門', grade: 'S' });
-  ok(!/https?:\/\//.test(c), `${kind} 那段話裡沒有任何連結`, c);
+  const lines = c.split('\n');
+  eq(lines.length, 2, `${kind} 那段話是兩行（世界的說法 ／ 落款 ＋ 網址）`, JSON.stringify(lines));
+  eq(lines[1], `${SHARE_TAGLINE} - ${SHARE_URL}`, `${kind} 的第二行＝品牌落款 ＋ 網址`, lines[1]);
+  eq((c.match(/https?:\/\//g) || []).length, 1, `${kind} 那段話裡只有一個網址（落款，不是替代品）`, c);
   ok(!/github/i.test(c), `${kind} 那段話裡沒有程式碼倉庫的字眼`, c);
   ok(c.includes('Promptasy'), `${kind} 那段話講得出這是什麼遊戲`);
-  ok(c.length <= 120, `${kind} 那段話不長（${c.length} 字）`);
+  ok(lines[0].length <= 120, `${kind} 世界的說法那一行不長（${lines[0].length} 字）`);
+  ok(c.length <= 180, `${kind} 整段話不長（${c.length} 字）`);
 }
 eq(shareCaption({}).includes('旅人'), true, '沒資料時那段話也生得出來');
 
-/* --- 舊的「只送一個連結」的入口仍然不准回來 --- */
+/* --- 舊的入口仍然不准回來 --- */
 eq(shareMod.platformIntent, undefined, '舊的「只帶文字與連結」的入口沒有回來');
 eq(shareMod.isMobileLike, undefined, '不再需要猜是不是手機（Messenger 的特例已經走了）');
 eq(shareMod.shareBody, undefined, '舊的「那句話 ＋ 網址」已經換成 shareCaption');
 eq(shareMod.shareTitle, undefined, '系統分享只交出圖與那段話，不再另外塞標題');
-for (const gone of ['facebook.com/sharer', 'fb-messenger://', 'https://www.threads.net']) {
-  ok(!shareSrc.includes(gone), `分享卡上沒有「${gone}」這條只送得出連結的路`);
+for (const gone of ['fb-messenger://', 'https://www.threads.net', 'instagram.com']) {
+  ok(!shareSrc.includes(gone), `分享卡上沒有「${gone}」這條路`);
 }
 
 /* ------------------------------------------------------------------ *
@@ -8381,29 +8402,30 @@ for (const gone of ['facebook.com/sharer', 'fb-messenger://', 'https://www.threa
  * ------------------------------------------------------------------ */
 const { SHARE_TARGETS, platformOpenUrl } = shareMod;
 ok(Array.isArray(SHARE_TARGETS), '那一排是一份資料（不是散在程式裡的字串）');
-eq(SHARE_TARGETS.length, 3, '一排三顆：Threads / Facebook / Instagram');
-eq(SHARE_TARGETS.map((t) => t.id).join(','), 'threads,facebook,instagram', '順序：最順的那條路排前面');
+eq(SHARE_TARGETS.length, 2, '一排兩顆：Threads / Facebook（Instagram 已移除）');
+eq(SHARE_TARGETS.map((t) => t.id).join(','), 'threads,facebook', '順序：最順的那條路排前面');
+ok(!SHARE_TARGETS.some((t) => t.id === 'instagram'), 'Instagram 那顆沒有回來（網頁版沒有撰寫入口）');
 for (const t of SHARE_TARGETS) {
-  ok(['clipboard', 'download'].includes(t.carry), `${t.id} 講得出圖怎麼跟過去`, String(t.carry));
-  ok(['url', 'manual'].includes(t.textVia), `${t.id} 講得出那段話怎麼跟過去`, String(t.textVia));
+  // `carry` 說的是「圖怎麼跟過去」：none ＝ 純文字分享、clipboard ＝ 進剪貼簿
+  ok(['none', 'clipboard', 'download'].includes(t.carry), `${t.id} 講得出圖怎麼跟過去`, String(t.carry));
   ok(!!t.label && /^[A-Za-z]+$/.test(t.label), `${t.id} 的名字就是平台自己的名字`, t.label);
   ok(t.toast && t.toast.length >= 12, `${t.id} 的提示講得出接下來要做什麼`, t.toast);
   ok(/[一-鿿]/.test(t.toast), `${t.id} 的提示是中文`, t.toast);
   ok(!/https?:\/\//.test(t.toast), `${t.id} 的提示裡沒有網址`, t.toast);
-  // 護欄：每一顆都一定帶得走圖（這就是 Phase 24 與 Phase 31 的差別）
-  ok(t.carry === 'clipboard' || t.carry === 'download', `${t.id} 一定帶得走圖（不是只送一個連結）`);
 }
-// 貼上那條路：剪貼簿裡只放圖 → 那一次 Ctrl+V 不會變成貼出一段字
-for (const t of SHARE_TARGETS.filter((x) => x.carry === 'clipboard')) {
-  eq(t.clipboard, 'image', `${t.id} 按下去時剪貼簿裡只放圖（貼上不會變成貼文字）`);
-  ok(t.toast.includes('Ctrl+V'), `${t.id} 的提示直接寫出要按的那組鍵`, t.toast);
+// Threads：純文字分享（2026-08-03 站長指示）—— 文字直接進撰寫框，不動剪貼簿
+{
+  const th = SHARE_TARGETS.find((t) => t.id === 'threads');
+  eq(th.carry, 'none', 'Threads 是純文字分享（不用先備任何東西）');
+  eq(th.clipboard, undefined, 'Threads 不碰剪貼簿');
 }
-// 帶不進文字的那幾顆，一定要告訴玩家文字怎麼補
-for (const t of SHARE_TARGETS.filter((x) => x.textVia === 'manual')) {
-  ok(t.toast.includes('複製文案'), `${t.id} 帶不進文字 → 提示指得出「複製文案」那一顆`, t.toast);
+// Facebook：sharer.php 開貼文對話框；FB 政策禁止預填文字 → 那段話先進剪貼簿
+{
+  const fb = SHARE_TARGETS.find((t) => t.id === 'facebook');
+  eq(fb.carry, 'clipboard', 'Facebook 要先把東西放進剪貼簿');
+  eq(fb.clipboard, 'text', 'Facebook 放進剪貼簿的是那段話（FB 不讓程式預填文字）');
+  ok(fb.toast.includes('Ctrl+V'), 'Facebook 的提示直接寫出要按的那組鍵', fb.toast);
 }
-ok(SHARE_TARGETS.some((t) => t.textVia === 'url'), '至少有一顆連文字都帶得進去（Threads）');
-ok(SHARE_TARGETS.some((t) => t.carry === 'download'), '選檔案的那一種也有人走（Instagram）');
 
 /* --- 開出去的網址：官方入口、https、沒有第三方轉址 --- */
 const threadsUrl = platformOpenUrl('threads', { text: '我在 Promptasy 刻好了一張卡' });
@@ -8415,13 +8437,15 @@ ok(
 );
 // threads.net 會 301 轉到 threads.com —— 直接寫新的網域，少跳一次
 ok(!threadsUrl.includes('threads.net'), 'Threads 用的是現在的網域（不靠轉址）');
-eq(platformOpenUrl('facebook'), 'https://www.facebook.com/', 'Facebook 就開首頁（沒有帶得動內容的撰寫入口）');
-// `/create/select/` 這種路徑伺服器不認（2026-07 實測會落回一般首頁殼）→ 老實開首頁
-eq(platformOpenUrl('instagram'), 'https://www.instagram.com/', 'Instagram 開首頁（網頁版沒有直接開撰寫的網址）');
-ok(!/instagram\.com\/create/.test(shareSrc), '不用那個伺服器根本不認的假深連結');
+// 2026-08-03 站長裁決：FB 改走 sharer.php（無需 app_id 就會自動開貼文對話框，帶站網址與 og 預覽卡）
+eq(
+  platformOpenUrl('facebook'),
+  `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(SHARE_URL)}`,
+  'Facebook 走 sharer.php 對話框（帶站網址）'
+);
+ok(!/instagram\.com/.test(shareSrc), 'Instagram 的網址整個不見了（不留假深連結）');
 eq(platformOpenUrl('nope'), null, '沒有的平台就回 null（不假裝有路）');
-eq(platformOpenUrl('facebook', { text: 'x' }).includes('x'), false, 'Facebook 那條路不假裝帶得進文字');
-// 2026-08-03 站長裁決:IG 分享整個移除;FB 改走 sharer.php(帶站網址開貼文框)。
+eq(platformOpenUrl('facebook', { text: 'x' }).includes('=x'), false, 'Facebook 那條路不假裝帶得進文字');
 eq(platformOpenUrl('instagram', { text: 'hi' }), null, 'Instagram 已移除 —— 回 null 不假裝有路');
 for (const id of ['threads', 'facebook']) {
   const url = platformOpenUrl(id, { text: 'hi' });
@@ -8445,15 +8469,23 @@ ok(/downloadImage\(\)/.test(goBlock), '選檔案那條路是「先把圖存下�
 ok(/const text = captionNow\(\);/.test(goBlock), '帶過去的那段話是按下去當下框裡的字');
 ok(/'_blank', 'noopener,noreferrer'/.test(shareSrc), '開出去的那一頁動不到這一頁（noopener）');
 ok(/copyImageOnly/.test(shareSrc) && /'image\/png': lastBlob/.test(shareSrc), '「只複製圖」複製的是備好的那張圖');
-const imgOnlyBlock = shareSrc.slice(shareSrc.indexOf('async function copyImageOnly'), shareSrc.indexOf('/** 只把那段話放進剪貼簿'));
+const imgOnlyStart = shareSrc.indexOf('async function copyImageOnly');
+const imgOnlyBlock = shareSrc.slice(imgOnlyStart, shareSrc.indexOf('function downloadImage', imgOnlyStart));
+ok(imgOnlyBlock.length > 100, '量得到「只複製圖」那一段（不是空字串空過）', String(imgOnlyBlock.length));
 ok(!/text\/plain/.test(imgOnlyBlock), '「只複製圖」真的只有圖（沒有偷塞文字進去）');
-ok(/copyTextOnly/.test(shareSrc) && /writeText/.test(shareSrc), '另外有一顆只複製那段話');
+// 2026-08-03 站長定稿：那一排上不再有獨立的「複製文案」石籤 ——
+// 圖＋文的複製鈕成為固定主角，FB 那條路自己把文字寫進剪貼簿。
+ok(!/copyTextOnly/.test(shareSrc), '獨立的「只複製那段話」那顆已經移除');
+ok(!/data-chip="caption"/.test(shareSrc), '「複製文案」石籤沒有回來');
+ok(/data-copy/.test(shareSrc) && /copyBundle/.test(shareSrc), '複製鈕複製的是圖 ＋ 那段話');
 // 複製不了圖的瀏覽器：改走「存下來再選檔案」，一樣帶得走圖（不留死路）
 ok(/target\.carry === 'clipboard' && !canCopyImage\(\)/.test(shareSrc), '複製不了圖的時候改走下載那條路');
 ok(/ClipboardItem\.supports\('image\/png'\)/.test(shareSrc), '先問瀏覽器收不收 PNG（Safari 會挑型別）');
-ok(/data-chip="caption"/.test(shareSrc), '「複製文案」也在那一排上（帶不進文字的平台靠它補）');
-ok(/rovingList\(targetsEl, '\[data-chip\]'\)/.test(shareSrc), '那一排用方向鍵走得完（鍵盤優先）');
-ok(/chip\.classList\.add\('is-used'\)/.test(shareSrc), '按過的石籤會變樣子（知道自己按過哪一顆）');
+// 純文字分享那條路：什麼都不用備，直接開那一頁（文字已經在網址裡）
+ok(/target\.carry === 'none'/.test(goBlock), '純文字分享那條路不動剪貼簿也不下載');
+ok(/writeText\(text\)/.test(goBlock), 'FB 那條路把那段話寫進剪貼簿（讓玩家 Ctrl+V）');
+ok(/rovingList\(targetsEl, '\.iconbtn'\)/.test(shareSrc), '那一排用方向鍵走得完（鍵盤優先）');
+ok(/chip\.classList\.add\('is-used'\)/.test(shareSrc), '按過的那一顆會變樣子（知道自己按過哪一顆）');
 
 /* --- feature detection：不支援就不要露出那個入口 --- */
 const fakeFile = { name: 'x.png', type: 'image/png' };
@@ -8475,29 +8507,21 @@ eq(
 eq(systemShareSupported(fakeFile, { share() {}, canShare: (d) => d.files.length === 1 }), true, '帶得動檔案＝支援');
 ok(/canShare\(\{ files: \[file\] \}\)/.test(shareSrc), '真的用 canShare 問「帶不帶得動這個檔案」（不是猜瀏覽器）');
 ok(!/userAgent/.test(shareSrc.slice(shareSrc.indexOf('function systemShareSupported'))), '偵測系統分享時不看 UA');
-ok(/data-sysshare/.test(shareSrc) && /sys\.hidden = !supported/.test(shareSrc), '不支援時那個入口是收起來的');
-// 開卡的第一幀就要知道支不支援（不然焦點會先落在別的地方，一下又被搶走）
+// 開卡的第一幀就要知道支不支援（偵測工具留著，將來要放回那顆入口不必重寫）
 ok(!!shareMod.SHARE_PROBE, '有一個假的 PNG 可以先拿去問「帶不帶得動檔案」');
 eq(shareMod.SHARE_PROBE.type, 'image/png', '拿去問的假檔案型別就是 PNG');
 ok(shareMod.SHARE_PROBE.size <= 64, `拿去問的假檔案很小（${shareMod.SHARE_PROBE.size} bytes）`);
-ok(/lastFile \|\| SHARE_PROBE/.test(shareSrc), '還沒畫完之前用假檔案問，畫完之後用真的');
 ok(/圖還在刻/.test(shareSrc), '真的圖還沒好就按下去 → 說一句話，不做半套的事');
 
-/* --- 手勢鏈：navigator.share 前面不准有 await --- */
-const shareCallBlock = shareSrc
-  .slice(shareSrc.indexOf("sysBtn.addEventListener('click'"), shareSrc.indexOf('\n  const api = {'))
-  // 註解裡就寫著「前面不准有 await」—— 先把註解拿掉再檢查真正的程式
-  .replace(/\/\/[^\n]*/g, '')
-  .replace(/\/\*[\s\S]*?\*\//g, '');
-ok(shareCallBlock.includes('navigator.share({ files: [lastFile], text })'), '系統分享交出去的就是圖 ＋ 那段話');
-ok(!/await/.test(shareCallBlock), 'navigator.share 之前沒有任何 await（手勢不會斷）');
-ok(!/async/.test(shareCallBlock), '那個處理函式不是 async（手勢不會斷）');
-ok(/lastFile/.test(shareCallBlock), '交出去的是開卡時就備好的那份 PNG');
-ok(/const text = captionNow\(\);/.test(shareCallBlock), '那段話是按下去的當下才從框裡讀出來（讀到玩家改過的版本）');
-ok(!/url:/.test(shareCallBlock), '不塞 url 欄位（帶了它有些系統會丟掉檔案，收到的人就只剩連結）');
-ok(!/title:/.test(shareCallBlock), '也不塞 title 欄位 —— 只有圖與那段話');
-ok(/prepareFile/.test(shareSrc) && /canvas\.toBlob/.test(shareSrc), '開卡時就把 PNG 備好');
-ok(/AbortError/.test(shareSrc), '玩家自己取消不算失敗（不亂跳提示）');
+/* --- 系統分享鈕：2026-08-03 站長定稿整顆移除（複製鈕成為固定主角） --- */
+ok(!/data-sysshare/.test(shareSrc), '「分享圖＋文」的系統分享鈕已經整顆移除');
+ok(!/navigator\.share\(/.test(shareCode), '面板上沒有任何一處會去呼叫 navigator.share()');
+ok(!/sys\.hidden = !supported/.test(shareSrc), '不再需要依偵測結果收起 / 露出那顆入口');
+ok(
+  /heroAction\(\)[\s\S]{0,220}data-copy/.test(shareSrc),
+  '這個畫面的主角改成「複製圖＋文」那一顆（不再是系統分享）'
+);
+ok(/prepareFile/.test(shareSrc) && /canvas\.toBlob/.test(shareSrc), '開卡時仍然把 PNG 備好（複製與下載都靠它）');
 
 /* --- 剪貼簿（沒有系統分享時的那條路）：圖 ＋ 那段話一起放進同一份 --- */
 ok(/'image\/png': lastBlob/.test(shareSrc), '複製的是備好的那張圖');
@@ -8511,30 +8535,40 @@ ok(/captionEdited = true/.test(shareSrc), '玩家改過就記起來');
 ok(/if \(cap && !captionEdited\)/.test(shareSrc), '重畫時不會蓋掉玩家自己寫的話');
 ok(/captionEdited = false/.test(shareSrc), '換一張卡時那段話回到預設');
 ok(/for="sharecard-say"/.test(shareSrc) && /id="sharecard-say"/.test(shareSrc), '那個框有自己的標籤（螢幕閱讀器唸得出來）');
-ok(/aria-describedby="sharecard-sayhint"/.test(shareSrc), '框旁邊那句說明綁得回框本身');
+// 2026-08-03 站長定稿：框旁邊那句灰字說明整段收掉（標籤「一段話」＋框裡的預設文字已經說完了）
+ok(!/aria-describedby="sharecard-sayhint"/.test(shareSrc), '框旁邊那句說明已經收掉（連同它的 aria 綁定）');
+ok(/>一段話</.test(shareSrc), '框的標籤就是白話的「一段話」', shareSrc.match(/>[^<]*<\/label>/)?.[0] || '');
 const shareCss = readFileSync(resolve(root, 'src/styles.css'), 'utf8');
 const sayBoxCss = shareCss.slice(shareCss.indexOf('.sharecard__saybox'), shareCss.indexOf('.sharecard__saybox') + 700);
 ok(/--font-input/.test(sayBoxCss), '玩家自己打的字走系統字型（子集缺字也不會破圖）');
-ok(/\.sharecard__chip/.test(shareCss), '那一排石籤有自己的樣式');
-ok(/\.sharecard__chips/.test(shareCss) && /\.sharecard__sendlabel/.test(shareCss), '那一排有標題與容器的樣式');
+ok(/\.iconbtn/.test(shareCss), '那一排圖示鈕有自己的樣式');
+ok(/\.sharecard__icons/.test(shareCss), '那一排有容器的樣式');
 
-/* --- 鍵盤（Phase 23 的文法） --- */
-ok(/<kbd>Tab<\/kbd>/.test(shareSrc), '畫面上說得出 Tab 走到下一個');
-ok(/<kbd>Enter<\/kbd>/.test(shareSrc), '畫面上說得出 Enter 可以按下去');
-ok(/<kbd>←<\/kbd>/.test(shareSrc) && /<kbd>→<\/kbd>/.test(shareSrc), '那一排在畫面上教得出方向鍵怎麼走');
-ok(/aria-label="把這張圖和這段話一起分享出去"/.test(shareSrc), '主入口有給螢幕閱讀器的說明');
+/* --- 鍵盤與無障礙（Phase 23 的文法） --- */
+// 那一排收斂成純圖示（沒有文字標籤）→ 名字與說明全部走 title / aria-label
+ok(/title="\$\{esc\(\s*t\.label\s*\)\}"/.test(shareSrc), '每一顆圖示鈕都戴著平台自己的名字（滑鼠停著看得到）');
+ok(/aria-label="\$\{esc\(`\$\{t\.label\}：\$\{t\.toast\}`\)\}"/.test(shareSrc), '每一顆圖示鈕都說得出「按下去會發生什麼」');
+ok(/aria-label="把這張圖和這段話一起複製起來"/.test(shareSrc), '主角那一顆有給螢幕閱讀器的說明');
+ok(/aria-label="把這張圖存到裝置上"/.test(shareSrc), '下載那一顆也有給螢幕閱讀器的說明');
 ok(/overlay\.open\(\{ focus: heroAction\(\) \}\)/.test(shareSrc), '開卡時焦點落在這個畫面的主角上');
 
-/* --- 畫面上的說明：中文、老實、不出現系統術語 --- */
-const shareCopy = (shareSrc.match(/class="sharecard__hint"[^>]*>([^<]*)/g) || []).map((s) => s.replace(/^[^>]*>/, ''));
-ok(shareCopy.length >= 2, '畫面上有說明「貼上之後會發生什麼」');
-const hintAll = shareCopy.join(' ');
-ok(hintAll.includes('Facebook') && hintAll.includes('Instagram') && hintAll.includes('Threads'), '說明點得出常見的那幾個地方', hintAll);
-ok(hintAll.includes('貼上'), '說明講得出「直接貼上」這個動作', hintAll);
-ok(hintAll.includes('圖和文字'), '說明講得出圖和文字會一起送出', hintAll);
-ok(!/連結/.test(hintAll), '說明不再提「連結」（分享的是圖，不是連結）', hintAll);
-for (const banned of ['送出評分', '按鈕', '面板', 'localStorage', 'rubric']) {
-  ok(!hintAll.includes(banned), `說明不出現系統術語「${banned}」`);
+/* --- 收掉的那些字：不准回來 --- */
+// 2026-08-03 站長定稿：「分享 · SHARE」小標、`.sharecard__hint` 那兩行說明、
+// 以及 `<kbd>` 鍵帽全部撤掉 —— 圖示 ＋ aria-label 已經把話講完了。
+ok(!/class="sharecard__hint"/.test(shareSrc), '那兩行灰字說明已經整組移除');
+ok(!/<kbd>/.test(shareSrc), '分享卡上不再印鍵帽（那一排是圖示，說明走 aria-label）');
+ok(!/SHARE<\/|分享 ·/.test(shareSrc), '「分享 · SHARE」那個小標沒有回來');
+{
+  // 留在畫面上的字（title / aria-label / 標籤）仍然要中文、老實、不出現系統術語
+  const visible = [
+    ...(shareSrc.match(/aria-label="[^"$]*"/g) || []),
+    ...(shareSrc.match(/title="[^"$]*"/g) || []),
+    ...SHARE_TARGETS.map((t) => t.toast),
+  ].join(' ');
+  ok(visible.length > 40, '量得到畫面上的字（不是空字串空過）', String(visible.length));
+  for (const banned of ['送出評分', '面板', 'localStorage', 'rubric', 'API key']) {
+    ok(!visible.includes(banned), `畫面上的字不出現系統術語「${banned}」`);
+  }
 }
 
 /* ================================================================== */
@@ -8776,10 +8810,18 @@ for (const font of FONTS) {
   }
 }
 
-// 總量：跨全部字型的預算上限（超過就會傷到載入體感）
+/*
+ * 總量：跨全部字型的預算上限（超過就會傷到載入體感）。
+ *
+ * 2026-08 統一單位：這條斷言從第一天就用 KiB 印數字（`bytes / 1024`），
+ * 門檻卻寫成十進位的 1,500,000 —— 兩邊不同單位。課程長到 142 關之後
+ * CJK 語料切到 1,859 字，實際 1,473 KiB（＝1.44 MiB）卡在這個縫上。
+ * 現在兩邊都用 KiB：上限 1.5 MiB = 1,572,864 bytes，和畫面上印的數字同一把尺。
+ */
+const FONT_BUDGET_BYTES = 1.5 * 1024 * 1024;
 ok(
-  fontBytes < 1_500_000,
-  `字型總量在 1.5 MB 以內（實際 ${(fontBytes / 1024).toFixed(0)} KB）`,
+  fontBytes < FONT_BUDGET_BYTES,
+  `字型總量在 1.5 MiB 以內（實際 ${(fontBytes / 1024).toFixed(0)} KiB／上限 ${(FONT_BUDGET_BYTES / 1024).toFixed(0)} KiB）`,
   String(fontBytes)
 );
 
@@ -9005,7 +9047,12 @@ ok(/coachEl\.querySelector\('button, a'\)/.test(consoleSrc), '提示框打開時
 // 畫面上看得到鍵帽
 ok(/<kbd>M<\/kbd>/.test(consoleSrc), '換答題方式的鍵帽戴在身上');
 ok(/<kbd>L<\/kbd>/.test(consoleSrc), '線索與神諭刻文的鍵帽戴在身上');
-ok(/<kbd>H<\/kbd>/.test(consoleSrc), '提示球的鍵帽戴在身上');
+// 提示改成一顆不寫字的小燈泡（2026-08-03 站長定稿）→ H 這個鍵改由 title 講出來
+ok(/class="orb"/.test(consoleSrc) && /orb__bulb/.test(consoleSrc), '提示是一顆安靜的小燈泡（不寫字、不搶戲）');
+ok(/title="不知道怎麼寫？點我（或按 H）"/.test(consoleSrc), '燈泡上說得出「或按 H」（滑鼠停著就看得到）');
+ok(/aria-label="提示"/.test(consoleSrc), '燈泡有給螢幕閱讀器的名字');
+ok(!/<kbd>H<\/kbd>/.test(consoleSrc), '燈泡上不再印鍵帽（它是圖示，說明走 title）');
+ok(/case 'h':/.test(consoleSrc), 'H 這個快捷鍵本身還在');
 ok(/<kbd>S<\/kbd>/.test(consoleSrc), '分享的鍵帽戴在身上');
 ok(/<kbd>S<\/kbd>/.test(codexSrc), '圖鑑分享的鍵帽戴在身上');
 ok(/<kbd>Enter<\/kbd>/.test(steleSrc), '手掌印說得出「Enter 也可以」');
@@ -9275,7 +9322,8 @@ console.log('\n▸ 改名與存檔搬家');
   // 分享出去的那段話
   ok(/Promptasy/.test(shareSrc), '分享的那段話落款是新名字');
   ok(!/PromptArcade/.test(shareSrc), '分享的那段話沒有舊名字殘留');
-  eq(SHARE_URL, 'https://github.com/romanticamaj/promptasy', '網址常數跟著改名');
+  eq(SHARE_URL, 'https://garyhsieh.com/promptasy', '網址常數指向已上線的正式網址');
+  ok(/promptasy/.test(SHARE_URL) && !/promptarcade/i.test(SHARE_URL), '網址裡也是新名字');
   // 除錯把手：新名字要有，舊名字留成別名
   ok(/window\.__promptasy = \{/.test(mainSrc), '除錯把手改叫 __promptasy');
   ok(/window\.__promptarcade = window\.__promptasy/.test(mainSrc), '舊名字留成別名（外面的腳本不會壞）');
@@ -9998,7 +10046,8 @@ console.log('\n▸ 小數門檻的顯示與「一關只教一條」（Phase A）
   );
   const cssSrc = srcOf('src/styles.css');
   ok(/\.checklist li\.is-foundation/.test(cssSrc), '地基那一列在樣式上真的比較安靜');
-  ok(/\.extras\b/.test(cssSrc), '「順手會用到」那一行有自己的（安靜的）樣式');
+  // 那一行整組移除 → 樣式也不准留在原地（留著遲早會有人把它接回去）
+  ok(!/\.extras\b/.test(cssSrc), '「順手會用到」那一行的樣式也一起清乾淨了（不得回歸）');
 
   /* --- D2：收集仍然由 legacy teaches 驅動（舊存檔的已收集技巧不減少） --- */
   ok(
@@ -11045,10 +11094,16 @@ console.log('\n▸ 手掌印與術語小卡（Phase 35）');
     ['stele.js', steleSrc],
   ]) {
     ok(/class="palm__label">把手掌按上石碑</.test(src), `${tag}：主句還在`);
+    // 2026-08-03 站長定稿：提示收成**一行**（「按住不放，或按住 Enter」），
+    // 字級再縮到 0.4x —— 手掌印是主角，提示只是腳註。
     ok(
-      (src.match(/class="palm__hintline"/g) || []).length === 2,
-      `${tag}：提示拆成兩行各自完整的短句`,
+      (src.match(/class="palm__hintline"/g) || []).length === 1,
+      `${tag}：提示收成一行短句`,
       String((src.match(/class="palm__hintline"/g) || []).length)
+    );
+    ok(
+      /class="palm__hintline">按住不放，或按住 <kbd>Enter<\/kbd><\/span>/.test(src),
+      `${tag}：那一行同時講得出滑鼠與鍵盤兩種按法`
     );
     ok(/<kbd>Enter<\/kbd>/.test(src), `${tag}：Enter 鍵帽還在（鍵盤路徑沒被拿掉）`);
     ok(
@@ -11074,15 +11129,16 @@ console.log('\n▸ 手掌印與術語小卡（Phase 35）');
   const labelCss = (cssSrc.match(/\n\.palm__label \{[\s\S]*?\n\}/) || [''])[0];
   ok(/white-space: nowrap/.test(labelCss), '主句不准在詞中間被擠斷');
   const hintCss = (cssSrc.match(/\n\.palm__hint \{[\s\S]*?\n\}/) || [''])[0];
+  ok(hintCss.length > 60, '量得到提示那一段樣式（不是空字串空過）', String(hintCss.length));
   ok(
-    /font-size: calc\(var\(--t-micro\) \* 0\.86\)/.test(hintCss),
-    '提示字級比主句再小一階',
+    /font-size: calc\(var\(--t-micro\) \* 0\.86 \* 0\.4\)/.test(hintCss),
+    '提示字級縮到主句的 0.4 倍（腳註位階，2026-08-03 站長定稿）',
     hintCss.slice(0, 160)
   );
-  ok(/display: grid/.test(hintCss), '兩行提示是各自一列（不是靠溢位換行）');
+  ok(/display: block/.test(hintCss), '提示只有一行 → 一個區塊就夠（不再需要 grid 排兩列）');
   ok(
     /\.palm__hintline \{[\s\S]*?white-space: nowrap/.test(cssSrc),
-    '每一行提示自己也不換行'
+    '那一行提示自己不換行'
   );
 
   /* ---------------------------------------------------------------- */
