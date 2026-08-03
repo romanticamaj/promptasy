@@ -869,12 +869,29 @@ export function solidAt(x, z, solids, pad = PLAYER_RADIUS) {
 /** 產生文字貼圖 sprite（NPC 名牌 / 閘門說明）。 */
 function makeLabel(text, { color = '#dbe9f3', sub = '', width = 512 } = {}) {
   const canvas = document.createElement('canvas');
-  canvas.width = width;
+  const MAIN_FONT = '600 52px "Noto Sans TC", "PingFang TC", system-ui, sans-serif';
+  const SUB_FONT = '400 32px "Noto Sans TC", "PingFang TC", system-ui, sans-serif';
+  const PAD = 48;
+  // 先量再開畫布：長關名（「先抄一遍才敢答的抄寫人」11 個字 ≈ 572px）
+  // 會超出固定 512 寬被左右截掉 —— 依實際文字寬度放大畫布，sprite 同比例放寬。
+  const probe = canvas.getContext('2d');
+  probe.font = MAIN_FONT;
+  const mainW = probe.measureText(text).width;
+  probe.font = SUB_FONT;
+  const subW = sub ? probe.measureText(sub).width : 0;
+  const finalW = Math.max(width, Math.min(Math.ceil(Math.max(mainW, subW) + PAD), 1280));
+  canvas.width = finalW;
   canvas.height = 160;
   const ctx = canvas.getContext('2d');
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  ctx.font = '600 52px "Noto Sans TC", "PingFang TC", system-ui, sans-serif';
+  // 超過畫布上限（1280）的極端長名：縮字直到放得下
+  let mainSize = 52;
+  ctx.font = MAIN_FONT;
+  while (ctx.measureText(text).width > finalW - PAD && mainSize > 30) {
+    mainSize -= 2;
+    ctx.font = `600 ${mainSize}px "Noto Sans TC", "PingFang TC", system-ui, sans-serif`;
+  }
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.shadowColor = 'rgba(0,0,0,0.85)';
@@ -883,7 +900,7 @@ function makeLabel(text, { color = '#dbe9f3', sub = '', width = 512 } = {}) {
   ctx.fillText(text, canvas.width / 2, sub ? 58 : 80);
 
   if (sub) {
-    ctx.font = '400 32px "Noto Sans TC", "PingFang TC", system-ui, sans-serif';
+    ctx.font = SUB_FONT;
     ctx.fillStyle = 'rgba(210,226,238,0.72)';
     ctx.fillText(sub, canvas.width / 2, 116);
   }
@@ -894,7 +911,7 @@ function makeLabel(text, { color = '#dbe9f3', sub = '', width = 512 } = {}) {
   const sprite = new THREE.Sprite(
     new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false, fog: false })
   );
-  sprite.scale.set(9, 2.8, 1);
+  sprite.scale.set(9 * (finalW / 512), 2.8, 1);
   sprite.userData.dispose = () => {
     tex.dispose();
     sprite.material.dispose();
