@@ -6785,31 +6785,6 @@ select option:disabled {
 .glyph--primary .glyph__title {
   font-size: var(--t-h2, var(--t-h3));
 }
-/* 「順手會用到」：只留名字的一行，沒有自己的刻文與原典（不假裝一次教多條） */
-.extras {
-  display: flex;
-  align-items: baseline;
-  flex-wrap: wrap;
-  gap: var(--s2) var(--s3);
-  margin: var(--s4) 0 0;
-  padding-top: var(--s3);
-  border-top: 1px solid var(--rule);
-  font-size: var(--t-micro);
-  color: var(--paper-4);
-}
-.extras__label {
-  font-family: var(--font-ui);
-  letter-spacing: var(--tr-cjk);
-  color: var(--paper-4);
-}
-.extras__item {
-  font-family: var(--font-ui);
-  letter-spacing: var(--tr-cjk);
-  color: var(--paper-3);
-}
-.extras__item.is-foundation {
-  opacity: 0.8;
-}
 .guidetab__list li.is-quiet {
   opacity: 0.7;
 }

@@ -9976,9 +9976,9 @@ console.log('\n▸ 小數門檻的顯示與「一關只教一條」（Phase A）
     /challenge\.primaryTechniqueId/.test(consoleSrc),
     '主刻文掛的是這一關的 primaryTechniqueId（不是隨便一條 rubric 的技巧）'
   );
-  ok(/EXTRA_LABEL/.test(consoleSrc), '其餘的檢查只用一行「順手會用到」帶過');
-  const { EXTRA_LABEL } = await import('../src/prompt/console.js');
-  ok(CJK.test(EXTRA_LABEL), '「順手會用到」是中文', EXTRA_LABEL);
+  // 2026-08-03 站長裁決:「順手會用到」整行移除(130 關全長一樣、零資訊量;
+  // 地基分數由第三幕刻痕對照的 0.5 分列承擔)。守住「不得回歸」:
+  ok(!/data-guidance-extra/.test(consoleSrc), '第二幕不再有「順手會用到」行(已移除)');
   ok(
     /is-primary|is-foundation|is-minor/.test(consoleSrc) && /checklist__tag/.test(consoleSrc),
     '刻痕對照把主檢查與地基分成兩種位階'

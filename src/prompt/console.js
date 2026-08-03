@@ -100,7 +100,6 @@ export const SOURCE_LABEL = '神諭原典';
  * 搬去自己神廟的舊項目），但它們**不是這一關教的**——所以只留一行名字，
  * 不給它們自己的刻文與原典，畫面上不會假裝一次教了好幾條。
  */
-export const EXTRA_LABEL = '順手會用到';
 /**
  * 「神諭原典到底是什麼」的解釋。
  *
@@ -333,7 +332,6 @@ export function createPromptConsole({
         <h3 class="act__head reveal d1">${GUIDE_TITLE}<span class="act__lead act__lead--inline" data-guide-lead></span></h3>
         <p class="craft reveal d2" data-craft hidden></p>
         <ol class="glyphs" data-guidance></ol>
-        <p class="extras reveal" data-guidance-extra hidden></p>
         <details class="clue reveal">
           <summary>還想要一點線索 · Clue<kbd>L</kbd></summary>
           <p data-clue></p>
@@ -453,7 +451,6 @@ export function createPromptConsole({
   const act2El = overlay.body.querySelector('.act--guide');
   const craftEl = overlay.body.querySelector('[data-craft]');
   const guidanceEl = overlay.body.querySelector('[data-guidance]');
-  const guidanceExtraEl = overlay.body.querySelector('[data-guidance-extra]');
   const guidanceCompactEl = overlay.body.querySelector('[data-guidance-compact]');
   const guideTabEl = overlay.body.querySelector('[data-guidetab]');
 
@@ -1108,17 +1105,8 @@ export function createPromptConsole({
             </li>`
           )
           .join('');
-    // 順手會用到的舊工法：一行帶過，不假裝這一關同時在教它們（護欄：一關一技巧）
-    guidanceExtraEl.hidden = !primary || aside.length === 0;
-    guidanceExtraEl.innerHTML =
-      primary && aside.length
-        ? `<span class="extras__label">${esc(EXTRA_LABEL)}</span>${aside
-            .map(
-              (r) =>
-                `<span class="extras__item${r.foundation ? ' is-foundation' : ''}">${esc(r.title)}</span>`
-            )
-            .join('')}`
-        : '';
+    // 「順手會用到」那一行已依站長指示移除（2026-08-03）：130 關全都長一樣、
+    // 沒有資訊量；地基分數在第三幕的刻痕對照本來就看得到（0.5 分列）。
     // 第三幕的側頁籤：同一段刻文，壓成一行（其餘的只列名字）
     const compact = primary
       ? `<li>
