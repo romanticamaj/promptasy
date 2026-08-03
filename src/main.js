@@ -8,6 +8,8 @@
  *   跨區時：配樂交叉淡入淡出 ＋ 霧色 / 色偏 / 光強平滑漂移。
  */
 import curriculum from './data/curriculum.json';
+import skillCodexV2 from './data/skill-codex-v2.json';
+import regionsV2 from './data/regions-v2.json';
 import challengeFile from './data/challenges.json';
 import prologueFile from './data/prologue.json';
 import builderZh from './data/builder-zh.json';
@@ -19,15 +21,19 @@ import inscriptionFile from './data/inscriptions.json';
 import secretFile from './data/secrets.json';
 import handleFile from './data/handles.json';
 import datedFile from './data/dated-notes.json';
+import sourceAnchorFile from './data/source-anchors.json';
+import simSamples from './data/sim-samples.json';
+import glossaryFile from './data/glossary.json';
 import './styles.css';
 
 import { createEngine } from './engine/engine.js';
 import { createWorld, atmosphereFor } from './world/world.js';
 import { createPlayer } from './player/player.js';
 import { createContent } from './challenges/content.js';
+import { createCatalog } from './challenges/catalog.js';
 import { createPrologueContent } from './challenges/prologue.js';
 import { createProgression } from './progression/progression.js';
-import { createPromptConsole } from './prompt/console.js';
+import { createPromptConsole, registerSimDials } from './prompt/console.js';
 import { createPractice } from './prompt/practice.js';
 import { createPrologue } from './ui/prologue.js';
 import { createHud } from './ui/hud.js';
@@ -50,13 +56,42 @@ const camForward = { x: 0, z: 1 };
 import { createTitle } from './ui/title.js';
 import { createEntryGate } from './ui/entrygate.js';
 import { createKeyHelp } from './ui/keyhelp.js';
+import { glossary } from './ui/glossary.js';
 import { createAchievement } from './ui/achievement.js';
-import { createAudio } from './audio/audio.js';
+import { createAudio, REGION_CARVE_CUES, REGION_SEAL_CUES } from './audio/audio.js';
+import { isApplicationTrial } from './challenges/trial.js';
 
 function boot() {
   const app = document.getElementById('app');
   if (!app) throw new Error('#app not found');
   app.innerHTML = '';
+
+  /*
+   * 課程 v2 · Phase B — runtime catalog。
+   *
+   * 舊 68 條技巧（curriculum.json，官方引文、byte-identical）
+   *   ＋ 130 條 v2 技能（skill-codex-v2.json，authored: game ＋ 真實官方出處）
+   *   ＋ 12 區（regions-v2.json，其中 7 區 implemented: false）
+   * 合成同一份 runtime catalog。資料不合契約會在這裡當場丟例外（fail fast）。
+   *
+   * **玩家看到的東西這一期完全不變**：世界、圖鑑、結果卡一律只列舉
+   * `implementedRegions()`（就是既有五區），所以仍然是 27 關 / 68 條 / 5 區。
+   */
+  const catalog = createCatalog({ curriculum, skillCodex: skillCodexV2, regions: regionsV2 });
+
+  /*
+   * 課程 v2 · Phase H：轉鈕（sim）的離線輸出樣本。
+   * 樣本是**遊戲自撰**的示範（`authored: "game"`），不呼叫任何服務；
+   * 註冊失敗（檔案壞掉／被清空）時那幾關會安靜退回石碑刻印，不會開到空白的碑。
+   */
+  registerSimDials(simSamples);
+
+  /*
+   * Phase 35：術語小卡（`glossary.json`，authored: game）。
+   * 純扶手層：不教技巧、不放連結，真正的教學與官方出處仍然只在第二幕與圖鑑。
+   * 檔案缺席時 annotate() 安靜地什麼都不做（離線降級）。
+   */
+  glossary.install(glossaryFile);
 
   const content = createContent(
     curriculum,
@@ -65,11 +100,13 @@ function boot() {
     coachFile,
     flowFile,
     curriculumZh,
-    datedFile
+    datedFile,
+    catalog,
+    sourceAnchorFile
   );
   // 序章的教學內容：只引用 curriculum 既有的技巧與弱→強對照（逐字，附官方出處）
-  const prologueContent = createPrologueContent(prologueFile, curriculum, curriculumZh);
-  const progression = createProgression({ curriculum, challenges: content.challenges });
+  const prologueContent = createPrologueContent(prologueFile, curriculum, curriculumZh, sourceAnchorFile);
+  const progression = createProgression({ catalog, challenges: content.challenges });
   const quality = progression.state.settings.quality === 'low' ? 'low' : 'high';
 
   /* --- 3D 場景 --- */
@@ -88,6 +125,8 @@ function boot() {
   const world = createWorld({
     engine,
     curriculum,
+    // 課程 v2 · Phase E：新上線的區域（量器坊起）的名稱與主色住在 regions-v2.json
+    regions: catalog.implementedRegions(),
     challenges: content.challenges,
     progression,
     quality,
@@ -179,12 +218,35 @@ function boot() {
     const achievement = progression.hiddenAchievement();
     if (achievement.complete && !progression.state.flags.finaleSeen) {
       progression.setFlag('finaleSeen', true);
-      hud.toast('✦ 隱藏成就：68 條技巧全數收集，四廠徽章全數點亮', 'good');
-      hud.celebrate('68 / 68 · 全數收集', 'finale');
+      hud.toast(`✦ 隱藏成就：${achievement.total} 條技巧全數收集，四廠徽章全數點亮`, 'good');
+      hud.celebrate(`${achievement.collected} / ${achievement.total} · 全數收集`, 'finale');
       audio.cue('finale');
       engine.pulse(1.2);
       setTimeout(() => openPanel(finale), 900);
     }
+  }
+
+  /*
+   * issue #3：五片新土地各自有自己的「刻上一段」音（量測 / 鍛打 / 刪除 / 重跑 / 對焦）。
+   * 沒列到的區域仍然是通用的那一聲 —— 換皮的是材質，不是文法。
+   */
+  let carveRegion = null;
+  const carveCue = () => (carveRegion && REGION_CARVE_CUES[carveRegion]) || 'stamp';
+  const sealCue = () => (carveRegion && REGION_SEAL_CUES[carveRegion]) || 'seal';
+
+  /**
+   * 一片土地開了的時候該響哪一聲。
+   * 硬門檻（分歧之廳 —— 全場唯一沒有「先行前往」那條路的門）是**厚重閂鎖**：
+   * 你是達成條件把它解開的，不是走過去它讓開的。其餘的門仍然是微光 ＋ 石門。
+   */
+  function unlockCue(regionId) {
+    let hard = false;
+    try {
+      hard = Boolean(progression.gateStatus(regionId).hard);
+    } catch {
+      hard = false;
+    }
+    return hard ? 'hardGate' : 'unlock';
   }
 
   const promptConsole = createPromptConsole({
@@ -195,13 +257,18 @@ function boot() {
     onChime: () => audio.cue('spark'),
     // Phase 11 石碑刻印：刻上一段 / 石碑不收 / 刻滿了
     onCarve: () => {
-      audio.cue('stamp');
+      audio.cue(carveCue());
       engine.pulse(0.28);
     },
     onReject: () => audio.cue('reject'),
     onSeal: () => {
-      audio.cue('seal');
+      audio.cue(sealCue());
       engine.pulse(0.45);
+    },
+    // 轉鈕轉到某一檔（issue #3：三檔各一顆卡榫聲，音高越高＝檔位越高）
+    onDial: ({ index }) => {
+      audio.cue('simDial', { notch: index });
+      engine.pulse(0.18);
     },
     // 刻印牌被按下去的那一下（節流在音訊那邊）
     onTap: () => audio.cue('click'),
@@ -209,7 +276,17 @@ function boot() {
     onResult: ({ challenge, evaluation, outcome }) => {
       hud.refresh();
       if (evaluation.passed) {
-        audio.cue('pass', { grade: evaluation.grade });
+        /*
+         * 應用關（試煉）過關響的是**鑼**，不是頌缽 —— 同一件事變大了，
+         * 不是換一套語言（issue #3 的音效交付就是照這個道理挑的）。
+         */
+        if (isApplicationTrial(challenge)) audio.cue('trialPass');
+        else audio.cue('pass', { grade: evaluation.grade });
+        /*
+         * 大師層印記（無筆之印 / 默寫之印）：公證章 ＋ 微光。
+         * 讓過關那一聲先站穩再進來 —— 兩個都是好消息，不該撞在一起。
+         */
+        if (outcome.newPenless || outcome.newScribe) setTimeout(() => audio.cue('masterSeal'), 700);
         player.celebrate?.(); // 旅人舉手歡呼一下（1.2 秒後自己收回去）
         const marker = world.markers.find((m) => m.id === challenge.id);
         if (marker) marker.setCleared(progression.bestGrade(challenge.id));
@@ -224,7 +301,7 @@ function boot() {
           hud.toast(`新區域解鎖：${g ? g.name : regionId} —— 橋上的閘門開了`, 'good');
           // 解鎖當下立刻在畫面上方說一次「○○ 已開啟，往前走吧」（不受冷卻限制）
           nudge.announceUnlock(regionId);
-          audio.cue('unlock');
+          audio.cue(unlockCue(regionId));
           engine.pulse(1.0);
         }
         world.refreshGates();
@@ -246,7 +323,7 @@ function boot() {
     progression,
     onClose: () => closePanel(),
     onShare: (opts) => openShare(opts),
-    getRank: () => rankFor(rankStats(progression, curriculum), ranksFile.ranks),
+    getRank: () => rankFor(rankStats(progression, catalog), ranksFile.ranks),
     inscriptionTotal: (inscriptionFile.entries || []).length,
     secretTotal: (secretFile.entries || []).length,
     handleTotal: (handleFile.entries || []).length,
@@ -498,6 +575,11 @@ function boot() {
   function openPanel(panel, ...args) {
     if (openedPanel && openedPanel !== panel) openedPanel.close();
     openedPanel = panel;
+    /*
+     * issue #3：記下這一關站在哪片土地上 —— 「刻上一段」與「刻滿了」要放
+     * 那片土地自己的聲音（量測 / 鍛打 / 刪除 / 重跑 / 對焦）。
+     */
+    if (panel === promptConsole) carveRegion = (args[0] && args[0].region) || null;
     // 打開任何面板都代表「玩家沒有迷路」→ 導航提示的閒置計時歸零
     nudge.noteActivity();
     player.setInputEnabled(false);
@@ -511,6 +593,9 @@ function boot() {
   }
   function closePanel() {
     openedPanel = null;
+    // 術語小卡是掛在 <body> 上的（面板有 overflow，掛裡面會被裁掉）——
+    // 面板收起來的時候要記得順手把它也收掉，不然會有一張卡浮在世界上面
+    glossary.close();
     player.setInputEnabled(!intro.isOpen && !title.isOpen && !practice.isOpen);
   }
   /**
@@ -580,7 +665,7 @@ function boot() {
       world.openGate(regionId, true);
       hud.toast(`新區域解鎖：${g ? g.name : regionId} —— 橋上的閘門開了`, 'good');
       nudge.announceUnlock(regionId);
-      audio.cue('unlock');
+      audio.cue(unlockCue(regionId));
       engine.pulse(1.0);
     }
     if ((outcome.newlyUnlocked || []).length) {
@@ -759,7 +844,7 @@ function boot() {
         world.openGate(regionId, true);
         hud.toast(`新區域解鎖：${g ? g.name : regionId} —— 橋上的閘門開了`, 'good');
         nudge.announceUnlock(regionId);
-        audio.cue('unlock');
+        audio.cue(unlockCue(regionId));
         engine.pulse(1.0);
       }
       if (outcome.newlyUnlocked.length) world.refreshGates();
@@ -1005,10 +1090,12 @@ function boot() {
     nudge,
     shareCard,
     ranks: ranksFile,
-    rank: () => rankFor(rankStats(progression, curriculum), ranksFile.ranks),
+    rank: () => rankFor(rankStats(progression, catalog), ranksFile.ranks),
     perfmon,
     keyhelp,
     toggleKeyHelp,
+    /** Phase 35：術語小卡（測試 / 除錯用）。 */
+    glossary,
     title,
     entryGate,
     /** Phase 34：開場黑幕（測試 / 除錯用）。 */
@@ -1034,6 +1121,8 @@ function boot() {
     handleKinds: HANDLE_KINDS,
     /** 目前坐在哪一張長凳上（測試用）。 */
     seatedOn: () => (seatedOn ? seatedOn.id : null),
+    /** 課程 v2 的 runtime catalog（測試用：所有「x / y」都該從這裡推導）。 */
+    catalog,
   };
   /**
    * 改名前的舊名字（PromptArcade）。留成別名 —— 外面若有人寫了書籤小工具
@@ -1043,7 +1132,7 @@ function boot() {
 
   console.info(
     `[Promptasy] 世界就緒 — ${content.challenges.length} 個關卡 / ${
-      (curriculum.techniques || []).length
+      catalog.counts.techniques
     } 條技巧 / ${world.gates.length} 道閘門 / Lv.${progression.levelInfo().level}`
   );
 }

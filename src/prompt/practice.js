@@ -20,11 +20,11 @@
  * 「刻對了會長什麼樣」由 prologue.json 的 flow.slots 定義，正確選項串起來
  * 必須通過該課的 rubric —— 這件事由測試強制驗證，不是靠人工目視。
  */
-import { bindInfoTips, createOverlay, esc, infoTip, on, safeRich } from '../ui/dom.js';
-import { evaluate } from '../challenges/rubric.js';
+import { bindInfoTips, createOverlay, esc, on, rowIcon, safeRich, sourceBook } from '../ui/dom.js';
+import { evaluate, formatScore } from '../challenges/rubric.js';
 import { CHECKS } from '../challenges/checks.js';
 import { createStele } from './stele.js';
-import { ACTS, GUIDE_TITLE, SOURCE_LABEL, SOURCE_NOTE } from './console.js';
+import { ACTS, GUIDE_TITLE, SOURCE_LABEL, actLabelText } from './console.js';
 
 const GRADE_LABEL = { S: '完美', A: '優秀', B: '良好', C: '通過' };
 
@@ -64,6 +64,8 @@ export function createPractice({
     title: '練習台',
     eyebrow: '序章 · 引導練習',
     wide: true,
+    // 與正式關卡同一條標頭（課名 ＋ 英文名在左，第幾課與 Esc 在右）
+    headBar: true,
     onClose: () => api.close(),
   });
 
@@ -71,15 +73,16 @@ export function createPractice({
     <div class="console console--practice" data-act="1">
       <nav class="acts" data-acts aria-label="四幕進度">
         ${ACTS.map(
-          (a) => `<button class="acts__item" type="button" data-act-go="${a.n}">
-            <span class="acts__num" aria-hidden="true">${a.num}</span>
+          // 石頭上只刻名字（編號留給 aria-label —— 畫面上不重複講同一件事）
+          (a) => `<button class="acts__item" type="button" data-act-go="${a.n}" aria-label="${esc(
+            actLabelText(a.n, a.zh).zh
+          )}">
             <span class="acts__zh">${a.zh}</span>
           </button>`
         ).join('<span class="acts__rule" aria-hidden="true"></span>')}
       </nav>
 
       <section class="act act--brief" data-in-acts="1" tabindex="-1" aria-label="第一幕 · 委託">
-        <p class="act__kicker reveal">${ACTS[0].roman} <span class="act__kickerzh">第一幕 · 委託</span></p>
         <p class="practice__echo reveal d1" data-echo></p>
         <p class="console__scenario reveal d2" data-brief></p>
         <figure class="artifact reveal d3">
@@ -92,30 +95,23 @@ export function createPractice({
         </div>
         <div class="act__foot reveal d4">
           <span class="spacer"></span>
-          <span class="act__hint"><kbd>Enter</kbd></span>
           <button class="btn btn--primary" type="button" data-act-next="2">聆聽指引 →</button>
         </div>
       </section>
 
       <section class="act act--guide" data-in-acts="2" tabindex="-1" aria-label="第二幕 · 指引">
-        <p class="act__kicker reveal">${ACTS[1].roman} <span class="act__kickerzh">第二幕 · 指引</span></p>
-        <h3 class="act__head reveal d1">${GUIDE_TITLE}</h3>
-        <p class="act__lead reveal d1">這一課只有一段刻文。${infoTip(SOURCE_NOTE, {
-          label: `什麼是${SOURCE_LABEL}`,
-        })}</p>
+        <h3 class="act__head reveal d1">${GUIDE_TITLE}<span class="act__lead act__lead--inline" data-guide-lead>這一課只有一段刻文。</span></h3>
         <ol class="glyphs" data-inscription></ol>
         <div class="teach" data-teach></div>
         <div class="act__foot reveal">
           <button class="btn btn--ghost" type="button" data-act-go="1">← 回顧委託</button>
           <span class="spacer"></span>
-          <span class="act__hint"><kbd>Enter</kbd></span>
           <button class="btn btn--primary" type="button" data-act-next="3">開始刻印 →</button>
         </div>
       </section>
 
       <section class="act act--carve" data-in-acts="3 4" aria-label="第三幕 · 刻印">
         <div class="carvehead">
-          <p class="act__kicker" data-carve-kicker>${ACTS[2].roman} <span class="act__kickerzh">第三幕 · 刻印</span></p>
           <span class="spacer"></span>
           <p class="console__label"><span class="zh">石碑刻印</span><span class="en">Carve</span></p>
         </div>
@@ -160,7 +156,6 @@ export function createPractice({
   const actSections = Array.from(overlay.body.querySelectorAll('[data-in-acts]'));
   const actNavEl = overlay.body.querySelector('[data-acts]');
   const actBtns = Array.from(overlay.body.querySelectorAll('[data-act-go]'));
-  const carveKickerEl = overlay.body.querySelector('[data-carve-kicker]');
 
   bindInfoTips(overlay.body);
 
@@ -199,13 +194,10 @@ export function createPractice({
       btn.classList.toggle('is-done', visited.has(n) && !isNow);
       btn.disabled = !isNow && !canGoAct(n);
       btn.setAttribute('aria-current', isNow ? 'step' : 'false');
-      const zh = ACTS[n - 1].zh;
-      btn.title = isNow ? `第 ${n} 幕 · ${zh}（現在在這裡）` : `回到第 ${n} 幕 · ${zh}`;
+      const { roman, zh } = actLabelText(n, ACTS[n - 1].zh);
+      btn.setAttribute('aria-label', zh);
+      btn.title = isNow ? `${roman} ${zh}（現在在這裡）` : `回到 ${roman} ${zh}`;
     }
-    const meta = act === 4 ? ACTS[3] : ACTS[2];
-    carveKickerEl.innerHTML = `${meta.roman} <span class="act__kickerzh">第${
-      act === 4 ? '四' : '三'
-    }幕 · ${esc(meta.zh)}</span>`;
     consoleEl.classList.toggle('is-palm', act === 4);
   }
 
@@ -307,9 +299,7 @@ export function createPractice({
         ${ins.how ? `<p class="glyph__how">${esc(ins.how)}</p>` : ''}
         ${
           ins.source
-            ? `<a class="src" href="${esc(ins.source.url)}" target="_blank" rel="noopener">${esc(
-                SOURCE_LABEL
-              )}：${esc(ins.source.name)} ↗</a>`
+            ? `<p class="srcrow">${sourceBook(ins.source, { label: SOURCE_LABEL })}</p>`
             : ''
         }
       </div>
@@ -318,13 +308,7 @@ export function createPractice({
     guideCompactEl.innerHTML = `<ul class="guidetab__list"><li>
       <b>${esc(ins.title)}</b>
       ${ins.how ? `<span>${esc(ins.how)}</span>` : ''}
-      ${
-        ins.source
-          ? `<a class="src" href="${esc(ins.source.url)}" target="_blank" rel="noopener">${esc(
-              SOURCE_LABEL
-            )} ↗</a>`
-          : ''
-      }
+      ${ins.source ? sourceBook(ins.source, { label: SOURCE_LABEL }) : ''}
     </li></ul>`;
     if (guideTabEl) guideTabEl.open = false;
   }
@@ -423,7 +407,7 @@ export function createPractice({
             }
             ${r && !r.passed && showHints && r.hint ? `<em class="checklist__hint">${esc(r.hint)}</em>` : ''}
           </span>
-          <span class="checklist__w">${row.weight} 分</span>
+          <span class="checklist__w">${formatScore(row.weight)} 分</span>
           ${src ? `<a class="src" href="${esc(src.url)}" target="_blank" rel="noopener">出處 ↗</a>` : ''}
         </li>`;
       })
@@ -450,7 +434,7 @@ export function createPractice({
     lampEl.classList.toggle('is-ready', ready);
     lampTextEl.textContent = ready
       ? `已達通過門檻 —— 把手掌按上石碑就過關了（做到 ${done} / ${evaluation.results.length} 項）`
-      : `再刻幾段就夠了（目前 ${evaluation.earned} / 需要 ${evaluation.pass} 分）`;
+      : `再刻幾段就夠了（目前 ${formatScore(evaluation.earned)} / 需要 ${formatScore(evaluation.pass)} 分）`;
   }
 
   /* ------------------------------------------------------- 第四幕：手印 */
@@ -480,9 +464,9 @@ export function createPractice({
             evaluation.tooShort ? '太短了' : '再刻一次'
           }</span></div>
           <div class="result__meter">
-            <p class="result__scoreline"><b>${evaluation.earned}</b> / ${evaluation.total} · 通過門檻 ${
-              evaluation.pass
-            }</p>
+            <p class="result__scoreline"><b>${formatScore(evaluation.earned)}</b> / ${formatScore(
+              evaluation.total
+            )} · 通過門檻 ${formatScore(evaluation.pass)}</p>
             <div class="meter"><i style="width:${Math.round(
               (evaluation.earned / evaluation.total) * 100
             )}%"></i><u style="left:${Math.round((evaluation.pass / evaluation.total) * 100)}%"></u></div>
@@ -492,7 +476,7 @@ export function createPractice({
         <ul class="rows">${missing
           .map(
             (r, i) =>
-              `<li class="row row--miss" style="--i:${i}"><span class="row__icon">✕</span>
+              `<li class="row row--miss" style="--i:${i}">${rowIcon('miss')}
                 <div class="row__main"><div class="row__head"><b>${esc(r.label)}</b></div>
                 <p class="row__hint">${esc(r.hint)}</p></div></li>`
           )
@@ -523,9 +507,9 @@ export function createPractice({
           <span class="grade__label">${GRADE_LABEL[evaluation.grade]}</span>
         </div>
         <div class="result__meter">
-          <p class="result__scoreline"><b>${evaluation.earned}</b> / ${evaluation.total} · 通過門檻 ${
-            evaluation.pass
-          }</p>
+          <p class="result__scoreline"><b>${formatScore(evaluation.earned)}</b> / ${formatScore(
+            evaluation.total
+          )} · 通過門檻 ${formatScore(evaluation.pass)}</p>
           <div class="meter"><i style="width:${Math.round(
             (evaluation.earned / evaluation.total) * 100
           )}%"></i><u style="left:${Math.round((evaluation.pass / evaluation.total) * 100)}%"></u></div>

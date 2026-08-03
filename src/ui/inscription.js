@@ -10,7 +10,7 @@
  *   · 一定顯示技巧名稱與**可點的官方出處**（神諭原典），跟第二幕同一個誠實模式；
  *   · 「lines」與「hint」是遊戲自撰的白話（同 coach.json 的性質），不冒充官方文字。
  */
-import { el, esc, createOverlay, bindInfoTips, datedNoteHtml, infoTip, sourceNoteHtml } from './dom.js';
+import { el, esc, createOverlay, bindInfoTips, datedNoteHtml, sourceBook, sourceNoteHtml } from './dom.js';
 
 /** 官方出處在畫面上的說法（與主控台第二幕一致）。 */
 export const SOURCE_LABEL = '神諭原典';
@@ -51,20 +51,17 @@ export function createInscription({ content, sourceIntro = '', onClose }) {
 
       const teach = view
         ? `<section class="inscribe__glyph reveal d3">
-            <p class="meta-label meta-label--star">這一段刻的是${
-              sourceIntro ? infoTip(sourceIntro, { label: '這段刻文是從哪裡來的' }) : ''
-            }</p>
+            <p class="meta-label meta-label--star">這一段刻的是</p>
             <h4 class="inscribe__tech">${esc(view.title)}</h4>
             <p class="inscribe__tip">${esc(view.tip)}</p>
             ${spec.hint ? `<p class="inscribe__how">${esc(spec.hint)}</p>` : ''}
             ${datedNoteHtml(view.dated)}
             ${
               src
-                ? `<a class="src" href="${esc(src.url)}" target="_blank" rel="noopener">${esc(
-                    SOURCE_LABEL
-                  )}：${esc(src.name)} ↗</a>${
-                    content.sourceNote ? sourceNoteHtml(content.sourceNote(src.url)) : ''
-                  }`
+                ? `<p class="srcrow">${sourceBook(src, {
+                    label: SOURCE_LABEL,
+                    extra: sourceIntro || '',
+                  })}${content.sourceNote ? sourceNoteHtml(content.sourceNote(src.url)) : ''}</p>`
                 : ''
             }
           </section>`

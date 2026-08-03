@@ -1,0 +1,706 @@
+# Promptasy 課程 v2 長時間實作計畫
+
+> 狀態：**ready for execution**  
+> 規劃基線：2026-08-01，`dev` @ `86b2d47`  
+> 主規格：`docs/design/curriculum-v2.md`；工程護欄：`AGENTS.md`、`CLAUDE.md`、`WORLD.md`
+
+## 0. 終點與完成條件
+
+把目前 27 關／68 技巧／5 區，逐步演進成 **130 座一關一技巧的教學神廟＋12 座應用關／12 區**，保持純靜態、離線評分、官方來源可追溯、鍵盤完整可玩、舊存檔相容、既有內容不刪除。
+
+全案完成需同時成立（**Phase J／R4 於 2026-08-02 逐條驗收，結果如下**）：
+
+- [x] 130 技能各有且只有一座教學神廟；每關 1 主檢查＋最多 1 地基檢查。
+      → 142 關 ＝ 130 教學神廟（每座掛得出 `primarySkillId`、彼此不重複）＋ 12 應用關；C1 對全部 130 座成立。
+- [x] 12 區與 mission graph 上線；130 教學神廟＋12 應用關可玩。
+      → `v2ImplementedRegions` 12、`challenges` 142、`applicationTrials` 12；e2e 實走過。
+- [x] 14 種型式的規劃完成，其中 K 期 `disclose` 為選配；未做時必須明確標成選配未實作。
+      → 11 種 flow kind ＋ 自由書寫上線；**`disclose` 正式記錄為「選配，不實作」**（四條理由 ＋ 翻案條件在 `findings.md`／`progress.md`）。
+- [x] 59 個新檢查器只按需要實作，全部有 good／weak／bad、反作弊及中英 fixture。
+      → `CHECK_IDS` 共 **81**（22 原有 ＋ 59 新）；rubric 逐個驗「真的實作了」「真的被某座神廟用到」。
+- [x] `src/data/curriculum.json` 保持 byte-identical；新內容有獨立 authored/sourced 資料層。
+      → sha256 `53b0ca60…39062` 釘死測試綠（A–J 全期未動）；新內容全在 `authored: "game"` 層。
+- [x] `promptasy.v1.save` 舊存檔可讀、reset 正常；新增欄位全 additive 且有 `normalize()` 預設值。
+      → R4 種一份舊命名空間 `promptarcade.v1.save` 存檔實測：18 欄逐欄搬過來、4 個新欄位補空陣列、
+      閘門與收集不倒退、`resetAll()` 兩個 key 都清乾淨。
+- [x] 快檢、playtest、build 全綠；所有新增互動有 e2e，console error 為 0。
+      → 見 §5 的 R4 數字。
+- [ ] 每一期完成後更新 `CLAUDE.md` changelog、commit、push `dev`；只有 release gate 通過才合入 `main`。
+      → **A–J 期一律不由代理 commit／push**（本輪的工作協議明訂不動 `CLAUDE.md`、不 commit、不 push、不合 `main`）；
+      變更全部留在工作區，changelog 與 commit 由 repo 擁有者決定。這是唯一一條刻意未做的完成條件。
+
+## 1. 長時間執行節奏
+
+每一期固定走同一個 loop：
+
+1. 重讀本檔、`findings.md`、`progress.md`，確認當期唯一目標。
+2. 先列當期資料 manifest、受影響檔案與 acceptance tests；新功能測試先觀察紅燈一次。
+3. 實作一個可完整驗收的垂直切片；寫程式不並行，研究才可並行。
+4. 中文字串有變更就先跑 `npm run fonts`。
+5. 依測試矩陣驗證；不碰 port 5175，自己的 server/process group 全部清乾淨。
+6. 逐條過 WORLD 29 項維護清單中適用項目。
+7. 更新 `progress.md`／`findings.md`、`CLAUDE.md` changelog，commit 並 push `dev`。
+
+任何錯誤記進本檔；同一錯誤不原樣重試。連續三種方法仍無法前進才向使用者報阻塞。
+
+## 2. 先解決的三個規格矛盾
+
+### D1 — 27 關遷移數字 ✅ 已裁決（Phase 0）
+
+`HANDOFF.md` 寫 4 保留／21 改造／2 應用，`curriculum-v2.md` 逐表小計是 **5／20／2**。
+Phase 0 已把 §4 逐關表 27 行逐一點名重算：**保留 5／改造 20／轉應用關 2 = 27**，與 §4 小計一致，
+`HANDOFF.md` 的 4／21／2 是摘要漂移（文件勘誤，記在 `findings.md`，不改歷史文件、不改資料）。
+保留的 5 關：`lost-automaton-03`、`well-of-unknowing-22`、`long-scroll-tower-23`、`oracle-workshop-36`、`priority-stair-42`。
+轉應用關的 2 關：`council-envoy-06`、`archive-seal-25`。
+機器產生的逐關 manifest：`docs/design/curriculum-v2-migration.json`（由 `test:rubric` 逐行驗證）。
+
+### D2 — `teaches` 兼具教學與收集語意 ✅ 已裁決（Phase 0）
+
+目前 `teaches` 同時控制 UI 教學目標、官方來源、通關收集與 68 技巧覆蓋；直接縮成一條會讓尚未搬家的技巧暫時不可收集。
+
+**裁決（照原推薦做法定案）**：
+
+- 新增單一 `primaryTechniqueId`，Phase A 立刻讓 UI／rubric／教練只顯示主技巧。
+  27 關的主技巧已在 manifest 逐關指定，且**彼此不重複**（25 條，2 關應用關為 `null`），測試強制驗證。
+- 暫時保留舊 `teaches` 作相容收集清單（manifest 的 `teachesLegacy` 逐字快照），但路徑與測試明確標成 legacy；不得在畫面上假裝一次教了多條。
+- B–J 每當新神廟接手一條技巧，就從舊關的 legacy list 移走；到 J 結束完全移除相容層。
+- 已完成舊關的存檔保留既有 `collected`，不回收、不倒退。
+
+### D3 — pass 降權公式 ✅ 已裁決（Phase 0）
+
+設計同時寫「每關 pass -0.5」與「總權重 50% 規則不變」，兩者不是完全等價。
+
+**裁決**：採 **literal −0.5**（manifest 的 `passAfter`，逐關記錄），並同時輸出依總權重重算的 `passAfterByWeightRule` 供比對。
+兩份矩陣在「權重同時被下修」的關卡上分岔，最大 +0.75 分（`example-hall-11`／`silent-thinker-13`／`long-scroll-tower-23`）。
+真正的驗收門不是百分比，而是 playtest 的三道安全閘：**弱起手（starter）仍不過、快速填入／全選對必過、sample ≥ A**；
+分岔的那幾關以安全閘實測為準，必要時個別再調，不整批套百分比。
+
+## 3. 分期路線
+
+### Phase 0 — 基線與契約鎖定
+
+狀態：`done`（2026-08-01）
+
+產出（全部完成）：
+
+- 產生 27 關 migration manifest：主技巧、主檢查、地基檢查、移除／降權項、before/after total/pass、`teaches` 相容處置。
+- 記錄目前 challenge/flow/kind/checker/region/save/performance 基線，修正文件內已漂移的數字。
+- 把 `curriculum.json` hash 加成不可變測試；新增資料不得寫回它。
+- 跑一次未修改產品碼的 baseline：`test:rubric`、`test:playtest`、`build`；e2e 依成本策略本期不跑。
+
+主要檔案：`scripts/test-rubric.mjs`、`docs/design/curriculum-v2-migration.json`（新建）、`findings.md`、`progress.md`。
+`scripts/playtest-verify.mjs` 本期未改（Phase 0 不動關卡資料，既有 226 個斷言即是 baseline）。
+
+Exit criteria：
+
+- [x] 27 關逐行決策無缺漏（manifest 27 行，id 與 `challenges.json` 逐一對齊含順序，測試強制）。
+- [x] D1 有可執行答案：逐關表點名重算 = 保留 5／改造 20／應用 2（`HANDOFF.md` 的 4／21／2 記為勘誤）。
+- [x] D2 有可執行答案：`primaryTechniqueId`（27 關逐關指定、彼此不重複）＋ `teaches` 降為 legacy 收集清單。
+- [x] D3 有可執行答案：literal −0.5 逐關記錄，並附依總權重重算的對照欄與三道 playtest 安全閘。
+- [x] `curriculum.json` byte-immutability 測試上線（sha256 釘死，實測破壞會紅）。
+- [x] 12 個既有開場斷言重建成「今天的設計」的斷言，`test:rubric` 全綠。
+- [x] baseline 結果（rubric／playtest／build／資料／效能）寫進 `progress.md`，e2e 跳過的理由也寫進去。
+
+### Phase A — 重複度手術
+
+狀態：`done`（2026-08-01）
+
+目標：現有 27 關在玩家面只教一件事，先消除重複感，不新增題型。
+
+變更：
+
+- `src/data/challenges.json`：**一律照 `docs/design/curriculum-v2-migration.json` 的 `phase: "A"` 條目執行**——
+  27 關 `assignsTask` 降到 0.5 且標成地基；6 關移除／替換非主題 `specifiesFormat`（5 關換成該關真正的主檢查、`silent-thinker-13` 直接移除）；
+  `hasDelimiters` 2→1 **只做 2 關**（`example-hall-11`、`long-scroll-tower-23`）——
+  `postbox-sprite-02`／`long-scroll-archive-05`／`thinking-chamber-14` 的分隔符在 v2 逐關表裡正是那一關的主檢查，manifest 已裁決 `hold`；
+  pass 依 D3 literal −0.5；加入 `primaryTechniqueId`。
+- `src/data/flows.json`：刻印段落與 feedback 同步收斂，不能 rubric 已移除但第三幕仍反覆教它。
+- `src/prompt/console.js`、`src/challenges/content.js`、`src/progression/progression.js`：拆開主教學目標與 legacy collection 語意。
+- `scripts/test-rubric.mjs`：新增「恰好 1 主檢查、地基 ≤1、assignsTask 不列為主教學、fractional pass 正確顯示」invariants。
+- `scripts/playtest-verify.mjs`：27 關 sample ≥ A、全選對必過、weak starter 必不過、已知誤判不回歸。
+
+Exit：27 關全部符合 C1；玩家看到的教學重點只有一條；舊存檔與已收集技巧不減少；rubric＋playtest＋build 全綠。
+
+Exit criteria（逐條實測）：
+
+- [x] 27 關逐關照 manifest 的 `phase: "A"` 條目執行完畢：`assignsTask` 27 關降到 0.5 並標 `foundation`、
+      `hasDelimiters` 只降 `example-hall-11`／`long-scroll-tower-23` 兩關（3 個 `hold` 一個都沒動）、
+      `silent-thinker-13` 的 `specifiesFormat` 直接移除、5 關的 `specifiesFormat` 權重中性地換成該關真正的主檢查、
+      `pass` 全部 = `passAfter`。零偏離（測試逐條比對 manifest）。
+- [x] 27 關新增 `primaryTechniqueId`（25 條互不重複，2 關應用關為 `null`），rubric 上恰好一列標 `primary`
+      ＝ manifest 的 `mainCheck`（新檢查器未實作時＝`interimMainCheck`）。
+- [x] 玩家看到的教學重點只有一條：第二幕只放大主技巧的刻文＋它的神諭原典，其餘檢查降到一行「順手會用到」
+      （沒有自己的教學段落、沒有自己的原典）；第三幕的刻痕對照分成「這一關教的／地基／其他」三種位階。
+- [x] 第三幕不再教已經不計分的東西：6 份 flow 的格式段落收斂（5 段移除、`silent-thinker-13` 那段改成
+      reasoning-02 的「明確成功條件」），27 份 flow 全部選對仍然每一條檢查滿分。
+- [x] 收集不倒退：收集照舊由 legacy `teaches` 驅動，27 關的 `teaches` 一字未改，仍然收得滿 68 條。
+- [x] 小數門檻在畫面上讀得順：新增 `formatScore()`，進度燈／結果面板／刻痕對照／序章練習台全部走它。
+- [x] `npm run fonts`（中文有變）＋`test:rubric`（17,705）＋`test:playtest`（263）＋`build` 全綠；
+      `test:e2e` **1,811 項全綠、零 console error**（過程中修掉三個 Phase A 之前就存在的 e2e 中斷／紅燈，
+      逐條記在 `findings.md`）。
+
+### Phase B — v2 catalog bridge＋`fix`／`spot`＋foundations 14
+
+狀態：`done`（2026-08-01）— step 1（catalog bridge）＋ step 2（`fix`／`spot`＋foundations 十座）都完成
+
+先做 catalog bridge：
+
+- 新增 `src/data/skill-codex-v2.json`：130 玩家面技能的 id、group、tier、先修、`masterRefs`、官方 source metadata、`authored: "game"` 說明。
+- 新增 `src/data/regions-v2.json`：12 區定義與 mission graph；舊五區 id 不變。
+- 新增單一 catalog loader（建議 `src/challenges/catalog.js`）把舊 68 與 v2 layer 合成 runtime catalog；`curriculum.json` hash 不變。
+- 調整 `main.js`、`content.js`、progression、codex、ranks、settings、sharecard 與測試，停止硬編碼 68／5。
+
+再做題型與內容：
+
+- `src/prompt/fix.js`：預填弱稿、可點掉／替換片段、純鍵盤 roving focus、即時預檢、Esc 還原。
+- `src/prompt/spot.js`：句子石籤 toggle、方向鍵＋Enter、正確／漏選／多選回饋、不扣分。
+- `console.js` 擴 `FLOW_KINDS`、label、board lifecycle、fallback；舊 flow 缺 kind 仍是 choice。
+- `flows.json`／`challenges.json` 新增 foundations 十座／改造既有關；補真實來源、位置、四拍與主檢查。
+- `styles.css` 與 e2e：鍵盤、焦點、aria-live、reduced-motion、窄 viewport 可量測。
+
+Exit：foundations 有 14 教學神廟；`fix`／`spot` 各至少一條先紅後綠的完整 e2e；舊三 kind 行為不變；fonts＋rubric＋playtest＋build＋e2e 綠。
+
+#### Step 1 — v2 catalog bridge ✅ done（2026-08-01）
+
+只做「資料 ＋ loader ＋ 去硬編碼」，**玩家看到的東西一個像素都沒變**（新七區只在資料層，`implemented: false`）。
+
+- [x] `src/data/skill-codex-v2.json`：130 條技能（id／中文名／英文短名／tier／區域／先修／`masterRefs`／
+      `sources`／`legacyTechniqueId`／`oneLiner`），445 筆官方出處**逐條解析自 master list 的「出處」欄**
+      （測試逐條回查，自撰摘要在結構上無法冒充官方引文）。
+- [x] `src/data/regions-v2.json`：12 區（既有五區 id／名稱／顏色沿用 curriculum，新七區 `implemented: false`），
+      技能數加總 130；`gate` 是 v2 知識式軟門檻的**規格**，尚未啟用（現行解鎖仍由 `REGION_GATES` 決定）。
+- [x] `src/challenges/catalog.js`：單一 loader，建構時就驗（重複 id／先修不存在／成環／非 https 出處／
+      無出處又無誠實說明／區域加總／已上線區域必須等於 `curriculum.groups`）→ 不合就丟例外，不安靜降級。
+- [x] 去硬編碼：`main.js`、`content.js`、`progression.js`、`ranks.js`、`ranks.json`、`codex.js`、
+      `settings.js`、`achievement.js` —— 區域與技巧的列舉、隱藏成就與稱號門檻全部改由 catalog 現算
+      （`ranks.json` 最高階稱號的 68／5 改成 `"all"`）。
+- [x] 去硬編碼測試：`test-rubric.mjs` 與 `headless-check.mjs` 的 68／5／3 kinds 改成 catalog 推導；
+      真的是契約的數字（27 關、130 技能、12 區、5 區已上線、找不到出處 ≤3）登記進 `scripts/expected-counts.json`。
+- [x] 新增 rubric 區段「課程 v2 runtime catalog」：資料契約 ＋ 出處回查 ＋ 新舊對照 ＋ **行為中立**
+      （catalog 版與 legacy 版的列舉逐欄相同）＋ 8 條 fail-fast 破壞測試。
+- [x] 驗證：`fonts`（語料 58 檔／CJK 1664 字／1348.4 KB）、`test:rubric` 17,705 → **21,393**、
+      `test:playtest` 263（未改）、`build` ✓、`test:e2e` **1,816 項全過、零 console error**。
+
+#### Step 2 — `fix`／`spot` ＋ 撰寫基本功十座 ✅ done（2026-08-01）
+
+- [x] `src/prompt/fix.js`（改碑）：預填弱稿、畫線的句子可攤開替代寫法、純鍵盤 roving focus、
+      即時預檢、**三段式 `Esc` 還原**（收起選項 → 還原已改好的句子 → 才冒泡收面板，逐段 `aria-live`）、
+      正解可以是「整句拿掉」（那就是 P2 的「轉」）。
+- [x] `src/prompt/spot.js`（點碑）：石籤 toggle、方向鍵＋`Enter`、正確／漏選／多選都只教學不扣分、
+      壞石籤可帶改寫版或直接拿掉、挑完之前手掌印不出現。
+- [x] `console.js` 擴 `FLOW_KINDS` 3 → 5、label、board lifecycle、`flowKindOf()`；
+      **相容契約未變**：缺 kind／未知 kind／資料不合契約 → 一律回到石碑刻印（rubric ＋ e2e 各守一次）。
+- [x] `challenges.json`／`flows.json` 新增 **10 座**（撰寫基本功 6 → 16 關，curriculum-v2 §3 的
+      foundations 14 座教學神廟到齊）；每座含四拍、素材、起手弱寫法、快速填入、示範解答
+      ＋ **石碑刻印後備 slots**；`source` 逐條回查 `skill-codex-v2.json` 的真實官方連結。
+- [x] **5 個新檢查器**（§7.4）：`noUndefinedReference`／`statesScope`／`avoidsPressureLanguage`／
+      `disambiguatesTerms`／`namesComponents`，全部結構性偵測 ＋ 中英雙語 ＋ good/weak/bad ＋ 反作弊
+      ＋ `coach.json` 白話教學（實測「照著填就會亮」）。
+      （`rulesBeforeData`／`usesRareDelimiter` 這一期**沒有**實作 —— 它們掛在既有兩關身上，
+      要連同那兩關的改造與 manifest 一起動，理由記在 `findings.md`。）
+- [x] 存檔：新增 `skillsV2[]`（純加法、`normalize()` 補預設、去重；通關時與 legacy `collected` 兩邊各寫各的）。
+- [x] 世界：十座新石座落在撰寫基本功區，走既有的落點／淨空／碰撞／可行走性門檻。
+      **順手修掉一個馬上要爆的預算**：石座的燈由「一座一盞」改成常數 8 盞的燈池
+      （27 → 37 座之後實測 59 盞 > 56；改完 26 盞，而且燈數不再隨關卡數成長）。
+- [x] `styles.css` ＋ e2e：鍵盤、焦點、`aria-live`、`prefers-reduced-motion`、820px 無水平溢位。
+- [x] 驗證：`fonts`（語料 60 檔／CJK 1696 字／1365.8 KB）、`test:rubric` 21,393 → **25,877**、
+      `test:playtest` 263 → **396**、`build` ✓、`test:e2e` 1,816 → **1,920 項全過、零 console error**。
+      新斷言逐條先紅後綠（rubric 3 次資料／程式碼破壞、e2e 1 次題型契約破壞，逐項記在 `progress.md`）。
+
+Exit criteria（逐條實測）：
+
+- [x] foundations 有 **14 座教學神廟**（＋1 應用關 ＋1 主題待搬家的 `mimic-mirror-04` ＝ 16 關）。
+- [x] `fix`／`spot` 各有一條**先紅後綠**的完整鍵盤 e2e（開關卡 → 第三幕 → 挑錯不失敗 →
+      `Esc` 契約 → 做對 → 手印 → S → 石座轉已通關 → 技能入袋 → 存檔）。
+- [x] 舊三 kind 行為不變（27 關仍是 choice／order 2／workshop 1，資料一個位元組沒動）。
+- [x] fonts＋rubric＋playtest＋build＋e2e 全綠。
+
+### Phase C — `induct`／`tradeoff`＋reasoning 15
+
+狀態：`done`（2026-08-01）
+
+- 以 choice 變體實作推規與雙面碑，不另造重型架構。
+- 正解可依模型卡／素材加權，但兩個可行答案都必須收到誠實回饋。
+- reasoning 補 10 座；few-shot 的規則歸納先做最小垂直切片。
+- 新 checker 只開本期所需，全部有反作弊 fixture。
+
+Exit：reasoning 15 座、同區不得連三座同型、推規的第四例真的驗證規則、tradeoff 不把取捨教成假通則。
+
+Exit criteria（逐條實測）：
+
+- [x] **示範與推理 15 座教學神廟**：既有 5 關照 manifest 改造（`example-hall-11`／`lantern-rows-12`／
+      `silent-thinker-13`／`thinking-chamber-14`／`effort-forge-15` → `fewshot-basics`／`fewshot-consistent`／
+      `reason-keep-simple`／`cot-separate-answer`／`knob-effort`）＋ 新蓋 10 座；
+      15 條技能一對一、無重複（C2），且這一區的 15 條 v2 技能全部有神廟了。
+- [x] **`induct`（推規碑）**：`src/prompt/induct.js` —— 牆上的對照一組一組浮出來，猜錯只會
+      「牆不回應 ＋ 就地教學」，想通之後回到**同一份資料的 `slots`** 刻印（＝石碑刻印的變體，
+      共用 `src/prompt/slots.js` ＋ `palm.js`，沒有另造框架）。
+- [x] **推規的第四例真的驗證規則**（資料層強制）：第一輪的正解必須 `follows: 'both'`
+      （只看前面推不出是哪一條規律）、最後一輪必須 `validates: true` 且 `reveal === examples.length - 1`、
+      驗證輪的正解 `follows: 'true'`、且**一定有一個 `follows: 'naive'` 的選項在畫面上、不是正解、
+      並帶 ≥20 字的教學回饋** —— 猜錯的人拿到的是教學，不是運氣。
+- [x] **`tradeoff`（雙面碑）**：`src/prompt/tradeoff.js` —— 兩面都會前進，兩面都收到誠實判詞；
+      沒被選中的那一面只講「這一張卡上要付什麼代價」，測試禁止它被寫成「錯」。
+- [x] **不把取捨教成假通則**：每一關的 `favours` 必須**兩面都出現過**（換一張卡就翻面），
+      每張卡的兩面判詞都存在、≥12 字、且彼此不同（`isTradeoffFlow` ＋ rubric ＋ playtest 三層守）。
+- [x] **同區不得連三座同型（C4）**：示範與推理整區 15 座逐一檢查（induct／choice／spot／choice／choice／
+      tradeoff／induct／tradeoff／fix／choice／choice／fix／choice／fix／choice，最長連續 2），並用了 5 種題型。
+- [x] **撰寫基本功兩座 `choice` 佔位換成真的雙面碑**：`wordfork-12`（換詞 vs 補定義）、
+      `old-tag-store-15`（標籤 vs 井號標題），只換第三幕資料，rubric／出處／文案一字未動。
+- [x] **4 個新檢查器**（§7.4）：`justifiesExampleCount`／`labelsNegativeExample`／
+      `asksForRationaleNotTranscript`／`asksMultipleSamples`，全部結構性偵測 ＋ 中英雙語 ＋
+      good／weak／bad fixture ＋ 反作弊 ＋ `coach.json` 白話教學（實測照著填就會亮）。
+- [x] **D2 語意**：改造的 5 關同時給 legacy 技巧（`teaches` → `collected`）與 `skillsV2`；
+      新蓋的 10 座只給 `skillsV2`（舊 68 條沒有祖先）。收集不倒退。
+- [x] fonts（語料 63 檔／CJK 1721 字）＋rubric（25,877 → **29,846**）＋playtest（396 → **554**）
+      ＋build＋**完整 e2e（1,920 → 2,010 項全過、零 console error）** 全綠。
+
+### Phase D — `constraint`＋grounding/config 補齊＋行動版還債點
+
+狀態：`done`（2026-08-01）— 這是 **R2 release checkpoint**
+
+- 把即時預檢升格為 `constraint` 舞台，不複製 rubric 引擎。
+- grounding 與 config 各補到 12 座，完成既有五區課程遷移。
+- 此期結束設一個 release checkpoint：評估並實作 ≤720px 的四幕與已上線 kinds 基本版面；不一定做世界觸控移動，但不能讓新題型 UI 無法操作。
+
+Exit：既有五區均符合一關一技巧；constraint 完全資訊；鍵盤與窄 viewport 都走得完；舊 27 關遷移相容層完成第一次清理。
+
+Exit criteria（逐條實測）：
+
+- [x] **合尺（`constraint`）＝把即時預檢升格成舞台，不是第二套引擎**：`src/prompt/constraint.js` 的
+      `measure()` 直接呼叫 rubric 在用的 `runCheck()`（測試把註解剝掉之後驗，改壞會紅）；
+      每一把尺用白話寫出它要量什麼（P9 完全資訊）、放錯只會「尺暗回去 ＋ 就地教學」（不扣分、不失敗、
+      手掌印跟著收回去）、每一把尺都合了手掌印才浮出來。
+      **資料層強制「合尺是取捨不是全選」**：全部石片挑上去一定有一把尺是暗的（rubric ＋ playtest 各守一次）。
+- [x] **脈絡與長文 12 座教學神廟**（＋1 應用關 `archive-seal-25` ＝ 13 關）：既有 4 關照 manifest 改造
+      （`citation-desk-21`／`well-of-unknowing-22`／`long-scroll-tower-23`／`verify-spring-24`）＋ 新蓋 8 座。
+- [x] **角色與參數 12 座教學神廟**：既有 5 關改造（`mask-workshop-41`／`priority-stair-42`／`dial-room-43`／
+      `four-elements-mirror-44`／`crossroad-scale-45`）＋ 新蓋 7 座。
+- [x] **撰寫基本功欠著的兩座補上**：`long-scroll-archive-05`（規則牆 · 🆕`rulesBeforeData`）與
+      `postbox-sprite-02`（🆕`usesRareDelimiter`），兩者都換裝成 `order`。
+      **既有五區的 v2 化到此完成**（orchestration 依路線圖留到 Phase G）。
+- [x] **12 個新檢查器**（§7.4）：`labelsSources`／`anchorsToSection`／`citesInline`／`setsRetrievalBudget`／
+      `diagnosesFailureCause`／`allowsNullField`／`ranksInstructions`／`hasStopRule`／`usesOneSkeleton`／
+      `namesModelClass`／`rulesBeforeData`／`usesRareDelimiter`，全部結構性偵測 ＋ 中英雙語 ＋
+      good／weak／bad fixture ＋ 反作弊 ＋ `coach.json` 白話教學。
+- [x] **C1**：11 關改造後一律收斂成「主檢查 3 ＋ 地基 assignsTask 0.5、pass 2」，rubric 上沒有雜項。
+- [x] **C4**：脈絡與長文（fix／choice／order／constraint／choice／constraint／order／fix／spot／choice／spot／fix）
+      與角色與參數（fix／order／choice／choice／tradeoff／spot／fix／constraint／order／tradeoff／constraint／tradeoff）
+      都沒有連續三座同型（最長連續 2）。
+- [x] **行動裝置還債點**：`≤720px` 與 `≤430px` 兩段版面規則上線；e2e 在 **720×900 與 390×844** 兩個
+      viewport 逐一開八種題型的第三幕，量到「零水平溢位、可按元素一律 ≥40px 高、沒有 <12px 的字」，
+      並在 390px 用真的指標事件把合尺玩到手掌印出現。**世界的觸控移動（虛擬搖桿）明確不做**，理由與
+      範圍記在 `findings.md`。
+- [x] **manifest 誠實更新**：11 關的 `post-A` 條目改成 `phase: "D"`，Phase 0／A 沒掃到的移除以
+      `addedIn: "D"` 標記並逐條寫理由；新增 `phaseD` 區塊（`skillId`／`mainCheck`／`mainWeightAfterD`／
+      `totalWeightAfterD`／`passAfterD`／`kindAfterD`／`note`），沿用 Phase C 的 `passAfterC` 慣例。
+- [x] fonts（語料 CJK 1750 字／1399.9 KB）＋rubric（29,846 → **37,108**）＋playtest（554 → **816**）
+      ＋build＋**完整 e2e（2,010 → 2,157 項全過、零 console error）** 全綠。
+
+### Phase E — 量器坊 `forms`（新地形）14 座
+
+狀態：`done`（2026-08-02）
+
+- 新增第 6 區地形、地標、路網、石座與 soft gate；沿用既有 kind，避免地形與新題型同一期爆量。
+- runtime catalog／progression／codex 支援第六區；回答語言缺口以 `system-uses` 的一拍補上，除非 master list 先有獨立可追溯條目。
+- 世界成本實測，不採文件舊數字；新地標最多 1 盞實體光，其餘 emissive。
+
+Exit：14 座可玩；碰撞／coverage／淨空／三角形／光源預算全過；舊五區無退化。
+
+Exit criteria（逐條實測）：
+
+- [x] **量器坊 14 座教學神廟**：新蓋 13 座 ＋ 由撰寫基本功搬過來的 `mimic-mirror-04`
+      （§3 forms 第 3 列指名的「擬態之鏡」，manifest 新增 `phaseE` 區塊逐欄記錄）。
+      14 條技能一對一、無重複（C2），這一區的 14 條 v2 技能全部有神廟了。
+      撰寫基本功因此由 16 → **15 關**（`expected-counts` 同步改寫並寫明理由）。
+- [x] **沿用既有 kind，不開新題型**（本期指示）：choice 3／fix 4／spot 3／constraint 2／tradeoff 2，
+      **整區最長連續同型 2**（C4），共用 5 種題型。§3 指定但屬於後續期別的兩種
+      （`len-readable` 的 `multi` → Phase G、`so-basics` 的 `workshop`）以佔位 kind 上線，
+      逐條記進 `findings.md` 的 kind-swap backlog。
+- [x] **新地形**：`forms` 落在正南 `(0, 124)`、半徑 44（半徑上限由 `buildTerrain()` 的
+      340 公尺見方網格決定，測試逐區驗「整片土地都在網格裡」）；地貌是「由北往南一階一階降下去的
+      鑄場台階」（`detailFor()` 新增 `forms` 分支，測試驗它真的單調下降且有起伏）；
+      橋、閘門、`BRIDGE_LANES`、路網、`REGION_ATMOSPHERE`、`FLORA`、`buildRegionProps` 全部跟上。
+- [x] **地標「刻度之柱」**（§二逐字：一根被刻滿量度的斷柱，柱頂懸著一把不動的尺）：高 24、留白 15，
+      **一盞實體光源都沒加**（刻度與尺全部 emissive／加色混合，e2e 逐一數過）。
+      三組故事小景（倒到一半的那一模／量過就沒再量的桌／溢出來的那一槽）。
+- [x] **世界成本實測**（不採文件舊數字）：高畫質 147,032 → **154,868 三角形**（上限 420k）、
+      **26 → 27 盞燈**（上限 56；唯一新增的是與其他四片土地相同的「每區一盞主色補光」）、
+      碰撞體 608 → **674**（上限 1,400）、mesh 1,374 → 1,528。14 座石座在高／低兩種畫質下
+      24 個方向 × 4 段距離全部走得到，正南那條橋的主動線整條無阻擋。
+- [x] **知識式軟門檻（C8）上線**：`REGION_GATES.forms` 新增 `knowledge` 欄位，條件逐字取自
+      `regions-v2.json`（`clear-specific` ＋ config 任一座），**不看等級、不看前一區通關數**；
+      「會了嗎」走 `knowsSkill()`（`skillsV2` 或 D2 相容橋的祖先技巧）。
+      閘門說得出還差哪幾條（中文技能名，不露 id），`skippedGates` 先行前往照樣走得通且不給任何進度。
+- [x] **runtime 支援第六區**：catalog 的「已實作＝curriculum.groups」硬相等改成
+      「以既有五區開頭、後面才接新區」，並強制新區必須自己宣告主色（實測破壞會丟例外）；
+      `content.group()`／`groupsOrdered()`、`world` 的 `colorOf`、HUD／toast、
+      `progression.regionMastery()`（新區改用 v2 技能算完成度）、圖鑑（新增只列技能的區域卡）全部跟上。
+- [x] **回答語言缺口**：master list 沒有獨立可追溯條目，依 §附錄 4 的建議留在 `system-uses`
+      （`lintel-words-46`）那一拍，本期不新開技能（理由記在 `findings.md`）。
+- [x] **配樂**：量器坊**沒有**音檔。新增 `SYNTH_ONLY_REGIONS` 誠實登記，配一組自己的
+      `REGION_MOODS.forms`（根音 103.83、大二度堆疊、最低鐘聲密度），跨區走合成 pad
+      （護欄 3）。**刻意不共用別區的音檔**——那會讓過橋聽起來像沒換地方。
+- [x] **9 個新檢查器**（§7.4）：`statesFormatPreference`／`hasFallbackCategory`／`avoidsSelfCounting`／
+      `saysWhatToPreserve`／`definesToneConcretely`／`bansFillerPhrases`／`definesSchema`／
+      `noDuplicateSchemaRules`／`namesDesignElements`，全部結構性偵測 ＋ 中英雙語 ＋
+      good／weak／bad fixture ＋ 反作弊 ＋ `coach.json` 白話教學（實測照著填就會亮）。
+      其中三個是**非單調**的，合尺才不會退化成「全選就過關」。
+- [x] fonts（語料 CJK **1771** 字／1413.4 KB）＋rubric（37,108 → **42,968**）
+      ＋playtest（816 → **1,076**）＋build ＋ **完整 e2e（2,157 → 2,308 項全過、零 console error）** 全綠。
+      新斷言逐條先紅後綠（rubric 3 次、e2e 2 輪共 10 條，逐項記在 `progress.md`）。
+
+### Phase F — 契約鍛冶場 `toolcraft` 11＋護欄崗 `wards` 5
+
+狀態：`done`（2026-08-02）— 這是 **R3 release checkpoint**
+
+- 正西新地形＋東北加建；最大化沿用 workshop。
+- 補工具描述、時機、順序、缺參數、權限、prompt injection 等 checker。
+- 安全題不把 prompt 文字宣稱成真正安全邊界；明確教輸入通道、最小權限與 HITL。
+
+Exit：兩區 16 座可玩；安全敘述有官方來源；不新增不必要光源；所有 workshop 鍵盤路徑全綠。
+
+Exit criteria（逐條實測）：
+
+- [x] **契約鍛冶場 11 座教學神廟**：新蓋 9 座 ＋ 由流程與代理搬過來的 2 座
+      （`tool-forge-33` → `tool-description`、`oracle-workshop-36` → `tool-when-not`，
+      manifest 新增 `phaseF` 區塊逐欄記錄）。11 條技能一對一、無重複（C2），
+      這一區的 11 條 v2 技能全部有神廟了。流程與代理因此由 6 → **4 關**
+      （`expected-counts` 同步登記並寫明理由；該區的 v2 化排在 Phase G）。
+- [x] **護欄崗 5 座教學神廟**：`inj-concept` / `inj-input-channel` / `inj-lower-risk-shape` /
+      `guardrail-hitl` / `redteam`，一對一、無重複。
+- [x] **沿用既有題型**（本期不開新 kind）：toolcraft ＝ fix・workshop・workshop・spot・workshop・
+      tradeoff・fix・order・fix・spot・fix；wards ＝ spot・tradeoff・fix・workshop・workshop。
+      兩區**最長連續同型都是 2**（C4），共用 6 種題型。
+- [x] **正西新地形**：`toolcraft` 落在 `(-124, 0)`、半徑 44（量器坊的鏡像，同樣壓在
+      `buildTerrain()` 的 ±170 網格內）；地貌是「一張攤開的工作檯」——中央抬高的鍛台
+      ＋ 放射狀的工具溝槽（測試驗中央比外圈高、四周真的有溝）。橋、閘門、`BRIDGE_LANES`、
+      路網、`REGION_ATMOSPHERE`、`FLORA`、`buildRegionProps` 全部跟上。
+- [x] **護欄崗是加建，不是新大陸**：`REGION_SITES` 新增 `annexOf: 'grounding'` 與
+      `ANNEX_LINKS`（頸口）——**不生成新的橋**，兩片土地的覆蓋刻意重疊，走出檔案庫北緣
+      就到了。重疊處的歸屬由 `regionAt()` 的**正規化距離**決定，閘門就立在那條分界上；
+      鎖住時擋的是「地界」而不是一條線，所以**母土地一寸都沒有被吃掉**
+      （測試逐關驗過檔案庫 13 座石座的區域判定沒有改變）。
+- [x] **兩座地標**：未命名的工具（高 23、留白 15）與不會關上的門（高 19、留白 13），
+      **兩座都是零實體光源**（刻痕、鑰匙齒、門縫的光全部 emissive；e2e 逐一數過）。
+      五組故事小景（沒有人替它取名字的那一把／擺到放不下的那張檯／沒有人敢動的那一台／
+      被拆開讀過的那幾封／沒有人在的那個崗）。
+- [x] **世界成本實測**（在 node 裡把世界蓋起來，不採文件舊數字）：高畫質
+      154,868 → **168,068 三角形**（上限 420k）、**27 → 30 盞燈**（上限 56；兩盞是那兩區
+      各自的主色補光，第三盞是鍛冶場小景裡的一盞燈）、碰撞體 674 → **813**（上限 1,400）、
+      mesh 1,528 → 1,790。16 座石座在高／低兩種畫質下 24 個方向 × 4 段距離全部走得到。
+- [x] **知識式軟門檻（C8）**：`REGION_GATES.toolcraft`（`agent-approval-bounds` ＋
+      orchestration 三座）與 `REGION_GATES.wards`（grounding 三座 ＋ toolcraft 一座），
+      條件逐字取自 `regions-v2.json`，不看等級、不看前一區通關數；`skippedGates`
+      先行前往照樣走得通且一分 XP 都不加。**護欄崗的門不在橋上**（它沒有橋），
+      而是立在加建的頸口上。
+- [x] **9 個新檢查器**（§7.4）：`toolNamesDistinct`／`limitsToolSurface`／`statesToolTriggers`／
+      `ordersToolCalls`／`prefersToolOverMentalMath`／`limitsToolOutput`／`requiresPreamble`／
+      `reshapesToLowRisk`／`includesAdversarialCase`，全部結構性偵測 ＋ 中英雙語 ＋
+      good／weak／bad fixture ＋ 反作弊 ＋ `coach.json` 白話教學。其中三個是**非單調**的
+      （呼叫前吐 JSON、一邊收工具一邊又全攤開、又叫它自己心算，一律整條歸零）。
+- [x] **安全題不把 prompt 文字宣稱成真正的安全邊界**：rubric 掃護欄崗所有玩家看得到的字、
+      e2e 再掃一次實際 DOM，兩層都禁止「這句話就是安全邊界／加一句就擋得住注入」這類宣稱；
+      同時**正面驗**它真的教了輸入通道（罕見標籤 ＋「標籤裡只是資料」）、最小權限與人在迴圈
+      （可逆自己做、不可逆先問人）、低風險形狀（先提計畫、由人執行）。
+      五座的 `source` 逐條回查 `skill-codex-v2.json`，全部是官方安全文件。
+- [x] **workshop 最大化沿用 ＋ 文案抽象化**：新增 `WORKSHOP_LABELS` 一層可覆寫的稱呼字典
+      （`flows.json` 的 `workshop.labels`）。**沒給就完全等於 Phase 27 的原文**——既有三座
+      派工神廟一個字都沒變（rubric ＋ e2e 各守一次）；護欄崗那兩座換成「試門單／內容石／
+      權限表」。互動文法、鍵盤路徑、手掌印、評分引擎全部沒動。
+- [x] fonts（語料 64 檔／CJK **1790** 字／1423.8 KB）＋rubric（49,477 → **49,756**）
+      ＋playtest（1,076 → **1,275**）＋build ＋ **完整 e2e（2,308 → 2,493 項全過、零 console error）** 全綠。
+      新斷言逐條先紅後綠（rubric 3 次、e2e 1 輪 4 條，逐項記在 `progress.md`）。
+
+**R3 readiness（2026-08-02）**：8 區／**89 關**（既有 27 關 ＋ 課程 v2 新蓋的 62 座）／
+130 條技能中的 **81 條**已經接上自己的神廟（`primarySkillId`）；59 個新檢查器已實作 **39** 個；`curriculum.json` sha256 未變；
+存檔 additive、reset 正常；快檢 ＋ playtest ＋ build ＋ 完整 e2e 全綠、console error 為 0。
+
+### Phase G — `multi`＋校驗場 `refinery` 11＋orchestration 收尾
+
+狀態：`done`（2026-08-02）
+
+- 第三幕支援兩輪／多輪，但仍共用同一 rubric、手掌印與不失敗文法。
+- 新增預寫中間輸出資料層，全部標 `authored: "game"`，不可偽裝成模型真實輸出。
+- 校驗場加建；draft→review→refine、矛盾修復、eval、自評有真正的第二輪體感。
+
+Exit：刷新頁面／切幕／切 mode 不會丟失或串錯輪次；multi 至少覆蓋成功、錯誤、Esc、reduced-motion、鍵盤 e2e。
+
+Exit criteria（逐條實測）：
+
+- [x] **兩輪刻印（`multi`）＝石碑刻印的變體，不是第二套框架**：`src/prompt/multi.js` 共用
+      `slots.js` 的刻寫台與 `palm.js` 的結尾，送出的是同一段文字、走同一支離線引擎（護欄 3）。
+      **輪次是 `flow.slots` 的一個切法**（每一輪只宣告 `count`，`sum(count) === slots.length`）——
+      這條契約同時買到「退回石碑刻印時字一模一樣」「結構上不可能串錯輪次」「測試不必知道題型」。
+- [x] **中間那一段輸出是遊戲自撰的，而且畫面上說得出來**：資料層強制 `authored: "game"`，
+      回話卡旁邊永遠掛一顆 ⓘ 明講「這一段回話是遊戲自己寫好的示範，不是真的模型跑出來的結果」；
+      回話卡不自帶任何連結（教學與出處仍只在第二幕與圖鑑）。rubric ＋ playtest ＋ e2e 三層各守一次。
+- [x] **輪次狀態的設計已裁決並寫進 WORLD.md §3.3b 第 9 條**：只活在記憶體裡 ——
+      切幕／切模式輪次原封不動；重開這一關一律回到第一輪；**重新整理＝這一關從第一輪重來**
+      （誠實地「重新開始」，不為 multi 破例做落地存檔）。**硬要求「不串輪」由結構保證**。
+- [x] **第二輪真的在加分**（不是裝飾）：playtest 逐關驗「只刻完第一輪還沒滿分」——
+      這條斷言先紅一次（6 座中有 4 座第一輪就滿分），因此把輪次切法改成「第一輪＝先寫一版」。
+- [x] **校驗場 11 座教學神廟**：新蓋 9 座 ＋ 由流程與代理搬過來的 2 座
+      （`draft-review-wheel-32` → `draft-review-refine`、`echo-workshop-35` → `meta-iterate`，
+      manifest 新增 `phaseG` 區塊逐欄記錄）。11 條技能一對一、無重複（C2）。
+- [x] **流程與代理收尾到 12 座**：既有 2 關改造（`subtask-workbench-31` → order、
+      `irreversible-gate-34` → workshop）＋ 新蓋 10 座。既有五區之外的遷移到此告一段落。
+- [x] **C1／C4**：23 座一律「主檢查 3 ＋ 地基 `assignsTask` 0.5、pass 2」；
+      題型序列 orchestration ＝ order・constraint・choice・tradeoff・workshop・spot・order・multi・
+      workshop・workshop・fix・choice；refinery ＝ choice・multi・workshop・multi・order・spot・
+      tradeoff・fix・workshop・order・multi —— 兩區最長連續同型都是 2，各用了 8 種題型。
+- [x] **backlog 的兩座換裝到位**：量器坊 `for-newcomer-59`（`len-readable`）與
+      示範與推理 `well-pause-22`（`think-after-tool`）由佔位 kind 換成 §3 指定的 `multi`。
+- [x] **12 個新檢查器**（§7.4）：`statesSuccessCriteria`／`tunesAutonomyLevel`／`limitsScope`／
+      `asksForPlanFirst`／`definesHandoffState`／`delegatesWithCriteria`／`extractsStandingRules`／
+      `setsActionBudget`／`definesEvalSet`／`asksModelToRewritePrompt`／`decisionTree`／
+      `definesWordedScale`，全部結構性偵測 ＋ 中英雙語 ＋ good／weak／bad fixture ＋ 反作弊
+      ＋ `coach.json` 白話教學（實測照著填就會亮）。其中四個是**非單調**的。
+- [x] **校驗場是第二座加建**（`annexOf: 'orchestration'`，沒有橋、閘門立在頸口）；
+      **知識式軟門檻新開一種條件 `masteredAny`**（任一區精通，定義完全沿用 `regionMastery()`）；
+      `skippedGates` 先行前往照樣走得通且一分 XP 都不加。
+- [x] **世界成本實測**（在 node／瀏覽器裡把世界蓋起來，不採文件舊數字）：見 `progress.md` 的表。
+- [x] fonts（CJK 1822 字）＋rubric（49,756 → **58,760**）＋playtest（1,275 → **1,642**）
+      ＋build ＋ **完整 e2e（2,493 → 2,637 項全過、零 console error、零重跑）** 全綠。
+      第一輪 14 條紅燈的分類與處置逐條記在 `progress.md`（1 條快照、5 條舊播放器沒接 multi、
+      6 條是我自己測試寫錯、2 條連帶）。
+
+### Phase H — `sim`＋減法之庭 `frugality` 7
+
+狀態：`done`（2026-08-02）
+
+- 先做 3 座 spike（temperature、effort、action budget），每座 3 檔、共 9 段離線樣本；體感驗證後才擴。
+- 離線樣本另檔、`authored: "game"`、帶模型／時代條件，絕不暗示為即時 LLM 結果。
+- 減法之庭加建；改造火力熔爐與刻度儀之室。
+
+Exit：斷網完全可玩；旋鈕各檔差異可讀且不冒充普遍真理；sample 數量受 schema/test 約束。
+
+Exit criteria（逐條實測）：
+
+- [x] **轉鈕（`sim`）＝石碑刻印的變體，不是第二套框架**：`src/prompt/sim.js` 共用 `slots.js` 的
+      刻寫台與 `palm.js` 的結尾，送出的是同一段文字、走同一支離線引擎（護欄 3）。
+      **旋鈕不參與評分** —— `api.text` 只回 `stage.text`（測試剝掉註解之後掃原始碼），
+      轉旋鈕一百次也不會改變被評分的內容。
+- [x] **三座 spike 上線**（§3 指定的三個 `sim` 神廟，全部是既有神廟換裝第三幕）：
+      火力熔爐（`knob-effort`）／刻度儀之室（`knob-temperature`）／沙漏工房（`action-budget`）。
+      三座的 **rubric、pass、示範解答、`slots`、官方出處一個位元組都沒動**（manifest 的 `phaseH`
+      區塊逐欄記錄；退回石碑刻印時玩家刻出來的字一模一樣）。§3 的第四座 `sim`
+      （`contrast-same-name`）屬 Phase J 的區域，本期不做。
+- [x] **9 段離線樣本**：`src/data/sim-samples.json`（`authored: "game"`）—— 3 個旋鈕 × 剛好 3 檔，
+      每一檔一段回話 ＋ 一句「這一檔怎麼讀」；`SIM_NOTCHES = 3` 是 schema 硬性約束，
+      三檔的回話**彼此不同**（資料層強制，轉了沒差別這一課就不存在）。
+- [x] **絕不暗示為即時 LLM 結果**：畫面上永遠掛一顆 ⓘ 明講「這些輸出是遊戲預先寫好的示範，
+      不是真的模型跑出來的結果，也沒有連到任何服務」；每一個旋鈕都寫得出 `condition`
+      （在哪一台機器、哪一個時間點成立），那句話永遠跟樣本一起顯示。
+- [x] **斷網完全可玩**：`sim.js` 裡沒有 `fetch`／`XMLHttpRequest`／`WebSocket`／任何網址
+      （rubric 掃原始碼），e2e 再用 `performance.getEntriesByType('resource')` 量一次
+      「整段轉鈕沒有向外要過任何東西」。樣本註冊失敗時安靜退回石碑刻印（相容契約）。
+- [x] **觀察是內容，不是過場**：三檔都轉過了才開放刻印（與推規碑「想通才給刻」同一個文法），
+      而且刻印只有一個開放入口（測試數 `stage.unlock()` 的呼叫次數）。
+- [x] **減法之庭 7 座教學神廟**（`lean-prompt`／`lean-output`／`cache-static-first`／
+      `ctx-compaction`／`ctx-pruning`／`ctx-new-chat`／`ctx-reuse-reasoning`），一對一、無重複（C2）；
+      題型 fix・spot・order・multi・spot・choice・choice —— 最長連續同型 2（C4），用了 5 種題型；
+      全部「主檢查 3 ＋ 地基 `assignsTask` 0.5、pass 2」（C1）。
+- [x] **高原加建**（curriculum-v2 §二：🟡 高原加建）：`frugality (0,-82) r=32 flat=27,
+      annexOf: 'foundations'` —— **第三座沒有橋的加建**，閘門立在高原正北的邊緣 (0,-55.3)；
+      地貌是整張地圖上**最平**的一片土地（起伏 < 3.2 公尺，測試逐點量）。
+      母土地一寸都沒有被吃掉（15 座石座的區域判定逐關驗），代價是原本站在頸口正中央的
+      `wordfork-12` 往南挪了 16 公尺（只動座標）。
+- [x] **知識式軟門檻（C8）**：`REGION_GATES.frugality` 只有一條 `masteredAny: 1`
+      （逐字取自 `regions-v2.json`），不看等級、不看前一區通關數；`skippedGates`
+      先行前往照樣走得通且一分 XP 都不加。
+- [x] **3 個新檢查器**（§7.4）：`staticBeforeVariable`／`asksToCompact`／`carriesForwardEssentials`，
+      結構性偵測 ＋ 中英雙語 ＋ good／weak／bad fixture ＋ 反作弊 ＋ `coach.json` 白話教學。
+      其中 `staticBeforeVariable` 是**非單調**的（一邊說固定的放前面、一邊又把今天日期擺最前面 → 整條歸零）。
+- [x] **配樂**：減法之庭**沒有**音檔，誠實登記進 `SYNTH_ONLY_REGIONS`，配一組自己的
+      `REGION_MOODS.frugality`（根音 65.41 全場最低、只有空心音、鐘聲全場最稀）。
+- [x] fonts（CJK **1832** 字）＋rubric（58,760 → **62,415**）＋playtest（1,642 → **1,768**）
+      ＋build ＋ **完整 e2e（2,637 → 2,750 項全過、零 console error）** 全綠。
+      新斷言逐條先紅後綠（詳見 `progress.md`）。
+
+### Phase I — 觀象臺 `sight` 8（可獨立延後）
+
+狀態：`done`（2026-08-02）
+
+- 新增小型地形與 8 座多模態提示神廟；遊戲仍只評 prompt 結構，不假裝真的看圖／生圖。
+- 圖片／影片素材若新增，逐檔記授權；畫面不依外部 CDN。
+
+Exit：8 座離線可玩；素材授權完整；新地形通過 WORLD 效能與碰撞預算。
+
+Exit criteria（逐條實測）：
+
+- [x] **8 座教學神廟上線**（全部新蓋，沒有搬動或改造既有 27 關中的任何一關 ——
+      manifest 的 `challenges` 一列都沒有動）：觀象臺的第一格窗（`mm-basics`）／
+      看不清的那一角（`mm-troubleshoot`）／無主體的畫（`img-generate`）／改壞的那張（`img-edit`）／
+      分鏡牆（`video-prompt`）／唸太快的傳聲石（`tts-writing`）／千篇一律的門面（`design-anti-slop`）／
+      改了一顆鈕，塌了一面牆（`fe-spec`）。8 條技能一對一、無重複（C1／C2）。
+- [x] **C1／C4**：8 座一律「主檢查 3 ＋ 地基 `assignsTask` 0.5、pass 2」；
+      題型序列 choice・fix・fix・multi・order・fix・tradeoff・fix ——
+      最長連續同型 2（C4），用了 5 種既有題型（**這一期沒有開新題型**）。
+- [x] **遊戲仍然只評 prompt 的結構**（本期最重要的那條線，寫成三條可執行的規則，
+      見 WORLD.md §3.3c）：素材是抄寫人寫下來的文字；資料層與畫面都不得出現任何
+      圖片／影片／音檔（rubric 掃資料、e2e 掃 DOM）；整段玩下來**零外部請求**
+      （e2e 用 `performance.getEntriesByType('resource')` 量過）。
+      **因此本期沒有新增任何媒體資產，`public/LICENSE.md` 不需要新增條目。**
+- [x] **5 個新檢查器**（§7.4）：`pointsAtRegion`／`preservesPriorState`／`namesShotElements`／
+      `usesProsodyPunctuation`／`namesStackAndScope`，全部結構性偵測 ＋ 中英雙語
+      ＋ good／weak／bad fixture ＋ 反作弊 ＋ `coach.json` 白話教學（實測照著填就會亮）。
+      其中兩個是**非單調**的：`preservesPriorState`（一次塞三個以上的修改就掉分）與
+      `usesProsodyPunctuation`（標點做好了卻還留著「請唸慢一點」就掉一階）。
+- [x] **新地形（小）**：`sight (134, -18) r=34 flat=27`，**自己一條橋**（不接在任何一區後面）。
+      設計寫的是「東北高地」，實際落在**正東偏北** —— 東北那一角已被沉書檔案庫（r=46）
+      與護欄崗佔滿，理由與算式記在 `findings.md`。與檔案庫留得出 6.3 公尺虛空、
+      橋線離檔案庫中心最近 81.5 公尺（不會擦過去）、`134 + 34 = 168` 壓在 ±170 網格內。
+- [x] **知識式軟門檻（C8）新開一種條件 `mastered`**（指名道姓的那一片土地精通）：
+      `REGION_GATES.sight` 只有 `mastered: ['foundations']`（逐字取自 `regions-v2.json`）；
+      `skippedGates` 先行前往照樣走得通且一分 XP 都不加。
+- [x] **世界成本實測**（在 node 裡把世界蓋起來，不採文件舊數字）：三角形 179,574 → **186,596**、
+      光源 34 → **36**（一盞主色補光 ＋ 小景裡本來就有的製圖桌燈；**地標零實體光源**）、
+      碰撞體 902 → **961**、穿模稽核 0 件；低畫質 125,156 tris ／ 19 盞。
+- [x] **配樂**：觀象臺**沒有**音檔，誠實登記進 `SYNTH_ONLY_REGIONS`，配一組自己的
+      `REGION_MOODS.sight`（根音 164.81 全場最高、截止頻率全場最高、鐘聲間隔最短之一）。
+- [x] fonts（CJK **1847** 字／1464.5 KB）＋rubric（62,415 → **67,077**）
+      ＋playtest（1,768 → **1,919**）＋build ＋ **完整 e2e（2,750 → 2,890 項全過、零 console error、
+      零重跑，第一輪就乾淨）** 全綠。新斷言另以**刻意破壞**跑了一輪完整 e2e 驗證會紅
+      （觀象臺那一段確實出現 3 個 x），還原後即為上述綠燈（詳見 `progress.md`）。
+
+### Phase J — 分歧之廳＋12 應用關＋大師層
+
+狀態：`done`（2026-08-02）— 這是 **R4 release checkpoint**，分三個切片（J1／J2／J3）做完
+
+- 高原加建 divergence 9 座與 `reverse`；依模型卡讓答案翻面，來源並排可點。
+- 上線 12 區應用關；第二幕跳過，只用已學技巧動態組 rubric。
+- 新增 `seals[]` 與大師層印記，save additive；既有 finale 維持四廠條件，新廠只做支線。
+- 移除 D2 的 legacy teaching/collection bridge，完成 130 技能 runtime 遷移。
+
+Exit：130 教學＋12 應用全數可玩；130 技能每條只被教一次且平均有複習；舊 finale 不回退；全 suite 綠。
+
+Exit criteria（逐條實測）：
+
+- [x] **分歧之廳 9 座教學神廟**（J1）：兩面的柱·身分／兩面的柱·記憶／同名的兩個旋鈕／封起來的刻度／
+      換了介面的階梯／舊叮嚀／貼滿補丁的舊袍／搬家的清單／會改字的碑 —— 技能一對一、無重複（C2），
+      題型序列 tradeoff・tradeoff・sim・spot・fix・fix・spot・order・reverse 與 §三逐格相同
+      （最長連續 2、6 種題型，C4），一律「主檢查 3 ＋ 地基 `assignsTask` 0.5、`pass` 2」（C1），
+      **零新檢查器**（59/59 在 Phase I 就開完了）。
+- [x] **模型卡翻面**：反差題先發模型卡再出題，正解隨卡翻面；兩張卡的官方出處並排可點
+      （`tradeoffFlow.rounds[].card.sources[]`，測試強制 url 屬該技能官方清單、`name` 逐字等於 `docName`、
+      兩張卡至少兩家）。輸的一面只講「這張卡上要付什麼代價」，不得被寫成「錯」（Phase C 契約沿用）。
+- [x] **新題型 `reverse`（拆碑）**：`src/prompt/reverse.js` 走已驗證的 induct 模式 ——
+      拆開的委託一塊一塊貼名牌 → 貼錯只就地教學（不扣分／不前進／不失敗）→ 全部標對才開放刻印 →
+      共用 `slots.js` ＋ `palm.js` ＋ 同一支離線引擎（護欄 3）。缺資料／未知 kind → 退回石碑刻印。
+- [x] **`contrast-same-name` 的 `sim`**：`sim-samples.json` 新增第 4 組旋鈕（三檔＝三台機器、
+      同一行 `reasoning_effort: high`、三段回話互異、`condition` 帶年份），旋鈕不參與評分。
+- [x] **高原建物 ＋ 硬門檻**：`divergence (76,17) r=29 annexOf: 'foundations'`（第四座沒有橋的加建），
+      地標「兩面的柱」零實體光源；`REGION_GATES.divergence` 是**全場唯一的硬門檻**
+      （`masteredAny: 4` ＋ `hard: true`）—— 對話框不畫「直接前往」、`skipGate()` 進程層再擋一次、
+      divergence 永不進 `skippedGates`；其餘 11 區的「想先過去看看嗎」一字未動。例外寫進 WORLD.md §1.4。
+- [x] **12 座應用關**（J2）：每區一座、位置在該區地標腳下；沿用 `council-envoy-06`／`archive-seal-25`
+      ＋ 新蓋 10 座 → `challenges` **142**（130 教學 ＋ 12 應用）。型式分佈 free 3／constraint 2／
+      workshop 2／order 2／reverse 1／spot 1／tradeoff 1，與 §5.2 逐格相同（測試強制）。
+- [x] **應用關不教新技巧**：第二幕（神諭刻文）**整幕跳過**（幕指示器誠實地只有三幕、`Alt+2` 不會跳到不存在的幕）、
+      畫面上零官方連結、`primarySkillId`／`primaryTechniqueId` 一律 `null`、不計入 130 教學神廟的 C1/C2 統計。
+- [x] **動態 rubric（P9 完全資訊、不軟鎖）**：`src/challenges/trial.js` 是唯一真相 ——
+      候選列各掛一條該區技能，開關卡時用 `knowsSkill()` 過濾，
+      `pass = max(2, round(入選權重總和 × 0.5 × 2) / 2)`；已學 0／1／2／全部四種情境逐一實測
+      （示範解答全部 S、弱起手全部不過、門檻永遠 ≥2 且 < 總權重），已學 < 2 時照 `order` 補位並
+      在畫面上誠實標「你還沒學過」。
+- [x] **`seals[]` ＋ 大師層印記**：存檔新增四個純加法欄位 `seals`（12 枚土地印記，冪等）／
+      `penlessSeals`（無筆之印）／`scribeSeals`（默寫之印）／`samplesSeen`（防作弊面），
+      `normalize()` 補預設、去重、reset 清乾淨。判定寫在 `masterSealFor()`：
+      無筆之印＝教學神廟 ＋ 沒用快速填入／積木 ＋ 沒開提示球 ＋ 範例從沒被翻開過 ＋ 刻印零退回 ＋
+      **開關卡以來第一次呈遞**就 S；默寫之印＝自由書寫模式 S ＋ 同樣的範例條件。應用關不發。
+- [x] **既有 finale 不回退**：`vendors` 仍是四廠、`codex.js` 的 `TARGET = 5` 與「四廠全數集齊」文案未改；
+      rubric 靜態掃描確認 `seals`／`penlessSeals` 沒有出現在任何解鎖判定裡（C9：大師層永不擋路）；
+      e2e 掃圖鑑 DOM 確認徽章區沒有 Qwen／DeepSeek／Mistral（新廠只做支線）。
+- [x] **D2 相容層拆除**（J3）：最後兩座教學神廟接上技能（`gate-of-clarity-01` → `clear-specific`、
+      `lost-automaton-03` → `clear-positive`）→ **130 座教學神廟 ↔ 130 條技能一對一**；
+      `console.js` 的四處「主技巧找不到就退回 legacy」相容分支全部拿掉（教學面以技能為正典、沒有退路）；
+      `teaches` 逐字保留為**收集**清單（68 條涵蓋率仍滿、四廠徽章與隱藏成就一格未改）；
+      `knowsSkill()` 的祖先 fallback 正名為「收集誠實層」並補一次**純加法開機回填**
+      （`bestGrades × primarySkillId` → `skillsV2`，冪等）—— 收窄 fallback 會讓舊存檔倒退，故不收窄（理由在 `findings.md`）。
+- [x] **backlog 最終處置**：`mould-room-62`（`so-basics`）→ `workshop` 正式記為 **won't do**
+      （擋住的是 workshop 的四步語意「排呼叫順序」，schema 沒有那一步）；量繩之桌／零件表同樣 won't do；
+      `disclose`（Phase K）正式記錄為**選配未實作**（四條理由 ＋ 翻案條件：先有世界的觸控移動）。
+- [x] **R4 五項驗收全部實跑**（數字見下方 §5 與 `progress.md` 的 R4 報告）：全 suite、
+      碰撞／效能稽核、20 筆官方來源實際 curl、舊命名空間存檔的 migration／reset 實測、README 數字更新。
+
+### Phase K — `disclose` 拾遺（選配）
+
+狀態：`not implemented（選配，正式不採用 · 2026-08-02）` —— 決策記錄見 `findings.md`／`progress.md` 的 Phase J3 一節：
+四條理由（會打破「任何一關隨時開得起來」的契約／會新增一個影響可玩性的存檔欄位／
+沒有世界觸控移動就等於行動裝置不可玩／不影響 130 條技能的完成度，`context-supply` 已有自己的神廟），
+翻案條件寫死：**先有世界的觸控移動，再談 `disclose`**。
+
+- 僅挑 2–3 座最適合的 grounding 神廟做素材背包與世界拾取點。
+- 新 save 欄位 additive；未撿齊只提示，不失敗、不封死。
+- 若成本／行動版／存檔風險不值得，正式記錄為未採用，不影響 130 技能完成。
+
+Exit：跨世界素材有 reload/reset/e2e；或有一份明確的「不實作」決策記錄。
+
+## 4. 測試矩陣
+
+| 變更 | 必跑 | e2e |
+|---|---|---|
+| 文件／manifest | rubric＋build（除非使用者連快檢也排除） | 先問，通常不跑 |
+| challenges／flows／checker | fonts（有中文）＋rubric＋playtest＋build | 依影響面；改互動流程則必跑 |
+| 新 kind／四幕／鍵盤／save | fonts＋rubric＋playtest＋build | 必跑；新斷言先紅一次 |
+| 新地形／碰撞／效能 | fonts＋rubric＋playtest＋build＋collision/perf audit | 必跑 |
+| 全案 release | fonts＋rubric＋playtest＋build | 完整 e2e；只對已知動畫 flaky 允許一次重跑 |
+
+驗收不只看「全綠」：幾何先證明可量測；e2e 用 poll-until，不用固定 sleep；subagent 若已完整跑過，orchestrator 不重跑，只做快檢＋HTTP 200。
+
+## 5. Release checkpoints
+
+- **R1（A）**：重複度手術在 dev 穩定；是否上 main 取決於 legacy collection 體驗是否無退化。
+- **R2（D）**：既有五區 v2 化完成，適合第一次公開發布。**已於 2026-08-01 抵達**（見 Phase D exit criteria 與 `progress.md` 的 release-readiness 數字）。
+- **R3（F）**：8 區、工具與護欄線完成。**已於 2026-08-02 抵達**（見 Phase F exit criteria 與 `progress.md` 的 release-readiness 數字）。
+- **（G）**：9 區、既有五區之外的遷移完成、迭代類技巧第一次有體感。不是 release checkpoint，但 R4 的路已經走了一半。
+- **R4（J）**：12 區／142 關／130 技能正式完成。**已於 2026-08-02 抵達** —— 完整驗收見 `progress.md`
+  的「Phase J3 ＋ R4 release checkpoint 報告」。實跑數字：
+  `fonts` CJK 1,844／1,463.4 KB · `test:rubric` **76,757** · `test:playtest` **2,372** · `build` ✓ ·
+  `test:e2e` **3,013 項全過、零 console error、零重跑（第一輪就乾淨）** · 世界高畫質 194,083 tris／37 燈／957 碰撞體／穿模稽核 0 ·
+  來源抽查 **20/20 存活** · 舊命名空間存檔 migration／reset 逐欄實測通過 · README 數字已更新
+  （截圖未重拍，已在 README 誠實標註擷取時間落後）。
+  **尚未合入 `main`、尚未部署** —— 依工作協議由 repo 擁有者決定。
+- **R5（K optional）**：探索與關卡真正接起來。**不實作**（見 Phase K 的決策記錄）。
+
+每個 release 都需：完整 e2e、零 console error、來源抽查、存檔 migration/reset、README 數字與真實截圖更新，再由 `dev` 合入 `main` 與部署站。
+
+## 6. 已知風險
+
+| 風險 | 控制方式 |
+|---|---|
+| 59 checker 失控 | 只按期開、共用結構 parser、每個 checker 固定 fixture 契約 |
+| 550 段左右新文案 | 一區一批；masterRefs→官方來源→authored 文案→人讀驗收四道門 |
+| 新 kind 爆炸 | 每期最多 1–2 kind；共用 board interface、rubric、palm、focus contract |
+| 68→130 破壞 runtime | 先 catalog bridge；所有固定數字改由 runtime catalog 推導 |
+| 舊存檔／finale 回退 | additive normalize；四廠 finale 保持；舊 collected 不回收 |
+| 行動版債變貴 | D 後設還債 checkpoint；每個新 kind 至少窄 viewport 可量測 |
+| 文件與實際數據漂移 | 所有數字由腳本重算，文件只作設計意圖，不作 runtime 事實 |
+| 官方來源變動 | 實作當期只查官方來源；找不到就排除／dated note，不用二手補洞 |
+
+## 7. 規劃工作完成狀態
+
+- [x] 讀取 `CLAUDE.md`、`WORLD.md`、`HANDOFF.md`
+- [x] 讀取 curriculum v2、level references、gap analysis 與 master list 關鍵追溯／健康度
+- [x] 盤點 repo 資料、runtime、測試與 git 基線
+- [x] 建立 A–K 檔案級長時間實作計畫、驗收門、測試矩陣與 release checkpoints
+
+## 8. 錯誤紀錄
+
+| 錯誤 | 嘗試 | 處理 |
+|---|---:|---|
+| Windows UNC 執行 Git 觸發 dubious ownership | 1 | 不改 global config；Git 改走 WSL Linux 路徑 |
+| PowerShell 展開 bash `$f` 導致空檔名 | 1 | 改用 PowerShell 明確列檔 |
+| WSL 無 `rg` | 1 | 改用 `find`／`Get-ChildItem` |
+| WSL 無 `node` | 1 | 改用 Windows Node |
+| 首次假設 JSON 根為陣列 | 1 | 先讀 schema，再使用 `.challenges`／`.flows` |
+| Windows `npm` 經 `cmd.exe` 無法使用 UNC cwd，錯到 `C:\Windows` 找測試腳本 | 1 | 不重跑相同命令；改以 Windows Node 直接執行測試腳本與 Vite CLI |
+| 石座燈光在 37 座時衝到 59 盞（>56 預算），e2e 3 條紅 | 1 | 不是把上限調高，而是把「一座一盞」改成常數 8 盞的燈池指派給最近的幾座（畫面零差異、燈數不再隨關卡數成長） |
+| 新檢查器用字面 `[一-鿿]` 寫 CJK 範圍，害字型語料多切一個原始字型沒有的字 | 1 | 改回 `[\u4e00-\u9fff]` 轉義（`checks.js` 原本就是這樣寫的），重跑 `npm run fonts` |
+| 新神廟的快速填入串起來剛好等於示範解答，撞到「快速填入不是直接給答案」 | 1 | 把其中一顆改成通用零件；那條斷言守的是鷹架遞減，不是格式潔癖 |
+| e2e 新斷言用了 `.stamp__grade`（不存在），兩條假性紅 | 1 | 照既有題型 e2e 的寫法改成 `.grade__mark` |
+| `rulesBeforeData` 實作不了：manifest 斷言「主檢查是新檢查器 → 它必須還不存在」 | 1 | 不改斷言、不硬做；連同該關的改造一起留到後續，理由寫進 `findings.md` |
+| rubric baseline 有 12 個既有開場斷言失敗（entrygate/title 舊結構） | 1 | 規劃文件未觸及產品碼；不擴大 PR 修復，於 PR 明列 16,490 pass／12 fail，留 Phase 0 重建 baseline。**Phase 0 已修**：12 條全部改寫成 Phase 34.5 現行設計的斷言（不是刪掉），並實測破壞會紅 |
+| Windows Node 搭配 Linux `node_modules` 執行 Vite，缺 `@rollup/rollup-win32-x64-msvc` | 1 | 不刪 lockfile/node_modules、不改依賴；先找 WSL 既有 Node，沒有則標記 build 為環境未執行 |
+| PowerShell 再次展開 bash status 變數，合併命令結尾無法回傳正確 code | 1 | 不再依賴合併變數；以各工具明確輸出判定：rubric 12 fail、Vite build passed |

@@ -1,0 +1,424 @@
+{
+  "version": 1,
+  "authored": "game",
+  "note": "12 區的定義與軟門檻規格（curriculum-v2 §二）。既有五區的 id、名稱與世界地形完全沿用 curriculum.json 的 groups，不得改動；新增七區依實作進度逐一把 implemented 打開（課程 v2 · Phase E 起：量器坊已上線） —— 它們此刻只存在於資料層，世界、圖鑑與進程都必須忽略。gate 是 v2 的「知識即升級」規格，**尚未啟用**：現行的區域解鎖仍由 progression.js 的 REGION_GATES 決定。",
+  "gateSchema": {
+    "start": "起點區（序章畢業即開放）。",
+    "hard": "true = 硬門檻（不提供「先行前往」）。",
+    "skills": "必須先收集的技能 id。",
+    "regionSkills": "[{regionId, count}] — 該區至少收集幾條技能。",
+    "masteredRegions": "必須完全精通的區域 id。",
+    "masteredAnyCount": "任意幾個區域達到精通。",
+    "text": "curriculum-v2 §二「解鎖關係」欄的原句。",
+    "color": "這一區的主色（既有五區以 curriculum.json 的 groups 為準，新區寫在這裡）。"
+  },
+  "regions": [
+    {
+      "id": "foundations",
+      "nameZh": "撰寫基本功",
+      "nameEn": "FOUNDATIONS",
+      "order": 1,
+      "place": "中央高原",
+      "theme": "把話說完整：說清楚、給脈絡、切好區塊。這一區教的是「你沒說的它不會知道」。",
+      "landmark": "斷環",
+      "engineCost": "既有",
+      "implemented": true,
+      "skillIds": [
+        "clear-golden",
+        "clear-specific",
+        "clear-positive",
+        "clear-constraint",
+        "clear-imperative",
+        "clear-scope",
+        "clear-no-pressure",
+        "word-choice",
+        "context-why",
+        "context-supply",
+        "struct-delimiters",
+        "struct-xml",
+        "struct-anatomy",
+        "pos-rules-first"
+      ],
+      "gate": {
+        "hard": false,
+        "start": true,
+        "text": "起點。序章畢業即開放，區內 14 座神廟自由順序（P7 軟門檻）。"
+      }
+    },
+    {
+      "id": "reasoning",
+      "nameZh": "示範與推理",
+      "nameEn": "REASONING",
+      "order": 2,
+      "place": "西北 · 階梯迴廊",
+      "theme": "給它看，或讓它想：範例、逐步思考、思考旋鈕。這一區教的是「怎麼影響它的過程」。",
+      "landmark": "無盡階梯塔",
+      "engineCost": "既有",
+      "implemented": true,
+      "skillIds": [
+        "fewshot-basics",
+        "fewshot-consistent",
+        "fewshot-count",
+        "fewshot-negative",
+        "fewshot-when",
+        "fewshot-thinking",
+        "cot-explicit",
+        "cot-separate-answer",
+        "reason-keep-simple",
+        "reason-no-transcript",
+        "think-control",
+        "think-after-tool",
+        "knob-effort",
+        "overthinking-remove",
+        "self-consistency"
+      ],
+      "gate": {
+        "hard": false,
+        "regionSkills": [
+          {
+            "regionId": "foundations",
+            "count": 2
+          }
+        ],
+        "text": "軟門檻：foundations 任兩座神廟。閘門會問「要先過去看看嗎」（既有 skippedGates 機制）。"
+      }
+    },
+    {
+      "id": "grounding",
+      "nameZh": "脈絡與長文",
+      "nameEn": "GROUNDING",
+      "order": 3,
+      "place": "東北 · 沉書檔案庫",
+      "theme": "先讀再答：長文定位、引用、抗幻覺、檢索預算。這一區教的是「怎麼讓它有依據」。",
+      "landmark": "藏書之樹",
+      "engineCost": "既有",
+      "implemented": true,
+      "skillIds": [
+        "long-query-last",
+        "long-doc-structure",
+        "long-all-upfront",
+        "long-outline-anchor",
+        "ground-strict",
+        "ground-out",
+        "ground-quote-first",
+        "cite-format",
+        "ground-read-first",
+        "retrieval-budget",
+        "halluc-causes",
+        "extract-spec"
+      ],
+      "gate": {
+        "hard": false,
+        "skills": [
+          "context-supply",
+          "struct-delimiters"
+        ],
+        "text": "軟門檻：foundations 的 context-supply ＋ struct-delimiters（知識即升級，P8）。"
+      }
+    },
+    {
+      "id": "orchestration",
+      "nameZh": "流程與代理",
+      "nameEn": "ORCHESTRATION",
+      "order": 4,
+      "place": "西南 · 齒輪工坊",
+      "theme": "把大事拆小、把界線畫清楚：拆解、鏈、自主性、預算、狀態。",
+      "landmark": "巨臂吊車",
+      "engineCost": "既有",
+      "implemented": true,
+      "skillIds": [
+        "chain-serial",
+        "outcome-first",
+        "agent-three-reminders",
+        "agent-eagerness",
+        "agent-approval-bounds",
+        "agent-scope-drift",
+        "agent-plan-first",
+        "agent-longhorizon",
+        "agent-state",
+        "agent-subagents",
+        "standing-instructions",
+        "action-budget"
+      ],
+      "gate": {
+        "hard": false,
+        "regionSkills": [
+          {
+            "regionId": "reasoning",
+            "count": 2
+          },
+          {
+            "regionId": "grounding",
+            "count": 2
+          }
+        ],
+        "text": "軟門檻：reasoning ＋ grounding 各兩座。"
+      }
+    },
+    {
+      "id": "config",
+      "nameZh": "角色與參數",
+      "nameEn": "CONFIG",
+      "order": 5,
+      "place": "東南 · 面具劇場",
+      "theme": "換上面具再開口：角色、系統訊息、指令階層、骨架、取樣旋鈕。",
+      "landmark": "面具拱門",
+      "engineCost": "既有",
+      "implemented": true,
+      "skillIds": [
+        "role-basics",
+        "system-uses",
+        "hierarchy",
+        "no-system-field",
+        "skeleton-ptcf",
+        "skeleton-six-elements",
+        "skeleton-dev-message",
+        "skeleton-consistency",
+        "knob-temperature",
+        "knob-limits",
+        "param-not-plead",
+        "model-pick"
+      ],
+      "gate": {
+        "hard": false,
+        "regionSkills": [
+          {
+            "regionId": "foundations",
+            "count": 8
+          }
+        ],
+        "text": "軟門檻：foundations 全區精通（或 8 座）。"
+      }
+    },
+    {
+      "id": "forms",
+      "nameZh": "量器坊",
+      "nameEn": "FORMS",
+      "color": "#c2c79f",
+      "order": 6,
+      "place": "正南 · 新地形",
+      "theme": "把神諭的話倒進模子裡定形：輸出格式、長度、語氣、結構化輸出。",
+      "landmark": "刻度之柱（一根被刻滿量度的斷柱，柱頂懸著一把不動的尺）",
+      "engineCost": "新地形（Phase E 已上線）",
+      "implemented": true,
+      "skillIds": [
+        "fmt-specify",
+        "fmt-markdown-diet",
+        "prefill-completion",
+        "answer-anchor",
+        "no-counting",
+        "len-concrete",
+        "len-preserve",
+        "len-readable",
+        "tone-concrete",
+        "no-preamble",
+        "so-basics",
+        "so-vs-jsonmode",
+        "so-division",
+        "doc-design-elements"
+      ],
+      "gate": {
+        "hard": false,
+        "skills": [
+          "clear-specific"
+        ],
+        "regionSkills": [
+          {
+            "regionId": "config",
+            "count": 1
+          }
+        ],
+        "text": "軟門檻：foundations 的 fmt 前置（clear-specific）＋ config 任一座。"
+      }
+    },
+    {
+      "id": "toolcraft",
+      "nameZh": "契約鍛冶場",
+      "nameEn": "TOOLCRAFT",
+      "color": "#c8977c",
+      "order": 7,
+      "place": "正西 · 新地形",
+      "theme": "工具是宣告出來的：說明、命名、時機、順序、預算。抄寫人在這裡替神諭打造它的手。",
+      "landmark": "未命名的工具（半空中一圈懸浮的鑰匙，每一把都沒有刻名字）",
+      "engineCost": "新地形（Phase F 已上線）",
+      "implemented": true,
+      "skillIds": [
+        "tool-native-field",
+        "tool-description",
+        "tool-naming",
+        "tool-fewer",
+        "tool-when-not",
+        "tool-trigger-push",
+        "tool-ask-missing",
+        "tool-order",
+        "tool-prefer-compute",
+        "tool-result-signal",
+        "tool-preamble"
+      ],
+      "gate": {
+        "hard": false,
+        "skills": [
+          "agent-approval-bounds"
+        ],
+        "regionSkills": [
+          {
+            "regionId": "orchestration",
+            "count": 3
+          }
+        ],
+        "text": "軟門檻：orchestration 三座（含 agent-approval-bounds）。"
+      }
+    },
+    {
+      "id": "frugality",
+      "nameZh": "減法之庭",
+      "nameEn": "FRUGALITY",
+      "order": 8,
+      "place": "中央高原北緣 · 高原上的院落",
+      "theme": "學會拿掉：精簡、快取順序、脈絡壓縮。這一區的每一關都是「刪對地方」。",
+      "landmark": "空的基座（一座什麼都沒放的基座，銘文寫著被拿走的東西）",
+      "engineCost": "既有地形加建（Phase H 已上線）",
+      "implemented": true,
+      "skillIds": [
+        "lean-prompt",
+        "lean-output",
+        "cache-static-first",
+        "ctx-compaction",
+        "ctx-pruning",
+        "ctx-new-chat",
+        "ctx-reuse-reasoning"
+      ],
+      "gate": {
+        "hard": false,
+        "masteredAnyCount": 1,
+        "text": "軟門檻：任一區精通。"
+      },
+      "color": "#c3ccc7"
+    },
+    {
+      "id": "refinery",
+      "nameZh": "校驗場",
+      "nameEn": "REFINERY",
+      "order": 9,
+      "place": "西南外緣 · 齒輪工坊旁的院子",
+      "theme": "改 prompt 的 prompt：迭代、評測、自評、健檢、矛盾修復。",
+      "landmark": "會回頭照自己的鏡（兩面互相對照的鏡）",
+      "engineCost": "既有地形加建（Phase G 已上線）",
+      "implemented": true,
+      "skillIds": [
+        "meta-when",
+        "meta-iterate",
+        "meta-eval",
+        "meta-metaprompt",
+        "contradiction-fix",
+        "prompt-healthcheck",
+        "selfcheck-when",
+        "verify-with-tools",
+        "self-rubric",
+        "two-stage-filter",
+        "draft-review-refine"
+      ],
+      "gate": {
+        "hard": false,
+        "regionSkills": [
+          {
+            "regionId": "orchestration",
+            "count": 2
+          }
+        ],
+        "masteredAnyCount": 1,
+        "text": "軟門檻：orchestration 兩座 ＋ 任一區精通。"
+      },
+      "color": "#9fb8c4"
+    },
+    {
+      "id": "wards",
+      "nameZh": "護欄崗",
+      "nameEn": "WARDS",
+      "color": "#8f9fb8",
+      "order": 10,
+      "place": "東北外緣 · 檔案庫外的哨所",
+      "theme": "外面來的字也是指令：注入、輸入通道、低風險形狀、人在迴圈。",
+      "landmark": "不會關上的門（一道永遠留一條縫的雙層門）",
+      "engineCost": "既有地形加建（Phase F 已上線）",
+      "implemented": true,
+      "skillIds": [
+        "inj-concept",
+        "inj-input-channel",
+        "inj-lower-risk-shape",
+        "guardrail-hitl",
+        "redteam"
+      ],
+      "gate": {
+        "hard": false,
+        "regionSkills": [
+          {
+            "regionId": "grounding",
+            "count": 3
+          },
+          {
+            "regionId": "toolcraft",
+            "count": 1
+          }
+        ],
+        "text": "軟門檻：grounding 三座 ＋ toolcraft 一座。"
+      }
+    },
+    {
+      "id": "sight",
+      "nameZh": "觀象臺",
+      "nameEn": "SIGHT",
+      "order": 11,
+      "place": "東北高地 · 新地形（小）",
+      "theme": "不只讀字：看圖、看影片、生圖、生影片、說話的聲音、做東西的樣子。",
+      "landmark": "一面朝天的鏡（斜插在坡上、映著整片星空的巨鏡）",
+      "engineCost": "新地形（小）（Phase I 已上線）",
+      "implemented": true,
+      "color": "#b0c0e6",
+      "skillIds": [
+        "mm-basics",
+        "mm-troubleshoot",
+        "img-generate",
+        "img-edit",
+        "video-prompt",
+        "tts-writing",
+        "design-anti-slop",
+        "fe-spec"
+      ],
+      "gate": {
+        "hard": false,
+        "masteredRegions": [
+          "foundations"
+        ],
+        "text": "軟門檻：foundations 全區精通。與其他區互不相依（可最早或最晚玩）。"
+      }
+    },
+    {
+      "id": "divergence",
+      "nameZh": "分歧之廳",
+      "nameEn": "DIVERGENCE",
+      "order": 12,
+      "place": "中央高原 · 高原上的建物",
+      "theme": "神諭彼此矛盾：廠家反差、同名不同義、遷移與時代警示。大師層的收束。",
+      "landmark": "五根兩面刻著相反神諭的柱",
+      "engineCost": "高原建物（Phase J1 已上線）",
+      "implemented": true,
+      "skillIds": [
+        "contrast-persona",
+        "contrast-carry-thinking",
+        "contrast-same-name",
+        "migrate-params-deprecated",
+        "migrate-cot-to-knob",
+        "migrate-recheck-concise",
+        "migrate-strip-patches",
+        "migrate-checklist",
+        "era-current-rules"
+      ],
+      "gate": {
+        "masteredAnyCount": 2,
+        "text": "軟門檻：任 2 片土地精通 —— 比照其他區域，可先行前往。"
+      },
+      "color": "#d8b8c6"
+    }
+  ]
+}

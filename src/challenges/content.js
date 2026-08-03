@@ -15,7 +15,15 @@
  * 但 curriculum.json 的引文在它們的年代是正確的引用，所以一個字都不動；
  * 改成在畫面上安靜地補一句**有日期**的查核備註 ＋ 可點的新官方連結。
  * 引用的文件被下架時同理：原網址留著，顯示層另外標一句「已下架」與後繼參考。
+ *
+ * 課程 v2 · Phase B：第四個同性質的層 —— runtime catalog（`catalog.js`）。
+ * 區域與技巧的**數量與列舉**一律改走它（`content.catalog`），不再有人寫死 68 / 5。
+ * catalog 沒傳進來時會就地用 curriculum 建一份 legacy-only 的（行為與以前完全相同），
+ * 所以既有的測試呼叫端一個字都不必改。
  */
+import { createCatalog } from './catalog.js';
+import { createSourceAnchors, baseUrl } from './source-anchor.js';
+
 export function createContent(
   curriculum,
   challengeFile,
@@ -23,8 +31,18 @@ export function createContent(
   coachFile = null,
   flowFile = null,
   curriculumZh = null,
-  datedFile = null
+  datedFile = null,
+  catalogInput = null,
+  anchorFile = null
 ) {
+  /**
+   * 出處深連結疊加層（source-anchors.json，遊戲自撰的顯示層）。
+   * 舊 68 條的官方網址逐字留在 curriculum.json 裡不動，這裡只在**顯示時**
+   * 把「被引用的那一節」的片段接上去（見 src/challenges/source-anchor.js）。
+   */
+  const anchors = createSourceAnchors(anchorFile);
+  /** 課程 v2 的合併層：舊 68 條 ＋ 新 130 技能 ＋ 12 區（只有 implemented 的會被列舉）。 */
+  const catalog = catalogInput || createCatalog({ curriculum });
   const challenges = (challengeFile.challenges || []).slice().sort((a, b) => (a.order || 0) - (b.order || 0));
   const techniques = new Map((curriculum.techniques || []).map((t) => [t.id, t]));
   const topics = new Map((curriculum.topics || []).map((t) => [t.id, t]));
@@ -88,23 +106,40 @@ export function createContent(
       translated: Object.keys(origin).length > 0,
       origin,
       vendors: tech.vendors || [],
-      sources: tech.sources || [],
+      /** 出處：網址已套上深連結（只多一個片段，文件名與順序完全不變）。 */
+      sources: anchors.applyTo(tech.id, tech.sources),
       /** 時代註記：官方建議在新一代模型上變了（沒有就是 null）。 */
       dated: datedByTech.get(tech.id) || null,
     };
   }
 
-  /** 官方文件網址 → 文件名（結果面板不要秀一長串網址給玩家看）。 */
+  /**
+   * 官方文件網址 → 文件名（結果面板不要秀一長串網址給玩家看）。
+   * 出處深連結之後同一份文件會有「頁面層」與「帶片段」兩種寫法，
+   * 兩個 key 都登記，任何一種寫法都查得到同一個文件名。
+   */
   const sourceNameByUrl = new Map();
+  const rememberName = (url, name) => {
+    if (!url || !name) return;
+    if (!sourceNameByUrl.has(url)) sourceNameByUrl.set(url, name);
+    const b = baseUrl(url);
+    if (!sourceNameByUrl.has(b)) sourceNameByUrl.set(b, name);
+  };
   for (const t of curriculum.techniques || []) {
-    for (const s of t.sources || []) if (s && s.url && !sourceNameByUrl.has(s.url)) sourceNameByUrl.set(s.url, s.name);
+    for (const s of t.sources || []) rememberName(s && s.url, s && s.name);
   }
   for (const list of Object.values(curriculum.sources || {})) {
-    for (const s of list || []) if (s && s.url && !sourceNameByUrl.has(s.url)) sourceNameByUrl.set(s.url, s.name);
+    for (const s of list || []) rememberName(s && s.url, s && s.name);
+  }
+  /* 課程 v2 的技能出處（Phase B）：新蓋的神廟用它們，結果面板一樣要秀文件名不是網址 */
+  for (const sk of catalog.skills || []) {
+    for (const s of sk.sources || []) rememberName(s && s.url, s && (s.docName || s.vendor));
   }
 
   return {
     curriculum,
+    /** 課程 v2 的 runtime catalog（區域／技巧／技能的唯一列舉來源）。 */
+    catalog,
     challenges,
     technique: (id) => techniques.get(id) || null,
     /** 這條技巧的中文譯寫（沒有就是 null）。 */
@@ -114,17 +149,42 @@ export function createContent(
     curriculumZh: curriculumZh || null,
     /** 這條技巧的時代註記（沒有就是 null）。 */
     datedNote: (id) => datedByTech.get(id) || null,
-    /** 這個官方網址的狀態註記：已下架 / 已標示即將移除（沒有就是 null）。 */
-    sourceNote: (url) => datedBySource.get(url) || null,
+    /**
+     * 這個官方網址的狀態註記：已下架 / 已標示即將移除（沒有就是 null）。
+     * 深連結之後畫面上的網址會多一個片段，所以查不到時再用去片段的本體查一次。
+     */
+    sourceNote: (url) => datedBySource.get(url) || datedBySource.get(baseUrl(url)) || null,
     datedFile: datedFile || null,
-    /** 官方文件網址 → 文件名（找不到就回傳網址本身）。 */
-    sourceName: (url) => sourceNameByUrl.get(url) || url,
+    /**
+     * 官方文件網址 → 文件名（找不到就回傳網址本身）。
+     * 同上：深連結只是多一個片段，文件名要查得到。
+     */
+    sourceName: (url) => sourceNameByUrl.get(url) || sourceNameByUrl.get(baseUrl(url)) || url,
     topic: (id) => topics.get(id) || null,
-    group: (id) => groups.get(id) || null,
+    /**
+     * 一個區域的顯示資料（名稱、英文短名、主色）。
+     *
+     * 課程 v2 · Phase E：新上線的區域（量器坊起）不在 `curriculum.groups` 裡，
+     * catalog 會替它合成一個形狀一樣的物件 —— 所以查不到就往 catalog 問一次，
+     * HUD／toast／結果卡才不會退回印出區域 id。
+     */
+    group: (id) => groups.get(id) || (catalog.region(id) || {}).legacyGroup || null,
     vendor: (id) => vendors.get(id) || null,
     builderBlock: (id) => builder.get(id) || null,
     challenge: (id) => byChallengeId.get(id) || null,
-    groupsOrdered: () => (curriculum.groups || []).slice().sort((a, b) => a.order - b.order),
+    /**
+     * 圖鑑／結果卡列舉的區域。
+     *
+     * **一律只列 catalog 裡 `implemented: true` 的區域** —— 課程 v2 的另外七區
+     * 此刻只存在於資料層（世界還沒蓋），玩家看到的仍然是既有五區。
+     * 回傳的是 `curriculum.groups` 的原物件，欄位與以前一模一樣。
+     */
+    groupsOrdered: () => catalog.implementedRegions().map((r) => r.legacyGroup).filter(Boolean),
+    /** 同一份列舉，但帶著 v2 的區域欄位（主題句、地標、軟門檻規格）。 */
+    regionsOrdered: () => catalog.implementedRegions(),
+    /** v2 技能（130 條）：目前只有資料層在用，畫面尚未列舉。 */
+    skill: (id) => catalog.skill(id),
+    regionSkills: (regionId) => catalog.regionSkills(regionId),
     topicsOf: (groupId) => (curriculum.topics || []).filter((t) => t.groupId === groupId),
     techniquesOf: (topicId) => (curriculum.techniques || []).filter((t) => t.topicId === topicId),
     challengesOf: (regionId) => challenges.filter((c) => c.region === regionId),
@@ -141,7 +201,34 @@ export function createContent(
     sourceFor(techniqueId) {
       const t = techniques.get(techniqueId);
       if (!t || !t.sources || !t.sources.length) return null;
-      return t.sources[0];
+      const first = t.sources[0];
+      const url = anchors.anchor(t.id, first.url);
+      return url === first.url ? first : { ...first, url };
+    },
+    /** 出處深連結疊加層本身（測試與稽核報告用）。 */
+    sourceAnchors: anchors,
+    /**
+     * 課程 v2 的技能出處（Phase B）。
+     *
+     * 新蓋的神廟教的是 `skill-codex-v2.json` 裡的技能，那 130 條的祖先不一定
+     * 存在於舊 68 條裡（`legacyTechniqueId` 可以是 null）。它們的 `sources`
+     * 是**從 master list 的「出處」欄逐條解析出來的真實官方連結**，所以第二幕的
+     * 「神諭原典」照樣接得出真實文件名 ＋ 可點的 https（護欄 2、WORLD.md §3.4）。
+     *
+     * 回傳的形狀刻意跟 `sourceFor()` 一樣（`{ url, name }`），UI 不必分兩套。
+     *
+     * Phase J3：`name` 補上廠商前綴（`Anthropic · Prompting best practices`），
+     * 與 `curriculum.json` 的出處寫法一模一樣 —— 拆掉 D2 相容層之後，
+     * 130 座教學神廟的「神諭原典」全部走這一支，畫面上必須看得出**是哪一家**
+     * 的文件，才不會只剩一個沒頭沒尾的文件名（護欄 2）。
+     */
+    sourceForSkill(skillId) {
+      const s = catalog.skill(skillId);
+      const first = s && (s.sources || [])[0];
+      if (!first) return null;
+      const doc = first.docName || '';
+      const name = first.vendor ? (doc ? `${first.vendor} · ${doc}` : first.vendor) : doc;
+      return { url: first.url, name, vendor: first.vendor };
     },
   };
 }

@@ -62,6 +62,96 @@ export function infoTip(text, { label = '說明' } = {}) {
   )}</span></span>`;
 }
 
+/* ------------------------------------------------------------------ *
+ * 神諭原典（Phase 35.1）—— 一本很小的書
+ *
+ * 出處原本是一整行字（「神諭原典：Anthropic · Prompting best practices ↗」）。
+ * 一段刻文只有兩三句，那一行比刻文本身還長，讀起來像是註腳搶了正文。
+ * 改成一枚 14px 的書：
+ *
+ *   · **它一直看得見**（護欄 2：出處不是藏在第二層點擊後面的東西）
+ *   · 滑到 / Tab 到就說出是哪一份文件（沿用 ⓘ 的氣泡機制，不會自己彈出來）
+ *   · 按下去就開那份官方文件（一次點擊，新分頁，`rel="noopener"`）
+ *   · 一列有好幾份出處，就排好幾本書 —— 一本對一份，不合併
+ * ------------------------------------------------------------------ */
+
+/**
+ * 典籍的剪影（行內 SVG，零外部資產）。
+ *
+ * 原本是一本很小的空白書，剪影跟「筆記本」分不出來。改成一本**合起來的厚典籍**：
+ * 有書脊、有壓在封面上的束帶與扣環、書口露出一截書籤緞帶 —— 一眼就讀得出
+ * 「這是一本被珍藏的原典」，而不是隨手一本冊子。20px，暖金（夜間檔案館色）。
+ */
+export const BOOK_ICON = `<svg class="bookicon__glyph" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false"><path d="M12 6.2C9.6 4.3 6.6 3.9 4.1 4.6v13.9c2.5-.7 5.5-.3 7.9 1.6 2.4-1.9 5.4-2.3 7.9-1.6V4.6c-2.5-.7-5.5-.3-7.9 1.6Z" fill="currentColor" fill-opacity="0.1" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M12 6.2v13.9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>`;
+
+/** 畫面上對「官方出處」的世界觀說法（和 console.js 的 SOURCE_LABEL 同一句）。 */
+export const BOOK_LABEL = '神諭原典';
+
+/* ------------------------------------------------------------------ *
+ * 結果列的狀態刻記（通過 / 部分 / 未達成）
+ *
+ * 原本畫的是三個文字符號（✓ ◐ ✕）。前兩個**不在** JetBrains Mono 的子集裡
+ * （`public/fonts/manifest.json` 的 `missing` 清單：10003 ✓、9680 ◐），
+ * 於是它們掉到系統備援字型 —— 換一套字型就換一組 side bearing 與基線，
+ * 圓框裡的符號因此偏左偏下（✕ 有在子集裡，所以只有它看起來是正的）。
+ *
+ * 所以刻記改成**幾何圖形**：行內 SVG、viewBox 24×24、圖形一律以 (12,12) 為中心，
+ * 尺寸用 em（跟著型級走）。這樣「置中」是幾何事實，不再是字型的運氣，
+ * 也不會因為之後放大字級而重新跑掉。零外部資產（護欄 3）。
+ * ------------------------------------------------------------------ */
+const MARK_ATTRS = 'class="row__mark" viewBox="0 0 24 24" aria-hidden="true" focusable="false"';
+
+/** 三種狀態的剪影 ＋ 給輔助科技的說法。 */
+export const ROW_MARKS = {
+  pass: {
+    label: '通過',
+    svg: `<svg ${MARK_ATTRS}><path d="M5.2 12 9.8 16.8 18.8 7.2" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+  },
+  part: {
+    label: '部分達成',
+    svg: `<svg ${MARK_ATTRS}><circle cx="12" cy="12" r="7" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M12 5a7 7 0 0 0 0 14Z" fill="currentColor"/></svg>`,
+  },
+  miss: {
+    label: '未達成',
+    svg: `<svg ${MARK_ATTRS}><path d="M6.9 6.9 17.1 17.1M17.1 6.9 6.9 17.1" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></svg>`,
+  },
+};
+
+/**
+ * 結果列最前面那一枚刻記（外框的形狀由 `.row--pass/part/miss` 的 CSS 決定）。
+ *
+ * @param {'pass'|'part'|'miss'} state
+ * @returns {string} HTML
+ */
+export function rowIcon(state) {
+  const mark = ROW_MARKS[state] || ROW_MARKS.miss;
+  return `<span class="row__icon" role="img" aria-label="${esc(mark.label)}">${mark.svg}</span>`;
+}
+
+/**
+ * 一枚指得回官方文件的書。
+ *
+ * @param {{url:string,name:string}|null} src
+ * @param {object} [opts]
+ * @param {string} [opts.label] 前綴（預設「神諭原典」）
+ * @param {string} [opts.extra] 氣泡裡要多說的一句（例如「什麼是神諭原典」的解釋）
+ * @returns {string} HTML（沒有出處就回空字串 —— 不畫一本空的書）
+ */
+export function sourceBook(src, { label = BOOK_LABEL, extra = '' } = {}) {
+  if (!src || !src.url) return '';
+  tipSeq += 1;
+  const id = `bookicon-${tipSeq}`;
+  const name = src.name || src.url;
+  const tip = `${label}：${name}${extra ? `　${extra}` : ''}`;
+  return `<span class="infotip infotip--book" data-infotip><a class="bookicon" href="${esc(
+    src.url
+  )}" target="_blank" rel="noopener" aria-describedby="${id}" aria-label="${esc(
+    `${label}：${name}（開新分頁）`
+  )}">${BOOK_ICON}</a><span class="infotip__bubble" id="${id}" role="tooltip" data-infotip-bubble>${esc(
+    tip
+  )}</span></span>`;
+}
+
 /**
  * 時代註記（dated-notes.json）的一小塊 HTML。
  *
@@ -117,10 +207,28 @@ export function bindInfoTips(root) {
     for (const tip of root.querySelectorAll('[data-infotip].is-open')) setOpen(tip, false);
   };
 
-  // 滑鼠（mouseover / mouseout 會冒泡，pointerenter 不會 —— 委派要用前者）
-  root.addEventListener('mouseover', (e) => {
+  /*
+   * 滑鼠：**游標真的動過**才算 hover。
+   *
+   * 為什麼不是 mouseover：瀏覽器在版面變動之後會重算「游標底下是誰」，
+   * 並且對新出現的元素補送一次 mouseover。所以「面板換一幕、ⓘ 剛好長在
+   * 停住不動的游標底下」會被當成 hover —— 玩家什麼都沒做，說明卡就自己
+   * 彈出來（實測：把游標停在第二幕 ⓘ 會出現的位置，再從第一幕切過去，
+   * 氣泡直接是開著的）。
+   *
+   * mousemove 只在游標**真的移動**時才發，所以拿它當開啟訊號；
+   * 捲動時瀏覽器也會補送座標沒變的 mousemove，用座標比對擋掉。
+   * CSS 那邊的 `:hover` 顯示規則一併撤掉了 —— hover 只由這裡決定。
+   */
+  let lastX = NaN;
+  let lastY = NaN;
+  root.addEventListener('mousemove', (e) => {
+    const moved = e.clientX !== lastX || e.clientY !== lastY;
+    lastX = e.clientX;
+    lastY = e.clientY;
+    if (!moved) return;
     const tip = e.target.closest?.('[data-infotip]');
-    if (tip) setOpen(tip, true);
+    if (tip && !tip.classList.contains('is-open')) setOpen(tip, true);
   });
   root.addEventListener('mouseout', (e) => {
     const tip = e.target.closest?.('[data-infotip]');
@@ -221,31 +329,68 @@ export function focusableIn(root) {
 }
 
 /**
+ * 一層打開的時候，焦點該落在哪一顆上。
+ *
+ * 跟 `focusableIn` 差一件事：**ⓘ 不算**。焦點落上去等於把說明卡打開
+ * （focus 本來就算「打開」），玩家什麼都還沒做就先被塞一張註腳。
+ * ⓘ 仍然 Tab 走得到、走到了照樣打得開 —— 這裡只是不讓它當「第一顆」。
+ */
+export function initialFocusIn(root) {
+  return focusableIn(root).filter((node) => !node.closest('[data-infotip]'));
+}
+
+/**
  * 建立一個覆蓋層面板（含關閉鈕、Esc 關閉、Tab 焦點鎖）。
  *
  * 無障礙（M6）：
  *   · 開啟時把焦點移進面板，關閉時還給原本的元素
  *   · Tab / Shift+Tab 在面板內循環，不會跑到後面的 3D 畫布
  *   · aria-labelledby 指到標題
+ *
+ * @param {object} opts
+ * @param {boolean} [opts.headBar] 標頭壓成**一條**（關卡用）：
+ *   左邊是關卡名 ＋ 緊接在後面、小一號的 NPC（同一條基線）；
+ *   右邊是那顆安靜的進度小牌（「撰寫基本功 · 第 12 關 / 共 15 關」）與 Esc。
+ *   不給就是原本的三層堆疊（圖鑑 / 設定 / 成就那些一次只講一件事的面板）。
  */
-export function createOverlay({ id, title, subtitle = '', eyebrow = '', onClose, wide = false }) {
+export function createOverlay({
+  id,
+  title,
+  subtitle = '',
+  eyebrow = '',
+  onClose,
+  wide = false,
+  headBar = false,
+}) {
   const overlay = el('div', `overlay${wide ? ' overlay--wide' : ''}`);
   overlay.id = id;
   overlay.hidden = true;
   overlay.setAttribute('role', 'dialog');
   overlay.setAttribute('aria-modal', 'true');
   overlay.setAttribute('aria-labelledby', `${id}-title`);
-  overlay.innerHTML = `
-    <div class="overlay__scrim" data-close></div>
-    <section class="panel" tabindex="-1">
-      <header class="panel__head">
+  // 出口只留一個叉：Esc 那兩個字母是給程式看的，玩家看到 ✕ 就知道這是關閉
+  const closeBtn = `<button class="btn btn--ghost panel__close" data-close type="button" aria-label="關閉面板（Esc）"><span aria-hidden="true">✕</span></button>`;
+  const head = headBar
+    ? `<header class="panel__head panel__head--bar">
+        <div class="panel__headline">
+          <h2 class="panel__title" id="${esc(id)}-title">${esc(title)}</h2>
+          <p class="panel__sub">${esc(subtitle)}</p>
+        </div>
+        <p class="meta-label meta-label--star panel__eyebrow" data-eyebrow>${esc(eyebrow)}</p>
+        ${closeBtn}
+      </header>`
+    : `<header class="panel__head">
         <div>
           <p class="meta-label meta-label--star panel__eyebrow" data-eyebrow>${esc(eyebrow)}</p>
           <h2 class="panel__title" id="${esc(id)}-title">${esc(title)}</h2>
           <p class="panel__sub">${esc(subtitle)}</p>
         </div>
-        <button class="btn btn--ghost panel__close" data-close type="button" aria-label="關閉面板（Esc）">Esc ✕</button>
-      </header>
+        ${closeBtn}
+      </header>`;
+  overlay.innerHTML = `
+    <div class="overlay__scrim" data-close></div>
+    <section class="panel" tabindex="-1">
+      ${head}
       <div class="panel__body"></div>
     </section>
   `;
@@ -323,8 +468,12 @@ export function createOverlay({ id, title, subtitle = '', eyebrow = '', onClose,
          * Phase 23 前是標頭那顆關閉鍵 —— 純鍵盤玩的人一開就站在出口上，
          * 每次都要先 Tab 過整個標頭才碰得到內容。內容區沒東西可按時
          * （石碑、刻文那種只有兩三行字的小窗）才退回關閉鍵。
+         *
+         * ⓘ 不算「第一顆」（見 initialFocusIn）—— 焦點落上去會讓說明卡
+         * 自己彈出來，那是面板打開的副作用，不是玩家想看它。
          */
-        const target = opts.focus || focusableIn(body)[0] || focusableIn(panel)[0] || panel;
+        const target =
+          opts.focus || initialFocusIn(body)[0] || initialFocusIn(panel)[0] || panel;
         try {
           target.focus({ preventScroll: true });
         } catch {

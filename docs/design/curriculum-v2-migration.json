@@ -1,0 +1,2023 @@
+{
+  "version": 1,
+  "authored": "game",
+  "generatedAt": "2026-08-01",
+  "generatedBy": "Phase 0 · 由 src/data/challenges.json 現況 ＋ docs/design/curriculum-v2.md §3 神廟總表／§4 遷移表 逐關比對產生",
+  "scope": "這份 manifest 是 Phase A（重複度手術）的可執行契約，也是 B–J 逐關搬家的追蹤表。它不是官方課程內容 —— 官方技巧文字與出處一律只在 src/data/curriculum.json（byte-identical，不可修改）。",
+  "decisions": {
+    "D1": {
+      "question": "27 關遷移數字：HANDOFF.md 寫 4 保留／21 改造／2 應用關，curriculum-v2.md 小計寫 5／20／2。",
+      "ruling": "以 curriculum-v2.md §4 的逐關表為準。逐行點名重算的真實數字是 保留 5／改造 20／轉應用關 2 = 27。",
+      "evidence": {
+        "keep": [
+          "lost-automaton-03",
+          "well-of-unknowing-22",
+          "long-scroll-tower-23",
+          "oracle-workshop-36",
+          "priority-stair-42"
+        ],
+        "rework": [
+          "gate-of-clarity-01",
+          "postbox-sprite-02",
+          "mimic-mirror-04",
+          "long-scroll-archive-05",
+          "example-hall-11",
+          "lantern-rows-12",
+          "silent-thinker-13",
+          "thinking-chamber-14",
+          "effort-forge-15",
+          "citation-desk-21",
+          "verify-spring-24",
+          "subtask-workbench-31",
+          "draft-review-wheel-32",
+          "tool-forge-33",
+          "irreversible-gate-34",
+          "echo-workshop-35",
+          "mask-workshop-41",
+          "dial-room-43",
+          "four-elements-mirror-44",
+          "crossroad-scale-45"
+        ],
+        "application": [
+          "council-envoy-06",
+          "archive-seal-25"
+        ]
+      },
+      "note": "HANDOFF.md 的 4／21／2 是摘要漂移，屬文件勘誤，不改資料；勘誤記在 findings.md。"
+    },
+    "D2": {
+      "question": "`teaches` 同時承擔「這一關教什麼」與「通關收集什麼」，直接縮成一條會讓尚未搬家的技巧暫時不可收集。",
+      "ruling": "新增 `primaryTechniqueId`（每關恰好一條，見本表）作為玩家面唯一的教學目標；既有 `teaches` 原封不動保留為 **legacy collection list**（只餵圖鑑／徽章／收集，不再出現在「這一關教什麼」的畫面上）。",
+      "migration": "B–J 每當一條技巧在自己的新神廟上線，就從舊關的 teachesLegacy 移走一條；Phase J 結束時整個相容層移除，玩家既有 `collected` 不回收、不倒退（護欄 7）。",
+      "uiRule": "畫面上不得同時宣稱一關教了多條技巧；legacy 收集在結算面板只以「順手收進圖鑑」的次要位階呈現。"
+    },
+    "D3": {
+      "question": "設計同時寫「每關 pass −0.5」與「門檻＝總權重 50% 規則不變」，兩者在權重也改動的關卡上不等價。",
+      "ruling": "採 literal −0.5（本表 `passAfter`），並同時記錄依總權重重算的 `passAfterByWeightRule` 供比對。真正的驗收門不是百分比，而是 playtest 的三道安全閘：弱起手（starter）仍然不過、快速填入／全選對必過、sample 解答仍 ≥ A。",
+      "divergence": "兩份矩陣在「權重同時被下修」的關卡上會分岔（最大 +0.75 分，出現在 example-hall-11／silent-thinker-13／long-scroll-tower-23）。分岔的那幾關以安全閘實測為準，必要時個別再調，不整批套百分比。"
+    },
+    "D4_phaseC": "Phase C（2026-08-01）：示範與推理五關的 post-A 條目在本期執行完畢，逐關記在 phaseC 區塊。兩條 manifest 原本沒有列到的移除（example-hall-11 的 hasDelimiters、thinking-chamber-14 的 hasStepByStep）以 addedIn: \"C\" 標記並寫下理由 —— 它們的主題在本期各自有了自己的神廟，留著就違反 C1／C2。passAfter / totalWeightAfter 保留 Phase A 的歷史值不覆寫；Phase C 之後的現況值另記在 passAfterC / totalWeightAfterC。"
+  },
+  "conventions": {
+    "disposition": "keep = 型式與資料沿用；rework = 收斂主題／可能換型式；application = 轉為不教新技巧的應用關（P11）",
+    "mainCheck": "v2 端狀態下代表「這一關教的那一條技巧」的唯一檢查；來源是 curriculum-v2 §3 神廟總表 rubric 欄的第一項",
+    "newChecker": "true 表示這個檢查器還不存在，規格在 curriculum-v2 §7.4；在它實作之前用 interimMainCheck 頂著",
+    "foundationCheck": "地基（≤1 條）：已學技巧以配角身分回來，權重不代表本關主題；來源是 §3 rubric 欄的第二項",
+    "checksToRemoveOrDownweight": "phase=\"A\" 的條目是 Phase A 這次就要做；phase=\"post-A\" 是等該主題的新神廟上線時才移走。action=\"hold\" 表示兩份設計文件對它有衝突，本表已裁決不動它。",
+    "totalWeightAfter": "只計入 phase=\"A\" 的權重變化（weightNeutral 的替換不改總權重）",
+    "passAfter": "D3 literal：passBefore − 0.5"
+  },
+  "baseline": {
+    "challenges": 27,
+    "rubricRows": 118,
+    "checkersUsed": 22,
+    "regions": {
+      "foundations": 6,
+      "reasoning": 5,
+      "grounding": 5,
+      "orchestration": 6,
+      "config": 5
+    },
+    "curriculumTechniques": 68,
+    "curriculumSha256": "53b0ca60917f763e82aec256bc3dc07cb809e07607415a3907e9e8d408b39062"
+  },
+  "tally": {
+    "rework": 20,
+    "keep": 5,
+    "application": 2
+  },
+  "conflicts": [
+    {
+      "id": "gate-of-clarity-01",
+      "kind": "curriculum-v2 §4 逐關欄寫「拆掉 hasAudience／assignsTask」，同節「全域改動」卻寫 assignsTask 一律降為 0.5",
+      "resolution": "Phase A 一律降權（0.5、地基）—— 因為 D3 的「pass −0.5」在算術上正是「assignsTask 由 1 降 0.5」；整條移除要等 §3 foundations #5「只會點頭的信差」（主檢查就是 assignsTask）上線，屬 post-A。"
+    },
+    {
+      "id": "(文件用語)",
+      "kind": "curriculum-v2 §3 神廟名後的「（保留）」與 §4 的處置欄「保留／改造」不是同一件事",
+      "resolution": "§3 的「（保留）」＝沿用既有石座與資料，§4 的「保留／改造」＝主題是否收斂。本表的 disposition 一律取自 §4 逐關表（D1 裁決），§3 只用來取 rubric 主檢查與地基。"
+    },
+    {
+      "id": "long-scroll-archive-05",
+      "kind": "curriculum-v2 §3 foundations #14「規則牆」沒有標（改造），但 §4 明指長卷檔案室遷入 pos-rules-first",
+      "resolution": "視為同一座神廟（長卷檔案室 → 規則牆）；§3 漏標屬文件勘誤。"
+    },
+    {
+      "id": "effort-forge-15",
+      "kind": "primaryTechniqueId（params-03）不在本關現有 teaches 內 —— §4 明訂由刻度儀之室讓過來",
+      "resolution": "照 §4 執行；params-03 在 dial-room-43／crossroad-scale-45 仍留在 teachesLegacy（收集不倒退）。"
+    },
+    {
+      "id": "oracle-workshop-36",
+      "kind": "v2 技能 tool-when-not（該用與不該用哪把工具）在 curriculum.json 的 68 條裡沒有對應條目",
+      "resolution": "暫以 agentic-01（用 API 的 tools 欄位定義工具）為 primaryTechniqueId 並標 needsV2Catalog；真正的技能條目要等 Phase B 的 skill-codex-v2.json（authored 資料層）才成立，不得改寫 curriculum.json。"
+    },
+    {
+      "id": "postbox-sprite-02",
+      "kind": "hasDelimiters 降權與 v2 主檢查衝突",
+      "resolution": "不降權（逐關表優先）"
+    },
+    {
+      "id": "long-scroll-archive-05",
+      "kind": "hasDelimiters 降權與 v2 主檢查衝突",
+      "resolution": "不降權（逐關表優先）"
+    },
+    {
+      "id": "thinking-chamber-14",
+      "kind": "hasDelimiters 降權與 v2 主檢查衝突",
+      "resolution": "不降權（逐關表優先）"
+    }
+  ],
+  "challenges": [
+    {
+      "id": "gate-of-clarity-01",
+      "title": "清晰之門",
+      "region": "foundations",
+      "disposition": "rework",
+      "v2SkillId": "clear-specific",
+      "v2Temple": "清晰之門（改造）",
+      "primaryTechniqueId": "clarity-03",
+      "primaryTechniqueTitle": "消除模糊語言，改用具體參數",
+      "techniqueIdRealign": false,
+      "needsV2Catalog": false,
+      "primaryTechniqueInTeachesLegacy": true,
+      "mainCheck": "hasConstraint",
+      "newChecker": false,
+      "interimMainCheck": null,
+      "foundationCheck": "specifiesFormat",
+      "foundationNewChecker": false,
+      "checksToRemoveOrDownweight": [
+        {
+          "check": "assignsTask",
+          "weightBefore": 1,
+          "action": "downweight",
+          "weightAfter": 0.5,
+          "phase": "A",
+          "reason": "全域：它是每一關的前提，不該再被當成「這一關教的東西」（gap-analysis §3 建議 1／curriculum-v2 §4 全域改動）"
+        },
+        {
+          "check": "hasAudience",
+          "weightBefore": 1,
+          "action": "remove",
+          "weightAfter": 0,
+          "phase": "J",
+          "reason": "主題搬去自己的神廟（C1 一關一技巧／C2 只教一次）：拆掉 hasAudience／assignsTask 兩條，只留「具體到可以驗收」；素材與 NPC 全部保留"
+        },
+        {
+          "check": "specifiesFormat",
+          "weightBefore": 2,
+          "action": "remove",
+          "weightAfter": 0,
+          "phase": "J",
+          "addedIn": "J",
+          "reason": "主題（指定輸出格式）在量器坊有自己的神廟（fmt-specify），C2 不重教；清晰之門只留「具體到可以驗收」。Phase 0 的產生器把它記成 foundationCheck，但 Phase A 之後全域的地基一律只有 assignsTask，所以它必須整條移除才符合 C1。"
+        }
+      ],
+      "passBefore": 3,
+      "passAfter": 2.5,
+      "passAfterByWeightRule": 2.75,
+      "totalWeightBefore": 6,
+      "totalWeightAfter": 5.5,
+      "teachesLegacy": [
+        "clarity-02",
+        "clarity-03",
+        "format-01"
+      ],
+      "designNote": "拆掉 hasAudience／assignsTask 兩條，只留「具體到可以驗收」；素材與 NPC 全部保留",
+      "phaseJ": {
+        "skillId": "clear-specific",
+        "mainCheck": "hasConstraint",
+        "mainWeightAfterJ": 3,
+        "foundationCheckAfterJ": "assignsTask",
+        "totalWeightAfterJ": 3.5,
+        "passAfterJ": 2,
+        "kindAfterJ": "choice",
+        "rubricRowsBefore": 4,
+        "rubricRowsAfter": 2,
+        "slotsBefore": 4,
+        "slotsAfter": 3,
+        "sourceBefore": "curriculum：OpenAI · Best practices（clarity-03 的第一個出處）",
+        "sourceAfter": "skill-codex-v2：Microsoft · Prompt engineering techniques（Best practices）",
+        "teachesLegacyUnchanged": true,
+        "note": "課程 v2 · Phase J3（拆掉 D2 相容層）：補上 primarySkillId ＝ clear-specific，rubric 收斂成 C1 的形狀（主檢查 hasConstraint 3 ＋ 地基 assignsTask 0.5、pass 2），hasAudience／specifiesFormat 兩條的主題各自在自己的神廟（六面燈籠／量器坊 fmt-specify），第三幕的「寫給誰看」那一段一併收掉。source 換成這條技能自己的官方出處（skill-codex-v2 的 clear-specific）；teaches（clarity-02／clarity-03／format-01）逐字保留，68 條收集不倒退（D2）。"
+      }
+    },
+    {
+      "id": "postbox-sprite-02",
+      "title": "郵箱精靈的分揀台",
+      "region": "foundations",
+      "disposition": "rework",
+      "v2SkillId": "struct-delimiters",
+      "v2Temple": "郵箱精靈的分揀台（改造）",
+      "primaryTechniqueId": "structure-01",
+      "primaryTechniqueTitle": "用 Markdown、XML 標籤或章節標題分段",
+      "techniqueIdRealign": true,
+      "needsV2Catalog": false,
+      "primaryTechniqueInTeachesLegacy": true,
+      "mainCheck": "hasDelimiters",
+      "newChecker": false,
+      "interimMainCheck": null,
+      "foundationCheck": "usesRareDelimiter",
+      "foundationNewChecker": true,
+      "checksToRemoveOrDownweight": [
+        {
+          "check": "assignsTask",
+          "weightBefore": 1,
+          "action": "downweight",
+          "weightAfter": 0.5,
+          "phase": "A",
+          "reason": "全域：它是每一關的前提，不該再被當成「這一關教的東西」（gap-analysis §3 建議 1／curriculum-v2 §4 全域改動）"
+        },
+        {
+          "check": "hasDelimiters",
+          "weightBefore": 2,
+          "action": "hold",
+          "weightAfter": 2,
+          "phase": "A",
+          "reason": "gap-analysis §3 建議 3 把它列為降權對象，但 curriculum-v2 §4／§3 把分隔符本身定為這一關的主檢查 —— 依 task_plan §2「以逐關表為準」保持 2 分不降",
+          "conflict": "gap-analysis §3 建議 3 vs curriculum-v2 §3/§4"
+        },
+        {
+          "check": "specifiesFormat",
+          "weightBefore": 2,
+          "action": "remove",
+          "weightAfter": 0,
+          "phase": "D",
+          "reason": "主題搬去自己的神廟（C1 一關一技巧／C2 只教一次）：主題改成分隔符本身；第三幕由 choice 換成 order（把三封信排進三個標籤）"
+        },
+        {
+          "check": "hasConstraint",
+          "weightBefore": 1,
+          "action": "remove",
+          "weightAfter": 0,
+          "phase": "D",
+          "reason": "主題搬去自己的神廟（C1 一關一技巧／C2 只教一次）：主題改成分隔符本身；第三幕由 choice 換成 order（把三封信排進三個標籤）"
+        },
+        {
+          "check": "hasDelimiters",
+          "weightBefore": 2,
+          "action": "remove",
+          "weightAfter": 0,
+          "phase": "D",
+          "reason": "「有沒有分隔符」是 struct-xml（舊標籤的倉庫）與 cot-separate-answer（思考室）的主題；這一關教的是「挑一個內文絕對不會出現的分隔符」，由新檢查器 usesRareDelimiter 承接（C1／C2）。",
+          "addedIn": "D"
+        }
+      ],
+      "passBefore": 3,
+      "passAfter": 2.5,
+      "passAfterByWeightRule": 2.75,
+      "totalWeightBefore": 6,
+      "totalWeightAfter": 5.5,
+      "teachesLegacy": [
+        "format-01",
+        "format-04",
+        "structure-01",
+        "structure-02"
+      ],
+      "designNote": "主題改成分隔符本身；第三幕由 choice 換成 order（把三封信排進三個標籤）",
+      "phaseD": {
+        "skillId": "struct-delimiters",
+        "mainCheck": "usesRareDelimiter",
+        "mainWeightAfterD": 3,
+        "totalWeightAfterD": 3.5,
+        "passAfterD": 2,
+        "kindAfterD": "order",
+        "note": "Phase D 實作了 §7.4 的 usesRareDelimiter。它比 hasDelimiters 更貼這一關的「轉」（內文自己就有 ---，切點被吃掉），而且 hasDelimiters 已經是另外兩座神廟的主檢查，所以主檢查由它接手；manifest 原本記的 mainCheck（hasDelimiters）保留為歷史值。"
+      }
+    },
+    {
+      "id": "lost-automaton-03",
+      "title": "迷路的自動機",
+      "region": "foundations",
+      "disposition": "keep",
+      "v2SkillId": "clear-positive",
+      "v2Temple": "迷路的自動機（保留）",
+      "primaryTechniqueId": "positive-01",
+      "primaryTechniqueTitle": "說要做什麼，而非只說不要做什麼",
+      "techniqueIdRealign": false,
+      "needsV2Catalog": false,
+      "primaryTechniqueInTeachesLegacy": true,
+      "mainCheck": "positiveFraming",
+      "newChecker": false,
+      "interimMainCheck": null,
+      "foundationCheck": null,
+      "foundationNewChecker": false,
+      "checksToRemoveOrDownweight": [
+        {
+          "check": "assignsTask",
+          "weightBefore": 1,
+          "action": "downweight",
+          "weightAfter": 0.5,
+          "phase": "A",
+          "reason": "全域：它是每一關的前提，不該再被當成「這一關教的東西」（gap-analysis §3 建議 1／curriculum-v2 §4 全域改動）"
+        },
+        {
+          "check": "explainsWhy",
+          "weightBefore": 2,
+          "action": "remove",
+          "weightAfter": 0,
+          "phase": "J",
+          "reason": "主題搬去自己的神廟（C1 一關一技巧／C2 只教一次）：Phase 9 已驗證「只靠教練提示一次過關」，只降權 assignsTask"
+        }
+      ],
+      "passBefore": 3,
+      "passAfter": 2.5,
+      "passAfterByWeightRule": 2.75,
+      "totalWeightBefore": 6,
+      "totalWeightAfter": 5.5,
+      "teachesLegacy": [
+        "positive-01",
+        "clarity-05"
+      ],
+      "designNote": "Phase 9 已驗證「只靠教練提示一次過關」，只降權 assignsTask",
+      "phaseJ": {
+        "skillId": "clear-positive",
+        "mainCheck": "positiveFraming",
+        "mainWeightAfterJ": 3,
+        "foundationCheckAfterJ": "assignsTask",
+        "totalWeightAfterJ": 3.5,
+        "passAfterJ": 2,
+        "kindAfterJ": "choice",
+        "rubricRowsBefore": 3,
+        "rubricRowsAfter": 2,
+        "slotsBefore": 3,
+        "slotsAfter": 3,
+        "sourceBefore": "curriculum：OpenAI · Best practices（positive-01 的第一個出處）",
+        "sourceAfter": "skill-codex-v2：Anthropic · Prompting best practices（Control the format of responses）",
+        "teachesLegacyUnchanged": true,
+        "note": "課程 v2 · Phase J3（拆掉 D2 相容層）：補上 primarySkillId ＝ clear-positive，rubric 收斂成 C1 的形狀（主檢查 positiveFraming 3 ＋ 地基 assignsTask 0.5、pass 2）。explainsWhy 的主題（context-why）有自己的神廟，第三幕那一段「為什麼一定要靠右」換成「先把今晚的路線交代給它」——換掉之後第一段不再一次滿分（playtest 的「只刻第一段還不會滿分」才守得住）。source 換成這條技能自己的官方出處；teaches（positive-01／clarity-05）逐字保留，68 條收集不倒退（D2）。"
+      }
+    },
+    {
+      "id": "mimic-mirror-04",
+      "title": "擬態之鏡",
+      "region": "foundations",
+      "disposition": "rework",
+      "v2SkillId": "prefill-completion",
+      "v2Temple": "擬態之鏡（移入量器坊）",
+      "primaryTechniqueId": "format-03",
+      "primaryTechniqueTitle": "用「部分輸入」引導模型完成（partial input）",
+      "techniqueIdRealign": true,
+      "needsV2Catalog": false,
+      "primaryTechniqueInTeachesLegacy": true,
+      "mainCheck": "hasFewShot",
+      "newChecker": false,
+      "interimMainCheck": null,
+      "foundationCheck": null,
+      "foundationNewChecker": false,
+      "checksToRemoveOrDownweight": [
+        {
+          "check": "assignsTask",
+          "weightBefore": 1,
+          "action": "downweight",
+          "weightAfter": 0.5,
+          "phase": "A",
+          "reason": "全域：它是每一關的前提，不該再被當成「這一關教的東西」（gap-analysis §3 建議 1／curriculum-v2 §4 全域改動）"
+        },
+        {
+          "check": "specifiesFormat",
+          "weightBefore": 2,
+          "action": "remove",
+          "weightAfter": 0,
+          "phase": "E",
+          "reason": "主題搬去自己的神廟（C1 一關一技巧／C2 只教一次）：從「用範例展示格式」收斂成「寫出開頭讓它接下去」；few-shot 讓給示範迴廊（Phase E 執行：擬態之鏡連同主題一起搬進量器坊）"
+        }
+      ],
+      "passBefore": 3,
+      "passAfter": 2.5,
+      "passAfterByWeightRule": 2.75,
+      "totalWeightBefore": 6,
+      "totalWeightAfter": 5.5,
+      "teachesLegacy": [
+        "format-02",
+        "format-03"
+      ],
+      "designNote": "從「用範例展示格式」收斂成「寫出開頭讓它接下去」；few-shot 讓給示範迴廊",
+      "phaseE": {
+        "skillId": "prefill-completion",
+        "mainCheck": "hasFewShot",
+        "mainWeightAfterE": 3,
+        "totalWeightAfterE": 3.5,
+        "passAfterE": 2,
+        "kindAfterE": "fix",
+        "regionAfterE": "forms",
+        "note": "§3 forms 第 3 列指名「擬態之鏡（保留）」——主題由「用範例展示格式」收斂成「寫出開頭讓它接下去」，石座整座搬到正南的量器坊。收斂成新神廟的形狀（主檢查 3 ＋ 地基 assignsTask 0.5、pass 2），legacy teaches 與舊主技巧 format-03 都保留（收集不倒退，D2）。"
+      }
+    },
+    {
+      "id": "long-scroll-archive-05",
+      "title": "長卷檔案室",
+      "region": "foundations",
+      "disposition": "rework",
+      "v2SkillId": "pos-rules-first",
+      "v2Temple": "規則牆（原長卷檔案室）",
+      "primaryTechniqueId": "clarity-04",
+      "primaryTechniqueTitle": "指令放最前面，並與內容用分隔符隔開",
+      "techniqueIdRealign": false,
+      "needsV2Catalog": false,
+      "primaryTechniqueInTeachesLegacy": true,
+      "mainCheck": "rulesBeforeData",
+      "newChecker": true,
+      "interimMainCheck": "hasDelimiters",
+      "foundationCheck": "hasDelimiters",
+      "foundationNewChecker": false,
+      "checksToRemoveOrDownweight": [
+        {
+          "check": "assignsTask",
+          "weightBefore": 1,
+          "action": "downweight",
+          "weightAfter": 0.5,
+          "phase": "A",
+          "reason": "全域：它是每一關的前提，不該再被當成「這一關教的東西」（gap-analysis §3 建議 1／curriculum-v2 §4 全域改動）"
+        },
+        {
+          "check": "hasDelimiters",
+          "weightBefore": 2,
+          "action": "hold",
+          "weightAfter": 2,
+          "phase": "A",
+          "reason": "gap-analysis §3 建議 3 把它列為降權對象，但 curriculum-v2 §4／§3 把分隔符本身定為這一關的主檢查 —— 依 task_plan §2「以逐關表為準」保持 2 分不降",
+          "conflict": "gap-analysis §3 建議 3 vs curriculum-v2 §3/§4"
+        },
+        {
+          "check": "groundsInContext",
+          "weightBefore": 2,
+          "action": "remove",
+          "weightAfter": 0,
+          "phase": "D",
+          "reason": "主題搬去自己的神廟（C1 一關一技巧／C2 只教一次）：主題改成「規則放最前面／結尾的話會贏」，長文定位交給長卷之塔"
+        },
+        {
+          "check": "hasConstraint",
+          "weightBefore": 1,
+          "action": "remove",
+          "weightAfter": 0,
+          "phase": "D",
+          "reason": "主題搬去自己的神廟（C1 一關一技巧／C2 只教一次）：主題改成「規則放最前面／結尾的話會贏」，長文定位交給長卷之塔"
+        },
+        {
+          "check": "hasDelimiters",
+          "weightBefore": 2,
+          "action": "remove",
+          "weightAfter": 0,
+          "phase": "D",
+          "reason": "Phase A 的 hold 理由是「它當時頂著主檢查」；rulesBeforeData 實作之後主題回到「規則的位置」，分隔符本身屬於郵箱精靈的分揀台（C2）。",
+          "addedIn": "D"
+        }
+      ],
+      "passBefore": 3,
+      "passAfter": 2.5,
+      "passAfterByWeightRule": 2.75,
+      "totalWeightBefore": 6,
+      "totalWeightAfter": 5.5,
+      "teachesLegacy": [
+        "clarity-04",
+        "structure-01",
+        "structure-05"
+      ],
+      "designNote": "主題改成「規則放最前面／結尾的話會贏」，長文定位交給長卷之塔",
+      "phaseD": {
+        "skillId": "pos-rules-first",
+        "mainCheck": "rulesBeforeData",
+        "mainWeightAfterD": 3,
+        "totalWeightAfterD": 3.5,
+        "passAfterD": 2,
+        "kindAfterD": "order",
+        "note": "Phase D 實作了 §7.4 的 rulesBeforeData（manifest 早就指定它是主檢查，interimMainCheck 是 hasDelimiters）。"
+      }
+    },
+    {
+      "id": "council-envoy-06",
+      "title": "議會信使（試煉）",
+      "region": "foundations",
+      "disposition": "application",
+      "v2SkillId": null,
+      "v2Temple": "foundations 應用關",
+      "primaryTechniqueId": null,
+      "primaryTechniqueTitle": null,
+      "techniqueIdRealign": false,
+      "needsV2Catalog": false,
+      "primaryTechniqueInTeachesLegacy": null,
+      "mainCheck": null,
+      "newChecker": false,
+      "interimMainCheck": null,
+      "foundationCheck": null,
+      "foundationNewChecker": false,
+      "checksToRemoveOrDownweight": [
+        {
+          "check": "assignsTask",
+          "weightBefore": 1,
+          "action": "downweight",
+          "weightAfter": 0.5,
+          "phase": "A",
+          "reason": "全域：它是每一關的前提，不該再被當成「這一關教的東西」（gap-analysis §3 建議 1／curriculum-v2 §4 全域改動）"
+        }
+      ],
+      "passBefore": 4,
+      "passAfter": 3.5,
+      "passAfterByWeightRule": 3.75,
+      "totalWeightBefore": 8,
+      "totalWeightAfter": 7.5,
+      "teachesLegacy": [
+        "clarity-02",
+        "clarity-06",
+        "format-06",
+        "positive-01"
+      ],
+      "designNote": "本來就是 7 條 rubric 的綜合題 → 正式升格為 foundations 的應用關（不教新技巧，P11）",
+      "phaseJ2": {
+        "totalWeightAfterJ2": 6.5,
+        "passAfterJ2": 3.5,
+        "rubricRowsBefore": 7,
+        "rubricRowsAfter": 4,
+        "why": "課程 v2 · Phase J2：這兩關正式升格為應用關（試煉）——第二幕整幕不存在，rubric 改成「1 條地基 assignsTask 0.5 ＋ 3 條候選（每條掛一條該區的 v2 技能、權重 2）」，門檻由同一條公式重算（入選權重總和的 50%、四捨五入到 0.5、下限 2）。teachesLegacy 逐字保留，既有存檔的收集不倒退（D2）。"
+      }
+    },
+    {
+      "id": "example-hall-11",
+      "title": "示範迴廊",
+      "region": "reasoning",
+      "disposition": "rework",
+      "v2SkillId": "fewshot-basics",
+      "v2Temple": "示範迴廊（改造）",
+      "primaryTechniqueId": "fewshot-01",
+      "primaryTechniqueTitle": "放 3–5 個範例，效果最穩",
+      "techniqueIdRealign": false,
+      "needsV2Catalog": false,
+      "primaryTechniqueInTeachesLegacy": true,
+      "mainCheck": "hasFewShot",
+      "newChecker": false,
+      "interimMainCheck": null,
+      "foundationCheck": null,
+      "foundationNewChecker": false,
+      "checksToRemoveOrDownweight": [
+        {
+          "check": "assignsTask",
+          "weightBefore": 1,
+          "action": "downweight",
+          "weightAfter": 0.5,
+          "phase": "A",
+          "reason": "全域：它是每一關的前提，不該再被當成「這一關教的東西」（gap-analysis §3 建議 1／curriculum-v2 §4 全域改動）"
+        },
+        {
+          "check": "hasDelimiters",
+          "weightBefore": 2,
+          "action": "downweight",
+          "weightAfter": 1,
+          "phase": "A",
+          "reason": "gap-analysis §3 建議 3：主題由別的檢查承擔，分隔符只是達成手段"
+        },
+        {
+          "check": "specifiesFormat",
+          "weightBefore": 1,
+          "action": "remove",
+          "weightAfter": 0,
+          "phase": "C",
+          "reason": "主題搬去自己的神廟（C1 一關一技巧／C2 只教一次）：第三幕改成 induct（猜規則）：先推出規律再挑第四個例子"
+        },
+        {
+          "check": "hasDelimiters",
+          "weightBefore": 1,
+          "action": "remove",
+          "weightAfter": 0,
+          "phase": "C",
+          "reason": "分隔符是 struct-delimiters 那一座神廟（郵箱精靈的分揀台）的主題，這一關收斂成「範例的基本功」之後它就不再計分（C1 一關一技巧）。",
+          "addedIn": "C"
+        }
+      ],
+      "passBefore": 4,
+      "passAfter": 3.5,
+      "passAfterByWeightRule": 2.75,
+      "totalWeightBefore": 7,
+      "totalWeightAfter": 5.5,
+      "teachesLegacy": [
+        "fewshot-01",
+        "fewshot-02",
+        "structure-04"
+      ],
+      "designNote": "第三幕改成 induct（猜規則）：先推出規律再挑第四個例子",
+      "phaseC": {
+        "skillId": "fewshot-basics",
+        "mainCheck": "hasFewShot",
+        "mainWeightAfterC": 3,
+        "totalWeightAfterC": 3.5,
+        "passAfterC": 2,
+        "kindAfterC": "induct",
+        "note": "Phase C（示範與推理 15 座）執行本列的 post-A 條目，並把 rubric 收斂成「主檢查 3 分 ＋ 地基 assignsTask 0.5 分、pass 2」——與課程 v2 新蓋的神廟同一個形狀（C1）。primaryTechniqueId 保留（它真的有祖先，收集不倒退），另外新增 primarySkillId 指向 v2 技能。"
+      }
+    },
+    {
+      "id": "lantern-rows-12",
+      "title": "一致的燈列",
+      "region": "reasoning",
+      "disposition": "rework",
+      "v2SkillId": "fewshot-consistent",
+      "v2Temple": "一致的燈列（改造）",
+      "primaryTechniqueId": "fewshot-03",
+      "primaryTechniqueTitle": "Google：幾乎一定要放範例，且格式要一致",
+      "techniqueIdRealign": false,
+      "needsV2Catalog": false,
+      "primaryTechniqueInTeachesLegacy": true,
+      "mainCheck": "hasFewShot",
+      "newChecker": false,
+      "interimMainCheck": null,
+      "foundationCheck": "assignsTask",
+      "foundationNewChecker": false,
+      "checksToRemoveOrDownweight": [
+        {
+          "check": "assignsTask",
+          "weightBefore": 1,
+          "action": "downweight",
+          "weightAfter": 0.5,
+          "phase": "A",
+          "reason": "全域：它是每一關的前提，不該再被當成「這一關教的東西」（gap-analysis §3 建議 1／curriculum-v2 §4 全域改動）"
+        },
+        {
+          "check": "specifiesFormat",
+          "weightBefore": 2,
+          "action": "remove",
+          "weightAfter": 0,
+          "phase": "C",
+          "reason": "主題搬去自己的神廟（C1 一關一技巧／C2 只教一次）：主題收斂成「格式一致＋範例要配指令」；hasConstraint 移除"
+        },
+        {
+          "check": "hasConstraint",
+          "weightBefore": 1,
+          "action": "remove",
+          "weightAfter": 0,
+          "phase": "C",
+          "reason": "主題搬去自己的神廟（C1 一關一技巧／C2 只教一次）：主題收斂成「格式一致＋範例要配指令」；hasConstraint 移除"
+        }
+      ],
+      "passBefore": 4,
+      "passAfter": 3.5,
+      "passAfterByWeightRule": 3.25,
+      "totalWeightBefore": 7,
+      "totalWeightAfter": 6.5,
+      "teachesLegacy": [
+        "fewshot-03",
+        "fewshot-04"
+      ],
+      "designNote": "主題收斂成「格式一致＋範例要配指令」；hasConstraint 移除",
+      "phaseC": {
+        "skillId": "fewshot-consistent",
+        "mainCheck": "hasFewShot",
+        "mainWeightAfterC": 3,
+        "totalWeightAfterC": 3.5,
+        "passAfterC": 2,
+        "kindAfterC": "choice",
+        "note": "Phase C（示範與推理 15 座）執行本列的 post-A 條目，並把 rubric 收斂成「主檢查 3 分 ＋ 地基 assignsTask 0.5 分、pass 2」——與課程 v2 新蓋的神廟同一個形狀（C1）。primaryTechniqueId 保留（它真的有祖先，收集不倒退），另外新增 primarySkillId 指向 v2 技能。"
+      }
+    },
+    {
+      "id": "silent-thinker-13",
+      "title": "靜默的推理者",
+      "region": "reasoning",
+      "disposition": "rework",
+      "v2SkillId": "reason-keep-simple",
+      "v2Temple": "靜默的推理者（改造）",
+      "primaryTechniqueId": "reasoning-01",
+      "primaryTechniqueTitle": "別叫推理模型「think step by step」",
+      "techniqueIdRealign": false,
+      "needsV2Catalog": false,
+      "primaryTechniqueInTeachesLegacy": true,
+      "mainCheck": "keepsPromptLean",
+      "newChecker": false,
+      "interimMainCheck": null,
+      "foundationCheck": null,
+      "foundationNewChecker": false,
+      "checksToRemoveOrDownweight": [
+        {
+          "check": "assignsTask",
+          "weightBefore": 1,
+          "action": "downweight",
+          "weightAfter": 0.5,
+          "phase": "A",
+          "reason": "全域：它是每一關的前提，不該再被當成「這一關教的東西」（gap-analysis §3 建議 1／curriculum-v2 §4 全域改動）"
+        },
+        {
+          "check": "specifiesFormat",
+          "weightBefore": 1,
+          "action": "remove",
+          "weightAfter": 0,
+          "replaceWith": null,
+          "phase": "A",
+          "reason": "gap-analysis §3 建議 2：直接移除；這一關的主題是 keepsPromptLean，格式只是雜訊",
+          "weightNeutral": false
+        },
+        {
+          "check": "hasConstraint",
+          "weightBefore": 2,
+          "action": "remove",
+          "weightAfter": 0,
+          "phase": "C",
+          "reason": "主題搬去自己的神廟（C1 一關一技巧／C2 只教一次）：移除 specifiesFormat（Phase 26 已建議），第三幕改成 spot（點掉多餘鷹架）"
+        }
+      ],
+      "passBefore": 4,
+      "passAfter": 3.5,
+      "passAfterByWeightRule": 2.75,
+      "totalWeightBefore": 7,
+      "totalWeightAfter": 5.5,
+      "teachesLegacy": [
+        "fewshot-05",
+        "reasoning-01",
+        "reasoning-02"
+      ],
+      "designNote": "移除 specifiesFormat（Phase 26 已建議），第三幕改成 spot（點掉多餘鷹架）",
+      "phaseC": {
+        "skillId": "reason-keep-simple",
+        "mainCheck": "keepsPromptLean",
+        "mainWeightAfterC": 3,
+        "totalWeightAfterC": 3.5,
+        "passAfterC": 2,
+        "kindAfterC": "spot",
+        "note": "Phase C（示範與推理 15 座）執行本列的 post-A 條目，並把 rubric 收斂成「主檢查 3 分 ＋ 地基 assignsTask 0.5 分、pass 2」——與課程 v2 新蓋的神廟同一個形狀（C1）。primaryTechniqueId 保留（它真的有祖先，收集不倒退），另外新增 primarySkillId 指向 v2 技能。"
+      }
+    },
+    {
+      "id": "thinking-chamber-14",
+      "title": "思考室",
+      "region": "reasoning",
+      "disposition": "rework",
+      "v2SkillId": "cot-separate-answer",
+      "v2Temple": "思考室（改造）",
+      "primaryTechniqueId": "cot-02",
+      "primaryTechniqueTitle": "用 <thinking> / <answer> 分離推理與最終答案",
+      "techniqueIdRealign": false,
+      "needsV2Catalog": false,
+      "primaryTechniqueInTeachesLegacy": true,
+      "mainCheck": "hasDelimiters",
+      "newChecker": false,
+      "interimMainCheck": null,
+      "foundationCheck": "hasStepByStep",
+      "foundationNewChecker": false,
+      "checksToRemoveOrDownweight": [
+        {
+          "check": "assignsTask",
+          "weightBefore": 1,
+          "action": "downweight",
+          "weightAfter": 0.5,
+          "phase": "A",
+          "reason": "全域：它是每一關的前提，不該再被當成「這一關教的東西」（gap-analysis §3 建議 1／curriculum-v2 §4 全域改動）"
+        },
+        {
+          "check": "hasDelimiters",
+          "weightBefore": 2,
+          "action": "hold",
+          "weightAfter": 2,
+          "phase": "A",
+          "reason": "gap-analysis §3 建議 3 把它列為降權對象，但 curriculum-v2 §4／§3 把分隔符本身定為這一關的主檢查 —— 依 task_plan §2「以逐關表為準」保持 2 分不降",
+          "conflict": "gap-analysis §3 建議 3 vs curriculum-v2 §3/§4"
+        },
+        {
+          "check": "hasFewShot",
+          "weightBefore": 2,
+          "action": "remove",
+          "weightAfter": 0,
+          "phase": "C",
+          "reason": "主題搬去自己的神廟（C1 一關一技巧／C2 只教一次）：從三條技巧收斂成一條；hasFewShot 讓給 fewshot-thinking"
+        },
+        {
+          "check": "hasStepByStep",
+          "weightBefore": 3,
+          "action": "remove",
+          "weightAfter": 0,
+          "phase": "C",
+          "reason": "「一步一步想」是 cot-explicit 的主題，Phase C 已經蓋了它自己的神廟（一步一階的橋），依 C2 一條技巧只教一次，這一關不再計分。manifest 原本沒有列它，是 Phase 0 產生器只掃了 §4 逐關表的漏網。",
+          "addedIn": "C"
+        }
+      ],
+      "passBefore": 4,
+      "passAfter": 3.5,
+      "passAfterByWeightRule": 3.75,
+      "totalWeightBefore": 8,
+      "totalWeightAfter": 7.5,
+      "teachesLegacy": [
+        "cot-01",
+        "cot-02",
+        "cot-03"
+      ],
+      "designNote": "從三條技巧收斂成一條；hasFewShot 讓給 fewshot-thinking",
+      "phaseC": {
+        "skillId": "cot-separate-answer",
+        "mainCheck": "hasDelimiters",
+        "mainWeightAfterC": 3,
+        "totalWeightAfterC": 3.5,
+        "passAfterC": 2,
+        "kindAfterC": "choice",
+        "note": "Phase C（示範與推理 15 座）執行本列的 post-A 條目，並把 rubric 收斂成「主檢查 3 分 ＋ 地基 assignsTask 0.5 分、pass 2」——與課程 v2 新蓋的神廟同一個形狀（C1）。primaryTechniqueId 保留（它真的有祖先，收集不倒退），另外新增 primarySkillId 指向 v2 技能。"
+      }
+    },
+    {
+      "id": "effort-forge-15",
+      "title": "火力熔爐",
+      "region": "reasoning",
+      "disposition": "rework",
+      "v2SkillId": "knob-effort",
+      "v2Temple": "火力熔爐（改造 · sim）",
+      "primaryTechniqueId": "params-03",
+      "primaryTechniqueTitle": "推理／冗長度參數：effort · reasoning_effort · verbosity",
+      "techniqueIdRealign": true,
+      "needsV2Catalog": false,
+      "primaryTechniqueInTeachesLegacy": false,
+      "mainCheck": "mentionsParameters",
+      "newChecker": false,
+      "interimMainCheck": null,
+      "foundationCheck": null,
+      "foundationNewChecker": false,
+      "checksToRemoveOrDownweight": [
+        {
+          "check": "assignsTask",
+          "weightBefore": 1,
+          "action": "downweight",
+          "weightAfter": 0.5,
+          "phase": "A",
+          "reason": "全域：它是每一關的前提，不該再被當成「這一關教的東西」（gap-analysis §3 建議 1／curriculum-v2 §4 全域改動）"
+        },
+        {
+          "check": "asksToVerify",
+          "weightBefore": 3,
+          "action": "remove",
+          "weightAfter": 0,
+          "phase": "C",
+          "reason": "主題搬去自己的神廟（C1 一關一技巧／C2 只教一次）：第三幕換成 sim（轉旋鈕看離線輸出樣本），這是 sim 型式的首發關；params-03（effort）由刻度儀之室讓過來"
+        },
+        {
+          "check": "hasStepByStep",
+          "weightBefore": 1,
+          "action": "remove",
+          "weightAfter": 0,
+          "phase": "C",
+          "reason": "主題搬去自己的神廟（C1 一關一技巧／C2 只教一次）：第三幕換成 sim（轉旋鈕看離線輸出樣本），這是 sim 型式的首發關；params-03（effort）由刻度儀之室讓過來"
+        }
+      ],
+      "passBefore": 4,
+      "passAfter": 3.5,
+      "passAfterByWeightRule": 3.25,
+      "totalWeightBefore": 7,
+      "totalWeightAfter": 6.5,
+      "teachesLegacy": [
+        "cot-04",
+        "reasoning-03",
+        "reasoning-04",
+        "reasoning-05"
+      ],
+      "designNote": "第三幕換成 sim（轉旋鈕看離線輸出樣本），這是 sim 型式的首發關；params-03（effort）由刻度儀之室讓過來",
+      "phaseC": {
+        "skillId": "knob-effort",
+        "mainCheck": "mentionsParameters",
+        "mainWeightAfterC": 3,
+        "totalWeightAfterC": 3.5,
+        "passAfterC": 2,
+        "kindAfterC": "choice",
+        "note": "Phase C（示範與推理 15 座）執行本列的 post-A 條目，並把 rubric 收斂成「主檢查 3 分 ＋ 地基 assignsTask 0.5 分、pass 2」——與課程 v2 新蓋的神廟同一個形狀（C1）。primaryTechniqueId 保留（它真的有祖先，收集不倒退），另外新增 primarySkillId 指向 v2 技能。"
+      },
+      "phaseH": {
+        "skillId": "knob-effort",
+        "mainCheck": "mentionsParameters",
+        "mainWeightAfterH": 3,
+        "totalWeightAfterH": 3.5,
+        "passAfterH": 2,
+        "kindAfterH": "sim",
+        "dialId": "reasoning-effort",
+        "note": "Phase H（轉鈕 sim）執行 curriculum-v2 §3 指定的互動型式：第三幕換成一個三檔的旋鈕，每一檔配一段**遊戲自撰**的離線輸出樣本（src/data/sim-samples.json，authored: \"game\"，畫面上永遠掛 ⓘ 明講不是模型跑出來的結果、並附「在哪一台機器上成立」的條件）。三檔都轉過了才開放刻印；rubric、pass、示範解答、slots 與官方出處一個位元組都沒動 —— 所以退回石碑刻印時玩家刻出來的字一模一樣（相容契約）。"
+      }
+    },
+    {
+      "id": "citation-desk-21",
+      "title": "引文閱覽台",
+      "region": "grounding",
+      "disposition": "rework",
+      "v2SkillId": "ground-quote-first",
+      "v2Temple": "引文閱覽台（改造）",
+      "primaryTechniqueId": "grounding-04",
+      "primaryTechniqueTitle": "要求「先引用文件再作答」",
+      "techniqueIdRealign": false,
+      "needsV2Catalog": false,
+      "primaryTechniqueInTeachesLegacy": true,
+      "mainCheck": "asksToCiteSources",
+      "newChecker": false,
+      "interimMainCheck": null,
+      "foundationCheck": null,
+      "foundationNewChecker": false,
+      "checksToRemoveOrDownweight": [
+        {
+          "check": "assignsTask",
+          "weightBefore": 1,
+          "action": "downweight",
+          "weightAfter": 0.5,
+          "phase": "A",
+          "reason": "全域：它是每一關的前提，不該再被當成「這一關教的東西」（gap-analysis §3 建議 1／curriculum-v2 §4 全域改動）"
+        },
+        {
+          "check": "groundsInContext",
+          "weightBefore": 2,
+          "action": "remove",
+          "weightAfter": 0,
+          "phase": "D",
+          "reason": "主題搬去自己的神廟（C1 一關一技巧／C2 只教一次）：只留「先引用再作答」；引用格式獨立成標記之泉"
+        },
+        {
+          "check": "hasDelimiters",
+          "weightBefore": 1,
+          "action": "remove",
+          "weightAfter": 0,
+          "phase": "D",
+          "reason": "主題搬去自己的神廟（C1 一關一技巧／C2 只教一次）：只留「先引用再作答」；引用格式獨立成標記之泉"
+        }
+      ],
+      "passBefore": 4,
+      "passAfter": 3.5,
+      "passAfterByWeightRule": 3.25,
+      "totalWeightBefore": 7,
+      "totalWeightAfter": 6.5,
+      "teachesLegacy": [
+        "grounding-01",
+        "grounding-04"
+      ],
+      "designNote": "只留「先引用再作答」；引用格式獨立成標記之泉",
+      "phaseD": {
+        "skillId": "ground-quote-first",
+        "mainCheck": "asksToCiteSources",
+        "mainWeightAfterD": 3,
+        "totalWeightAfterD": 3.5,
+        "passAfterD": 2,
+        "kindAfterD": "fix",
+        "note": "Phase D（脈絡與長文／角色與參數各 12 座）執行本列的 post-A 條目，並把 rubric 收斂成「主檢查 3 分 ＋ 地基 assignsTask 0.5 分、pass 2」——與課程 v2 新蓋的神廟同一個形狀（C1）。primaryTechniqueId 保留（它真的有祖先，收集不倒退），另外新增 primarySkillId 指向 v2 技能。"
+      }
+    },
+    {
+      "id": "well-of-unknowing-22",
+      "title": "不知之井",
+      "region": "grounding",
+      "disposition": "keep",
+      "v2SkillId": "ground-out",
+      "v2Temple": "不知之井（保留）",
+      "primaryTechniqueId": "grounding-02",
+      "primaryTechniqueTitle": "給模型一條「出路」，避免硬掰",
+      "techniqueIdRealign": false,
+      "needsV2Catalog": false,
+      "primaryTechniqueInTeachesLegacy": true,
+      "mainCheck": "givesOutForUncertainty",
+      "newChecker": false,
+      "interimMainCheck": null,
+      "foundationCheck": null,
+      "foundationNewChecker": false,
+      "checksToRemoveOrDownweight": [
+        {
+          "check": "assignsTask",
+          "weightBefore": 1,
+          "action": "downweight",
+          "weightAfter": 0.5,
+          "phase": "A",
+          "reason": "全域：它是每一關的前提，不該再被當成「這一關教的東西」（gap-analysis §3 建議 1／curriculum-v2 §4 全域改動）"
+        },
+        {
+          "check": "groundsInContext",
+          "weightBefore": 2,
+          "action": "remove",
+          "weightAfter": 0,
+          "phase": "D",
+          "reason": "主題搬去自己的神廟（C1 一關一技巧／C2 只教一次）：只降權 assignsTask／positiveFraming"
+        },
+        {
+          "check": "positiveFraming",
+          "weightBefore": 1,
+          "action": "remove",
+          "weightAfter": 0,
+          "phase": "D",
+          "reason": "主題搬去自己的神廟（C1 一關一技巧／C2 只教一次）：只降權 assignsTask／positiveFraming"
+        }
+      ],
+      "passBefore": 4,
+      "passAfter": 3.5,
+      "passAfterByWeightRule": 3.25,
+      "totalWeightBefore": 7,
+      "totalWeightAfter": 6.5,
+      "teachesLegacy": [
+        "grounding-02",
+        "grounding-03"
+      ],
+      "designNote": "只降權 assignsTask／positiveFraming",
+      "phaseD": {
+        "skillId": "ground-out",
+        "mainCheck": "givesOutForUncertainty",
+        "mainWeightAfterD": 3,
+        "totalWeightAfterD": 3.5,
+        "passAfterD": 2,
+        "kindAfterD": "choice",
+        "note": "Phase D（脈絡與長文／角色與參數各 12 座）執行本列的 post-A 條目，並把 rubric 收斂成「主檢查 3 分 ＋ 地基 assignsTask 0.5 分、pass 2」——與課程 v2 新蓋的神廟同一個形狀（C1）。primaryTechniqueId 保留（它真的有祖先，收集不倒退），另外新增 primarySkillId 指向 v2 技能。"
+      }
+    },
+    {
+      "id": "long-scroll-tower-23",
+      "title": "長卷之塔",
+      "region": "grounding",
+      "disposition": "keep",
+      "v2SkillId": "long-query-last",
+      "v2Temple": "長卷之塔（保留 · order）",
+      "primaryTechniqueId": "longcontext-01",
+      "primaryTechniqueTitle": "長文件放最上面，問題放最後",
+      "techniqueIdRealign": false,
+      "needsV2Catalog": false,
+      "primaryTechniqueInTeachesLegacy": true,
+      "mainCheck": "putsQuestionLast",
+      "newChecker": false,
+      "interimMainCheck": null,
+      "foundationCheck": null,
+      "foundationNewChecker": false,
+      "checksToRemoveOrDownweight": [
+        {
+          "check": "assignsTask",
+          "weightBefore": 1,
+          "action": "downweight",
+          "weightAfter": 0.5,
+          "phase": "A",
+          "reason": "全域：它是每一關的前提，不該再被當成「這一關教的東西」（gap-analysis §3 建議 1／curriculum-v2 §4 全域改動）"
+        },
+        {
+          "check": "hasDelimiters",
+          "weightBefore": 2,
+          "action": "downweight",
+          "weightAfter": 1,
+          "phase": "A",
+          "reason": "gap-analysis §3 建議 3：主題由別的檢查承擔，分隔符只是達成手段"
+        },
+        {
+          "check": "groundsInContext",
+          "weightBefore": 1,
+          "action": "remove",
+          "weightAfter": 0,
+          "phase": "D",
+          "reason": "主題搬去自己的神廟（C1 一關一技巧／C2 只教一次）：order 型式與資料完全沿用，加一拍「頭尾各一次」的轉"
+        },
+        {
+          "check": "hasDelimiters",
+          "weightBefore": 2,
+          "action": "remove",
+          "weightAfter": 0,
+          "phase": "D",
+          "reason": "分隔符是郵箱精靈的分揀台的主題；這一關收斂成「資料在前、問題在後」之後它就不再計分（C1）。",
+          "addedIn": "D"
+        }
+      ],
+      "passBefore": 4,
+      "passAfter": 3.5,
+      "passAfterByWeightRule": 2.75,
+      "totalWeightBefore": 7,
+      "totalWeightAfter": 5.5,
+      "teachesLegacy": [
+        "longcontext-01",
+        "longcontext-02",
+        "longcontext-03"
+      ],
+      "designNote": "order 型式與資料完全沿用，加一拍「頭尾各一次」的轉",
+      "phaseD": {
+        "skillId": "long-query-last",
+        "mainCheck": "putsQuestionLast",
+        "mainWeightAfterD": 3,
+        "totalWeightAfterD": 3.5,
+        "passAfterD": 2,
+        "kindAfterD": "order",
+        "note": "Phase D（脈絡與長文／角色與參數各 12 座）執行本列的 post-A 條目，並把 rubric 收斂成「主檢查 3 分 ＋ 地基 assignsTask 0.5 分、pass 2」——與課程 v2 新蓋的神廟同一個形狀（C1）。primaryTechniqueId 保留（它真的有祖先，收集不倒退），另外新增 primarySkillId 指向 v2 技能。"
+      }
+    },
+    {
+      "id": "verify-spring-24",
+      "title": "查證之泉",
+      "region": "grounding",
+      "disposition": "rework",
+      "v2SkillId": "ground-read-first",
+      "v2Temple": "查證之泉（改造）",
+      "primaryTechniqueId": "grounding-05",
+      "primaryTechniqueTitle": "別臆測沒讀過的東西（investigate before answering）",
+      "techniqueIdRealign": true,
+      "needsV2Catalog": false,
+      "primaryTechniqueInTeachesLegacy": true,
+      "mainCheck": "asksToVerify",
+      "newChecker": false,
+      "interimMainCheck": null,
+      "foundationCheck": "groundsInContext",
+      "foundationNewChecker": false,
+      "checksToRemoveOrDownweight": [
+        {
+          "check": "assignsTask",
+          "weightBefore": 1,
+          "action": "downweight",
+          "weightAfter": 0.5,
+          "phase": "A",
+          "reason": "全域：它是每一關的前提，不該再被當成「這一關教的東西」（gap-analysis §3 建議 1／curriculum-v2 §4 全域改動）"
+        },
+        {
+          "check": "hasStepByStep",
+          "weightBefore": 2,
+          "action": "remove",
+          "weightAfter": 0,
+          "phase": "D",
+          "reason": "主題搬去自己的神廟（C1 一關一技巧／C2 只教一次）：併入「沒證據不准說做完了」與跨來源查證，rubric 由 5 條降為 2 條"
+        },
+        {
+          "check": "givesOutForUncertainty",
+          "weightBefore": 1,
+          "action": "remove",
+          "weightAfter": 0,
+          "phase": "D",
+          "reason": "主題搬去自己的神廟（C1 一關一技巧／C2 只教一次）：併入「沒證據不准說做完了」與跨來源查證，rubric 由 5 條降為 2 條"
+        },
+        {
+          "check": "groundsInContext",
+          "weightBefore": null,
+          "action": "remove",
+          "weightAfter": 0,
+          "phase": "D",
+          "reason": "「只根據給的資料作答」是封了口的閱覽室（ground-strict）的主題；這一關收斂成「先讀完、有依據、重算核對」（C1／C2）。它仍然是合尺舞台上的一把尺，只是不計分。",
+          "addedIn": "D"
+        }
+      ],
+      "passBefore": 4,
+      "passAfter": 3.5,
+      "passAfterByWeightRule": 3.25,
+      "totalWeightBefore": 7,
+      "totalWeightAfter": 6.5,
+      "teachesLegacy": [
+        "grounding-05",
+        "grounding-06"
+      ],
+      "designNote": "併入「沒證據不准說做完了」與跨來源查證，rubric 由 5 條降為 2 條",
+      "phaseD": {
+        "skillId": "ground-read-first",
+        "mainCheck": "asksToVerify",
+        "mainWeightAfterD": 3,
+        "totalWeightAfterD": 3.5,
+        "passAfterD": 2,
+        "kindAfterD": "constraint",
+        "note": "Phase D（脈絡與長文／角色與參數各 12 座）執行本列的 post-A 條目，並把 rubric 收斂成「主檢查 3 分 ＋ 地基 assignsTask 0.5 分、pass 2」——與課程 v2 新蓋的神廟同一個形狀（C1）。primaryTechniqueId 保留（它真的有祖先，收集不倒退），另外新增 primarySkillId 指向 v2 技能。"
+      }
+    },
+    {
+      "id": "archive-seal-25",
+      "title": "檔案庫封印",
+      "region": "grounding",
+      "disposition": "application",
+      "v2SkillId": null,
+      "v2Temple": "grounding 應用關",
+      "primaryTechniqueId": null,
+      "primaryTechniqueTitle": null,
+      "techniqueIdRealign": false,
+      "needsV2Catalog": false,
+      "primaryTechniqueInTeachesLegacy": null,
+      "mainCheck": null,
+      "newChecker": false,
+      "interimMainCheck": null,
+      "foundationCheck": null,
+      "foundationNewChecker": false,
+      "checksToRemoveOrDownweight": [
+        {
+          "check": "assignsTask",
+          "weightBefore": 1,
+          "action": "downweight",
+          "weightAfter": 0.5,
+          "phase": "A",
+          "reason": "全域：它是每一關的前提，不該再被當成「這一關教的東西」（gap-analysis §3 建議 1／curriculum-v2 §4 全域改動）"
+        }
+      ],
+      "passBefore": 5,
+      "passAfter": 4.5,
+      "passAfterByWeightRule": 4.25,
+      "totalWeightBefore": 9,
+      "totalWeightAfter": 8.5,
+      "teachesLegacy": [
+        "grounding-01",
+        "grounding-02",
+        "longcontext-01",
+        "longcontext-03"
+      ],
+      "designNote": "6 條 rubric 的綜合題 → grounding 的應用關",
+      "phaseJ2": {
+        "totalWeightAfterJ2": 6.5,
+        "passAfterJ2": 3.5,
+        "rubricRowsBefore": 6,
+        "rubricRowsAfter": 4,
+        "why": "課程 v2 · Phase J2：這兩關正式升格為應用關（試煉）——第二幕整幕不存在，rubric 改成「1 條地基 assignsTask 0.5 ＋ 3 條候選（每條掛一條該區的 v2 技能、權重 2）」，門檻由同一條公式重算（入選權重總和的 50%、四捨五入到 0.5、下限 2）。teachesLegacy 逐字保留，既有存檔的收集不倒退（D2）。"
+      }
+    },
+    {
+      "id": "subtask-workbench-31",
+      "title": "拆解工作台",
+      "region": "orchestration",
+      "disposition": "rework",
+      "v2SkillId": "chain-serial",
+      "v2Temple": "拆解工作台（改造 · order）",
+      "primaryTechniqueId": "decompose-01",
+      "primaryTechniqueTitle": "把複雜任務拆成子任務",
+      "techniqueIdRealign": false,
+      "needsV2Catalog": false,
+      "primaryTechniqueInTeachesLegacy": true,
+      "mainCheck": "decomposesTask",
+      "newChecker": false,
+      "interimMainCheck": null,
+      "foundationCheck": null,
+      "foundationNewChecker": false,
+      "checksToRemoveOrDownweight": [
+        {
+          "check": "assignsTask",
+          "weightBefore": 1,
+          "action": "downweight",
+          "weightAfter": 0.5,
+          "phase": "A",
+          "reason": "全域：它是每一關的前提，不該再被當成「這一關教的東西」（gap-analysis §3 建議 1／curriculum-v2 §4 全域改動）"
+        },
+        {
+          "check": "specifiesFormat",
+          "weightBefore": 1,
+          "action": "replace",
+          "weightAfter": 0,
+          "replaceWith": "decomposesTask",
+          "phase": "A",
+          "reason": "gap-analysis §3 建議 2：decomposesTask 加權",
+          "weightNeutral": true
+        },
+        {
+          "check": "asksToVerify",
+          "weightBefore": 2,
+          "action": "remove",
+          "weightAfter": 0,
+          "phase": "G",
+          "reason": "主題搬去自己的神廟（C1 一關一技巧／C2 只教一次）：第三幕改成 order；specifiesFormat／hasConstraint 移除（Phase G 執行：收斂成一關一技巧的形狀，主檢查 3 ＋ 地基 0.5、pass 2）",
+          "addedIn": "G"
+        },
+        {
+          "check": "hasConstraint",
+          "weightBefore": 1,
+          "action": "remove",
+          "weightAfter": 0,
+          "phase": "G",
+          "reason": "主題搬去自己的神廟（C1 一關一技巧／C2 只教一次）：第三幕改成 order；specifiesFormat／hasConstraint 移除（Phase G 執行：收斂成一關一技巧的形狀，主檢查 3 ＋ 地基 0.5、pass 2）",
+          "addedIn": "G"
+        }
+      ],
+      "passBefore": 4,
+      "passAfter": 3.5,
+      "passAfterByWeightRule": 3.75,
+      "totalWeightBefore": 8,
+      "totalWeightAfter": 7.5,
+      "teachesLegacy": [
+        "decompose-01",
+        "decompose-02",
+        "decompose-04"
+      ],
+      "designNote": "第三幕改成 order；specifiesFormat／hasConstraint 移除",
+      "phaseG": {
+        "skillId": "chain-serial",
+        "mainCheck": "decomposesTask",
+        "kindAfterG": "order",
+        "regionAfterG": "orchestration",
+        "note": "§3 orchestration 第 1 列指名「拆解工作台（保留）」——主題收斂成「把大事拆小，一步的產物餵給下一步」，第三幕由分段建構換成排序刻印（四片工單要照先後疊，第三張吃第二張的產物）。收斂成新神廟的形狀（主檢查 3 ＋ 地基 assignsTask 0.5、pass 2），legacy teaches 與舊主技巧 decompose-01 都保留（收集不倒退，D2）。",
+        "mainWeightAfterG": 3,
+        "totalWeightAfterG": 3.5,
+        "passAfterG": 2
+      }
+    },
+    {
+      "id": "draft-review-wheel-32",
+      "title": "草稿之輪",
+      "region": "orchestration",
+      "disposition": "rework",
+      "v2SkillId": "draft-review-refine",
+      "v2Temple": "草稿之輪（移入校驗場 · multi）",
+      "primaryTechniqueId": "decompose-03",
+      "primaryTechniqueTitle": "最常見的鏈：自我修正（draft → review → refine）",
+      "techniqueIdRealign": false,
+      "needsV2Catalog": false,
+      "primaryTechniqueInTeachesLegacy": true,
+      "mainCheck": "asksToRefine",
+      "newChecker": false,
+      "interimMainCheck": null,
+      "foundationCheck": null,
+      "foundationNewChecker": false,
+      "checksToRemoveOrDownweight": [
+        {
+          "check": "assignsTask",
+          "weightBefore": 1,
+          "action": "downweight",
+          "weightAfter": 0.5,
+          "phase": "A",
+          "reason": "全域：它是每一關的前提，不該再被當成「這一關教的東西」（gap-analysis §3 建議 1／curriculum-v2 §4 全域改動）"
+        },
+        {
+          "check": "specifiesFormat",
+          "weightBefore": 1,
+          "action": "replace",
+          "weightAfter": 0,
+          "replaceWith": "asksToRefine",
+          "phase": "A",
+          "reason": "gap-analysis §3 建議 2：asksToRefine 加權",
+          "weightNeutral": true
+        },
+        {
+          "check": "asksToVerify",
+          "weightBefore": 2,
+          "action": "remove",
+          "weightAfter": 0,
+          "phase": "G",
+          "reason": "主題搬去自己的神廟（C1 一關一技巧／C2 只教一次）：搬到校驗場；第三幕改成 multi（真的走三輪）（Phase G 執行：收斂成一關一技巧的形狀，主檢查 3 ＋ 地基 0.5、pass 2）",
+          "addedIn": "G"
+        },
+        {
+          "check": "hasConstraint",
+          "weightBefore": 1,
+          "action": "remove",
+          "weightAfter": 0,
+          "phase": "G",
+          "reason": "主題搬去自己的神廟（C1 一關一技巧／C2 只教一次）：搬到校驗場；第三幕改成 multi（真的走三輪）（Phase G 執行：收斂成一關一技巧的形狀，主檢查 3 ＋ 地基 0.5、pass 2）",
+          "addedIn": "G"
+        }
+      ],
+      "passBefore": 4,
+      "passAfter": 3.5,
+      "passAfterByWeightRule": 3.75,
+      "totalWeightBefore": 8,
+      "totalWeightAfter": 7.5,
+      "teachesLegacy": [
+        "decompose-03",
+        "iterate-01"
+      ],
+      "designNote": "搬到校驗場；第三幕改成 multi（真的走三輪）",
+      "phaseG": {
+        "skillId": "draft-review-refine",
+        "mainCheck": "asksToRefine",
+        "kindAfterG": "multi",
+        "regionAfterG": "refinery",
+        "note": "§4 逐關表指名「搬到校驗場；第三幕改成 multi（真的走三輪）」——整座石座搬進齒輪工坊旁的院子，第三幕換成兩輪刻印：第一輪寫草稿與標準，看過遊戲自撰的草稿之後，第二輪才決定怎麼審、怎麼改。",
+        "mainWeightAfterG": 3,
+        "totalWeightAfterG": 3.5,
+        "passAfterG": 2
+      }
+    },
+    {
+      "id": "tool-forge-33",
+      "title": "工具鍛造間",
+      "region": "orchestration",
+      "disposition": "rework",
+      "v2SkillId": "tool-description",
+      "v2Temple": "工具鍛造間（移入契約鍛冶場）",
+      "primaryTechniqueId": "agentic-02",
+      "primaryTechniqueTitle": "工具與參數的描述要清楚",
+      "techniqueIdRealign": false,
+      "needsV2Catalog": false,
+      "primaryTechniqueInTeachesLegacy": true,
+      "mainCheck": "definesTools",
+      "newChecker": false,
+      "interimMainCheck": null,
+      "foundationCheck": null,
+      "foundationNewChecker": false,
+      "checksToRemoveOrDownweight": [
+        {
+          "check": "assignsTask",
+          "weightBefore": 1,
+          "action": "downweight",
+          "weightAfter": 0.5,
+          "phase": "A",
+          "reason": "全域：它是每一關的前提，不該再被當成「這一關教的東西」（gap-analysis §3 建議 1／curriculum-v2 §4 全域改動）"
+        },
+        {
+          "check": "specifiesFormat",
+          "weightBefore": 2,
+          "action": "replace",
+          "weightAfter": 0,
+          "replaceWith": "definesTools",
+          "phase": "A",
+          "reason": "gap-analysis §3 建議 2：definesTools 加權（目前只有這 1 關用到）",
+          "weightNeutral": true
+        },
+        {
+          "check": "hasDelimiters",
+          "weightBefore": 1,
+          "action": "remove",
+          "weightAfter": 0,
+          "phase": "F",
+          "reason": "主題搬去自己的神廟（C1 一關一技巧／C2 只教一次）：搬到契約鍛冶場；specifiesFormat 換成 definesTools 加權（Phase F 執行：整座搬進契約鍛冶場，題型換成改碑）"
+        }
+      ],
+      "passBefore": 4,
+      "passAfter": 3.5,
+      "passAfterByWeightRule": 3.25,
+      "totalWeightBefore": 7,
+      "totalWeightAfter": 6.5,
+      "teachesLegacy": [
+        "agentic-01",
+        "agentic-02",
+        "agentic-07"
+      ],
+      "designNote": "搬到契約鍛冶場；specifiesFormat 換成 definesTools 加權",
+      "phaseF": {
+        "skillId": "tool-description",
+        "mainCheck": "definesTools",
+        "mainWeightAfterF": 3,
+        "totalWeightAfterF": 3.5,
+        "passAfterF": 2,
+        "kindAfterF": "fix",
+        "regionAfterF": "toolcraft",
+        "note": "§3 toolcraft 第 2 列指名「工具鍛造間（保留）」——主題收斂成「工具說明是最重要的一件事」，石座整座搬到正西的契約鍛冶場，題型由分段建構換成改碑。收斂成新神廟的形狀（主檢查 3 ＋ 地基 assignsTask 0.5、pass 2），legacy teaches 與舊主技巧 agentic-02 都保留（收集不倒退，D2）。"
+      }
+    },
+    {
+      "id": "irreversible-gate-34",
+      "title": "不可逆之門",
+      "region": "orchestration",
+      "disposition": "rework",
+      "v2SkillId": "agent-approval-bounds",
+      "v2Temple": "不可逆之門（改造 · workshop）",
+      "primaryTechniqueId": "agentic-06",
+      "primaryTechniqueTitle": "高風險／不可逆動作先請使用者確認",
+      "techniqueIdRealign": false,
+      "needsV2Catalog": false,
+      "primaryTechniqueInTeachesLegacy": true,
+      "mainCheck": "requiresConfirmation",
+      "newChecker": false,
+      "interimMainCheck": null,
+      "foundationCheck": null,
+      "foundationNewChecker": false,
+      "checksToRemoveOrDownweight": [
+        {
+          "check": "assignsTask",
+          "weightBefore": 1,
+          "action": "downweight",
+          "weightAfter": 0.5,
+          "phase": "A",
+          "reason": "全域：它是每一關的前提，不該再被當成「這一關教的東西」（gap-analysis §3 建議 1／curriculum-v2 §4 全域改動）"
+        },
+        {
+          "check": "setsPersistence",
+          "weightBefore": 2,
+          "action": "remove",
+          "weightAfter": 0,
+          "phase": "G",
+          "reason": "主題搬去自己的神廟（C1 一關一技巧／C2 只教一次）：收斂成「可逆／不可逆」一條主題；setsPersistence 讓給三句箴言的柱（Phase G 執行：收斂成一關一技巧的形狀，主檢查 3 ＋ 地基 0.5、pass 2）",
+          "addedIn": "G"
+        },
+        {
+          "check": "decomposesTask",
+          "weightBefore": 2,
+          "action": "remove",
+          "weightAfter": 0,
+          "phase": "G",
+          "reason": "主題搬去自己的神廟（C1 一關一技巧／C2 只教一次）：收斂成「可逆／不可逆」一條主題；setsPersistence 讓給三句箴言的柱（Phase G 執行：收斂成一關一技巧的形狀，主檢查 3 ＋ 地基 0.5、pass 2）",
+          "addedIn": "G"
+        }
+      ],
+      "passBefore": 4,
+      "passAfter": 3.5,
+      "passAfterByWeightRule": 3.25,
+      "totalWeightBefore": 7,
+      "totalWeightAfter": 6.5,
+      "teachesLegacy": [
+        "agentic-03",
+        "agentic-04",
+        "agentic-05",
+        "agentic-06"
+      ],
+      "designNote": "收斂成「可逆／不可逆」一條主題；setsPersistence 讓給三句箴言的柱",
+      "phaseG": {
+        "skillId": "agent-approval-bounds",
+        "mainCheck": "requiresConfirmation",
+        "kindAfterG": "workshop",
+        "regionAfterG": "orchestration",
+        "note": "§3 orchestration 第 5 列指名「不可逆之門（保留）· 派送／分流（workshop）」——主題收斂成「可逆的自己做、不可逆的先問」，setsPersistence 讓給三句箴言的柱（C2 不重教），第三幕換成派工檯（讀水位／調高度可以自己做，清日誌落到規矩那一步）。",
+        "mainWeightAfterG": 3,
+        "totalWeightAfterG": 3.5,
+        "passAfterG": 2
+      }
+    },
+    {
+      "id": "echo-workshop-35",
+      "title": "回音工坊",
+      "region": "orchestration",
+      "disposition": "rework",
+      "v2SkillId": "meta-iterate",
+      "v2Temple": "回音工坊（移入校驗場 · multi）",
+      "primaryTechniqueId": "iterate-02",
+      "primaryTechniqueTitle": "換句話說／換類比任務／換內容順序",
+      "techniqueIdRealign": true,
+      "needsV2Catalog": false,
+      "primaryTechniqueInTeachesLegacy": true,
+      "mainCheck": "asksToRefine",
+      "newChecker": false,
+      "interimMainCheck": null,
+      "foundationCheck": null,
+      "foundationNewChecker": false,
+      "checksToRemoveOrDownweight": [
+        {
+          "check": "assignsTask",
+          "weightBefore": 1,
+          "action": "downweight",
+          "weightAfter": 0.5,
+          "phase": "A",
+          "reason": "全域：它是每一關的前提，不該再被當成「這一關教的東西」（gap-analysis §3 建議 1／curriculum-v2 §4 全域改動）"
+        },
+        {
+          "check": "specifiesFormat",
+          "weightBefore": 1,
+          "action": "replace",
+          "weightAfter": 0,
+          "replaceWith": "asksToRefine",
+          "phase": "A",
+          "reason": "gap-analysis §3 建議 2：asksToRefine 加權",
+          "weightNeutral": true
+        },
+        {
+          "check": "explainsWhy",
+          "weightBefore": 2,
+          "action": "remove",
+          "weightAfter": 0,
+          "phase": "G",
+          "reason": "主題搬去自己的神廟（C1 一關一技巧／C2 只教一次）：搬到校驗場；主題改成「怎麼知道已經收斂」（iterate-03 讓給照自己的鏡）（Phase G 執行：收斂成一關一技巧的形狀，主檢查 3 ＋ 地基 0.5、pass 2）",
+          "addedIn": "G"
+        },
+        {
+          "check": "hasDelimiters",
+          "weightBefore": 1,
+          "action": "remove",
+          "weightAfter": 0,
+          "phase": "G",
+          "reason": "主題搬去自己的神廟（C1 一關一技巧／C2 只教一次）：搬到校驗場；主題改成「怎麼知道已經收斂」（iterate-03 讓給照自己的鏡）（Phase G 執行：收斂成一關一技巧的形狀，主檢查 3 ＋ 地基 0.5、pass 2）",
+          "addedIn": "G"
+        }
+      ],
+      "passBefore": 4,
+      "passAfter": 3.5,
+      "passAfterByWeightRule": 3.75,
+      "totalWeightBefore": 8,
+      "totalWeightAfter": 7.5,
+      "teachesLegacy": [
+        "iterate-02",
+        "iterate-03",
+        "iterate-04",
+        "iterate-05"
+      ],
+      "designNote": "搬到校驗場；主題改成「怎麼知道已經收斂」（iterate-03 讓給照自己的鏡）",
+      "phaseG": {
+        "skillId": "meta-iterate",
+        "mainCheck": "asksToRefine",
+        "kindAfterG": "multi",
+        "regionAfterG": "refinery",
+        "note": "§4 逐關表指名「搬到校驗場；主題改成『怎麼知道已經收斂』」——整座石座搬進院子，第三幕換成兩輪刻印：第一輪寫一版並訂出「什麼叫落空」，看過遊戲自撰的第一版公告之後，第二輪才決定換什麼說法、什麼時候收手。",
+        "mainWeightAfterG": 3,
+        "totalWeightAfterG": 3.5,
+        "passAfterG": 2
+      }
+    },
+    {
+      "id": "oracle-workshop-36",
+      "title": "神諭工坊",
+      "region": "orchestration",
+      "disposition": "keep",
+      "v2SkillId": "tool-when-not",
+      "v2Temple": "神諭工坊（保留 · workshop）",
+      "primaryTechniqueId": "agentic-01",
+      "primaryTechniqueTitle": "用 API 的 tools 欄位定義工具，別塞在文字裡",
+      "techniqueIdRealign": true,
+      "needsV2Catalog": true,
+      "primaryTechniqueInTeachesLegacy": true,
+      "mainCheck": "statesToolTriggers",
+      "newChecker": true,
+      "interimMainCheck": "definesTools",
+      "foundationCheck": null,
+      "foundationNewChecker": false,
+      "checksToRemoveOrDownweight": [
+        {
+          "check": "assignsTask",
+          "weightBefore": 1,
+          "action": "downweight",
+          "weightAfter": 0.5,
+          "phase": "A",
+          "reason": "全域：它是每一關的前提，不該再被當成「這一關教的東西」（gap-analysis §3 建議 1／curriculum-v2 §4 全域改動）"
+        },
+        {
+          "check": "decomposesTask",
+          "weightBefore": 2,
+          "action": "remove",
+          "weightAfter": 0,
+          "phase": "F",
+          "reason": "主題搬去自己的神廟（C1 一關一技巧／C2 只教一次）：workshop 型式與 27 關資料沿用，主題明確化為「該用與不該用」（Phase F 執行：整座搬進契約鍛冶場，主檢查換成新寫的 statesToolTriggers）"
+        },
+        {
+          "check": "givesOutForUncertainty",
+          "weightBefore": 1,
+          "action": "remove",
+          "weightAfter": 0,
+          "phase": "F",
+          "reason": "主題搬去自己的神廟（C1 一關一技巧／C2 只教一次）：workshop 型式與 27 關資料沿用，主題明確化為「該用與不該用」（Phase F 執行：整座搬進契約鍛冶場，主檢查換成新寫的 statesToolTriggers）"
+        }
+      ],
+      "passBefore": 4,
+      "passAfter": 3.5,
+      "passAfterByWeightRule": 3.25,
+      "totalWeightBefore": 7,
+      "totalWeightAfter": 6.5,
+      "teachesLegacy": [
+        "agentic-01",
+        "agentic-02",
+        "decompose-02",
+        "grounding-03"
+      ],
+      "designNote": "workshop 型式與 27 關資料沿用，主題明確化為「該用與不該用」",
+      "phaseF": {
+        "skillId": "tool-when-not",
+        "mainCheck": "statesToolTriggers",
+        "mainWeightAfterF": 3,
+        "totalWeightAfterF": 3.5,
+        "passAfterF": 2,
+        "kindAfterF": "workshop",
+        "regionAfterF": "toolcraft",
+        "note": "§3 toolcraft 第 5 列指名「神諭工坊（保留 · workshop）」——派工檯的四步資料沿用，主題明確化為「該用與不該用」；manifest 早就標好的新檢查器 statesToolTriggers 在這一期實作，過渡用的 definesTools 就此交棒。石座整座搬到正西的契約鍛冶場。"
+      }
+    },
+    {
+      "id": "mask-workshop-41",
+      "title": "面具工坊",
+      "region": "config",
+      "disposition": "rework",
+      "v2SkillId": "role-basics",
+      "v2Temple": "面具工坊（改造）",
+      "primaryTechniqueId": "role-01",
+      "primaryTechniqueTitle": "在 system prompt 設定角色，哪怕一句話也有效",
+      "techniqueIdRealign": false,
+      "needsV2Catalog": false,
+      "primaryTechniqueInTeachesLegacy": true,
+      "mainCheck": "hasRole",
+      "newChecker": false,
+      "interimMainCheck": null,
+      "foundationCheck": null,
+      "foundationNewChecker": false,
+      "checksToRemoveOrDownweight": [
+        {
+          "check": "assignsTask",
+          "weightBefore": 1,
+          "action": "downweight",
+          "weightAfter": 0.5,
+          "phase": "A",
+          "reason": "全域：它是每一關的前提，不該再被當成「這一關教的東西」（gap-analysis §3 建議 1／curriculum-v2 §4 全域改動）"
+        },
+        {
+          "check": "specifiesFormat",
+          "weightBefore": 1,
+          "action": "replace",
+          "weightAfter": 0,
+          "replaceWith": "hasAudience",
+          "phase": "A",
+          "reason": "gap-analysis §3 建議 2：hasAudience（角色與讀者本來就是一組）",
+          "weightNeutral": true
+        },
+        {
+          "check": "hasDelimiters",
+          "weightBefore": 1,
+          "action": "remove",
+          "weightAfter": 0,
+          "phase": "D",
+          "reason": "主題搬去自己的神廟（C1 一關一技巧／C2 只教一次）：併入「角色不要綁太死」當作轉的那一拍；specifiesFormat 移除"
+        },
+        {
+          "check": "hasConstraint",
+          "weightBefore": 1,
+          "action": "remove",
+          "weightAfter": 0,
+          "phase": "D",
+          "reason": "主題搬去自己的神廟（C1 一關一技巧／C2 只教一次）：併入「角色不要綁太死」當作轉的那一拍；specifiesFormat 移除"
+        },
+        {
+          "check": "hasAudience",
+          "weightBefore": null,
+          "action": "remove",
+          "weightAfter": 0,
+          "phase": "D",
+          "reason": "Phase A 讓它承接 specifiesFormat 那 1 分（權重中性的替換）；受眾是六面燈籠（skeleton-six-elements）的主題，這一關收斂成角色本身（C1）。",
+          "addedIn": "D"
+        }
+      ],
+      "passBefore": 4,
+      "passAfter": 3.5,
+      "passAfterByWeightRule": 3.25,
+      "totalWeightBefore": 7,
+      "totalWeightAfter": 6.5,
+      "teachesLegacy": [
+        "role-01",
+        "role-03",
+        "role-04"
+      ],
+      "designNote": "併入「角色不要綁太死」當作轉的那一拍；specifiesFormat 移除",
+      "phaseD": {
+        "skillId": "role-basics",
+        "mainCheck": "hasRole",
+        "mainWeightAfterD": 3,
+        "totalWeightAfterD": 3.5,
+        "passAfterD": 2,
+        "kindAfterD": "fix",
+        "note": "Phase D（脈絡與長文／角色與參數各 12 座）執行本列的 post-A 條目，並把 rubric 收斂成「主檢查 3 分 ＋ 地基 assignsTask 0.5 分、pass 2」——與課程 v2 新蓋的神廟同一個形狀（C1）。primaryTechniqueId 保留（它真的有祖先，收集不倒退），另外新增 primarySkillId 指向 v2 技能。"
+      }
+    },
+    {
+      "id": "priority-stair-42",
+      "title": "優先序階梯",
+      "region": "config",
+      "disposition": "keep",
+      "v2SkillId": "hierarchy",
+      "v2Temple": "優先序階梯（保留 · order）",
+      "primaryTechniqueId": "role-02",
+      "primaryTechniqueTitle": "善用訊息角色的優先序（developer > user）",
+      "techniqueIdRealign": false,
+      "needsV2Catalog": false,
+      "primaryTechniqueInTeachesLegacy": true,
+      "mainCheck": "ranksInstructions",
+      "newChecker": true,
+      "interimMainCheck": "hasRole",
+      "foundationCheck": null,
+      "foundationNewChecker": false,
+      "checksToRemoveOrDownweight": [
+        {
+          "check": "assignsTask",
+          "weightBefore": 1,
+          "action": "downweight",
+          "weightAfter": 0.5,
+          "phase": "A",
+          "reason": "全域：它是每一關的前提，不該再被當成「這一關教的東西」（gap-analysis §3 建議 1／curriculum-v2 §4 全域改動）"
+        },
+        {
+          "check": "hasDelimiters",
+          "weightBefore": 3,
+          "action": "remove",
+          "weightAfter": 0,
+          "phase": "D",
+          "reason": "主題搬去自己的神廟（C1 一關一技巧／C2 只教一次）：order 型式沿用；structure-03 讓給抄寫人的長桌"
+        },
+        {
+          "check": "specifiesFormat",
+          "weightBefore": 1,
+          "action": "remove",
+          "weightAfter": 0,
+          "phase": "D",
+          "reason": "主題搬去自己的神廟（C1 一關一技巧／C2 只教一次）：order 型式沿用；structure-03 讓給抄寫人的長桌"
+        },
+        {
+          "check": "hasRole",
+          "weightBefore": null,
+          "action": "remove",
+          "weightAfter": 0,
+          "phase": "D",
+          "reason": "它是 ranksInstructions 還沒實作時的 interimMainCheck；新檢查器上線後由它交棒，角色本身是面具工坊的主題（C2）。",
+          "addedIn": "D"
+        }
+      ],
+      "passBefore": 4,
+      "passAfter": 3.5,
+      "passAfterByWeightRule": 3.25,
+      "totalWeightBefore": 7,
+      "totalWeightAfter": 6.5,
+      "teachesLegacy": [
+        "role-02",
+        "structure-03",
+        "framework-02"
+      ],
+      "designNote": "order 型式沿用；structure-03 讓給抄寫人的長桌",
+      "phaseD": {
+        "skillId": "hierarchy",
+        "mainCheck": "ranksInstructions",
+        "mainWeightAfterD": 3,
+        "totalWeightAfterD": 3.5,
+        "passAfterD": 2,
+        "kindAfterD": "order",
+        "note": "Phase D 實作了 §7.4 的 ranksInstructions（manifest 早就指定它是主檢查）。第三幕的排序刻印沿用 order 型式，但石版換成「三條規矩的階梯」。"
+      }
+    },
+    {
+      "id": "dial-room-43",
+      "title": "刻度儀之室",
+      "region": "config",
+      "disposition": "rework",
+      "v2SkillId": "knob-temperature",
+      "v2Temple": "刻度儀之室（改造 · sim）",
+      "primaryTechniqueId": "params-01",
+      "primaryTechniqueTitle": "Temperature：控制隨機性",
+      "techniqueIdRealign": false,
+      "needsV2Catalog": false,
+      "primaryTechniqueInTeachesLegacy": true,
+      "mainCheck": "mentionsParameters",
+      "newChecker": false,
+      "interimMainCheck": null,
+      "foundationCheck": null,
+      "foundationNewChecker": false,
+      "checksToRemoveOrDownweight": [
+        {
+          "check": "assignsTask",
+          "weightBefore": 1,
+          "action": "downweight",
+          "weightAfter": 0.5,
+          "phase": "A",
+          "reason": "全域：它是每一關的前提，不該再被當成「這一關教的東西」（gap-analysis §3 建議 1／curriculum-v2 §4 全域改動）"
+        },
+        {
+          "check": "hasConstraint",
+          "weightBefore": 2,
+          "action": "remove",
+          "weightAfter": 0,
+          "phase": "D",
+          "reason": "主題搬去自己的神廟（C1 一關一技巧／C2 只教一次）：第三幕改成 sim；params-03（effort）讓給火力熔爐"
+        },
+        {
+          "check": "explainsWhy",
+          "weightBefore": 1,
+          "action": "remove",
+          "weightAfter": 0,
+          "phase": "D",
+          "reason": "主題搬去自己的神廟（C1 一關一技巧／C2 只教一次）：第三幕改成 sim；params-03（effort）讓給火力熔爐"
+        }
+      ],
+      "passBefore": 4,
+      "passAfter": 3.5,
+      "passAfterByWeightRule": 3.25,
+      "totalWeightBefore": 7,
+      "totalWeightAfter": 6.5,
+      "teachesLegacy": [
+        "params-01",
+        "params-02",
+        "params-03",
+        "params-04"
+      ],
+      "designNote": "第三幕改成 sim；params-03（effort）讓給火力熔爐",
+      "phaseD": {
+        "skillId": "knob-temperature",
+        "mainCheck": "mentionsParameters",
+        "mainWeightAfterD": 3,
+        "totalWeightAfterD": 3.5,
+        "passAfterD": 2,
+        "kindAfterD": "choice",
+        "note": "Phase D（脈絡與長文／角色與參數各 12 座）執行本列的 post-A 條目，並把 rubric 收斂成「主檢查 3 分 ＋ 地基 assignsTask 0.5 分、pass 2」——與課程 v2 新蓋的神廟同一個形狀（C1）。primaryTechniqueId 保留（它真的有祖先，收集不倒退），另外新增 primarySkillId 指向 v2 技能。"
+      },
+      "phaseH": {
+        "skillId": "knob-temperature",
+        "mainCheck": "mentionsParameters",
+        "mainWeightAfterH": 3,
+        "totalWeightAfterH": 3.5,
+        "passAfterH": 2,
+        "kindAfterH": "sim",
+        "dialId": "temperature",
+        "note": "Phase H（轉鈕 sim）執行 curriculum-v2 §3 指定的互動型式：第三幕換成一個三檔的旋鈕，每一檔配一段**遊戲自撰**的離線輸出樣本（src/data/sim-samples.json，authored: \"game\"，畫面上永遠掛 ⓘ 明講不是模型跑出來的結果、並附「在哪一台機器上成立」的條件）。三檔都轉過了才開放刻印；rubric、pass、示範解答、slots 與官方出處一個位元組都沒動 —— 所以退回石碑刻印時玩家刻出來的字一模一樣（相容契約）。"
+      }
+    },
+    {
+      "id": "four-elements-mirror-44",
+      "title": "四要素之鏡",
+      "region": "config",
+      "disposition": "rework",
+      "v2SkillId": "skeleton-ptcf",
+      "v2Temple": "四要素之鏡（改造）",
+      "primaryTechniqueId": "framework-01",
+      "primaryTechniqueTitle": "Google Workspace：Persona · Task · Context · Format",
+      "techniqueIdRealign": false,
+      "needsV2Catalog": false,
+      "primaryTechniqueInTeachesLegacy": true,
+      "mainCheck": "hasRole",
+      "newChecker": false,
+      "interimMainCheck": null,
+      "foundationCheck": "specifiesFormat",
+      "foundationNewChecker": false,
+      "checksToRemoveOrDownweight": [
+        {
+          "check": "assignsTask",
+          "weightBefore": 1,
+          "action": "downweight",
+          "weightAfter": 0.5,
+          "phase": "A",
+          "reason": "全域：它是每一關的前提，不該再被當成「這一關教的東西」（gap-analysis §3 建議 1／curriculum-v2 §4 全域改動）"
+        },
+        {
+          "check": "explainsWhy",
+          "weightBefore": 1,
+          "action": "remove",
+          "weightAfter": 0,
+          "phase": "D",
+          "reason": "主題搬去自己的神廟（C1 一關一技巧／C2 只教一次）：rubric 由 6 條降為 2 條，只留四要素本身"
+        },
+        {
+          "check": "hasAudience",
+          "weightBefore": 1,
+          "action": "remove",
+          "weightAfter": 0,
+          "phase": "D",
+          "reason": "主題搬去自己的神廟（C1 一關一技巧／C2 只教一次）：rubric 由 6 條降為 2 條，只留四要素本身"
+        },
+        {
+          "check": "hasDelimiters",
+          "weightBefore": 1,
+          "action": "remove",
+          "weightAfter": 0,
+          "phase": "D",
+          "reason": "主題搬去自己的神廟（C1 一關一技巧／C2 只教一次）：rubric 由 6 條降為 2 條，只留四要素本身"
+        },
+        {
+          "check": "specifiesFormat",
+          "weightBefore": null,
+          "action": "remove",
+          "weightAfter": 0,
+          "phase": "D",
+          "reason": "manifest 原本把它記為地基；C1 之後既有 27 關的地基一律收斂成 assignsTask（一關只有一條地基），格式本身則是量器坊的主題。",
+          "addedIn": "D"
+        }
+      ],
+      "passBefore": 4,
+      "passAfter": 3.5,
+      "passAfterByWeightRule": 3.75,
+      "totalWeightBefore": 8,
+      "totalWeightAfter": 7.5,
+      "teachesLegacy": [
+        "framework-01",
+        "clarity-01",
+        "format-05"
+      ],
+      "designNote": "rubric 由 6 條降為 2 條，只留四要素本身",
+      "phaseD": {
+        "skillId": "skeleton-ptcf",
+        "mainCheck": "hasRole",
+        "mainWeightAfterD": 3,
+        "totalWeightAfterD": 3.5,
+        "passAfterD": 2,
+        "kindAfterD": "choice",
+        "note": "Phase D（脈絡與長文／角色與參數各 12 座）執行本列的 post-A 條目，並把 rubric 收斂成「主檢查 3 分 ＋ 地基 assignsTask 0.5 分、pass 2」——與課程 v2 新蓋的神廟同一個形狀（C1）。primaryTechniqueId 保留（它真的有祖先，收集不倒退），另外新增 primarySkillId 指向 v2 技能。"
+      }
+    },
+    {
+      "id": "crossroad-scale-45",
+      "title": "抉擇之秤",
+      "region": "config",
+      "disposition": "rework",
+      "v2SkillId": "model-pick",
+      "v2Temple": "抉擇之秤（改造）",
+      "primaryTechniqueId": "framework-03",
+      "primaryTechniqueTitle": "何時用推理模型 vs 一般模型",
+      "techniqueIdRealign": false,
+      "needsV2Catalog": false,
+      "primaryTechniqueInTeachesLegacy": true,
+      "mainCheck": "namesModelClass",
+      "newChecker": true,
+      "interimMainCheck": "keepsPromptLean",
+      "foundationCheck": null,
+      "foundationNewChecker": false,
+      "checksToRemoveOrDownweight": [
+        {
+          "check": "assignsTask",
+          "weightBefore": 1,
+          "action": "downweight",
+          "weightAfter": 0.5,
+          "phase": "A",
+          "reason": "全域：它是每一關的前提，不該再被當成「這一關教的東西」（gap-analysis §3 建議 1／curriculum-v2 §4 全域改動）"
+        },
+        {
+          "check": "mentionsParameters",
+          "weightBefore": 2,
+          "action": "remove",
+          "weightAfter": 0,
+          "phase": "D",
+          "reason": "主題搬去自己的神廟（C1 一關一技巧／C2 只教一次）：主題明確化為「挑哪一台」；keepsPromptLean 讓給減法之庭"
+        },
+        {
+          "check": "hasConstraint",
+          "weightBefore": 2,
+          "action": "remove",
+          "weightAfter": 0,
+          "phase": "D",
+          "reason": "主題搬去自己的神廟（C1 一關一技巧／C2 只教一次）：主題明確化為「挑哪一台」；keepsPromptLean 讓給減法之庭"
+        },
+        {
+          "check": "keepsPromptLean",
+          "weightBefore": null,
+          "action": "remove",
+          "weightAfter": 0,
+          "phase": "D",
+          "reason": "它是 namesModelClass 還沒實作時的 interimMainCheck；「寫得精簡」是減法之庭（Phase H）的主題，這一關收斂成「挑哪一台」（C2）。",
+          "addedIn": "D"
+        }
+      ],
+      "passBefore": 4,
+      "passAfter": 3.5,
+      "passAfterByWeightRule": 3.25,
+      "totalWeightBefore": 7,
+      "totalWeightAfter": 6.5,
+      "teachesLegacy": [
+        "framework-03",
+        "params-03"
+      ],
+      "designNote": "主題明確化為「挑哪一台」；keepsPromptLean 讓給減法之庭",
+      "phaseD": {
+        "skillId": "model-pick",
+        "mainCheck": "namesModelClass",
+        "mainWeightAfterD": 3,
+        "totalWeightAfterD": 3.5,
+        "passAfterD": 2,
+        "kindAfterD": "tradeoff",
+        "note": "Phase D 實作了 §7.4 的 namesModelClass（manifest 早就指定它是主檢查）。"
+      }
+    }
+  ],
+  "updatedBy": "課程 v2 · Phase G（multi 兩輪刻印 ＋ refinery 校驗場 11 座 ＋ orchestration 收尾 12 座） ｜ 課程 v2 · Phase H（sim 轉鈕）：火力熔爐與刻度儀之室的第三幕由 choice 換裝成 sim，rubric／示範解答／slots／出處一個位元組未動。 ｜ 課程 v2 · Phase I（觀象臺 sight 8 座）：這一期沒有搬動、也沒有改造既有 27 關中的任何一關（8 座全部是新蓋的），所以 manifest 的 challenges 一列都沒有動。 ｜ 課程 v2 · Phase J3（拆掉 D2 相容層）：最後兩座還沒接上 v2 技能的教學神廟（清晰之門 → clear-specific、迷路的自動機 → clear-positive）補上 primarySkillId 並收斂成 C1 的形狀；兩列 post-A 的移除改標為 phase J 並各補一個 phaseJ 區塊逐欄記錄。130 座教學神廟 ↔ 130 條技能自此一對一。"
+}

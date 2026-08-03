@@ -13,8 +13,13 @@ import {
   infoTip,
   rovingList,
   safeRich,
+  sourceBook,
   sourceNoteHtml,
 } from './dom.js';
+import { glossary } from './glossary.js';
+
+/** 官方出處在畫面上的說法（和主控台第二幕同一句話）。 */
+const SOURCE_LABEL = '神諭原典';
 
 export function createCodex({
   content,
@@ -129,6 +134,61 @@ export function createCodex({
     </div>`;
   }
 
+  /* ---------------------------------------------------------------- *
+   * 課程 v2 · Phase J2：印記
+   *
+   *   土地印記（12 枚）：通過那一片土地的試煉就入袋。
+   *   大師層印記（可選、永不擋路 —— C9）：無筆之印 / 默寫之印 /
+   *   一區純手 / 分歧之證。它們**不是任何東西的解鎖條件**，所以在圖鑑上
+   *   只佔一小塊，安靜地放在徽章下面。
+   * ---------------------------------------------------------------- */
+
+  /** 一座神廟教的那條技能 / 技巧 → 那一關（拿來標大師層的小記號）。 */
+  function shrineOf(kind, id) {
+    const list = content.challenges || [];
+    return list.find((c) => c.application !== true && (kind === 'skill' ? c.primarySkillId === id : c.primaryTechniqueId === id)) || null;
+  }
+
+  /** 一座神廟的大師層小記號（沒拿到就什麼都不畫）。 */
+  function masterMark(kind, id) {
+    const c = shrineOf(kind, id);
+    if (!c || !progression.hasPenless) return '';
+    const pen = progression.hasPenless(c.id);
+    const scr = progression.hasScribe(c.id);
+    if (!pen && !scr) return '';
+    const bits = [];
+    if (pen) bits.push('<span class="mseal" title="無筆之印：沒用任何輔助，一次拿到 S">✒</span>');
+    if (scr) bits.push('<span class="mseal" title="默寫之印：自由書寫模式拿到 S">✍</span>');
+    return `<span class="mseals">${bits.join('')}</span>`;
+  }
+
+  /** 印記那一小塊（土地印記 ＋ 大師層）。 */
+  function sealStrip() {
+    if (!progression.masterSeals) return '';
+    const m = progression.masterSeals();
+    const regions = content.groupsOrdered();
+    const cells = regions
+      .map((g) => {
+        const got = m.seals.includes(g.id);
+        const pure = m.pureRegions.includes(g.id);
+        return `<li class="seal ${got ? 'is-on' : ''}${pure ? ' is-pure' : ''}" style="--c:${esc(g.color)}"
+          title="${esc(g.name)}${got ? ' · 試煉已通過' : ' · 試煉還沒通過'}${pure ? ' · 一區純手' : ''}">
+          <span class="seal__mark">${got ? '✦' : '·'}</span><b>${esc(g.name)}</b>
+        </li>`;
+      })
+      .join('');
+    return `<div class="seals">
+      <div class="meta-rule"><h4><span class="zh">土地印記</span><span class="en">Seals</span></h4></div>
+      <p class="muted" style="margin:0 0 var(--s4);font-size:var(--t-micro)">每一片土地的地標腳下都有一座試煉；通過了就把那一片的印記收進來（${m.seals.length} / ${regions.length}）。</p>
+      <ul class="seals__list">${cells}</ul>
+      <p class="codex__hint">大師層（完全選配，不給 XP、不解鎖任何東西）：無筆之印 ✒ ${
+        m.penless.length
+      } 枚 · 默寫之印 ✍ ${m.scribe.length} 枚 · 一區純手 ${m.pureRegions.length} 片${
+        m.divergenceProof ? ' · ✦ 分歧之證' : ''
+      }</p>
+    </div>`;
+  }
+
   function techniqueCard(tech) {
     const got = progression.isCollected(tech.id);
     const vendors = (tech.vendors || [])
@@ -161,7 +221,7 @@ export function createCodex({
       <details>
         <summary>
           <span class="tech__id">${esc(tech.id)}</span>
-          <b class="tech__title">${esc(tech.title)}</b>
+          <b class="tech__title">${esc(tech.title)}</b>${masterMark('technique', tech.id)}
           <span class="tech__chips">${vendors}</span>
         </summary>
         <div class="tech__body">
@@ -187,12 +247,13 @@ export function createCodex({
               : ''
           }
           <ul class="tech__srcs">
+            <li class="tech__srcslabel">${esc(SOURCE_LABEL)}</li>
             ${(view.sources || [])
               .map(
                 (s) =>
-                  `<li><a class="src" href="${esc(s.url)}" target="_blank" rel="noopener">${esc(
-                    s.name
-                  )} ↗</a>${sourceNoteHtml(content.sourceNote ? content.sourceNote(s.url) : null)}</li>`
+                  `<li>${sourceBook(s, { label: SOURCE_LABEL })}${sourceNoteHtml(
+                    content.sourceNote ? content.sourceNote(s.url) : null
+                  )}</li>`
               )
               .join('')}
           </ul>
@@ -201,9 +262,67 @@ export function createCodex({
     </li>`;
   }
 
+  /**
+   * 課程 v2 · Phase E：只教 v2 技能的區域（量器坊起）在舊 68 條裡沒有主題，
+   * 所以圖鑑改列這一區的技能本身。**顯示規則與舊技巧完全一樣**：
+   * 未收集只留一行剪影，收集了才展開看說明 ＋ 可點的官方出處（護欄 2）。
+   */
+  function skillCard(skill) {
+    const got = progression.isSkillCollected(skill.id);
+    if (!got) {
+      return `<li class="tech tech--locked">
+        <div class="tech__head">
+          <span class="tech__id">${esc(skill.id)}</span>
+          <b class="tech__title">？？？</b>
+        </div>
+      </li>`;
+    }
+    const sources = content.catalog.sourcesForSkill(skill.id);
+    return `<li class="tech">
+      <details>
+        <summary>
+          <span class="tech__id">${esc(skill.id)}</span>
+          <b class="tech__title">${esc(skill.nameZh)}</b>${masterMark('skill', skill.id)}
+          <span class="tech__chips"><span class="chip" style="--c:var(--gold)">${esc(skill.tier)}</span></span>
+        </summary>
+        <div class="tech__body">
+          <p class="tech__tip">${esc(skill.oneLiner)}</p>
+          <ul class="tech__srcs">
+            <li class="tech__srcslabel">${esc(SOURCE_LABEL)}</li>
+            ${sources
+              .map(
+                (s) =>
+                  `<li>${sourceBook(
+                    { url: s.url, name: s.docName || s.vendor },
+                    { label: SOURCE_LABEL }
+                  )}${sourceNoteHtml(content.sourceNote ? content.sourceNote(s.url) : null)}</li>`
+              )
+              .join('')}
+          </ul>
+        </div>
+      </details>
+    </li>`;
+  }
+
+  /** 一整區的技能清單（沒有主題可以分層，所以只有一疊）。 */
+  function skillSection(regionId) {
+    const skills = content.regionSkills(regionId);
+    if (!skills.length) return '';
+    const got = skills.filter((s) => progression.isSkillCollected(s.id)).length;
+    return `<section class="topic">
+      <h4 class="topic__head">
+        <span class="topic__num">✦</span>
+        <span>這片土地上的技法</span>
+        <span class="topic__count">${got}/${skills.length}</span>
+      </h4>
+      <p class="topic__sub">解開這一區的神廟，那一條就會被刻進來。</p>
+      <ul class="techs">${skills.map(skillCard).join('')}</ul>
+    </section>`;
+  }
+
   function render() {
     const collected = progression.state.collected.length;
-    const totalTech = (content.curriculum.techniques || []).length;
+    const totalTech = content.catalog.counts.techniques;
     overlay.setEyebrow('技巧圖鑑 · 收集冊');
     overlay.setTitle('技巧圖鑑', `已收集 ${collected} / ${totalTech} 條技巧`);
 
@@ -212,7 +331,10 @@ export function createCodex({
       .map((g) => {
         const mastery = progression.regionMastery(g.id);
         const pct = mastery.total ? Math.round((mastery.collected / mastery.total) * 100) : 0;
-        const topics = content
+        const unit = mastery.skillBased ? '條技法' : '條技巧';
+        const topics = mastery.skillBased
+          ? skillSection(g.id)
+          : content
           .topicsOf(g.id)
           .map((topic) => {
             const techs = content.techniquesOf(topic.id);
@@ -229,14 +351,16 @@ export function createCodex({
           })
           .join('');
 
+        const sealed = Boolean(progression.hasSeal && progression.hasSeal(g.id));
         return `<article class="region-card${mastery.mastered ? ' is-mastered' : ''}" style="--c:${esc(g.color)}">
           ${mastery.mastered ? '<span class="region-card__seal">✦ 精通 Mastered</span>' : ''}
+          ${sealed ? '<p class="region-card__trial">✦ 試煉已通過 —— 這片土地的印記在你身上。</p>' : ''}
           <header class="region-card__head">
             <div>
               <h3>${esc(g.name)} <span class="muted">${esc(g.nameEn)}</span></h3>
             </div>
             <div class="region-card__meta">
-              <p class="muted">${mastery.collected} / ${mastery.total} 條技巧${
+              <p class="muted">${mastery.collected} / ${mastery.total} ${unit}${
                 mastery.mastered ? ' · 已全數收集' : ''
               }</p>
               <div class="meter meter--sm"><i style="width:${pct}%"></i></div>
@@ -254,9 +378,14 @@ export function createCodex({
       })
       .join('');
 
-    overlay.body.innerHTML = `${rankBar()}${badgeStrip()}<div class="codex">${groups}</div>`;
+    overlay.body.innerHTML = `${rankBar()}${badgeStrip()}${sealStrip()}<div class="codex">${groups}</div>`;
     // 每次重繪都會換掉 ⓘ 節點，但事件是委派在 body 上，綁一次就夠
     bindInfoTips(overlay.body);
+    /*
+     * Phase 35：術語小卡。這裡以「一條技巧」為單位各掃一次
+     * （整本圖鑑掃一次的話，130 條裡只會有一個字被畫線）。
+     */
+    glossary.annotateEach(overlay.body, '.tech__body');
   }
 
   /*

@@ -1094,6 +1094,13 @@ a.src:hover {
   color: rgba(120, 137, 161, 0.9);
   text-shadow: 0 1px 10px #000;
   white-space: nowrap;
+  /* 平常幾乎隱形（20%），滑過去才浮現 —— 老玩家不需要它一直站在那裡。 */
+  opacity: 0.2;
+  transition: opacity var(--d-mid) var(--e-out);
+  pointer-events: auto;
+}
+.hud__controls:hover {
+  opacity: 1;
 }
 
 .hud__toasts {
@@ -1418,15 +1425,71 @@ a.src:hover {
 .panel__sub:empty {
   display: none;
 }
+
+/* ---------------------------------------------------------------- 一條式標頭
+   關卡（與序章練習台）的標頭原本疊三層：小標籤 / 關卡名 / NPC，再加一顆 Esc，
+   佔掉 170px 高才講完「這是哪一關」。現在壓成**一條**：
+
+     清晰之門  守門人 · 灰石            撰寫基本功 · 第 12 關 / 共 15 關   Esc ✕
+
+   關卡名與 NPC 同一條基線（NPC 小一號、安靜），進度收成右邊那面小牌。
+   窄畫面（≤720px）讓小牌掉到第二行，Esc 仍然守在第一行最右邊。 */
+.panel__head--bar {
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--s3) var(--s5);
+}
+.panel__headline {
+  display: flex;
+  align-items: baseline;
+  flex: 1 1 auto;
+  gap: var(--s3);
+  /* 沒有這一行，長標題會把整條撐開而不是自己截斷 */
+  min-width: 0;
+}
+.panel__head--bar .panel__title {
+  /* 位置不夠時先讓 NPC 縮（下面 shrink 給 3），關卡名是最後才動的那一個 */
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  text-wrap: nowrap;
+}
+.panel__head--bar .panel__sub {
+  flex: 0 3 auto;
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+/* 進度小牌：安靜的凹槽，不跟暖金的成就熱點搶戲 */
+.panel__head--bar .panel__eyebrow {
+  flex: none;
+  margin: 0 0 0 auto;
+  padding: 5px 12px;
+  clip-path: var(--seal-shape);
+  background-image: linear-gradient(180deg, rgba(157, 184, 209, 0.11), rgba(0, 0, 0, 0.28));
+  white-space: nowrap;
+}
+.panel__head--bar .panel__eyebrow[hidden] {
+  display: none;
+}
+/* 出口只留一個叉（Esc 那兩個字母收進 aria-label） */
 .panel__close {
   --cut: 6px;
   flex: none;
-  font-family: var(--font-meta);
-  font-size: var(--t-meta);
-  letter-spacing: var(--tr-meta-tight);
-  text-transform: uppercase;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-ui);
+  font-size: calc(var(--t-micro) * 1.05);
+  letter-spacing: 0;
+  line-height: 1;
   min-height: 40px;
-  padding: 6px 14px;
+  min-width: 40px;
+  padding: 6px 10px;
 }
 .panel__body {
   position: relative;
@@ -1673,6 +1736,16 @@ a.src:hover {
   color: var(--paper-3);
   margin-top: 2px;
 }
+/* 課程 v2 · Phase J2：試煉的對照表底下那一句話（安靜，不搶戲）。 */
+.checklist__note {
+  display: block;
+  margin-top: var(--s3);
+  padding-top: var(--s3);
+  border-top: 1px solid var(--rule);
+  font-size: var(--t-micro);
+  line-height: 1.7;
+  color: var(--paper-4);
+}
 .checklist__w {
   font-family: var(--font-mono);
   font-size: var(--t-micro);
@@ -1684,6 +1757,34 @@ a.src:hover {
 .checklist .src {
   grid-column: 1 / -1;
   justify-self: start;
+}
+
+/* Phase A：一關只教一條 —— 主教學目標亮起來，地基與還沒搬家的舊項目退到次要位階。
+   （它們還是看得到、還是算分，只是不再跟主角搶「這一關在教什麼」。） */
+.checklist__tag {
+  display: inline-block;
+  margin-left: var(--s2);
+  padding: 1px 6px;
+  border: 1px solid var(--rule-gold);
+  border-radius: 2px;
+  font-family: var(--font-ui);
+  font-size: var(--t-micro);
+  font-style: normal;
+  letter-spacing: var(--tr-cjk);
+  color: var(--gold, #e6c79b);
+  vertical-align: 1px;
+}
+.checklist li.is-primary .checklist__text b {
+  color: #f4e7d2;
+}
+.checklist li.is-foundation,
+.checklist li.is-minor {
+  opacity: 0.72;
+}
+.checklist li.is-foundation .checklist__text b,
+.checklist li.is-minor .checklist__text b {
+  font-weight: 400;
+  color: var(--paper-2);
 }
 
 /* 技巧積木（Phase 18）：貼著書寫檯下緣的一條工具列。
@@ -1996,18 +2097,29 @@ a.src:hover {
 .row:last-child {
   border-bottom: 0;
 }
-/* 狀態一律「符號 ＋ 形狀 ＋ 顏色」三重編碼，不只靠顏色 */
+/* 狀態一律「符號 ＋ 形狀 ＋ 顏色」三重編碼，不只靠顏色。
+   刻記是行內 SVG（見 ui/dom.js 的 ROW_MARKS）——
+   置中因此是幾何事實，不是字型 side bearing 的運氣；
+   尺寸全部用自己的 font-size 當單位，型級再放大也不會跑掉。 */
 .row__icon {
   flex: none;
-  width: 22px;
-  height: 22px;
-  display: grid;
-  place-items: center;
-  border: 1px solid currentColor;
-  font-family: var(--font-mono);
   font-size: 17px;
-  font-weight: 600;
+  width: 1.3em;
+  height: 1.3em;
+  /* 對齊標題第一行的視覺中線：標題行盒高（--t-body × --lh-prose）減掉
+     圖示自身高度的一半。用 calc 跨單位算，型級再改也不會又歪掉。 */
+  margin-top: calc((var(--t-body) * var(--lh-prose) - 1.3em) / 2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  border: 1px solid currentColor;
   color: var(--paper-4);
+}
+.row__mark {
+  display: block;
+  width: 0.68em;
+  height: 0.68em;
 }
 .row--pass .row__icon {
   border-radius: 50%;
@@ -2107,6 +2219,63 @@ a.src:hover {
 
 /* ================================================================ codex
    收藏品的目錄：像美術館的圖錄，不像清單。 */
+/* ------------------------------------------------------------------ *
+ * 課程 v2 · Phase J2：印記（土地印記 ＋ 大師層）
+ *
+ * 它們是選配的（C9：永不擋路），所以刻意做得比廠家徽章更安靜：
+ * 沒有色塊、沒有動畫，只有一枚小小的刻痕與名字。
+ * ------------------------------------------------------------------ */
+.seals {
+  margin-bottom: var(--s7);
+}
+.seals h4 {
+  margin: 0;
+}
+.seals__list {
+  list-style: none;
+  margin: 0 0 var(--s4);
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s3) var(--s5);
+}
+.seal {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  font-size: var(--t-micro);
+  color: var(--paper-4);
+  /* 窄畫面上寧可換行也不要把面板撐寬（12 片土地的名字加起來很長） */
+  min-width: 0;
+}
+.seal__mark {
+  color: var(--ink-4);
+  font-size: 1.1em;
+}
+.seal.is-on {
+  color: var(--paper-1);
+}
+.seal.is-on .seal__mark {
+  color: var(--gold);
+}
+.seal.is-pure b::after {
+  content: ' ✒';
+  color: var(--gold);
+}
+.mseals {
+  margin-left: var(--s2);
+  white-space: nowrap;
+}
+.mseal {
+  color: var(--gold);
+  font-size: var(--t-micro);
+  margin-left: 2px;
+}
+.region-card__trial {
+  margin: 0 0 var(--s4);
+  font-size: var(--t-micro);
+  color: var(--gold);
+}
 .badges {
   margin-bottom: var(--s7);
 }
@@ -2432,7 +2601,15 @@ a.src:hover {
   padding: 0;
   display: flex;
   flex-wrap: wrap;
-  gap: var(--s2) var(--s5);
+  align-items: center;
+  gap: var(--s2) var(--s3);
+}
+/* 一列書之前的那個小標 —— 出處是什麼東西，不能只靠圖示自己講（護欄 2） */
+.tech__srcslabel {
+  font-family: var(--font-ui);
+  font-size: var(--t-micro);
+  letter-spacing: var(--tr-cjk);
+  color: var(--paper-4);
 }
 @media (max-width: 720px) {
   .tech__body {
@@ -3634,6 +3811,33 @@ select option:disabled {
   .panel__close {
     align-self: flex-end;
   }
+  /*
+   * 一條式標頭在窄畫面**不整個堆起來**：關卡名與 Esc 仍然是同一行
+   * （左邊講「這是哪一關」、右邊是出口），只有進度小牌掉到第二行。
+   * NPC 太長時自己換到標題底下，但仍在左欄。
+   */
+  .panel__head--bar {
+    flex-direction: row;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: var(--s2) var(--s4);
+  }
+  .panel__head--bar .panel__close {
+    order: 2;
+    align-self: baseline;
+  }
+  .panel__head--bar .panel__eyebrow {
+    order: 3;
+    flex-basis: 100%;
+    margin-left: 0;
+  }
+  /* 標題那一欄壓在同一行（title 與 npc 各自截斷），才擠得下右邊的 Esc */
+  .panel__head--bar .panel__headline {
+    flex: 1 1 0;
+    flex-wrap: nowrap;
+    gap: var(--s3);
+    min-width: 0;
+  }
   .panel__body {
     padding: var(--s5);
   }
@@ -4150,99 +4354,75 @@ select option:disabled {
   }
 }
 
-/* -------------------------------------------------- 漂浮提示球 */
+/* -------------------------------------------------- 提示：一顆很小的燈
+   原本是一塊寫著「● 提示 H」的護符牌，貼在書寫檯左下角壓著說明文字。
+   現在只剩一顆燈泡：不寫字、不畫牌面、極慢地呼吸（7 秒一次，0.35 → 0.6）。
+   它是「想不出來時這裡有光」，不是一顆要人按的按鈕 —— 所以安靜到近乎背景。 */
 .orb {
-  /* 黏在第三幕的底部：石碑與輸入框永遠不會被蓋住 */
+  /* 黏在第三幕的左下角：石碑與輸入框永遠不會被蓋住 */
   position: sticky;
   bottom: var(--s4);
   z-index: 4;
+  align-self: flex-start;
   display: inline-flex;
   align-items: center;
-  gap: var(--s2);
+  justify-content: center;
   margin: var(--s4) 0 0;
-  --cut: 9px;
-  min-height: 40px;
-  padding: 8px 16px 8px 12px;
+  width: 40px;
+  height: 40px;
+  padding: 0;
   border: 0;
-  border-radius: 0;
-  isolation: isolate;
+  border-radius: 50%;
   background: transparent;
-  filter: drop-shadow(0 10px 22px rgba(0, 0, 0, 0.6));
-  font-family: var(--font-ui);
-  font-size: var(--t-meta);
-  letter-spacing: var(--tr-cjk);
   color: var(--gold);
   cursor: pointer;
+  opacity: 0.5;
+  animation: orb-breath 7.2s var(--e-inout) infinite;
   transition:
-    transform var(--d-fast) var(--e-snap),
-    box-shadow var(--d-mid) var(--e-out),
-    border-color var(--d-mid) var(--e-out);
+    opacity var(--d-mid) var(--e-out),
+    transform var(--d-fast) var(--e-snap);
 }
-/* 護符牌的邊與面（和刻印牌同一套作法，只是走暖色） */
-.orb::before,
-.orb::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  clip-path: var(--seal-shape);
-  background-image: linear-gradient(180deg, rgba(246, 227, 194, 0.72), rgba(230, 199, 155, 0.18) 46%,
-    rgba(0, 0, 0, 0.7));
-  transition: background-image var(--d-fast) var(--e-snap);
+.orb__bulb {
+  filter: drop-shadow(0 0 6px rgba(230, 199, 155, 0.32));
 }
-.orb::after {
-  inset: 1px;
-  clip-path: var(--seal-shape-in);
-  background-image: linear-gradient(180deg, rgba(34, 27, 16, 0.98), rgba(16, 13, 8, 0.98));
+@keyframes orb-breath {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 0.6;
+  }
 }
 .orb:hover {
-  transform: translateY(-2px);
-}
-.orb:hover::before {
-  background-image: linear-gradient(180deg, #fbeed6, rgba(230, 199, 155, 0.5) 46%, rgba(0, 0, 0, 0.7));
+  opacity: 1;
+  transform: translateY(-1px);
+  animation-play-state: paused;
 }
 .orb:focus-visible {
-  outline: none;
-}
-.orb:focus-visible::before {
-  background-image: linear-gradient(180deg, #fbeed6, rgba(230, 199, 155, 0.8));
-  filter: drop-shadow(0 0 9px rgba(230, 199, 155, 0.6));
+  outline: 2px solid var(--gold);
+  outline-offset: 3px;
+  opacity: 1;
+  animation-play-state: paused;
 }
 @media (max-width: 900px) {
   .coach {
     margin-right: 0;
   }
 }
-.orb__core {
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  background: radial-gradient(circle at 35% 32%, #fff4dd, var(--gold) 62%, rgba(230, 199, 155, 0.2));
-  box-shadow: 0 0 10px rgba(230, 199, 155, 0.55);
-  animation: orb-float 3.6s var(--e-inout) infinite;
-}
-@keyframes orb-float {
-  0%,
-  100% {
-    transform: translateY(0) scale(1);
-    opacity: 0.85;
-  }
-  50% {
-    transform: translateY(-3px) scale(1.08);
-    opacity: 1;
-  }
-}
-/* 發呆 20 秒、或送出沒過 → 溫和地招手（不是 modal、不搶焦點） */
+/* 發呆 20 秒、或送出沒過 → 亮一點點招手（仍然不是 modal、不搶焦點） */
 .orb.is-nudging {
-  animation: orb-nudge 1.5s var(--e-out) 4;
+  animation: orb-nudge 2.4s var(--e-inout) 4;
 }
 @keyframes orb-nudge {
   0%,
   100% {
-    box-shadow: 0 0 0 0 rgba(230, 199, 155, 0);
+    opacity: 0.45;
+    filter: none;
   }
-  35% {
-    box-shadow: 0 0 22px 4px rgba(230, 199, 155, 0.4);
+  50% {
+    opacity: 0.9;
+    filter: drop-shadow(0 0 9px rgba(230, 199, 155, 0.5));
   }
 }
 .orb.is-tucked {
@@ -4250,9 +4430,12 @@ select option:disabled {
   pointer-events: none;
   transform: translateY(6px);
 }
-.orb.is-done .orb__core {
-  background: radial-gradient(circle at 35% 32%, #e8fff2, var(--good) 62%, rgba(127, 209, 168, 0.2));
-  box-shadow: 0 0 10px rgba(127, 209, 168, 0.5);
+/* 每一項都做到了：燈轉成完成色（形狀不變，只換溫度） */
+.orb.is-done {
+  color: var(--good);
+}
+.orb.is-done .orb__bulb {
+  filter: drop-shadow(0 0 6px rgba(127, 209, 168, 0.32));
 }
 
 /* -------------------------------------------------- 黃色教學框 */
@@ -4485,7 +4668,8 @@ select option:disabled {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .orb__core,
+  /* 提示燈：不呼吸，改成穩定亮著（reduce 是換一種表達，不是關掉） */
+  .orb,
   .orb.is-nudging,
   .lamp.is-ready .lamp__dot,
   .btn--primary.is-ready,
@@ -4493,6 +4677,9 @@ select option:disabled {
   .checklist__row.is-justlit .checklist__dot,
   .coach {
     animation: none;
+  }
+  .orb {
+    opacity: 0.55;
   }
 }
 
@@ -4932,9 +5119,27 @@ select option:disabled {
   transition: transform 220ms var(--e-out);
   transform: translate3d(0, var(--lift, 0), 0);
 }
+/*
+ * 拖曳中的那一片：**永遠看得見、永遠跟著指標**（Phase 35.1）。
+ *
+ * `transition: none` —— 位移由指標每一幀寫進 `--lift`，補間只會讓它落後於手指。
+ * `z-index` 拉高 —— 它是「被拿起來的那一片」，要壓在別片上面（不然滑過去會被蓋住，
+ * 看起來就像消失了）。`will-change` 讓它自己一層，搬動時不會連累整張清單重畫。
+ */
 .slip.is-dragging {
-  z-index: 3;
+  z-index: 5;
   transition: none;
+  will-change: transform;
+}
+/*
+ * 入場動畫只播一次。
+ *
+ * 搬動一片石版在 DOM 上是「移除再插入」，只要 `opt-in` 還掛在身上就會從頭重播
+ * ——那一片會先變成 opacity:0（還帶著 `--i × 42ms` 的延遲）再淡回來，
+ * 拖曳時看起來就是「卡片不見了」。入場跑完（或第一次搬動）就關掉。
+ */
+.slips.is-settled .slip__grip {
+  animation: none;
 }
 .slip__grip {
   --cut: 10px;
@@ -5029,6 +5234,793 @@ select option:disabled {
 .slip.is-held .slip__grip,
 .slip.is-dragging .slip__grip {
   transform: scale(1.012);
+}
+/* 拖著的時候：手是握著的，石版離開了地面（陰影是唯一在說「它被拿起來了」的東西） */
+.slip.is-dragging .slip__grip {
+  cursor: grabbing;
+  box-shadow: inset 0 1px 0 rgba(230, 199, 155, 0.3), inset 0 0 0 1px rgba(230, 199, 155, 0.55),
+    0 18px 40px -18px rgba(0, 0, 0, 0.95);
+}
+
+/* ================================================================
+   改碑（課程 v2 · Phase B）—— 抄寫人留下的壞草稿，一句一句換掉
+
+   草稿本身就是石碑：不能動的句子安靜地躺著，畫線的那幾句是可按的。
+   換好的那一句轉暖金（成就熱點），還沒換的維持原本的冷色 —— 沒有紅字。
+   ================================================================ */
+.fixboard[hidden],
+.spotboard[hidden] {
+  display: none;
+}
+.draft {
+  display: grid;
+  gap: var(--s2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.frag {
+  position: relative;
+}
+.frag--kept {
+  padding: var(--s2) var(--s3);
+  font-family: var(--font-input);
+  font-size: var(--t-micro);
+  line-height: 1.85;
+  color: var(--paper-3);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  border-left: 1px solid var(--rule);
+}
+.frag__grip {
+  --cut: 8px;
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  align-items: start;
+  gap: var(--s3);
+  width: 100%;
+  padding: var(--s2) var(--s3);
+  border: 0;
+  color: var(--paper-2);
+  font-family: var(--font-input);
+  font-size: var(--t-micro);
+  line-height: 1.85;
+  text-align: left;
+  cursor: pointer;
+  background: linear-gradient(180deg, rgba(19, 27, 38, 0.94), rgba(8, 11, 17, 0.96));
+  box-shadow: inset 0 1px 0 rgba(214, 232, 244, 0.08), inset 0 0 0 1px var(--rule);
+  clip-path: polygon(
+    var(--cut) 0,
+    100% 0,
+    100% calc(100% - var(--cut)),
+    calc(100% - var(--cut)) 100%,
+    0 100%,
+    0 var(--cut)
+  );
+  animation: opt-in var(--d-mid) var(--e-out) both;
+  animation-delay: calc(var(--i, 0) * 38ms);
+}
+.frag--weak:not(.is-fixed) .frag__text {
+  text-decoration: underline wavy rgba(196, 220, 236, 0.32);
+  text-underline-offset: 5px;
+}
+.frag__grip:hover {
+  color: #eef4fa;
+  box-shadow: inset 0 1px 0 rgba(214, 232, 244, 0.14), inset 0 0 0 1px rgba(196, 220, 236, 0.3);
+}
+.frag__grip:focus-visible {
+  outline: 2px solid rgba(230, 199, 155, 0.9);
+  outline-offset: 2px;
+}
+.frag__mark {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  margin-top: 3px;
+  font-size: var(--t-micro);
+  color: var(--paper-4);
+}
+.frag__text {
+  display: block;
+  min-width: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.frag__gone {
+  color: var(--paper-4);
+  font-style: normal;
+}
+.frag.is-fixed .frag__grip {
+  color: #f2ead9;
+  box-shadow: inset 0 1px 0 rgba(230, 199, 155, 0.22), inset 0 0 0 1px var(--rule-gold);
+}
+.frag.is-fixed .frag__mark {
+  color: var(--gold);
+}
+.frag__options {
+  display: grid;
+  gap: var(--s2);
+  margin: var(--s2) 0 var(--s3) var(--s4);
+  padding-left: var(--s3);
+  border-left: 1px solid var(--rule-gold);
+}
+
+/* ================================================================
+   點碑（課程 v2 · Phase B）—— 自己看出哪幾句有問題並點起來
+
+   點對的翻面（露出改寫版或直接被拿掉），點到不能動的那一句會彈回來
+   並就地長出一句白話教學。永遠不用紅字、不用叉叉。
+   ================================================================ */
+.spots {
+  display: grid;
+  gap: var(--s2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.spot {
+  position: relative;
+}
+.spot__grip {
+  --cut: 8px;
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  align-items: start;
+  gap: var(--s3);
+  width: 100%;
+  padding: var(--s2) var(--s3);
+  border: 0;
+  color: var(--paper-2);
+  font-family: var(--font-input);
+  font-size: var(--t-micro);
+  line-height: 1.85;
+  text-align: left;
+  cursor: pointer;
+  background: linear-gradient(180deg, rgba(19, 27, 38, 0.94), rgba(8, 11, 17, 0.96));
+  box-shadow: inset 0 1px 0 rgba(214, 232, 244, 0.08), inset 0 0 0 1px var(--rule);
+  clip-path: polygon(
+    var(--cut) 0,
+    100% 0,
+    100% calc(100% - var(--cut)),
+    calc(100% - var(--cut)) 100%,
+    0 100%,
+    0 var(--cut)
+  );
+  animation: opt-in var(--d-mid) var(--e-out) both;
+  animation-delay: calc(var(--i, 0) * 38ms);
+}
+.spot__grip:hover {
+  color: #eef4fa;
+  box-shadow: inset 0 1px 0 rgba(214, 232, 244, 0.14), inset 0 0 0 1px rgba(196, 220, 236, 0.3);
+}
+.spot__grip:focus-visible {
+  outline: 2px solid rgba(230, 199, 155, 0.9);
+  outline-offset: 2px;
+}
+.spot__mark {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  margin-top: 3px;
+  font-size: var(--t-micro);
+  color: var(--paper-4);
+}
+.spot__body {
+  min-width: 0;
+}
+.spot__was {
+  display: block;
+  color: var(--paper-4);
+  text-decoration: line-through;
+  text-decoration-color: rgba(230, 199, 155, 0.55);
+}
+.spot__text {
+  display: block;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.spot__gone {
+  color: var(--paper-4);
+  font-style: normal;
+}
+.spot.is-marked .spot__grip {
+  color: #f2ead9;
+  box-shadow: inset 0 1px 0 rgba(230, 199, 155, 0.22), inset 0 0 0 1px var(--rule-gold);
+}
+.spot.is-marked .spot__mark {
+  color: var(--gold);
+}
+.spot__fb {
+  display: block;
+  margin: var(--s2) 0 0 var(--s4);
+  padding-left: var(--s3);
+  border-left: 1px solid var(--rule-gold);
+  font-size: var(--t-micro);
+  line-height: 1.8;
+  color: var(--paper-3);
+}
+.spot.is-bounce {
+  animation: spot-bounce 320ms var(--e-out);
+}
+@keyframes spot-bounce {
+  0% {
+    transform: translate3d(0, 0, 0);
+  }
+  35% {
+    transform: translate3d(6px, 0, 0);
+  }
+  70% {
+    transform: translate3d(-4px, 0, 0);
+  }
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .spot.is-bounce {
+    animation: none;
+  }
+  .frag__grip,
+  .spot__grip {
+    animation: none;
+  }
+}
+
+/* ================================================================
+   推規碑與雙面碑（課程 v2 · Phase C）
+
+   兩者都是石碑刻印的變體：前面多一段舞台（猜規律／秤兩面），
+   想通之後回到同一塊石碑刻印。所以視覺語言完全沿用既有的
+   .stele / .carve / .opt —— 這裡只加「牆」與「兩面」自己的部分。
+   暖金一樣只給成就熱點（刻上去、贏的那一面），沒有紅字。
+   ================================================================ */
+.inductboard[hidden],
+.tradeboard[hidden],
+.slotstage[hidden] {
+  display: none;
+}
+.inductboard,
+.tradeboard {
+  display: grid;
+  gap: var(--s4);
+}
+
+/* --- 推規碑：牆上的對照一組一組浮出來 --- */
+.wall {
+  padding: var(--s3);
+  border-left: 1px solid var(--rule);
+  background: linear-gradient(180deg, rgba(19, 27, 38, 0.6), rgba(8, 11, 17, 0.4));
+}
+.wall__eyebrow {
+  margin: 0 0 var(--s2);
+  font-size: var(--t-micro);
+  letter-spacing: 0.02em;
+  color: var(--paper-4);
+}
+.wall__rows {
+  display: grid;
+  gap: var(--s2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.wallrow {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  align-items: start;
+  gap: var(--s3);
+  padding: var(--s2) var(--s3);
+  font-family: var(--font-input);
+  font-size: var(--t-micro);
+  line-height: 1.85;
+  color: var(--paper-2);
+  box-shadow: inset 0 1px 0 rgba(214, 232, 244, 0.06), inset 0 0 0 1px var(--rule);
+}
+.wallrow.is-hidden {
+  color: var(--paper-4);
+  box-shadow: inset 0 0 0 1px rgba(214, 232, 244, 0.07);
+}
+.wallrow.is-fresh {
+  color: #f2ead9;
+  box-shadow: inset 0 1px 0 rgba(230, 199, 155, 0.2), inset 0 0 0 1px var(--rule-gold);
+  animation: opt-in var(--d-mid) var(--e-out) both;
+}
+.wallrow__n {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  margin-top: 3px;
+  font-size: var(--t-micro);
+  color: var(--paper-4);
+}
+.wallrow__body {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--s2);
+  min-width: 0;
+}
+.wallrow__in,
+.wallrow__out {
+  overflow-wrap: anywhere;
+}
+.wallrow__out {
+  color: #f2ead9;
+}
+.wallrow__arrow {
+  color: var(--paper-4);
+}
+.wallrow.is-bounce {
+  animation: spot-bounce 320ms var(--e-out);
+}
+.wall__rule {
+  margin: var(--s3) 0 0;
+  padding-left: var(--s3);
+  border-left: 1px solid var(--rule-gold);
+  font-size: var(--t-micro);
+  line-height: 1.8;
+  color: var(--paper-3);
+}
+
+/* --- 雙面碑：一張卡，兩個都走得下去的面 --- */
+.twoface {
+  display: grid;
+  gap: var(--s3);
+}
+.twoface__eyebrow {
+  margin: 0;
+  font-size: var(--t-micro);
+  letter-spacing: 0.02em;
+  color: var(--paper-4);
+}
+.twoface__card {
+  margin: 0;
+  padding: var(--s2) var(--s3);
+  border-left: 1px solid var(--rule);
+  font-family: var(--font-input);
+  font-size: var(--t-micro);
+  line-height: 1.85;
+  color: var(--paper-2);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.twoface__sides {
+  display: grid;
+  gap: var(--s2);
+}
+@media (min-width: 720px) {
+  .twoface__sides {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+.face {
+  --cut: 8px;
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  align-items: start;
+  gap: var(--s3);
+  width: 100%;
+  padding: var(--s2) var(--s3);
+  border: 0;
+  color: var(--paper-2);
+  font-family: var(--font-input);
+  font-size: var(--t-micro);
+  line-height: 1.85;
+  text-align: left;
+  cursor: pointer;
+  background: linear-gradient(180deg, rgba(19, 27, 38, 0.94), rgba(8, 11, 17, 0.96));
+  box-shadow: inset 0 1px 0 rgba(214, 232, 244, 0.08), inset 0 0 0 1px var(--rule);
+  clip-path: polygon(
+    var(--cut) 0,
+    100% 0,
+    100% calc(100% - var(--cut)),
+    calc(100% - var(--cut)) 100%,
+    0 100%,
+    0 var(--cut)
+  );
+  animation: opt-in var(--d-mid) var(--e-out) both;
+  animation-delay: calc(var(--i, 0) * 38ms);
+}
+.face:hover {
+  color: #eef4fa;
+  box-shadow: inset 0 1px 0 rgba(214, 232, 244, 0.14), inset 0 0 0 1px rgba(196, 220, 236, 0.3);
+}
+.face:focus-visible {
+  outline: 2px solid rgba(230, 199, 155, 0.9);
+  outline-offset: 2px;
+}
+.face__key {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  margin-top: 3px;
+  font-size: var(--t-micro);
+  color: var(--paper-4);
+}
+/*
+ * 一面碑的文字都住在這一塊裡（標題 / 一句話 / 判詞）。
+ * 它必須是**第二欄唯一的那個孩子** —— 否則自動排版會把後面的文字
+ * 丟進 18px 寬的鍵位欄，中文就變成一字一行。
+ * `min-width: 0` 讓長句在 grid 裡照樣收得住（grid item 預設 min-width: auto）。
+ */
+.face__body {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.face__title {
+  display: block;
+  color: #eef4fa;
+}
+.face__gist {
+  display: block;
+  color: var(--paper-4);
+}
+.face__verdict {
+  display: block;
+  margin-top: var(--s2);
+  padding-left: var(--s3);
+  border-left: 1px solid var(--rule-gold);
+  color: var(--paper-3);
+}
+/* 這一張卡上划算的那一面：暖金（成就熱點）。另一面只是安靜地留著判詞 —— 沒有紅字。 */
+.face.is-win {
+  color: #f2ead9;
+  box-shadow: inset 0 1px 0 rgba(230, 199, 155, 0.22), inset 0 0 0 1px var(--rule-gold);
+}
+.face.is-win .face__key {
+  color: var(--gold);
+}
+.face.is-cost {
+  box-shadow: inset 0 1px 0 rgba(214, 232, 244, 0.08), inset 0 0 0 1px rgba(196, 220, 236, 0.24);
+}
+.twoface__log {
+  display: grid;
+  gap: var(--s2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.tradelog {
+  display: grid;
+  gap: 2px;
+  padding-left: var(--s3);
+  border-left: 1px solid var(--rule);
+  font-size: var(--t-micro);
+  line-height: 1.8;
+  color: var(--paper-3);
+  animation: opt-in var(--d-mid) var(--e-out) both;
+  animation-delay: calc(var(--i, 0) * 38ms);
+}
+.tradelog.is-win {
+  border-left-color: var(--rule-gold);
+}
+.tradelog__card {
+  color: var(--paper-4);
+}
+/*
+ * 那一張卡的前提（模型卡上的那一句）。安靜地墊在卡名底下 ——
+ * 兩條紀錄選了同一面卻收到相反的判詞時，差別就在這一行。
+ */
+.tradelog__premise {
+  color: var(--paper-4);
+  font-size: 0.92em;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+.tradelog__side {
+  color: #eef4fa;
+}
+/* 模型卡上的官方出處（課程 v2 · Phase J 的反差題）：兩張卡秤完之後並排留著 */
+.twoface__srcs,
+.tradelog__srcs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2) var(--s3);
+  margin: 0;
+}
+.twoface__src {
+  font-size: var(--t-micro);
+  line-height: 1.7;
+  color: var(--gold);
+  text-decoration: none;
+  border-bottom: 1px solid var(--rule-gold);
+}
+.twoface__src:hover,
+.twoface__src:focus-visible {
+  color: #f4dcb4;
+}
+@media (prefers-reduced-motion: reduce) {
+  .wallrow.is-fresh,
+  .wallrow.is-bounce,
+  .face,
+  .tradelog {
+    animation: none;
+  }
+}
+
+/* ================================================================
+   拆碑（課程 v2 · Phase J）—— 一份寫好的委託被拆開來讀
+
+   還是石碑刻印的變體：視覺語言沿用 .stele / .carve / .opt，
+   這裡只加「被拆開的那一份」與名牌自己的部分。
+   已經標好名字的那一塊走暖金（那是成就熱點），沒標的安靜地等。
+   ================================================================ */
+.reverseboard[hidden] {
+  display: none;
+}
+.reverseboard {
+  display: grid;
+  gap: var(--s4);
+}
+.taken {
+  padding: var(--s3);
+  border-left: 1px solid var(--rule);
+  background: linear-gradient(180deg, rgba(19, 27, 38, 0.6), rgba(8, 11, 17, 0.4));
+}
+.taken__eyebrow {
+  margin: 0 0 var(--s2);
+  font-size: var(--t-micro);
+  letter-spacing: 0.02em;
+  color: var(--paper-4);
+}
+.taken__lead {
+  margin: 0 0 var(--s3);
+  font-size: var(--t-micro);
+  line-height: 1.8;
+  color: var(--paper-3);
+}
+.taken__parts {
+  display: grid;
+  gap: var(--s2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.takenpart {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  align-items: start;
+  gap: var(--s3);
+  padding: var(--s2) var(--s3);
+  font-family: var(--font-input);
+  font-size: var(--t-micro);
+  line-height: 1.85;
+  color: var(--paper-3);
+  box-shadow: inset 0 0 0 1px rgba(214, 232, 244, 0.07);
+}
+.takenpart.is-now {
+  color: #eef4fa;
+  box-shadow: inset 0 1px 0 rgba(214, 232, 244, 0.08), inset 0 0 0 1px var(--rule);
+}
+.takenpart.is-named {
+  color: #f2ead9;
+  box-shadow: inset 0 1px 0 rgba(230, 199, 155, 0.2), inset 0 0 0 1px var(--rule-gold);
+  animation: opt-in var(--d-mid) var(--e-out) both;
+}
+.takenpart__n {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  margin-top: 3px;
+  font-size: var(--t-micro);
+  color: var(--paper-4);
+}
+.takenpart__body {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.takenpart__text {
+  overflow-wrap: anywhere;
+}
+.takenpart__tag {
+  font-family: var(--font-ui);
+  font-size: var(--t-micro);
+  letter-spacing: 0.02em;
+  color: var(--gold);
+}
+.takenpart__why {
+  font-family: var(--font-ui);
+  font-size: var(--t-micro);
+  line-height: 1.8;
+  color: var(--paper-3);
+}
+.takenpart.is-bounce {
+  animation: spot-bounce 320ms var(--e-out);
+}
+.taken__rule {
+  margin: var(--s3) 0 0;
+  padding-left: var(--s3);
+  border-left: 1px solid var(--rule-gold);
+  font-size: var(--t-micro);
+  line-height: 1.8;
+  color: var(--paper-3);
+}
+.opt__gist {
+  display: block;
+  font-size: var(--t-micro);
+  line-height: 1.7;
+  color: var(--paper-4);
+}
+@media (prefers-reduced-motion: reduce) {
+  .takenpart.is-named,
+  .takenpart.is-bounce {
+    animation: none;
+  }
+}
+
+/* ================================================================
+   合尺（課程 v2 · Phase D）—— 委託人的尺 ＋ 檯上的石片
+
+   這一種題型把「即時預檢」搬到台前：每一把尺上寫著它要量什麼，
+   石片挑上去，尺當場亮或暗。亮起來的尺是暖金（成就熱點），
+   暗回去的只是回到安靜的冷色 —— 一樣沒有紅字、沒有叉叉。
+   ================================================================ */
+.constraintboard[hidden] {
+  display: none;
+}
+.gauges {
+  margin-bottom: var(--s4);
+  padding: var(--s3) var(--s3) var(--s2);
+  border: 1px solid var(--rule);
+  background: linear-gradient(180deg, rgba(16, 23, 33, 0.72), rgba(9, 12, 18, 0.86));
+}
+.gauges__eyebrow {
+  margin: 0 0 var(--s2);
+  font-family: var(--font-ui);
+  font-size: var(--t-nano);
+  letter-spacing: 0.16em;
+  color: var(--paper-4);
+  text-transform: none;
+}
+.gauges__list {
+  display: grid;
+  gap: var(--s2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.gauge {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  align-items: start;
+  gap: var(--s3);
+  padding-bottom: var(--s2);
+  border-bottom: 1px solid var(--rule);
+  font-size: var(--t-micro);
+  line-height: 1.75;
+  color: var(--paper-3);
+  animation: opt-in var(--d-mid) var(--e-out) both;
+  animation-delay: calc(var(--i, 0) * 42ms);
+}
+.gauge:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+.gauge__mark {
+  color: var(--paper-4);
+  transition: color var(--d-mid) var(--e-out);
+}
+.gauge__want {
+  display: block;
+  color: var(--paper-2);
+}
+.gauge__note {
+  display: block;
+  margin-top: 2px;
+  font-size: var(--t-nano);
+  line-height: 1.7;
+  color: var(--paper-4);
+}
+/* 一片都還沒放：尺只留「這把尺要量什麼」那一句，整條安靜下來
+   （引擎的證據要等第一片放上去才出現 —— 見 constraint.js 的 measure()）。 */
+.gauge.is-idle {
+  color: var(--paper-4);
+}
+.gauge.is-idle .gauge__want {
+  color: var(--paper-3);
+}
+.gauge.is-idle .gauge__mark {
+  color: rgba(255, 255, 255, 0.22);
+}
+.gauge.is-half .gauge__mark {
+  color: rgba(230, 199, 155, 0.62);
+}
+.gauge.is-lit .gauge__mark {
+  color: var(--gold);
+}
+.gauge.is-lit .gauge__want {
+  color: #f2ead9;
+}
+.pieces {
+  display: grid;
+  gap: var(--s2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.piece {
+  position: relative;
+}
+.piece__grip {
+  --cut: 8px;
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  align-items: start;
+  gap: var(--s3);
+  width: 100%;
+  padding: var(--s2) var(--s3);
+  border: 0;
+  color: var(--paper-2);
+  font-family: var(--font-input);
+  font-size: var(--t-micro);
+  line-height: 1.85;
+  text-align: left;
+  cursor: pointer;
+  background: linear-gradient(180deg, rgba(19, 27, 38, 0.94), rgba(8, 11, 17, 0.96));
+  box-shadow: inset 0 1px 0 rgba(214, 232, 244, 0.08), inset 0 0 0 1px var(--rule);
+  clip-path: polygon(
+    var(--cut) 0,
+    100% 0,
+    100% calc(100% - var(--cut)),
+    calc(100% - var(--cut)) 100%,
+    0 100%,
+    0 var(--cut)
+  );
+  animation: opt-in var(--d-mid) var(--e-out) both;
+  animation-delay: calc(var(--i, 0) * 38ms);
+}
+.piece__grip:hover {
+  color: #eef4fa;
+  box-shadow: inset 0 1px 0 rgba(214, 232, 244, 0.14), inset 0 0 0 1px rgba(196, 220, 236, 0.3);
+}
+.piece__grip:focus-visible {
+  outline: 2px solid rgba(230, 199, 155, 0.9);
+  outline-offset: 2px;
+}
+.piece__mark {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  margin-top: 3px;
+  font-size: var(--t-micro);
+  color: var(--paper-4);
+}
+.piece__text {
+  display: block;
+  min-width: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.piece.is-on .piece__grip {
+  color: #f2ead9;
+  box-shadow: inset 0 1px 0 rgba(230, 199, 155, 0.22), inset 0 0 0 1px var(--rule-gold);
+}
+.piece.is-on .piece__mark {
+  color: var(--gold);
+}
+.piece__fb {
+  display: block;
+  margin: var(--s2) 0 0 var(--s4);
+  padding-left: var(--s3);
+  border-left: 1px solid var(--rule-gold);
+  font-size: var(--t-micro);
+  line-height: 1.8;
+  color: var(--paper-3);
+}
+@media (prefers-reduced-motion: reduce) {
+  .gauge,
+  .piece__grip {
+    animation: none;
+  }
 }
 
 /* ================================================================
@@ -5268,17 +6260,28 @@ select option:disabled {
   color: var(--paper-3);
   text-align: center;
 }
+/*
+ * Phase 35：加寬 ＋ 讓字自己換行在該換的地方。
+ *
+ * 168px 的牌子放不下「把手掌按上石碑」這七個字（會斷成「把手掌按上 /
+ * 石碑」），提示那一行更亂 ——「按住不放（Enter 也可以）」被擠成三行、
+ * 括號還被丟到下一行。加寬到 252px 讓主句一行寫得完，提示改成兩段
+ * 各自完整的短句（見 palm.js 的 .palm__hintline），不再靠溢位換行。
+ */
 .palm {
   --hold: 0;
   position: relative;
   display: grid;
   place-items: center;
-  gap: 2px;
-  width: 168px;
-  padding: var(--s4) var(--s3) var(--s3);
+  gap: var(--s1);
+  width: 252px;
+  max-width: 100%;
+  padding: var(--s4) var(--s4) var(--s3);
   border: 1px solid var(--rule-gold);
-  border-radius: 84px 84px var(--radius-lg) var(--radius-lg);
-  background: radial-gradient(70% 60% at 50% 34%, rgba(230, 199, 155, 0.14), rgba(230, 199, 155, 0) 70%);
+  border-radius: 126px 126px var(--radius-lg) var(--radius-lg);
+  /* 上亮下暗的石面（跟刻印牌同一套受光方向）＋ 掌心那圈暖光 */
+  background: radial-gradient(70% 60% at 50% 34%, rgba(230, 199, 155, 0.14), rgba(230, 199, 155, 0) 70%),
+    linear-gradient(180deg, rgba(233, 238, 245, 0.055), rgba(6, 10, 16, 0.22));
   color: var(--gold);
   font-family: var(--font-ui);
   cursor: pointer;
@@ -5379,12 +6382,36 @@ select option:disabled {
 }
 .palm__label {
   font-size: var(--t-small);
+  line-height: 1.25;
   letter-spacing: var(--tr-cjk);
   color: #f0e3cd;
+  /* 七個字一行寫得完 —— 不准在詞中間被擠斷 */
+  white-space: nowrap;
 }
+/*
+ * 提示（Phase 35.1）：**一行寫完、非常小**。
+ *
+ * 原本是兩行、約 18px —— 在一顆已經寫著「把手掌按上石碑」的牌子上，
+ * 那是第二句主文，不是註腳。收成原本的 0.4 倍、併成一句，
+ * 它就退回它該待的地方：需要的時候看得到，不需要的時候不吵。
+ */
 .palm__hint {
-  font-size: var(--t-micro);
+  display: block;
+  margin-top: 2px;
+  font-size: calc(var(--t-micro) * 0.86 * 0.4);
+  line-height: 1.4;
   color: rgba(230, 199, 155, 0.6);
+  text-align: center;
+}
+.palm__hintline {
+  display: block;
+  white-space: nowrap;
+}
+/* 鍵帽跟著縮：內距寫成 em，才不會在 7px 的字上還撐著 7px 的邊 */
+.palm .palm__hint kbd {
+  min-width: 1.6em;
+  margin-left: 0.4em;
+  padding: 0.1em 0.45em;
 }
 .palm.is-slipped .palm__hint {
   color: var(--warn);
@@ -5424,7 +6451,9 @@ select option:disabled {
 
 @media (max-width: 900px) {
   .palm {
-    width: 148px;
+    width: 232px;
+    padding: var(--s3) var(--s3) var(--s2);
+    border-radius: 116px 116px var(--radius-lg) var(--radius-lg);
   }
 }
 
@@ -5483,12 +6512,14 @@ select option:disabled {
 
    軌道的填色不需要 JS —— 用相鄰選擇器：某一塊亮了或蓋過章了，
    它後面那一段就注金。 */
+/* 這一排是**路標**，不是主角：整條收到原本的三分之二高，
+   讓第一眼落在題目上而不是進度條。軌道仍然對齊石頭的中線。 */
 .acts {
   display: flex;
   align-items: stretch;
   gap: 3px;
-  margin: 0 0 var(--s6);
-  padding-bottom: var(--s4);
+  margin: 0 0 var(--s4);
+  padding-bottom: var(--s2);
   border-bottom: 1px solid var(--rule);
   flex-wrap: wrap;
 }
@@ -5509,27 +6540,24 @@ select option:disabled {
 .acts__item.is-now + .acts__rule {
   background-size: 100% 100%;
 }
+/*
+ * 石頭上只刻名字（委託 / 指引 / 刻印 / 手印）。
+ * 編號（ACT I / 第一幕）留在 aria-label 與 title 裡 —— 讀得到，但不占畫面。
+ */
 .acts__item {
-  --cut: 8px;
+  --cut: 7px;
   --seal-lit: rgba(196, 220, 236, 0.22);
   --face: linear-gradient(180deg, rgba(20, 28, 39, 0.9), rgba(6, 9, 14, 0.94));
   display: inline-flex;
   align-items: center;
   gap: var(--s2);
-  min-height: 40px;
-  padding: 7px 15px;
+  min-height: 32px;
+  padding: 3px 14px;
   color: var(--paper-4);
   font-family: var(--font-ui);
-  font-size: var(--t-micro);
+  font-size: calc(var(--t-micro) * 0.86);
   font-weight: 500;
   letter-spacing: var(--tr-cjk);
-}
-.acts__num {
-  font-family: var(--font-mono);
-  font-size: 1.6rem;
-  line-height: 1;
-  color: inherit;
-  opacity: 0.85;
 }
 /* 還沒走到的幕：看得見但按不下去（不能跳過指引） */
 .acts__item:disabled {
@@ -5556,9 +6584,6 @@ select option:disabled {
 .acts__item.is-now::before {
   background-image: linear-gradient(180deg, #ffffff, rgba(169, 201, 216, 0.7) 52%, rgba(12, 22, 32, 0.9));
   filter: drop-shadow(0 0 10px rgba(169, 201, 216, 0.34));
-}
-.acts__item.is-now .acts__num {
-  opacity: 1;
 }
 
 /* ---------------------------------------------------------------- 一幕 */
@@ -5615,6 +6640,115 @@ select option:disabled {
   letter-spacing: var(--tr-cjk);
   color: var(--paper-4);
 }
+/*
+ * 導言（Phase 35.1）：貼在「神諭刻文」旁邊、同一行、小 0.8 倍。
+ *
+ * 它是一句旁白，不是第二個標題 —— 站在標題後面就夠了。
+ * 五秒一次很淺的一眨：只是告訴你「這裡還有一句話」，不是在閃燈。
+ */
+.act__head .act__lead--inline {
+  display: inline;
+  margin: 0 0 0 var(--s3);
+  font-size: calc(var(--t-micro) * 0.8);
+  line-height: 1.6;
+  letter-spacing: var(--tr-cjk);
+  vertical-align: 0.12em;
+  color: var(--paper-4);
+  animation: lead-wink 5s var(--e-inout) infinite;
+}
+@keyframes lead-wink {
+  0%,
+  86%,
+  100% {
+    opacity: 1;
+  }
+  93% {
+    opacity: 0.42;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .act__head .act__lead--inline {
+    animation: none;
+  }
+}
+
+/* ---------------------------------------------------------------- 神諭原典
+   一本 20px 的典籍，永遠看得見（護欄 2）：hover / focus 說出是哪一份文件，
+   按下去就開那份官方文件。氣泡沿用 ⓘ 那一套（不會自己彈出來）。 */
+.infotip--book {
+  margin-left: 6px;
+  vertical-align: -0.24em;
+}
+.bookicon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  color: rgba(230, 199, 155, 0.72);
+  text-decoration: none;
+  transition: color var(--d-fast) var(--e-snap), filter var(--d-fast) var(--e-snap);
+}
+.bookicon:hover,
+.bookicon:focus-visible {
+  color: #f7e7c9;
+  filter: drop-shadow(0 0 6px rgba(230, 199, 155, 0.45));
+}
+.bookicon:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 1px;
+}
+/*
+ * 書大多長在一段文字的**左緣**（刻文底下、圖鑑那一列）——
+ * 氣泡照 ⓘ 的規矩置中就會有一半跑到面板外面被裁掉。
+ * 所以書的氣泡靠左長；長在右欄（側頁籤）的那幾本反過來靠右。
+ */
+/*
+ * 氣泡打開時把「含著它的那一行」整個抬到最上層。
+ *
+ * 為什麼需要這一手：`.reveal` 的入場動畫結束後 fill-mode 會留下 transform，
+ * 非 none 的 transform 讓底下每個段落各自成為 stacking context ——
+ * DOM 順序在後的段落（craft 引言、刻文本體）就算 z-index 沒設，
+ * 也會畫在前一行氣泡的**上面**（實際回報過：氣泡被底下的文字穿透）。
+ * 把 z-index 設在氣泡自己身上救不了（它被關在自己那一行的 context 裡），
+ * 要抬就要抬整行。:has() 在目標瀏覽器（Chrome/Edge）都支援。
+ */
+.reveal:has(.infotip.is-open),
+.reveal:has(.infotip:focus-within),
+:where(h1, h2, h3, h4, h5, p, div, li, span):has(> .infotip.is-open),
+:where(h1, h2, h3, h4, h5, p, div, li, span):has(> .infotip:focus-within) {
+  position: relative;
+  z-index: 45;
+}
+
+.infotip--book .infotip__bubble {
+  left: 0;
+  /* 書的氣泡一律往下開：它多半出現在段落開頭（第二幕導言、圖鑑條目首行），
+     往上開會撞到面板頭與幕指示器被裁掉（實際回報過的 bug）。 */
+  bottom: auto;
+  top: calc(100% + 8px);
+  transform: translate(0, -4px);
+}
+/* `.infotip` 那一組打開時的位移是 `translate(-50%)`，特異度跟這裡一樣、
+   又寫在後面 —— 所以這裡多掛一個 `.infotip` 把它壓過去（不然書的氣泡
+   會被往左推半個身位，整塊跑出面板外被裁掉）。 */
+.infotip.infotip--book:focus-within .infotip__bubble,
+.infotip.infotip--book.is-open .infotip__bubble {
+  transform: translate(0, 0);
+}
+.rail .infotip--book .infotip__bubble,
+.guidetab .infotip--book .infotip__bubble {
+  left: auto;
+  right: 0;
+}
+/* 原典那一行：一本書（或好幾本）＋ 出處狀態註記 */
+.srcrow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2);
+  margin: var(--s3) 0 0;
+}
 .act__foot {
   display: flex;
   align-items: center;
@@ -5625,11 +6759,6 @@ select option:disabled {
 }
 .act__foot .spacer {
   flex: 1;
-}
-.act__hint {
-  font-family: var(--font-mono);
-  font-size: var(--t-meta);
-  color: var(--paper-4);
 }
 
 /* 這一次要用上的工法：從 mission 搬出來的「怎麼答」（Phase 12 的資料重整） */
@@ -5700,6 +6829,16 @@ select option:disabled {
 .glyph__how {
   color: rgba(230, 220, 201, 0.9);
 }
+/* Phase A：第二幕只放大這一關真正教的那一條 */
+.glyph--primary .glyph__mark {
+  color: var(--gold, #e6c79b);
+}
+.glyph--primary .glyph__title {
+  font-size: var(--t-h2, var(--t-h3));
+}
+.guidetab__list li.is-quiet {
+  opacity: 0.7;
+}
 
 /* ---------------------------------------------------------------- 第三幕舞台 */
 .carvehead {
@@ -5711,9 +6850,6 @@ select option:disabled {
 }
 .carvehead .spacer {
   flex: 1;
-}
-.carvehead .act__kicker {
-  margin: 0;
 }
 .carvestage {
   display: grid;
@@ -5877,24 +7013,34 @@ select option:disabled {
   vertical-align: baseline;
   margin-left: 4px;
 }
-/* ⓘ ＝ 一顆嵌在文句裡的符文石 */
+/* ⓘ ＝ 一顆嵌在文句裡的符文石
+   註腳就該小：**看得見的石頭只有 13px**（Phase 14 放大後那顆 26px 太搶戲），
+   但**可點的範圍仍然是 22px**（WCAG 2.5.8 的 24×24 是給孤立目標的地板，
+   這顆貼在文句尾巴、四周沒有別的目標，22px 摸得到也按得到）。
+   作法：按鈕本體維持 22px 當命中範圍，兩層石面（::before / ::after）
+   往內縮 --infotip-inset，露出來的就只有中間那顆小石頭。 */
 .infotip__btn {
-  --cut: 8px;
+  --cut: 5px;
+  /* (22 - 13) / 2 = 4.5px：石面往內縮這麼多，視覺直徑就是 13px */
+  --infotip-inset: 4.5px;
   position: relative;
   isolation: isolate;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 26px;
-  height: 26px;
+  width: 22px;
+  height: 22px;
   padding: 0;
   border: 0;
   border-radius: 0;
   background: transparent;
   color: rgba(230, 199, 155, 0.72);
   font-family: var(--font-ui);
-  font-size: 1.2rem;
+  /* 1.2rem 的一半 —— 字跟著石頭一起縮，比例不變 */
+  font-size: 0.6rem;
   line-height: 1;
+  /* 小石頭要跟中文字腰身對齊，不然會掛在基線上顯得往下沉 */
+  vertical-align: -0.02em;
   cursor: help;
   transition: color var(--d-fast) var(--e-snap);
 }
@@ -5902,14 +7048,15 @@ select option:disabled {
 .infotip__btn::after {
   content: '';
   position: absolute;
-  inset: 0;
+  inset: var(--infotip-inset);
   z-index: -1;
   clip-path: var(--seal-shape);
   background-image: linear-gradient(180deg, rgba(230, 199, 155, 0.34), rgba(0, 0, 0, 0.4));
   transition: background-image var(--d-fast) var(--e-snap), filter var(--d-fast) var(--e-snap);
 }
 .infotip__btn::after {
-  inset: 1px;
+  /* 比外層再往內 1px —— 露出來那一圈就是石頭的邊 */
+  inset: calc(var(--infotip-inset) + 1px);
   clip-path: var(--seal-shape-in);
   background-image: linear-gradient(180deg, rgba(32, 26, 16, 0.9), rgba(10, 8, 5, 0.9));
 }
@@ -5967,7 +7114,14 @@ select option:disabled {
   clip-path: var(--seal-shape-in);
   background-color: rgba(9, 12, 18, 0.98);
 }
-.infotip:hover .infotip__bubble,
+/*
+ * 顯示條件刻意**不含 `:hover`**。
+ *
+ * 瀏覽器在版面變動後會重算「游標底下是誰」，所以「ⓘ 剛好長在停住不動的
+ * 游標底下」也會命中 `:hover` —— 玩家什麼都沒做，說明卡就自己彈出來。
+ * hover 改由 `bindInfoTips()` 的 mousemove 判定（游標真的動過才算），
+ * 判定結果寫成 `.is-open`。focus 是明確的意圖，留在 CSS 裡沒問題。
+ */
 .infotip:focus-within .infotip__bubble,
 .infotip.is-open .infotip__bubble {
   opacity: 1;
@@ -5993,6 +7147,109 @@ select option:disabled {
   .infotip__bubble {
     transition: none;
     transform: translate(-50%, 0);
+  }
+}
+
+/* ------------------------------------------------------------ 術語小卡（Phase 35）
+   畫面上順口出現的英文名詞（prompt / JSON / temperature…）底下多一條很淡的
+   虛線，滑上去或點一下就浮出一張小卡。標記本身要「看得出可以問」但不能
+   跟金色的成就熱點搶戲，所以線是冷星光色，只有亮起來的那一刻才轉暖金。
+
+   卡片掛在 <body> 上（position: fixed）—— 面板有 overflow，掛在裡面會被裁掉。 */
+.gloss {
+  border-bottom: 1px dotted rgba(157, 184, 209, 0.55);
+  cursor: help;
+  transition: color var(--d-fast) var(--e-out), border-color var(--d-fast) var(--e-out);
+}
+.gloss:hover,
+.gloss.is-on {
+  color: var(--gold);
+  border-bottom-color: var(--gold);
+  border-bottom-style: solid;
+}
+.glosscard {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 34; /* 面板 20 / 分享卡 24 / 操作一覽 26 之上，標題卡 40 之下 */
+  width: max-content;
+  max-width: min(34ch, calc(100vw - 24px));
+  --cut: 9px;
+  padding: var(--s3) var(--s4);
+  clip-path: var(--seal-shape);
+  background-color: rgba(230, 199, 155, 0.4);
+  color: var(--paper-2);
+  font-family: var(--font-ui);
+  font-size: var(--t-micro);
+  line-height: 1.7;
+  letter-spacing: var(--tr-cjk);
+  text-align: left;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(3px);
+  transition: transform var(--d-fast) var(--e-out);
+}
+.glosscard::before {
+  content: '';
+  position: absolute;
+  inset: 1px;
+  z-index: -1;
+  clip-path: var(--seal-shape-in);
+  background-color: rgba(9, 12, 18, 0.98);
+}
+.glosscard.is-on {
+  opacity: 1;
+  transform: none;
+}
+.glosscard__head {
+  margin: 0 0 var(--s1);
+  display: flex;
+  align-items: baseline;
+  gap: var(--s2);
+}
+.glosscard__head b {
+  color: var(--gold);
+  font-family: var(--font-mono);
+  font-size: var(--t-small);
+  font-weight: 500;
+}
+.glosscard__head i {
+  color: var(--paper-3);
+  font-style: normal;
+  font-size: calc(var(--t-micro) * 0.88);
+}
+.glosscard__plain {
+  margin: 0 0 var(--s2);
+  color: var(--paper-1);
+}
+.glosscard__row {
+  margin: 0;
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: var(--s2);
+  color: var(--paper-3);
+  font-size: calc(var(--t-micro) * 0.92);
+}
+.glosscard__k {
+  color: var(--gold);
+  opacity: 0.75;
+  white-space: nowrap;
+}
+.glosscard__row--ex {
+  margin-top: var(--s1);
+  padding-top: var(--s2);
+  border-top: 1px solid var(--rule);
+}
+.glosscard__row--ex code {
+  color: var(--paper-2);
+  font-family: var(--font-mono);
+  font-size: calc(var(--t-micro) * 0.86);
+  overflow-wrap: anywhere;
+}
+@media (prefers-reduced-motion: reduce) {
+  .glosscard {
+    transition: none;
+    transform: none;
   }
 }
 
@@ -6206,10 +7463,12 @@ select option:disabled {
   pointer-events: auto;
   margin-left: 2px;
 }
+/* 石牌上的那顆再小一階（視覺 11px），命中範圍仍留 20px */
 .perfmon .infotip__btn {
-  width: 16px;
-  height: 16px;
-  font-size: 0.78rem;
+  --infotip-inset: 4.5px;
+  width: 20px;
+  height: 20px;
+  font-size: 0.55rem;
 }
 .perfmon .infotip__bubble {
   left: 0;
@@ -6221,7 +7480,6 @@ select option:disabled {
   font-size: 0.7rem;
   line-height: 1.55;
 }
-.perfmon .infotip:hover .infotip__bubble,
 .perfmon .infotip:focus-within .infotip__bubble,
 .perfmon .infotip.is-open .infotip__bubble {
   transform: translate(0, 0);
@@ -6422,6 +7680,112 @@ select option:disabled {
 /* 「下載圖片」是 <a>（要 download 屬性）—— 但它看起來要跟旁邊的石頭一樣，不是連結 */
 .sharecard__acts a.btn {
   text-decoration: none;
+}
+
+/* 一排圖示（Phase 35.1）
+   Facebook / Instagram / Threads / 複製 —— 只有圖，名字在 aria-label 與 title 裡。
+   刻印牌的 quiet 階：切角石面、hover 才注金、focus 是符文環。 */
+.sharecard__icons {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  min-width: 0;
+}
+.iconbtn {
+  --cut: 6px;
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--paper-3);
+  cursor: pointer;
+  transition: color var(--d-fast) var(--e-out), translate var(--d-fast) var(--e-out);
+}
+.iconbtn::before,
+.iconbtn::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  clip-path: var(--seal-shape);
+  background-image: linear-gradient(180deg, var(--seal-lit), var(--seal-shade));
+}
+.iconbtn::after {
+  inset: 1px;
+  clip-path: var(--seal-shape-in);
+  background-image: var(--face, linear-gradient(180deg, var(--seal-face-a), var(--seal-face-b)));
+}
+.iconbtn:hover {
+  color: #f0e3cd;
+  translate: 0 -1px;
+}
+.iconbtn:hover::before {
+  background-image: linear-gradient(180deg, rgba(230, 199, 155, 0.55), rgba(230, 199, 155, 0.14));
+}
+.iconbtn:active {
+  translate: 0 0;
+}
+.iconbtn:active::after {
+  background-image: linear-gradient(0deg, var(--seal-face-a), var(--seal-face-b));
+}
+.iconbtn:focus-visible {
+  outline: none;
+  color: var(--gold);
+}
+.iconbtn:focus-visible::before {
+  background-image: linear-gradient(180deg, var(--gold), rgba(230, 199, 155, 0.6));
+  filter: drop-shadow(0 0 8px rgba(230, 199, 155, 0.5));
+}
+.iconbtn svg {
+  display: block;
+}
+/* 沒有系統分享面板時，複製那顆就是主角 —— 石面翻成暖金 */
+.iconbtn.is-hero {
+  --face: linear-gradient(180deg, rgba(230, 199, 155, 0.24), rgba(230, 199, 155, 0.05));
+  color: #f4e6cd;
+}
+/* 複製成功：整顆翻成勾記（顏色 ＋ 形狀一起換，不只換顏色） */
+.iconbtn__face--done {
+  display: none;
+}
+.iconbtn.is-done {
+  color: var(--gold);
+}
+.iconbtn.is-done .iconbtn__face--done {
+  display: block;
+}
+.iconbtn.is-done .iconbtn__face:not(.iconbtn__face--done) {
+  display: none;
+}
+/* 下載：最安靜的那一階（一個小圖示 ＋ 兩個字，不是石頭） */
+.sharecard__dl {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  padding: 6px 4px;
+  color: var(--paper-4);
+  font-family: var(--font-ui);
+  font-size: var(--t-micro);
+  letter-spacing: var(--tr-cjk);
+  text-decoration: none;
+  transition: color var(--d-fast) var(--e-out);
+}
+.sharecard__dl svg {
+  width: 16px;
+  height: 16px;
+}
+.sharecard__dl:hover {
+  color: #dfe9f3;
+}
+.sharecard__dl:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 3px;
 }
 
 /* 一段話（Phase 28）
@@ -6654,7 +8018,6 @@ select option:disabled {
 /* 戴在可按的東西身上的鍵帽：縮一號、稍微退到後面，不跟主要文字搶 */
 .btn kbd,
 .modeswitch kbd,
-.orb__label kbd,
 .clue > summary kbd,
 .guidetab > summary kbd,
 .palm__hint kbd,
@@ -6671,4 +8034,578 @@ select option:disabled {
   outline: 2px solid var(--gold);
   outline-offset: 3px;
   color: var(--gold);
+}
+
+/* ================================================================
+   行動裝置還債點（課程 v2 · Phase D）
+
+   task_plan.md 的 Phase D 出口條件：「不一定做世界觸控移動，但不能讓
+   新題型 UI 無法操作」。所以這一段管的是**面板**——四幕、八種題型的
+   石碑、結果、圖鑑、設定，在 720px 與 390px 都要：
+     · 沒有水平溢位（面板不會被推出畫面）
+     · 可以按得到（互動元素的高度 ≥ 40px，Apple/Google 的最小觸控目標）
+     · 讀得動（字級往下收一階，但不小於 13px）
+
+   **世界的觸控移動（虛擬搖桿）刻意不做** —— 它是另一件事（相機、碰撞、
+   HUD 版面），成本與風險都不屬於這一期，誠實記在 task_plan／findings。
+   ================================================================ */
+@media (max-width: 720px) {
+  /* --- 版面：面板貼齊視窗，不留會產生水平捲動的邊 --- */
+  .overlay {
+    padding: var(--s3);
+  }
+  .panel {
+    width: 100%;
+    max-height: 96vh;
+    border-radius: var(--radius-sm);
+  }
+  .panel__body {
+    padding: var(--s4);
+  }
+  .panel__head {
+    padding: var(--s4) var(--s4) var(--s3);
+  }
+  /* 長內容（素材、碑文、示範解答）一律自己斷行，不撐寬版面 */
+  .console__scenario,
+  .material__text,
+  .carve__text,
+  .opt,
+  .piece__text,
+  .spot__text,
+  .frag__text,
+  .slip__text,
+  .takenpart__text,
+  .gauge__want {
+    overflow-wrap: anywhere;
+  }
+
+  /* --- 觸控目標：一律至少 44px 高（Apple HIG 的建議值；e2e 量 ≥40px 留一點餘裕） --- */
+  .opt,
+  .piece__grip,
+  .spot__grip,
+  .frag__grip,
+  .fill,
+  .block,
+  .face,
+  .wallrow,
+  .takenpart,
+  .slip,
+  .btn,
+  .modeswitch,
+  .acts__item,
+  .coach__fill,
+  .tech summary,
+  .panel__close {
+    min-height: 44px;
+  }
+  .btn,
+  .modeswitch {
+    padding-block: 10px;
+  }
+  .panel__close {
+    min-width: 44px;
+  }
+
+  /* --- 第三幕：石碑與對照上下疊（900px 就已經疊了，這裡再收邊距） --- */
+  .carvestage {
+    gap: var(--s5);
+  }
+  .carvestage__main {
+    padding-right: 0;
+  }
+  .rail {
+    padding-left: 0;
+  }
+  /* 合尺：尺與石片都是整行，字級收一階但仍讀得動 */
+  .gauges {
+    padding: var(--s3) var(--s3) var(--s2);
+  }
+  .gauge,
+  .piece__grip {
+    font-size: max(13px, var(--t-nano));
+  }
+  /* 雙面碑：兩面在窄畫面本來就疊起來，這裡讓判詞不要縮排太深 */
+  .tradelog {
+    margin-left: var(--s2);
+  }
+  /* 排序刻印：拖曳在觸控上不好用 —— 把鍵盤／按鈕那條路留得夠明顯 */
+  .slip__grip {
+    min-height: 44px;
+  }
+  /* 自由書寫的輸入框在小螢幕給足高度（iOS 會自動聚焦放大，16px 以上才不會） */
+  .prompt-input {
+    min-height: 128px;
+    font-size: max(16px, var(--t-micro));
+  }
+}
+
+@media (max-width: 430px) {
+  /* 390px（iPhone 直式）：把水平留白壓到最小，並且讓每一列都能整行呈現 */
+  .overlay {
+    padding: var(--s2);
+  }
+  .panel__body,
+  .panel__head {
+    padding: var(--s3);
+  }
+  /*
+   * 390px：關卡名不截斷（那是玩家要認的東西），改讓 NPC 掉到它底下。
+   *   清晰之門                Esc ✕
+   *   守門人 · 灰石
+   *   撰寫基本功 · 第 01 關 / 共 15 關
+   */
+  .panel__head--bar .panel__headline {
+    flex-wrap: wrap;
+    gap: 0 var(--s3);
+  }
+  .panel__head--bar .panel__title,
+  .panel__head--bar .panel__sub {
+    flex: 0 1 100%;
+  }
+  .console__actions {
+    flex-wrap: wrap;
+    gap: var(--s3);
+  }
+  .console__actions .spacer {
+    display: none;
+  }
+  .console__actions .btn,
+  .console__actions .modeswitch {
+    flex: 1 1 100%;
+  }
+  .acts {
+    flex-wrap: wrap;
+    row-gap: var(--s2);
+  }
+  /* 材料卡／碑文的引文縮排在 390px 會吃掉太多寬度 */
+  .material {
+    padding-left: var(--s3);
+  }
+  .spot__fb,
+  .piece__fb,
+  .frag__fb {
+    margin-left: var(--s2);
+  }
+  /* 圖鑑的兩欄在這個寬度一定要收成一欄 */
+  .codex__grid,
+  .badges__list {
+    grid-template-columns: 1fr;
+  }
+  /*
+   * 圖鑑真正會撐寬版面的是**官方出處那條長網址**（沒有斷行機會的一長串字元），
+   * 設定頁則是那幾列「標籤 ＋ 滑桿 ＋ 數值」不換行。兩者都是讓它們斷得開就好，
+   * 不是把溢位藏起來。
+   */
+  .panel__body a,
+  .panel__body code,
+  .tech,
+  .topic,
+  .region-card {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    min-width: 0;
+  }
+  .settings__row {
+    flex-wrap: wrap;
+    row-gap: var(--s2);
+  }
+  .settings__row label {
+    min-width: 0;
+    flex: 1 1 100%;
+  }
+  .settings__row input[type='range'],
+  .settings__row select {
+    flex: 1 1 100%;
+    width: 100%;
+    min-width: 0;
+  }
+  .rank,
+  .rankbar,
+  .badge {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  /*
+   * 圖鑑裡還有一種會撐寬版面的東西：官方範例那塊等寬字的 <pre>。
+   * 它本來就有 overflow: auto，但 flex/grid 子項的預設 min-width: auto
+   * 會讓它先把容器撐開才輪到自己捲動。這幾條把「先撐開容器」這條路堵掉。
+   */
+  #codex .panel__body *,
+  #settings .panel__body * {
+    max-width: 100%;
+  }
+  /*
+   * 例外：說明氣泡。
+   * 它的容器只有一顆圖示那麼寬（ⓘ 22px、書 24px），套上 `max-width: 100%`
+   * 會把整段話壓成一個字寬的直條。氣泡本來就有自己的上限，讓它自己管。
+   */
+  #codex .panel__body .infotip__bubble,
+  #settings .panel__body .infotip__bubble {
+    max-width: min(26ch, 74vw);
+  }
+  /*
+   * 窄畫面把「神諭原典」那個小標放成獨立一行，書就從最左邊排起 ——
+   * 書的氣泡是靠左長的，起點越靠右就越容易被畫面右緣切掉。
+   */
+  .tech__srcslabel {
+    flex: 1 1 100%;
+  }
+  .tech__ex,
+  .tech__head,
+  .tech__body,
+  .tech__chips,
+  .region-card {
+    min-width: 0;
+  }
+  /*
+   * 真正的元凶量出來了：`.tech__chips`（廠家礦籤那一排）是 `flex: none` ＋
+   * `margin-left: auto`，在 390px 上會被推出容器右緣（實測整份圖鑑溢位 140px）。
+   * 讓標頭與礦籤都換行，並解掉 flex: none。
+   */
+  .tech__head,
+  .tech summary,
+  .tech__chips {
+    flex-wrap: wrap;
+  }
+  .tech__chips {
+    flex: 0 1 auto;
+    margin-left: 0;
+    width: 100%;
+  }
+  /*
+   * ⓘ 的氣泡是絕對定位、`left: 50%` ＋ `translate(-50%)`。在 390px 上它會伸出
+   * 容器右緣（實測讓圖鑑多出 16px 的水平溢位）。窄畫面改成「靠左展開 ＋ 收窄」，
+   * 內容照樣讀得到（`visibility` 的顯示邏輯完全不動）。
+   */
+  .infotip__bubble {
+    left: auto;
+    right: 0;
+    max-width: min(26ch, 74vw);
+    transform: translate(0, 4px);
+  }
+  .infotip.is-open .infotip__bubble,
+  .infotip:focus-within .infotip__bubble {
+    transform: translate(0, 0);
+  }
+  /* 書幾乎都貼在一段文字的左緣 —— 靠左展開才不會整塊跑到畫面外 */
+  .infotip--book .infotip__bubble {
+    left: 0;
+    right: auto;
+    max-width: min(26ch, 74vw);
+  }
+}
+
+/* ================================================================
+   兩輪刻印（課程 v2 · Phase G）—— 同一塊碑，切成兩輪
+
+   視覺語言完全沿用 .stele / .carve / .opt：這裡只加三樣東西 ——
+   輪次的抬頭、前面幾輪收起來的字、以及中間那張**遊戲自撰**的回話卡。
+   回話卡刻意做得像「別人給的東西」（引文式左邊線 ＋ 等寬字），
+   跟玩家自己刻的碑面分得開；它旁邊永遠掛一顆 ⓘ 說明它是誰寫的。
+   ================================================================ */
+.multiboard[hidden] {
+  display: none;
+}
+.multiboard {
+  display: grid;
+  gap: var(--s4);
+}
+.multi__eyebrow {
+  margin: 0;
+  font-size: var(--t-micro);
+  letter-spacing: 0.02em;
+  color: var(--paper-4);
+}
+.multi__lead {
+  margin: 0;
+  font-size: var(--t-micro);
+  line-height: 1.8;
+  color: var(--paper-3);
+}
+.multi__lead[hidden] {
+  display: none;
+}
+.multi__prior {
+  display: grid;
+  gap: var(--s2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.multi__prior[hidden] {
+  display: none;
+}
+.multi__priorlot {
+  display: grid;
+  gap: 2px;
+  padding-left: var(--s3);
+  border-left: 1px solid var(--rule-gold);
+  font-size: var(--t-micro);
+  line-height: 1.8;
+  color: var(--paper-3);
+  animation: opt-in var(--d-mid) var(--e-out) both;
+  animation-delay: calc(var(--i, 0) * 38ms);
+}
+.multi__priorlabel {
+  color: var(--paper-4);
+}
+.multi__priortext {
+  color: #eef4fa;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* --- 中間那一段回話（遊戲自撰，不是模型跑出來的） --- */
+.handoff {
+  display: grid;
+  gap: var(--s3);
+  padding: var(--s3);
+  border-left: 1px solid var(--rule);
+  background: linear-gradient(180deg, rgba(19, 27, 38, 0.6), rgba(8, 11, 17, 0.4));
+  animation: opt-in var(--d-mid) var(--e-out) both;
+}
+.handoff[hidden] {
+  display: none;
+}
+.handoff__eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin: 0;
+  font-size: var(--t-micro);
+  letter-spacing: 0.02em;
+  color: var(--paper-4);
+}
+.handoff__body {
+  margin: 0;
+  padding: var(--s2) var(--s3);
+  border-left: 1px solid var(--rule);
+  font-family: var(--font-input);
+  font-size: var(--t-micro);
+  line-height: 1.85;
+  color: var(--paper-2);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.handoff__ask {
+  margin: 0;
+  font-size: var(--t-body);
+  line-height: 1.8;
+  color: #eef4fa;
+}
+.handoff__go {
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  min-height: 44px;
+  padding: var(--s2) var(--s4);
+  border: 1px solid var(--rule-gold);
+  background: transparent;
+  color: #f4e6c8;
+  font: inherit;
+  font-size: var(--t-micro);
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition: background var(--d-fast) var(--e-out), color var(--d-fast) var(--e-out);
+}
+.handoff__go:hover,
+.handoff__go:focus-visible {
+  background: rgba(198, 160, 94, 0.14);
+  color: #fff6e2;
+}
+@media (prefers-reduced-motion: reduce) {
+  .multi__priorlot,
+  .handoff {
+    animation: none;
+  }
+}
+
+/* ================================================================
+   轉鈕（sim · 課程 v2 · Phase H）
+
+   視覺語言完全沿用 .stele / .carve / .opt：這裡只加三樣東西 ——
+   旋鈕的檔位（刻印牌的 quiet 階，選中的那一格受光顛倒＝真的被按進去）、
+   神諭那一段**遊戲自撰**的回話（引文式左邊線 ＋ 等寬字，跟玩家自己刻的
+   碑面分得開，旁邊永遠掛一顆 ⓘ 說明它是誰寫的），以及那一行「這一檔
+   在哪一台機器上成立」的條件註記 —— 旋鈕的行為不是普遍真理。
+   ================================================================ */
+.simboard[hidden] {
+  display: none;
+}
+.simboard {
+  display: grid;
+  gap: var(--s4);
+}
+.dial {
+  display: grid;
+  gap: var(--s3);
+  padding: var(--s3);
+  border-left: 1px solid var(--rule);
+  background: linear-gradient(180deg, rgba(19, 27, 38, 0.6), rgba(8, 11, 17, 0.4));
+}
+.dial__eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin: 0;
+  font-size: var(--t-micro);
+  letter-spacing: 0.02em;
+  color: var(--paper-4);
+}
+.dial__lead {
+  margin: 0;
+  font-size: var(--t-body);
+  line-height: 1.8;
+  color: #eef4fa;
+}
+.dial__prompt {
+  margin: 0;
+  padding: var(--s2) var(--s3);
+  border-left: 1px solid var(--rule);
+  font-family: var(--font-input);
+  font-size: var(--t-micro);
+  line-height: 1.85;
+  color: var(--paper-3);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.dial__notches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+}
+.notch {
+  position: relative;
+  isolation: isolate;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  min-height: 44px;
+  padding: var(--s2) var(--s3);
+  border: 0;
+  background: transparent;
+  color: var(--paper-2);
+  font: inherit;
+  font-size: var(--t-micro);
+  cursor: pointer;
+  --cut: 7px;
+  clip-path: var(--seal-shape);
+  transition: translate var(--d-fast) var(--e-out), color var(--d-fast) var(--e-out);
+}
+.notch::before,
+.notch::after {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  clip-path: var(--seal-shape);
+  pointer-events: none;
+}
+.notch::before {
+  inset: 0;
+  background: linear-gradient(180deg, var(--seal-lit), var(--seal-shade));
+}
+.notch::after {
+  inset: 1px;
+  clip-path: var(--seal-shape-in);
+  background: linear-gradient(180deg, var(--seal-face-a), var(--seal-face-b));
+}
+.notch:hover {
+  translate: 0 -1px;
+  color: #eef4fa;
+}
+.notch.is-seen .notch__label::after {
+  content: ' ·';
+  color: var(--gold, #c6a05e);
+}
+.notch.is-now {
+  color: #10161f;
+}
+.notch.is-now::after {
+  background: linear-gradient(180deg, #e9dcc0, #c9b389);
+}
+.notch.is-now::before {
+  background: linear-gradient(180deg, var(--seal-shade), var(--seal-lit));
+}
+.notch__key {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  font-size: var(--t-micro);
+  color: inherit;
+  opacity: 0.7;
+}
+.notch__cost {
+  color: inherit;
+  opacity: 0.66;
+}
+.dial__progress {
+  margin: 0;
+  font-size: var(--t-micro);
+  letter-spacing: 0.02em;
+  color: var(--paper-4);
+}
+.dial__out {
+  display: grid;
+  gap: var(--s2);
+  animation: opt-in var(--d-mid) var(--e-out) both;
+}
+.dial__outhead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--s2);
+  margin: 0;
+  font-size: var(--t-micro);
+  letter-spacing: 0.02em;
+  color: var(--paper-4);
+}
+.dial__value {
+  font-family: var(--font-input);
+  color: #f2ead9;
+}
+.dial__body {
+  margin: 0;
+  padding: var(--s2) var(--s3);
+  border-left: 1px solid var(--rule);
+  font-family: var(--font-input);
+  font-size: var(--t-micro);
+  line-height: 1.85;
+  color: var(--paper-2);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.dial__read {
+  margin: 0;
+  padding-left: var(--s3);
+  border-left: 1px solid var(--rule-gold);
+  font-size: var(--t-micro);
+  line-height: 1.8;
+  color: var(--paper-3);
+}
+.dial__cond,
+.dial__conclusion {
+  margin: 0;
+  font-size: var(--t-micro);
+  line-height: 1.8;
+  color: var(--paper-4);
+}
+.dial__conclusion {
+  padding-left: var(--s3);
+  border-left: 1px solid var(--rule-gold);
+  color: var(--paper-3);
+}
+.dial__conclusion[hidden] {
+  display: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .dial__out {
+    animation: none;
+  }
+  .notch:hover {
+    translate: none;
+  }
 }

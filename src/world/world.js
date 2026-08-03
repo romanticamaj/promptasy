@@ -9,6 +9,7 @@
  *   grounding（脈絡與長文）  東北 · 沉書檔案庫
  *   orchestration（流程與代理）西南 · 齒輪工坊
  *   config（角色與參數）     東南 · 面具劇場
+ *   forms（量器坊）          正南 · 鑄場台階（課程 v2 · Phase E）
  */
 import * as THREE from 'three';
 import { PALETTE } from '../engine/engine.js';
@@ -34,14 +35,132 @@ export const REGION_SITES = Object.freeze([
   { id: 'grounding', x: 95, z: -95, radius: 46, flat: 34 },
   { id: 'orchestration', x: -95, z: 95, radius: 46, flat: 34 },
   { id: 'config', x: 95, z: 95, radius: 46, flat: 34 },
+  /*
+   * 課程 v2 · Phase E：量器坊。正南、單獨一條橋。
+   *
+   * 半徑 44（比其他四片小一點）是**地形網格的邊界**決定的：`buildTerrain()` 的
+   * 平面是 `WORLD_RADIUS * 2 + 40` ＝ 340 公尺見方（±170），把 z 拉到 124 之後
+   * 再多 44 剛好落在 168 —— 再往南就會有一角掉出網格外。
+   * 與東南／西南兩片土地的最近距離 99.3 公尺 > 44 + 46，中間留得出虛空。
+   */
+  { id: 'forms', x: 0, z: 124, radius: 44, flat: 32 },
+  /*
+   * 課程 v2 · Phase F：契約鍛冶場。正西、單獨一條橋 —— 量器坊的鏡像。
+   * 半徑 44 同樣是地形網格（±170）決定的：124 + 44 = 168。
+   * 與西北／西南兩片土地的最近距離 99.3 公尺 > 44 + 46，中間留得出虛空。
+   */
+  { id: 'toolcraft', x: -124, z: 0, radius: 44, flat: 32 },
+  /*
+   * 課程 v2 · Phase F：護欄崗。**加建**，不是新大陸（curriculum-v2 §二：🟡 既有地形加建）。
+   *
+   * 它是沉書檔案庫北緣長出去的一座哨所：`annexOf` 指名它的母土地，
+   * 所以 **不生成新的橋**（`CORRIDORS` 會跳過它），而是靠兩片土地的覆蓋重疊
+   * 直接走過去 —— 走出檔案庫北邊的書架就到了，中間沒有虛空。
+   * 中心 (101, -142)，刻意往東偏 6 公尺 —— 檔案庫西北角那座「抄書人的桌」
+   * （`extract-bench-33`）才不會被算進哨所的地界（`regionAt` 的正規化距離逐點驗過）。
+   *
+   * 課程 v2 · Phase J2：中心 (101,-142) → **(108,-143)**、半徑 26 → **27**、內圈 18 → **20**，
+   * 而且地標「不會關上的門」從院子正中央搬到西南邊緣 (92.5,-153.5)。
+   *
+   * 原因是這一片是全場最小的院子，地標原本就站在正中央、淨空 13 公尺 ——
+   * 「石座離地標 ≥ 18 公尺」這條全域規則於是把整個內圈排除掉，
+   * 半徑 26 時**一個落得下第六座石座的點都沒有**（掃描器實測 0 個）。
+   * 只放大半徑不夠（實測 27 / 28 / 30 都排不出六座），真正的解法是把地標讓到邊緣，
+   * 中間才空得出六座石座（實測最小間距 14.53 公尺）。
+   * 中心往東移 7 公尺是為了讓整個院子離開母土地的「引文閱覽台」——
+   * 放大之後那一座的互動圈會被新長出來的道具擦到（e2e 之前就是這樣紅的）。
+   * 108 + 27 = 135、143 + 27 = 170，兩邊都壓在 `buildTerrain()` 的 ±170 網格內。
+   */
+  { id: 'wards', x: 108, z: -143, radius: 27, flat: 20, annexOf: 'grounding' },
+  /*
+   * 課程 v2 · Phase G：校驗場。**加建**（curriculum-v2 §二：🟡 既有地形加建）——
+   * 「西南外緣 · 齒輪工坊旁的院子」。
+   *
+   * 與護欄崗同一套機制：`annexOf` 指名母土地（齒輪工坊），所以**不生成新的橋**，
+   * 閘門立在 `regionAt()` 的正規化距離分界上，走出工坊西南邊的桁架就到了。
+   * 中心 (-129, 129)：129 + 40 = 169，壓在 `buildTerrain()` 的 ±170 網格內；
+   * 與量器坊 (0,124) 相距 129.0 > 40 + 44，與契約鍛冶場 (-124,0) 相距 129.0 > 40 + 44。
+   * 半徑 40（比哨所大得多，因為它有 11 座神廟要站得下）。
+   */
+  { id: 'refinery', x: -129, z: 129, radius: 40, flat: 34, annexOf: 'orchestration' },
+  /*
+   * 課程 v2 · Phase H：減法之庭。**第三座加建**（curriculum-v2 §二：🟡 高原加建）——
+   * 「中央高原北緣 · 高原上的院落」。
+   *
+   * 與護欄崗、校驗場同一套機制：`annexOf` 指名母土地（這一次是中央高原本身），
+   * 所以**不生成新的橋**；閘門立在 `regionAt()` 的正規化距離分界上
+   * ——(0, -55.3)，正好就是高原的北緣，走出高原就到了。
+   *
+   * 中心 (0, -82)、半徑 32、**內圈 27**（整張地圖上最大的平坦比例 ——
+   * 這一片本來就該是最平的，東西都被搬走了）：兩片土地的**可站立範圍**
+   * （coverage > 0.45）一定要重疊，中間才不會出現一段虛空 ——
+   * 高原走得到離心 56.3、這座院子從離心 29.6 起算，兩段相加 85.9 > 82，
+   * 所以整條頸口沒有一步是虛空（e2e 逐點量過）。
+   * 半徑刻意停在 32：再大一點，高原北緣的石座就會被這座院子的
+   * 正規化距離搶走 —— 母土地一寸都不能被吃掉（測試逐關驗）。
+   * 與階梯迴廊 (-95,-95) 相距 95.9 > 32 + 46，中間仍留得出虛空。
+   *
+   * 高原北緣原本站著「岔路口」（`wordfork-12`）—— 它就在頸口正中央，
+   * 閘門的兩根柱子會卡進它的互動範圍，所以那一座往南挪了 16 公尺
+   * （只動座標，題目與評分一個位元組沒動；理由記在 findings.md）。
+   * 正北是兩條橋（西北 / 東北）中間的那一段空白 —— 這片院子不會壓到任何一條主動線。
+   */
+  { id: 'frugality', x: 0, z: -82, radius: 32, flat: 27, annexOf: 'foundations' },
+  /*
+   * 課程 v2 · Phase I：觀象臺。**小塊的新地形**（curriculum-v2 §二：🔴 新地形（小）），
+   * 自己一條橋 —— 它刻意不接在任何一區後面（多模態跟文字技巧沒有依賴關係，
+   * 玩家隨時可以岔出去看一眼）。
+   *
+   * 位置：設計寫的是「東北高地」，但東北那一角已經被沉書檔案庫（(95,-95) r46）
+   * 與它北緣的護欄崗（(101,-142) r26）佔滿了 —— 任何離檔案庫中心 < 76 公尺的點
+   * 都會把兩片土地黏在一起。所以這片高地落在**正東偏北**（(134, -18)，
+   * 從中央高原看出去是右前方偏上），與檔案庫相距 86.3 公尺 > 34 + 46，
+   * 中間留得出 6.3 公尺的虛空；理由記在 findings.md。
+   *
+   * 半徑 34（比四片舊土地小，只有 8 座神廟）同樣壓在網格邊界上：
+   * 134 + 34 = 168，剛好在 `buildTerrain()` 的 ±170 網格內。
+   * 通往這裡的橋不會擦到檔案庫：橋線離檔案庫中心最近 81.5 公尺 > 46。
+   */
+  { id: 'sight', x: 134, z: -18, radius: 34, flat: 27 },
+  /*
+   * 課程 v2 · Phase J：分歧之廳。**第四座加建**（curriculum-v2 §二：🟢 高原建物）——
+   * 「中央高原 · 高原上的建物」。它不是一片新大陸，是高原邊上蓋起來的一座廳。
+   *
+   * 位置：從中央高原往**東偏南**（方位角約 103°）走出去。高原四周其實已經很擠 ——
+   * 六條橋（西北 / 東北 / 西南 / 東南 / 正南 / 正西）＋ 正東偏北通往觀象臺的那一條，
+   * 正北又是減法之庭。剩下唯一放得下一座廳的縫，就是東邊那條橋與東南那條橋中間這一段。
+   * 半徑 29（比其他加建都小）—— 它是一座建物，不是一片土地。
+   *
+   * 三個數字都是算出來的，不是隨手訂的：
+   *   · 與面具劇場 (95,95) r46 相距 80.3 → 留得出 5.3 公尺虛空
+   *   · 與觀象臺 (134,-18) r34 相距 67.7 → 留得出 4.7 公尺虛空
+   *   · 中心離高原 77.9，兩片土地的**可站立範圍**相加遠大於它，整條頸口沒有一步是虛空
+   *
+   * **內圈 25（而不是 21）是頸口決定的**：高度是依覆蓋權重混出來的，覆蓋一掉下來
+   * 地面就會沉（`terrainHeight` 的 `-(1 - cover) * 34`）。內圈 21 時閘門正下方
+   * 只有 0.84 的覆蓋 —— 那裡會凹下去 5 公尺，變成一道看得見的溝，
+   * 而且「走到門前」的 3D 距離會被垂直落差吃掉（門就不會問你了）。
+   * 內圈 25 之後閘門底下的覆蓋是 1.0，門就站在平地上。
+   *
+   * 母土地一寸都不能被吃掉（`regionAt` 的正規化距離逐關驗過）：高原 15 座石座
+   * 仍然全部屬於中央高原。代價是原本站在頸口正前方的「第一根軌」（`first-rail-10`）
+   * 往北挪了一段 —— 閘門的兩根柱子本來會卡進它的互動範圍（只動座標，
+   * 題目與評分一個位元組沒動；同 Phase H 搬 `wordfork-12` 的前例）。
+   */
+  { id: 'divergence', x: 76, z: 17, radius: 29, flat: 25, annexOf: 'foundations' },
 ]);
 
 const SITE_BY_ID = new Map(REGION_SITES.map((s) => [s.id, s]));
 const HUB = REGION_SITES[0];
 
+/** 加建的院落（沒有自己的橋，接在母土地上）。 */
+export const ANNEX_SITES = Object.freeze(REGION_SITES.filter((s) => s.annexOf));
+
 /** 連接橋：從中央高原通往每片土地，中段有一道閘門。 */
 export const CORRIDORS = Object.freeze(
-  REGION_SITES.slice(1).map((site) => {
+  REGION_SITES.slice(1)
+    .filter((site) => !site.annexOf)
+    .map((site) => {
     const dx = site.x - HUB.x;
     const dz = site.z - HUB.z;
     const len = Math.hypot(dx, dz);
@@ -79,6 +198,37 @@ export const BRIDGE_LANES = Object.freeze(
       az: c.from.z + c.dir.z * a,
       bx: c.from.x + c.dir.x * b,
       bz: c.from.z + c.dir.z * b,
+    });
+  })
+);
+
+/**
+ * 加建院落的「頸口」（課程 v2 · Phase F）。
+ *
+ * 沒有橋，所以沒有 `CORRIDORS` 條目 —— 這裡只算三件事：
+ *   · 閘門立在哪（`gate`）：兩片土地的**歸屬分界**上（見 `regionAt` 的正規化距離），
+ *     所以人被擋下來的那一步，正好就是拱門底下。
+ *   · 往哪個方向（`dir`）：閘門的朝向與路網的走向。
+ *   · 母土地是誰（`host`）：走出母土地的邊緣就到了。
+ */
+export const ANNEX_LINKS = Object.freeze(
+  ANNEX_SITES.map((site) => {
+    const host = SITE_BY_ID.get(site.annexOf);
+    const dx = site.x - host.x;
+    const dz = site.z - host.z;
+    const len = Math.hypot(dx, dz);
+    const dir = { x: dx / len, z: dz / len };
+    // 分界點：d/host.radius === (len - d)/site.radius
+    const gateAt = (len * host.radius) / (host.radius + site.radius);
+    return Object.freeze({
+      region: site.id,
+      host: host.id,
+      from: { x: host.x, z: host.z },
+      to: { x: site.x, z: site.z },
+      dir,
+      length: len,
+      gateAt,
+      gate: { x: host.x + dir.x * gateAt, z: host.z + dir.z * gateAt },
     });
   })
 );
@@ -148,6 +298,76 @@ export const REGION_ATMOSPHERE = Object.freeze({
     fogFar: 300,
     exposure: 1.12,
     motes: 1.1,
+  }),
+  // 量器坊：熄了火的鑄場 —— 冷錫色、空氣乾淨、螢火最少（沒有人在這裡走動很久了）
+  forms: Object.freeze({
+    fog: 0x263139,
+    tint: 0xd6dcc4,
+    hemi: 0.56,
+    fogNear: 58,
+    fogFar: 268,
+    exposure: 1.05,
+    motes: 0.62,
+  }),
+  // 契約鍛冶場：爐子還溫著 —— 空氣裡有金屬屑與火星，霧偏暖褐、螢火最多
+  toolcraft: Object.freeze({
+    fog: 0x35262a,
+    tint: 0xe8c3ac,
+    hemi: 0.5,
+    fogNear: 46,
+    fogFar: 232,
+    exposure: 1.04,
+    motes: 1.28,
+  }),
+  // 校驗場：兩面鏡子互相照著的院子 —— 光被反覆折過一次，霧偏銀灰、看得中距離
+  refinery: Object.freeze({
+    fog: 0x24303a,
+    tint: 0xcdd8dc,
+    hemi: 0.58,
+    fogNear: 66,
+    fogFar: 258,
+    exposure: 1.06,
+    motes: 0.86,
+  }),
+  // 減法之庭：拿掉之後剩下的空氣 —— 霧最淡、看得最遠、螢火最少（這裡本來就沒有東西）
+  frugality: Object.freeze({
+    fog: 0x1d2a33,
+    tint: 0xc9d4d2,
+    hemi: 0.6,
+    fogNear: 84,
+    fogFar: 320,
+    exposure: 1.07,
+    motes: 0.4,
+  }),
+  // 觀象臺：一整片仰起來的天 —— 空氣最乾淨、看得最遠，星光被鏡面折回地面（螢火偏多、偏冷藍紫）
+  sight: Object.freeze({
+    fog: 0x1c2440,
+    tint: 0xc0cdf2,
+    hemi: 0.5,
+    fogNear: 92,
+    fogFar: 344,
+    exposure: 1.1,
+    motes: 1.18,
+  }),
+  // 分歧之廳：兩份相反的守則同時亮著 —— 霧偏中性的青灰、亮度最高（廳裡沒有暗處），螢火中等
+  divergence: Object.freeze({
+    fog: 0x2b2f3c,
+    tint: 0xd8d2e4,
+    hemi: 0.7,
+    fogNear: 54,
+    fogFar: 240,
+    exposure: 1.14,
+    motes: 0.92,
+  }),
+  // 護欄崗：哨所的夜 —— 最冷、看得最遠（守望的人要看得到有誰來），螢火少
+  wards: Object.freeze({
+    fog: 0x1b2733,
+    tint: 0xb4c6dc,
+    hemi: 0.44,
+    fogNear: 80,
+    fogFar: 330,
+    exposure: 0.98,
+    motes: 0.55,
   }),
 });
 
@@ -226,6 +446,92 @@ function detailFor(site, x, z) {
     case 'config':
       // 面具劇場：往外升高的碗形觀眾席
       return stair(d / 8.5) * 0.9 - 2.2;
+    case 'forms':
+      /*
+       * 量器坊：整片土地就是一把躺著的尺。
+       * 由北（橋頭）往南一階一階降下去的長平台 —— 每一階是一格刻度，
+       * 中央再挖低一階當鑄槽。橫向只有很輕的波紋，剪影才讀得出「一階一階」。
+       */
+      return (
+        3.4 -
+        stair((lz + 34) / 11) * 0.92 -
+        smoothstep(26, 9, d) * 1.1 +
+        Math.cos(lx * 0.09) * 0.14
+      );
+    case 'toolcraft': {
+      /*
+       * 契約鍛冶場（課程 v2 · Phase F）：整片土地就是一張攤開的工作檯。
+       * 中央一塊抬高的鍛台，四周放射狀的溝槽 —— 那是收工具的槽，一格一把。
+       * 溝槽在中心會擠成一團，所以靠近中心時把它淡掉（只留鍛台）。
+       */
+      const ang = Math.atan2(lz, lx);
+      const groove = Math.pow(Math.abs(Math.sin(ang * 7)), 8) * smoothstep(7, 19, d);
+      return 2.4 + smoothstep(29, 12, d) * 2.3 - groove * 0.95 + Math.sin(d * 0.19) * 0.22;
+    }
+    case 'refinery': {
+      /*
+       * 校驗場（課程 v2 · Phase G）：齒輪工坊旁的院子。
+       *
+       * 地貌是「兩面互相照著的鏡」：一條由西北往東南壓過去的淺谷把院子分成兩半，
+       * 兩側各是一塊幾乎一樣高的平台 —— 站在其中一邊，對面就是同一個地方的另一版。
+       * 谷底刻意只低 1.1 公尺（走得過去，不是斷崖），中央再抬一點當照面的台。
+       * 基準高度貼近齒輪工坊（1.1 上下加上中央抬高），兩片土地重疊處才不會有斷崖。
+       */
+      const across = (lx + lz) * 0.7071; // 谷的橫向座標（垂直於工坊→院子那條線）
+      const valley = Math.exp(-Math.pow(across / 7.5, 2)) * 1.1;
+      return 2.9 - valley + smoothstep(26, 8, d) * 0.9 + Math.sin(across * 0.13) * 0.16;
+    }
+    case 'frugality': {
+      /*
+       * 減法之庭（課程 v2 · Phase H）：高原北緣的院落。
+       *
+       * 這是**整張地圖上最平的一片土地** —— 因為東西都被搬走了。
+       * 只留三樣起伏：中央那塊放基座的台（唯一被留下來的東西）、
+       * 靠高原那一側一道被踩平的門檻、以及地上幾道很淺的印子
+       * （原本擺著什麼的痕跡）。基準高度貼著高原北緣，走過來沒有斷崖。
+       */
+      const sill = Math.exp(-Math.pow((lz - 24) / 4.2, 2)) * 0.45;
+      const marks = Math.cos(lx * 0.22) * Math.cos(lz * 0.19) * 0.16;
+      return 0.9 + smoothstep(21, 7, d) * 0.95 + sill + marks;
+    }
+    case 'sight': {
+      /*
+       * 觀象臺（課程 v2 · Phase I）：一片斜著抬起來的高地。
+       *
+       * 整片坡由西南（橋頭）往東北緩緩升上去 —— 走上來這件事本身就是「往上看」；
+       * 巨鏡斜插在最高的那一側。坡面上有幾道很淺的觀測溝（對準天空的刻線），
+       * 深度只有半公尺，跨得過去也擋不住視線。
+       * 橋頭那一側刻意壓到 2.7 上下（橋面 1.1–1.8），走上來沒有斷崖。
+       */
+      const rise = (lx - lz) * 0.0345; // 東北高、西南低
+      const grooves = Math.pow(Math.abs(Math.sin(d * 0.28)), 6) * 0.45;
+      return 4.2 + rise + smoothstep(34, 11, d) * 0.5 - grooves;
+    }
+    case 'divergence': {
+      /*
+       * 分歧之廳（課程 v2 · Phase J）：高原上的一座廳。
+       *
+       * 地貌是「一塊被鋪平的廣場」——中央抬高一階當廳的地面（五根柱子立在上面），
+       * 外圈是一圈很淺的階，走上來就知道自己進了一座建物而不是一片空地。
+       * 廣場上刻著兩道互相交錯的淺溝（兩份相反的守則，誰也沒有蓋過誰）。
+       * 基準高度貼著高原邊緣，兩片土地重疊處不會出現斷崖。
+       */
+      const grooves = Math.pow(Math.abs(Math.sin((lx - lz) * 0.16)), 8) * 0.42;
+      return 1.6 + smoothstep(24, 9, d) * 1.5 - grooves + Math.cos(d * 0.2) * 0.12;
+    }
+    case 'wards':
+      /*
+       * 護欄崗（課程 v2 · Phase F）：檔案庫北緣的哨所。
+       * 一塊比檔案庫高一階的平台，靠檔案庫那一側有一道門檻般的矮脊 ——
+       * 走出書架、跨過門檻，就到了守望的地方。
+       * 基準高度刻意貼近檔案庫（2.3 上下），兩片土地重疊處才不會出現斷崖。
+       */
+      return (
+        2.55 +
+        smoothstep(23, 9, d) * 0.85 +
+        Math.exp(-Math.pow((lz + 17) / 3.4, 2)) * 0.55 +
+        Math.cos(lx * 0.15) * 0.1
+      );
     default:
       return detailFoundations(x, z);
   }
@@ -292,8 +598,22 @@ export function coverage(x, z) {
  * @returns {{id:string, onBridge:boolean}|null}
  */
 export function regionAt(x, z) {
+  /*
+   * 課程 v2 · Phase F：加建的院落（護欄崗）與母土地（沉書檔案庫）**刻意重疊** ——
+   * 那是「走出去就到了」的代價。重疊處誰說了算？比的是**正規化距離** `d / radius`：
+   * 離自己中心越近（相對於自己的大小）的那一片贏。
+   *
+   * 沒有重疊時這條規則與舊寫法完全等價（只有一片土地含得住那個點），
+   * 所以既有五區加量器坊的每一個點都還是原來那一區（測試逐點比對）。
+   */
+  let owner = null;
+  let bestRatio = Infinity;
   for (const site of REGION_SITES) {
-    if (Math.hypot(x - site.x, z - site.z) <= site.radius) return { id: site.id, onBridge: false };
+    const ratio = Math.hypot(x - site.x, z - site.z) / site.radius;
+    if (ratio <= 1 && ratio < bestRatio) {
+      bestRatio = ratio;
+      owner = site;
+    }
   }
   let best = null;
   let bestD = Infinity;
@@ -304,6 +624,20 @@ export function regionAt(x, z) {
       best = { id: c.region, onBridge: true };
     }
   }
+  /*
+   * 課程 v2 · Phase J1：**加建的地界不得吃掉別人的橋。**
+   *
+   * 加建的院落刻意與母土地重疊（那是「走出去就到了」的代價），但它的圓盤
+   * 有可能擦到另一片土地的橋 —— 分歧之廳蓋在高原東側那道縫裡，通往觀象臺的
+   * 那條橋就從它的北緣經過。如果讓院子把橋上的點也算成自己的地界，
+   * 後果是**閘門鎖著的時候整條橋都走不過去**（`isWalkable` 擋的是「屬於這座
+   * 院子的點」），而 HUD 也會在過橋時報錯區域名。
+   *
+   * 所以規則寫死一條：**點落在別人的橋上時，橋說了算**（只對加建的院落生效——
+   * 有自己的橋的土地不會與別人的橋重疊，行為完全不變，測試逐點比對過）。
+   */
+  if (owner && best && owner.annexOf && best.id !== owner.id) return best;
+  if (owner) return { id: owner.id, onBridge: false };
   return best;
 }
 
@@ -326,8 +660,14 @@ export const SOLID_MIN_RADIUS = 0.5;
  * 地標的臺座本來就有五、六公尺寬，硬夾到 3.6 只會讓人半個身體陷進石頭裡。
  */
 export const SOLID_MAX_RADIUS = 3.6;
-/** 明講的 `solidRadius` 的上限（地標臺座這種真的很大的東西）。 */
-export const SOLID_MAX_EXPLICIT = 8;
+/**
+ * 明講的 `solidRadius` 的上限（地標臺座這種真的很大的東西）。
+ *
+ * 8 → 10：分歧之廳的「兩面的柱」臺座是 cyl(9.4, 10.6, 1.2) —— 全世界最大的一塊臺座。
+ * 夾到 8 會留下一圈 1.6 公尺寬、走得上去卻沒有地面的邊（人會陷到腰）。
+ * 這個上限的用途是攔住手打錯的數字，不是限制真的很大的東西；10 仍然攔得住。
+ */
+export const SOLID_MAX_EXPLICIT = 10;
 /** 玩家身體的半徑。 */
 export const PLAYER_RADIUS = 0.62;
 
@@ -535,12 +875,29 @@ export function solidAt(x, z, solids, pad = PLAYER_RADIUS) {
 /** 產生文字貼圖 sprite（NPC 名牌 / 閘門說明）。 */
 function makeLabel(text, { color = '#dbe9f3', sub = '', width = 512 } = {}) {
   const canvas = document.createElement('canvas');
-  canvas.width = width;
+  const MAIN_FONT = '600 52px "Noto Sans TC", "PingFang TC", system-ui, sans-serif';
+  const SUB_FONT = '400 32px "Noto Sans TC", "PingFang TC", system-ui, sans-serif';
+  const PAD = 48;
+  // 先量再開畫布：長關名（「先抄一遍才敢答的抄寫人」11 個字 ≈ 572px）
+  // 會超出固定 512 寬被左右截掉 —— 依實際文字寬度放大畫布，sprite 同比例放寬。
+  const probe = canvas.getContext('2d');
+  probe.font = MAIN_FONT;
+  const mainW = probe.measureText(text).width;
+  probe.font = SUB_FONT;
+  const subW = sub ? probe.measureText(sub).width : 0;
+  const finalW = Math.max(width, Math.min(Math.ceil(Math.max(mainW, subW) + PAD), 1280));
+  canvas.width = finalW;
   canvas.height = 160;
   const ctx = canvas.getContext('2d');
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  ctx.font = '600 52px "Noto Sans TC", "PingFang TC", system-ui, sans-serif';
+  // 超過畫布上限（1280）的極端長名：縮字直到放得下
+  let mainSize = 52;
+  ctx.font = MAIN_FONT;
+  while (ctx.measureText(text).width > finalW - PAD && mainSize > 30) {
+    mainSize -= 2;
+    ctx.font = `600 ${mainSize}px "Noto Sans TC", "PingFang TC", system-ui, sans-serif`;
+  }
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.shadowColor = 'rgba(0,0,0,0.85)';
@@ -549,7 +906,7 @@ function makeLabel(text, { color = '#dbe9f3', sub = '', width = 512 } = {}) {
   ctx.fillText(text, canvas.width / 2, sub ? 58 : 80);
 
   if (sub) {
-    ctx.font = '400 32px "Noto Sans TC", "PingFang TC", system-ui, sans-serif';
+    ctx.font = SUB_FONT;
     ctx.fillStyle = 'rgba(210,226,238,0.72)';
     ctx.fillText(sub, canvas.width / 2, 116);
   }
@@ -560,7 +917,7 @@ function makeLabel(text, { color = '#dbe9f3', sub = '', width = 512 } = {}) {
   const sprite = new THREE.Sprite(
     new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false, fog: false })
   );
-  sprite.scale.set(9, 2.8, 1);
+  sprite.scale.set(9 * (finalW / 512), 2.8, 1);
   sprite.userData.dispose = () => {
     tex.dispose();
     sprite.material.dispose();
@@ -765,6 +1122,57 @@ const FLORA = Object.freeze({
     { geo: () => new THREE.IcosahedronGeometry(0.7, 0), tint: 0.26, scale: [0.4, 1.0], lift: 0.3, tilt: 0.5, solid: true },
     // 細桿 0.24 寬 → 走得過去
     { geo: () => new THREE.CylinderGeometry(0.1, 0.12, 3.2, 5), tint: 0.46, scale: [0.5, 1.1], lift: 1.6, tilt: 0.05 },
+  ],
+  // 量器坊：倒模剩下的東西 —— 方的鑄塊、扁的量盤、細細的量針（三種剪影：方 / 圓 / 針）
+  forms: [
+    { geo: () => new THREE.BoxGeometry(1.4, 1.0, 1.4), tint: 0.3, scale: [0.5, 1.2], lift: 0.5, tilt: 0.14, solid: true },
+    { geo: () => new THREE.CylinderGeometry(1.0, 1.0, 0.34, 10), tint: 0.42, scale: [0.5, 1.3], lift: 0.2, tilt: 0.22 },
+    // 量針 0.18 寬 → 走得過去
+    { geo: () => new THREE.CylinderGeometry(0.05, 0.09, 2.8, 4), tint: 0.5, scale: [0.5, 1.2], lift: 1.4, tilt: 0.07 },
+  ],
+  // 契約鍛冶場：打壞的東西 —— 歪掉的楔形鐵砧、堆起來的料塊、細細的鑽桿（三種剪影：楔 / 塊 / 桿）
+  toolcraft: [
+    { geo: () => new THREE.ConeGeometry(0.9, 1.5, 4), tint: 0.3, scale: [0.5, 1.3], lift: 0.7, tilt: 0.26, solid: true },
+    { geo: () => new THREE.BoxGeometry(1.2, 0.7, 0.8), tint: 0.4, scale: [0.5, 1.2], lift: 0.35, tilt: 0.12, solid: true },
+    // 鑽桿 0.22 寬 → 走得過去
+    { geo: () => new THREE.CylinderGeometry(0.07, 0.11, 3.4, 5), tint: 0.52, scale: [0.5, 1.2], lift: 1.7, tilt: 0.1 },
+  ],
+  // 校驗場：改過的東西 —— 疊起來的舊稿板、磨過的鏡胚、細細的量規腳（三種剪影：板 / 盤 / 腳）
+  refinery: [
+    { geo: () => new THREE.BoxGeometry(1.6, 0.34, 1.2), tint: 0.28, scale: [0.5, 1.3], lift: 0.18, tilt: 0.3, solid: true },
+    { geo: () => new THREE.CylinderGeometry(0.95, 0.95, 0.9, 12), tint: 0.44, scale: [0.5, 1.2], lift: 0.45, tilt: 0.16, solid: true },
+    // 量規腳 0.2 寬 → 走得過去
+    { geo: () => new THREE.CylinderGeometry(0.06, 0.1, 3.0, 4), tint: 0.52, scale: [0.5, 1.2], lift: 1.5, tilt: 0.09 },
+  ],
+  // 減法之庭：被搬走之後留下的東西 —— 空的托座、薄薄的墊石、細細的量繩樁（三種剪影：環 / 片 / 樁）
+  frugality: [
+    { geo: () => new THREE.TorusGeometry(0.62, 0.16, 4, 10), tint: 0.34, scale: [0.5, 1.1], lift: 0.55, tilt: 0.45, solid: true },
+    { geo: () => new THREE.CylinderGeometry(1.05, 1.15, 0.26, 8), tint: 0.42, scale: [0.5, 1.2], lift: 0.14, tilt: 0.08 },
+    // 量繩樁 0.2 寬 → 走得過去
+    { geo: () => new THREE.CylinderGeometry(0.07, 0.1, 2.4, 4), tint: 0.5, scale: [0.5, 1.1], lift: 1.2, tilt: 0.06 },
+  ],
+  // 觀象臺：照過天的東西 —— 立著的碎鏡片、磨過的礦塊、細細的測桿（三種剪影：片 / 塊 / 桿）
+  sight: [
+    // 碎鏡片：薄，但立起來又轉過角度之後外接盒的最薄兩軸都 ≥ 0.9 → 依 Phase 20 的鐵則要擋人
+    { geo: () => new THREE.BoxGeometry(1.15, 1.7, 0.24), tint: 0.34, scale: [0.5, 1.2], lift: 0.85, tilt: 0.34, solid: true },
+    { geo: () => new THREE.OctahedronGeometry(0.85, 0), tint: 0.28, scale: [0.4, 1.1], lift: 0.5, tilt: 0.5, solid: true },
+    // 測桿 0.18 寬 → 走得過去
+    { geo: () => new THREE.CylinderGeometry(0.05, 0.09, 3.4, 4), tint: 0.5, scale: [0.5, 1.2], lift: 1.7, tilt: 0.05 },
+  ],
+  // 分歧之廳：廳裡散落的東西 —— 立起來的半塊碑、兩面磨光的鎮石、細細的量繩桿（三種剪影：板 / 塊 / 桿）
+  divergence: [
+    // 半塊碑：立著、又薄又高，轉過角度之後最薄兩軸仍 ≥ 0.9 → 依 Phase 20 的鐵則要擋人
+    { geo: () => new THREE.BoxGeometry(1.25, 1.9, 0.34), tint: 0.32, scale: [0.5, 1.2], lift: 0.95, tilt: 0.22, solid: true },
+    { geo: () => new THREE.DodecahedronGeometry(0.75, 0), tint: 0.44, scale: [0.4, 1.0], lift: 0.4, tilt: 0.45, solid: true },
+    // 量繩桿 0.2 寬 → 走得過去
+    { geo: () => new THREE.CylinderGeometry(0.06, 0.1, 3.0, 4), tint: 0.5, scale: [0.5, 1.1], lift: 1.5, tilt: 0.06 },
+  ],
+  // 護欄崗：哨所外的東西 —— 矮的拒馬、圓的警石、細的旗桿（三種剪影：叉 / 球 / 桿）
+  wards: [
+    { geo: () => new THREE.TetrahedronGeometry(0.85, 0), tint: 0.32, scale: [0.5, 1.2], lift: 0.5, tilt: 0.5, solid: true },
+    { geo: () => new THREE.IcosahedronGeometry(0.8, 0), tint: 0.26, scale: [0.4, 1.0], lift: 0.35, tilt: 0.4, solid: true },
+    // 旗桿 0.2 寬 → 走得過去
+    { geo: () => new THREE.CylinderGeometry(0.06, 0.1, 3.8, 5), tint: 0.5, scale: [0.5, 1.1], lift: 1.9, tilt: 0.04 },
   ],
 });
 
@@ -1064,6 +1472,465 @@ function buildRegionProps(site, color, quality, keepClear, pedestals = []) {
     poles.userData.solidRadius = 0.7;
     group.add(poles);
     group.add(masks);
+  } else if (site.id === 'forms') {
+    /*
+     * 量器坊（課程 v2 · Phase E）：熄了火的鑄場。
+     *
+     * 兩種東西，都是 InstancedMesh、都不新增光源（§6.1）：
+     *   · 量尺柱 —— 一根根立著、身上刻著格子的柱，成排站在台階邊
+     *   · 鑄槽   —— 躺在地上的長方石框，倒過模的凹槽（矮到跨得過去，不擋路）
+     * 刻度那一格用**自發光**的小方塊（加色混合），遠看就是柱身上的一排亮痕。
+     */
+    const postGeo = new THREE.CylinderGeometry(0.42, 0.52, 5.2, 6);
+    const POST_N = 18;
+    const posts = new THREE.InstancedMesh(postGeo, stoneMat, POST_N);
+    posts.castShadow = shadow;
+    const tickGeo = new THREE.BoxGeometry(1.06, 0.1, 0.1);
+    const TICKS_PER_POST = 4;
+    const ticks = new THREE.InstancedMesh(tickGeo, glowMat, POST_N * TICKS_PER_POST);
+    let postN = 0;
+    let tickN = 0;
+    for (let i = 0; i < POST_N; i += 1) {
+      const { x, z } = place(16, site.radius - 7);
+      const gy = terrainHeight(x, z);
+      const scale = 0.72 + rand() * 0.6;
+      const spin = rand() * Math.PI;
+      p.set(x, gy + 2.6 * scale, z);
+      q.setFromEuler(new THREE.Euler(0, spin, 0));
+      s.set(scale, scale, scale);
+      posts.setMatrixAt(postN, m.compose(p, q, s));
+      postN += 1;
+      // 柱身上的刻度：由下往上等距，越高越短（那是量度，不是裝飾）
+      for (let k = 0; k < TICKS_PER_POST; k += 1) {
+        const t = (k + 1) / (TICKS_PER_POST + 1);
+        p.set(x, gy + 5.2 * scale * t, z);
+        q.setFromEuler(new THREE.Euler(0, spin, 0));
+        const w = (1 - t * 0.45) * scale * 0.9;
+        s.set(w, scale, scale);
+        ticks.setMatrixAt(tickN, m.compose(p, q, s));
+        tickN += 1;
+      }
+    }
+    posts.count = postN;
+    ticks.count = tickN;
+    posts.instanceMatrix.needsUpdate = true;
+    ticks.instanceMatrix.needsUpdate = true;
+    posts.userData.blocksCamera = true;
+    posts.userData.solidRadius = 0.6;
+    group.add(posts);
+    group.add(ticks);
+
+    // 鑄槽：躺在地上的長方石框。0.42 公尺高 —— 跨得過去，所以不登記碰撞。
+    const troughGeo = new THREE.BoxGeometry(5.6, 0.42, 2.4);
+    const TROUGH_N = 14;
+    const troughs = new THREE.InstancedMesh(troughGeo, stoneMat, TROUGH_N);
+    troughs.receiveShadow = shadow;
+    let trN = 0;
+    for (let i = 0; i < TROUGH_N; i += 1) {
+      const { x, z } = place(11, site.radius - 9);
+      p.set(x, terrainHeight(x, z) + 0.21, z);
+      q.setFromEuler(new THREE.Euler(0, Math.round(rand() * 2) * (Math.PI / 2) + (rand() - 0.5) * 0.14, 0));
+      s.set(0.7 + rand() * 0.7, 1, 0.7 + rand() * 0.5);
+      troughs.setMatrixAt(trN, m.compose(p, q, s));
+      trN += 1;
+    }
+    troughs.count = trN;
+    troughs.instanceMatrix.needsUpdate = true;
+    group.add(troughs);
+  } else if (site.id === 'toolcraft') {
+    /*
+     * 契約鍛冶場（課程 v2 · Phase F）：還熱著的工坊。
+     *
+     * 兩種東西，都是 InstancedMesh、都不新增光源（§6.1）：
+     *   · 工具架 —— 一格一格的方架，架上一排自發光的「刻痕」（那是工具名，只是沒人刻上去）
+     *   · 鐵砧   —— 蹲在地上的方塊，矮到跨得過去，不擋路
+     */
+    const rackGeo = new THREE.BoxGeometry(1.5, 4.6, 0.7);
+    const RACK_N = 20;
+    const racks = new THREE.InstancedMesh(rackGeo, stoneMat, RACK_N);
+    racks.castShadow = shadow;
+    const slotGeo = new THREE.BoxGeometry(1.02, 0.12, 0.76);
+    const SLOTS_PER_RACK = 3;
+    const slots = new THREE.InstancedMesh(slotGeo, glowMat, RACK_N * SLOTS_PER_RACK);
+    let rackN = 0;
+    let slotN = 0;
+    for (let i = 0; i < RACK_N; i += 1) {
+      const { x, z } = place(15, site.radius - 7);
+      const gy = terrainHeight(x, z);
+      const scale = 0.75 + rand() * 0.6;
+      const spin = rand() * Math.PI;
+      p.set(x, gy + 2.3 * scale, z);
+      q.setFromEuler(new THREE.Euler(0, spin, 0));
+      s.set(scale, scale, scale);
+      racks.setMatrixAt(rackN, m.compose(p, q, s));
+      rackN += 1;
+      for (let k = 0; k < SLOTS_PER_RACK; k += 1) {
+        const t = (k + 1) / (SLOTS_PER_RACK + 1);
+        p.set(x, gy + 4.6 * scale * t, z);
+        q.setFromEuler(new THREE.Euler(0, spin, 0));
+        s.set(scale * 0.92, scale, scale);
+        slots.setMatrixAt(slotN, m.compose(p, q, s));
+        slotN += 1;
+      }
+    }
+    racks.count = rackN;
+    slots.count = slotN;
+    racks.instanceMatrix.needsUpdate = true;
+    slots.instanceMatrix.needsUpdate = true;
+    racks.userData.blocksCamera = true;
+    racks.userData.solidRadius = 0.78;
+    group.add(racks);
+    group.add(slots);
+
+    // 鐵砧：0.9 公尺高的方塊。跨得過去，所以不登記碰撞。
+    const anvilGeo = new THREE.BoxGeometry(2.2, 0.9, 1.1);
+    const ANVIL_N = 12;
+    const anvils = new THREE.InstancedMesh(anvilGeo, stoneMat, ANVIL_N);
+    anvils.receiveShadow = shadow;
+    let anN = 0;
+    for (let i = 0; i < ANVIL_N; i += 1) {
+      const { x, z } = place(10, site.radius - 9);
+      p.set(x, terrainHeight(x, z) + 0.45, z);
+      q.setFromEuler(new THREE.Euler(0, rand() * Math.PI, 0));
+      s.set(0.75 + rand() * 0.6, 1, 0.75 + rand() * 0.5);
+      anvils.setMatrixAt(anN, m.compose(p, q, s));
+      anN += 1;
+    }
+    anvils.count = anN;
+    anvils.instanceMatrix.needsUpdate = true;
+    group.add(anvils);
+  } else if (site.id === 'refinery') {
+    /*
+     * 校驗場（課程 v2 · Phase G）：改 prompt 的 prompt 在這裡被改。
+     *
+     * 兩種東西，都是 InstancedMesh、都不新增光源（§6.1）：
+     *   · 照面架 —— 兩兩相對立著的薄板，板面上一道自發光的縫（那是「照見自己」的意思）
+     *   · 稿堆   —— 蹲在地上的一疊改過的稿，矮到跨得過去，不擋路
+     */
+    const paneGeo = new THREE.BoxGeometry(0.32, 4.2, 2.4);
+    const PANE_N = 18;
+    const panes = new THREE.InstancedMesh(paneGeo, stoneMat, PANE_N);
+    panes.castShadow = shadow;
+    const seamGeo = new THREE.BoxGeometry(0.36, 3.1, 0.12);
+    const seams = new THREE.InstancedMesh(seamGeo, glowMat, PANE_N);
+    let paneN = 0;
+    for (let i = 0; i < PANE_N / 2; i += 1) {
+      /*
+       * `place()` 找不到空位時會退回一個固定點 —— 一整疊薄板堆在同一個地方，
+       * 既難看又會被淨空濾網掃成幽靈（Phase G 的碰撞稽核就是這樣紅的）。
+       * 這裡自己多試幾次，真的找不到就這一組不擺（少一組比疊一堆好）。
+       */
+      let spot = null;
+      for (let k = 0; k < 12 && !spot; k += 1) {
+        const p2 = place(13, site.radius - 7);
+        if (!clear(p2.x, p2.z, 8)) spot = p2;
+      }
+      if (!spot) continue;
+      const { x, z } = spot;
+      const gy = terrainHeight(x, z);
+      const spin = rand() * Math.PI;
+      const scale = 0.78 + rand() * 0.5;
+      // 兩兩相對：同一組的兩片隔著 2.6 公尺面對面站著
+      for (const side of [-1, 1]) {
+        const px = x + Math.cos(spin) * 1.3 * side;
+        const pz = z + Math.sin(spin) * 1.3 * side;
+        const py = terrainHeight(px, pz);
+        p.set(px, py + 2.1 * scale, pz);
+        q.setFromEuler(new THREE.Euler(0, -spin, 0));
+        s.set(scale, scale, scale);
+        panes.setMatrixAt(paneN, m.compose(p, q, s));
+        p.set(px, py + 2.1 * scale, pz);
+        seams.setMatrixAt(paneN, m.compose(p, q, s));
+        paneN += 1;
+      }
+      void gy;
+    }
+    panes.count = paneN;
+    seams.count = paneN;
+    panes.instanceMatrix.needsUpdate = true;
+    seams.instanceMatrix.needsUpdate = true;
+    panes.userData.blocksCamera = true;
+    panes.userData.solidRadius = 0.95;
+    group.add(panes);
+    group.add(seams);
+
+    // 稿堆：0.7 公尺高的一疊。跨得過去，所以不登記碰撞。
+    const stackGeo = new THREE.BoxGeometry(1.6, 0.7, 1.2);
+    const STACK_N = 12;
+    const stacks = new THREE.InstancedMesh(stackGeo, stoneMat, STACK_N);
+    stacks.receiveShadow = shadow;
+    let stN = 0;
+    for (let i = 0; i < STACK_N; i += 1) {
+      const { x, z } = place(9, site.radius - 8);
+      p.set(x, terrainHeight(x, z) + 0.35, z);
+      q.setFromEuler(new THREE.Euler(0, rand() * Math.PI, 0));
+      s.set(0.7 + rand() * 0.6, 1, 0.7 + rand() * 0.5);
+      stacks.setMatrixAt(stN, m.compose(p, q, s));
+      stN += 1;
+    }
+    stacks.count = stN;
+    stacks.instanceMatrix.needsUpdate = true;
+    group.add(stacks);
+  } else if (site.id === 'wards') {
+    /*
+     * 護欄崗（課程 v2 · Phase F）：檔案庫外的哨所。
+     *
+     * 兩種東西，都是 InstancedMesh、都不新增光源（§6.1）：
+     *   · 崗柱 —— 一根根立著的界柱，頂上一圈自發光的環（那是「看著你」的意思）
+     *   · 矮牆 —— 一段一段沒有接起來的牆（護欄從來就不是一道密不透風的牆）
+     */
+    const postGeo = new THREE.CylinderGeometry(0.32, 0.46, 3.6, 5);
+    const POST_N = 16;
+    const posts = new THREE.InstancedMesh(postGeo, stoneMat, POST_N);
+    posts.castShadow = shadow;
+    const eyeGeo = new THREE.TorusGeometry(0.4, 0.08, 4, 12);
+    const eyes = new THREE.InstancedMesh(eyeGeo, glowMat, POST_N);
+    let postN = 0;
+    for (let i = 0; i < POST_N; i += 1) {
+      const { x, z } = place(11, site.radius - 5);
+      const gy = terrainHeight(x, z);
+      const scale = 0.8 + rand() * 0.5;
+      p.set(x, gy + 1.8 * scale, z);
+      q.setFromEuler(new THREE.Euler(0, rand() * Math.PI, 0));
+      s.set(scale, scale, scale);
+      posts.setMatrixAt(postN, m.compose(p, q, s));
+      p.set(x, gy + 3.7 * scale, z);
+      q.setFromEuler(new THREE.Euler(Math.PI / 2, 0, 0));
+      eyes.setMatrixAt(postN, m.compose(p, q, s));
+      postN += 1;
+    }
+    posts.count = postN;
+    eyes.count = postN;
+    posts.instanceMatrix.needsUpdate = true;
+    eyes.instanceMatrix.needsUpdate = true;
+    posts.userData.blocksCamera = true;
+    posts.userData.solidRadius = 0.52;
+    group.add(posts);
+    group.add(eyes);
+
+    // 矮牆：0.8 公尺高的段落，一段一段沒接起來。跨得過去，所以不登記碰撞。
+    const wallGeo = new THREE.BoxGeometry(4.4, 0.8, 0.6);
+    const WALL_N = 10;
+    const walls = new THREE.InstancedMesh(wallGeo, stoneMat, WALL_N);
+    walls.receiveShadow = shadow;
+    let wN = 0;
+    for (let i = 0; i < WALL_N; i += 1) {
+      const { x, z } = place(9, site.radius - 6);
+      p.set(x, terrainHeight(x, z) + 0.4, z);
+      q.setFromEuler(new THREE.Euler(0, rand() * Math.PI, 0));
+      s.set(0.7 + rand() * 0.6, 1, 1);
+      walls.setMatrixAt(wN, m.compose(p, q, s));
+      wN += 1;
+    }
+    walls.count = wN;
+    walls.instanceMatrix.needsUpdate = true;
+    group.add(walls);
+  } else if (site.id === 'frugality') {
+    /*
+     * 減法之庭（課程 v2 · Phase H）：高原北緣被清空的院落。
+     *
+     * 這一區的造景規則跟其他八片剛好相反 —— **東西要少**。
+     * 兩種東西，都是 InstancedMesh、都不新增光源（§6.1）：
+     *   · 空托座 —— 一個個矮矮的方座，上面什麼都沒有；座面上一圈自發光的
+     *     淺印子（那是「本來擺著什麼」的意思）
+     *   · 印子   —— 貼在地上的薄片，被搬走的東西留下的形狀（跨得過去，不擋路）
+     * 數量刻意壓到別區的一半：這片院子的內容就是「空」。
+     */
+    const plinthGeo = new THREE.BoxGeometry(1.5, 0.9, 1.5);
+    const PLINTH_N = 10;
+    const plinths = new THREE.InstancedMesh(plinthGeo, stoneMat, PLINTH_N);
+    plinths.castShadow = shadow;
+    const ringGeo = new THREE.TorusGeometry(0.5, 0.05, 4, 14);
+    const rings = new THREE.InstancedMesh(ringGeo, glowMat, PLINTH_N);
+    let plN = 0;
+    for (let i = 0; i < PLINTH_N; i += 1) {
+      /*
+       * `place()` 找不到空位時會退回一個固定點 —— 一整排托座疊在同一個地方，
+       * 既難看又會被穿模稽核抓（Phase G 的照面架就是這樣紅的）。
+       * 這裡自己多試幾次，真的找不到就這一座不擺（少一座比疊一堆好）。
+       */
+      let spot = null;
+      for (let k = 0; k < 12 && !spot; k += 1) {
+        const p2 = place(11, site.radius - 6);
+        if (!clear(p2.x, p2.z, 7)) spot = p2;
+      }
+      if (!spot) continue;
+      const { x, z } = spot;
+      const gy = terrainHeight(x, z);
+      const scale = 0.85 + rand() * 0.5;
+      p.set(x, gy + 0.45 * scale, z);
+      q.setFromEuler(new THREE.Euler(0, rand() * Math.PI, 0));
+      s.set(scale, scale, scale);
+      plinths.setMatrixAt(plN, m.compose(p, q, s));
+      p.set(x, gy + 0.92 * scale, z);
+      q.setFromEuler(new THREE.Euler(Math.PI / 2, 0, 0));
+      rings.setMatrixAt(plN, m.compose(p, q, s));
+      plN += 1;
+    }
+    plinths.count = plN;
+    rings.count = plN;
+    plinths.instanceMatrix.needsUpdate = true;
+    rings.instanceMatrix.needsUpdate = true;
+    // 及腰高的方座：擋得住人（Phase 20 的穿模鐵則 —— 看得到的份量就要有碰撞體）
+    plinths.userData.blocksCamera = true;
+    plinths.userData.solidRadius = 0.9;
+    group.add(plinths);
+    group.add(rings);
+
+    // 印子：貼在地上的薄片（0.12 公尺高）。跨得過去，所以不登記碰撞。
+    const markGeo = new THREE.BoxGeometry(2.2, 0.12, 1.6);
+    const MARK_N = 12;
+    const marks = new THREE.InstancedMesh(markGeo, stoneMat, MARK_N);
+    marks.receiveShadow = shadow;
+    let mkN = 0;
+    for (let i = 0; i < MARK_N; i += 1) {
+      const { x, z } = place(8, site.radius - 7);
+      p.set(x, terrainHeight(x, z) + 0.06, z);
+      q.setFromEuler(new THREE.Euler(0, rand() * Math.PI, 0));
+      s.set(0.7 + rand() * 0.7, 1, 0.7 + rand() * 0.6);
+      marks.setMatrixAt(mkN, m.compose(p, q, s));
+      mkN += 1;
+    }
+    marks.count = mkN;
+    marks.instanceMatrix.needsUpdate = true;
+    group.add(marks);
+  } else if (site.id === 'sight') {
+    /*
+     * 觀象臺（課程 v2 · Phase I）：坡上放著一整批「拿來看東西的東西」。
+     *
+     * 兩種，都是 InstancedMesh、**都不新增光源**（§6.1 —— 亮的部分一律走自發光）：
+     *   · 觀測架 —— 一根短柱撐著一只斜著的環，環是自發光的（那是「對準了什麼」的意思）
+     *   · 落鏡   —— 平躺在坡面上的薄鏡片，映著天（跨得過去，所以不登記碰撞）
+     * 這一區的東西刻意都「朝著同一個方向」：全部往東北那一側傾斜，
+     * 剪影讀起來就是一整片抬頭在看的器械。
+     */
+    const postGeo = new THREE.CylinderGeometry(0.3, 0.42, 3.2, 5);
+    const FRAME_N = 14;
+    const posts = new THREE.InstancedMesh(postGeo, stoneMat, FRAME_N);
+    posts.castShadow = shadow;
+    const hoopGeo = new THREE.TorusGeometry(0.8, 0.07, 4, 16);
+    const hoops = new THREE.InstancedMesh(hoopGeo, glowMat, FRAME_N);
+    let frameN = 0;
+    for (let i = 0; i < FRAME_N; i += 1) {
+      const { x, z } = place(10, site.radius - 5);
+      const gy = terrainHeight(x, z);
+      const scale = 0.8 + rand() * 0.5;
+      const spin = rand() * Math.PI;
+      p.set(x, gy + 1.6 * scale, z);
+      q.setFromEuler(new THREE.Euler(0, spin, 0));
+      s.set(scale, scale, scale);
+      posts.setMatrixAt(frameN, m.compose(p, q, s));
+      /*
+       * 環一律往東北仰起來（約 52 度）—— 整片器械朝著同一片天。
+       * 高度 3.62 不是美感決定的：仰起來之後環的外接盒垂直半徑約 0.6×scale，
+       * 底緣要離地 ≥ 1.6 公尺（穿模稽核的 FLOAT_MIN）人才走得過去、不必放一道看不見的牆。
+       */
+      p.set(x, gy + 3.62 * scale, z);
+      q.setFromEuler(new THREE.Euler(-0.9, spin, 0));
+      hoops.setMatrixAt(frameN, m.compose(p, q, s));
+      frameN += 1;
+    }
+    posts.count = frameN;
+    hoops.count = frameN;
+    posts.instanceMatrix.needsUpdate = true;
+    hoops.instanceMatrix.needsUpdate = true;
+    posts.userData.blocksCamera = true;
+    posts.userData.solidRadius = 0.5;
+    group.add(posts);
+    group.add(hoops);
+
+    // 落鏡：平躺在坡上的薄鏡片（0.1 公尺高）。跨得過去，所以不登記碰撞。
+    const plateGeo = new THREE.BoxGeometry(2.4, 0.1, 1.5);
+    const PLATE_N = 16;
+    const plates = new THREE.InstancedMesh(plateGeo, glowMat, PLATE_N);
+    plates.receiveShadow = shadow;
+    let plateN = 0;
+    for (let i = 0; i < PLATE_N; i += 1) {
+      const { x, z } = place(8, site.radius - 6);
+      p.set(x, terrainHeight(x, z) + 0.05, z);
+      q.setFromEuler(new THREE.Euler(0, rand() * Math.PI, 0));
+      s.set(0.6 + rand() * 0.7, 1, 0.6 + rand() * 0.6);
+      plates.setMatrixAt(plateN, m.compose(p, q, s));
+      plateN += 1;
+    }
+    plates.count = plateN;
+    plates.instanceMatrix.needsUpdate = true;
+    group.add(plates);
+  } else if (site.id === 'divergence') {
+    /*
+     * 分歧之廳（課程 v2 · Phase J）：廳裡兩兩成對的東西。
+     *
+     * 兩種，都是 InstancedMesh、**都不新增光源**（§6.1 —— 亮的部分一律走自發光）：
+     *   · 對柱   —— 兩根並排的矮柱，中間夾一片自發光的薄板（一件事的兩種說法）
+     *   · 落碑   —— 平躺在地上的碑面（被換掉的那一版守則），跨得過去所以不登記碰撞
+     * 這一區的東西刻意都「成雙」：剪影讀起來就是一整廳的兩面之詞。
+     */
+    const postGeo = new THREE.CylinderGeometry(0.34, 0.46, 2.8, 6);
+    const PAIR_N = 12;
+    const posts = new THREE.InstancedMesh(postGeo, stoneMat, PAIR_N * 2);
+    posts.castShadow = shadow;
+    const leafGeo = new THREE.BoxGeometry(1.5, 1.9, 0.12);
+    const leaves = new THREE.InstancedMesh(leafGeo, glowMat, PAIR_N);
+    let pairN = 0;
+    for (let i = 0; i < PAIR_N; i += 1) {
+      let spot = null;
+      for (let k = 0; k < 12 && !spot; k += 1) {
+        const p2 = place(11, site.radius - 5);
+        if (!clear(p2.x, p2.z, 7)) spot = p2;
+      }
+      if (!spot) continue;
+      const { x, z } = spot;
+      const gy = terrainHeight(x, z);
+      const scale = 0.8 + rand() * 0.45;
+      const spin = rand() * Math.PI;
+      const half = 1.05 * scale;
+      for (const side of [-1, 1]) {
+        const px = x + Math.cos(spin) * side * half;
+        const pz = z - Math.sin(spin) * side * half;
+        p.set(px, terrainHeight(px, pz) + 1.4 * scale, pz);
+        q.setFromEuler(new THREE.Euler(0, spin, 0));
+        s.set(scale, scale, scale);
+        posts.setMatrixAt(pairN * 2 + (side > 0 ? 1 : 0), m.compose(p, q, s));
+      }
+      /*
+       * 夾在兩根柱子中間的那一片：1.5 × 1.9 公尺的板子，轉過角度之後外接盒的
+       * 最薄兩軸都 ≥ 0.9 —— 依 Phase 20 的鐵則它就得擋得住人（而且兩根柱子中間
+       * 本來就只剩 0.6 公尺，人也鑽不過去）。所以這一批**登記碰撞**，不是幽靈。
+       */
+      p.set(x, gy + 2.7 * scale, z);
+      q.setFromEuler(new THREE.Euler(0, spin + Math.PI / 2, 0));
+      s.set(scale, scale, scale);
+      leaves.setMatrixAt(pairN, m.compose(p, q, s));
+      pairN += 1;
+    }
+    posts.count = pairN * 2;
+    leaves.count = pairN;
+    posts.instanceMatrix.needsUpdate = true;
+    leaves.instanceMatrix.needsUpdate = true;
+    posts.userData.blocksCamera = true;
+    posts.userData.solidRadius = 0.55;
+    leaves.userData.blocksCamera = true;
+    leaves.userData.solidRadius = 0.8;
+    group.add(posts);
+    group.add(leaves);
+
+    // 落碑：平躺在地上的碑面（0.14 公尺高）。跨得過去，所以不登記碰撞。
+    const slabGeo = new THREE.BoxGeometry(2.2, 0.14, 1.4);
+    const SLAB_N = 14;
+    const slabs = new THREE.InstancedMesh(slabGeo, stoneMat, SLAB_N);
+    slabs.receiveShadow = shadow;
+    let slabN = 0;
+    for (let i = 0; i < SLAB_N; i += 1) {
+      const { x, z } = place(8, site.radius - 6);
+      p.set(x, terrainHeight(x, z) + 0.07, z);
+      q.setFromEuler(new THREE.Euler(0, rand() * Math.PI, 0));
+      s.set(0.6 + rand() * 0.7, 1, 0.6 + rand() * 0.6);
+      slabs.setMatrixAt(slabN, m.compose(p, q, s));
+      slabN += 1;
+    }
+    slabs.count = slabN;
+    slabs.instanceMatrix.needsUpdate = true;
+    group.add(slabs);
   }
 
   // 每區一盞主色補光：便宜又有效的「氣氛」
@@ -1440,9 +2307,26 @@ function buildMarker(challenge, quality, accent) {
   ring.position.y = 0.06;
   group.add(ring);
 
-  const glow = new THREE.PointLight(color, 4.2, 16, 2);
-  glow.position.y = 2.5;
-  group.add(glow);
+  /*
+   * 石座的暖光不再是「每座一盞 PointLight」。
+   *
+   * 為什麼（課程 v2 · Phase B）：石座會從 27 座長到 142 座，一座一盞會在
+   * Phase C 就撞破 WORLD.md §6.1 的 56 盞預算（前向渲染每一盞都要在片段著色器裡算）。
+   * 這盞燈的 distance 是 16 公尺、石座之間至少隔 13 公尺 —— 也就是說**同一時間
+   * 最多只有兩三座的光照得到玩家**，其餘 130 幾盞是純浪費。
+   *
+   * 所以改成：每座石座留一個**光的意圖**（顏色 / 亮度 / 高度），
+   * 真正的 PointLight 由世界層的一小池（MARKER_LIGHT_POOL 盞）每幀指派給最近的幾座。
+   * 畫面完全一樣（照得到玩家的那幾座本來就只有那幾座），
+   * 但燈數從「石座數」變成「常數」。
+   */
+  const glow = {
+    color: color.clone(),
+    intensity: 4.2,
+    position: { y: 2.5 },
+    /** 這一格光的世界座標（燈池指派時用）。 */
+    worldY: y + 2.5,
+  };
 
   // 光柱：從很遠就看得到「那邊有事情可以做」，等於一個不需要小地圖的導航
   const beacon = new THREE.Mesh(
@@ -1543,6 +2427,7 @@ function buildMarker(challenge, quality, accent) {
       const bob = Math.sin(t * 1.4 + x * 0.3) * 0.22;
       shard.position.y = 2.5 + bob;
       glow.position.y = 2.5 + bob;
+      glow.worldY = y + 2.5 + bob;
       ring.rotation.z += dt * 0.15;
 
       // 三種狀態讀得出來：未解 = 呼吸式脈動、走近 = 亮起、已解 = 安靜的暖金
@@ -1715,6 +2600,13 @@ export function createWorld({
   curriculum,
   challenges,
   progression,
+  /**
+   * 課程 v2 · Phase E：已上線的區域（`catalog.implementedRegions()`）。
+   * `curriculum.groups` 只有既有五區 —— 之後新蓋的區域（量器坊起）的名稱與主色
+   * 住在 `regions-v2.json`，所以由呼叫端把 catalog 的區域表遞進來。
+   * 沒給也不會壞：查不到的區域退回預設的灰藍色。
+   */
+  regions = null,
   quality = 'high',
   shrine = null,
   /** Phase 22：刻文小語（inscriptions.json 的 entries）。沒給就不蓋，世界照樣成立。 */
@@ -1735,11 +2627,15 @@ export function createWorld({
   scene.add(root);
 
   const groups = new Map((curriculum.groups || []).map((g) => [g.id, g]));
+  for (const r of regions || []) {
+    if (!r || groups.has(r.id)) continue;
+    groups.set(r.id, { id: r.id, name: r.name || r.nameZh, nameEn: r.nameEn, color: r.color });
+  }
   const colorOf = (regionId) => (groups.get(regionId) || {}).color || '#8aa0b4';
   const positions = challenges.map((c) => c.position || [0, 0]);
 
   // 走出來的路（只染地面顏色，不動高度場）
-  const pathSegs = buildPathNetwork(REGION_SITES, CORRIDORS, challenges);
+  const pathSegs = buildPathNetwork(REGION_SITES, [...CORRIDORS, ...ANNEX_LINKS], challenges);
   root.add(buildTerrain(quality, colorOf, pathSegs));
 
   /**
@@ -1886,7 +2782,12 @@ export function createWorld({
     return marker;
   });
 
-  const gates = CORRIDORS.map((corridor) => {
+  /*
+   * 閘門：四條橋 ＋ 正南那條 ＋ 加建院落的頸口（課程 v2 · Phase F）。
+   * 加建的那一道立在兩片土地的歸屬分界上，`buildGate()` 只需要 `gate` 與 `dir`，
+   * 所以連結表與橋共用同一個形狀，一行程式都不必分岔。
+   */
+  const gates = [...CORRIDORS, ...ANNEX_LINKS].map((corridor) => {
     const region = groups.get(corridor.region) || { id: corridor.region, name: corridor.region, nameEn: '' };
     const status = progression.gateStatus(corridor.region);
     const gate = buildGate(corridor, region, colorOf(corridor.region), status.unlocked, status.text);
@@ -1907,6 +2808,17 @@ export function createWorld({
       const along = (x - c.from.x) * c.dir.x + (z - c.from.z) * c.dir.z;
       const lateral = distToSegment(x, z, c.from.x, c.from.z, c.to.x, c.to.z);
       if (along > c.gateAt - 1.4 && lateral < c.half + 4) return false;
+    }
+    /*
+     * 加建的院落（課程 v2 · Phase F）：沒有橋，所以擋的不是一條線，而是**地界**。
+     * 「這個點屬於護欄崗嗎」＝ `regionAt()` 的正規化距離判定 —— 與閘門立的位置
+     * 是同一條界線，所以人被擋下來的那一步正好在拱門底下，而母土地
+     * （沉書檔案庫）一寸都沒有被吃掉。
+     */
+    for (const a of ANNEX_LINKS) {
+      if (isUnlocked(a.region)) continue;
+      const here = regionAt(x, z);
+      if (here && here.id === a.region) return false;
     }
     return true;
   }
@@ -1959,6 +2871,72 @@ export function createWorld({
   const gearScale = new THREE.Vector3();
   const gearPos = new THREE.Vector3();
 
+  /* ------------------------------------------------------------------ *
+   * 石座的燈池（課程 v2 · Phase B）
+   *
+   * WORLD.md §6.1：新增場景內容不新增光源。石座會從 27 座長到 142 座，
+   * 一座一盞的作法在 Phase C 就會撞破 56 盞的預算。
+   *
+   * 這一池是**常數盞**（8 盞），每幀指派給離鏡頭最近的幾座石座。
+   * 石座的燈 distance = 16 公尺、彼此至少隔 13 公尺，所以同一時間照得到
+   * 玩家的本來就只有兩三座 —— 畫面看不出差別，燈數卻不再跟著關卡數長。
+   *
+   * 每幀零配置：距離用平方比、暫存物件提到這一層、不 map/filter/sort 整個陣列
+   * （只做一次 8 格的插入排序，8 是常數）。
+   * ------------------------------------------------------------------ */
+  const MARKER_LIGHT_POOL = 8;
+  const markerLights = [];
+  for (let i = 0; i < MARKER_LIGHT_POOL; i += 1) {
+    const l = new THREE.PointLight(0xffffff, 0, 16, 2);
+    l.position.set(0, -50, 0);
+    root.add(l);
+    markerLights.push(l);
+  }
+  /** 這一幀選中的石座（index 0 最近）與它們的平方距離。 */
+  const litMarkers = new Array(MARKER_LIGHT_POOL).fill(null);
+  const litDist = new Array(MARKER_LIGHT_POOL).fill(Infinity);
+
+  function updateMarkerLights() {
+    const cam = engine.camera;
+    if (!cam || !cam.position) return;
+    const cx = cam.position.x;
+    const cz = cam.position.z;
+    for (let i = 0; i < MARKER_LIGHT_POOL; i += 1) {
+      litMarkers[i] = null;
+      litDist[i] = Infinity;
+    }
+    for (let m = 0; m < markers.length; m += 1) {
+      const marker = markers[m];
+      const dx = marker.position.x - cx;
+      const dz = marker.position.z - cz;
+      const d2 = dx * dx + dz * dz;
+      // 45 公尺外整組跳過（§6.2 距離分級）；燈的作用半徑只有 16
+      if (d2 > 2025) continue;
+      for (let i = 0; i < MARKER_LIGHT_POOL; i += 1) {
+        if (d2 >= litDist[i]) continue;
+        for (let j = MARKER_LIGHT_POOL - 1; j > i; j -= 1) {
+          litDist[j] = litDist[j - 1];
+          litMarkers[j] = litMarkers[j - 1];
+        }
+        litDist[i] = d2;
+        litMarkers[i] = marker;
+        break;
+      }
+    }
+    for (let i = 0; i < MARKER_LIGHT_POOL; i += 1) {
+      const light = markerLights[i];
+      const marker = litMarkers[i];
+      if (!marker) {
+        light.intensity = 0;
+        continue;
+      }
+      const g = marker.glow;
+      light.color.copy(g.color);
+      light.intensity = g.intensity;
+      light.position.set(marker.position.x, g.worldY, marker.position.z);
+    }
+  }
+
   const floatMtx = new THREE.Matrix4();
   const floatQuat = new THREE.Quaternion();
   const floatPos = new THREE.Vector3();
@@ -1966,6 +2944,7 @@ export function createWorld({
 
   engine.onUpdate((dt, t) => {
     for (const m of markers) m.update(dt, t, engine.camera);
+    updateMarkerLights();
     for (const g of gates) g.update(dt, t);
     for (const tab of tablets) tab.update(dt, t);
     for (const ins of inscriptionObjs) ins.update(dt, t);
@@ -2059,6 +3038,9 @@ export function createWorld({
     regionAt,
     isWalkable,
     atmosphereFor,
+    /** 橋與加建的頸口（測試與除錯用）。 */
+    corridors: CORRIDORS,
+    annexLinks: ANNEX_LINKS,
 
     /** 玩家移動用：走不過去就沿牆滑，不會被卡死。 */
     clampPosition(nextX, nextZ, prevX, prevZ) {

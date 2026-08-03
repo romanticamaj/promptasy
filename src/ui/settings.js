@@ -88,7 +88,7 @@ export function createSettings({
             <li>等級 <b>Lv.${lv.level}</b>（${lv.into} / ${lv.need} XP）</li>
             <li>累積經驗 <b>${progression.state.xp}</b> XP</li>
             <li>已收集技巧 <b>${progression.state.collected.length}</b> / ${
-              (content.curriculum.techniques || []).length
+              content.catalog.counts.techniques
             }</li>
             <li>已通關 <b>${Object.keys(progression.state.bestGrades).length}</b> / ${content.challenges.length}</li>
             <li>已解鎖區域 <b>${progression.state.unlockedRegions

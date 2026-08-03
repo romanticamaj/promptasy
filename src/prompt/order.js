@@ -26,6 +26,24 @@ export { PALM_HOLD_MS };
 /** 排對一片時噴出幾顆石屑。 */
 const DUST_COUNT = 8;
 
+/**
+ * 拖曳時「越過鄰居中線多少公分才真的換位」（像素）。
+ *
+ * 沒有這一段遲滯，指標停在兩片交界上會被來回判定成上一格 / 下一格，
+ * 清單就一直彈；有了它，要真的越過去一點才會換 —— 手感穩得多。
+ */
+const DRAG_HYSTERESIS = 9;
+
+/**
+ * 入場動畫要跑多久（每片 42ms 錯開 ＋ 一段收尾）。
+ *
+ * 跑完就把 `.slip__grip` 的 `animation` 關掉 —— 原因見 `buildList()` 的註解：
+ * 搬動一片石版在 DOM 上是「拿掉再插回去」，只要入場動畫還掛著就會從頭重播，
+ * 那一片會先變透明再淡回來（看起來就是「拖到一半卡片不見了」）。
+ */
+const ENTRY_STAGGER_MS = 42;
+const ENTRY_TAIL_MS = 560;
+
 function prefersReduced() {
   return typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 }
@@ -55,7 +73,10 @@ export function createOrderBoard({
   let held = null;
   /** 正在被拖的那一片（指標路徑）。 */
   let dragging = null;
+  /** 指標按下去的時候，落在那一片的哪個高度（拖起來才不會跳到指標下方對齊）。 */
   let dragOffset = 0;
+  /** 入場動畫的收尾計時器（跑完就把動畫關掉，見 ENTRY_TAIL_MS）。 */
+  let entryTimer = 0;
   /** 排對之後就鎖住（跟石碑刻上去就不能撤回是同一個道理）。 */
   let locked = false;
   /** id → 那一片石版的 <li>（只建一次，之後只搬不重建）。 */
@@ -136,6 +157,18 @@ export function createOrderBoard({
 
   /* ------------------------------------------------------------ 動畫 */
 
+  /**
+   * 這一片在**版面上**的頂緣（視窗座標，但不含任何 transform）。
+   *
+   * `offsetTop` 是版面算出來的距離，transform 動不到它 —— 所以拖曳途中
+   * 不管有幾片正在補間，量到的都是「它真正的格子在哪」。
+   * （`.slips` 是 position:relative，所以石版的 offsetParent 就是它。）
+   */
+  function layoutTopOf(li) {
+    if (!li) return 0;
+    return slipsEl.getBoundingClientRect().top + li.offsetTop;
+  }
+
   function dust() {
     if (!dustEl || prefersReduced()) return;
     for (let i = 0; i < DUST_COUNT; i += 1) {
@@ -154,6 +187,10 @@ export function createOrderBoard({
   /**
    * 搬動的那一下要有重量：先記下每片的位置，重畫之後把它們「拉回原位」再放開
    * （FLIP）。`prefers-reduced-motion` 下整段跳過 —— 關掉的是「動」，不是「回應」。
+   *
+   * **被拖著的那一片一律跳過。**它的位置是由指標決定的（`--lift`），
+   * FLIP 會用 inline `transform` 把那個位移整個蓋掉 —— 卡片就會在拖曳途中
+   * 跳到一個跟指標無關的地方，放開手才彈回來。它不需要補間，它就在指標下面。
    */
   function withSlide(mutate) {
     if (prefersReduced()) {
@@ -162,14 +199,20 @@ export function createOrderBoard({
     }
     const before = new Map();
     for (const li of slipsEl.querySelectorAll('.slip')) {
-      before.set(li.getAttribute('data-slip-id'), li.getBoundingClientRect().top);
+      const id = li.getAttribute('data-slip-id');
+      if (id === dragging) continue;
+      // 量的是**看得到的位置**（含還在補間的位移）——連續搬兩次才不會從半路跳一下
+      before.set(id, li.getBoundingClientRect().top);
     }
     mutate();
     for (const li of slipsEl.querySelectorAll('.slip')) {
       const id = li.getAttribute('data-slip-id');
+      if (id === dragging) continue;
       const was = before.get(id);
       if (was == null) continue;
-      const dy = was - li.getBoundingClientRect().top;
+      // 目的地一律用**版面座標**（offsetTop）——上一次的補間還掛在身上時，
+      // getBoundingClientRect 讀到的是動畫中途的假座標，位移會越算越亂。
+      const dy = was - layoutTopOf(li);
       if (!dy) continue;
       li.style.transition = 'none';
       li.style.transform = `translate3d(0, ${dy}px, 0)`;
@@ -188,10 +231,19 @@ export function createOrderBoard({
    * 這不是效能考量，是無障礙的硬需求：拿在手上的那一片如果被 innerHTML 重建，
    * 鍵盤焦點會在拿起的瞬間掉回頁首，後面的方向鍵就全部落空
    * （WORLD.md §3.1「焦點只准停在真的畫得出來的東西上」的另一面）。
+   *
+   * 入場動畫（`.slip__grip` 的 `opt-in`）只准在**這一次**播。
+   * 搬動一片石版在 DOM 上是 `insertBefore` 一個已經在文件裡的節點 ——
+   * 規格上那是「先移除、再插入」，CSS 動畫因此整個重播：那一片會先跳回
+   * `opacity: 0`（還帶著 `--i × 42ms` 的延遲）再淡回來。玩家看到的就是
+   * 「拖到一半卡片不見了」。所以入場跑完就把動畫關掉（`.is-settled`）。
    */
   function buildList() {
     nodes.clear();
     slipsEl.innerHTML = '';
+    slipsEl.classList.remove('is-settled');
+    if (entryTimer) clearTimeout(entryTimer);
+    entryTimer = 0;
     if (!flow) return;
     for (const [i, p] of flow.pieces.entries()) {
       const li = document.createElement('li');
@@ -213,6 +265,13 @@ export function createOrderBoard({
       nodes.set(p.id, li);
       slipsEl.appendChild(li);
     }
+    entryTimer = setTimeout(
+      () => {
+        entryTimer = 0;
+        slipsEl.classList.add('is-settled');
+      },
+      flow.pieces.length * ENTRY_STAGGER_MS + ENTRY_TAIL_MS
+    );
   }
 
   /** 把節點照目前的排法搬好，並更新位次、刻記、狀態與進度。 */
@@ -269,6 +328,8 @@ export function createOrderBoard({
     const from = arrangement.indexOf(id);
     const to = Math.max(0, Math.min(arrangement.length - 1, index));
     if (from < 0 || from === to) return false;
+    // 第一次搬動就把入場動畫關掉（搬動＝重新插入 DOM，動畫會重播 → 卡片會閃掉）
+    slipsEl.classList.add('is-settled');
     withSlide(() => {
       arrangement.splice(from, 1);
       arrangement.splice(to, 0, id);
@@ -382,38 +443,73 @@ export function createOrderBoard({
     if (next) focusSlip(next);
   });
 
-  /* ------------------------------------------------------------ 拖曳 */
+  /* ------------------------------------------------------------ 拖曳
+   *
+   * 三條規則（Phase 35.1 —— 修掉「拖到一半卡片消失、清單彈來彈去」）：
+   *
+   *   1. **被抓住的那一片永遠跟著指標**。它不是被別的東西代畫的影子，
+   *      就是它自己：只加一個 `--lift` 位移，DOM 節點從頭到尾沒被換掉，
+   *      所以拖曳途中不會有任何一格「它不在畫面上」。
+   *   2. **位移一律以版面座標算**（`layoutTopOf`），不用 `getBoundingClientRect`。
+   *      rect 會把自己的位移也算進去 —— 拿它當基準等於每一幀都在累加誤差。
+   *   3. **換位要越過鄰居中線一段距離才算**（`DRAG_HYSTERESIS`）。
+   *      指標剛好停在交界上時，沒有遲滯就會上下各判定一次、無限互換。
+   */
 
-  function indexAtY(clientY) {
-    const rows = Array.from(slipsEl.querySelectorAll('.slip'));
-    for (let i = 0; i < rows.length; i += 1) {
-      const r = rows[i].getBoundingClientRect();
-      if (clientY < r.top + r.height / 2) return i;
-    }
-    return rows.length - 1;
+  /**
+   * 現在該把這一片放到第幾格。
+   *
+   * 比的是「被拖著那一片的中線」對上鄰居的中線 —— 不是指標本身，
+   * 不然抓住卡片底部時會提早半張卡就換位。
+   */
+  function targetIndex(clientY) {
+    const li = nodes.get(dragging);
+    if (!li) return arrangement.indexOf(dragging);
+    const base = slipsEl.getBoundingClientRect().top;
+    const rows = arrangement.map((id) => {
+      const node = nodes.get(id);
+      return node ? base + node.offsetTop + node.offsetHeight / 2 : base;
+    });
+    const center = clientY - dragOffset + li.offsetHeight / 2;
+    let to = arrangement.indexOf(dragging);
+    if (to < 0) return 0;
+    while (to < rows.length - 1 && center > rows[to + 1] + DRAG_HYSTERESIS) to += 1;
+    while (to > 0 && center < rows[to - 1] - DRAG_HYSTERESIS) to -= 1;
+    return to;
+  }
+
+  /** 把被抓住的那一片挪到指標下面（它自己的格子在哪都無所謂）。 */
+  function followPointer(clientY) {
+    const li = nodes.get(dragging);
+    if (!li) return;
+    li.style.setProperty('--lift', `${Math.round(clientY - dragOffset - layoutTopOf(li))}px`);
   }
 
   function onPointerMove(e) {
     if (!dragging) return;
-    const to = indexAtY(e.clientY);
+    const to = targetIndex(e.clientY);
     if (to !== arrangement.indexOf(dragging)) moveTo(dragging, to);
-    const li = slipsEl.querySelector(`[data-slip-id="${CSS.escape(dragging)}"]`);
-    if (li && !prefersReduced()) {
-      const r = li.getBoundingClientRect();
-      li.style.setProperty('--lift', `${Math.round(e.clientY - r.top - dragOffset)}px`);
-    }
+    // 換位之後版面變了 → 一定要在同一幀重算位移，畫面上才不會出現一格錯位
+    followPointer(e.clientY);
   }
 
   function endDrag() {
     if (!dragging) return;
     const id = dragging;
+    const li = nodes.get(id);
     dragging = null;
     window.removeEventListener('pointermove', onPointerMove);
     window.removeEventListener('pointerup', endDrag);
     window.removeEventListener('pointercancel', endDrag);
-    const li = slipsEl.querySelector(`[data-slip-id="${CSS.escape(id)}"]`);
-    if (li) li.style.removeProperty('--lift');
+    // 先把 is-dragging 拿掉（transition 才回得來），下一幀再放開位移 —— 石版會滑進格子裡
     render();
+    if (li) {
+      if (prefersReduced() || typeof requestAnimationFrame !== 'function') {
+        li.style.removeProperty('--lift');
+      } else {
+        requestAnimationFrame(() => li.style.removeProperty('--lift'));
+      }
+    }
     settle(id);
   }
 
@@ -424,12 +520,14 @@ export function createOrderBoard({
     // 滑鼠只認左鍵；觸控與筆一律放行
     if (e.pointerType === 'mouse' && e.button !== 0) return;
     e.preventDefault();
+    slipsEl.classList.add('is-settled');
     dragging = btn.getAttribute('data-slip');
     held = null;
     const li = btn.closest('.slip');
-    dragOffset = li ? e.clientY - li.getBoundingClientRect().top : 0;
+    dragOffset = li ? e.clientY - layoutTopOf(li) : 0;
     render();
     focusSlip(dragging);
+    followPointer(e.clientY);
     const p = pieceOf(dragging);
     if (p) onLift?.({ piece: p });
     window.addEventListener('pointermove', onPointerMove);

@@ -1,0 +1,222 @@
+{
+  "authored": "game",
+  "note": "術語小卡：遊戲自撰的白話說明，不是任何官方文字、也不是引文。這一層跟 coach.json 一樣是「扶手」——只負責讓一般人看懂畫面上那個英文字是什麼意思。真正的教學與官方出處仍然只在第二幕（神諭刻文）與圖鑑，所以這個檔案刻意不放任何連結。",
+  "terms": [
+    {
+      "id": "prompt",
+      "term": "prompt",
+      "zh": "提示詞",
+      "aliases": ["prompts"],
+      "plain": "你交給模型的那一整段話：你是誰、要做什麼、材料在哪、答案長什麼樣，全部寫在裡面。",
+      "use": "它就是你在這個世界裡刻上石碑的東西——寫得越具體，回來的東西越接近你要的。",
+      "example": "你是市集書記。用三點條列寫一張公告，每點 20 字以內。"
+    },
+    {
+      "id": "llm",
+      "term": "LLM",
+      "zh": "大型語言模型",
+      "aliases": [],
+      "plain": "讀過大量文字、學會「下一個字最可能是什麼」的模型。",
+      "use": "這個世界裡的神諭就是它——它會照你寫的話回應，但它不會讀心。",
+      "example": "常見的有 GPT、Claude、Gemini、Grok。"
+    },
+    {
+      "id": "token",
+      "term": "token",
+      "zh": "詞元",
+      "aliases": ["tokens"],
+      "plain": "模型把文字切開之後的最小單位；一個漢字大約算一到兩個。",
+      "use": "長度上限、費用、速度都是用它算的——所以「短一點」最好換成數字。",
+      "example": "回覆控制在 300 個 token 以內。"
+    },
+    {
+      "id": "temperature",
+      "term": "temperature",
+      "zh": "亂度旋鈕",
+      "aliases": [],
+      "plain": "控制模型敢不敢挑冷門字的旋鈕，常見範圍是 0 到 1。",
+      "use": "要每次都一樣就轉到 0；要它多變化一點才往上調。",
+      "example": "temperature：0"
+    },
+    {
+      "id": "top-p",
+      "term": "top_p",
+      "zh": "取樣範圍",
+      "aliases": ["top-p"],
+      "plain": "另一個亂度旋鈕：只從機率加起來到某個比例的那一批字裡面挑。",
+      "use": "和 temperature 挑一個轉就好，兩個一起動會看不出是誰的效果。",
+      "example": "top_p：0.9"
+    },
+    {
+      "id": "json",
+      "term": "JSON",
+      "zh": "機器好讀的資料格式",
+      "aliases": [],
+      "plain": "用大括號把「欄位名稱：值」一組一組包起來的寫法。",
+      "use": "要模型回的東西能被程式直接接住時就指定它，並附一份範例。",
+      "example": "{\"標題\": \"夜市公告\", \"字數\": 80}"
+    },
+    {
+      "id": "xml",
+      "term": "XML",
+      "zh": "標籤包法",
+      "aliases": [],
+      "plain": "用一對角括號的標籤，把一段內容整個框起來的寫法。",
+      "use": "拿來當分隔符很好用：指令放標籤外面，資料放標籤裡面。",
+      "example": "<資料>今晚的收成帳</資料>"
+    },
+    {
+      "id": "markdown",
+      "term": "markdown",
+      "zh": "輕量排版",
+      "aliases": [],
+      "plain": "用井字號當標題、減號當條列的純文字排版寫法。",
+      "use": "要一份看得出層次的文件時指定它；三句話的回覆反而不必。",
+      "example": "## 今晚的巡邏　-　先到橋頭"
+    },
+    {
+      "id": "html",
+      "term": "HTML",
+      "zh": "網頁骨架",
+      "aliases": [],
+      "plain": "瀏覽器讀的標籤語言，決定一頁上面有哪些東西。",
+      "use": "要模型直接產出網頁片段時才指定它，不然多半太囉嗦。",
+      "example": "<p>今晚的公告</p>"
+    },
+    {
+      "id": "css",
+      "term": "CSS",
+      "zh": "網頁的樣子",
+      "aliases": [],
+      "plain": "決定網頁長什麼樣子的語言——顏色、字級、間距都歸它管。",
+      "use": "你現在看到的石牌、金線與這片夜色，全部是它畫出來的。",
+      "example": "color：#e6c79b"
+    },
+    {
+      "id": "api",
+      "term": "API",
+      "zh": "程式的窗口",
+      "aliases": [],
+      "plain": "一個程式讓另一個程式呼叫它的窗口。",
+      "use": "開發者是透過它把 prompt 送給模型的；玩這一款不需要碰到它。",
+      "example": "送出一次請求，收到一段回覆。"
+    },
+    {
+      "id": "schema",
+      "term": "schema",
+      "zh": "結構綱要",
+      "aliases": ["schemas"],
+      "plain": "事先講好「有哪些欄位、每個欄位是什麼型別」的一張規格表。",
+      "use": "把它交給模型，回來的資料就不會今天多一欄、明天少一欄。",
+      "example": "標題（文字）、字數（整數）、是否公開（是非）"
+    },
+    {
+      "id": "few-shot",
+      "term": "few-shot",
+      "zh": "少量示範",
+      "aliases": ["few shot", "fewshot"],
+      "plain": "在 prompt 裡放幾組「輸入長這樣、輸出就該長這樣」的成對範例。",
+      "use": "講不清楚的風格與格式，用示範最快——通常三到五組就夠。",
+      "example": "輸入：橋頭　輸出：地點"
+    },
+    {
+      "id": "system-prompt",
+      "term": "system prompt",
+      "zh": "系統提示",
+      "aliases": ["system message"],
+      "plain": "擺在對話最前面、講「你是誰、規矩是什麼」的那一段話。",
+      "use": "每一輪都要生效的設定放這裡；當下要做的事才放在你這一句裡。",
+      "example": "你是守夜人的教官，只用繁體中文回答。"
+    },
+    {
+      "id": "function-calling",
+      "term": "function calling",
+      "zh": "工具呼叫",
+      "aliases": ["tool calling"],
+      "plain": "讓模型自己決定要不要呼叫你事先宣告好的工具。",
+      "use": "模型只會挑工具、填參數——真正動手做事的是你的程式。",
+      "example": "查天氣（地點：湖邊，日期：明天）"
+    },
+    {
+      "id": "agent",
+      "term": "agent",
+      "zh": "代理",
+      "aliases": ["agents"],
+      "plain": "會自己一步一步把一件事做完的模型：規劃、動手、看結果、再修。",
+      "use": "事情要跨好幾步時才用它；一次問答做得完就不必。",
+      "example": "先查資料，再寫草稿，最後回報。"
+    },
+    {
+      "id": "cot",
+      "term": "CoT",
+      "zh": "思維鏈",
+      "aliases": ["chain of thought", "chain-of-thought"],
+      "plain": "讓模型把推理過程一步一步寫出來，而不是直接跳到答案。",
+      "use": "算數、推論、多條件比較時特別有用；新一代的模型多半自己會做。",
+      "example": "請一步一步說明你怎麼算出這個差額。"
+    },
+    {
+      "id": "reasoning-effort",
+      "term": "reasoning_effort",
+      "zh": "思考火力",
+      "aliases": [],
+      "plain": "有些模型可以指定「這一題要想多用力」的等級。",
+      "use": "難題轉高、小事轉低——高火比較慢，也比較貴。",
+      "example": "reasoning_effort：高"
+    },
+    {
+      "id": "verbosity",
+      "term": "verbosity",
+      "zh": "回話長度",
+      "aliases": [],
+      "plain": "指定模型回話要多囉嗦的旋鈕。",
+      "use": "和思考火力是兩件事：想得深，不等於要寫得長。",
+      "example": "verbosity：低"
+    },
+    {
+      "id": "delimiter",
+      "term": "delimiter",
+      "zh": "分隔符",
+      "aliases": ["delimiters"],
+      "plain": "一組內文絕對不會出現的記號，用來把資料和指令切開。",
+      "use": "挑一對成對的標籤或連續符號，指令放外面、資料放裡面。",
+      "example": "###資料開始###　…　###資料結束###"
+    },
+    {
+      "id": "hallucination",
+      "term": "hallucination",
+      "zh": "一本正經地編",
+      "aliases": ["hallucinations"],
+      "plain": "模型講得很有信心，內容卻是編出來的。",
+      "use": "給它一條退路、再要求標出處，這種事就會少很多。",
+      "example": "資料裡沒有的就回「資料中沒有提到」。"
+    },
+    {
+      "id": "tts",
+      "term": "TTS",
+      "zh": "文字轉語音",
+      "aliases": [],
+      "plain": "把一段文字唸成聲音的技術。",
+      "use": "要它唸得像人，就把語氣、語速與停頓寫進 prompt 裡。",
+      "example": "用溫和的語氣、慢一點唸這段公告。"
+    },
+    {
+      "id": "context-window",
+      "term": "context window",
+      "zh": "脈絡窗口",
+      "aliases": ["context windows"],
+      "plain": "模型一次讀得下多少字的上限。",
+      "use": "長資料放最前面、問題放最後一行，它讀完剛好看見要問什麼。",
+      "example": "這一卷大約 40 萬 token。"
+    },
+    {
+      "id": "stop-sequence",
+      "term": "stop sequence",
+      "zh": "停筆記號",
+      "aliases": ["stop sequences"],
+      "plain": "一組字串，模型一寫到它就立刻停筆。",
+      "use": "想讓它產完一段就收手、不要自己續寫下去時很有用。",
+      "example": "寫到「———」就停。"
+    }
+  ]
+}

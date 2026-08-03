@@ -1,0 +1,181 @@
+{
+  "note": "測試用的「這是契約，不是快照」清單。凡是能從 runtime catalog 或資料檔算出來的數字（技巧數、區域數、技能數、flow 數…），測試一律現算，不寫在這裡；只有『這個數字本身就是當期的驗收目標』才登記在這裡，改動它＝有意識地改變契約。每一格都寫得出為什麼。",
+  "updatedAt": "2026-08-03",
+  "updatedBy": "出處深連結稽核（每一個顯示得到的官方連結都直接跳到被引用的那一節）",
+  "contract": {
+    "challenges": {
+      "value": 142,
+      "why": "現行關卡數＝130 座教學神廟 ＋ 12 座應用關（每片土地的地標腳下一座試煉，curriculum-v2 §5.2）。Phase J2 由 132 → 142：沿用既有的議會信使與檔案庫封印，另外新蓋 10 座。"
+    },
+    "flowKinds": {
+      "value": [
+        "choice",
+        "order",
+        "workshop",
+        "fix",
+        "spot",
+        "induct",
+        "tradeoff",
+        "constraint",
+        "multi",
+        "sim",
+        "reverse"
+      ],
+      "why": "目前上線的刻印題型。Phase B 加了 fix（改碑）與 spot（點碑），Phase C 加了 induct（推規碑）與 tradeoff（雙面碑），Phase D 加了 constraint（合尺），Phase G 加了 multi（兩輪刻印），Phase H 加了 sim（轉鈕：轉一格旋鈕，離線樣本跟著換）；Phase J1 加了 reverse（拆碑：把一份寫好的委託拆開，說出每一塊用了哪一條技巧）；之後每加一種都要一起改這裡（flows.json 缺 kind 時預設 choice 的相容契約不變）。"
+    },
+    "v2Skills": {
+      "value": 130,
+      "why": "curriculum-v2 §一的技能總表：130 條技能 ↔ 130 座神廟（C1 一關一技巧）。"
+    },
+    "v2Regions": {
+      "value": 12,
+      "why": "curriculum-v2 §二的區域規劃。"
+    },
+    "v2ImplementedRegions": {
+      "value": 12,
+      "why": "世界裡真的蓋好的區域。Phase E（forms · 量器坊）＋ Phase F（toolcraft · 契約鍛冶場／wards · 護欄崗）＋ Phase G（refinery · 校驗場）＋ Phase H（frugality · 減法之庭）＋ Phase I（sight · 觀象臺）＋ Phase J1（divergence · 分歧之廳）全部上線 —— 12 區到齊，這個數字之後不該再變。"
+    },
+    "v2SkillsWithoutSource": {
+      "value": 0,
+      "why": "master list 標「出處找不到」的條目（唯一一條是 #11）在蒸餾規則 3 就被排除，所以 130 條技能目前每一條都有 ≥1 個可驗證官方連結。上限是 3；超過就代表有人把沒出處的東西寫成教學（護欄 2）。",
+      "max": 3
+    },
+    "legacyChallenges": {
+      "value": 27,
+      "why": "docs/design/curriculum-v2-migration.json 管的是「既有 27 關的遷移」。新蓋的神廟（有 primarySkillId）不在它的範圍內，所以 manifest 永遠對這 27 關。"
+    },
+    "foundationsShrines": {
+      "value": 14,
+      "why": "撰寫基本功的**教學神廟**數（curriculum-v2 §3 的 foundations 總表 14 座）。Phase J2 起這一格只算教學神廟 —— 應用關（council-envoy-06）另外登記在 applicationTrials。"
+    },
+    "v2CheckersLanded": {
+      "value": [
+        "allowsNullField",
+        "anchorsToSection",
+        "asksForPlanFirst",
+        "asksForRationaleNotTranscript",
+        "asksModelToRewritePrompt",
+        "asksMultipleSamples",
+        "asksToCompact",
+        "avoidsPressureLanguage",
+        "avoidsSelfCounting",
+        "bansFillerPhrases",
+        "carriesForwardEssentials",
+        "citesInline",
+        "decisionTree",
+        "definesEvalSet",
+        "definesHandoffState",
+        "definesSchema",
+        "definesToneConcretely",
+        "definesWordedScale",
+        "delegatesWithCriteria",
+        "diagnosesFailureCause",
+        "disambiguatesTerms",
+        "extractsStandingRules",
+        "hasFallbackCategory",
+        "hasStopRule",
+        "includesAdversarialCase",
+        "justifiesExampleCount",
+        "labelsNegativeExample",
+        "labelsSources",
+        "limitsScope",
+        "limitsToolOutput",
+        "limitsToolSurface",
+        "namesComponents",
+        "namesDesignElements",
+        "namesModelClass",
+        "namesShotElements",
+        "namesStackAndScope",
+        "noDuplicateSchemaRules",
+        "noUndefinedReference",
+        "ordersToolCalls",
+        "pointsAtRegion",
+        "prefersToolOverMentalMath",
+        "preservesPriorState",
+        "ranksInstructions",
+        "requiresPreamble",
+        "reshapesToLowRisk",
+        "rulesBeforeData",
+        "saysWhatToPreserve",
+        "setsActionBudget",
+        "setsRetrievalBudget",
+        "statesFormatPreference",
+        "statesScope",
+        "statesSuccessCriteria",
+        "statesToolTriggers",
+        "staticBeforeVariable",
+        "toolNamesDistinct",
+        "tunesAutonomyLevel",
+        "usesOneSkeleton",
+        "usesProsodyPunctuation",
+        "usesRareDelimiter"
+      ],
+      "why": "curriculum-v2 §7.4 的 59 個新檢查器只按期開；Phase B 開了撰寫基本功五座用得到的，Phase C 再開示範與推理四座用得到的，Phase D 再開脈絡與長文／角色與參數十二座用得到的（含撰寫基本功欠著的 rulesBeforeData 與 usesRareDelimiter），Phase E 再開量器坊十四座用得到的九個，Phase F 再開契約鍛冶場與護欄崗十六座用得到的九個，Phase G 再開流程與代理與校驗場二十三座用得到的十二個，Phase H 再開減法之庭七座用得到的三個，Phase I 再開觀象臺八座用得到的五個。清單要跟 checks.js 完全一致，避免有人開了沒有神廟在用的檢查器。"
+    },
+    "reasoningShrines": {
+      "value": 15,
+      "why": "示範與推理這一區的關卡數：curriculum-v2 §3 的 reasoning 總表就是 15 座教學神廟（本區的應用關等 Phase J）。"
+    },
+    "groundingShrines": {
+      "value": 12,
+      "why": "脈絡與長文的**教學神廟**數（curriculum-v2 §3 的 grounding 總表 12 座）。Phase J2 起這一格只算教學神廟 —— 應用關（archive-seal-25）另外登記在 applicationTrials。"
+    },
+    "configShrines": {
+      "value": 12,
+      "why": "角色與參數這一區的關卡數：curriculum-v2 §3 的 config 總表就是 12 座教學神廟（本區的應用關等 Phase J）。"
+    },
+    "formsShrines": {
+      "value": 14,
+      "why": "量器坊這一區的關卡數：curriculum-v2 §3 的 forms 總表就是 14 座教學神廟（含由撰寫基本功搬過來的 mimic-mirror-04；本區的應用關等 Phase J）。"
+    },
+    "synthOnlyRegions": {
+      "value": [],
+      "why": "已上線但還沒有配樂音檔的區域 —— 它們走合成 pad（護欄 3：合成引擎是備援，不是遺跡）。issue #3 交付了六首（量器坊 / 契約鍛冶場 / 減法之庭 / 校驗場 / 觀象臺 / 分歧之廳），護欄崗的《The Unclosing Door》於 2026-08-03 補齊 —— 十二區全數有音檔，此清單目前為空;新區域上線時先進這裡,音檔到了再移走。"
+    },
+    "toolcraftShrines": {
+      "value": 11,
+      "why": "契約鍛冶場這一區的關卡數：curriculum-v2 §3 的 toolcraft 總表就是 11 座教學神廟（含由流程與代理搬過來的 tool-forge-33 與 oracle-workshop-36；本區的應用關等 Phase J）。"
+    },
+    "wardsShrines": {
+      "value": 5,
+      "why": "護欄崗這一區的關卡數：curriculum-v2 §3 的 wards 總表就是 5 座教學神廟（本區的應用關等 Phase J）。"
+    },
+    "orchestrationShrines": {
+      "value": 12,
+      "why": "流程與代理這一區的關卡數：curriculum-v2 §3 的 orchestration 總表就是 12 座教學神廟（Phase F 搬走的 tool-forge-33 與 oracle-workshop-36 由 Phase G 新蓋的十座補回；本區的應用關等 Phase J）。"
+    },
+    "refineryShrines": {
+      "value": 11,
+      "why": "校驗場這一區的關卡數：curriculum-v2 §3 的 refinery 總表就是 11 座教學神廟（含由流程與代理搬過來的 draft-review-wheel-32 與 echo-workshop-35；本區的應用關等 Phase J）。"
+    },
+    "frugalityShrines": {
+      "value": 7,
+      "why": "減法之庭這一區的關卡數：curriculum-v2 §3 的 frugality 總表就是 7 座教學神廟（本區的應用關等 Phase J）。"
+    },
+    "sightShrines": {
+      "value": 8,
+      "why": "觀象臺這一區的關卡數：curriculum-v2 §3 的 sight 總表就是 8 座教學神廟（本區的應用關等 Phase J）。"
+    },
+    "divergenceShrines": {
+      "value": 9,
+      "why": "分歧之廳這一區的關卡數：curriculum-v2 §3 的 divergence 總表就是 9 座教學神廟（本區的終章試煉屬於 J2 的 12 座應用關）。"
+    },
+    "sourceAnchors": {
+      "value": {
+        "skillRowsWithoutAnchor": 76,
+        "legacyOverlayEntries": 64,
+        "legacyRowsWithoutAnchor": 41,
+        "textFragments": 20
+      },
+      "why": "出處深連結稽核（2026-08-03）的驗收數字。130 座教學神廟與圖鑑顯示的每一個官方連結都要直接跳到**被引用的那一節**：v2 技能的 445 列出處就地升級（369 列帶得出片段、76 列查核後確認是頁面層引用而誠實留白），舊 68 條的 105 列走顯示層疊加 source-anchors.json（64 條疊得上、41 列停在頁面層）。textFragments ＝ 兩層加起來用 W3C `#:~:text=` 的條數（那些頁面沒有可用的標題 id）。這幾個「沒有深連結」的數字就是誠實度本身 —— 只准往下走，往上就是有人把片段亂加或把驗證拿掉；max 是硬上限。逐網址的驗證紀錄在 docs/design/source-anchor-audit.md。 ｜ 2026-08-03 內容稽核：contrast-persona 的 Magistral-Small-2509 那一列原本掛 #sampling-parameters，該錨點指到的是取樣參數、與身分設定無關（連結會把玩家帶到對不上的段落），已降回頁面層並寫下理由 —— 75 → 76 是把一條錯的深連結改成誠實的頁面層引用，不是把驗證拿掉。",
+      "max": {
+        "skillRowsWithoutAnchor": 80,
+        "legacyRowsWithoutAnchor": 45
+      }
+    },
+    "applicationTrials": {
+      "value": 12,
+      "why": "12 片土地各一座試煉（curriculum-v2 §5.2）。它們不教新技巧（第二幕整幕不存在）、不計入 130 座教學神廟、不進 C1／C2 的「一關一技巧」統計，rubric 是開關卡當下依「你已經學會什麼」組出來的。"
+    }
+  }
+}

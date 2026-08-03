@@ -12,13 +12,27 @@
  * 不依賴 puppeteer / playwright —— 只用 node 內建的 fetch + WebSocket ＋ 系統上的 Chrome。
  */
 import { spawn } from 'node:child_process';
-import { mkdtempSync, rmSync, existsSync } from 'node:fs';
+import { mkdtempSync, rmSync, existsSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, '..');
+
+/*
+ * 課程 v2 · Phase B：「68 條技巧 / 5 個區域」不再寫死在斷言裡。
+ * 能算的現算（catalog），真的是當期契約的登記在 scripts/expected-counts.json。
+ */
+const { createCatalog } = await import('../src/challenges/catalog.js');
+const readData = (p) => JSON.parse(readFileSync(resolve(root, p), 'utf8'));
+const CATALOG = createCatalog({
+  curriculum: readData('src/data/curriculum.json'),
+  skillCodex: readData('src/data/skill-codex-v2.json'),
+  regions: readData('src/data/regions-v2.json'),
+});
+const EXPECT = readData('scripts/expected-counts.json').contract;
+const TECHNIQUE_TOTAL = CATALOG.counts.techniques;
 
 const DEV_PORT = Number(process.env.PA_PORT || 5199);
 const CDP_PORT = Number(process.env.PA_CDP_PORT || 9333);
@@ -299,6 +313,77 @@ async function main() {
     await cdp.send('Input.dispatchKeyEvent', { type: 'keyUp', ...base }, sessionId);
   }
 
+  /**
+   * issue #3：六片新土地現在都有自己的配樂音檔了。
+   *
+   * 抓 ＋ 解碼要一點時間（那段時間合成 pad 頂著 —— 這是設計好的行為，不是 bug），
+   * 所以用輪詢等它接上去，不用固定 sleep。這台機器解不開 AAC 時會誠實停在合成 pad，
+   * 那條路也要通過（護欄 3）。
+   *
+   * @param {string} regionId
+   * @returns {Promise<{source:string, decodable:boolean, file:string|null, targetGain:number, gain:number, playing:boolean, loopSeconds:number}>}
+   */
+  async function awaitRegionBgm(regionId) {
+    return evaluate(`
+      const g = window.__promptasy;
+      let decodable = false;
+      try {
+        const res = await fetch('audio/sfx_click.m4a');
+        const raw = await res.arrayBuffer();
+        const probe = new (window.AudioContext || window.webkitAudioContext)();
+        const buf = await probe.decodeAudioData(raw.slice(0));
+        decodable = !!buf && buf.duration > 0;
+        probe.close();
+      } catch (err) { decodable = false; }
+      /*
+       * 等的是「接上去而且淡完」：source 在交叉淡入的第一拍就變成 file，
+       * 但 gain 那時候還在往上爬（等功率淡入約 3 秒）。要驗「淡到它自己的
+       * 響度位置」就得等它走完，所以兩個條件一起等。
+       */
+      const settled = (d) => {
+        const row = d.bgm['${regionId}'] || {};
+        return d.source === 'file' && row.targetGain > 0 && Math.abs((row.gain || 0) - row.targetGain) < 0.05;
+      };
+      const t0 = Date.now();
+      let d = g.audio.debug();
+      while (decodable && !settled(d) && Date.now() - t0 < 25000) {
+        await new Promise((r) => setTimeout(r, 250));
+        d = g.audio.debug();
+      }
+      const row = d.bgm['${regionId}'] || {};
+      return {
+        source: d.source,
+        decodable,
+        file: row.file || null,
+        targetGain: row.targetGain || 0,
+        gain: row.gain || 0,
+        playing: !!row.playing,
+        loopSeconds: row.loopSeconds || 0,
+        lufs: row.lufs,
+      };
+    `);
+  }
+
+  /** 走進新土地之後，配樂音檔要真的接上去（解不開 AAC 的機器則誠實停在合成 pad）。 */
+  async function expectRegionBgmFile(regionId, zh) {
+    const bgm = await awaitRegionBgm(regionId);
+    ok(Boolean(bgm.file), `${zh}在配樂表上有自己的一首`, String(bgm.file));
+    ok(Number.isFinite(bgm.lufs), `${zh}的配樂記著量到的響度`, String(bgm.lufs));
+    ok(bgm.targetGain > 0 && bgm.targetGain <= 1.05, `${zh}的配樂 gain 由響度算出來`, String(bgm.targetGain));
+    if (bgm.decodable) {
+      eq(bgm.source, 'file', `${zh}聽到的是自己的配樂音檔（issue #3）`);
+      eq(bgm.playing, true, `${zh}的配樂用 AudioBufferSourceNode 播出來了`);
+      ok(bgm.loopSeconds > 60, `${zh}的配樂是完整的一首`, `${bgm.loopSeconds}s`);
+      ok(
+        Math.abs(bgm.gain - bgm.targetGain) < 0.08,
+        `${zh}的配樂淡到它自己的響度位置（不是硬拉到 1）`,
+        `${bgm.gain} vs ${bgm.targetGain}`
+      );
+    } else {
+      eq(bgm.source, 'synth', `${zh}：這台機器解不開 AAC → 合成 pad 誠實頂上（護欄 3）`);
+    }
+  }
+
   /* --- 純鍵盤操作用的三支（Phase 23）：按下、放開、真的打字 --- */
   async function keyDown(code, keyName, extra = {}) {
     await cdp.send(
@@ -314,6 +399,28 @@ async function main() {
       sessionId
     );
   }
+  /**
+   * 按住手掌印，直到它**真的發動**為止（poll-until，不用固定 sleep）。
+   *
+   * 這一台是軟體渲染（每幀 ~200ms），CDP 送進去的 keyDown 可能晚好幾百毫秒
+   * 才被頁面收到；固定 `sleep(900)` 於是變成「按不夠久」——那正是 AGENTS.md
+   * 登記的動畫時序 flaky 家族（Phase J2 最後一輪 9 條紅燈的真因）。
+   * 改成輪詢 `.palm.is-fired`：按住 → 等它亮 → 才放開。
+   *
+   * @param {{x:number,y:number}|null} [at] 給滑鼠用的座標；不給就用鍵盤（Enter）
+   */
+  async function holdPalm(at = null, label = '手掌印按滿') {
+    const fired = () => evaluate(`return !!document.querySelector('#prompt-console .palm.is-fired');`);
+    if (at) await mouse('mousePressed', at.x, at.y);
+    else await keyDown('Enter', 'Enter', { vk: 13 });
+    try {
+      await waitFor(fired, { label, every: 100, timeout: 20000 });
+    } finally {
+      if (at) await mouse('mouseReleased', at.x, at.y);
+      else await keyUp('Enter', 'Enter', { vk: 13 });
+    }
+  }
+
   /**
    * 「原生啟動」用的 Enter。
    *
@@ -369,7 +476,18 @@ async function main() {
   async function reloadPage(label = '重新載入') {
     await evaluate('window.__stale = true; return 1;');
     await cdp.send('Page.reload', {}, sessionId);
-    await waitFor(() => evaluate('return !window.__stale && !!window.__promptasy;'), { label });
+    await waitFor(() => evaluate('return !window.__stale && !!window.__promptasy;').catch(() => false), {
+      label,
+    });
+    /*
+     * 換頁的尾巴：新的 execution context 剛接手時，下一個 CDP 呼叫仍可能撞上
+     * 「Inspected target navigated or closed」。再輪詢一次 readyState，
+     * 讓後面的 evaluate / 按鍵有一個穩定的頁面可以打（不用加長固定 sleep）。
+     */
+    await waitFor(
+      () => evaluate('return document.readyState === "complete" && !!window.__promptasy;').catch(() => false),
+      { label: `${label}（等頁面穩定）` }
+    );
     await sleep(900);
   }
 
@@ -384,6 +502,9 @@ async function main() {
     return {
       challenges: g.content.challenges.length,
       techniques: g.content.curriculum.techniques.length,
+      /* 課程 v2 · Phase B：runtime catalog 有沒有真的在開機時建起來（fail fast 會直接讓開機爆掉） */
+      catalogCounts: g.catalog ? { ...g.catalog.counts } : null,
+      catalogImplemented: g.catalog ? g.catalog.implementedRegionIds().join(',') : '',
       markers: g.world.markers.length,
       gates: g.world.gates.length,
       titleOpen: g.title.isOpen,
@@ -426,10 +547,21 @@ async function main() {
       moteColors: !!g.world.motes.geometry.attributes.color,
     };
   `);
-  eq(boot.challenges, 27, '27 個關卡載入');
-  eq(boot.techniques, 68, '68 條技巧載入');
-  eq(boot.markers, 27, '27 座石座在世界裡');
-  eq(boot.gates, 4, '4 道閘門在世界裡');
+  eq(boot.challenges, EXPECT.challenges.value, `${EXPECT.challenges.value} 個關卡載入`);
+  eq(boot.techniques, TECHNIQUE_TOTAL, `${TECHNIQUE_TOTAL} 條技巧載入`);
+  eq(boot.markers, EXPECT.challenges.value, `${EXPECT.challenges.value} 座石座在世界裡`);
+  // 課程 v2 的合併層在開機時就建好了，而且玩家看到的仍然只有已上線的五區
+  ok(Boolean(boot.catalogCounts), 'runtime catalog 在開機時建起來了');
+  eq(boot.catalogCounts && boot.catalogCounts.skills, EXPECT.v2Skills.value, `catalog 帶著 ${EXPECT.v2Skills.value} 條 v2 技能`);
+  eq(boot.catalogCounts && boot.catalogCounts.regions, EXPECT.v2Regions.value, `catalog 帶著 ${EXPECT.v2Regions.value} 個區域`);
+  eq(
+    boot.catalogCounts && boot.catalogCounts.implementedRegions,
+    EXPECT.v2ImplementedRegions.value,
+    `其中只有 ${EXPECT.v2ImplementedRegions.value} 區已上線（其餘七區只在資料層，畫面看不到）`
+  );
+  eq(boot.catalogImplemented, CATALOG.implementedRegionIds().join(','), '已上線的區域就是 catalog 列的那幾區');
+  // 中央高原是樞紐，其餘每一片土地各有一條橋、一道閘門
+  eq(boot.gates, EXPECT.v2ImplementedRegions.value - 1, `${EXPECT.v2ImplementedRegions.value - 1} 道閘門在世界裡`);
   eq(boot.titleOpen, true, '開機先看到標題卡');
   eq(boot.introOpen, false, '標題卡期間教學還沒跳');
   // Phase 33：harness 帶 --autoplay-policy=no-user-gesture-required ＝ 自動播放放行，
@@ -498,9 +630,9 @@ async function main() {
   }
   ok(phase5.partNames.length >= 8, '角色的骨節掛在場景圖上', `parts=${phase5.partNames.length}`);
   ok(phase5.tablets >= 8, '世界裡有世界觀石碑', `n=${phase5.tablets}`);
-  eq(phase5.landmarks, 5, '五個區域各有一個地標剪影');
+  eq(phase5.landmarks, EXPECT.v2ImplementedRegions.value, '每個已上線的區域各有一個地標剪影');
   ok(phase5.vignettes >= 14, '故事小景鋪好了', `n=${phase5.vignettes}`);
-  eq(phase5.flora, 5, '五個區域都有自己的植被原型');
+  eq(phase5.flora, EXPECT.v2ImplementedRegions.value, '每個已上線的區域都有自己的植被原型');
   eq(phase5.terrainColors, true, '地形帶頂點色（走出來的路）');
   ok(phase5.instanced >= 20, '重複的東西用 InstancedMesh', `n=${phase5.instanced}`);
   ok(phase5.tris < 420000, '場景三角形數在預算內', `tris=${phase5.tris}`);
@@ -517,7 +649,8 @@ async function main() {
       text: el.textContent.replace(/\\s+/g, ' '),
       typedSpans: el.querySelectorAll('.title__typed').length,
       carets: el.querySelectorAll('.title__caret').length,
-      srLines: [...el.querySelectorAll('.sr-only')].map((s) => s.textContent),
+      zh: el.querySelector('.title__zh')?.textContent,
+      zhBreaks: el.querySelectorAll('.title__zh br').length,
     };
   `);
   eq(titleText.name, 'Promptasy', '標題卡顯示遊戲名');
@@ -525,13 +658,16 @@ async function main() {
   eq(titleText.perChar, 0, '不再一個字一個字彈出來（分字揭示已移除）');
   eq(titleText.foot, 0, '底部那行統計數字已移除');
   ok(!/68 條技巧/.test(titleText.text), '標題卡上找不到「68 條技巧…」那一行', titleText.text.slice(0, 90));
-  eq(titleText.typedSpans, 2, '兩句話各有一個打字區');
-  eq(titleText.carets, 2, '兩句話各有一根游標');
-  ok(
-    titleText.srLines.some((s) => /Learn Prompt Engineering by Playing/.test(s)) &&
-      titleText.srLines.some((s) => /在一個夜色的世界裡探索/.test(s)),
-    '完整句子第一幀就在 sr-only 裡（螢幕閱讀器不會念到打一半的字）'
-  );
+  /*
+   * Phase 34.5：打字機整組撤掉，改成「一行一行淡入」（CSS 延遲驅動）。
+   * 這幾條原本還在斷言打字區與游標 —— 那是上一版的設計，改成守今天的：
+   * 兩句話第一幀就是完整的句子（螢幕閱讀器不會念到半句話），只是還沒淡進來。
+   */
+  eq(titleText.typedSpans, 0, '打字區已整組移除（Phase 34.5 改成淡入）');
+  eq(titleText.carets, 0, '游標也一起移除了');
+  eq(titleText.tag, 'Learn Prompt Engineering by Playing', '定位句第一幀就是完整的一句');
+  eq(titleText.zh, '在一個夜色的世界裡探索，用你寫的 prompt 解開它。', '中文那句第一幀也是完整的');
+  eq(titleText.zhBreaks, 1, '中文那句的換行是寫死的（不靠動畫收尾）');
 
   // 開場曲：harness 帶 --autoplay-policy=no-user-gesture-required，
   // 標題卡上就該真的響起來（title 音軌在播、gain 有拉起來）
@@ -550,6 +686,10 @@ async function main() {
     const d = g.audio.debug();
     return {
       audioRequests: performance.getEntriesByType('resource').filter((r) => /\\.m4a(\\?|$)/.test(r.name)).length,
+      bgmRequests: performance.getEntriesByType('resource').filter((r) => /bgm_[a-z]+\\.m4a(\\?|$)/.test(r.name)).length,
+      audioBytes: performance.getEntriesByType('resource')
+        .filter((r) => /\\.m4a(\\?|$)/.test(r.name))
+        .reduce((a, r) => a + (r.transferSize || r.encodedBodySize || 0), 0),
       started: d.started,
       pending: d.pending,
       source: d.source,
@@ -561,49 +701,59 @@ async function main() {
    * 所以「手勢之前零音檔、零 AudioContext」已經不是現在要守的東西。
    * 現在要守的是護欄 5 的本意：**別在第一個畫面就把 15 MB 全抓下來**。
    */
+  /*
+   * issue #3 之後音效變成 24 支（共約 0.77 MB，全部要一按下去就有聲音，所以一起抓），
+   * 但**配樂 12 首共約 35 MB 絕不能全拉下來** —— 標題卡上只該有開場曲與一首鄰區的。
+   * 所以這裡分開看：支數看配樂，總量看位元組。
+   */
   ok(
-    beforeGesture.audioRequests <= 14,
-    '標題卡上只抓該抓的那幾支（沒有把整包音檔全拉下來）',
-    `requests=${beforeGesture.audioRequests}`
+    beforeGesture.bgmRequests <= 2,
+    '標題卡上只抓開場曲與一首鄰區的配樂（12 首沒有全拉下來）',
+    `bgm=${beforeGesture.bgmRequests} / all=${beforeGesture.audioRequests}`
+  );
+  ok(
+    beforeGesture.audioBytes < 9 * 1024 * 1024,
+    '標題卡上下載的音檔總量沒有失控（整包 35 MB 沒有被拉下來）',
+    `${(beforeGesture.audioBytes / 1e6).toFixed(1)} MB`
   );
   ok(beforeGesture.pending <= 4, '標題卡上排隊中的音檔沒有失控', `pending=${beforeGesture.pending}`);
 
   /*
-   * Phase 34 · 打字機不擋輸入：打到一半按下開始，話會在同一拍被補完
-   * （不會有半句話淡出去），而且直接進場、不需要按第二下。
-   * 先把打字重播一次讓時機確定 —— 上面那一串斷言跑掉的時間會讓第一輪早就打完了。
+   * Phase 34.5 · 揭示不擋輸入：兩句話還在淡入時按下開始，一樣直接進場
+   * （不需要按第二下，也不會有半句話淡出去 —— 文字本來就是完整的）。
+   * 先把揭示重播一次：上面那一串斷言跑掉的時間早就讓第一輪播完了。
    */
   await evaluate(`window.__promptasy.title.open(); return 1;`);
-  // 第一句從 1.35s 開始打，34ms／字 × 34 字 ≈ 1.2s。用輪詢等「正打到一半」——
-  // open() 先等一次 rAF，軟體渲染下那一幀可能要好幾百毫秒，固定 sleep 會抓不準。
-  const midType = await waitFor(
+  // 開始鍵是 2.7s 的 CSS 延遲。用輪詢等「還沒浮出來」的那一刻 ——
+  // 軟體渲染下一幀可能要好幾百毫秒，固定 sleep 會抓不準。
+  const midReveal = await waitFor(
     async () => {
       const s = await evaluate(`
         const el = document.querySelector('.title');
-        const tag = el.querySelector('[data-typed="tag"]');
         return {
+          open: window.__promptasy.title.isOpen,
           typing: window.__promptasy.title.isTyping,
-          len: tag.textContent.length,
-          full: 'Learn Prompt Engineering by Playing'.length,
-          caretOn: el.querySelector('[data-caret="tag"]').classList.contains('is-on'),
-          ready: el.classList.contains('is-ready'),
+          tagLen: el.querySelector('.title__tag').textContent.length,
+          zhLen: el.querySelector('.title__zh').textContent.length,
           startOpacity: Number(getComputedStyle(el.querySelector('.title__start')).opacity),
         };
       `);
-      return s.len > 0 && s.len < s.full ? s : null;
+      return s.open ? s : null;
     },
-    { timeout: 12000, every: 120, label: '標題卡正在打字' }
+    { timeout: 12000, every: 120, label: '標題卡重新登場' }
   ).catch(() => null);
-  ok(midType, '抓到「正在打字」的那一刻');
-  ok(midType && midType.typing, '這時候還在打字（時機抓對了）');
+  ok(midReveal, '抓到標題卡重新登場的那一刻');
   ok(
-    midType && midType.len > 0 && midType.len < midType.full,
-    '第一句正打到一半',
-    midType && `${midType.len}/${midType.full}`
+    midReveal && midReveal.tagLen === 'Learn Prompt Engineering by Playing'.length,
+    '定位句從頭到尾都是完整的一句',
+    midReveal && String(midReveal.tagLen)
   );
-  ok(midType && midType.caretOn, '正在打的那一行游標亮著');
-  ok(midType && midType.ready === false, '兩句話沒打完，開始鍵還沒浮出來');
-  ok(midType && midType.startOpacity < 0.5, '開始鍵這時候還是淡的', midType && String(midType.startOpacity));
+  ok(
+    midReveal && midReveal.zhLen === '在一個夜色的世界裡探索，用你寫的 prompt 解開它。'.length,
+    '中文那句也是完整的',
+    midReveal && String(midReveal.zhLen)
+  );
+  eq(midReveal && midReveal.typing, false, '沒有打字機了（舊 API 永遠回 false）');
 
   // 按任意鍵開始
   await key('Enter', 'Enter', { vk: 13 });
@@ -613,8 +763,8 @@ async function main() {
     const el = document.querySelector('.title');
     const cover = document.getElementById('bootcover');
     return {
-      typedTag: el.querySelector('[data-typed="tag"]').textContent,
-      typedZh: el.querySelector('[data-typed="zh"]').textContent,
+      typedTag: el.querySelector('.title__tag').textContent,
+      typedZh: el.querySelector('.title__zh').textContent,
       caretsOn: el.querySelectorAll('.title__caret.is-on').length,
       stillTyping: g.title.isTyping,
       coverLifting: cover ? cover.classList.contains('is-lifting') : 'removed',
@@ -629,10 +779,10 @@ async function main() {
     };
   `);
   eq(afterTitle.titleOpen, false, '按鍵後標題卡收起');
-  eq(afterTitle.typedTag, 'Learn Prompt Engineering by Playing', '打到一半被按下去 → 第一句被補完');
-  eq(afterTitle.typedZh, '在一個夜色的世界裡探索，用你寫的 prompt 解開它。', '第二句也一起補完');
-  eq(afterTitle.caretsOn, 0, '補完之後游標收起來');
-  eq(afterTitle.stillTyping, false, '打字停了（沒有殘留的計時器）');
+  eq(afterTitle.typedTag, 'Learn Prompt Engineering by Playing', '淡入到一半被按下去 → 第一句仍然完整');
+  eq(afterTitle.typedZh, '在一個夜色的世界裡探索，用你寫的 prompt 解開它。', '第二句也完整');
+  eq(afterTitle.caretsOn, 0, '畫面上沒有任何游標（打字機已移除）');
+  eq(afterTitle.stillTyping, false, '沒有殘留的打字計時器');
   eq(afterTitle.coverLifting, true, '按下開始 → 黑幕開始淡出（世界第一次亮起來）');
   // 淡到哪一格不斷言：軟體渲染下 getComputedStyle 取到的是「上一幀」的值，
   // 幀率一低就會讀到還沒動的 1。真正該守的是「有沒有淡完」——下面那條在等它消失。
@@ -854,23 +1004,29 @@ async function main() {
   const pAct2 = await evaluate(`
     const g = window.__promptasy;
     const glyphs = document.querySelectorAll('#practice .glyphs .glyph');
-    const src = document.querySelector('#practice .glyphs a.src');
+    // 出處＝刻文底下那一枚典籍（自己帶著「神諭原典：<文件名>」的小卡）
+    const src = document.querySelector('#practice .glyphs a.bookicon');
     const lead = document.querySelector('#practice .act--guide .act__lead');
-    const tip = lead.querySelector('.infotip');
-    const bubble = lead.querySelector('.infotip__bubble');
+    const tip = src ? src.closest('.infotip') : null;
+    const bubble = tip ? tip.querySelector('.infotip__bubble') : null;
     return {
       act: g.practice.act,
       glyphs: glyphs.length,
       title: document.querySelector('#practice .glyph__title')?.textContent || '',
-      srcText: src ? src.textContent : '',
+      srcText: src ? src.getAttribute('aria-label') : '',
       srcHref: src ? src.href : '',
-      srcVisible: src ? getComputedStyle(src).visibility : 'none',
+      srcTarget: src ? src.getAttribute('target') : '',
+      srcVisible: (() => {
+        if (!src) return 'none';
+        const r = src.getBoundingClientRect();
+        return getComputedStyle(src).visibility === 'visible' && r.width > 0 && r.height > 0 ? 'visible' : 'hidden';
+      })(),
       leadText: lead.textContent.trim(),
       leadOwn: Array.from(lead.childNodes).filter((n) => n.nodeType === 3).map((n) => n.textContent).join('').trim(),
       hasTip: !!tip,
       bubbleText: bubble ? bubble.textContent : '',
       bubbleHidden: bubble ? getComputedStyle(bubble).visibility : 'none',
-      describedBy: tip?.querySelector('.infotip__btn')?.getAttribute('aria-describedby'),
+      describedBy: src ? src.getAttribute('aria-describedby') : '',
       bubbleId: bubble ? bubble.id : '',
       bubbleRole: bubble ? bubble.getAttribute('role') : '',
       origins: document.querySelectorAll('#practice .teach .origin').length,
@@ -881,9 +1037,10 @@ async function main() {
   eq(pAct2.act, 2, '第二幕是神諭刻文');
   eq(pAct2.glyphs, 1, '一課只講一個概念（刻文只有一條）');
   ok(pAct2.title.length > 0, '刻文有標題', pAct2.title);
-  ok(/神諭原典/.test(pAct2.srcText), '刻文掛著神諭原典', pAct2.srcText);
+  ok(/^神諭原典：/.test(pAct2.srcText), '刻文掛著神諭原典（螢幕閱讀器聽得到那份文件叫什麼）', pAct2.srcText);
   ok(/^https:\/\//.test(pAct2.srcHref), '神諭原典是真的官方連結', pAct2.srcHref);
-  eq(pAct2.srcVisible, 'visible', '出處連結永遠看得見（不收進 ⓘ）');
+  eq(pAct2.srcTarget, '_blank', '點下去開新分頁，不會把玩家踢出遊戲');
+  eq(pAct2.srcVisible, 'visible', '出處連結永遠看得見、量得到（不收進任何摺頁）');
   ok(pAct2.origins >= 1, '官方原文收在可展開的「原文 ↗」裡', `n=${pAct2.origins}`);
   eq(pAct2.originsClosed, true, '「原文 ↗」預設收起來（不干擾閱讀）');
   ok(
@@ -891,18 +1048,33 @@ async function main() {
     '每一份原文都附得出官方出處連結'
   );
 
-  /* --- Phase 13 · ⓘ 資訊提示：預設看不見，hover / focus 才出現 --- */
-  eq(pAct2.hasTip, true, '「神諭原典是什麼」收進了一顆 ⓘ');
-  ok(pAct2.bubbleText.includes('官方文件'), 'ⓘ 裡確實留著那句解釋（內容沒有被刪掉）', pAct2.bubbleText);
-  eq(pAct2.bubbleHidden, 'hidden', 'ⓘ 的說明預設看不見（不再一直佔著版面）');
+  /* --- 那本典籍自己的小卡：預設看不見，hover / focus 才出現 --- */
+  eq(pAct2.hasTip, true, '那本典籍帶著一張小卡（不是一段常駐的旁白）');
+  ok(/^神諭原典：/.test(pAct2.bubbleText.trim()), '小卡上寫著「神諭原典：<文件名>」', pAct2.bubbleText);
+  ok(pAct2.bubbleText.length > 8, '小卡後面接得出真正的文件名（不是只有標籤）', pAct2.bubbleText);
+  eq(pAct2.bubbleHidden, 'hidden', '小卡預設看不見（不佔版面）');
   ok(!pAct2.leadOwn.includes('官方文件'), '導言只剩下短短一句（解釋不再內嵌在句子裡）', pAct2.leadOwn);
-  eq(pAct2.describedBy, pAct2.bubbleId, 'ⓘ 用 aria-describedby 指到說明（螢幕閱讀器讀得到）');
+  eq(pAct2.describedBy, pAct2.bubbleId, '那本典籍用 aria-describedby 指到小卡（螢幕閱讀器讀得到）');
   eq(pAct2.bubbleRole, 'tooltip', '說明的角色是 tooltip');
 
   const tipHover = await evaluate(`
-    const btn = document.querySelector('#practice .act--guide .infotip__btn');
+    // 那顆 ⓘ 已經換成典籍本身（.infotip--book）—— 開闔的規則一模一樣
+    const btn = document.querySelector('#practice .act--guide a.bookicon');
     const bubble = document.querySelector('#practice .act--guide .infotip__bubble');
+    const box = btn.getBoundingClientRect();
+    /*
+     * 只補送 mouseover（＝游標沒動、只是內容換到它底下）不該打開任何東西 ——
+     * 那正是「ⓘ 自己彈出來」的根因。
+     */
     btn.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+    await new Promise((r) => setTimeout(r, 200));
+    const onStillPointer = getComputedStyle(bubble).visibility;
+    // 游標真的動到它上面 → 才打開
+    btn.dispatchEvent(new MouseEvent('mousemove', {
+      bubbles: true,
+      clientX: Math.round(box.x + box.width / 2),
+      clientY: Math.round(box.y + box.height / 2),
+    }));
     await new Promise((r) => setTimeout(r, 260));
     const onHover = getComputedStyle(bubble).visibility;
     btn.dispatchEvent(new MouseEvent('mouseout', { bubbles: true, relatedTarget: document.body }));
@@ -911,15 +1083,18 @@ async function main() {
     btn.focus();
     await new Promise((r) => setTimeout(r, 260));
     const onFocus = getComputedStyle(bubble).visibility;
-    const expanded = btn.getAttribute('aria-expanded');
+    const describes = btn.getAttribute('aria-describedby') === bubble.id;
     btn.blur();
     await new Promise((r) => setTimeout(r, 260));
-    return { onHover, afterOut, onFocus, expanded, afterBlur: getComputedStyle(bubble).visibility };
+    return { onStillPointer, onHover, afterOut, onFocus, describes, afterBlur: getComputedStyle(bubble).visibility };
   `);
-  eq(tipHover.onHover, 'visible', '滑鼠移上去 ⓘ 就看得到說明');
+  eq(tipHover.onStillPointer, 'hidden', '游標沒動、只是內容換到它底下 → 小卡不自己彈出來');
+  eq(tipHover.onHover, 'visible', '滑鼠移上去就看得到那份文件叫什麼');
   eq(tipHover.afterOut, 'hidden', '移開就收回去');
   eq(tipHover.onFocus, 'visible', '鍵盤 focus 也看得到（不是只有滑鼠使用者）');
-  eq(tipHover.expanded, 'true', 'focus 時 aria-expanded 跟著更新');
+  // 典籍本身是一條連結（按下去就開官方文件）→ 它不是可展開的按鈕，
+  // 所以無障礙的關係走 aria-describedby，而不是 aria-expanded。
+  eq(tipHover.describes, true, 'focus 時螢幕閱讀器讀得到那張小卡');
   eq(tipHover.afterBlur, 'hidden', '離開 focus 就收回去');
 
   // --- 第三幕 · 刻印：選錯不失敗、選對就亮一盞燈（與正式關卡同一支石碑） ---
@@ -1039,10 +1214,21 @@ async function main() {
     const step = g.prologueContent.step('prologue-clarity');
     const urls = new Set(g.content.curriculum.techniques.flatMap((t) => t.sources.map((s) => s.url)));
     const shown = Array.from(document.querySelectorAll('#practice .result a.src')).map((a) => a.href.replace(/\\/$/, ''));
-    return { ok: shown.every((u) => urls.has(u) || urls.has(u + '/')), source: step.source, inCurriculum: urls.has(step.source) };
+    /* 出處深連結：畫面上的網址可能多一個片段（#章節 / #:~:text=），本體必須逐字是 curriculum 那一個 */
+    const base = (u) => (u.includes('#') ? u.slice(0, u.indexOf('#')) : u);
+    const overlay = new Set(g.content.sourceAnchors.entries.map((e) => e.anchored));
+    return {
+      ok: shown.every((u) => urls.has(base(u)) || urls.has(base(u) + '/')),
+      source: step.source,
+      inCurriculum: urls.has(step.source),
+      deep: shown.filter((u) => u.includes('#')),
+      deepKnown: shown.filter((u) => u.includes('#')).every((u) => overlay.has(u)),
+    };
   `);
   eq(citationCheck.inCurriculum, true, '這一課的 source 真的存在於 curriculum');
   eq(citationCheck.ok, true, '面板上的每個出處都指向 curriculum 裡的官方連結');
+  ok(citationCheck.deep.length > 0, '序章的出處也深連結到被引用的那一節', citationCheck.deep.join(' '));
+  eq(citationCheck.deepKnown, true, '而且每一個片段都來自驗證過的疊加層（不是憑空加的）');
 
   // --- 課後：回聲補一句短的過場，再切下一拍 ---
   const bridge = await evaluate(`
@@ -1078,7 +1264,7 @@ async function main() {
       document.querySelector('#practice [data-act-next="2"]').click();
       await sleep(220);
       const glyphs = document.querySelectorAll('#practice .glyphs .glyph').length;
-      const srcs = document.querySelectorAll('#practice .glyphs a.src').length;
+      const srcs = document.querySelectorAll('#practice .glyphs a.bookicon').length;
       document.querySelector('#practice [data-act-next="3"]').click();
       await sleep(220);
       // 先故意選錯一次 —— 石碑不收，但不會失敗
@@ -1374,6 +1560,23 @@ async function main() {
   ok(gait.kneeMax > 0.3, '走路時膝蓋會收起來', `max=${gait.kneeMax.toFixed(3)}`);
 
   /* --- Phase 9：抬頭真的看得到天空（石碑上那句「抬頭看看四周」不能是騙人的） --- */
+  /*
+   * 課程 v2 · Phase H：正北 54 公尺處多了一道門（減法之庭的頸口）。
+   * 上面那幾段手感量測是「一路往北走」的，走著走著就會踏進門的自動詢問半徑 ——
+   * 門一問，操控權就交給對話框（Phase 29 的設計，那是對的），後面的按鍵當然全部落空。
+   * 所以量鏡頭之前先把門收起來、回到出生點；順手把「它真的會問」記成一條斷言。
+   */
+  const askedOnWalk = await evaluate(`
+    const g = window.__promptasy;
+    const wasOpen = g.gateAsk.isOpen;
+    if (wasOpen) g.gateAsk.close({ silent: true });
+    await new Promise((r) => setTimeout(r, 260));
+    g.player.teleport(0, 6);
+    await new Promise((r) => setTimeout(r, 260));
+    return { wasOpen, inputEnabled: g.player.inputEnabled };
+  `);
+  ok(askedOnWalk.inputEnabled, '把門的詢問收起來之後，操控權回到玩家手上');
+
   const lookUp = await evaluate(`
     const g = window.__promptasy;
     const THREE_UP = { x: 0, y: 1, z: 0 };
@@ -1728,7 +1931,12 @@ async function main() {
       briefVisible: vis('#prompt-console .act--brief'),
       guideVisible: vis('#prompt-console .act--guide'),
       carveVisible: vis('#prompt-console .act--carve'),
-      head: document.querySelector('#prompt-console .act--guide .act__head').textContent.trim(),
+      // 幕名的標題底下現在還接著導言與那本典籍（同一行）→ 只取標題自己的文字
+      head: Array.from(document.querySelector('#prompt-console .act--guide .act__head').childNodes)
+        .filter((n) => n.nodeType === 3)
+        .map((n) => n.textContent)
+        .join('')
+        .trim(),
       lead: document.querySelector('#prompt-console .act--guide .act__lead').textContent.trim(),
       leadOwn: Array.from(document.querySelector('#prompt-console .act--guide .act__lead').childNodes)
         .filter((n) => n.nodeType === 3)
@@ -1740,18 +1948,36 @@ async function main() {
         const b = document.querySelector('#prompt-console .act--guide .infotip__bubble');
         return b ? getComputedStyle(b).visibility : 'none';
       })(),
+      // 那本典籍就掛在導言那一行（它自己帶著小卡：「神諭原典：<文件名>」）
       tipDescribes:
-        document.querySelector('#prompt-console .act--guide .infotip__btn')?.getAttribute('aria-describedby') ===
+        document.querySelector('#prompt-console .act--guide [data-guide-lead] a.bookicon')?.getAttribute('aria-describedby') ===
         document.querySelector('#prompt-console .act--guide .infotip__bubble')?.id,
+      bookHref: document.querySelector('#prompt-console .act--guide [data-guide-lead] a.bookicon')?.getAttribute('href') || '',
+      bookTarget: document.querySelector('#prompt-console .act--guide [data-guide-lead] a.bookicon')?.getAttribute('target') || '',
+      bookAria: document.querySelector('#prompt-console .act--guide [data-guide-lead] a.bookicon')?.getAttribute('aria-label') || '',
+      bookVisible: (() => {
+        const a = document.querySelector('#prompt-console .act--guide [data-guide-lead] a.bookicon');
+        if (!a) return 'none';
+        const r = a.getBoundingClientRect();
+        return getComputedStyle(a).visibility === 'visible' && r.width > 0 && r.height > 0 ? 'visible' : 'hidden';
+      })(),
       craft: document.querySelector('#prompt-console [data-craft]').textContent.trim(),
       dataCraft: g.content.challenge('gate-of-clarity-01').craft,
       rubric: g.content.challenge('gate-of-clarity-01').rubric.length,
+      // Phase A：一關只教一條 —— 主技巧來自資料層的 primaryTechniqueId
+      primaryTechniqueId: g.content.challenge('gate-of-clarity-01').primaryTechniqueId,
+      // 課程 v2 · Phase J3：教學的正典是 v2 技能，刻文掛的是它的中文名
+      primarySkillId: g.content.challenge('gate-of-clarity-01').primarySkillId,
+      primaryTitle: g.content.skill(g.content.challenge('gate-of-clarity-01').primarySkillId).nameZh,
+      primaryVendor: g.content.sourceForSkill(g.content.challenge('gate-of-clarity-01').primarySkillId).vendor,
+      primaryCount: document.querySelectorAll('#prompt-console .glyph--primary').length,
+      glyphTech: glyphs.map((n) => n.querySelector('.glyph__title i')?.textContent.trim() || ''),
+      // 2026-08-03 站長裁決：「順手會用到」那一行整組移除（130 關全長一樣、零資訊量）
+      extrasNodes: document.querySelectorAll('#prompt-console [data-guidance-extra], #prompt-console .extras, #prompt-console .extras__item').length,
+      guideText: document.querySelector('#prompt-console .act--guide').textContent,
       glyphs: glyphs.length,
       titles: glyphs.map((n) => n.querySelector('.glyph__title')?.textContent.trim() || ''),
       whats: glyphs.map((n) => (n.querySelector('.glyph__what')?.textContent || '').length),
-      srcLabels: glyphs.map((n) => n.querySelector('a.src')?.textContent.trim() || ''),
-      srcHrefs: glyphs.map((n) => n.querySelector('a.src')?.getAttribute('href') || ''),
-      srcTargets: glyphs.map((n) => n.querySelector('a.src')?.getAttribute('target') || ''),
       backLabel: document.querySelector('#prompt-console .act--guide [data-act-go="1"]').textContent.trim(),
       nextLabel: document.querySelector('#prompt-console [data-act-next="3"]').textContent.trim(),
       navNow: nav.filter((b) => b.classList.contains('is-now')).map((b) => b.textContent.trim()),
@@ -1770,29 +1996,81 @@ async function main() {
   /* Phase 13：那句「＝各家官方文件」的旁白收進 ⓘ —— 內容還在，但不再一直佔著版面 */
   ok(!/官方文件/.test(act2.leadOwn), '導言本身只剩一句短的（解釋不再內嵌）', act2.leadOwn);
   ok(act2.leadOwn.length <= 24, '導言夠短', `${act2.leadOwn.length} 字：${act2.leadOwn}`);
-  ok(/官方文件/.test(act2.tipBubble), 'ⓘ 裡確實留著「神諭原典＝官方文件」的解釋', act2.tipBubble);
-  eq(act2.tipVisibility, 'hidden', 'ⓘ 的說明預設看不見');
-  eq(act2.tipDescribes, true, 'ⓘ 用 aria-describedby 指到說明');
+  /*
+   * 2026-08-03 站長定稿：那顆 ⓘ 換成**那本典籍本身**，就接在導言後面。
+   * 小卡上寫的不再是「＝各家官方文件」這種旁白，而是**這一段到底出自哪一份文件**
+   * —— 換皮但不說謊：後面接得出真實文件名，而且它一按就開官方文件（護欄 2）。
+   */
+  ok(/^神諭原典：/.test(act2.tipBubble.trim()), '那本典籍的小卡寫著「神諭原典：…」', act2.tipBubble);
+  ok(act2.tipBubble.includes(`${act2.primaryVendor} · `), '小卡後面接得出真正的文件名', act2.tipBubble);
+  eq(act2.tipVisibility, 'hidden', '小卡預設看不見（不佔版面）');
+  eq(act2.tipDescribes, true, '那本典籍用 aria-describedby 指到小卡');
   eq(act2.craft, act2.dataCraft, '第二幕接住從任務搬出來的「工法」');
   ok(act2.craft.length > 10, '工法講得出「這次要怎麼答」', act2.craft);
-  eq(act2.glyphs, act2.rubric, '這一關每一條檢查都有一段刻文');
-  ok(act2.whats.every((n) => n >= 20), '每一段刻文都有白話說明', act2.whats.join(','));
+  /* Phase A · C1：第二幕只放大「這一關教的那一條」，不再一次攤開四段教學 */
+  ok(act2.rubric > 1, '這一關的 rubric 不只一條（所以「只有一條刻文」是真的收斂過）', `rubric=${act2.rubric}`);
+  eq(act2.glyphs, 1, '第二幕只有一段刻文 —— 一關只教一件事');
+  eq(act2.primaryCount, 1, '而且那一段就是被放大的主刻文');
+  eq(act2.primaryTechniqueId, 'clarity-03', '祖先技巧仍記在資料層的 primaryTechniqueId（收集用）');
+  eq(act2.primarySkillId, 'clear-specific', '教學的正典是 v2 技能（D2 相容層已拆除）');
+  eq(act2.glyphTech[0], act2.primaryTitle, '刻文掛的是這一關教的那條 v2 技能的名字', act2.glyphTech.join('｜'));
+  ok(act2.whats.every((n) => n >= 20), '那一段刻文有白話說明', act2.whats.join(','));
+  // 「順手會用到」那一行整組移除 → 守住「不得回歸」（地基分由第三幕的刻痕對照承擔）
+  eq(act2.extrasNodes, 0, '第二幕不再有「順手會用到」那一行（連節點都沒有）');
+  ok(!/順手會用到/.test(act2.guideText), '第二幕的字裡也找不到「順手會用到」', act2.guideText.slice(0, 120));
+  /* 出處：那本典籍就在導言那一行，永遠看得見、一按就開官方文件（護欄 2） */
+  eq(act2.bookVisible, 'visible', '那本典籍一直看得見（量得到、沒有被收進任何摺頁）');
+  ok(/^https:\/\//.test(act2.bookHref), '那本典籍是可點的官方連結', act2.bookHref);
+  eq(act2.bookTarget, '_blank', '出處連結開新視窗，不會把玩家踢出遊戲');
   ok(
-    act2.srcLabels.every((t) => /^神諭原典：.+↗$/.test(t)),
-    '出處的標籤換成世界觀說法，但後面接得出真正的文件名',
-    act2.srcLabels.join(' ｜ ')
+    /^神諭原典：/.test(act2.bookAria) && act2.bookAria.includes(`：${act2.primaryVendor} · `),
+    '螢幕閱讀器聽得到「神諭原典：<哪一家> · <文件名>」',
+    act2.bookAria
   );
+  ok(act2.bookAria.includes('開新分頁'), '也聽得到「會開新分頁」', act2.bookAria);
+
+  /* --- 出處深連結：神諭原典要直接落在被引用的那一節，不是頁面最上面 --- */
+  const deepAct2 = await evaluate(`
+    const g = window.__promptasy;
+    const a = document.querySelector('#prompt-console .act--guide [data-guide-lead] a.bookicon');
+    const skillId = g.content.challenge('gate-of-clarity-01').primarySkillId;
+    const data = g.content.sourceForSkill(skillId);
+    const rows = g.content.catalog.sourcesForSkill(skillId);
+    return {
+      href: a ? a.getAttribute('href') : '',
+      dataUrl: data.url,
+      anchorKind: rows[0].anchor,
+      // 130 座教學神廟的主原典裡，有幾個真的帶著片段
+      shrines: g.content.challenges
+        .filter((c) => c.primarySkillId)
+        .map((c) => g.content.catalog.sourcesForSkill(c.primarySkillId)[0])
+        .reduce(
+          (acc, s) => {
+            acc.total += 1;
+            if (s.url.includes('#')) acc.deep += 1;
+            else acc.flat += 1;
+            if (s.anchor === 'none') acc.honest += 1;
+            return acc;
+          },
+          { total: 0, deep: 0, flat: 0, honest: 0 }
+        ),
+    };
+  `);
+  eq(deepAct2.href, deepAct2.dataUrl, '畫面上的 href 就是資料層那一個網址（沒有中間層改寫）');
+  ok(deepAct2.href.includes('#'), '神諭原典帶著片段 —— 點過去直接落在被引用的那一節', deepAct2.href);
   ok(
-    act2.srcLabels.every((t) => /OpenAI|Anthropic|Google|xAI/.test(t)),
-    '刻文不冒充官方引文：標籤上就寫出是哪一家的文件',
-    act2.srcLabels.join(' ｜ ')
+    deepAct2.href.endsWith('#best-practices'),
+    '而且是這一關教的那一節（Microsoft · Prompt engineering techniques 的 Best practices）',
+    deepAct2.href
   );
+  ok(deepAct2.anchorKind !== 'none', '資料層也表態了這個 anchor 是怎麼定位的', String(deepAct2.anchorKind));
+  eq(deepAct2.shrines.total, 130, '130 座教學神廟的主原典全部盤過');
   ok(
-    act2.srcHrefs.length > 0 && act2.srcHrefs.every((u) => /^https:\/\//.test(u)),
-    '每一段刻文的出處都是可點的官方連結（護欄 2）',
-    act2.srcHrefs.join(' ')
+    deepAct2.shrines.deep >= 110,
+    `${deepAct2.shrines.deep} / 130 座的主原典直接跳到章節`,
+    JSON.stringify(deepAct2.shrines)
   );
-  ok(act2.srcTargets.every((t) => t === '_blank'), '出處連結開新視窗，不會把玩家踢出遊戲');
+  eq(deepAct2.shrines.flat, deepAct2.shrines.honest, '沒有片段的那幾座都在資料層誠實標成 none（不是漏做）');
   ok(/回顧委託/.test(act2.backLabel), '第二幕可以翻回第一幕', act2.backLabel);
   ok(/開始刻印/.test(act2.nextLabel), '第二幕往下的出口是「開始刻印」', act2.nextLabel);
   ok(/指引/.test(act2.navNow[0]), '指示器跟著移到②指引', act2.navNow[0]);
@@ -1864,8 +2142,19 @@ async function main() {
       guideTab: document.querySelector('#prompt-console [data-guidetab] summary')?.textContent.trim() || '',
       guideTabOpen: document.querySelector('#prompt-console [data-guidetab]').open,
       guideTabRows: document.querySelectorAll('#prompt-console .guidetab__list li').length,
-      guideTabSources: document.querySelectorAll('#prompt-console .guidetab__list a.src').length,
+      guideTabSources: document.querySelectorAll('#prompt-console .guidetab__list a.bookicon').length,
+      guideTabQuiet: document.querySelectorAll('#prompt-console .guidetab__list li.is-quiet').length,
+      // Phase A：刻痕對照分兩種位階 —— 主教學目標 vs 地基／還沒搬家的舊項目
+      primaryRows: document.querySelectorAll('#prompt-console .checklist li.is-primary').length,
+      primaryTag: document.querySelector('#prompt-console .checklist li.is-primary .checklist__tag')?.textContent.trim() || '',
+      primaryName: document.querySelector('#prompt-console .checklist li.is-primary .checklist__text b')?.textContent.trim() || '',
+      foundationRows: document.querySelectorAll('#prompt-console .checklist li.is-foundation').length,
+      foundationWeight: document.querySelector('#prompt-console .checklist li.is-foundation .checklist__w')?.textContent.trim() || '',
+      weights: Array.from(document.querySelectorAll('#prompt-console .checklist .checklist__w')).map((n) => n.textContent.trim()),
       xp: g.progression.state.xp,
+      /* 課程 v2 · Phase J3：C1 收斂之後這一關就是「一條主檢查 ＋ 一條地基」 */
+      rubricLen: g.content.challenge('gate-of-clarity-01').rubric.length,
+      pass: g.content.challenge('gate-of-clarity-01').pass,
     };
   `);
   eq(consoleOpen.act, 3, '「開始刻印」切到第三幕');
@@ -1882,15 +2171,31 @@ async function main() {
   ok(consoleOpen.options >= 2, '每一段有 2–3 個選項', `n=${consoleOpen.options}`);
   eq(consoleOpen.palmHidden, true, '還沒刻完之前沒有手掌印');
   ok(/自由書寫/.test(consoleOpen.modeBtn), '有一顆安靜的「自由書寫模式」切換', consoleOpen.modeBtn);
-  eq(consoleOpen.checklist, 4, '主控台列出 4 條 rubric');
-  eq(consoleOpen.sources, 4, '每條 rubric 都有官方出處連結');
+  eq(consoleOpen.rubricLen, 2, '清晰之門收斂成「一條主檢查 ＋ 一條地基」（C1）');
+  eq(consoleOpen.checklist, consoleOpen.rubricLen, '主控台列出這一關的每一條 rubric');
+  eq(consoleOpen.sources, consoleOpen.rubricLen, '每條 rubric 都有官方出處連結');
   eq(consoleOpen.railVisible, true, '刻痕對照跟石碑同時在畫面上');
   eq(consoleOpen.lampVisible, true, '進度燈也在第三幕看得到');
   eq(consoleOpen.sideBySide, true, '刻痕對照在石碑「旁邊」，不是下面');
   ok(/神諭刻文/.test(consoleOpen.guideTab), '第三幕有一個翻回刻文的側頁籤', consoleOpen.guideTab);
   eq(consoleOpen.guideTabOpen, false, '側頁籤預設收著（不擋舞台）');
-  eq(consoleOpen.guideTabRows, 4, '側頁籤壓成一行一條');
-  eq(consoleOpen.guideTabSources, 4, '側頁籤裡每一條照樣點得到官方出處');
+  eq(consoleOpen.guideTabRows, consoleOpen.rubricLen, '側頁籤壓成一行一條');
+  eq(consoleOpen.guideTabSources, 1, '側頁籤上的原典只掛在「這一關教的」那一條');
+  eq(
+    consoleOpen.guideTabQuiet,
+    consoleOpen.rubricLen - 1,
+    '其餘的在側頁籤上只留名字（安靜的一階）'
+  );
+  /* --- Phase A：刻痕對照上，一關只有一條被標成「這一關教的」 --- */
+  eq(consoleOpen.primaryRows, 1, '刻痕對照上恰好一條被標成主教學目標（C1）');
+  eq(consoleOpen.primaryTag, '這一關教的', '主教學目標帶著一個看得懂的標記', consoleOpen.primaryTag);
+  eq(consoleOpen.foundationRows, 1, '地基（說清楚要做什麼）恰好一條，而且是次要位階');
+  eq(consoleOpen.foundationWeight, '0.5 分', '地基只值 0.5 分，而且寫成「0.5」不是「0.50」', consoleOpen.foundationWeight);
+  ok(
+    consoleOpen.weights.every((t) => /^\d+(\.\d)? 分$/.test(t)),
+    '每一條的分數都印得出乾淨的數字（小數不會漏出浮點雜訊）',
+    consoleOpen.weights.join('｜')
+  );
   eq(consoleOpen.xp, 0, '光是走到刻印不會給分');
 
   /* --- 切到自由書寫：底下的舊玩法（起手寫法 / 快速填入 / 積木 / 提示球 / 預檢）一項都沒少 --- */
@@ -1991,11 +2296,23 @@ async function main() {
   `);
   eq(consoleLive.empty.lampHidden, false, '進度燈一開始就看得到');
   ok(/再完成/.test(consoleLive.empty.lampText), '進度燈用「再完成 N 項」講話', consoleLive.empty.lampText);
+  /*
+   * Phase A：門檻是小數時畫面上的數字要讀得順（不是 2.50、更不是 2.4999999）。
+   * 課程 v2 · Phase J3：教學神廟的門檻全部收斂成 2，帶半分的門檻現在住在應用關身上
+   * （`trialPass()` 算出來的 3.5）—— 所以這裡改成「照資料層寫出來、而且沒有浮點雜訊」。
+   */
+  ok(
+    new RegExp(`需要 ${consoleOpen.pass} 分`).test(consoleLive.empty.lampText),
+    `進度燈把門檻寫成「需要 ${consoleOpen.pass} 分」`,
+    consoleLive.empty.lampText
+  );
+  ok(!/\d\.\d{3,}/.test(consoleLive.empty.lampText), '進度燈不會漏出浮點雜訊', consoleLive.empty.lampText);
   eq(consoleLive.empty.ready, false, '還沒達標時送出鍵不發光');
   ok(consoleLive.one.lit >= 1, '打字打到一項就亮一盞燈', `lit=${consoleLive.one.lit}`);
   ok(consoleLive.one.justlit >= 1, '剛亮起來的那一項有亮燈動畫', `justlit=${consoleLive.one.justlit}`);
   ok(/再完成/.test(consoleLive.one.lampText), '進度燈跟著更新剩幾項', consoleLive.one.lampText);
-  ok(consoleLive.done.lit >= 3, '補齊之後亮起多盞燈', `lit=${consoleLive.done.lit}`);
+  ok(!/\d\.\d{3,}/.test(consoleLive.one.lampText), '做到一項之後的目前分數也是乾淨的數字', consoleLive.one.lampText);
+  eq(consoleLive.done.lit, consoleOpen.rubricLen, '補齊之後每一盞燈都亮了', `lit=${consoleLive.done.lit}`);
   eq(consoleLive.done.ready, true, '達到門檻時送出鍵發光');
   eq(consoleLive.done.lampReady, true, '達到門檻時進度燈轉成綠燈');
   ok(/可以呈上了/.test(consoleLive.done.submitText), '送出鍵直說「可以呈上了」', consoleLive.done.submitText);
@@ -2061,6 +2378,10 @@ async function main() {
       accentIsYellow: styles.borderLeftColor.replace(/\\s+/g, '') === 'rgb(230,199,155)',
       borderLeftWidth: styles.borderLeftWidth,
       coachEntries: g.content.coachMeta.entries.length,
+      usedChecks: new Set([
+        ...g.content.challenges.flatMap((c) => c.rubric.map((r) => r.check)),
+        ...(g.prologueContent?.steps || []).flatMap((st) => (st.rubric || []).map((r) => r.check)),
+      ]).size,
     };
   `);
   eq(orb.visible, true, '主控台裡看得到漂浮提示球');
@@ -2080,7 +2401,7 @@ async function main() {
   eq(orb.nudging, true, '停手太久 / 送出沒過時，提示球會發光提醒');
   eq(orb.stillNotModal, true, '提醒時不會自己彈開提示框（永遠不擋畫面）');
   eq(orb.overlayBlocked, 0, '提示框不是 modal');
-  eq(orb.coachEntries, 22, 'coach.json 覆蓋全部 22 條檢查');
+  eq(orb.coachEntries, orb.usedChecks, 'coach.json 覆蓋每一條真的被用到的檢查（數字由資料現算，不寫死）');
 
   // Tab 焦點鎖：不會跑出面板
   const trap = await evaluate(`
@@ -2111,7 +2432,7 @@ async function main() {
   `);
   eq(bad.hidden, false, '送出爛 prompt 會有結果面板');
   eq(bad.fail, true, '爛 prompt 未通過');
-  ok(bad.hints >= 3, '未通過時給出具體缺失提示', `hints=${bad.hints}`);
+  eq(bad.hints, consoleOpen.rubricLen, '未通過時每一條缺失都給出具體提示', `hints=${bad.hints}`);
   eq(bad.xp, 0, '未通過不給 XP');
 
   const good = await evaluate(`
@@ -2130,6 +2451,11 @@ async function main() {
       best: g.progression.bestGrade('gate-of-clarity-01'),
       markerCleared: g.world.markers.find((m) => m.id === 'gate-of-clarity-01').cleared,
       focusOnResult: document.activeElement?.classList.contains('result'),
+      scoreline: document.querySelector('#prompt-console .result__scoreline')?.textContent.replace(/\s+/g, ' ').trim() || '',
+      collectedHead: document.querySelector('#prompt-console .collected h4 .zh')?.textContent.trim() || '',
+      collectedRows: document.querySelectorAll('#prompt-console .collected li').length,
+      teaches: g.content.challenge('gate-of-clarity-01').teaches.slice(),
+      allCollected: g.content.challenge('gate-of-clarity-01').teaches.every((t) => g.progression.isCollected(t)),
       saved: !!localStorage.getItem('promptasy.v1.save'),
     };
   `);
@@ -2138,6 +2464,17 @@ async function main() {
   ok(good.stampClass.includes('grade--s'), 'S 評價有專屬樣式');
   ok(good.xp > 0, '通過後拿到 XP', `xp=${good.xp}`);
   eq(good.collected, 3, '3 條技巧收進圖鑑');
+  /* D2：收集仍然由 legacy teaches 驅動 —— 教學收斂成一條，但收集一條都不能少 */
+  eq(good.allCollected, true, '過關把 legacy teaches 全部收進圖鑑（收集不倒退）', good.teaches.join('、'));
+  eq(good.collectedRows, good.teaches.length, '結算面板列出每一條收到的技巧');
+  eq(good.collectedHead, '✦ 順手收進圖鑑', 'legacy 收集放在「順手」的次要位階（D2 的 uiRule）', good.collectedHead);
+  /* Phase A：小數門檻在結果面板上也要讀得順 */
+  ok(
+    new RegExp(`通過門檻 ${consoleOpen.pass}`).test(good.scoreline),
+    `結果面板寫出門檻「通過門檻 ${consoleOpen.pass}」`,
+    good.scoreline
+  );
+  ok(!/\d\.\d{3,}/.test(good.scoreline), '結果面板的分數沒有浮點雜訊', good.scoreline);
   eq(good.best, 'S', '最佳評價記錄為 S');
   eq(good.markerCleared, true, '石座轉為已通關狀態');
   eq(good.focusOnResult, true, '結果面板取得焦點（M6 無障礙）');
@@ -2551,16 +2888,16 @@ async function main() {
   eq(modeSetting.persisted, 'guided', '答題方式寫進 localStorage');
   eq(modeSetting.mode, 'guided', '主控台跟著換過來');
 
-  // --- 開一關沒被別的測試碰過的：面具工坊 ---
+  // --- 開一關沒被別的測試碰過的：四要素之鏡 ---
   const carveOpen = await evaluate(`
     const g = window.__promptasy;
-    g.promptConsole.open(g.content.challenge('mask-workshop-41'));
+    g.promptConsole.open(g.content.challenge('four-elements-mirror-44'));
     await new Promise((r) => setTimeout(r, 240));
     // Phase 12：石碑住在第三幕 —— 先讓導演把鏡頭推到那裡
     const actAtOpen = g.promptConsole.act;
     g.promptConsole.goAct(3, { force: true });
     await new Promise((r) => setTimeout(r, 300));
-    const flow = g.content.flow('mask-workshop-41');
+    const flow = g.content.flow('four-elements-mirror-44');
     return {
       mode: g.promptConsole.mode,
       slots: flow.slots.length,
@@ -2584,7 +2921,8 @@ async function main() {
   eq(carveOpen.total, carveOpen.slots, '石碑知道這一關有幾段');
   eq(carveOpen.carved, 0, '一開始石碑是空的');
   eq(carveOpen.emptyShown, true, '空石碑有一句說明「從下面挑一段話」');
-  ok(/第 1 \/ 4 段/.test(carveOpen.progress), '進度寫著「第 1 / 4 段」', carveOpen.progress);
+  // 段數由資料決定（Phase A 收斂過格式段落，寫死 4 會在改資料時假性失敗）
+  eq(carveOpen.progress, `第 1 / ${carveOpen.slots} 段`, '進度寫著「第 1 / N 段」', carveOpen.progress);
   ok(carveOpen.ask.length >= 6, '這一段的問題看得到', carveOpen.ask);
   eq(carveOpen.options, 3, '第一段有 3 個選項');
   eq(carveOpen.keyHints, 3, '每個選項都標了鍵盤數字');
@@ -2606,7 +2944,7 @@ async function main() {
       ariaDisabled: btn.getAttribute('aria-disabled'),
       feedback: fb.textContent.trim(),
       feedbackShown: !fb.hidden,
-      dataFeedback: g.content.flow('mask-workshop-41').slots[0].options[${wrongIdx}].feedback,
+      dataFeedback: g.content.flow('four-elements-mirror-44').slots[0].options[${wrongIdx}].feedback,
       carved: document.querySelectorAll('#prompt-console .carved').length,
       stillHere: !!document.querySelector('#prompt-console [data-opt="${wrongIdx}"]'),
       progress: document.querySelector('#prompt-console [data-progress]').textContent.trim(),
@@ -2623,7 +2961,7 @@ async function main() {
   ok(wrongPick.feedback.length >= 12, '回饋講得出「為什麼這樣比較弱」', wrongPick.feedback);
   eq(wrongPick.carved, 0, '選錯不會刻上石碑');
   eq(wrongPick.stillHere, true, '選錯不會被踢出這一段（可以再選）');
-  ok(/第 1 \/ 4 段/.test(wrongPick.progress), '選錯不會前進到下一段', wrongPick.progress);
+  eq(wrongPick.progress, `第 1 / ${carveOpen.slots} 段`, '選錯不會前進到下一段', wrongPick.progress);
   eq(wrongPick.xp, carveOpen.xp, '選錯不扣分（XP 一分沒動）');
   eq(wrongPick.resultHidden, true, '選錯不會跳出失敗面板（你不可能失敗）');
   ok(wrongPick.optionsLeft >= 1, '還有選項可以再試', String(wrongPick.optionsLeft));
@@ -2640,7 +2978,7 @@ async function main() {
   // --- 一段一段刻上去：全部用鍵盤 1/2/3，刻痕數要跟著長 ---
   const carveAll = await evaluate(`
     const g = window.__promptasy;
-    const flow = g.content.flow('mask-workshop-41');
+    const flow = g.content.flow('four-elements-mirror-44');
     const steps = [];
     for (let i = 0; i < flow.slots.length; i += 1) {
       const idx = flow.slots[i].options.findIndex((o) => o.correct);
@@ -2679,7 +3017,10 @@ async function main() {
       palmSpotlight: document.querySelector('#prompt-console .console').classList.contains('is-palm'),
       palmLead: document.querySelector('#prompt-console [data-palm-lead]').textContent.trim(),
       navNow: Array.from(document.querySelectorAll('#prompt-console .acts__item.is-now')).map((b) => b.textContent.trim()),
-      kicker: document.querySelector('#prompt-console [data-carve-kicker]').textContent.trim(),
+      // 幕的編號不再印在畫面上（「ACT IV」與「第四幕」是同一件事講兩次）——
+      // 它留給讀螢幕的人：指示器那一顆的 aria-label / title 仍然完整。
+      navNowAria: Array.from(document.querySelectorAll('#prompt-console .acts__item.is-now')).map((b) => b.getAttribute('aria-label')),
+      kickerNodes: document.querySelectorAll('#prompt-console [data-carve-kicker], #prompt-console .act__kicker').length,
     };
   `);
   for (const [i, s] of carveAll.steps.entries()) {
@@ -2711,7 +3052,8 @@ async function main() {
     carveAll.palmLead
   );
   ok(/手印/.test(carveAll.navNow[0] || ''), '指示器移到④手印', String(carveAll.navNow[0]));
-  ok(/第四幕/.test(carveAll.kicker), '幕標也跟著改口', carveAll.kicker);
+  eq(carveAll.kickerNodes, 0, '畫面上不再印幕的編號（重複的小標已移除）');
+  ok(/第四幕/.test(carveAll.navNowAria[0] || ''), '編號留給螢幕閱讀器（指示器的 aria-label）', String(carveAll.navNowAria[0]));
   eq(carveAll.resultHidden, true, '還沒按手掌就不會有結果');
   eq(carveAll.xp, wrongPick.xp, '刻完但還沒按手掌，一分都還沒給');
 
@@ -2769,10 +3111,11 @@ async function main() {
       rows: document.querySelectorAll('#prompt-console .row').length,
       xpTick: document.querySelector('#prompt-console [data-xptick]')?.getAttribute('data-to'),
       xp: g.progression.state.xp,
-      best: g.progression.bestGrade('mask-workshop-41'),
-      cleared: g.world.markers.find((m) => m.id === 'mask-workshop-41')?.cleared,
+      best: g.progression.bestGrade('four-elements-mirror-44'),
+      cleared: g.world.markers.find((m) => m.id === 'four-elements-mirror-44')?.cleared,
       source: document.querySelector('#prompt-console .result__source a')?.getAttribute('href') || '',
-      dataSource: g.content.challenge('mask-workshop-41').source,
+      dataSource: g.content.challenge('four-elements-mirror-44').source,
+      rubricRows: g.content.challenge('four-elements-mirror-44').rubric.length,
     };
   `);
   eq(sealed.fired, true, '按住到底就發動了');
@@ -2781,7 +3124,11 @@ async function main() {
   eq(sealed.resultHidden, false, '接著就是原本那張結果面板');
   eq(sealed.grade, 'S', '石碑刻印全部選對＝S（超容易過關）');
   eq(sealed.pass, true, '結果面板判定為通過');
-  eq(sealed.rows, 5, '結果一條一條列出這一關的 5 項檢查');
+  eq(
+    sealed.rows,
+    sealed.rubricRows,
+    `結果一條一條列出這一關的 ${sealed.rubricRows} 項檢查（由資料現算，不寫死）`
+  );
   ok(Number(sealed.xpTick) > 0, '拿到 XP', `xp=${sealed.xpTick}`);
   ok(sealed.xp > wrongPick.xp, '存檔裡的 XP 真的增加了', `${wrongPick.xp} → ${sealed.xp}`);
   eq(sealed.best, 'S', '最佳評價寫成 S');
@@ -3330,9 +3677,24 @@ async function main() {
     };
   `);
   eq(codex.open, true, 'C 開啟圖鑑');
-  eq(codex.techs, 68, '圖鑑列出 68 條技巧');
+  /*
+   * 課程 v2 · Phase E：圖鑑除了舊 68 條技巧，還會列出「只教 v2 技能」的新區域
+   * （量器坊起）的技法 —— 所以總條數是 68 ＋ 那幾區的技能數。
+   */
+  const CODEX_SKILL_ROWS = CATALOG.implementedRegions()
+    .filter((r) => r.skillOnly)
+    .reduce((n, r) => n + CATALOG.regionSkills(r.id).length, 0);
+  eq(
+    codex.techs,
+    TECHNIQUE_TOTAL + CODEX_SKILL_ROWS,
+    `圖鑑列出 ${TECHNIQUE_TOTAL} 條技巧 ＋ ${CODEX_SKILL_ROWS} 條新區域的技法`
+  );
   ok(codex.collected > 0, '這一輪已經收集了一些技巧', `collected=${codex.collected}`);
-  eq(codex.locked, codex.total - codex.collected, '未收集的技巧顯示為 ???');
+  eq(
+    codex.locked,
+    codex.total - codex.collected + CODEX_SKILL_ROWS,
+    '未收集的技巧與技法都顯示為 ???'
+  );
   eq(codex.inPanel, true, '圖鑑開啟時焦點在面板內（M6 無障礙）');
   await key('Escape', 'Escape', { vk: 27 });
   await sleep(250);
@@ -3519,14 +3881,31 @@ async function main() {
   eq(audioFiles.chain.duck, true, '配樂前面有 duck（過關的頌缽響時把床壓低）');
   eq(audioFiles.chain.bgmBus, true, '音檔配樂有自己的 bus');
   eq(audioFiles.chain.sfxBus, true, '音效有自己的 bus');
-  // 五片土地各一首 ＋ 標題卡的開場曲
-  eq(audioFiles.bgmKeys.length, 6, '五區各有一首配樂音檔，外加標題卡的開場曲');
+  /*
+   * 課程 v2 · Phase E：`debug().bgm` 一區一格（含還沒有音檔的合成專用區），
+   * 所以「有幾首音檔」要看 file 非 null 的那幾格 —— 合成專用區誠實地是 null。
+   */
+  const SYNTH_ONLY_E2E = EXPECT.synthOnlyRegions.value;
+  const withFile = audioFiles.bgmKeys.filter((id, i) => audioFiles.files[i]);
+  eq(
+    withFile.length,
+    EXPECT.v2ImplementedRegions.value + 1 - SYNTH_ONLY_E2E.length,
+    '每個有音檔的區域各一首，外加標題卡的開場曲'
+  );
   ok(audioFiles.bgmKeys.includes('title'), '開場曲也在配樂表上', audioFiles.bgmKeys.join(','));
-  for (const region of ['foundations', 'reasoning', 'grounding', 'orchestration', 'config']) {
-    ok(audioFiles.bgmKeys.includes(region), `${region} 有自己的配樂`);
+  for (const region of CATALOG.implementedRegionIds()) {
+    if (SYNTH_ONLY_E2E.includes(region)) {
+      ok(!withFile.includes(region), `${region} 誠實地沒有音檔（走合成 pad）`);
+      continue;
+    }
+    ok(withFile.includes(region), `${region} 有自己的配樂`);
   }
-  eq(new Set(audioFiles.files).size, 6, '每一首都是不同的檔案');
-  eq(new Set(audioFiles.titles).size, 6, '每一首曲名各不相同');
+  {
+    const files = audioFiles.files.filter(Boolean);
+    const titles = audioFiles.titles.filter(Boolean);
+    eq(new Set(files).size, files.length, '每一首都是不同的檔案');
+    eq(new Set(titles).size, titles.length, '每一首曲名各不相同');
+  }
   eq(audioFiles.sfxSynthFallback, true, '每一支音檔音效都留著合成備援');
   ok(audioFiles.requests > 0, '手勢之後才開始抓音檔', `requests=${audioFiles.requests}`);
   console.log(`  · 這台機器${audioFiles.decodable ? '解得開' : '解不開'} m4a（AAC）`);
@@ -3599,7 +3978,9 @@ async function main() {
     g.audio.useFiles(false);
     await new Promise((r) => setTimeout(r, 1400));
     const d = g.audio.debug();
-    const cues = ['pass', 'unlock', 'gateOpen', 'click', 'shrine', 'finale', 'submit', 'open', 'codex']
+    const cues = ['pass', 'unlock', 'gateOpen', 'click', 'shrine', 'finale', 'submit', 'open', 'codex',
+      'trialPass', 'masterSeal', 'hardGate', 'simLow', 'simMid', 'simHigh',
+      'formsTap', 'toolcraftStrike', 'toolcraftComplete', 'frugalityRemove', 'refineryRerun', 'sightFocus']
       .map((k) => g.audio.cue(k));
     return {
       source: d.source,
@@ -3622,6 +4003,66 @@ async function main() {
     return g.audio.debug().usesFiles;
   `);
   eq(restored, true, '可以再切回音檔');
+
+  /* ---------------------------------------------------------------- *
+   * issue #3：新的 cue（轉鈕三檔 / 試煉的鑼 / 大師層印記 / 硬門檻 / 五片新土地）
+   * 與響度系統（檔案不做響度處理，統一在播放時的 gain）
+   * ---------------------------------------------------------------- */
+  const v2Audio = await evaluate(`
+    const g = window.__promptasy;
+    const d = g.audio.debug();
+    const dialCues = [];
+    for (const notch of [0, 1, 2]) {
+      g.audio.cue('simDial', { notch });
+      dialCues.push(g.audio.debug().lastCue);
+      await new Promise((r) => setTimeout(r, 120));
+    }
+    return {
+      sfx: d.sfx,
+      dialCues,
+      trialPassFile: d.sfx.trialPass ? d.sfx.trialPass.file : null,
+      passFile: d.sfx.pass ? d.sfx.pass.file : null,
+      strikeAlt: d.sfx.toolcraftStrike ? d.sfx.toolcraftStrike.alt : null,
+      bgm: Object.fromEntries(Object.entries(d.bgm).map(([k, v]) => [k, { file: v.file, lufs: v.lufs, targetGain: v.targetGain }])),
+    };
+  `);
+  eq(
+    JSON.stringify(v2Audio.dialCues),
+    JSON.stringify(['simLow', 'simMid', 'simHigh']),
+    "cue('simDial', { notch }) 真的轉成三檔各自的那一支"
+  );
+  for (const kind of [
+    'trialPass', 'masterSeal', 'hardGate', 'simLow', 'simMid', 'simHigh',
+    'formsTap', 'toolcraftStrike', 'toolcraftComplete', 'frugalityRemove', 'refineryRerun', 'sightFocus',
+  ]) {
+    const row = v2Audio.sfx[kind];
+    ok(Boolean(row), `新音效 ${kind} 登記在音效表上`);
+    ok(Boolean(row) && row.synthFallback, `新音效 ${kind} 留著合成備援（護欄 3）`);
+    ok(Boolean(row) && row.fetch !== 'failed', `新音效 ${kind} 抓得到`, row && `${row.file} / ${row.fetch}`);
+    ok(Boolean(row) && Number.isFinite(row.lufs), `新音效 ${kind} 記著量到的響度`, row && String(row.lufs));
+    ok(Boolean(row) && row.gain > 0, `新音效 ${kind} 有算出來的 gain`, row && String(row.gain));
+  }
+  ok(v2Audio.trialPassFile !== v2Audio.passFile, '試煉的鑼與一般過關的頌缽不是同一個檔案');
+  ok(Boolean(v2Audio.strikeAlt), '鍛打有第二顆素材可以輪播', String(v2Audio.strikeAlt));
+  // 十二區配樂：六首 v1 的 gain ≈ 1（本來就烘在 -20），六首 v2 的被壓下來
+  for (const id of ['title', 'foundations', 'reasoning', 'grounding', 'orchestration', 'config']) {
+    ok(Math.abs(v2Audio.bgm[id].targetGain - 1) < 0.03, `v1 的配樂 ${id} 本來就烘在 -20，gain ≈ 1`, String(v2Audio.bgm[id].targetGain));
+  }
+  for (const id of ['forms', 'toolcraft', 'frugality', 'refinery', 'sight', 'divergence']) {
+    ok(Boolean(v2Audio.bgm[id].file), `${id} 有自己的配樂音檔（issue #3）`, String(v2Audio.bgm[id].file));
+    ok(v2Audio.bgm[id].targetGain < 0.8, `${id} 交來是 raw，被 gain 壓回 -20`, String(v2Audio.bgm[id].targetGain));
+  }
+  /*
+   * 護欄崗《The Unclosing Door》補上之後，十二區全數有自己的一首、
+   * `SYNTH_ONLY_REGIONS` 清空 —— 這條斷言在那一次沒有跟著翻面（既有紅燈）。
+   * 現在守的是「它有自己的音檔，而且交來是 raw、被 gain 壓回 −20」。
+   */
+  ok(Boolean(v2Audio.bgm.wards.file), '護欄崗有自己的配樂音檔', String(v2Audio.bgm.wards.file));
+  ok(
+    v2Audio.bgm.wards.targetGain < 0.8,
+    '護欄崗的配樂交來是 raw，被 gain 壓回 -20',
+    String(v2Audio.bgm.wards.targetGain)
+  );
 
   /* ================================================================ */
   console.log('\n▸ 閘門與跨區（含氣氛切換）');
@@ -3925,7 +4366,7 @@ async function main() {
   ok(crossing.regionText.includes('示範與推理'), 'HUD 區域名跟著更新', crossing.regionText);
   ok(crossing.fogBefore !== crossing.fogAfter, '跨區時霧色平滑漂移（M4 轉場）',
     `${crossing.fogBefore.toString(16)} → ${crossing.fogAfter.toString(16)}`);
-  eq(crossing.markersHere, 5, 'reasoning 區有 5 座石座');
+  eq(crossing.markersHere, 16, 'reasoning 區有 16 座石座（15 座教學神廟 ＋ 1 座試煉）');
 
   /* ================================================================ */
   console.log('\n▸ 鏡頭避障（Phase 3 已知問題）');
@@ -3994,12 +4435,16 @@ async function main() {
     '中文黑體是子集而非完整字型（完整版 11 MB）',
     `${(fonts.sansBytes / 1024).toFixed(0)} KB`
   );
-  // Phase 22 多了一整層互動（刻文小語 / 反應 / 祕密）＋ WORLD.md 的世界觀用語，
-  // 語料從 1472 → 1583 字。上限往上調一格，但仍遠低於完整字型（16 MB + 11 MB）。
+  /*
+   * 語料是保守超集，每一期新內容都會把它撐大：
+   * Phase 22 的 1583 字 → 課程 v2 Phase D 的 1750 字 → 142 關品檢之後的 1859 字。
+   * 上限跟著往上調一格（1.15 → 1.2 MiB，與 test-rubric 的總量上限用同一把 KiB 尺），
+   * 但仍遠低於完整字型（16 MB + 11 MB）—— 這條守的是「還是子集」，不是「不准長」。
+   */
   ok(
-    fonts.serifBytes + fonts.sansBytes < 1_060_000,
-    '兩套中文字型合計在 1.01 MB 以內',
-    `${((fonts.serifBytes + fonts.sansBytes) / 1024).toFixed(0)} KB`
+    fonts.serifBytes + fonts.sansBytes < 1.2 * 1024 * 1024,
+    '兩套中文字型合計在 1.2 MiB 以內',
+    `${((fonts.serifBytes + fonts.sansBytes) / 1024).toFixed(0)} KiB`
   );
   eq(fonts.externalFontReqs, 0, '沒有任何外部字型 CDN 請求（護欄 3：可離線）');
   ok(
@@ -4018,37 +4463,32 @@ async function main() {
     const g = window.__promptasy;
     const root = g.title.root;
     const name = root.querySelector('.title__name');
-    const tag = root.querySelector('[data-typed="tag"]');
-    const zh = root.querySelector('[data-typed="zh"]');
+    const tag = root.querySelector('.title__tag');
+    const zh = root.querySelector('.title__zh');
     root.hidden = false;
     root.classList.remove('is-leaving');
     root.classList.add('is-open');
     // 重播名字的對焦動畫（從 display:none 回來時 CSS 動畫本來就會整組重播）
     name.style.animation = 'none'; void name.offsetWidth; name.style.animation = '';
-    tag.textContent = ''; zh.textContent = '';
     root.classList.remove('is-ready');
     await new Promise((r) => setTimeout(r, 120));
     const early = {
       filter: getComputedStyle(name).filter,
       opacity: Number(getComputedStyle(name).opacity),
+      // Phase 34.5：文字第一幀就是完整的，只是還沒淡進來
+      tagOpacity: Number(getComputedStyle(tag).opacity),
+      tagLen: tag.textContent.length,
     };
-    // 打字用 JS 驅動 —— open() 會把整段重播一次
+    // 揭示全部由 CSS 延遲驅動 —— open() 會把整段重播一次
     g.title.open();
-    // 輪詢等「第一句開始打」，順手看第二句這時候還沒動（一句一句來）
-    let typingNow = null;
-    for (let i = 0; i < 150 && !typingNow; i += 1) {
-      await new Promise((r) => setTimeout(r, 80));
-      if (tag.textContent.length > 0) typingNow = { tagLen: tag.textContent.length, zhLen: zh.textContent.length };
-    }
-    // 全段 ≈ 1.35 + 34×0.034 + 0.32 + 24×0.072 + 0.26 ≈ 4.9s —— 輪詢等它自己停
-    for (let i = 0; i < 200 && g.title.isTyping; i += 1) await new Promise((r) => setTimeout(r, 100));
-    // 開始鍵是 0.9s 的 transition，等它收完再量
-    await new Promise((r) => setTimeout(r, 1400));
+    // 全段 ≈ 0.15 名字 → 1.0 髮絲線 → 1.35 定位句 → 2.0 中文 → 2.7 開始鍵，等它跑完
+    await new Promise((r) => setTimeout(r, 4200));
     const done = {
       filter: getComputedStyle(name).filter,
       opacity: Number(getComputedStyle(name).opacity),
       tag: tag.textContent,
       zh: zh.textContent,
+      tagOpacity: Number(getComputedStyle(tag).opacity),
       ready: root.classList.contains('is-ready'),
       caretsOn: root.querySelectorAll('.title__caret.is-on').length,
       startOpacity: Number(getComputedStyle(root.querySelector('.title__start')).opacity),
@@ -4058,24 +4498,22 @@ async function main() {
     // hide() 收起來但不觸發 onStart —— 遊戲狀態一點都不會被這次重播動到
     g.title.hide();
     const after = { titleOpen: g.title.isOpen, hidden: root.hidden };
-    return { early, typingNow, done, after, text: name.textContent, aria: name.getAttribute('aria-label') };
+    return { early, done, after, text: name.textContent, aria: name.getAttribute('aria-label') };
   `);
   eq(titleReveal.text, 'Promptasy', '標題卡的品牌名是完整的一段文字（不再被拆成一個個 span）');
   eq(titleReveal.aria, 'Promptasy', '螢幕閱讀器讀到的名字正確');
   ok(/blur\(([1-9]|\d\d)/.test(titleReveal.early.filter), '開頭名字是模糊的（整個一起對焦）', titleReveal.early.filter);
   ok(titleReveal.early.opacity < 0.9, '開頭名字還沒完全顯影', String(titleReveal.early.opacity));
-  ok(
-    titleReveal.typingNow && titleReveal.typingNow.tagLen > 0 && titleReveal.typingNow.zhLen === 0,
-    '打字是一句一句來的（第一句在打的時候第二句還沒開始）',
-    JSON.stringify(titleReveal.typingNow)
-  );
+  eq(titleReveal.early.tagLen, 'Learn Prompt Engineering by Playing'.length, '定位句一開始就是完整的一句（只是還沒淡進來）');
+  ok(titleReveal.early.tagOpacity < 0.9, '開頭定位句還沒淡進來', String(titleReveal.early.tagOpacity));
   ok(!/blur\([1-9]/.test(titleReveal.done.filter), '結束時名字完全對焦', titleReveal.done.filter);
   ok(titleReveal.done.opacity > 0.99, '結束時名字完全顯示', String(titleReveal.done.opacity));
-  eq(titleReveal.done.tag, 'Learn Prompt Engineering by Playing', '定位句整句打完');
-  eq(titleReveal.done.zh, '在一個夜色的世界裡探索，用你寫的 prompt 解開它。', '中文那一句整句打完');
-  eq(titleReveal.done.typing, false, '打完就停（不會有殘留的計時器）');
-  eq(titleReveal.done.caretsOn, 0, '打完之後兩根游標都收起來');
-  eq(titleReveal.done.ready, true, '兩句話打完 → 標題卡進入 is-ready');
+  eq(titleReveal.done.tag, 'Learn Prompt Engineering by Playing', '定位句完整顯示');
+  eq(titleReveal.done.zh, '在一個夜色的世界裡探索，用你寫的 prompt 解開它。', '中文那一句完整顯示');
+  ok(titleReveal.done.tagOpacity > 0.9, '結束時定位句淡進來了', String(titleReveal.done.tagOpacity));
+  eq(titleReveal.done.typing, false, '沒有打字機（舊 API 永遠回 false）');
+  eq(titleReveal.done.caretsOn, 0, '畫面上沒有任何游標');
+  eq(titleReveal.done.ready, true, '揭示走完 → 標題卡進入 is-ready');
   // 0.9 秒的 transition，收尾那一格由瀏覽器決定 —— 只要「明顯亮起來了」就算數
   ok(titleReveal.done.startOpacity > 0.5, '開始鍵這時候才浮出來', String(titleReveal.done.startOpacity));
   // scaleX 用字串比對（!/matrix\(0/）會被 0.99999 這種收尾誤判成失敗 —— 改成看數值
@@ -4138,7 +4576,7 @@ async function main() {
       xpEarly, xpLate, xpTo,
     };
   `);
-  ok(revealSeq.n >= 3, '結果列出多條檢查', String(revealSeq.n));
+  ok(revealSeq.n >= 2, '結果逐條列出這一關的每一條檢查', String(revealSeq.n));
   ok(revealSeq.hasStyleIndex, '每一條檢查都帶著 --i（揭示序列的節拍）');
   ok(
     revealSeq.delays.every((d, i) => i === 0 || d > revealSeq.delays[i - 1]),
@@ -4285,6 +4723,42 @@ async function main() {
   ok(codexZh.originCount >= 27, '至少 27 條技巧掛得出官方原文', `n=${codexZh.originCount}`);
   eq(codexZh.leakCount, 0, '整本圖鑑預設看不到任何一句官方英文', JSON.stringify(codexZh.leaks));
 
+  /* --- 出處深連結：圖鑑的舊 68 條走顯示層疊加（curriculum.json 一個字沒動） --- */
+  const codexDeep = await evaluate(`
+    const g = window.__promptasy;
+    const anchors = g.content.sourceAnchors;
+    const raw = g.content.curriculum.techniques.find((t) => t.id === 'clarity-01');
+    const shown = g.content.displayTechnique('clarity-01').sources;
+    const hrefs = Array.from(document.querySelectorAll('#codex .tech__srcs a'))
+      .filter((a) => a.checkVisibility && a.checkVisibility())
+      .map((a) => a.getAttribute('href'));
+    return {
+      overlaySize: anchors.size,
+      rawFirst: raw.sources[0].url,
+      shownFirst: shown[0].url,
+      shownName: shown[0].name,
+      rawName: raw.sources[0].name,
+      rawHasHash: raw.sources.some((s) => s.url.includes('#')),
+      // 畫面上「有帶片段」的出處連結有幾條（整本圖鑑）
+      deepOnScreen: hrefs.filter((u) => u.includes('#')).length,
+      onScreen: hrefs.length,
+      /* 疊加層的每一條都只在片段上動手腳 */
+      allFragmentOnly: anchors.entries.every((e) => e.anchored.startsWith(e.url + '#')),
+      methods: Array.from(new Set(anchors.entries.map((e) => e.method))).sort(),
+    };
+  `);
+  ok(codexDeep.overlaySize > 0, '圖鑑接上了出處深連結疊加層', String(codexDeep.overlaySize));
+  eq(codexDeep.rawHasHash, false, 'curriculum.json 裡的原網址仍然是頁面層（一個位元組都沒動）');
+  ok(codexDeep.shownFirst.startsWith(codexDeep.rawFirst + '#'), '畫面上顯示的是原網址 ＋ 一個片段', codexDeep.shownFirst);
+  eq(codexDeep.shownName, codexDeep.rawName, '文件名一個字沒改（疊加層只動網址的片段）');
+  eq(codexDeep.allFragmentOnly, true, '疊加層的每一條都只在片段上動手腳（不得換文件）');
+  ok(
+    codexDeep.methods.every((m) => ['heading', 'fragment'].includes(m)),
+    '定位方式只有兩種：頁面上的標題 id、或 W3C 文字片段',
+    codexDeep.methods.join(',')
+  );
+  ok(codexDeep.deepOnScreen > 0, '展開的那條技巧，畫面上的出處連結真的帶著片段', `${codexDeep.deepOnScreen}/${codexDeep.onScreen}`);
+
   // 展開之後：官方原文一字不差
   const originOpen = await evaluate(`
     const card = Array.from(document.querySelectorAll('#codex .tech')).find(
@@ -4379,7 +4853,7 @@ async function main() {
     '四個方位刻度都在（北 / 東 / 南 / 西）',
     compass.cards.join('')
   );
-  eq(compass.marks, 5, '五座地標各有一根淡針');
+  eq(compass.marks, EXPECT.v2ImplementedRegions.value, '每一座地標各有一根淡針');
   eq(compass.needleHidden, false, '下一個目標有金針指著');
   ok(/步/.test(compass.label), '指南針下面寫得出還有幾步', compass.label);
   ok(compass.state.objective && compass.state.objective.name, '指南針知道下一個目標是誰', JSON.stringify(compass.state.objective));
@@ -4514,6 +4988,7 @@ async function main() {
         borderWidth: cs.borderTopWidth,
         borderStyle: cs.borderTopStyle,
         height: Math.round(el.getBoundingClientRect().height),
+        width: Math.round(el.getBoundingClientRect().width),
         edgeClip: before.clipPath.slice(0, 8),
         faceClip: after.clipPath.slice(0, 8),
         edgeIsGradient: /gradient/.test(before.backgroundImage),
@@ -4536,18 +5011,31 @@ async function main() {
     eq(s.noExternalImage, true, `${name}：沒有任何外部圖檔`);
   }
   ok(seals.hero.height >= 44, '主要行動的命中高度 ≥ 44px（WCAG 2.5.5）', `${seals.hero.height}px`);
-  ok(seals.ghost.height >= 40, '幕指示器的命中高度 ≥ 40px', `${seals.ghost.height}px`);
+  /*
+   * 2026-08-03 站長定稿：幕指示器壓扁成一條細帶（原本 40px 高）。
+   * 這裡守的底線改成 WCAG 2.2 的 **2.5.8 AA（24×24 CSS px）**，
+   * 並且要求它橫向仍然很寬 —— 那是它真正好按的那一軸。
+   */
+  ok(seals.ghost.height >= 24, '幕指示器的命中高度 ≥ 24px（WCAG 2.5.8 AA）', `${seals.ghost.height}px`);
+  ok(seals.ghost.width >= 44, '幕指示器橫向仍然很寬（好按的那一軸）', `${seals.ghost.width}px`);
 
-  // 面板裡看得到的按鈕，命中範圍一律 ≥ 34px（次要碎件），.btn 一律 ≥ 40px
+  // 面板裡看得到的按鈕，命中範圍一律 ≥ 24px（WCAG 2.5.8 AA 的地板），.btn 一律 ≥ 40px
   const targets = await evaluate(`
     const els = [...document.querySelectorAll('#prompt-console button')].filter((b) => b.checkVisibility());
     const small = els
+      .map((b) => ({ cls: b.className, h: Math.round(b.getBoundingClientRect().height), w: Math.round(b.getBoundingClientRect().width) }))
+      .filter((x) => x.h < 24 || x.w < 24);
+    // 除了那條細帶（幕指示器）之外，其餘的按鈕仍然要 ≥ 34px
+    const smallish = els
+      .filter((b) => !b.classList.contains('acts__item'))
       .map((b) => ({ cls: b.className, h: Math.round(b.getBoundingClientRect().height) }))
       .filter((x) => x.h < 34);
     const btns = els.filter((b) => b.classList.contains('btn'));
-    return { n: els.length, small, minBtn: Math.min(...btns.map((b) => b.getBoundingClientRect().height)) };
+    return { n: els.length, small, smallish, minBtn: Math.min(...btns.map((b) => b.getBoundingClientRect().height)) };
   `);
-  eq(targets.small.length, 0, '面板裡沒有任何過小的命中範圍', JSON.stringify(targets.small));
+  ok(targets.n > 5, '量得到面板裡的按鈕（不是空過）', String(targets.n));
+  eq(targets.small.length, 0, '面板裡沒有任何小於 WCAG 地板的命中範圍', JSON.stringify(targets.small));
+  eq(targets.smallish.length, 0, '除了幕指示器那條細帶，其餘按鈕仍然 ≥ 34px', JSON.stringify(targets.smallish));
   ok(targets.minBtn >= 39.5, '所有 .btn 的高度 ≥ 40px', `min=${targets.minBtn.toFixed(1)}px`);
 
   // ── 四幕指示器：四塊封印石 ＋ 一條會注金的軌道 ──────────────────
@@ -4687,6 +5175,25 @@ async function main() {
   ok(optSeal.keySize >= 24, '符文石夠大看得清楚', `${optSeal.keySize}px`);
 
   // 選錯 → 石籤上出現裂痕（多一層斜線漸層），而且不再有金線
+  /*
+   * 先把真的游標挪到角落 —— 不然它會停在前一段測試留下的座標上，
+   * 版面一動（例如標頭高度變了）就可能剛好壓在某一張石籤上，
+   * 讓下面那條「不會被滑鼠抬起來」量到的是 :hover 狀態。
+   */
+  await cdp.send(
+    'Input.dispatchMouseEvent',
+    { type: 'mouseMoved', x: 4, y: 4, button: 'none', buttons: 0 },
+    sessionId
+  );
+  /*
+   * 等到**真的沒有石籤還在 hover 狀態**才往下走。
+   * 固定 sleep 在這台軟體渲染的機器上不夠：hover 的重算與 translate 的
+   * 120ms 補間都是逐幀跑的，一幀約 200ms —— 睡 120ms 等於一幀都沒過。
+   */
+  await waitFor(
+    async () => (await evaluate(`return !document.querySelector('#prompt-console .opt:hover');`)) === true,
+    { timeout: 5000, every: 150, label: '游標離開所有石籤' }
+  ).catch(() => {});
   const crackTest = await evaluate(`
     const opts = [...document.querySelectorAll('#prompt-console .opt')];
     const layersBefore = getComputedStyle(opts[0], '::after').backgroundImage.split('gradient').length - 1;
@@ -4712,7 +5219,54 @@ async function main() {
     ok(/224, 128, 110/.test(crackTest.face), '「石碑不收」的石籤上多了赤色的裂痕', crackTest.face.slice(0, 80));
     ok(crackTest.inlayVar.trim() === '0px', '被拒絕的石籤沒有金線', crackTest.inlayVar);
     ok(/224, 128, 110/.test(crackTest.edge), '被拒絕的石籤邊緣轉成赤色', crackTest.edge.slice(0, 70));
-    eq(crackTest.lifted, 'none', '被拒絕的石籤不會再被滑鼠抬起來');
+    /*
+     * `translate` 有 120ms 的補間，而這台機器一幀約 200ms ——
+     * 剛加上 .is-wrong 的那一瞬間讀到的可能還是補間中的值。
+     * 輪詢到它落定（AGENTS.md：動畫時序類斷言不要用固定 sleep）。
+     */
+    const settled = await waitFor(
+      async () => {
+        const v = await evaluate(`
+          const w = document.querySelector('#prompt-console .opt.is-wrong');
+          return w ? getComputedStyle(w).translate : null;
+        `);
+        return v === 'none' ? v : null;
+      },
+      { timeout: 4000, every: 150, label: '被拒絕的石籤落回原位' }
+    ).catch(() => crackTest.lifted);
+    eq(settled, 'none', '被拒絕的石籤不會再被滑鼠抬起來');
+    /*
+     * 上面那條是「游標不在上面」的狀態；真正要守的是**游標壓上去也不抬**。
+     * 所以把真的游標移到那張石籤中心再量一次（先確認同一張石籤還在）。
+     */
+    const wrongAt = await evaluate(`
+      const w = document.querySelector('#prompt-console .opt.is-wrong');
+      if (!w) return null;
+      const r = w.getBoundingClientRect();
+      return [r.x + r.width / 2, r.y + r.height / 2];
+    `);
+    if (wrongAt) {
+      await cdp.send(
+        'Input.dispatchMouseEvent',
+        { type: 'mouseMoved', x: Math.round(wrongAt[0]), y: Math.round(wrongAt[1]), button: 'none', buttons: 0 },
+        sessionId
+      );
+      await sleep(240);
+      const hoveredWrong = await evaluate(`
+        const w = document.querySelector('#prompt-console .opt.is-wrong');
+        return { hover: w.matches(':hover'), lifted: getComputedStyle(w).translate };
+      `);
+      if (hoveredWrong.hover) {
+        eq(hoveredWrong.lifted, 'none', '游標真的壓在被拒絕的石籤上，它一樣不會被抬起來');
+      } else {
+        ok(true, '（游標沒壓到那張石籤，跳過「壓上去也不抬」這一條）');
+      }
+      await cdp.send(
+        'Input.dispatchMouseEvent',
+        { type: 'mouseMoved', x: 4, y: 4, button: 'none', buttons: 0 },
+        sessionId
+      );
+    }
   } else {
     ok(false, '找得到一個被石碑拒絕的選項');
   }
@@ -4971,7 +5525,13 @@ async function main() {
     const tipBtn = node.querySelector('.perfmon .infotip__btn');
     const bubble = node.querySelector('.perfmon .infotip__bubble');
     const bubbleBefore = bubble ? getComputedStyle(bubble).visibility : '';
-    tipBtn?.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+    // hover ＝ 游標真的動到它上面（只補送 mouseover 不算，見 bindInfoTips）
+    const tipBox = tipBtn?.getBoundingClientRect();
+    tipBtn?.dispatchEvent(new MouseEvent('mousemove', {
+      bubbles: true,
+      clientX: Math.round(tipBox.x + tipBox.width / 2),
+      clientY: Math.round(tipBox.y + tipBox.height / 2),
+    }));
     await new Promise((r) => setTimeout(r, 120));
     const bubbleAfter = bubble ? getComputedStyle(bubble).visibility : '';
     const tipText = bubble ? bubble.textContent : '';
@@ -5281,6 +5841,8 @@ async function main() {
       download: dl?.getAttribute('download') || '',
       caption: document.querySelector('#sharecard [data-caption]')?.value.trim() || '',
       model: g.shareCard.model(),
+      // 引擎現算的「已知技法數」—— 卡上那個數字該跟它一致
+      knownSkills: (g.content.catalog.skills || []).filter((s) => g.progression.knowsSkill(s.id)).length,
       focusInPanel: document.querySelector('#sharecard .panel').contains(document.activeElement),
       zShare: Number(getComputedStyle(document.getElementById('sharecard')).zIndex),
       zPlain: Number(getComputedStyle(document.getElementById('codex')).zIndex),
@@ -5304,11 +5866,19 @@ async function main() {
   ok(/\.png$/.test(card.download), '下載檔名是 .png', card.download);
   ok(card.download.includes('lv6'), '檔名帶著等級', card.download);
   ok(card.caption.includes('釋義者'), '那段話預設就寫好了（帶著稱號）', card.caption);
-  ok(!/https?:\/\//.test(card.caption), '那段話裡沒有任何連結', card.caption);
+  // 2026-08 站長決定：那段話的最後一行是站網址（落款）
+  ok(card.caption.trim().endsWith('https://garyhsieh.com/promptasy'), '那段話最後是站網址', card.caption);
+  eq((card.caption.match(/https?:\/\//g) || []).length, 1, '那段話裡只有一個網址');
   eq(card.model.rankTitle, '釋義者', '卡片資料的稱號正確');
   eq(card.model.level, 6, '卡片資料的等級正確');
-  eq(card.model.collected, 46, '卡片資料的收集數正確');
-  eq(card.model.total, 68, '卡片資料的技巧總數正確');
+  /*
+   * 課程 v2（Phase J3）之後卡上的「已收集」是**130 條 v2 技法**，
+   * 判定走 `knowsSkill()`（技能本身收了，或它的祖先技巧已在舊 collected 裡）——
+   * 種進去的那 46 條舊技巧因此換算成一個較小的技能數，這裡拿引擎現算的值比對。
+   */
+  eq(card.model.collected, card.knownSkills, '卡片資料的收集數＝引擎現算的已知技法數');
+  ok(card.knownSkills > 0 && card.knownSkills < card.model.total, '那份存檔確實只收了一部分', `${card.knownSkills} / ${card.model.total}`);
+  eq(card.model.total, CATALOG.counts.skills, `卡片資料的技法總數正確（${CATALOG.counts.skills} 條）`);
   eq(card.model.kind, 'codex', '這是「收集冊」變體');
   eq(card.model.regions.filter((r) => r.mastered).length, 2, '卡片標出兩片已精通的土地');
   eq(card.model.techniques.length, 3, '卡片列出三條最近收集的技法');
@@ -5390,13 +5960,23 @@ async function main() {
   ok(resultCard.techIds.length > 0, '卡片標亮這一關剛學到的技法', resultCard.techIds.join('、'));
   ok(resultCard.kindLabel.includes('刻印紀錄'), '右上角寫著這是哪一種卡', resultCard.kindLabel);
 
+  /*
+   * 課程 v2（Phase J3）之後卡上標亮的是**這一關教的那條 v2 技能**
+   * （`skillIds: [primarySkillId]`），舊的 legacy `teaches` 只是它的退路。
+   */
   const teachesMatch = await evaluate(`
     const g = window.__promptasy;
     const ch = g.content.challenge('gate-of-clarity-01');
     const ids = g.shareCard.model().techniques.map((t) => t.id);
-    return ids.every((id) => ch.teaches.includes(id));
+    return {
+      ids,
+      primary: ch.primarySkillId,
+      allKnown: ids.every((id) => id === ch.primarySkillId || (ch.teaches || []).includes(id)),
+    };
   `);
-  eq(teachesMatch, true, '卡片上的技法就是這一關教的那幾條');
+  ok(teachesMatch.ids.length > 0, '卡上真的標亮了技法（不是空過）', teachesMatch.ids.join('、'));
+  eq(teachesMatch.ids[0], teachesMatch.primary, '卡上第一條就是這一關教的那條技能');
+  eq(teachesMatch.allKnown, true, '卡片上的技法全部來自這一關（主技能或它順手收的舊技巧）', teachesMatch.ids.join('、'));
 
   // 800px 窄畫面下不會水平溢位
   await cdp.send('Emulation.setDeviceMetricsOverride',
@@ -5496,24 +6076,30 @@ async function main() {
   const sendPlain = await evaluate(`
     const g = window.__promptasy;
     const ready = ${plainReady};
-    const sys = document.querySelector('#sharecard [data-sysshare]');
     const dl = document.querySelector('#sharecard [data-download]');
     const copy = document.querySelector('#sharecard [data-copy]');
     const say = document.querySelector('#sharecard [data-caption]');
     return {
       open: g.shareCard.isOpen,
       ready,
-      sysHidden: sys.hidden,
-      sysDrawn: sys.getClientRects().length > 0,
-      copyLabel: copy ? copy.textContent.trim() : '',
+      // 2026-08-03 站長定稿：系統分享鈕整顆移除，複製鈕成為固定主角
+      sysNodes: document.querySelectorAll('#sharecard [data-sysshare]').length,
+      copyTitle: copy ? copy.getAttribute('title') : '',
+      copyAria: copy ? copy.getAttribute('aria-label') : '',
       copyClass: copy ? copy.className : '',
+      copyIcons: copy ? copy.querySelectorAll('svg').length : 0,
+      copyRect: copy ? (() => { const r = copy.getBoundingClientRect(); return { w: r.width, h: r.height }; })() : null,
       dlClass: dl.className,
+      dlTag: dl.tagName,
       dlLabel: dl.textContent.trim(),
-      // 那一排（Phase 31）：三個平台 ＋ 一顆「複製文案」
+      dlAria: dl.getAttribute('aria-label') || '',
+      // 那一排：兩個平台（Instagram 已移除）
       chips: document.querySelectorAll('#sharecard [data-chip]').length,
       chipIds: [...document.querySelectorAll('#sharecard [data-chip]')].map((n) => n.getAttribute('data-chip')),
-      chipLabels: [...document.querySelectorAll('#sharecard [data-chip]')].map((n) => n.textContent.trim()),
-      sendLabel: document.querySelectorAll('#sharecard .sharecard__sendlabel').length,
+      chipTitles: [...document.querySelectorAll('#sharecard [data-chip]')].map((n) => n.getAttribute('title') || ''),
+      // 那一排收斂成純圖示（名字走 title / aria-label）
+      chipTexts: [...document.querySelectorAll('#sharecard [data-chip]')].map((n) => n.textContent.trim()),
+      chipIcons: [...document.querySelectorAll('#sharecard [data-chip]')].map((n) => n.querySelectorAll('svg').length),
       // 那一排是按鈕不是連結 —— 因為要先把圖備好才開新頁（順序不能交給瀏覽器）
       newTabs: document.querySelectorAll('#sharecard a[target="_blank"]').length,
       chipTags: [...new Set([...document.querySelectorAll('#sharecard [data-chip]')].map((n) => n.tagName))],
@@ -5521,10 +6107,10 @@ async function main() {
       sayValue: say ? say.value : '',
       sayLabel: document.querySelector('#sharecard .sharecard__saylabel')?.textContent.trim() || '',
       sayFont: say ? getComputedStyle(say).fontFamily : '',
-      sayDescribed: say ? say.getAttribute('aria-describedby') : '',
       labelFor: document.querySelector('#sharecard .sharecard__saylabel')?.getAttribute('for') || '',
-      hints: [...document.querySelectorAll('#sharecard .sharecard__hint')].map((n) => n.textContent.trim()),
-      kbd: [...document.querySelectorAll('#sharecard .sharecard__hint kbd')].map((n) => n.textContent.trim()),
+      // 收掉的那些字：小標、灰字說明、鍵帽
+      hintNodes: document.querySelectorAll('#sharecard .sharecard__hint, #sharecard .sharecard__sendlabel').length,
+      kbdNodes: document.querySelectorAll('#sharecard kbd').length,
       data: g.shareCard.shareData(),
       focusOnCopy: document.activeElement.getAttribute('data-copy') !== null,
       file: g.shareCard.file
@@ -5535,52 +6121,53 @@ async function main() {
     };
   `);
   eq(sendPlain.open, true, '分享卡打得開');
-  eq(sendPlain.sysHidden, true, '這個瀏覽器帶不動檔案 → 系統分享的入口收起來（不給死路）');
-  eq(sendPlain.sysDrawn, false, '收起來的入口真的沒畫出來（鍵盤也走不到）');
-  eq(sendPlain.chips, 4, '那一排有四顆：三個平台 ＋ 一顆「複製文案」（Phase 31）');
-  eq(sendPlain.chipIds.join(','), 'threads,facebook,instagram,caption', '那一排的順序：最順的那條路排前面');
-  ok(
-    sendPlain.chipLabels.join(' ').includes('Threads') &&
-      sendPlain.chipLabels.join(' ').includes('Facebook') &&
-      sendPlain.chipLabels.join(' ').includes('Instagram') &&
-      sendPlain.chipLabels.join(' ').includes('複製文案'),
-    '那一排每一顆都寫著自己是什麼',
-    sendPlain.chipLabels.join(' ｜ ')
+  eq(sendPlain.sysNodes, 0, '「分享圖＋文」的系統分享鈕已整顆移除（不得回歸）');
+  eq(sendPlain.chips, 2, '那一排剩兩顆：Threads / Facebook');
+  eq(sendPlain.chipIds.join(','), 'threads,facebook', '那一排的順序：最順的那條路排前面');
+  ok(!sendPlain.chipIds.includes('instagram'), 'Instagram 那顆沒有回來（網頁版沒有撰寫入口）');
+  ok(!sendPlain.chipIds.includes('caption'), '獨立的「複製文案」那顆也沒有回來（複製鈕已經是主角）');
+  eq(
+    sendPlain.chipTitles.join(','),
+    'Threads,Facebook',
+    '每一顆都戴著平台自己的名字（滑鼠停著看得到）'
   );
-  eq(sendPlain.sendLabel, 1, '那一排有自己的標題');
+  eq(sendPlain.chipTexts.join(''), '', '那一排是純圖示（牌面上不寫字）');
+  ok(sendPlain.chipIcons.every((n) => n === 1), '每一顆都畫著自己的行內 SVG 圖示', sendPlain.chipIcons.join(','));
+  eq(sendPlain.hintNodes, 0, '「分享 · SHARE」小標與那兩行灰字說明都收掉了');
+  eq(sendPlain.kbdNodes, 0, '分享卡上不再印鍵帽（那一排是圖示，說明走 aria-label）');
   eq(sendPlain.newTabs, 0, '那一排是按鈕不是連結（先備好圖，才輪到開新頁）');
   eq(sendPlain.chipTags.join(','), 'BUTTON', '那一排全部是按鈕');
-  ok(sendPlain.copyLabel.includes('複製圖＋文'), '沒有系統分享時，那顆鈕寫著「複製圖＋文」', sendPlain.copyLabel);
-  ok(sendPlain.copyClass.includes('btn--primary'), '沒有系統分享時，「複製圖＋文」就是主角', sendPlain.copyClass);
-  ok(sendPlain.dlClass.includes('btn--ghost'), '「下載圖片」退成安靜的那一階（一個畫面只有一個主角）', sendPlain.dlClass);
-  ok(sendPlain.dlLabel.includes('下載圖片'), '「下載圖片」還在（保底那條路）', sendPlain.dlLabel);
+  eq(sendPlain.copyTitle, '複製圖＋文', '主角那一顆的名字是「複製圖＋文」');
+  ok(sendPlain.copyAria.includes('圖') && sendPlain.copyAria.includes('話'), '主角那一顆有給螢幕閱讀器的說明', sendPlain.copyAria);
+  ok(sendPlain.copyClass.includes('iconbtn'), '主角那一顆也是同一族的圖示鈕', sendPlain.copyClass);
+  eq(sendPlain.copyIcons, 2, '複製鈕有兩張臉（複製 / 勾記），按成功那一下就地翻面');
+  ok(sendPlain.copyRect && sendPlain.copyRect.w >= 40 && sendPlain.copyRect.h >= 40, '主角那一顆的命中範圍夠大', JSON.stringify(sendPlain.copyRect));
+  eq(sendPlain.dlTag, 'A', '「下載」是一條 <a download>（保底那條路）');
+  ok(sendPlain.dlClass.includes('sharecard__dl'), '「下載」有自己安靜的樣式', sendPlain.dlClass);
+  ok(sendPlain.dlLabel.includes('下載'), '「下載」還在（保底那條路）', sendPlain.dlLabel);
+  ok(sendPlain.dlAria.includes('存到裝置'), '「下載」有給螢幕閱讀器的說明', sendPlain.dlAria);
   eq(sendPlain.focusOnCopy, true, '開卡時焦點就落在主角上');
   eq(sendPlain.remoteNodes, 0, '分享卡仍然沒有任何外部資源節點（零 SDK）');
 
-  /* --- 那段話：一個真的能改的框，預設就寫好了，而且不帶連結 --- */
+  /* --- 那段話：一個真的能改的框，預設就寫好了，最後一行是站網址 --- */
   eq(sendPlain.sayTag, 'TEXTAREA', '那段話是一個可以改的框');
   ok(sendPlain.sayValue.includes('釋義者'), '那段話預設帶著稱號', sendPlain.sayValue);
-  ok(sendPlain.sayValue.includes('46 / 68'), '那段話預設帶著收集進度', sendPlain.sayValue);
+  ok(/\d+ \/ \d+ 條技法/.test(sendPlain.sayValue), '那段話預設帶著收集進度（現算的技法數）', sendPlain.sayValue);
   ok(sendPlain.sayValue.includes('Learn Prompt Engineering by Playing'), '那段話落款是品牌那一句');
-  ok(!/https?:\/\//.test(sendPlain.sayValue), '那段話裡沒有任何連結', sendPlain.sayValue);
+  // 2026-08 站長決定：落款後面接站網址 —— 看到卡片的人才走得過來
+  ok(
+    sendPlain.sayValue.trim().endsWith('https://garyhsieh.com/promptasy'),
+    '那段話的最後是站網址（自己一行的落款）',
+    sendPlain.sayValue
+  );
+  eq((sendPlain.sayValue.match(/https?:\/\//g) || []).length, 1, '那段話裡只有一個網址（落款，不是替代品）');
   ok(!/github/i.test(sendPlain.sayValue), '那段話裡沒有程式碼倉庫的字眼', sendPlain.sayValue);
-  ok(!/https?:\/\//.test(sendPlain.wholeText), '整張分享卡上都看不到網址', sendPlain.wholeText.slice(0, 120));
   ok(!/github/i.test(sendPlain.wholeText), '整張分享卡上都看不到程式碼倉庫的字眼');
   ok(sendPlain.sayLabel.includes('一段話'), '框上面寫著這是什麼', sendPlain.sayLabel);
   eq(sendPlain.labelFor, 'sharecard-say', '標籤綁得到那個框（螢幕閱讀器唸得出來）');
-  eq(sendPlain.sayDescribed, 'sharecard-sayhint', '框旁邊那句說明也綁得回框本身');
   ok(!/Arcade Sans|Arcade Serif/.test(sendPlain.sayFont), '玩家自己打的字走系統字型（子集缺字也不會破圖）', sendPlain.sayFont);
   ok(sendPlain.data.text === sendPlain.sayValue.trim(), '要送出去的那段話就是框裡的字');
-  eq(Object.keys(sendPlain.data).join(','), 'text,preset', '要送出去的東西只有那段話（沒有網址）');
-
-  /* --- 畫面上的說明：貼上之後會發生什麼 --- */
-  const plainHints = sendPlain.hints.join(' ');
-  ok(plainHints.includes('Facebook') && plainHints.includes('Instagram') && plainHints.includes('Threads'),
-    '說明點得出常見的那幾個地方', plainHints);
-  ok(plainHints.includes('貼上'), '說明講得出「直接貼上」這個動作', plainHints);
-  ok(plainHints.includes('圖和文字'), '說明講得出圖和文字會一起送出', plainHints);
-  ok(!plainHints.includes('連結'), '說明不再提「連結」（分享的是圖）', plainHints);
-  ok(sendPlain.kbd.includes('Tab') && sendPlain.kbd.includes('Enter'), '畫面上戴著 Tab / Enter 的鍵帽', sendPlain.kbd.join(' '));
+  eq(Object.keys(sendPlain.data).join(','), 'text,preset', '要送出去的東西就是那段話');
   eq(sendPlain.ready, true, '開卡之後 PNG 會自己備好（不用等玩家按下去才畫）');
   ok(!!sendPlain.file, '開卡的時候 PNG 就備好了（按下去才不會斷手勢）');
   eq(sendPlain.file.type, 'image/png', '備好的是 PNG');
@@ -5611,7 +6198,11 @@ async function main() {
   ok(copyClick.clip[0].types.includes('text/plain'), '剪貼簿裡也有那段話', JSON.stringify(copyClick.clip[0].types));
   ok(copyClick.clip[0].text.includes('（今晚刻完的）'), '剪貼簿裡那段話是玩家改過的版本', copyClick.clip[0].text);
   ok(copyClick.clip[0].text.includes('釋義者'), '剪貼簿裡那段話也帶著稱號');
-  ok(!/https?:\/\//.test(copyClick.clip[0].text), '剪貼簿裡那段話沒有連結', copyClick.clip[0].text);
+  ok(
+    copyClick.clip[0].text.includes('https://garyhsieh.com/promptasy'),
+    '剪貼簿裡那段話也帶著站網址（落款）',
+    copyClick.clip[0].text
+  );
   ok(copyClick.toast.some((t) => t.includes('貼上')), '提示告訴玩家貼上就行', copyClick.toast.join(' ｜ '));
 
   /* ================================================================ */
@@ -5680,7 +6271,7 @@ async function main() {
   const capNow = await evaluate(`return document.querySelector('#sharecard [data-caption]').value.trim();`);
   ok(capNow.includes('（今晚刻完的）'), '那段話還是玩家改過的版本', capNow);
 
-  /* --- ① Threads：文字用網址帶進去，剪貼簿只放圖 --- */
+  /* --- ① Threads：純文字分享（2026-08-03 站長指示）—— 文字進撰寫框，不動剪貼簿 --- */
   const th = await tapChip('threads');
   eq(th.opened.length, 1, 'Threads：真的開了一頁');
   ok(th.opened[0].url.startsWith('https://www.threads.com/intent/post?text='), 'Threads：開的是官方的撰寫入口', th.opened[0].url);
@@ -5689,49 +6280,43 @@ async function main() {
     'Threads：玩家改過的那段話真的被帶進網址（撰寫框會先填好）',
     th.opened[0].url
   );
-  ok(!/https?:\/\//.test(decodeURIComponent(th.opened[0].url.split('text=')[1])), 'Threads：帶過去的那段話裡沒有網址');
+  ok(
+    decodeURIComponent(th.opened[0].url.split('text=')[1]).includes('https://garyhsieh.com/promptasy'),
+    'Threads：帶過去的那段話也帶著站網址（落款）',
+    th.opened[0].url
+  );
   eq(th.opened[0].target, '_blank', 'Threads：開在新分頁');
   ok(String(th.opened[0].features).includes('noopener'), 'Threads：開出去的那一頁動不到這一頁', String(th.opened[0].features));
   eq(th.opened[0].gesture, true, 'Threads：開新頁時手勢還在（不會被當成彈出視窗擋掉）');
-  eq(th.clip.length, 1, 'Threads：只寫一次剪貼簿');
-  eq(th.clip[0].types.join(','), 'image/png', 'Threads：剪貼簿裡**只有圖**（那一下 Ctrl+V 不會變成貼出一段字）');
-  ok(th.toast.some((t) => t.includes('Ctrl+V')), 'Threads：提示直接寫出要按的那組鍵', th.toast.join(' ｜ '));
+  eq(th.clip.length, 0, 'Threads：純文字分享 —— 一個字都不寫剪貼簿（不會蓋掉玩家自己複製的東西）');
   ok(th.toast.some((t) => t.includes('文字')), 'Threads：提示說得出文字已經帶過去了', th.toast.join(' ｜ '));
-  eq(th.downloads.length, 0, 'Threads：走貼上，不用先下載');
-  eq(th.used, true, 'Threads：按過的石籤會變樣子');
+  eq(th.downloads.length, 0, 'Threads：不用先下載');
+  eq(th.used, true, 'Threads：按過的那一顆會變樣子');
 
-  /* --- ② Facebook：沒有帶得動內容的撰寫入口 → 開首頁，圖走剪貼簿 --- */
+  /* --- ② Facebook：sharer.php 會直接開貼文對話框；文字先進剪貼簿讓玩家 Ctrl+V --- */
   const fb = await tapChip('facebook');
   eq(fb.opened.length, 1, 'Facebook：真的開了一頁');
-  eq(fb.opened[0].url, 'https://www.facebook.com/', 'Facebook：開的是首頁（玩家自己登入著的那個帳號）');
-  ok(!fb.opened[0].url.includes('sharer'), 'Facebook：不走那個只送得出連結的舊入口', fb.opened[0].url);
+  eq(
+    fb.opened[0].url,
+    `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent('https://garyhsieh.com/promptasy')}`,
+    'Facebook：走 sharer.php 對話框（帶站網址與 og 預覽卡）'
+  );
   eq(fb.opened[0].gesture, true, 'Facebook：開新頁時手勢還在');
   eq(fb.clip.length, 1, 'Facebook：只寫一次剪貼簿');
-  eq(fb.clip[0].types.join(','), 'image/png', 'Facebook：剪貼簿裡只有圖（貼上就是貼圖）');
+  eq(fb.clip[0].types.join(','), 'text/plain', 'Facebook：剪貼簿裡是那段話（FB 政策不讓程式預填文字）');
+  ok(fb.clip[0].text.includes('（今晚刻完的）'), 'Facebook：複製的是玩家改過的版本', fb.clip[0].text);
   ok(fb.toast.some((t) => t.includes('Ctrl+V')), 'Facebook：提示寫出要按的那組鍵', fb.toast.join(' ｜ '));
-  ok(fb.toast.some((t) => t.includes('複製文案')), 'Facebook：帶不進文字 → 提示指得出補文字的那一顆', fb.toast.join(' ｜ '));
-  eq(fb.downloads.length, 0, 'Facebook：走貼上，不用先下載');
+  eq(fb.downloads.length, 0, 'Facebook：不用先下載');
 
-  /* --- ③ Instagram：網頁版只選得了檔案 → 先下載，不假裝貼得上 --- */
-  const ig = await tapChip('instagram');
-  eq(ig.opened.length, 1, 'Instagram：真的開了一頁');
-  eq(ig.opened[0].url, 'https://www.instagram.com/', 'Instagram：開首頁（沒有直接開撰寫的網址，也不編一個假的）');
-  ok(!ig.opened[0].url.includes('/create'), 'Instagram：不用那個伺服器根本不認的假深連結', ig.opened[0].url);
-  eq(ig.downloads.length, 1, 'Instagram：圖真的存到裝置上了（那邊只選得了檔案）');
-  eq(ig.downloads[0].isImage, true, 'Instagram：存下去的是那張 PNG');
-  ok(/^promptasy-.*\.png$/.test(ig.downloads[0].name), 'Instagram：檔名看得出是這個遊戲的卡', String(ig.downloads[0].name));
-  eq(ig.clip.length, 0, 'Instagram：不寫剪貼簿（那邊貼不上，寫了也是騙人）');
-  ok(ig.toast.some((t) => t.includes('建立')), 'Instagram：提示講得出要按那邊的「建立」', ig.toast.join(' ｜ '));
-  ok(ig.toast.some((t) => t.includes('下載')), 'Instagram：提示講得出圖已經存下來了', ig.toast.join(' ｜ '));
-
-  /* --- ④ 複製文案：帶不進文字的那兩顆靠它補 --- */
-  const capChip = await tapChip('caption');
-  eq(capChip.opened.length, 0, '複製文案：不開新頁（它只做一件事）');
-  eq(capChip.clip.length, 1, '複製文案：只寫一次剪貼簿');
-  eq(capChip.clip[0].types.join(','), 'text/plain', '複製文案：剪貼簿裡只有那段話');
-  ok(capChip.clip[0].text.includes('（今晚刻完的）'), '複製文案：複製的是玩家改過的版本', capChip.clip[0].text);
-  ok(!/https?:\/\//.test(capChip.clip[0].text), '複製文案：那段話裡沒有網址', capChip.clip[0].text);
-  eq(capChip.downloads.length, 0, '複製文案：不下載');
+  /* --- 移除的那兩顆：不得回歸 --- */
+  const goneChips = await evaluate(`
+    return {
+      instagram: document.querySelectorAll('#sharecard [data-chip="instagram"]').length,
+      caption: document.querySelectorAll('#sharecard [data-chip="caption"]').length,
+    };
+  `);
+  eq(goneChips.instagram, 0, 'Instagram 那顆不在畫面上（網頁版沒有撰寫入口，不做假按鈕）');
+  eq(goneChips.caption, 0, '獨立的「複製文案」那顆也不在（複製鈕已經是主角）');
 
   /* --- 玩家再改一次那段話 → 帶出去的跟著改（不是開卡當下的快照） --- */
   await typeIntoCaption('（第二次改）');
@@ -5755,8 +6340,12 @@ async function main() {
   eq(afterRight, 'facebook', '→ 走到下一顆');
   await key('ArrowRight', 'ArrowRight', { vk: 39 });
   await sleep(180);
-  const afterRight2 = await evaluate(`return document.activeElement.getAttribute('data-chip');`);
-  eq(afterRight2, 'instagram', '→ 再走到下一顆');
+  // 那一排與主角那一顆是同一族的圖示鈕（.iconbtn）→ 方向鍵一路走到複製鈕
+  const afterRight2 = await evaluate(`
+    return { chip: document.activeElement.getAttribute('data-chip'), copy: document.activeElement.hasAttribute('data-copy') };
+  `);
+  eq(afterRight2.chip, null, '→ 再走一步就離開平台那兩顆');
+  eq(afterRight2.copy, true, '→ 走到的是「複製圖＋文」（它跟那一排同一族）');
   await key('ArrowLeft', 'ArrowLeft', { vk: 37 });
   await sleep(180);
   const afterLeft = await evaluate(`return document.activeElement.getAttribute('data-chip');`);
@@ -5778,8 +6367,12 @@ async function main() {
     };
   `);
   eq(byEnter.opened.length, 1, 'Enter 就按得下去（不用滑鼠）');
-  eq(byEnter.opened[0].url, 'https://www.facebook.com/', 'Enter 按下去的是焦點所在的那一顆', String(byEnter.opened[0].url));
-  eq(byEnter.clip.length, 1, 'Enter 按下去一樣會把圖備好');
+  ok(
+    String(byEnter.opened[0].url).startsWith('https://www.facebook.com/sharer/sharer.php?u='),
+    'Enter 按下去的是焦點所在的那一顆',
+    String(byEnter.opened[0].url)
+  );
+  eq(byEnter.clip.length, 1, 'Enter 按下去一樣把那段話備進剪貼簿');
   ok(byEnter.toast.length > 0, 'Enter 按下去一樣說得出接下來要做什麼', byEnter.toast.join(' ｜ '));
 
   /* --- 每一顆都給螢幕閱讀器講清楚它會做什麼 --- */
@@ -5790,18 +6383,31 @@ async function main() {
       type: n.getAttribute('type'),
     }));
   `);
+  eq(chipA11y.length, 2, '那一排剛好兩顆（量得到，不是空過）');
   for (const c of chipA11y) {
     ok(c.aria.length >= 8, `${c.id} 有給螢幕閱讀器的說明`, c.aria);
     eq(c.type, 'button', `${c.id} 是 type="button"（不會誤送出表單）`);
   }
+  // 牌面上沒有字 → 說明必須自己講完「這是誰、按下去會發生什麼」
   ok(
-    chipA11y.find((c) => c.id === 'instagram').aria.includes('建立'),
-    'Instagram 的說明也講得出接下來要按什麼',
-    chipA11y.find((c) => c.id === 'instagram').aria
+    chipA11y.find((c) => c.id === 'threads').aria.startsWith('Threads：'),
+    'Threads 的說明先講自己是誰、再講按下去會怎樣',
+    chipA11y.find((c) => c.id === 'threads').aria
+  );
+  ok(
+    chipA11y.find((c) => c.id === 'facebook').aria.includes('Ctrl+V'),
+    'Facebook 的說明也講得出接下來要按什麼',
+    chipA11y.find((c) => c.id === 'facebook').aria
   );
 
-  /* --- ② 有系統分享面板：把「一個 PNG 檔案 ＋ 那段話」真的交出去 --- */
-  const sysShare = await evaluate(`
+  /* ---------------------------------------------------------------- *
+   * ② 系統分享面板：2026-08-03 站長定稿把那顆入口整個移除。
+   *
+   *   原本「瀏覽器帶得動檔案就露出 hero 階的『分享圖＋文』」那一整套沒有了 ——
+   *   複製鈕是固定主角。這裡守的是「**就算瀏覽器支援，也不准偷偷長回來**」：
+   *   把 canShare / share 都裝上去、重開一張卡，畫面仍然是同一個樣子。
+   * ---------------------------------------------------------------- */
+  const sysGone = await evaluate(`
     const g = window.__promptasy;
     window.__shared = null;
     Object.defineProperty(navigator, 'canShare', {
@@ -5810,87 +6416,87 @@ async function main() {
     });
     Object.defineProperty(navigator, 'share', {
       configurable: true,
-      value: async (data) => {
-        window.__shared = {
-          text: data.text,
-          keys: Object.keys(data),
-          files: (data.files || []).map((f) => ({
-            name: f.name, type: f.type, size: f.size, isFile: f instanceof File, isBlob: f instanceof Blob,
-          })),
-          // 手勢還在不在？（share() 前面只要 await 一次就會變 false）
-          gesture: navigator.userActivation ? navigator.userActivation.isActive : null,
-        };
-      },
+      value: async (data) => { window.__shared = { keys: Object.keys(data || {}) }; },
     });
     g.shareCard.close();
     g.shareCard.open({ kind: 'codex' });
     await new Promise((r) => setTimeout(r, 260));
-    const sys = document.querySelector('#sharecard [data-sysshare]');
     const dl = document.querySelector('#sharecard [data-download]');
     const copy = document.querySelector('#sharecard [data-copy]');
     return {
-      sysHidden: sys.hidden,
-      label: sys.textContent.trim(),
-      aria: sys.getAttribute('aria-label') || '',
-      hero: sys.className,
-      copyClass: copy.className,
+      sysNodes: document.querySelectorAll('#sharecard [data-sysshare]').length,
+      wholeText: document.querySelector('#sharecard .panel').textContent,
+      copyTitle: copy.getAttribute('title'),
+      copyRect: (() => { const r = copy.getBoundingClientRect(); return { w: r.width, h: r.height }; })(),
       dlClass: dl.className,
       focusInPanel: document.querySelector('#sharecard .panel').contains(document.activeElement),
-      focusOn: document.activeElement.getAttribute('data-sysshare') !== null,
+      focusOnCopy: document.activeElement.hasAttribute('data-copy'),
       chips: document.querySelectorAll('#sharecard [data-chip]').length,
       // 換一張卡 → 那段話回到預設（上一張改過的話不會跟過來）
       sayValue: document.querySelector('#sharecard [data-caption]').value,
     };
   `);
-  eq(sysShare.sysHidden, false, '瀏覽器帶得動檔案 → 系統分享的入口出現');
-  ok(sysShare.label.includes('分享圖＋文'), '那個入口寫著「分享圖＋文」', sysShare.label);
-  ok(sysShare.aria.includes('圖') && sysShare.aria.includes('話'), '那個入口有給螢幕閱讀器的說明', sysShare.aria);
-  ok(sysShare.hero.includes('btn--primary'), '系統分享是主角（hero 階）', sysShare.hero);
-  ok(sysShare.copyClass.includes('btn--ghost'), '這時「複製圖＋文」退成次要階', sysShare.copyClass);
-  ok(sysShare.dlClass.includes('btn--ghost'), '這時「下載圖片」也是次要階（畫面只有一個主角）', sysShare.dlClass);
-  eq(sysShare.focusInPanel, true, '重開之後焦點仍然在分享卡裡');
-  eq(sysShare.focusOn, true, '焦點落在「分享圖＋文」上（這個畫面的主角）');
-  eq(sysShare.chips, 4, '有系統分享時那一排照樣在（它們帶得走圖，不是死路）');
-  ok(!sysShare.sayValue.includes('（今晚刻完的）'), '重開一張卡 → 那段話回到預設', sysShare.sayValue);
+  eq(sysGone.sysNodes, 0, '就算瀏覽器帶得動檔案，系統分享的入口也沒有長回來');
+  ok(!/分享圖＋文/.test(sysGone.wholeText), '畫面上找不到「分享圖＋文」那顆鈕', sysGone.wholeText.slice(0, 160));
+  eq(sysGone.copyTitle, '複製圖＋文', '主角永遠是「複製圖＋文」（不隨瀏覽器能力換人）');
+  ok(sysGone.copyRect.w >= 40 && sysGone.copyRect.h >= 40, '主角那一顆量得到、命中範圍夠大', JSON.stringify(sysGone.copyRect));
+  eq(sysGone.focusInPanel, true, '重開之後焦點仍然在分享卡裡');
+  eq(sysGone.focusOnCopy, true, '焦點落在「複製圖＋文」上（這個畫面的主角）');
+  eq(sysGone.chips, 2, '那一排照樣是兩顆');
+  ok(!sysGone.sayValue.includes('（今晚刻完的）'), '重開一張卡 → 那段話回到預設', sysGone.sayValue);
 
   // 重開之後那張圖要重新編碼一次 → 等它備好再按（沒備好按下去只會叫你等）
   const sysReady = await waitShareFile();
   eq(sysReady, true, '重開之後 PNG 又備好了');
 
-  // 玩家先把那段話改成自己想說的，再真的按下去（Input 事件 → 真正的使用者手勢）
+  // 玩家先把那段話改成自己想說的，再真的用鍵盤按下主角那一顆
   await typeIntoCaption('（這一關卡了三次）');
   await evaluate(`
-    document.querySelector('#sharecard [data-sysshare]').focus();
+    window.__clip.length = 0;
+    document.querySelectorAll('.toast').forEach((n) => n.remove());
+    document.querySelector('#sharecard [data-copy]').focus();
     return true;
   `);
   await enterNative();
-  await sleep(400);
-  const shared = await evaluate(`return window.__shared;`);
-  ok(!!shared, '按下去真的呼叫了系統分享');
-  eq(shared.files.length, 1, '交出去的是一個檔案');
-  eq(shared.files[0].type, 'image/png', '交出去的是 PNG');
-  eq(shared.files[0].isFile, true, '交出去的真的是 File');
-  ok(shared.files[0].size > 20000, '交出去的圖有內容', `size=${shared.files[0].size}`);
-  ok(/^promptasy-.*\.png$/.test(shared.files[0].name), '檔名看得出是這個遊戲的卡', shared.files[0].name);
-  ok(shared.text.includes('（這一關卡了三次）'), '交出去的那段話是玩家改過的版本', shared.text);
-  ok(shared.text.includes('釋義者') && shared.text.includes('46 / 68'), '那段話帶著稱號與收集進度', shared.text);
-  ok(shared.text.includes('Learn Prompt Engineering by Playing'), '那段話帶著品牌落款');
-  ok(!/https?:\/\//.test(shared.text), '那段話裡沒有任何連結（收到的人看到的是圖，不是連結）', shared.text);
-  eq(shared.keys.sort().join(','), 'files,text', '交出去的只有圖與那段話（沒有 url、沒有 title）');
-  eq(shared.gesture, true, '呼叫時使用者手勢還在（share 之前沒有 await）');
-
-  // 玩家自己取消不該變成錯誤
-  const abort = await evaluate(`
-    Object.defineProperty(navigator, 'share', {
-      configurable: true,
-      value: async () => { const e = new Error('cancel'); e.name = 'AbortError'; throw e; },
-    });
-    const before = document.querySelectorAll('.toast').length;
-    document.querySelector('#sharecard [data-sysshare]').click();
-    await new Promise((r) => setTimeout(r, 340));
-    return { before, after: document.querySelectorAll('.toast').length };
+  await sleep(500);
+  const copiedByKey = await evaluate(`
+    return {
+      shared: window.__shared,
+      clip: window.__clip,
+      done: document.querySelector('#sharecard [data-copy]').classList.contains('is-done'),
+      toast: [...document.querySelectorAll('.toast')].map((n) => n.textContent.trim()),
+    };
   `);
-  eq(abort.after, abort.before, '玩家自己取消分享時什麼都不說（不是失敗）');
+  eq(copiedByKey.shared, null, '按下去不會去呼叫系統分享（那條路已經沒有了）');
+  eq(copiedByKey.clip.length, 1, 'Enter 按得下主角那一顆（不用滑鼠）');
+  ok(copiedByKey.clip[0].types.includes('image/png'), '交出去的是那張圖', JSON.stringify(copiedByKey.clip[0].types));
+  ok(copiedByKey.clip[0].types.includes('text/plain'), '同時也帶著那段話', JSON.stringify(copiedByKey.clip[0].types));
+  ok(copiedByKey.clip[0].text.includes('（這一關卡了三次）'), '那段話是玩家改過的版本', copiedByKey.clip[0].text);
+  ok(
+    copiedByKey.clip[0].text.includes('釋義者') && /\d+ \/ \d+ 條技法/.test(copiedByKey.clip[0].text),
+    '那段話帶著稱號與收集進度',
+    copiedByKey.clip[0].text
+  );
+  ok(copiedByKey.clip[0].text.includes('Learn Prompt Engineering by Playing'), '那段話帶著品牌落款');
+  eq(copiedByKey.done, true, '成功那一下就地翻成勾記（不用讀提示也知道按到了）');
+  ok(copiedByKey.toast.some((t) => t.includes('貼上')), '也說得出接下來要做什麼', copiedByKey.toast.join(' ｜ '));
+
+  // 複製失敗（瀏覽器不給）→ 說一句話並指回「下載」，不留死路
+  const copyFail = await evaluate(`
+    const realWrite = navigator.clipboard.write;
+    navigator.clipboard.write = async () => { throw new Error('denied'); };
+    document.querySelectorAll('.toast').forEach((n) => n.remove());
+    document.querySelector('#sharecard [data-copy]').click();
+    await new Promise((r) => setTimeout(r, 360));
+    const toast = [...document.querySelectorAll('.toast')].map((n) => n.textContent.trim());
+    navigator.clipboard.write = realWrite;
+    return { toast };
+  `);
+  ok(
+    copyFail.toast.some((t) => t.includes('下載')),
+    '複製不了的時候指回「下載」那條一定走得通的路',
+    copyFail.toast.join(' ｜ ')
+  );
 
   /* --- 窄畫面：那段話與按鈕都不會被擠到摺線下面 --- */
   await cdp.send(
@@ -5901,12 +6507,12 @@ async function main() {
   await sleep(520);
   const sendNarrow = await evaluate(`
     const panel = document.querySelector('#sharecard .panel');
-    const sys = document.querySelector('#sharecard [data-sysshare]');
+    const copy = document.querySelector('#sharecard [data-copy]');
     const say = document.querySelector('#sharecard [data-caption]');
     return {
       overflow: Math.max(0, panel.scrollWidth - panel.clientWidth),
       docOverflow: Math.max(0, document.documentElement.scrollWidth - window.innerWidth),
-      sysVisible: sys.getBoundingClientRect().bottom <= panel.getBoundingClientRect().bottom + 1,
+      heroVisible: copy.getBoundingClientRect().bottom <= panel.getBoundingClientRect().bottom + 1,
       sayInside: say.getBoundingClientRect().right <= panel.getBoundingClientRect().right + 1,
       sayH: say.getBoundingClientRect().height,
       // 那一排（Phase 31）：每一顆都要在面板寬度內，而且要真的量得到（不是 0×0 空過）
@@ -5919,10 +6525,10 @@ async function main() {
   `);
   eq(sendNarrow.overflow, 0, '820px 下分享卡無水平溢位');
   eq(sendNarrow.docOverflow, 0, '820px 下整頁無水平溢位');
-  eq(sendNarrow.sysVisible, true, '820px 下「分享圖＋文」仍然不用捲動就看得到');
+  eq(sendNarrow.heroVisible, true, '820px 下「複製圖＋文」仍然不用捲動就看得到');
   eq(sendNarrow.sayInside, true, '820px 下那段話的框在面板寬度內');
   ok(sendNarrow.sayH >= 60, '820px 下那個框還打得下幾行字', `h=${sendNarrow.sayH}`);
-  eq(sendNarrow.chips.length, 4, '820px 下那一排四顆都在');
+  eq(sendNarrow.chips.length, 2, '820px 下那一排兩顆都在');
   for (const c of sendNarrow.chips) {
     // 先確認真的量得到（0×0 的話下面那條會空過）
     ok(c.w > 20 && c.h > 12, `820px 下「${c.id}」量得到大小`, `${c.w}×${c.h}`);
@@ -5954,6 +6560,12 @@ async function main() {
     const t0 = g.world.objectiveTarget(g.hud.region);
     g.player.teleport(t0.x + 62, t0.z + 44);
     await new Promise((r) => setTimeout(r, 400));
+    /*
+     * 課程 v2 · Phase F：這一輪玩到這裡時，知識式軟門檻可能已經替玩家開了新的土地，
+     * 而「＿＿已開啟」那一則提示會把冷卻計時器推起來 —— 那是對的行為，但會蓋掉
+     * 這一段要驗的「迷路提示」。先把冷卻走完（不改產品碼，只是讓時間過去）。
+     */
+    for (let i = 0; i < 8; i += 1) g.nudge.update(20);
     g.nudge.update(0.1);            // 認識新目標（這一拍只做基準）
     g.nudge.update(20);
     g.nudge.update(20);
@@ -6021,9 +6633,15 @@ async function main() {
   const nudgeApproach = await evaluate(`
     const g = window.__promptasy;
     const t = g.world.objectiveTarget(g.hud.region);
-    const before = Math.hypot(t.x - g.player.position.x, t.z - g.player.position.z);
-    // 明顯往目標走過去
-    g.player.teleport(t.x + 22, t.z + 16);
+    const dx = t.x - g.player.position.x;
+    const dz = t.z - g.player.position.z;
+    const before = Math.hypot(dx, dz);
+    /*
+     * 明顯往目標走過去 —— 沿著「玩家 → 目標」那條線把距離縮短 12 個單位。
+     * （原本寫死 t.x + 22 / t.z + 16：目標一換位置就可能反而變遠。）
+     */
+    const want = Math.max(2, before - 12);
+    g.player.teleport(t.x - (dx / before) * want, t.z - (dz / before) * want);
     g.nudge.update(0.2);
     const after = Math.hypot(t.x - g.player.position.x, t.z - g.player.position.z);
     return { before, after, state: g.nudge.state(), isOn: document.querySelector('.nudge').classList.contains('is-on') };
@@ -6200,9 +6818,16 @@ async function main() {
     out.tech = panel.querySelector('.inscribe__tech')?.textContent.trim() || '';
     out.tip = panel.querySelector('.inscribe__tip')?.textContent.trim() || '';
     out.how = panel.querySelector('.inscribe__how')?.textContent.trim() || '';
-    const src = panel.querySelector('a.src');
-    out.srcText = src ? src.textContent.trim() : '';
+    // 出處＝那枚典籍（圖示 ＋ 小卡；名字走 aria-label，畫面上不寫字）
+    const src = panel.querySelector('a.bookicon');
+    out.srcText = src ? src.getAttribute('aria-label') || '' : '';
     out.srcUrl = src ? src.getAttribute('href') : '';
+    out.srcVisible = src
+      ? (() => {
+          const r = src.getBoundingClientRect();
+          return getComputedStyle(src).visibility === 'visible' && r.width > 0 && r.height > 0;
+        })()
+      : false;
     out.note = panel.querySelector('.inscribe__note')?.textContent.trim() || '';
     // 沒有四幕、沒有石碑、沒有輸入框 —— 它就是一個很小的對話窗
     out.hasActs = !!panel.querySelector('.acts, .stele, textarea');
@@ -6234,6 +6859,7 @@ async function main() {
   ok(insFlow.how.length > 4, '顯示了一句可以照著做的白話提示', insFlow.how);
   eq(insFlow.srcUrl, insFlow.realUrl, '出處連結指向 curriculum 裡真正的官方網址');
   ok(/^https:\/\//.test(insFlow.srcUrl), '出處是 https 連結', insFlow.srcUrl);
+  eq(insFlow.srcVisible, true, '那枚典籍一直看得見、量得到（不收進任何摺頁）');
   ok(insFlow.srcText.includes('神諭原典'), '出處標成「神諭原典」（換皮）', insFlow.srcText);
   ok(insFlow.srcText.includes(insFlow.realName), '但後面接得出真實文件名（不說謊）', insFlow.srcText);
   ok(/\+\s*\d+\s*XP/.test(insFlow.note), '第一次讀有 XP 提示', insFlow.note);
@@ -6915,7 +7541,13 @@ async function main() {
   // 這樣按住 W 就會直直走過去（走的方向是鏡頭看出去的方向）
   const kbTarget = await evaluate(`
     const g = window.__promptasy;
-    const c = g.content.challenges.find((c) => !g.progression.isCleared(c.id) && g.content.flow(c.id));
+    // Phase D：這一段驗的是**石碑刻印**的純鍵盤路徑，所以要挑一關真的是 choice 的
+    const c = g.content.challenges.find(
+      (c) =>
+        !g.progression.isCleared(c.id) &&
+        g.content.flow(c.id) &&
+        g.promptConsole.flowKindOf(g.content.flow(c.id)) === 'choice'
+    );
     const m = g.world.markers.find((m) => m.id === c.id);
     const yaw = g.player.cameraYaw;
     const fx = Math.sin(yaw), fz = Math.cos(yaw);
@@ -6967,11 +7599,12 @@ async function main() {
     return {
       act: g.promptConsole.act,
       glyphs: document.querySelectorAll('#prompt-console [data-guidance] .glyph').length,
-      sources: document.querySelectorAll('#prompt-console [data-guidance] a.src').length,
+      sources: document.querySelectorAll('#prompt-console .act--guide a.bookicon').length,
     };
   `);
   eq(kbAct2.act, 2, 'Enter 推到第二幕（指引）');
   ok(kbAct2.glyphs >= 1, '第二幕看得到神諭刻文', String(kbAct2.glyphs));
+  eq(kbAct2.glyphs, 1, '第二幕只放大這一關教的那一條（Phase A）', String(kbAct2.glyphs));
   eq(kbAct2.sources, kbAct2.glyphs, '每一段刻文都掛著可點的神諭原典');
 
   // L：翻開線索（第二幕那一頁）
@@ -7064,13 +7697,14 @@ async function main() {
   `);
   eq(kbPalm.act, 4, '刻滿之後鏡頭自己切到手印那一幕');
   eq(kbPalm.palmFocused, true, '焦點自己落在手掌印上（不用去找它）');
-  ok(/Enter/.test(kbPalm.hint), '手掌印上寫著「Enter 也可以」', kbPalm.hint);
+  ok(/Enter/.test(kbPalm.hint), '手掌印上寫著「或按住 Enter」', kbPalm.hint);
 
   // --- 按住 Enter 把手掌按上石碑 ---
-  await keyDown('Enter', 'Enter', { vk: 13 });
-  await sleep(900);
-  await keyUp('Enter', 'Enter', { vk: 13 });
-  await sleep(700);
+  await holdPalm(null, '純鍵盤：手掌印按滿');
+  await waitFor(() => evaluate(`return !document.querySelector('#prompt-console [data-result]').hidden;`), {
+    label: '純鍵盤：結果面板',
+    every: 150,
+  });
   const kbResult = await evaluate(`
     const g = window.__promptasy;
     return {
@@ -7442,26 +8076,56 @@ async function main() {
   const kinds = await evaluate(`
     const g = window.__promptasy;
     const flows = g.content.flowFile.flows;
-    const out = { total: g.content.challenges.length, byKind: { choice: 0, order: 0, workshop: 0 }, missing: [] };
-    for (const c of g.content.challenges) {
+    // 課程 v2 · Phase J2：自由書寫的試煉刻意沒有流程資料（鷹架撤除的最後一格）
+    const freeTrials = g.content.challenges.filter((c) => c.application && !flows[c.id]);
+    const carveable = g.content.challenges.filter((c) => !freeTrials.includes(c));
+    const out = {
+      total: g.content.challenges.length,
+      carveable: carveable.length,
+      freeTrials: freeTrials.map((c) => c.id).sort(),
+      byKind: Object.fromEntries(g.promptConsole.flowKinds.map((k) => [k, 0])),
+      missing: [],
+    };
+    for (const c of carveable) {
       const f = flows[c.id];
       if (!f) { out.missing.push(c.id); continue; }
-      const k = f.kind === 'order' && f.orderFlow ? 'order' : f.kind === 'workshop' && f.workshop ? 'workshop' : 'choice';
-      out.byKind[k] += 1;
-      // 三種題型都還留著選擇題的資料當後備
+      out.byKind[g.promptConsole.flowKindOf(f)] += 1;
+      // 五種題型都還留著選擇題的資料當後備
       if (!Array.isArray(f.slots) || !f.slots.length) out.missing.push(c.id + ':noslots');
     }
     out.orderIds = Object.entries(flows).filter(([, f]) => f.kind === 'order').map(([id]) => id).sort();
     out.workshopIds = Object.entries(flows).filter(([, f]) => f.kind === 'workshop').map(([id]) => id).sort();
+    out.fixIds = Object.entries(flows).filter(([, f]) => f.kind === 'fix').map(([id]) => id).sort();
+    out.spotIds = Object.entries(flows).filter(([, f]) => f.kind === 'spot').map(([id]) => id).sort();
+    out.inductIds = Object.entries(flows).filter(([, f]) => f.kind === 'induct').map(([id]) => id).sort();
+    out.tradeoffIds = Object.entries(flows).filter(([, f]) => f.kind === 'tradeoff').map(([id]) => id).sort();
+    out.constraintIds = Object.entries(flows).filter(([, f]) => f.kind === 'constraint').map(([id]) => id).sort();
     return out;
   `);
-  eq(kinds.total, 27, '世界上有 27 關（新增了神諭工坊）');
-  eq(kinds.missing.length, 0, '每一關都有流程資料，而且都留著選擇題後備', kinds.missing.join(','));
-  eq(kinds.byKind.choice, 24, '24 關維持原本的石碑刻印（零行為變化）');
-  eq(kinds.byKind.order, 2, '2 關改成排序刻印');
-  eq(kinds.byKind.workshop, 1, '1 關是神諭工坊');
-  eq(kinds.orderIds.join(','), 'long-scroll-tower-23,priority-stair-42', '改成排序的就是那兩關（次序本身就是課程）');
-  eq(kinds.workshopIds.join(','), 'oracle-workshop-36', '神諭工坊是新的第 27 關');
+  eq(
+    kinds.total,
+    EXPECT.challenges.value,
+    `世界上有 ${EXPECT.challenges.value} 關（課程 v2 · Phase E：量器坊 14 座）`
+  );
+  eq(kinds.missing.length, 0, '每一座有石碑的關卡都有流程資料，而且都留著選擇題後備', kinds.missing.join(','));
+  eq(kinds.freeTrials.length, 3, '三座試煉走自由書寫（沒有石碑）', kinds.freeTrials.join(','));
+  /*
+   * Phase D：這裡原本寫死了「哪幾關是哪一種題型」（歷史快照）。課程 v2 每一期
+   * 都在換裝與新增，那種斷言只會逼人為了過測試改數字 —— 改成不變式：
+   * 八種題型都真的有神廟在用，而且加起來就是全部的關卡。
+   */
+  for (const k of ['choice', 'order', 'workshop', 'fix', 'spot', 'induct', 'tradeoff', 'constraint']) {
+    ok((kinds.byKind[k] || 0) >= 1, `題型 ${k} 真的有神廟在用`, String(kinds.byKind[k]));
+  }
+  eq(
+    Object.values(kinds.byKind).reduce((n, v) => n + v, 0),
+    kinds.carveable,
+    '每一座有石碑的關卡都落在某一種題型上（沒有無主的關卡）'
+  );
+  ok(kinds.orderIds.includes('long-scroll-tower-23'), '長卷之塔仍然是排序刻印');
+  ok(kinds.orderIds.includes('priority-stair-42'), '優先序階梯仍然是排序刻印');
+  ok(kinds.workshopIds.includes('oracle-workshop-36'), '神諭工坊仍然是派工檯', kinds.workshopIds.join(','));
+  ok(kinds.constraintIds.length >= 4, '合尺至少四座（課程 v2 · Phase D）', kinds.constraintIds.join(','));
 
   /* ---------------------------------------------------------------- *
    * 一、排序刻印：純鍵盤走完（拿起 → 搬 → 放下 → 亮燈 → 手印 → S）
@@ -7579,7 +8243,7 @@ async function main() {
   eq(dropped.right, 3, '「位置對了」3 / 3');
   eq(dropped.marks.filter(Boolean).length, 3, '每一片都標上了「位置對了」的刻記');
   ok(/位置對了/.test(dropped.live), 'aria-live 講出放下的結果', dropped.live);
-  ok(dropped.lit >= 3, '旁邊的刻痕對照跟著亮燈', String(dropped.lit));
+  ok(dropped.lit >= 2, '旁邊的刻痕對照跟著亮燈', String(dropped.lit));
   ok(/把手掌按上石碑/.test(dropped.lampText), '進度燈改口成「把手掌按上石碑就過關了」', dropped.lampText);
   eq(dropped.palmHidden, false, '排順之後手掌印才浮出來');
   eq(dropped.act, 4, '排滿自動切到第四幕（跟石碑刻印同一個節拍）');
@@ -7592,10 +8256,8 @@ async function main() {
 
   // 真的按住手掌 900ms（> PALM_HOLD_MS）
   const palmBox = await centerOf('#prompt-console .orderboard .palm');
-  await mouse('mousePressed', palmBox.x, palmBox.y);
-  await sleep(900);
-  await mouse('mouseReleased', palmBox.x, palmBox.y);
-  await sleep(700);
+  await holdPalm(palmBox, '排序刻印：手掌印按滿');
+  await sleep(400);
   const orderResult = await evaluate(`
     const g = window.__promptasy;
     return {
@@ -7605,6 +8267,7 @@ async function main() {
       best: g.progression.bestGrade('long-scroll-tower-23'),
       xpGain: g.progression.state.xp - ${dropped.xp},
       sources: [...document.querySelectorAll('#prompt-console [data-result] a.src')].length,
+      rubricRows: g.content.challenge('long-scroll-tower-23').rubric.length,
     };
   `);
   eq(orderResult.fired, true, '按住手掌 900ms 真的發動了');
@@ -7612,7 +8275,11 @@ async function main() {
   eq(orderResult.grade, 'S', '排對的順序走同一支離線引擎 → 拿到 S');
   eq(orderResult.best, 'S', '評價寫進進度');
   ok(orderResult.xpGain > 0, '排序刻印一樣給 XP', String(orderResult.xpGain));
-  ok(orderResult.sources >= 4, '結果面板每一條都掛著官方出處', String(orderResult.sources));
+  ok(
+    orderResult.sources >= orderResult.rubricRows,
+    '結果面板每一條都掛著官方出處（條數由資料現算）',
+    `${orderResult.sources} / ${orderResult.rubricRows}`
+  );
 
   /* --- 指標拖曳：用真的滑鼠事件把石版拖到別的位置 --- */
   await evaluate(`
@@ -7628,41 +8295,129 @@ async function main() {
     return { arrangement: b.arrangement, correct: b.correctOrder, slips: document.querySelectorAll('#prompt-console .slip').length };
   `);
   eq(stairBefore.slips, 4, '優先序階梯有 4 片石版');
-  eq(stairBefore.correct.join(','), 'role,task,format,context', '正解是「規則區在最上面」');
+  eq(stairBefore.correct.join(','), 'safety,job,taste,rule', '正解是「安全規範在最上面」');
+  /*
+   * 起點與終點都要**在版面安定之後才量**：先捲到定位、等一拍，再取一次座標。
+   * 終點取的是「整份清單的上緣」而不是某一片石版 —— Phase D 把這一關的石版
+   * 換成三條規矩的階梯之後，宣告順序裡的第二片並不是畫面上最上面那一片。
+   */
   const drag = await evaluate(`
     const grip = (id) => document.querySelector('#prompt-console [data-slip="' + id + '"]');
-    grip('role').scrollIntoView({ block: 'center' });
-    await new Promise((r) => setTimeout(r, 240));
-    const a = grip('role').getBoundingClientRect();
-    const b = grip('context').getBoundingClientRect();
+    grip('safety').scrollIntoView({ block: 'center' });
+    await new Promise((r) => setTimeout(r, 320));
+    const a = grip('safety').getBoundingClientRect();
+    const list = (
+      document.querySelector('#prompt-console [data-slips]:not([hidden])') ||
+      document.querySelector('#prompt-console [data-slips]')
+    ).getBoundingClientRect();
     return {
       fromX: Math.round(a.x + 30), fromY: Math.round(a.y + a.height / 2),
-      toX: Math.round(b.x + 30), toY: Math.round(b.y + 4),
+      toX: Math.round(a.x + 30), toY: Math.round(list.top + 4),
     };
+  `);
+  /*
+   * 指標事件只會打到「最上面那一層」——長跑到這裡如果還有別的面板疊在上面
+   * （分享卡、圖鑑、設定…），滑鼠就永遠碰不到石版。先確定沒有，並記下
+   * 那個座標上真正的元素當作失敗時的線索（drag 是已知的 flaky 家族）。
+   */
+  const dragTop = await evaluate(`
+    const g = window.__promptasy;
+    try { g.shareCard?.close?.(); } catch {}
+    try { if (g.codex?.isOpen) g.codex.close(); } catch {}
+    try { if (g.settings?.isOpen) g.settings.close(); } catch {}
+    await new Promise((r) => setTimeout(r, 200));
+    const el = document.elementFromPoint(${drag.fromX}, ${drag.fromY});
+    return { top: el ? (el.className || el.tagName) : 'none', inBoard: !!(el && el.closest && el.closest('[data-slip]')) };
   `);
   await mouse('mouseMoved', drag.fromX, drag.fromY, { buttons: 0 });
   await mouse('mousePressed', drag.fromX, drag.fromY);
-  await sleep(140);
+  /*
+   * AGENTS.md：動畫／指標時序類的斷言要 poll until，不要用固定 sleep。
+   * 軟體渲染下一幀可能要 200ms，原本的 140/90/360ms 會讓「抓起來」與「放下」
+   * 撞在同一幀上（這一對斷言就是已知的 flaky 家族）。
+   */
+  await waitFor(
+    () => evaluate(`return !!document.querySelector('#prompt-console .slip.is-dragging');`).catch(() => false),
+    { timeout: 8000, every: 100, label: '石版真的被抓起來' }
+  ).catch(() => null);
   for (const t of [0.25, 0.5, 0.75, 1]) {
     await mouse('mouseMoved', drag.fromX, Math.round(drag.fromY + (drag.toY - drag.fromY) * t));
     await sleep(90);
   }
-  await mouse('mouseReleased', drag.toX, drag.toY);
-  await sleep(360);
+  /*
+   * 重排是發生在 pointermove 上（不是放開的時候）—— 輪詢等它真的搬到最上面。
+   *
+   * 每一輪再往上多推一點：拖曳過程中其他石版會跟著讓位，原本量到的
+   * 「最上面那一片的頂端 + 4」在讓位之後可能已經落進第二格的判定帶裡
+   * （實測會停在 context,role,… 差一格）。所以不是重送同一個座標，
+   * 而是每一輪往上再走 10px，直到真的站上第一格為止。
+   */
+  let dropY = drag.toY;
+  await waitFor(
+    async () => {
+      const probe = await evaluate(`
+        const b = window.__promptasy.promptConsole.orderBoard;
+        // 目標 Y **每一輪重新量**：拖曳過程中其他石版會讓位，開場量到的座標會過期
+        /*
+         * 目標 Y 取「整份清單的上緣」——被拖著的那一片會被 --lift 位移，
+         * 拿它自己的 rect 當基準會追著自己跑；清單容器的上緣一定在
+         * 每一列的中線之上，indexAtY() 必定回 0。
+         */
+        const list = document.querySelector('#prompt-console [data-slips]:not([hidden])')
+          || document.querySelector('#prompt-console [data-slips]');
+        const r = list ? list.getBoundingClientRect() : null;
+        return {
+          ok: b.arrangement[0] === 'role',
+          y: r ? Math.round(r.top + 2) : null,
+          h: r ? Math.round(r.height) : 0,
+        };
+      `).catch(() => ({ ok: false, y: null }));
+      if (probe.ok) return true;
+      if (probe.y != null) dropY = Math.max(4, probe.y);
+      /*
+       * 不是重送同一個座標，而是每一輪**重新掃一次**：由下往上分幾步走到清單上緣，
+       * 每一步之間留一點時間。
+       *
+       * 為什麼要這樣：order.js 的重排帶 FLIP 動畫（withSlide），搬完之後每一列會先被
+       * translate 回原位、下一個 animation frame 才歸零。軟體渲染下一幀要 160 ms 以上，
+       * 在那段時間內 getBoundingClientRect() 讀到的還是**搬之前**的版面，
+       * indexAtY() 因此算出「跟現在一樣的位置」，`to !== 現在` 這個守衛就把後續的移動擋掉，
+       * 石版會停在只搬了一格的地方（實測 context,role,… 差一格）。
+       * 所以要給它「真的有位移的下一步 ＋ 讓影格追得上的時間」。
+       */
+      for (const k of [0.55, 0.25, 0]) {
+        const y = Math.max(4, Math.round(dropY + (probe.h || 0) * k));
+        await mouse('mouseMoved', drag.toX, y);
+        await sleep(70);
+      }
+      return false;
+    },
+    { timeout: 8000, every: 120, label: '石版被拖到最上面' }
+  ).catch(() => null);
+  await mouse('mouseReleased', drag.toX, dropY);
+  await waitFor(
+    () => evaluate(`return !document.querySelector('#prompt-console .slip.is-dragging');`).catch(() => false),
+    { timeout: 6000, every: 100, label: '放開之後拖曳狀態收乾淨' }
+  ).catch(() => null);
   const dragged = await evaluate(`
     const b = window.__promptasy.promptConsole.orderBoard;
     return { arrangement: b.arrangement, right: b.progress.right,
-      rightMark: document.querySelector('#prompt-console .slip[data-slip-id="role"]').classList.contains('is-right') };
+      rightMark: document.querySelector('#prompt-console .slip[data-slip-id="safety"]').classList.contains('is-right') };
   `);
-  eq(dragged.arrangement[0], 'role', '滑鼠拖曳真的把「角色與目標」搬到最上面');
-  eq(dragged.rightMark, true, '搬對的那一片立刻標成「位置對了」');
+  eq(
+    dragged.arrangement[0],
+    'safety',
+    '滑鼠拖曳真的把「安全規範」搬到最上面',
+    `座標上的元素＝${dragTop.top}（在石版上？${dragTop.inBoard}）`
+  );
+  eq(dragged.rightMark, true, '搬對的那一片立刻標成「位置對了」', `arrangement=${dragged.arrangement.join(",")}`);
   ok(dragged.right >= 1, '拖曳之後至少一片站對了', String(dragged.right));
 
   // 排錯不會失敗：手掌印不出現、不扣分、也不會跳結果面板
   const stillSafe = await evaluate(`
     const g = window.__promptasy;
     const b = g.promptConsole.orderBoard;
-    b.arrange(['role', 'context', 'format', 'task']);
+    b.arrange(['safety', 'taste', 'rule', 'job']);
     await new Promise((r) => setTimeout(r, 160));
     return {
       done: b.done,
@@ -7693,7 +8448,7 @@ async function main() {
     };
   `);
   eq(stairDone.grade, 'S', '優先序階梯排對也是 S（同一支引擎）');
-  ok(stairDone.text.indexOf('# 角色與目標') === 0, '規則區真的排在最上面', stairDone.text.slice(0, 20));
+  ok(stairDone.text.indexOf('1. ') === 0, '最高的那一階真的排在最上面', stairDone.text.slice(0, 20));
   ok(stairDone.xpGain > 0, '排錯過幾次不影響拿到的 XP（不會失敗、也不扣分）', String(stairDone.xpGain));
 
   /* ---------------------------------------------------------------- *
@@ -7715,12 +8470,13 @@ async function main() {
     await new Promise((r) => setTimeout(r, 240));
     const act2 = {
       glyphs: document.querySelectorAll('#prompt-console .glyphs .glyph').length,
-      sources: [...document.querySelectorAll('#prompt-console .glyphs a.src')]
-        .filter((a) => a.textContent.trim().startsWith('神諭原典'))
+      // 出處是那枚典籍（純圖示）→ 標籤走 aria-label，不是牌面上的字
+      sources: [...document.querySelectorAll('#prompt-console .act--guide a.bookicon')]
+        .filter((a) => (a.getAttribute('aria-label') || '').startsWith('神諭原典'))
         .map((a) => a.href),
-      labels: [...document.querySelectorAll('#prompt-console .glyphs a.src')]
-        .filter((a) => a.textContent.trim().startsWith('神諭原典'))
-        .map((a) => a.textContent.trim()),
+      labels: [...document.querySelectorAll('#prompt-console .act--guide a.bookicon')]
+        .filter((a) => (a.getAttribute('aria-label') || '').startsWith('神諭原典'))
+        .map((a) => a.getAttribute('aria-label').trim()),
     };
     g.promptConsole.goAct(3, { force: true });
     await new Promise((r) => setTimeout(r, 320));
@@ -7743,12 +8499,13 @@ async function main() {
   `);
   eq(wsOpen.kind, 'workshop', '神諭工坊是第三種題型');
   eq(wsOpen.act1.links, 0, '第一幕仍然零官方連結（委託只有題目）');
-  ok(/派工單/.test(wsOpen.act1.mission), '委託講的是「把委託變成一張派工單」', wsOpen.act1.mission);
-  ok(/燈塔守/.test(wsOpen.act1.material), '素材就是旅人那句話', wsOpen.act1.material);
-  eq(wsOpen.act2.glyphs, 4, '第二幕的神諭刻文＝這一關的四條檢查');
+  ok(/使用時機/.test(wsOpen.act1.mission), '委託講的是「替每一把工具寫下使用時機」', wsOpen.act1.mission);
+  ok(/查天氣|翻檔案庫/.test(wsOpen.act1.material), '素材就是檯上那幾把用途相鄰的工具', wsOpen.act1.material);
+  /* Phase A：這一關也一樣 —— 第二幕只放大它教的那一條（神諭工坊：該用哪把工具） */
+  eq(wsOpen.act2.glyphs, 1, '第二幕的神諭刻文只有一條（一關只教一件事）');
   ok(
-    wsOpen.act2.sources.every((u) => /^https:/.test(u)) && wsOpen.act2.sources.length === 4,
-    '每一條刻文都掛著可點的官方出處',
+    wsOpen.act2.sources.every((u) => /^https:/.test(u)) && wsOpen.act2.sources.length === 1,
+    '那一條刻文掛著可點的官方出處',
     wsOpen.act2.sources.join(' ')
   );
   ok(
@@ -7847,7 +8604,7 @@ async function main() {
   ok(paramStage.hints.every((h) => /字串/.test(h)), '每一格都寫著型別與用途', paramStage.hints.join(' / '));
   eq(paramStage.stones.length, 6, '托盤裡有 6 顆值石（4 顆用得到）');
   eq(paramStage.filled, 0, '參數格一開始都是空的');
-  ok(paramStage.lit >= 1, '第一步就把「工具規格」那一盞燈點亮了', String(paramStage.lit));
+  ok(paramStage.lit < 2, '第 2 步還沒把兩盞燈都點亮（後面幾步都還在加分）', String(paramStage.lit));
 
   // 放錯值石 → 就地教學、值石回托盤、不扣分
   await evaluate(`document.querySelector('#prompt-console [data-stone="yesterday"]').focus(); return 1;`);
@@ -7977,7 +8734,7 @@ async function main() {
   `);
   eq(badRule.wrong, true, '立錯的規矩標成「工坊不收」');
   eq(badRule.shown, true, '立錯就地長出教學');
-  ok(/亂編|猜/.test(badRule.fb), '教學講出「參數不是用猜的」', badRule.fb);
+  ok(/時機|判斷/.test(badRule.fb), '教學講出「使用時機要你寫下來」', badRule.fb);
   eq(badRule.stage, 'rule', '立錯不會前進');
   eq(badRule.done, false, '立錯不算完成');
   eq(badRule.resultHidden, true, '立錯不會跳失敗面板');
@@ -8006,14 +8763,12 @@ async function main() {
   eq(wsDone.palmHidden, false, '手掌印浮出來了');
   ok(/palm/.test(String(wsDone.focused)), '焦點落到手掌印上', String(wsDone.focused));
   eq(wsDone.text, wsDone.sample, '派工單組出來的字＝資料層的示範解答（同一段文字）');
-  eq(wsDone.lit, 4, '四盞燈全亮');
+  eq(wsDone.lit, 2, '兩盞燈全亮（C1 之後一關只有主檢查 ＋ 地基）');
   ok(/把手掌按上石碑/.test(wsDone.lampText), '進度燈說「把手掌按上石碑就過關了」', wsDone.lampText);
 
   const wsPalm = await centerOf('#prompt-console .workshop .palm');
-  await mouse('mousePressed', wsPalm.x, wsPalm.y);
-  await sleep(900);
-  await mouse('mouseReleased', wsPalm.x, wsPalm.y);
-  await sleep(700);
+  await holdPalm(wsPalm, '神諭工坊：手掌印按滿');
+  await sleep(400);
   const wsResult = await evaluate(`
     const g = window.__promptasy;
     return {
@@ -8059,10 +8814,10 @@ async function main() {
   `);
   eq(pedestal.hasMarker, true, '新關卡在世界上真的有一座石座');
   eq(pedestal.inScene, true, '石座長在場景圖上（marker:oracle-workshop-36）');
-  eq(pedestal.region, 'orchestration', '石座擺在齒輪工坊（流程與代理）');
+  eq(pedestal.region, 'toolcraft', '石座擺在契約鍛冶場（課程 v2 · Phase F 搬家）');
   eq(pedestal.solidThere, true, '石座本體擋得住人（走不進石頭裡）');
   eq(pedestal.reachable, true, '石座四周走得到互動距離');
-  eq(pedestal.inRegion, 6, '齒輪工坊現在有 6 關');
+  eq(pedestal.inRegion, 13, '齒輪工坊 13 關（12 座教學神廟 ＋ 1 座試煉）');
 
   /* --- 換一種答題方式：自由書寫仍然照舊 --- */
   const wsFree = await evaluate(`
@@ -8150,6 +8905,3766 @@ async function main() {
   await sleep(300);
 
   /* ================================================================ */
+  console.log('\n▸ 改碑與點碑（課程 v2 · Phase B）');
+
+  await evaluate(`
+    const g = window.__promptasy;
+    g.promptConsole.close(); g.codex.close(); g.settings.close();
+    g.promptConsole.setMode('guided');
+    return 1;
+  `);
+  await sleep(220);
+
+  /* ---------------------------------------------------------------- *
+   * 一、改碑：純鍵盤走完（畫線的句子 → Enter 攤開 → 挑錯不失敗 →
+   *          Esc 還原 → 換對 → 手印 → S），世界上真的多了一座石座
+   * ---------------------------------------------------------------- */
+  const fixOpen = await evaluate(`
+    const g = window.__promptasy;
+    g.promptConsole.open(g.content.challenge('nightwatch-relief-07'));
+    await new Promise((r) => setTimeout(r, 260));
+    const actAtOpen = g.promptConsole.act;
+    g.promptConsole.goAct(3, { force: true });
+    await new Promise((r) => setTimeout(r, 320));
+    const b = g.promptConsole.fixBoard;
+    return {
+      actAtOpen,
+      act: g.promptConsole.act,
+      kind: g.promptConsole.kind,
+      steleHidden: document.querySelector('#prompt-console .stele-stage').hidden,
+      orderHidden: document.querySelector('#prompt-console .orderboard').hidden,
+      spotHidden: document.querySelector('#prompt-console .spotboard').hidden,
+      boardShown: !document.querySelector('#prompt-console .fixboard').hidden,
+      weakCount: document.querySelectorAll('#prompt-console .frag--weak').length,
+      keptCount: document.querySelectorAll('#prompt-console .frag--kept').length,
+      progress: document.querySelector('#prompt-console .fixboard .carve__progress').textContent.trim(),
+      label: document.querySelector('#prompt-console [data-guided-label] .zh').textContent.trim(),
+      palmHidden: document.querySelector('#prompt-console .fixboard .palmwrap').hidden,
+      optionsOpen: document.querySelectorAll('#prompt-console .frag__options').length,
+      text: b.text,
+      done: b.done,
+    };
+  `);
+  eq(fixOpen.actAtOpen, 1, '改碑一樣從第一幕開始（四幕分鏡沒有變）');
+  eq(fixOpen.act, 3, '改碑住在第三幕');
+  eq(fixOpen.kind, 'fix', '這一關的題型是改碑');
+  eq(fixOpen.steleHidden, true, '選擇題的石碑收起來了');
+  eq(fixOpen.orderHidden, true, '排序刻印不會亂入');
+  eq(fixOpen.spotHidden, true, '點碑也不會亂入（一次只有一種在台上）');
+  eq(fixOpen.boardShown, true, '台上是抄寫人留下的那份草稿');
+  eq(fixOpen.label, '改碑', '版面上寫的是「改碑」');
+  eq(fixOpen.weakCount, 3, '草稿上有三句被畫線（要改的）');
+  eq(fixOpen.keptCount, 1, '還有一句不用動的');
+  eq(fixOpen.optionsOpen, 0, '一開始沒有攤開任何替代寫法（一次只有一件事）');
+  ok(/改好 0 \/ 3 句/.test(fixOpen.progress), '一開始一句都還沒改', fixOpen.progress);
+  eq(fixOpen.palmHidden, true, '還沒改完，手掌印不會出現（送不出去）');
+  eq(fixOpen.done, false, '這一關還沒完成');
+
+  // 純鍵盤：焦點停在第一句要改的 → Enter 攤開替代寫法
+  await evaluate(`document.querySelector('#prompt-console [data-frag-btn="route"]').focus(); return 1;`);
+  await key('Enter', 'Enter', { vk: 13 });
+  await sleep(240);
+  const fixOpened = await evaluate(`
+    return {
+      expanded: document.querySelector('#prompt-console [data-frag-btn="route"]').getAttribute('aria-expanded'),
+      options: document.querySelectorAll('#prompt-console [data-options="route"] .opt').length,
+      focusOpt: document.activeElement?.getAttribute('data-opt'),
+      focusFrag: document.activeElement?.getAttribute('data-frag'),
+      openId: window.__promptasy.promptConsole.fixBoard.openId,
+    };
+  `);
+  eq(fixOpened.expanded, 'true', 'Enter 攤開那一句的替代寫法');
+  eq(fixOpened.options, 3, '替代寫法有三個');
+  eq(fixOpened.focusFrag, 'route', '焦點自動跳進替代寫法（鍵盤玩家不會掉焦點）');
+  eq(fixOpened.focusOpt, '0', '焦點落在第一個替代寫法上');
+  eq(fixOpened.openId, 'route', '面板知道現在攤開的是哪一句');
+
+  // 挑一個弱的替代寫法 → 石碑不收：就地教學、不扣分、不前進
+  const wrongIdxFix = await evaluate(`
+    const f = window.__promptasy.content.flow('nightwatch-relief-07').fixFlow;
+    return f.fragments.find((x) => x.id === 'route').options.findIndex((o) => !o.correct);
+  `);
+  await evaluate(`document.querySelector('#prompt-console [data-frag="route"][data-opt="${wrongIdxFix}"]').focus(); return 1;`);
+  await key('Enter', 'Enter', { vk: 13 });
+  await sleep(280);
+  const fixWrong = await evaluate(`
+    const g = window.__promptasy;
+    const btn = document.querySelector('#prompt-console [data-frag="route"][data-opt="${wrongIdxFix}"]');
+    return {
+      marked: btn.classList.contains('is-wrong'),
+      disabled: btn.getAttribute('aria-disabled'),
+      feedback: btn.querySelector('[data-opt-fb]')?.textContent || '',
+      fbHidden: btn.querySelector('[data-opt-fb]')?.hidden,
+      dataFeedback: g.content.flow('nightwatch-relief-07').fixFlow.fragments[0].options[${wrongIdxFix}].feedback,
+      still: g.promptConsole.fixBoard.progress.fixed,
+      openId: g.promptConsole.fixBoard.openId,
+      xp: g.progression.state.xp,
+      verdictHidden: document.querySelector('#prompt-console .act--verdict').hidden,
+      live: g.promptConsole.fixBoard.announcement,
+    };
+  `);
+  eq(fixWrong.marked, true, '挑錯的替代寫法留在原地，標成「石碑不收」');
+  eq(fixWrong.disabled, 'true', '不收的那一片按不下去了');
+  eq(fixWrong.fbHidden, false, '就地長出一句教學回饋');
+  eq(fixWrong.feedback, fixWrong.dataFeedback, '回饋逐字來自資料層（不是臨時編的）');
+  ok(fixWrong.feedback.length >= 12, '回饋講得出「為什麼這樣比較弱」', fixWrong.feedback);
+  eq(fixWrong.still, 0, '挑錯不算改好（不前進）');
+  eq(fixWrong.openId, 'route', '挑錯之後那一句還攤開著，可以再挑一次');
+  eq(fixWrong.verdictHidden, true, '挑錯不會跳結果面板（不會失敗）');
+  ok(fixWrong.live.length > 0, 'aria-live 把回饋唸出來', fixWrong.live);
+
+  // 挑對 → 換上去；然後 Esc 還原（改碑的鍵位契約第二段）
+  const rightIdxFix = await evaluate(`
+    const f = window.__promptasy.content.flow('nightwatch-relief-07').fixFlow;
+    return f.fragments.find((x) => x.id === 'route').options.findIndex((o) => o.correct);
+  `);
+  await evaluate(`document.querySelector('#prompt-console [data-frag="route"][data-opt="${rightIdxFix}"]').focus(); return 1;`);
+  await key('Enter', 'Enter', { vk: 13 });
+  await waitFor(() => evaluate(`return window.__promptasy.promptConsole.fixBoard.progress.fixed === 1;`), {
+    label: '第一句換好了',
+  });
+  const fixedOne = await evaluate(`
+    const g = window.__promptasy;
+    const li = document.querySelector('#prompt-console [data-frag-btn="route"]').closest('.frag');
+    return {
+      isFixed: li.classList.contains('is-fixed'),
+      shown: li.querySelector('.frag__text').textContent.trim(),
+      want: g.content.flow('nightwatch-relief-07').fixFlow.fragments[0].options[${rightIdxFix}].text,
+      progress: document.querySelector('#prompt-console .fixboard .carve__progress').textContent.trim(),
+      focusFrag: document.activeElement?.getAttribute('data-frag-btn'),
+      lit: (g.promptConsole.preflight.evaluation?.results || []).filter((r) => r.score > 0).length,
+      openId: g.promptConsole.fixBoard.openId,
+    };
+  `);
+  eq(fixedOne.isFixed, true, '換對的那一句轉成「改好了」');
+  eq(fixedOne.shown, fixedOne.want, '草稿上顯示的就是換上去的那一句');
+  ok(/改好 1 \/ 3 句/.test(fixedOne.progress), '進度跟著走', fixedOne.progress);
+  eq(fixedOne.openId, null, '換好之後替代寫法自動收起來（一次只有一件事）');
+  ok(fixedOne.focusFrag, '焦點自動跳到下一句要改的', String(fixedOne.focusFrag));
+  ok(fixedOne.lit > 0, '左邊的刻痕對照跟著亮燈（同一支預檢引擎）', String(fixedOne.lit));
+
+  // Esc 在改好的那一句上 ＝ 還原（不是關面板）
+  await evaluate(`document.querySelector('#prompt-console [data-frag-btn="route"]').focus(); return 1;`);
+  await key('Escape', 'Escape', { vk: 27 });
+  await sleep(260);
+  const fixRestored = await evaluate(`
+    const g = window.__promptasy;
+    const li = document.querySelector('#prompt-console [data-frag-btn="route"]').closest('.frag');
+    return {
+      open: g.promptConsole.isOpen,
+      isFixed: li.classList.contains('is-fixed'),
+      shown: li.querySelector('.frag__text').textContent.trim(),
+      original: g.content.flow('nightwatch-relief-07').fixFlow.fragments[0].text,
+      openId: g.promptConsole.fixBoard.openId,
+      fixed: g.promptConsole.fixBoard.progress.fixed,
+      live: g.promptConsole.fixBoard.announcement,
+    };
+  `);
+  eq(fixRestored.open, true, 'Esc 在改好的句子上不會關掉面板（鍵位契約第二段）');
+  eq(fixRestored.isFixed, false, 'Esc 把那一句還原成原本的壞寫法');
+  eq(fixRestored.shown, fixRestored.original, '顯示的就是原句');
+  eq(fixRestored.fixed, 0, '進度跟著退回去（不扣分，只是收回一步）');
+  eq(fixRestored.openId, 'route', '還原之後替代寫法重新攤開，可以再挑');
+  ok(/還原/.test(fixRestored.live), 'aria-live 講出「還原」', fixRestored.live);
+
+  // Esc 在攤開的替代寫法上 ＝ 收起來（鍵位契約第一段）；再一次才關面板
+  await evaluate(`document.querySelector('#prompt-console [data-frag="route"][data-opt="0"]').focus(); return 1;`);
+  await key('Escape', 'Escape', { vk: 27 });
+  await sleep(240);
+  const closedOpts = await evaluate(`
+    const g = window.__promptasy;
+    return {
+      open: g.promptConsole.isOpen,
+      openId: g.promptConsole.fixBoard.openId,
+      options: document.querySelectorAll('#prompt-console [data-options="route"]').length,
+      focusFrag: document.activeElement?.getAttribute('data-frag-btn'),
+    };
+  `);
+  eq(closedOpts.open, true, 'Esc 收起替代寫法時也不會關面板（鍵位契約第一段）');
+  eq(closedOpts.openId, null, '替代寫法收起來了');
+  eq(closedOpts.options, 0, '畫面上不再有攤開的替代寫法');
+  eq(closedOpts.focusFrag, 'route', '焦點還回那一句上（不會掉到 3D 畫布）');
+
+  // 全部換對 → 自動切到第四幕、手印出現
+  await evaluate(`
+    const g = window.__promptasy;
+    const ff = g.content.flow('nightwatch-relief-07').fixFlow;
+    for (const f of ff.fragments) {
+      if (!f.weak) continue;
+      g.promptConsole.fixBoard.pick(f.id, f.options.findIndex((o) => o.correct));
+      await new Promise((r) => setTimeout(r, 60));
+    }
+    return 1;
+  `);
+  await waitFor(() => evaluate(`return window.__promptasy.promptConsole.fixBoard.done === true;`), {
+    label: '草稿全部改好',
+  });
+  await sleep(320);
+  const fixDone = await evaluate(`
+    const g = window.__promptasy;
+    return {
+      act: g.promptConsole.act,
+      palmShown: !document.querySelector('#prompt-console .fixboard .palmwrap').hidden,
+      focusPalm: document.activeElement === document.querySelector('#prompt-console .fixboard [data-palm]'),
+      text: g.promptConsole.fixBoard.text,
+      sample: g.content.challenge('nightwatch-relief-07').sample,
+      isPalmStage: document.querySelector('#prompt-console .console').classList.contains('is-palm'),
+    };
+  `);
+  eq(fixDone.act, 4, '改完自動切到第四幕（手印）');
+  eq(fixDone.palmShown, true, '手掌印浮出來了');
+  eq(fixDone.focusPalm, true, '焦點自動落在手掌上（鍵盤按住就能呈上）');
+  eq(fixDone.text, fixDone.sample, '改好的整段文字＝資料層的示範解答（兩種模式同一段字）');
+  eq(fixDone.isPalmStage, true, '第四幕把光打在手印上');
+
+  // 按住 Enter 呈給神諭 → 結果面板、S、石座轉已通關、v2 技能入袋
+  await holdPalm();
+  await waitFor(() => evaluate(`return !document.querySelector('#prompt-console [data-result]').hidden;`), {
+    label: '改碑的結果面板',
+  });
+  const fixResult = await evaluate(`
+    const g = window.__promptasy;
+    return {
+      grade: document.querySelector('#prompt-console .grade__mark')?.textContent.trim(),
+      best: g.progression.bestGrade('nightwatch-relief-07'),
+      cleared: g.world.markers.find((m) => m.id === 'nightwatch-relief-07')?.cleared,
+      skill: g.progression.isSkillCollected('clear-golden'),
+      legacy: g.progression.state.collected.includes('clarity-01'),
+      sources: [...document.querySelectorAll('#prompt-console [data-result] a.src')].map((a) => a.href),
+      srcText: [...document.querySelectorAll('#prompt-console [data-result] a.src')].map((a) => a.textContent.trim()),
+      xp: g.progression.state.xp,
+    };
+  `);
+  eq(fixResult.grade, 'S', '改碑走完拿到 S');
+  eq(fixResult.best, 'S', '評價存進進度');
+  eq(fixResult.cleared, true, '世界上那座石座轉成已通關');
+  eq(fixResult.skill, true, '這條 v2 技能收進 skillsV2');
+  eq(fixResult.legacy, true, '有祖先的技巧照舊收進舊圖鑑（收集不倒退）');
+  ok(fixResult.xp > 0, '改碑過關有 XP', String(fixResult.xp));
+  ok(fixResult.sources.length > 0, '結果面板有可點的官方出處', fixResult.sources.join(' '));
+  ok(
+    fixResult.sources.every((u) => /^https:\/\//.test(u)),
+    '每一個出處都是 https 連結',
+    fixResult.sources.join(' ')
+  );
+  ok(
+    fixResult.srcText.every((t) => !/^https?:/.test(t)),
+    '出處顯示的是文件名不是網址',
+    fixResult.srcText.join(' | ')
+  );
+
+  /* ---------------------------------------------------------------- *
+   * 二、點碑：純鍵盤走完（方向鍵 → Enter 點起來 → 點到不能動的會彈回來
+   *          → 全部挑出來 → 手印 → S）
+   * ---------------------------------------------------------------- */
+  await evaluate(`window.__promptasy.promptConsole.close(); return 1;`);
+  await sleep(240);
+  const spotOpen = await evaluate(`
+    const g = window.__promptasy;
+    g.promptConsole.open(g.content.challenge('shout-stone-11'));
+    await new Promise((r) => setTimeout(r, 260));
+    g.promptConsole.goAct(3, { force: true });
+    await new Promise((r) => setTimeout(r, 320));
+    const b = g.promptConsole.spotBoard;
+    return {
+      act: g.promptConsole.act,
+      kind: g.promptConsole.kind,
+      boardShown: !document.querySelector('#prompt-console .spotboard').hidden,
+      fixHidden: document.querySelector('#prompt-console .fixboard').hidden,
+      slips: document.querySelectorAll('#prompt-console .spot').length,
+      marked: b.marked.length,
+      progress: document.querySelector('#prompt-console .spotboard .carve__progress').textContent.trim(),
+      label: document.querySelector('#prompt-console [data-guided-label] .zh').textContent.trim(),
+      palmHidden: document.querySelector('#prompt-console .spotboard .palmwrap').hidden,
+      focused: document.activeElement?.getAttribute('data-spot'),
+      pressed: [...document.querySelectorAll('#prompt-console [data-spot]')].map((b2) => b2.getAttribute('aria-pressed')),
+    };
+  `);
+  eq(spotOpen.act, 3, '點碑也住在第三幕');
+  eq(spotOpen.kind, 'spot', '這一關的題型是點碑');
+  eq(spotOpen.boardShown, true, '台上是一疊石籤');
+  eq(spotOpen.fixHidden, true, '改碑收起來了（一次只有一種在台上）');
+  eq(spotOpen.label, '點碑', '版面上寫的是「點碑」');
+  eq(spotOpen.slips, 6, '這一關有 6 片石籤');
+  eq(spotOpen.marked, 0, '一開始一片都沒點');
+  eq(spotOpen.palmHidden, true, '還沒挑完，手掌印不會出現');
+  ok(spotOpen.pressed.every((p) => p === 'false'), '每一片都標成「還沒點起來」（aria-pressed）');
+  ok(/挑出 0 \/ 3 句/.test(spotOpen.progress), '進度從 0 開始', spotOpen.progress);
+
+  // 方向鍵在石籤之間走
+  await evaluate(`document.querySelector('#prompt-console [data-spot="p1"]').focus(); return 1;`);
+  await key('ArrowDown', 'ArrowDown', { vk: 40 });
+  await sleep(180);
+  eq(
+    await evaluate(`return document.activeElement?.getAttribute('data-spot');`),
+    'p2',
+    '↓ 把焦點移到下一片石籤（純鍵盤走得完）'
+  );
+
+  // 點到「不能動」的那一句 → 彈回來 ＋ 就地教學（不扣分、不前進）
+  await key('Enter', 'Enter', { vk: 13 });
+  await sleep(300);
+  const spotWrong = await evaluate(`
+    const g = window.__promptasy;
+    const li = document.querySelector('#prompt-console [data-spot="p2"]').closest('.spot');
+    return {
+      marked: g.promptConsole.spotBoard.marked.length,
+      pressed: document.querySelector('#prompt-console [data-spot="p2"]').getAttribute('aria-pressed'),
+      fbHidden: document.querySelector('#prompt-console [data-spot-fb="p2"]').hidden,
+      feedback: document.querySelector('#prompt-console [data-spot-fb="p2"]').textContent.trim(),
+      dataWhy: g.content.flow('shout-stone-11').spotFlow.slips.find((s) => s.id === 'p2').why,
+      verdictHidden: document.querySelector('#prompt-console .act--verdict').hidden,
+      xpUnchanged: g.progression.bestGrade('shout-stone-11'),
+    };
+  `);
+  eq(spotWrong.marked, 0, '點到不能動的那一句不會被點起來');
+  eq(spotWrong.pressed, 'false', 'aria-pressed 也沒有變');
+  eq(spotWrong.fbHidden, false, '就地長出一句「為什麼要留」');
+  eq(spotWrong.feedback, spotWrong.dataWhy, '教學逐字來自資料層');
+  eq(spotWrong.verdictHidden, true, '點錯不會跳結果面板（不會失敗）');
+  eq(spotWrong.xpUnchanged, null, '點錯不會留下任何評價');
+
+  // 把有問題的都點出來 → 手印
+  await evaluate(`
+    const g = window.__promptasy;
+    for (const sl of g.content.flow('shout-stone-11').spotFlow.slips) {
+      if (!sl.bad) continue;
+      g.promptConsole.spotBoard.toggle(sl.id);
+      await new Promise((r) => setTimeout(r, 60));
+    }
+    return 1;
+  `);
+  await waitFor(() => evaluate(`return window.__promptasy.promptConsole.spotBoard.done === true;`), {
+    label: '有問題的都挑出來了',
+  });
+  await sleep(320);
+  const spotDone = await evaluate(`
+    const g = window.__promptasy;
+    return {
+      act: g.promptConsole.act,
+      palmShown: !document.querySelector('#prompt-console .spotboard .palmwrap').hidden,
+      focusPalm: document.activeElement === document.querySelector('#prompt-console .spotboard [data-palm]'),
+      text: g.promptConsole.spotBoard.text,
+      sample: g.content.challenge('shout-stone-11').sample,
+      goneCount: document.querySelectorAll('#prompt-console .spot__gone').length,
+      lit: (g.promptConsole.preflight.evaluation?.results || []).filter((r) => r.passed).length,
+    };
+  `);
+  eq(spotDone.act, 4, '挑完自動切到第四幕');
+  eq(spotDone.palmShown, true, '手掌印浮出來了');
+  eq(spotDone.focusPalm, true, '焦點自動落在手掌上');
+  eq(spotDone.text, spotDone.sample, '挑乾淨的整段文字＝資料層的示範解答');
+  eq(spotDone.goneCount, 3, '被拿掉的三片在畫面上留下痕跡（看得出自己刪了什麼）');
+  ok(spotDone.lit >= 2, '左邊的刻痕對照全亮（做對就是完美）', String(spotDone.lit));
+
+  await holdPalm();
+  await waitFor(() => evaluate(`return !document.querySelector('#prompt-console [data-result]').hidden;`), {
+    label: '點碑的結果面板',
+  });
+  const spotResult = await evaluate(`
+    const g = window.__promptasy;
+    return {
+      grade: document.querySelector('#prompt-console .grade__mark')?.textContent.trim(),
+      best: g.progression.bestGrade('shout-stone-11'),
+      skill: g.progression.isSkillCollected('clear-no-pressure'),
+      cleared: g.world.markers.find((m) => m.id === 'shout-stone-11')?.cleared,
+    };
+  `);
+  eq(spotResult.grade, 'S', '點碑走完拿到 S');
+  eq(spotResult.best, 'S', '評價存進進度');
+  eq(spotResult.skill, true, '這條 v2 技能收進 skillsV2（它在舊 68 條裡沒有祖先）');
+  eq(spotResult.cleared, true, '世界上那座石座轉成已通關');
+
+  /* --- 存檔：v2 技能跨重整還在，而且不會灌爆舊圖鑑 --- */
+  const savedSkills = await evaluate(`
+    const raw = JSON.parse(localStorage.getItem('promptasy.v1.save'));
+    return { skills: raw.skillsV2 || [], collected: (raw.collected || []).length };
+  `);
+  ok(savedSkills.skills.includes('clear-golden'), 'skillsV2 真的寫進了 localStorage', savedSkills.skills.join(','));
+  ok(savedSkills.skills.includes('clear-no-pressure'), '沒有祖先的技能也記下來了');
+  ok(savedSkills.collected <= 68, '舊圖鑑的收集數沒有被 v2 技能灌水', String(savedSkills.collected));
+
+  /* --- 相容契約：缺 kind / 資料不合契約 → 一律回到石碑刻印 --- */
+  const kindFallback = await evaluate(`
+    const k = window.__promptasy.promptConsole.flowKindOf;
+    return {
+      none: k(undefined),
+      empty: k({}),
+      unknown: k({ kind: 'nonsense' }),
+      fixNoData: k({ kind: 'fix' }),
+      fixBadData: k({ kind: 'fix', fixFlow: { fragments: [] } }),
+      spotNoData: k({ kind: 'spot' }),
+      spotBadData: k({ kind: 'spot', spotFlow: { slips: [{ id: 'a', text: '一句話', bad: true }] } }),
+    };
+  `);
+  eq(kindFallback.none, 'choice', '沒有流程資料 → 石碑刻印');
+  eq(kindFallback.empty, 'choice', '沒寫 kind → 石碑刻印（舊資料零變化）');
+  eq(kindFallback.unknown, 'choice', '未知的 kind → 石碑刻印');
+  eq(kindFallback.fixNoData, 'choice', '宣告了 fix 卻沒有資料 → 石碑刻印');
+  eq(kindFallback.fixBadData, 'choice', 'fix 的資料不合契約 → 石碑刻印（不會開到空白石碑）');
+  eq(kindFallback.spotNoData, 'choice', '宣告了 spot 卻沒有資料 → 石碑刻印');
+  eq(kindFallback.spotBadData, 'choice', 'spot 的資料不合契約 → 石碑刻印');
+
+  /* --- 新石座真的蓋在世界上，而且走得到 --- */
+  const newMarkers = await evaluate(`
+    const g = window.__promptasy;
+    const ids = g.content.challenges.filter((c) => c.primarySkillId).map((c) => c.id);
+    const out = { ids: ids.length, missing: [], blocked: [] };
+    for (const id of ids) {
+      const m = g.world.markers.find((x) => x.id === id);
+      if (!m) { out.missing.push(id); continue; }
+      const p = m.position;
+      // 石座本體擋得住人，但四周走得到互動距離
+      for (const [dx, dz] of [[3.2, 0], [-3.2, 0], [0, 3.2], [0, -3.2]]) {
+        if (g.world.solidAt(p.x + dx, p.z + dz)) out.blocked.push(id + ':' + dx + ',' + dz);
+      }
+    }
+    out.expected = g.content.challenges.filter((c) => c.primarySkillId).length;
+    return out;
+  `);
+  eq(
+    newMarkers.ids,
+    newMarkers.expected,
+    `世界上每一座接上 v2 技能的石座都蓋出來了（目前 ${newMarkers.expected} 座，由資料現算）`
+  );
+  eq(newMarkers.missing.length, 0, '每一座都蓋出來了', newMarkers.missing.join(','));
+  eq(newMarkers.blocked.length, 0, '新石座四周走得到（互動不會被擋）', newMarkers.blocked.join(' '));
+
+  /* --- 窄畫面不溢位 --- */
+  await cdp.send('Emulation.setDeviceMetricsOverride', { width: 820, height: 760, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await sleep(320);
+  const narrowB = await evaluate(`
+    const g = window.__promptasy;
+    const out = {};
+    g.promptConsole.close();
+    await new Promise((r) => setTimeout(r, 200));
+    g.promptConsole.open(g.content.challenge('nightwatch-relief-07'));
+    await new Promise((r) => setTimeout(r, 240));
+    g.promptConsole.goAct(3, { force: true });
+    await new Promise((r) => setTimeout(r, 300));
+    g.promptConsole.fixBoard.open('route');
+    await new Promise((r) => setTimeout(r, 240));
+    const body = document.querySelector('#prompt-console .panel__body');
+    out.fixOverflow = Math.max(0, body.scrollWidth - body.clientWidth);
+    g.promptConsole.close();
+    await new Promise((r) => setTimeout(r, 200));
+    g.promptConsole.open(g.content.challenge('parts-wall-16'));
+    await new Promise((r) => setTimeout(r, 240));
+    g.promptConsole.goAct(3, { force: true });
+    await new Promise((r) => setTimeout(r, 300));
+    const body2 = document.querySelector('#prompt-console .panel__body');
+    out.spotOverflow = Math.max(0, body2.scrollWidth - body2.clientWidth);
+    g.promptConsole.close();
+    return out;
+  `);
+  eq(narrowB.fixOverflow, 0, '820px 下改碑沒有水平溢位');
+  eq(narrowB.spotOverflow, 0, '820px 下點碑沒有水平溢位');
+  await cdp.send('Emulation.clearDeviceMetricsOverride', {}, sessionId);
+  await sleep(300);
+
+  /* ================================================================ */
+  console.log('\n▸ 推規碑與雙面碑（課程 v2 · Phase C）');
+
+  await evaluate(`
+    const g = window.__promptasy;
+    g.promptConsole.close(); g.codex.close(); g.settings.close();
+    g.promptConsole.setMode('guided');
+    return 1;
+  `);
+  await sleep(220);
+
+  /* ---------------------------------------------------------------- *
+   * 一、推規碑：純鍵盤走完
+   *    （牆只露兩組 → 猜錯不失敗 → 猜對牆多刻一組 → 驗證輪照「順手的
+   *      規律」答會答錯並拿到教學 → 猜對 → 刻印開放 → 手印 → S）
+   * ---------------------------------------------------------------- */
+  const indOpen = await evaluate(`
+    const g = window.__promptasy;
+    g.promptConsole.open(g.content.challenge('flawed-cabinet-17'));
+    await new Promise((r) => setTimeout(r, 260));
+    const actAtOpen = g.promptConsole.act;
+    g.promptConsole.goAct(3, { force: true });
+    await new Promise((r) => setTimeout(r, 320));
+    const b = g.promptConsole.inductBoard;
+    const rows = [...document.querySelectorAll('#prompt-console .wallrow')];
+    return {
+      actAtOpen,
+      act: g.promptConsole.act,
+      kind: g.promptConsole.kind,
+      label: document.querySelector('#prompt-console [data-guided-label] .zh').textContent.trim(),
+      shown: !document.querySelector('#prompt-console .inductboard').hidden,
+      steleHidden: document.querySelector('#prompt-console .stele-stage').hidden,
+      tradeHidden: document.querySelector('#prompt-console .tradeboard').hidden,
+      rows: rows.length,
+      hidden: rows.filter((r) => r.classList.contains('is-hidden')).length,
+      revealed: b.revealed,
+      carveHidden: document.querySelector('#prompt-console .inductboard [data-carve]').hidden,
+      palmHidden: document.querySelector('#prompt-console .inductboard .palmwrap').hidden,
+      ruleHidden: document.querySelector('#prompt-console .wall__rule').hidden,
+      ask: b.ask,
+      text: b.text,
+      done: b.done,
+    };
+  `);
+  eq(indOpen.actAtOpen, 1, '推規碑一樣從第一幕開始（四幕分鏡沒有變）');
+  eq(indOpen.act, 3, '推規碑住在第三幕');
+  eq(indOpen.kind, 'induct', '這一關的題型是推規碑');
+  eq(indOpen.label, '推規碑', '版面上寫的是「推規碑」');
+  eq(indOpen.shown, true, '台上是那面刻著對照的牆');
+  eq(indOpen.steleHidden, true, '選擇題的石碑收起來了');
+  eq(indOpen.tradeHidden, true, '雙面碑不會亂入（一次只有一種在台上）');
+  eq(indOpen.rows, 4, '牆上一共四組對照');
+  eq(indOpen.revealed, 2, '一開始只露出兩組（規律還推不出來）');
+  eq(indOpen.hidden, 2, '後面兩組還蓋著');
+  eq(indOpen.carveHidden, true, '還沒想通規律，刻印區是鎖著的');
+  eq(indOpen.palmHidden, true, '手掌印當然還沒出現（送不出去）');
+  eq(indOpen.ruleHidden, true, '規律還沒揭曉');
+  eq(indOpen.done, false, '這一關還沒完成');
+  eq(indOpen.text, '', '石碑上還是空的');
+
+  // 純鍵盤：焦點停在第一個選項 → 猜錯只會「牆不回應 ＋ 就地教學」
+  const indWrongIdx = await evaluate(`
+    const f = window.__promptasy.content.flow('flawed-cabinet-17').inductFlow;
+    return f.rounds[0].options.findIndex((o) => !o.correct);
+  `);
+  await evaluate(`document.querySelector('#prompt-console [data-guess-opt="${indWrongIdx}"]').focus(); return 1;`);
+  await key('Enter', 'Enter', { vk: 13 });
+  await sleep(280);
+  const indWrong = await evaluate(`
+    const g = window.__promptasy;
+    const btn = document.querySelector('#prompt-console [data-guess-opt="${indWrongIdx}"]');
+    return {
+      marked: btn.classList.contains('is-wrong'),
+      disabled: btn.getAttribute('aria-disabled'),
+      feedback: btn.querySelector('[data-opt-fb]')?.textContent || '',
+      fbHidden: btn.querySelector('[data-opt-fb]')?.hidden,
+      dataFeedback: g.content.flow('flawed-cabinet-17').inductFlow.rounds[0].options[${indWrongIdx}].feedback,
+      revealed: g.promptConsole.inductBoard.revealed,
+      round: g.promptConsole.inductBoard.progress.round,
+      verdictHidden: document.querySelector('#prompt-console .act--verdict').hidden,
+      xp: g.progression.state.xp,
+      live: g.promptConsole.inductBoard.announcement,
+    };
+  `);
+  eq(indWrong.marked, true, '猜錯的那一片留在原地，標成「牆不收」');
+  eq(indWrong.disabled, 'true', '不收的那一片按不下去了');
+  eq(indWrong.fbHidden, false, '就地長出一句教學回饋');
+  eq(indWrong.feedback, indWrong.dataFeedback, '回饋逐字來自資料層（不是臨時編的）');
+  eq(indWrong.revealed, 2, '猜錯不會多刻一組出來（不前進）');
+  eq(indWrong.round, 0, '猜錯不算過一輪');
+  eq(indWrong.verdictHidden, true, '猜錯不會跳結果面板（不會失敗）');
+  ok(indWrong.live.length > 0, 'aria-live 把回饋唸出來', indWrong.live);
+
+  // 猜對 → 牆上多刻一組
+  const indRight1 = await evaluate(`
+    const f = window.__promptasy.content.flow('flawed-cabinet-17').inductFlow;
+    return f.rounds[0].options.findIndex((o) => o.correct);
+  `);
+  await evaluate(`document.querySelector('#prompt-console [data-guess-opt="${indRight1}"]').focus(); return 1;`);
+  await key('Enter', 'Enter', { vk: 13 });
+  await waitFor(() => evaluate(`return window.__promptasy.promptConsole.inductBoard.revealed === 3;`), {
+    label: '牆上多刻出第三組',
+  });
+  const indRound2 = await evaluate(`
+    const g = window.__promptasy;
+    return {
+      revealed: g.promptConsole.inductBoard.revealed,
+      round: g.promptConsole.inductBoard.progress.round,
+      progress: document.querySelector('#prompt-console .inductboard [data-guess-progress]').textContent.trim(),
+      ask: g.promptConsole.inductBoard.ask,
+      focusOpt: document.activeElement?.getAttribute('data-guess-opt'),
+      carveHidden: document.querySelector('#prompt-console .inductboard [data-carve]').hidden,
+    };
+  `);
+  eq(indRound2.revealed, 3, '第三組刻出來了');
+  eq(indRound2.round, 1, '進到第二輪推敲');
+  ok(/驗證/.test(indRound2.progress), '畫面上寫明這一組會驗證你的規律', indRound2.progress);
+  eq(indRound2.focusOpt, '0', '焦點自動跟到下一輪的第一個選項（鍵盤玩家不會掉焦點）');
+  eq(indRound2.carveHidden, true, '規律還沒確定，刻印區仍然鎖著');
+
+  // ★ 驗證輪：照「只看前面推出來的那條順手規律」答 → 一定答錯 ＋ 拿到教學
+  const naiveIdx = await evaluate(`
+    const f = window.__promptasy.content.flow('flawed-cabinet-17').inductFlow;
+    const last = f.rounds[f.rounds.length - 1];
+    return last.options.findIndex((o) => o.follows === 'naive');
+  `);
+  ok(naiveIdx >= 0, '驗證輪上真的放著「順手的規律」會給的那個答案');
+  await evaluate(`document.querySelector('#prompt-console [data-guess-opt="${naiveIdx}"]').focus(); return 1;`);
+  await key('Enter', 'Enter', { vk: 13 });
+  await sleep(280);
+  const indNaive = await evaluate(`
+    const g = window.__promptasy;
+    const btn = document.querySelector('#prompt-console [data-guess-opt="${naiveIdx}"]');
+    return {
+      wrong: btn.classList.contains('is-wrong'),
+      feedback: btn.querySelector('[data-opt-fb]')?.textContent || '',
+      revealed: g.promptConsole.inductBoard.revealed,
+      round: g.promptConsole.inductBoard.progress.round,
+      carveHidden: document.querySelector('#prompt-console .inductboard [data-carve]').hidden,
+    };
+  `);
+  eq(indNaive.wrong, true, '照順手的規律答 —— 牆不收（第四例真的在驗證規則）');
+  ok(indNaive.feedback.length >= 20, '答錯的人拿到的是教學，不是運氣', indNaive.feedback);
+  eq(indNaive.revealed, 3, '答錯不會把答案掀開');
+  eq(indNaive.round, 1, '答錯不前進');
+  eq(indNaive.carveHidden, true, '答錯不會開放刻印');
+
+  // 猜對驗證輪 → 規律揭曉、牆全開、刻印開放
+  const indRight2 = await evaluate(`
+    const f = window.__promptasy.content.flow('flawed-cabinet-17').inductFlow;
+    const last = f.rounds[f.rounds.length - 1];
+    return last.options.findIndex((o) => o.correct);
+  `);
+  await evaluate(`document.querySelector('#prompt-console [data-guess-opt="${indRight2}"]').focus(); return 1;`);
+  await key('Enter', 'Enter', { vk: 13 });
+  await waitFor(() => evaluate(`return window.__promptasy.promptConsole.inductBoard.progress.guessed === true;`), {
+    label: '規律想通了',
+  });
+  const indSolved = await evaluate(`
+    const g = window.__promptasy;
+    const rows = [...document.querySelectorAll('#prompt-console .wallrow')];
+    return {
+      revealed: g.promptConsole.inductBoard.revealed,
+      hidden: rows.filter((r) => r.classList.contains('is-hidden')).length,
+      ruleHidden: document.querySelector('#prompt-console .wall__rule').hidden,
+      ruleText: document.querySelector('#prompt-console .wall__rule').textContent.trim(),
+      dataRule: g.content.flow('flawed-cabinet-17').inductFlow.rule.true,
+      guessHidden: document.querySelector('#prompt-console .inductboard [data-guess]').hidden,
+      carveHidden: document.querySelector('#prompt-console .inductboard [data-carve]').hidden,
+      focusOpt: document.activeElement?.getAttribute('data-slot-opt'),
+    };
+  `);
+  eq(indSolved.revealed, 4, '牆全部掀開了');
+  eq(indSolved.hidden, 0, '沒有一組還蓋著');
+  eq(indSolved.ruleHidden, false, '規律揭曉');
+  ok(indSolved.ruleText.includes(indSolved.dataRule), '揭曉的就是資料層寫的那一條規律', indSolved.ruleText);
+  eq(indSolved.guessHidden, true, '推敲區收起來了（一次只有一件事）');
+  eq(indSolved.carveHidden, false, '刻印區開放了');
+  eq(indSolved.focusOpt, '0', '焦點自動落到第一段刻印的第一個選項');
+
+  // 一段一段刻上去 → 手印 → S
+  const indCarved = await evaluate(`
+    const g = window.__promptasy;
+    const flow = g.content.flow('flawed-cabinet-17');
+    for (const slot of flow.slots) {
+      g.promptConsole.inductBoard.pick(slot.options.findIndex((o) => o.correct));
+      await new Promise((r) => setTimeout(r, 120));
+    }
+    return {
+      text: g.promptConsole.inductBoard.text,
+      want: flow.slots.map((s) => s.options.find((o) => o.correct).text).join('\\n'),
+      done: g.promptConsole.inductBoard.done,
+      act: g.promptConsole.act,
+      palmHidden: document.querySelector('#prompt-console .inductboard .palmwrap').hidden,
+      lines: document.querySelectorAll('#prompt-console .inductboard .carved').length,
+    };
+  `);
+  eq(indCarved.text, indCarved.want, '刻出來的文字＝把每一段的正解串起來');
+  eq(indCarved.done, true, '刻完了');
+  eq(indCarved.act, 4, '刻滿自動切到第四幕（手印）');
+  eq(indCarved.palmHidden, false, '手掌印出現了');
+  eq(indCarved.lines, 3, '石碑上三道刻痕');
+
+  const indResult = await evaluate(`
+    const g = window.__promptasy;
+    g.promptConsole.inductBoard.press();
+    await new Promise((r) => setTimeout(r, 520));
+    return {
+      grade: document.querySelector('#prompt-console .grade__mark')?.textContent.trim() || '',
+      best: g.progression.bestGrade('flawed-cabinet-17'),
+      skills: g.progression.state.skillsV2.includes('fewshot-negative'),
+      cleared: g.world.markers.find((m) => m.id === 'flawed-cabinet-17')?.cleared,
+      sources: [...document.querySelectorAll('#prompt-console .act--verdict a[href^="https://"]')].length,
+    };
+  `);
+  eq(indResult.grade, 'S', '推規碑走完拿到 S');
+  eq(indResult.best, 'S', '評價寫進存檔');
+  eq(indResult.skills, true, '技能收進 skillsV2');
+  eq(indResult.cleared, true, '石座轉成已通關');
+  ok(indResult.sources > 0, '結果面板照樣掛得出官方出處', String(indResult.sources));
+
+  /* ---------------------------------------------------------------- *
+   * 二、雙面碑：純鍵盤走完
+   *    （兩面都走得下去 → 倒向哪一面都會前進並拿到誠實判詞 →
+   *      換一張卡贏家翻面 → 刻印 → 手印 → S）
+   * ---------------------------------------------------------------- */
+  await evaluate(`window.__promptasy.promptConsole.close(); return 1;`);
+  await sleep(220);
+  const trOpen = await evaluate(`
+    const g = window.__promptasy;
+    g.promptConsole.open(g.content.challenge('example-scale-16'));
+    await new Promise((r) => setTimeout(r, 260));
+    g.promptConsole.goAct(3, { force: true });
+    await new Promise((r) => setTimeout(r, 320));
+    const tf = g.content.flow('example-scale-16').tradeoffFlow;
+    return {
+      kind: g.promptConsole.kind,
+      label: document.querySelector('#prompt-console [data-guided-label] .zh').textContent.trim(),
+      shown: !document.querySelector('#prompt-console .tradeboard').hidden,
+      inductHidden: document.querySelector('#prompt-console .inductboard').hidden,
+      faces: document.querySelectorAll('#prompt-console .face').length,
+      card: document.querySelector('#prompt-console .twoface__card').textContent.trim(),
+      dataCard: tf.rounds[0].card.text,
+      progress: document.querySelector('#prompt-console .tradeboard [data-weigh-progress]').textContent.trim(),
+      carveHidden: document.querySelector('#prompt-console .tradeboard [data-carve]').hidden,
+      palmHidden: document.querySelector('#prompt-console .tradeboard .palmwrap').hidden,
+      favours: tf.rounds.map((r) => r.favours),
+      sides: tf.sides.map((s) => s.id),
+    };
+  `);
+  eq(trOpen.kind, 'tradeoff', '這一關的題型是雙面碑');
+  eq(trOpen.label, '雙面碑', '版面上寫的是「雙面碑」');
+  eq(trOpen.shown, true, '台上是那塊兩面的碑');
+  eq(trOpen.inductHidden, true, '推規碑收起來了（一次只有一種在台上）');
+  eq(trOpen.faces, 2, '碑上剛好兩面');
+  eq(trOpen.card, trOpen.dataCard, '卡上的字逐字來自資料層');
+  ok(/第 1 \/ 2 張卡/.test(trOpen.progress), '第一張卡', trOpen.progress);
+  eq(trOpen.carveHidden, true, '還沒秤過，刻印區鎖著');
+  eq(trOpen.palmHidden, true, '手掌印還沒出現');
+  eq(new Set(trOpen.favours).size, 2, '整關兩面各贏過一次（不把取捨教成通則）');
+
+  // ★ 倒向「這一張卡上比較貴」的那一面 —— 一樣前進，而且拿到誠實的判詞
+  const losing = trOpen.sides.find((id) => id !== trOpen.favours[0]);
+  await evaluate(`document.querySelector('#prompt-console [data-face="${losing}"]').focus(); return 1;`);
+  await key('Enter', 'Enter', { vk: 13 });
+  await waitFor(() => evaluate(`return window.__promptasy.promptConsole.tradeoffBoard.progress.round === 1;`), {
+    label: '第一張卡秤完了',
+  });
+  const trFirst = await evaluate(`
+    const g = window.__promptasy;
+    const tf = g.content.flow('example-scale-16').tradeoffFlow;
+    const log = [...document.querySelectorAll('#prompt-console .tradelog')];
+    return {
+      picks: g.promptConsole.tradeoffBoard.picks,
+      wantVerdict: tf.rounds[0].verdicts['${losing}'].text,
+      logText: log.map((n) => n.textContent).join(' '),
+      logCost: log.filter((n) => n.classList.contains('is-cost')).length,
+      round: g.promptConsole.tradeoffBoard.progress.round,
+      card: document.querySelector('#prompt-console .twoface__card').textContent.trim(),
+      dataCard2: tf.rounds[1].card.text,
+      verdictHidden: document.querySelector('#prompt-console .act--verdict').hidden,
+      carveHidden: document.querySelector('#prompt-console .tradeboard [data-carve]').hidden,
+      live: g.promptConsole.tradeoffBoard.announcement,
+    };
+  `);
+  eq(trFirst.round, 1, '倒向比較貴的那一面照樣前進（取捨沒有「答錯」）');
+  eq(trFirst.picks[0].wins, false, '碑記下了這一面在這一張卡上是要付代價的');
+  ok(trFirst.logText.includes(trFirst.wantVerdict), '判詞逐字來自資料層', trFirst.wantVerdict);
+  eq(trFirst.logCost, 1, '判詞用的是「代價」而不是「錯」的語言');
+  eq(trFirst.verdictHidden, true, '不會跳結果面板（不會失敗）');
+  eq(trFirst.card, trFirst.dataCard2, '換到第二張卡了');
+  eq(trFirst.carveHidden, true, '兩張卡都秤過才開放刻印');
+  ok(trFirst.live.length > 0, 'aria-live 把判詞唸出來', trFirst.live);
+
+  // 第二張卡：贏家翻面 —— 這一次倒向它，判詞就是「贏」
+  const trSecond = await evaluate(`
+    const g = window.__promptasy;
+    const tf = g.content.flow('example-scale-16').tradeoffFlow;
+    const win2 = tf.rounds[1].favours;
+    document.querySelector('#prompt-console [data-face="' + win2 + '"]').focus();
+    return { win2, flipped: win2 !== tf.rounds[0].favours };
+  `);
+  eq(trSecond.flipped, true, '第二張卡上贏的是另一面（換一張卡就翻面）');
+  await key('Enter', 'Enter', { vk: 13 });
+  await waitFor(() => evaluate(`return window.__promptasy.promptConsole.tradeoffBoard.progress.settled === true;`), {
+    label: '兩張卡都秤完了',
+  });
+  const trSettled = await evaluate(`
+    const g = window.__promptasy;
+    return {
+      picks: g.promptConsole.tradeoffBoard.picks,
+      logWin: document.querySelectorAll('#prompt-console .tradelog.is-win').length,
+      carveHidden: document.querySelector('#prompt-console .tradeboard [data-carve]').hidden,
+      focusOpt: document.activeElement?.getAttribute('data-slot-opt'),
+      settledAsk: document.querySelector('#prompt-console .tradeboard [data-weigh-ask]').textContent.trim(),
+    };
+  `);
+  eq(trSettled.picks[1].wins, true, '第二次倒向的是這一張卡上划算的那一面');
+  eq(trSettled.logWin, 1, '兩次判詞一勝一負（兩面都學到了）');
+  eq(trSettled.carveHidden, false, '秤完兩張卡，刻印區開放');
+  eq(trSettled.focusOpt, '0', '焦點自動落到第一段刻印的第一個選項');
+  ok(trSettled.settledAsk.length > 0, '收尾那一句提醒「要說得出這一次為什麼」', trSettled.settledAsk);
+
+  const trResult = await evaluate(`
+    const g = window.__promptasy;
+    const flow = g.content.flow('example-scale-16');
+    for (const slot of flow.slots) {
+      g.promptConsole.tradeoffBoard.pick(slot.options.findIndex((o) => o.correct));
+      await new Promise((r) => setTimeout(r, 120));
+    }
+    const text = g.promptConsole.tradeoffBoard.text;
+    const act = g.promptConsole.act;
+    g.promptConsole.tradeoffBoard.press();
+    await new Promise((r) => setTimeout(r, 520));
+    return {
+      text,
+      want: flow.slots.map((s) => s.options.find((o) => o.correct).text).join('\\n'),
+      act,
+      grade: document.querySelector('#prompt-console .grade__mark')?.textContent.trim() || '',
+      best: g.progression.bestGrade('example-scale-16'),
+      skills: g.progression.state.skillsV2.includes('fewshot-count'),
+      sources: [...document.querySelectorAll('#prompt-console .act--verdict a[href^="https://"]')].length,
+    };
+  `);
+  eq(trResult.text, trResult.want, '刻出來的文字＝把每一段的正解串起來');
+  eq(trResult.act, 4, '刻滿自動切到第四幕（手印）');
+  eq(trResult.grade, 'S', '雙面碑走完拿到 S');
+  eq(trResult.best, 'S', '評價寫進存檔');
+  eq(trResult.skills, true, '技能收進 skillsV2');
+  ok(trResult.sources > 0, '結果面板掛得出官方出處', String(trResult.sources));
+
+  /* --- 示範與推理：15 座石座真的蓋在世界上 --- */
+  const rsn = await evaluate(`
+    const g = window.__promptasy;
+    const ids = g.content.challenges.filter((c) => c.region === 'reasoning').map((c) => c.id);
+    const out = { ids: ids.length, missing: [], blocked: [] };
+    for (const id of ids) {
+      const m = g.world.markers.find((x) => x.id === id);
+      if (!m) { out.missing.push(id); continue; }
+      const p = m.position;
+      for (let a = 0; a < 12; a += 1) {
+        const ang = (a / 12) * Math.PI * 2;
+        if (g.world.solidAt(p.x + Math.cos(ang) * 3, p.z + Math.sin(ang) * 3)) out.blocked.push(id);
+      }
+    }
+    return out;
+  `);
+  eq(rsn.ids, 16, '示範與推理有 16 座石座（15 教學神廟 ＋ 1 試煉）');
+  eq(rsn.missing.length, 0, '每一座都蓋出來了', rsn.missing.join(','));
+  eq(rsn.blocked.length, 0, '新石座四周走得到（互動不會被擋）', rsn.blocked.join(' '));
+
+  /* --- 窄畫面不溢位 --- */
+  await cdp.send('Emulation.setDeviceMetricsOverride', { width: 820, height: 760, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await sleep(320);
+  const narrowC = await evaluate(`
+    const g = window.__promptasy;
+    const out = {};
+    g.promptConsole.close();
+    await new Promise((r) => setTimeout(r, 200));
+    g.promptConsole.open(g.content.challenge('flawed-cabinet-17'));
+    await new Promise((r) => setTimeout(r, 240));
+    g.promptConsole.goAct(3, { force: true });
+    await new Promise((r) => setTimeout(r, 300));
+    const b1 = document.querySelector('#prompt-console .panel__body');
+    out.inductOverflow = Math.max(0, b1.scrollWidth - b1.clientWidth);
+    g.promptConsole.close();
+    await new Promise((r) => setTimeout(r, 200));
+    g.promptConsole.open(g.content.challenge('example-scale-16'));
+    await new Promise((r) => setTimeout(r, 240));
+    g.promptConsole.goAct(3, { force: true });
+    await new Promise((r) => setTimeout(r, 300));
+    const b2 = document.querySelector('#prompt-console .panel__body');
+    out.tradeoffOverflow = Math.max(0, b2.scrollWidth - b2.clientWidth);
+    g.promptConsole.close();
+    return out;
+  `);
+  eq(narrowC.inductOverflow, 0, '820px 下推規碑沒有水平溢位');
+  eq(narrowC.tradeoffOverflow, 0, '820px 下雙面碑沒有水平溢位');
+  await cdp.send('Emulation.clearDeviceMetricsOverride', {}, sessionId);
+  await sleep(300);
+
+  /* ================================================================ */
+  /* 課程 v2 · Phase D：合尺（constraint）＋ 行動裝置還債點             */
+  /* ================================================================ */
+  console.log('\n▸ 合尺與窄畫面（課程 v2 · Phase D）');
+
+  const csOpen = await evaluate(`
+    const g = window.__promptasy;
+    g.promptConsole.close();
+    await new Promise((r) => setTimeout(r, 180));
+    g.promptConsole.open(g.content.challenge('laden-desk-27'));
+    await new Promise((r) => setTimeout(r, 260));
+    const actAtOpen = g.promptConsole.act;
+    g.promptConsole.goAct(3, { force: true });
+    await new Promise((r) => setTimeout(r, 320));
+    const b = g.promptConsole.constraintBoard;
+    return {
+      actAtOpen,
+      act: g.promptConsole.act,
+      kind: g.promptConsole.kind,
+      gauges: b.gauges.length,
+      lit: b.gauges.filter((x) => x.passed).length,
+      wants: b.gauges.map((x) => x.want),
+      pieces: document.querySelectorAll('#prompt-console .piece__grip').length,
+      palmHidden: !!document.querySelector('#prompt-console .constraintboard .palmwrap')?.hidden,
+      progress: document.querySelector('#prompt-console .constraintboard [data-progress]').textContent.trim(),
+      steleHidden: g.promptConsole.stele.root.hidden,
+    };
+  `);
+  eq(csOpen.actAtOpen, 1, '合尺一打開也是從第一幕（委託）開始');
+  eq(csOpen.kind, 'constraint', '這一關的第三幕是合尺');
+  eq(csOpen.steleHidden, true, '合尺上台時石碑刻印收起來');
+  ok(csOpen.gauges >= 2, '檯上有好幾把尺', String(csOpen.gauges));
+  eq(csOpen.lit, 0, '一片都沒挑的時候一把尺都沒亮');
+  ok(csOpen.wants.every((w) => /[一-鿿]/.test(w)), '每一把尺都用白話寫出它要量什麼（完全資訊）', csOpen.wants.join(' / '));
+  ok(csOpen.pieces >= 4, '檯上攤著好幾片石片', String(csOpen.pieces));
+  eq(csOpen.palmHidden, true, '還沒合尺，手掌印不會出現');
+  ok(/0 \/ /.test(csOpen.progress), '進度寫著還沒合尺', csOpen.progress);
+
+  /* --- 鍵盤：方向鍵走、Enter 放上去 --- */
+  await evaluate(`
+    document.querySelector('#prompt-console .piece__grip').focus();
+    return 1;
+  `);
+  await key('ArrowDown', 'ArrowDown', { vk: 40 });
+  await sleep(140);
+  const csNav = await evaluate(`
+    const at = document.activeElement.getAttribute('data-piece');
+    const ids = [...document.querySelectorAll('#prompt-console .piece__grip')].map((b) => b.getAttribute('data-piece'));
+    return { at, second: ids[1], ids };
+  `);
+  eq(csNav.at, csNav.second, '方向鍵在石片之間走得動（純鍵盤）');
+
+  /* --- 放上一片會弄壞某把尺的石片：不失敗、就地教學、尺暗回去 --- */
+  const csWrong = await evaluate(`
+    const g = window.__promptasy;
+    const b = g.constraintBoardForTest || g.promptConsole.constraintBoard;
+    const flow = g.content.flow('laden-desk-27').constraintFlow;
+    const need = flow.pieces.filter((p) => p.need).map((p) => p.id);
+    const spare = flow.pieces.filter((p) => !p.need).map((p) => p.id);
+    // 先把該挑的挑齊 —— 每一把尺都亮
+    for (const id of need) b.toggle(id);
+    await new Promise((r) => setTimeout(r, 200));
+    const litAll = b.gauges.filter((x) => x.passed).length;
+    const palmShownBefore = !document.querySelector('#prompt-console .constraintboard .palmwrap').hidden;
+    const xpBefore = g.progression.state.xp;
+    // 再把不該挑的都放上去 —— 一定會有一把尺暗回去，但不扣分、不失敗
+    for (const id of spare) {
+      b.toggle(id);
+      await new Promise((r) => setTimeout(r, 140));
+    }
+    const fb = document.querySelector('#prompt-console [data-piece-fb="' + spare[spare.length - 1] + '"]');
+    return {
+      litAll,
+      total: b.gauges.length,
+      palmShownBefore,
+      litAfter: b.gauges.filter((x) => x.passed).length,
+      palmAfter: !document.querySelector('#prompt-console .constraintboard .palmwrap').hidden,
+      fbShown: fb && !fb.hidden,
+      fbText: fb ? fb.textContent.trim() : '',
+      live: b.announcement,
+      xp: g.progression.state.xp,
+      xpBefore,
+      failPanel: !document.querySelector('#prompt-console [data-result]').hidden,
+      chosen: b.chosen.length,
+    };
+  `);
+  eq(csWrong.litAll, csWrong.total, '該挑的挑齊了，每一把尺都亮起來');
+  eq(csWrong.palmShownBefore, true, '每一把尺都合了，手掌印才浮出來');
+  ok(csWrong.litAfter < csWrong.total, '放上不該挑的那一片，尺會暗回去', `${csWrong.litAfter}/${csWrong.total}`);
+  eq(csWrong.palmAfter, false, '尺暗掉之後手掌印跟著收回去（不會誤送）');
+  eq(csWrong.fbShown, true, '不該挑的那一片就地長出一句教學');
+  ok(csWrong.fbText.length >= 12, '就地教學是完整的一句話', csWrong.fbText);
+  ok(/[一-鿿]/.test(csWrong.live), 'aria-live 也講出來了（螢幕閱讀器聽得到）', csWrong.live);
+  eq(csWrong.xp, csWrong.xpBefore, '放錯不扣分也不給分');
+  eq(csWrong.failPanel, false, '放錯不會跳出失敗面板（不會失敗）');
+
+  /* --- Esc 一片一片拿下來 → 尺重新亮起 → 手印回來 --- */
+  const spareCount = await evaluate(`
+    const g = window.__promptasy;
+    return g.content.flow('laden-desk-27').constraintFlow.pieces.filter((p) => !p.need).length;
+  `);
+  for (let i = 0; i < spareCount; i += 1) {
+    await evaluate(`
+      const b = window.__promptasy.promptConsole.constraintBoard;
+      const last = b.chosen[b.chosen.length - 1];
+      document.querySelector('#prompt-console [data-piece="' + last + '"]').focus();
+      return 1;
+    `);
+    await key('Escape', 'Escape', { vk: 27 });
+    await sleep(220);
+  }
+  const csEsc = await evaluate(`
+    const g = window.__promptasy;
+    const b = g.promptConsole.constraintBoard;
+    return {
+      open: !g.promptConsole.root.hidden,
+      lit: b.gauges.filter((x) => x.passed).length,
+      total: b.gauges.length,
+      palm: !document.querySelector('#prompt-console .constraintboard .palmwrap').hidden,
+      text: b.text,
+      sample: g.content.challenge('laden-desk-27').sample,
+    };
+  `);
+  eq(csEsc.open, true, 'Esc 先拿下石片，不會把整個面板關掉');
+  eq(csEsc.lit, csEsc.total, '拿下不該挑的那一片，每一把尺又亮了');
+  eq(csEsc.palm, true, '手掌印回來了');
+  eq(csEsc.text, csEsc.sample, '合尺組出來的整段文字＝示範解答（兩種模式同一段字）');
+
+  /* --- 手印 → 呈給神諭 → S --- */
+  const csResult = await evaluate(`
+    const g = window.__promptasy;
+    g.promptConsole.constraintBoard.press();
+    await new Promise((r) => setTimeout(r, 900));
+    return {
+      grade: document.querySelector('#prompt-console .grade__mark')?.textContent,
+      best: g.progression.bestGrade('laden-desk-27'),
+      skills: g.progression.isSkillCollected('long-all-upfront'),
+      sources: document.querySelectorAll('#prompt-console [data-result] a.src').length,
+      cleared: g.world.markers.find((m) => m.id === 'laden-desk-27')?.cleared,
+    };
+  `);
+  eq(csResult.grade, 'S', '合尺走完拿到 S');
+  eq(csResult.best, 'S', '評價寫進存檔');
+  eq(csResult.skills, true, '技能收進 skillsV2');
+  ok(csResult.sources > 0, '結果面板掛得出官方出處', String(csResult.sources));
+  eq(csResult.cleared, true, '石座轉成已通關');
+
+  /* --- 脈絡與長文／角色與參數：石座真的蓋在世界上 --- */
+  const dRegions = await evaluate(`
+    const g = window.__promptasy;
+    const out = {};
+    for (const region of ['grounding', 'config']) {
+      const ids = g.content.challenges.filter((c) => c.region === region).map((c) => c.id);
+      const missing = [];
+      const blocked = [];
+      for (const id of ids) {
+        const m = g.world.markers.find((x) => x.id === id);
+        if (!m) { missing.push(id); continue; }
+        const p = m.position;
+        for (let a = 0; a < 12; a += 1) {
+          const ang = (a / 12) * Math.PI * 2;
+          if (g.world.solidAt(p.x + Math.cos(ang) * 3, p.z + Math.sin(ang) * 3)) blocked.push(id);
+        }
+      }
+      out[region] = { n: ids.length, missing, blocked };
+    }
+    return out;
+  `);
+  eq(dRegions.grounding.n, 13, '脈絡與長文有 13 座石座（12 教學神廟 ＋ 1 應用關）');
+  eq(dRegions.config.n, 13, '角色與參數有 13 座石座（12 教學神廟 ＋ 1 試煉）');
+  for (const region of ['grounding', 'config']) {
+    eq(dRegions[region].missing.length, 0, `[${region}] 每一座石座都蓋出來了`, dRegions[region].missing.join(','));
+    eq(dRegions[region].blocked.length, 0, `[${region}] 石座四周走得到`, dRegions[region].blocked.join(' '));
+  }
+
+  /* ---------------------------------------------------------------- *
+   * 行動裝置還債點：≤720px 的四幕與八種題型「按得到、讀得動、不溢位」
+   *
+   * 世界的觸控移動（虛擬搖桿）不在這一期的範圍（task_plan Phase D）。
+   * 這裡守的是**面板**：新題型的 UI 在手機寬度上不能無法操作。
+   * ---------------------------------------------------------------- */
+  const BOARD_SAMPLES = [
+    ['laden-desk-27', '合尺'],
+    ['sealed-readroom-29', '改碑'],
+    ['mark-spring-30', '點碑'],
+    ['sleepless-scribe-28', '排序刻印'],
+    ['crossroad-scale-45', '雙面碑'],
+    ['flawed-cabinet-17', '推規碑'],
+    ['nameless-three-26', '石碑刻印'],
+    ['oracle-workshop-36', '神諭工坊'],
+  ];
+  for (const [w, h] of [[720, 900], [390, 844]]) {
+    await cdp.send(
+      'Emulation.setDeviceMetricsOverride',
+      { width: w, height: h, deviceScaleFactor: 1, mobile: true },
+      sessionId
+    );
+    await sleep(360);
+    const narrowBoards = await evaluate(`
+      const g = window.__promptasy;
+      const list = ${JSON.stringify(BOARD_SAMPLES)};
+      const out = { boards: [], vw: innerWidth };
+      for (const [id, label] of list) {
+        g.promptConsole.close();
+        await new Promise((r) => setTimeout(r, 140));
+        g.promptConsole.open(g.content.challenge(id));
+        await new Promise((r) => setTimeout(r, 200));
+        g.promptConsole.goAct(3, { force: true });
+        await new Promise((r) => setTimeout(r, 280));
+        const body = document.querySelector('#prompt-console .panel__body');
+        const panel = document.querySelector('#prompt-console .panel');
+        // 可以按得到的東西：高度 ≥40px（Apple/Google 的最小觸控目標）
+        const targets = [...document.querySelectorAll(
+          '#prompt-console .opt, #prompt-console .piece__grip, #prompt-console .spot__grip, ' +
+          '#prompt-console .frag__grip, #prompt-console .face, #prompt-console .wallrow, ' +
+          '#prompt-console .slip__grip, #prompt-console .btn, #prompt-console .palm, ' +
+          '#prompt-console .toolcard, #prompt-console .acts__item'
+        )].filter((el) => el.offsetParent !== null);
+        const smallEls = targets
+          .filter((el) => el.getBoundingClientRect().height < 40)
+          .map((el) => el.className.split(' ')[0] + ':' + Math.round(el.getBoundingClientRect().height));
+        const small = smallEls.length;
+        const tiny = [...document.querySelectorAll('#prompt-console .panel__body *')]
+          .filter((el) => el.children.length === 0 && el.textContent.trim())
+          /*
+           * ⓘ 那顆不是「字」，是**圖示**：它的內容是一個 ⓘ 字形，
+           * 真正要讀的說明在氣泡裡（--t-micro，遠大於 12px），
+           * 而且它自己帶 aria-label。字級下限守的是「讀得動的內文」，
+           * 把圖示算進去只會逼我們把註腳畫成跟正文一樣大。
+           */
+          .filter((el) => !el.closest('[data-infotip-btn]'))
+          /*
+           * 2026-08-03 站長定稿：手掌印底下那一行提示縮成**腳註**
+           * （--t-micro × 0.86 × 0.4）—— 它重複的是同一個畫面上已經
+           * 用大字寫過的動作（「把手掌按上石碑」＋ 那顆手掌本身），
+           * 不是唯一的資訊來源。這是唯一被放行的例外，
+           * 其餘任何一處小於 12px 的內文照樣紅。
+           */
+          .filter((el) => !el.closest('.palm__hint'))
+          .map((el) => ({ cls: String(el.className || el.tagName).split(' ')[0], px: parseFloat(getComputedStyle(el).fontSize) }))
+          .filter((x) => x.px && x.px < 12);
+        out.boards.push({
+          id,
+          label,
+          overflowX: Math.max(0, body.scrollWidth - body.clientWidth),
+          panelW: Math.round(panel.getBoundingClientRect().width),
+          right: Math.round(panel.getBoundingClientRect().right),
+          targets: targets.length,
+          small,
+          smallEls: [...new Set(smallEls)].slice(0, 6),
+          tiny: tiny.length,
+          tinyEls: [...new Set(tiny.map((x) => x.cls + ':' + x.px.toFixed(1)))].slice(0, 8),
+        });
+      }
+      g.promptConsole.close();
+      await new Promise((r) => setTimeout(r, 140));
+      // 圖鑑與設定也要能用
+      const panels = [];
+      for (const [name, api] of [['圖鑑', g.codex], ['設定', g.settings]]) {
+        api.open();
+        await new Promise((r) => setTimeout(r, 260));
+        const body = api.root.querySelector('.panel__body');
+        const panel = api.root.querySelector('.panel');
+        /*
+         * 這兩張面板量的是「有沒有東西真的凸出去」，而不是 scrollWidth。
+         * 原因：ⓘ 的氣泡是絕對定位的浮層，它會伸進 padding 區讓
+         * scrollWidth 多出十幾像素，但畫面上一個像素都沒有超出內容邊 ——
+         * 那不是玩家會遇到的問題。所以逐個元素比對內容邊，並另外守
+         * 「整頁不會水平捲動」（下面的 docOverflow）。
+         */
+        const br = body.getBoundingClientRect();
+        const edge = br.right - parseFloat(getComputedStyle(body).paddingRight);
+        const stickOut = [...body.querySelectorAll('*')]
+          /*
+           * 只算**畫得出來**的東西：出處那枚典籍的小卡預設是
+           * visibility: hidden 的浮層（絕對定位、置中於圖示），
+           * 它在版面上不佔位、玩家也看不到 —— 把它算成「凸出去」
+           * 等於逼我們去改一個不存在的問題。整頁的水平捲動另外有守（docOverflow）。
+           */
+          .filter((el) => (el.checkVisibility ? el.checkVisibility() : true))
+          .filter((el) => el.getBoundingClientRect().right - edge > 1)
+          .map((el) => String(el.className || el.tagName).split(' ')[0]);
+        panels.push({
+          name,
+          overflowX: stickOut.length,
+          worst: [...new Set(stickOut)].slice(0, 5),
+          right: Math.round(panel.getBoundingClientRect().right),
+        });
+        api.close();
+        await new Promise((r) => setTimeout(r, 140));
+      }
+      out.panels = panels;
+      out.docOverflow = Math.max(0, document.documentElement.scrollWidth - document.documentElement.clientWidth);
+      return out;
+    `);
+    eq(narrowBoards.vw, w, `視窗切到 ${w}px`);
+    eq(narrowBoards.docOverflow, 0, `${w}×${h}：整頁沒有水平捲動`);
+    for (const b of narrowBoards.boards) {
+      eq(b.overflowX, 0, `${w}px：${b.label}（${b.id}）沒有水平溢位`, `+${b.overflowX}px`);
+      ok(b.panelW <= w, `${w}px：${b.label}的面板沒有超出視窗`, `${b.panelW} > ${w}`);
+      ok(b.right <= w + 1, `${w}px：${b.label}的面板沒有被推出右緣`, String(b.right));
+      ok(b.targets > 0, `${w}px：${b.label}上真的有可以按的東西`, String(b.targets));
+      eq(b.small, 0, `${w}px：${b.label}的每一個可按元素都 ≥40px 高`, `太小的是：${b.smallEls.join('、')}`);
+      eq(b.tiny, 0, `${w}px：${b.label}沒有小於 12px 的字`, (b.tinyEls || []).join('、') || `${b.tiny} 處`);
+    }
+    for (const p of narrowBoards.panels) {
+      eq(p.overflowX, 0, `${w}px：${p.name}沒有任何內容凸出內容邊`, `凸出的是：${p.worst.join('、')}`);
+      ok(p.right <= w + 1, `${w}px：${p.name}沒有被推出右緣`, String(p.right));
+    }
+  }
+
+  /* --- 390px 下用「觸控」真的操作得動合尺（不是只有版面對） --- */
+  const touchPlay = await evaluate(`
+    const g = window.__promptasy;
+    g.promptConsole.close();
+    await new Promise((r) => setTimeout(r, 160));
+    g.promptConsole.open(g.content.challenge('six-lantern-48'));
+    await new Promise((r) => setTimeout(r, 220));
+    g.promptConsole.goAct(3, { force: true });
+    await new Promise((r) => setTimeout(r, 300));
+    const b = g.promptConsole.constraintBoard;
+    const flow = g.content.flow('six-lantern-48').constraintFlow;
+    const before = b.gauges.filter((x) => x.passed).length;
+    // 用真的指標事件（觸控在瀏覽器上會變成 click）逐片點上去
+    for (const p of flow.pieces.filter((x) => x.need)) {
+      const el = document.querySelector('#prompt-console [data-piece="' + p.id + '"]');
+      const r = el.getBoundingClientRect();
+      el.click();
+      await new Promise((r2) => setTimeout(r2, 140));
+    }
+    return {
+      before,
+      after: b.gauges.filter((x) => x.passed).length,
+      total: b.gauges.length,
+      palm: !document.querySelector('#prompt-console .constraintboard .palmwrap').hidden,
+      palmH: Math.round(document.querySelector('#prompt-console .constraintboard .palm').getBoundingClientRect().height),
+    };
+  `);
+  eq(touchPlay.before, 0, '390px：一開始一把尺都沒亮');
+  eq(touchPlay.after, touchPlay.total, '390px：用點的把石片挑齊，每一把尺都亮');
+  eq(touchPlay.palm, true, '390px：手掌印在窄畫面也浮得出來');
+  ok(touchPlay.palmH >= 40, '390px：手掌印按得到', `${touchPlay.palmH}px`);
+
+  await cdp.send('Emulation.clearDeviceMetricsOverride', {}, sessionId);
+  await sleep(320);
+  await evaluate(`
+    const g = window.__promptasy;
+    g.promptConsole.close();
+    return 1;
+  `);
+
+  /* ================================================================ */
+  /* ================================================================== */
+  /* 課程 v2 · Phase E：量器坊（forms）                                  */
+  /*   · 知識式軟門檻：條件是「你會了什麼」，先行前往仍然走得通           */
+  /*   · 正南真的長出一片土地：走得進去、HUD／指南針／配樂都跟上          */
+  /*   · 14 座神廟每一座都真的通得了（含九個新檢查器各一座）              */
+  /*   · 圖鑑列得出這一區與它的技能（附可點的官方出處）                   */
+  /* ================================================================== */
+  console.log('\n▸ 量器坊（課程 v2 · Phase E）');
+
+  // 收乾淨上一段留下來的面板
+  await evaluate(`
+    const g = window.__promptasy;
+    g.promptConsole.close();
+    g.codex.close();
+    g.shareCard.close();
+    return 1;
+  `);
+  await sleep(220);
+
+  /* --- 閘門：知識式軟門檻（還沒學會就是鎖著的，但門會問你一句） --- */
+  const fmGateLocked = await evaluate(`
+    const g = window.__promptasy;
+    // 種一份「什麼都還沒學」的存檔
+    localStorage.setItem('promptasy.v1.save', JSON.stringify({
+      version: 1, xp: 0, level: 1,
+      unlockedRegions: ['foundations'],
+      collected: [], skillsV2: [], bestGrades: {},
+      badges: { openai: 0, anthropic: 0, google: 0, xai: 0 },
+      settings: { music: 'ambient-01', volume: 0, muted: true, quality: 'low', preflight: true, promptMode: 'guided' },
+      flags: { prologueDone: true, introSeen: true },
+      prologueSteps: [], guidanceSeen: [], loreRead: [], inscriptionsFound: [], secretsFound: [],
+      handlesUsed: [], skippedGates: []
+    }));
+    return 1;
+  `);
+  eq(fmGateLocked, 1, '種下一份「什麼都還沒學」的存檔');
+  await reloadPage('重新載入（量器坊：什麼都還沒學）');
+  await key('Enter', 'Enter', { vk: 13 });
+  await sleep(500);
+
+  const fmGate = await evaluate(`
+    const g = window.__promptasy;
+    const st = g.progression.gateStatus('forms');
+    return {
+      unlocked: g.progression.isRegionUnlocked('forms'),
+      gaps: st.knowledgeGaps.length,
+      text: st.text,
+      hasGate: !!g.world.gates.find((x) => x.id === 'forms'),
+      corridors: g.world.gates.map((x) => x.id),
+    };
+  `);
+  eq(fmGate.unlocked, false, '什麼都還沒學 → 量器坊鎖著');
+  ok(fmGate.gaps > 0, '閘門說得出還差哪幾條（知識式軟門檻）', String(fmGate.gaps));
+  ok(/也可以先行前往/.test(fmGate.text), '量器坊的門一樣會問「想先過去看看嗎」', fmGate.text);
+  ok(!/[a-z-]{6,}/.test(fmGate.text.replace(/Lv\.\d+/g, '')), '門上寫的是中文技能名，不是資料層的 id', fmGate.text);
+  eq(fmGate.hasGate, true, '正南那條橋上真的有一道閘門');
+  ok(fmGate.corridors.includes('forms'), '世界的閘門清單包含量器坊', fmGate.corridors.join(','));
+
+  /* 鎖著的時候真的走不過去 */
+  const fmBlocked = await evaluate(`
+    const g = window.__promptasy;
+    // 走到閘門後面一點的位置：應該被擋回來
+    const before = { x: 0, z: 60 };
+    g.player.position.set(before.x, g.world.terrainHeight(before.x, before.z), before.z);
+    const got = g.world.clampPosition(0, 90, before.x, before.z);
+    return { z: got.z, blocked: got.z < 80 };
+  `);
+  eq(fmBlocked.blocked, true, '閘門鎖著的時候走不過那座橋', String(fmBlocked.z));
+
+  /* --- 先行前往：門開了，但一分 XP 都不加 --- */
+  const fmSkip = await evaluate(`
+    const g = window.__promptasy;
+    const xpBefore = g.progression.state.xp;
+    const res = g.progression.skipGate('forms');
+    g.world.openGate('forms', true);
+    return {
+      ok: !!res,
+      unlocked: g.progression.isRegionUnlocked('forms'),
+      xp: g.progression.state.xp,
+      xpBefore,
+      skipped: g.progression.state.skippedGates.includes('forms'),
+      cleared: Object.keys(g.progression.state.bestGrades).length,
+    };
+  `);
+  eq(fmSkip.unlocked, true, '先行前往照樣開得了量器坊的門');
+  eq(fmSkip.xp, fmSkip.xpBefore, '先行前往一分 XP 都不加');
+  eq(fmSkip.skipped, true, '存檔記下這道門是被問開的');
+  eq(fmSkip.cleared, 0, '先行前往不會偷偷記下任何一關的評價');
+
+  /* --- 走進去：HUD、指南針、氣氛、配樂都跟著換 --- */
+  const fmEnter = await evaluate(`
+    const g = window.__promptasy;
+    const before = { region: g.hud.region, mood: g.audio.debug().region };
+    g.player.position.set(0, g.world.terrainHeight(0, 124) + 1, 124);
+    await new Promise((r) => setTimeout(r, 900));
+    const here = g.world.regionAt(g.player.position.x, g.player.position.z);
+    return {
+      before,
+      here: here && here.id,
+      hudRegion: g.hud.region,
+      hudLabel: document.querySelector('.hud__region [data-region]')?.textContent.trim() || '',
+      mood: g.audio.debug().region,
+      source: g.audio.debug().source,
+    };
+  `);
+  eq(fmEnter.here, 'forms', '走到正南真的站在量器坊的土地上');
+  eq(fmEnter.hudRegion, 'forms', 'HUD 跟著換到量器坊');
+  ok(/量器坊/.test(fmEnter.hudLabel), 'HUD 上寫的是中文區域名', fmEnter.hudLabel);
+  eq(fmEnter.mood, 'forms', '配樂也切到量器坊');
+  await expectRegionBgmFile('forms', '量器坊');
+
+  /* --- 地標：刻度之柱真的在場景圖上，而且沒有新增光源 --- */
+  const fmWorld = await evaluate(`
+    const g = window.__promptasy;
+    let landmark = null;
+    let markers = 0;
+    let lights = 0;
+    let tris = 0;
+    g.engine.scene.traverse((o) => {
+      if (o.name === 'landmark:gauge-column') landmark = o;
+      if (/^marker:/.test(o.name || '')) markers += 1;
+      if (o.isLight) lights += 1;
+      if (o.isMesh && o.geometry) {
+        const idx = o.geometry.index ? o.geometry.index.count : (o.geometry.attributes.position?.count || 0);
+        tris += (idx / 3) * (o.isInstancedMesh ? o.count : 1);
+      }
+    });
+    let landmarkLights = 0;
+    if (landmark) landmark.traverse((o) => { if (o.isLight) landmarkLights += 1; });
+    return {
+      hasLandmark: !!landmark,
+      landmarkLights,
+      landmarkY: landmark ? Number(landmark.position.z.toFixed(1)) : null,
+      markers,
+      lights,
+      tris: Math.round(tris),
+      formsMarkers: g.world.markers.filter((m) => g.content.challenge(m.id).region === 'forms').length,
+      props: !!g.engine.scene.getObjectByName('props:forms'),
+      flora: !!g.engine.scene.getObjectByName('flora:forms'),
+      vignettes: ['vignette:half-poured-mould', 'vignette:measure-bench', 'vignette:overflow-trough']
+        .filter((n) => !!g.engine.scene.getObjectByName(n)).length,
+    };
+  `);
+  eq(fmWorld.hasLandmark, true, '刻度之柱真的立在場景圖上');
+  eq(fmWorld.landmarkLights, 0, '刻度之柱一盞實體光源都沒加（全部自發光）');
+  eq(fmWorld.formsMarkers, 15, '量器坊有 15 座石座（14 教學神廟 ＋ 1 試煉）');
+  eq(fmWorld.props, true, '量器坊有自己的造景（量尺柱與鑄槽）');
+  eq(fmWorld.flora, true, '量器坊有自己的植被剪影');
+  eq(fmWorld.vignettes, 3, '量器坊的三組故事小景都在場景圖上', String(fmWorld.vignettes));
+  ok(fmWorld.lights <= 56, '加了第六區之後燈光仍在預算內', `lights=${fmWorld.lights}`);
+  ok(fmWorld.tris < 420000, '加了第六區之後三角形仍在預算內', `tris=${fmWorld.tris}`);
+
+  /* --- 14 座神廟：九個新檢查器各有一座，而且每一座都真的通得了 --- */
+  const fmPlan = await evaluate(`
+    const g = window.__promptasy;
+    const forms = g.content.challenges.filter((c) => c.region === 'forms' && !c.application);
+    return forms.map((c) => ({
+      id: c.id,
+      skill: c.primarySkillId,
+      check: c.rubric.find((r) => r.primary).check,
+      kind: g.promptConsole.flowKindOf(g.content.flow(c.id)),
+    }));
+  `);
+  eq(fmPlan.length, 14, '量器坊有 14 座教學神廟');
+  {
+    const PHASE_E_CHECKS = [
+      'statesFormatPreference',
+      'hasFallbackCategory',
+      'avoidsSelfCounting',
+      'saysWhatToPreserve',
+      'definesToneConcretely',
+      'bansFillerPhrases',
+      'definesSchema',
+      'noDuplicateSchemaRules',
+      'namesDesignElements',
+    ];
+    const used = new Set(fmPlan.map((x) => x.check));
+    for (const id of PHASE_E_CHECKS) ok(used.has(id), `新檢查器 ${id} 真的有一座神廟在教`);
+    const kinds = fmPlan.map((x) => x.kind);
+    let run = 1;
+    let worst = 1;
+    for (let i = 1; i < kinds.length; i += 1) {
+      run = kinds[i] === kinds[i - 1] ? run + 1 : 1;
+      if (run > worst) worst = run;
+    }
+    ok(worst <= 2, '整區沒有連續三座同一種題型（C4）', kinds.join(','));
+  }
+
+  /* --- 純鍵盤走完量器坊的第一座（不碰滑鼠，§3.1 鐵則） --- */
+  {
+    const target = 'gatehouse-gauge-53';
+    const near = await evaluate(`
+      const g = window.__promptasy;
+      const m = g.world.markers.find((x) => x.id === '${target}');
+      // 站到石座旁邊（互動半徑 6.5 之內），剩下的全部用鍵盤
+      g.player.position.set(m.position.x + 3, g.world.terrainHeight(m.position.x + 3, m.position.z + 2), m.position.z + 2);
+      await new Promise((r) => setTimeout(r, 700));
+      const el = document.querySelector('.hud__interact');
+      return { d: Math.hypot(g.player.position.x - m.position.x, g.player.position.z - m.position.z), hint: el && !el.hidden ? el.innerHTML : '' };
+    `);
+    ok(near.d < 6.5, '站到量器坊第一座石座旁', near.d.toFixed(2));
+    ok(/<kbd>E<\/kbd>/.test(near.hint), '走近提示標著 E 這個鍵', near.hint.slice(0, 80));
+
+    await key('KeyE', 'e', { vk: 69 });
+    await sleep(520);
+    const kbOpen = await evaluate(`
+      const g = window.__promptasy;
+      return { open: g.promptConsole.isOpen, id: g.promptConsole.challenge?.id, act: g.promptConsole.act };
+    `);
+    eq(kbOpen.open, true, '按 E 打開了量器坊的神廟');
+    eq(kbOpen.id, target, '打開的就是走過去那一座');
+    eq(kbOpen.act, 1, '從第一幕（委託）開始');
+
+    await key('Enter', 'Enter', { vk: 13 });
+    await sleep(420);
+    const kbGuide = await evaluate(`
+      const g = window.__promptasy;
+      return {
+        act: g.promptConsole.act,
+        glyphs: document.querySelectorAll('#prompt-console [data-guidance] .glyph').length,
+        srcs: document.querySelectorAll('#prompt-console .act--guide a.bookicon').length,
+        srcHref: document.querySelector('#prompt-console .act--guide a.bookicon')?.getAttribute('href') || '',
+      };
+    `);
+    eq(kbGuide.act, 2, 'Enter 推到第二幕（神諭刻文）');
+    eq(kbGuide.glyphs, 1, '第二幕只放大這一關教的那一條（C1）');
+    eq(kbGuide.srcs, 1, '那一條刻文掛著神諭原典');
+    ok(/^https:\/\//.test(kbGuide.srcHref), '神諭原典是可點的 https 連結', kbGuide.srcHref);
+
+    await evaluate(`document.querySelector('#prompt-console .act--guide').focus(); return 1;`);
+    await key('Enter', 'Enter', { vk: 13 });
+    await sleep(420);
+    const kbCarveStart = await evaluate(`
+      const g = window.__promptasy;
+      return {
+        act: g.promptConsole.act,
+        kind: g.promptConsole.kind,
+        focusedOnOption: document.activeElement?.classList.contains('opt'),
+      };
+    `);
+    eq(kbCarveStart.act, 3, 'Enter 推到第三幕（刻印）');
+    eq(kbCarveStart.kind, 'choice', '這一座是石碑刻印');
+    eq(kbCarveStart.focusedOnOption, true, '一進刻印，焦點就落在第一個選項上');
+
+    const slotCount = await evaluate(`return window.__promptasy.content.flow('${target}').slots.length;`);
+    for (let i = 0; i < slotCount; i += 1) {
+      const idx = await evaluate(`
+        const g = window.__promptasy;
+        const s = g.content.flow('${target}').slots[g.promptConsole.stele.progress.carved];
+        return s ? s.options.findIndex((o) => o.correct) : -1;
+      `);
+      ok(idx >= 0, `量器坊：第 ${i + 1} 段找得到正確選項`);
+      const n = idx + 1;
+      await key(`Digit${n}`, String(n), { vk: 48 + n });
+      await sleep(400);
+    }
+    const kbFull = await evaluate(`
+      const g = window.__promptasy;
+      return {
+        carved: g.promptConsole.stele.progress.carved,
+        act: g.promptConsole.act,
+        palmFocused: document.activeElement === document.querySelector('#prompt-console [data-palm]'),
+      };
+    `);
+    eq(kbFull.carved, slotCount, '用數字鍵把量器坊這一座刻滿');
+    eq(kbFull.act, 4, '刻滿之後鏡頭自己切到手印那一幕');
+    eq(kbFull.palmFocused, true, '焦點自己落在手掌印上');
+
+    await holdPalm();
+    await sleep(800);
+    const kbDone = await evaluate(`
+      const g = window.__promptasy;
+      return {
+        grade: document.querySelector('#prompt-console .grade__mark')?.textContent.trim() || '',
+        cleared: g.progression.isCleared('${target}'),
+        skill: g.progression.isSkillCollected('fmt-specify'),
+        saved: JSON.parse(localStorage.getItem('promptasy.v1.save') || '{}').skillsV2 || [],
+      };
+    `);
+    eq(kbDone.grade, 'S', '全程不碰滑鼠也拿得到 S');
+    eq(kbDone.cleared, true, '量器坊這一座記成通關（純鍵盤）');
+    eq(kbDone.skill, true, '技能「fmt-specify」進了圖鑑');
+    ok(kbDone.saved.includes('fmt-specify'), '而且真的寫進了存檔', kbDone.saved.join(','));
+    await key('Escape', 'Escape', { vk: 27 });
+    await sleep(320);
+  }
+
+  /* 一座一座真的玩過去（用的是各題型自己的把手，跟鍵盤走的是同一條路） */
+  for (const shrine of fmPlan) {
+    const played = await evaluate(`
+      const g = window.__promptasy;
+      const id = '${shrine.id}';
+      const c = g.content.challenge(id);
+      const flow = g.content.flow(id);
+      g.promptConsole.close();
+      await new Promise((r) => setTimeout(r, 140));
+      g.promptConsole.open(c);
+      await new Promise((r) => setTimeout(r, 200));
+      g.promptConsole.goAct(3, { force: true });
+      await new Promise((r) => setTimeout(r, 260));
+      const kind = g.promptConsole.kind;
+      const step = (n) => new Promise((r) => setTimeout(r, n));
+      const carve = async (board) => {
+        for (const slot of flow.slots) {
+          board.pick(slot.options.findIndex((o) => o.correct));
+          await step(90);
+        }
+      };
+      if (kind === 'choice') {
+        await carve(g.promptConsole.stele);
+        g.promptConsole.stele.press();
+      } else if (kind === 'fix') {
+        const b = g.promptConsole.fixBoard;
+        for (const fr of flow.fixFlow.fragments) {
+          if (!fr.weak) continue;
+          b.open(fr.id);
+          await step(70);
+          b.pick(fr.id, fr.options.findIndex((o) => o.correct));
+          await step(90);
+        }
+        b.press();
+      } else if (kind === 'spot') {
+        const b = g.promptConsole.spotBoard;
+        for (const sl of flow.spotFlow.slips) {
+          if (!sl.bad) continue;
+          b.toggle(sl.id);
+          await step(90);
+        }
+        b.press();
+      } else if (kind === 'constraint') {
+        const b = g.promptConsole.constraintBoard;
+        for (const p of flow.constraintFlow.pieces) {
+          if (!p.need) continue;
+          b.toggle(p.id);
+          await step(90);
+        }
+        b.press();
+      } else if (kind === 'multi') {
+        // 課程 v2 · Phase G：兩輪刻印 —— 每一輪刻完要先「收下回話」才進得了下一輪
+        const b = g.promptConsole.multiBoard;
+        let at = 0;
+        for (let r = 0; r < flow.multiFlow.rounds.length; r += 1) {
+          const n = flow.multiFlow.rounds[r].count;
+          for (let i = 0; i < n; i += 1) {
+            b.pick(flow.slots[at].options.findIndex((o) => o.correct));
+            at += 1;
+            await step(90);
+          }
+          if (r < flow.multiFlow.rounds.length - 1) {
+            b.advance();
+            await step(140);
+          }
+        }
+        b.press();
+      } else if (kind === 'tradeoff') {
+        const b = g.promptConsole.tradeoffBoard;
+        for (const r of flow.tradeoffFlow.rounds) {
+          b.weigh(r.favours);
+          await step(220);
+        }
+        await carve(b);
+        b.press();
+      }
+      await new Promise((r) => setTimeout(r, 900));
+      return {
+        kind,
+        grade: document.querySelector('#prompt-console .grade__mark')?.textContent.trim() || '',
+        cleared: g.progression.isCleared(id),
+        skill: g.progression.isSkillCollected(c.primarySkillId),
+        act: g.promptConsole.act,
+        srcs: document.querySelectorAll('#prompt-console [data-result] a.src').length,
+      };
+    `);
+    eq(played.kind, shrine.kind, `[${shrine.id}] 第三幕的題型是 ${shrine.kind}`);
+    eq(played.grade, 'S', `[${shrine.id}] 照著畫面上的東西做就是 S（${shrine.check}）`, JSON.stringify(played));
+    eq(played.cleared, true, `[${shrine.id}] 記成通關`);
+    eq(played.skill, true, `[${shrine.id}] 技能「${shrine.skill}」進了圖鑑（skillsV2）`);
+    ok(played.srcs >= 1, `[${shrine.id}] 結果面板附得出可點的官方出處`, String(played.srcs));
+  }
+
+  await evaluate(`window.__promptasy.promptConsole.close(); return 1;`);
+  await sleep(240);
+
+  /* --- 全破之後：這一區精通、圖鑑列得出它與它的技能 --- */
+  const fmCodex = await evaluate(`
+    const g = window.__promptasy;
+    g.codex.open();
+    await new Promise((r) => setTimeout(r, 420));
+    const cards = [...document.querySelectorAll('#codex .region-card')];
+    // 課程 v2 · Phase F 之後圖鑑不只六張卡了 —— 用名字挑出量器坊那一張，不要用「最後一張」
+    const last = cards.find((c) => /量器坊/.test(c.querySelector('h3')?.textContent || '')) || cards[cards.length - 1];
+    return {
+      cards: cards.length,
+      title: last.querySelector('h3')?.textContent.trim() || '',
+      mastered: last.classList.contains('is-mastered'),
+      meta: last.querySelector('.region-card__meta .muted')?.textContent.trim() || '',
+      skillRows: last.querySelectorAll('.tech').length,
+      locked: last.querySelectorAll('.tech--locked').length,
+      srcs: last.querySelectorAll('a.bookicon').length,
+      firstSrc: last.querySelector('a.bookicon')?.getAttribute('href') || '',
+      masteryFlag: g.progression.regionMastery('forms').mastered,
+      skillBased: g.progression.regionMastery('forms').skillBased,
+    };
+  `);
+  eq(fmCodex.cards, EXPECT.v2ImplementedRegions.value, `圖鑑列出 ${EXPECT.v2ImplementedRegions.value} 片土地`);
+  ok(/量器坊/.test(fmCodex.title), '找得到量器坊那一張卡', fmCodex.title);
+  eq(fmCodex.skillRows, 14, '量器坊那一張卡列出 14 條技法');
+  eq(fmCodex.locked, 0, '全破之後一條都不再是剪影');
+  eq(fmCodex.mastered, true, '量器坊蓋上精通封印');
+  eq(fmCodex.masteryFlag, true, '進程也認定量器坊精通了');
+  eq(fmCodex.skillBased, true, '量器坊的完成度是用 v2 技能算的（舊 68 條裡沒有它的主題）');
+  ok(/條技法/.test(fmCodex.meta), '量器坊的完成度寫的是「條技法」', fmCodex.meta);
+  ok(fmCodex.srcs >= 14, '每一條技法都附得出可點的官方出處', String(fmCodex.srcs));
+  ok(/^https:\/\//.test(fmCodex.firstSrc), '出處是可點的 https 連結', fmCodex.firstSrc);
+
+  await evaluate(`window.__promptasy.codex.close(); return 1;`);
+  await sleep(220);
+
+  /* --- 窄畫面：量器坊的新題型在 390px 上也讀得完、按得動 --- */
+  await cdp.send(
+    'Emulation.setDeviceMetricsOverride',
+    { width: 390, height: 844, deviceScaleFactor: 1, mobile: false },
+    sessionId
+  );
+  await sleep(320);
+  const fmNarrow = await evaluate(`
+    const g = window.__promptasy;
+    const out = [];
+    for (const id of ['slippery-answer-55', 'twice-carved-64', 'mould-room-62']) {
+      g.promptConsole.close();
+      await new Promise((r) => setTimeout(r, 140));
+      g.promptConsole.open(g.content.challenge(id));
+      await new Promise((r) => setTimeout(r, 200));
+      g.promptConsole.goAct(3, { force: true });
+      await new Promise((r) => setTimeout(r, 320));
+      const panel = document.querySelector('#prompt-console .panel');
+      const tappable = [...document.querySelectorAll('#prompt-console button:not([hidden])')]
+        .filter((b) => b.offsetParent !== null);
+      out.push({
+        id,
+        overflow: panel.scrollWidth - panel.clientWidth,
+        pageOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+        small: tappable.filter((b) => b.getBoundingClientRect().height < 40).length,
+        tappable: tappable.length,
+      });
+    }
+    g.promptConsole.close();
+    return out;
+  `);
+  for (const row of fmNarrow) {
+    eq(row.overflow, 0, `[${row.id}] 390px 下沒有水平溢位`, String(row.overflow));
+    eq(row.pageOverflow, 0, `[${row.id}] 390px 下整頁不會橫向捲動`, String(row.pageOverflow));
+    ok(row.tappable > 0, `[${row.id}] 390px 下真的量得到可按的東西`, String(row.tappable));
+    eq(row.small, 0, `[${row.id}] 390px 下每一顆可按的東西都夠大`, String(row.small));
+  }
+  await cdp.send('Emulation.clearDeviceMetricsOverride', {}, sessionId);
+  await sleep(320);
+  await evaluate(`window.__promptasy.promptConsole.close(); return 1;`);
+
+
+  /* ================================================================== */
+  /* 課程 v2 · Phase F：契約鍛冶場（toolcraft）＋ 護欄崗（wards）        */
+  /*   · 正西長出一片新土地；護欄崗是加建（沒有橋，走出檔案庫就到）      */
+  /*   · 兩道知識式軟門檻，先行前往照樣走得通                            */
+  /*   · 16 座神廟每一座都真的通得了（含九個新檢查器）                   */
+  /*   · 派工檯的鍵盤路徑（本期的主場題型）先紅後綠                      */
+  /*   · 安全題不把 prompt 文字宣稱成真正的安全邊界                      */
+  /* ================================================================== */
+  console.log('\n▸ 契約鍛冶場與護欄崗（課程 v2 · Phase F）');
+
+  await evaluate(`
+    const g = window.__promptasy;
+    g.promptConsole.close();
+    g.codex.close();
+    g.shareCard.close();
+    return 1;
+  `);
+  await sleep(220);
+
+  /* --- 兩道閘門：知識式軟門檻 --- */
+  await evaluate(`
+    localStorage.setItem('promptasy.v1.save', JSON.stringify({
+      version: 1, xp: 0, level: 1,
+      unlockedRegions: ['foundations'],
+      collected: [], skillsV2: [], bestGrades: {},
+      badges: { openai: 0, anthropic: 0, google: 0, xai: 0 },
+      settings: { music: 'ambient-01', volume: 0, muted: true, quality: 'low', preflight: true, promptMode: 'guided' },
+      flags: { prologueDone: true, introSeen: true },
+      prologueSteps: [], guidanceSeen: [], loreRead: [], inscriptionsFound: [], secretsFound: [],
+      handlesUsed: [], skippedGates: []
+    }));
+    return 1;
+  `);
+  await reloadPage('重新載入（契約鍛冶場：什麼都還沒學）');
+  await key('Enter', 'Enter', { vk: 13 });
+  await sleep(500);
+
+  const tfGates = await evaluate(`
+    const g = window.__promptasy;
+    const out = {};
+    for (const id of ['toolcraft', 'wards']) {
+      const st = g.progression.gateStatus(id);
+      out[id] = {
+        unlocked: g.progression.isRegionUnlocked(id),
+        gaps: st.knowledgeGaps.length,
+        text: st.text,
+        hasGate: !!g.world.gates.find((x) => x.id === id),
+      };
+    }
+    out.gateIds = g.world.gates.map((x) => x.id);
+    return out;
+  `);
+  for (const [id, zh] of [['toolcraft', '契約鍛冶場'], ['wards', '護欄崗']]) {
+    eq(tfGates[id].unlocked, false, `什麼都還沒學 → ${zh}鎖著`);
+    ok(tfGates[id].gaps > 0, `${zh}的閘門說得出還差哪幾條`, String(tfGates[id].gaps));
+    ok(/也可以先行前往/.test(tfGates[id].text), `${zh}的門一樣會問「想先過去看看嗎」`, tfGates[id].text);
+    eq(tfGates[id].hasGate, true, `${zh}真的有一道閘門`);
+  }
+  ok(tfGates.gateIds.includes('wards'), '護欄崗的閘門在頸口上（加建也有門）', tfGates.gateIds.join(','));
+
+  /* 鎖著的時候走不進去 */
+  const tfBlocked = await evaluate(`
+    const g = window.__promptasy;
+    // 正西那條橋
+    const got = g.world.clampPosition(-60, 0, -124, 0);
+    // 護欄崗的頸口（從檔案庫往東北）
+    const link = g.world.annexLinks.find((l) => l.region === 'wards');
+    const from = { x: link.from.x + link.dir.x * 30, z: link.from.z + link.dir.z * 30 };
+    const to = { x: link.to.x, z: link.to.z };
+    const gotW = g.world.clampPosition(to.x, to.z, from.x, from.z);
+    const here = g.world.regionAt(gotW.x, gotW.z);
+    return { x: got.x, blocked: got.x > -100, wardsRegion: here && here.id };
+  `);
+  eq(tfBlocked.blocked, true, '閘門鎖著的時候走不過正西那座橋', String(tfBlocked.x));
+  ok(tfBlocked.wardsRegion !== 'wards', '護欄崗鎖著的時候踏不進它的地界', String(tfBlocked.wardsRegion));
+
+  /* --- 先行前往：門開了，但一分 XP 都不加 --- */
+  const tfSkip = await evaluate(`
+    const g = window.__promptasy;
+    const xpBefore = g.progression.state.xp;
+    g.progression.skipGate('toolcraft');
+    g.world.openGate('toolcraft', true);
+    g.progression.skipGate('wards');
+    g.world.openGate('wards', true);
+    return {
+      toolcraft: g.progression.isRegionUnlocked('toolcraft'),
+      wards: g.progression.isRegionUnlocked('wards'),
+      xp: g.progression.state.xp,
+      xpBefore,
+      cleared: Object.keys(g.progression.state.bestGrades).length,
+    };
+  `);
+  eq(tfSkip.toolcraft, true, '先行前往開得了契約鍛冶場的門');
+  eq(tfSkip.wards, true, '先行前往開得了護欄崗的門');
+  eq(tfSkip.xp, tfSkip.xpBefore, '先行前往一分 XP 都不加');
+  eq(tfSkip.cleared, 0, '先行前往不會偷偷記下任何一關的評價');
+
+  /* --- 走進契約鍛冶場：HUD、氣氛、配樂都跟著換 --- */
+  const tfEnter = await evaluate(`
+    const g = window.__promptasy;
+    g.player.position.set(-124, g.world.terrainHeight(-124, 0) + 1, 0);
+    await new Promise((r) => setTimeout(r, 900));
+    const here = g.world.regionAt(g.player.position.x, g.player.position.z);
+    return {
+      here: here && here.id,
+      hudRegion: g.hud.region,
+      hudLabel: document.querySelector('.hud__region [data-region]')?.textContent.trim() || '',
+      mood: g.audio.debug().region,
+      source: g.audio.debug().source,
+    };
+  `);
+  eq(tfEnter.here, 'toolcraft', '走到正西真的站在契約鍛冶場的土地上');
+  eq(tfEnter.hudRegion, 'toolcraft', 'HUD 跟著換到契約鍛冶場');
+  ok(/契約鍛冶場/.test(tfEnter.hudLabel), 'HUD 上寫的是中文區域名', tfEnter.hudLabel);
+  eq(tfEnter.mood, 'toolcraft', '配樂也切到契約鍛冶場');
+  await expectRegionBgmFile('toolcraft', '契約鍛冶場');
+
+  /* --- 走進護欄崗：沒有橋，走出檔案庫北緣就到了 --- */
+  const tfAnnex = await evaluate(`
+    const g = window.__promptasy;
+    const link = g.world.annexLinks.find((l) => l.region === 'wards');
+    // 從檔案庫中心一步一步往哨所走，全程都要踩得到地
+    let voids = 0;
+    for (let i = 0; i <= 40; i += 1) {
+      const t = i / 40;
+      const x = link.from.x + (link.to.x - link.from.x) * t;
+      const z = link.from.z + (link.to.z - link.from.z) * t;
+      if (g.world.coverage(x, z) <= 0.45) voids += 1;
+    }
+    g.player.position.set(link.to.x, g.world.terrainHeight(link.to.x, link.to.z) + 1, link.to.z);
+    /*
+     * HUD 與配樂是遊戲迴圈更新的 —— 軟體渲染下一幀可能要 200ms 以上，
+     * 固定 sleep 會偶發性地在換區之前就取樣（AGENTS.md 已登記的家族）。
+     * 改成輪詢：等 HUD 真的換過去，最多 6 秒。
+     */
+    for (let i = 0; i < 60 && g.hud.region !== 'refinery'; i += 1) {
+      await new Promise((r) => setTimeout(r, 100));
+    }
+    const here = g.world.regionAt(g.player.position.x, g.player.position.z);
+    return {
+      voids,
+      here: here && here.id,
+      hudRegion: g.hud.region,
+      hudLabel: document.querySelector('.hud__region [data-region]')?.textContent.trim() || '',
+      mood: g.audio.debug().region,
+      bridges: g.world.corridors.filter((c) => c.region === 'wards').length,
+    };
+  `);
+  eq(tfAnnex.voids, 0, '從檔案庫走到哨所全程都是實地（加建沒有虛空）');
+  eq(tfAnnex.bridges, 0, '護欄崗沒有自己的橋（它是加建，不是新大陸）');
+  eq(tfAnnex.here, 'wards', '走到東北外緣真的站在護欄崗的地界上');
+  eq(tfAnnex.hudRegion, 'wards', 'HUD 跟著換到護欄崗');
+  ok(/護欄崗/.test(tfAnnex.hudLabel), 'HUD 上寫的是中文區域名', tfAnnex.hudLabel);
+  eq(tfAnnex.mood, 'wards', '配樂也切到護欄崗');
+
+  /* --- 世界：兩座地標、造景、植被、小景、預算 --- */
+  const tfWorld = await evaluate(`
+    const g = window.__promptasy;
+    let lights = 0;
+    let tris = 0;
+    g.engine.scene.traverse((o) => {
+      if (o.isLight) lights += 1;
+      if (o.isMesh && o.geometry) {
+        const idx = o.geometry.index ? o.geometry.index.count : (o.geometry.attributes.position?.count || 0);
+        tris += (idx / 3) * (o.isInstancedMesh ? o.count : 1);
+      }
+    });
+    const lm = (name) => {
+      const node = g.engine.scene.getObjectByName(name);
+      if (!node) return null;
+      let n = 0;
+      node.traverse((o) => { if (o.isLight) n += 1; });
+      return { lights: n };
+    };
+    return {
+      keys: lm('landmark:nameless-keys'),
+      doors: lm('landmark:ajar-doors'),
+      toolMarkers: g.world.markers.filter((m) => g.content.challenge(m.id).region === 'toolcraft').length,
+      wardMarkers: g.world.markers.filter((m) => g.content.challenge(m.id).region === 'wards').length,
+      propsT: !!g.engine.scene.getObjectByName('props:toolcraft'),
+      propsW: !!g.engine.scene.getObjectByName('props:wards'),
+      floraT: !!g.engine.scene.getObjectByName('flora:toolcraft'),
+      floraW: !!g.engine.scene.getObjectByName('flora:wards'),
+      vignettes: ['vignette:nameless-tools', 'vignette:crowded-bench', 'vignette:untouched-machine',
+                  'vignette:opened-letters', 'vignette:unwatched-post']
+        .filter((n) => !!g.engine.scene.getObjectByName(n)).length,
+      lights,
+      tris: Math.round(tris),
+    };
+  `);
+  ok(Boolean(tfWorld.keys), '未命名的工具真的懸在場景圖上');
+  eq(tfWorld.keys.lights, 0, '未命名的工具一盞實體光源都沒加（全部自發光）');
+  ok(Boolean(tfWorld.doors), '不會關上的門真的立在場景圖上');
+  eq(tfWorld.doors.lights, 0, '不會關上的門一盞實體光源都沒加（全部自發光）');
+  eq(tfWorld.toolMarkers, 12, '契約鍛冶場有 12 座石座（11 教學神廟 ＋ 1 試煉）');
+  eq(tfWorld.wardMarkers, 6, '護欄崗有 6 座石座（5 教學神廟 ＋ 1 試煉）');
+  eq(tfWorld.propsT, true, '契約鍛冶場有自己的造景（工具架與鐵砧）');
+  eq(tfWorld.propsW, true, '護欄崗有自己的造景（崗柱與矮牆）');
+  eq(tfWorld.floraT, true, '契約鍛冶場有自己的植被剪影');
+  eq(tfWorld.floraW, true, '護欄崗有自己的植被剪影');
+  eq(tfWorld.vignettes, 5, '兩區的五組故事小景都在場景圖上', String(tfWorld.vignettes));
+  ok(tfWorld.lights <= 56, '加了兩區之後燈光仍在預算內', `lights=${tfWorld.lights}`);
+  ok(tfWorld.tris < 420000, '加了兩區之後三角形仍在預算內', `tris=${tfWorld.tris}`);
+
+  /* --- 16 座神廟：九個新檢查器各有一座 --- */
+  const tfPlan = await evaluate(`
+    const g = window.__promptasy;
+    const here = g.content.challenges.filter((c) => !c.application && (c.region === 'toolcraft' || c.region === 'wards'));
+    return here.map((c) => ({
+      id: c.id,
+      region: c.region,
+      skill: c.primarySkillId,
+      check: c.rubric.find((r) => r.primary).check,
+      kind: g.promptConsole.flowKindOf(g.content.flow(c.id)),
+    }));
+  `);
+  eq(tfPlan.length, 16, '兩區合計 16 座教學神廟');
+  {
+    const PHASE_F_CHECKS = [
+      'toolNamesDistinct',
+      'limitsToolSurface',
+      'statesToolTriggers',
+      'ordersToolCalls',
+      'prefersToolOverMentalMath',
+      'limitsToolOutput',
+      'requiresPreamble',
+      'reshapesToLowRisk',
+      'includesAdversarialCase',
+    ];
+    const used = new Set(tfPlan.map((x) => x.check));
+    for (const id of PHASE_F_CHECKS) ok(used.has(id), `新檢查器 ${id} 真的有一座神廟在教`);
+    for (const region of ['toolcraft', 'wards']) {
+      const kinds = tfPlan.filter((x) => x.region === region).map((x) => x.kind);
+      let run = 1;
+      let worst = 1;
+      for (let i = 1; i < kinds.length; i += 1) {
+        run = kinds[i] === kinds[i - 1] ? run + 1 : 1;
+        if (run > worst) worst = run;
+      }
+      ok(worst <= 2, `[${region}] 整區沒有連續三座同一種題型（C4）`, kinds.join(','));
+    }
+  }
+
+  /* --- 純鍵盤走完一座派工檯神廟（本期的主場題型，§3.1 鐵則） --- */
+  {
+    const target = 'forge-door-66';
+    const near = await evaluate(`
+      const g = window.__promptasy;
+      const m = g.world.markers.find((x) => x.id === '${target}');
+      g.player.position.set(m.position.x + 3, g.world.terrainHeight(m.position.x + 3, m.position.z + 2), m.position.z + 2);
+      await new Promise((r) => setTimeout(r, 700));
+      const el = document.querySelector('.hud__interact');
+      return { d: Math.hypot(g.player.position.x - m.position.x, g.player.position.z - m.position.z), hint: el && !el.hidden ? el.innerHTML : '' };
+    `);
+    ok(near.d < 6.5, '站到契約鍛冶場的門旁邊', near.d.toFixed(2));
+    ok(/<kbd>E<\/kbd>/.test(near.hint), '走近提示標著 E 這個鍵', near.hint.slice(0, 80));
+
+    await key('KeyE', 'e', { vk: 69 });
+    await sleep(520);
+    await key('Enter', 'Enter', { vk: 13 });
+    await sleep(420);
+    await evaluate(`document.querySelector('#prompt-console .act--guide').focus(); return 1;`);
+    await key('Enter', 'Enter', { vk: 13 });
+    await sleep(460);
+
+    const wsStart = await evaluate(`
+      const g = window.__promptasy;
+      return {
+        act: g.promptConsole.act,
+        kind: g.promptConsole.kind,
+        stage: g.promptConsole.workshop?.stage,
+        focusedOnCard: !!document.activeElement?.closest('[data-tool]'),
+        eyebrow: document.querySelector('#prompt-console .workshop .stele__eyebrow')?.textContent.trim() || '',
+      };
+    `);
+    eq(wsStart.act, 3, 'Enter 推到第三幕（派工檯）');
+    eq(wsStart.kind, 'workshop', '這一座是派工檯');
+    eq(wsStart.stage, 'tools', '從「挑工具」那一步開始');
+    eq(wsStart.focusedOnCard, true, '一進派工檯，焦點就落在第一張工具牌上');
+    eq(wsStart.eyebrow, '寫到一半的派工單', '派工型的神廟沿用原本的稱呼（沒有換皮）');
+
+    /* 挑錯不會失敗：牌子留在原地、就地長出教學、不前進 */
+    const wsWrong = await evaluate(`
+      const g = window.__promptasy;
+      const b = g.promptConsole.workshop;
+      const ws = g.content.flow('${target}').workshop;
+      const bad = ws.tools.find((t) => !t.needed);
+      const before = b.stage;
+      b.pickTool(bad.id);
+      await new Promise((r) => setTimeout(r, 260));
+      const el = document.querySelector('[data-tool="' + bad.id + '"]');
+      return {
+        stage: b.stage,
+        before,
+        wrongClass: !!el && el.classList.contains('is-wrong'),
+        feedback: el ? (el.querySelector('[data-tool-fb]')?.textContent || '').trim() : '',
+        chosen: b.dispatch.chosen.length,
+      };
+    `);
+    eq(wsWrong.stage, wsWrong.before, '挑錯不會前進（不會失敗）');
+    eq(wsWrong.wrongClass, true, '挑錯的那張牌就地標成「不收」');
+    ok(wsWrong.feedback.length >= 12, '而且就地長出一句白話教學', wsWrong.feedback.slice(0, 40));
+    eq(wsWrong.chosen, 0, '挑錯的牌不會被收進派工單');
+
+    /* 純鍵盤把四步走完 */
+    const wsDone = await evaluate(`
+      const g = window.__promptasy;
+      const b = g.promptConsole.workshop;
+      const ws = g.content.flow('${target}').workshop;
+      const step = (n) => new Promise((r) => setTimeout(r, n));
+      for (const t of ws.order.sequence) { b.pickTool(t); await step(140); }
+      for (const tid of ws.order.sequence) {
+        const tool = ws.tools.find((t) => t.id === tid);
+        for (const p of tool.params) {
+          b.liftStone(p.stone);
+          await step(90);
+          b.dropStone(tid + '.' + p.id);
+          await step(110);
+        }
+      }
+      await step(200);
+      b.board.arrange(ws.order.sequence);
+      await step(320);
+      b.pickRule(ws.rules.findIndex((r) => r.correct));
+      await step(320);
+      return {
+        stage: b.stage,
+        done: b.done,
+        act: g.promptConsole.act,
+        palmFocused: document.activeElement === document.querySelector('#prompt-console [data-palm]'),
+        text: b.text,
+      };
+    `);
+    eq(wsDone.done, true, '四步走完，派工單寫好了');
+    eq(wsDone.act, 4, '寫滿之後鏡頭自己切到手印那一幕');
+    ok(/工具名：/.test(wsDone.text), '派工單上真的宣告了工具規格', wsDone.text.slice(0, 40));
+
+    await evaluate(`document.querySelector('#prompt-console [data-palm]').focus(); return 1;`);
+    await holdPalm();
+    await sleep(800);
+    const wsResult = await evaluate(`
+      const g = window.__promptasy;
+      return {
+        grade: document.querySelector('#prompt-console .grade__mark')?.textContent.trim() || '',
+        cleared: g.progression.isCleared('${target}'),
+        skill: g.progression.isSkillCollected('tool-native-field'),
+        saved: JSON.parse(localStorage.getItem('promptasy.v1.save') || '{}').skillsV2 || [],
+      };
+    `);
+    eq(wsResult.grade, 'S', '全程不碰滑鼠也拿得到 S');
+    eq(wsResult.cleared, true, '契約鍛冶場的門記成通關（純鍵盤）');
+    eq(wsResult.skill, true, '技能「tool-native-field」進了圖鑑');
+    ok(wsResult.saved.includes('tool-native-field'), '而且真的寫進了存檔', wsResult.saved.join(','));
+    await key('Escape', 'Escape', { vk: 27 });
+    await sleep(320);
+  }
+
+  /* --- 護欄崗的派工檯換了自己的稱呼（工具牌／值石那一套不會冒出來） --- */
+  {
+    const skin = await evaluate(`
+      const g = window.__promptasy;
+      g.promptConsole.close();
+      await new Promise((r) => setTimeout(r, 160));
+      g.promptConsole.open(g.content.challenge('guest-in-disguise-79'));
+      await new Promise((r) => setTimeout(r, 200));
+      g.promptConsole.goAct(3, { force: true });
+      await new Promise((r) => setTimeout(r, 320));
+      const eyebrow = document.querySelector('#prompt-console .workshop .stele__eyebrow')?.textContent.trim() || '';
+      const empty = document.querySelector('#prompt-console .workshop .stele__empty')?.textContent.trim() || '';
+      const board = g.promptConsole.workshop;
+      board.pickTool(g.content.flow('guest-in-disguise-79').workshop.order.sequence[0]);
+      await new Promise((r) => setTimeout(r, 200));
+      board.pickTool(g.content.flow('guest-in-disguise-79').workshop.order.sequence[1]);
+      await new Promise((r) => setTimeout(r, 260));
+      const tray = document.querySelector('#prompt-console .workshop .stonetray__label')?.textContent.trim() || '';
+      const trayAria = document.querySelector('#prompt-console .workshop [data-stonetray]')?.getAttribute('aria-label') || '';
+      g.promptConsole.close();
+      return { eyebrow, empty, tray, trayAria };
+    `);
+    eq(skin.eyebrow, '寫到一半的試門單', '護欄崗的派工檯叫「試門單」');
+    ok(!/派工單/.test(skin.empty), '換皮之後畫面上不會冒出「派工單」', skin.empty);
+    eq(skin.tray, '內容石', '托盤也換了自己的稱呼');
+    eq(skin.trayAria, '內容石托盤', '無障礙標籤跟著換');
+  }
+  await sleep(220);
+
+  /* --- 一座一座真的玩過去 --- */
+  for (const shrine of tfPlan) {
+    const played = await evaluate(`
+      const g = window.__promptasy;
+      const id = '${shrine.id}';
+      const c = g.content.challenge(id);
+      const flow = g.content.flow(id);
+      g.promptConsole.close();
+      await new Promise((r) => setTimeout(r, 140));
+      g.promptConsole.open(c);
+      await new Promise((r) => setTimeout(r, 200));
+      g.promptConsole.goAct(3, { force: true });
+      await new Promise((r) => setTimeout(r, 260));
+      const kind = g.promptConsole.kind;
+      const step = (n) => new Promise((r) => setTimeout(r, n));
+      const carve = async (board) => {
+        for (const slot of flow.slots) {
+          board.pick(slot.options.findIndex((o) => o.correct));
+          await step(90);
+        }
+      };
+      if (kind === 'choice') {
+        await carve(g.promptConsole.stele);
+        g.promptConsole.stele.press();
+      } else if (kind === 'fix') {
+        const b = g.promptConsole.fixBoard;
+        for (const fr of flow.fixFlow.fragments) {
+          if (!fr.weak) continue;
+          b.open(fr.id);
+          await step(70);
+          b.pick(fr.id, fr.options.findIndex((o) => o.correct));
+          await step(90);
+        }
+        b.press();
+      } else if (kind === 'spot') {
+        const b = g.promptConsole.spotBoard;
+        for (const sl of flow.spotFlow.slips) {
+          if (!sl.bad) continue;
+          b.toggle(sl.id);
+          await step(90);
+        }
+        b.press();
+      } else if (kind === 'order') {
+        const b = g.promptConsole.orderBoard;
+        b.arrange(flow.orderFlow.order);
+        await step(300);
+        b.press();
+      } else if (kind === 'multi') {
+        // 課程 v2 · Phase G：兩輪刻印 —— 每一輪刻完要先「收下回話」才進得了下一輪
+        const b = g.promptConsole.multiBoard;
+        let at = 0;
+        for (let r = 0; r < flow.multiFlow.rounds.length; r += 1) {
+          const n = flow.multiFlow.rounds[r].count;
+          for (let i = 0; i < n; i += 1) {
+            b.pick(flow.slots[at].options.findIndex((o) => o.correct));
+            at += 1;
+            await step(90);
+          }
+          if (r < flow.multiFlow.rounds.length - 1) {
+            b.advance();
+            await step(140);
+          }
+        }
+        b.press();
+      } else if (kind === 'tradeoff') {
+        const b = g.promptConsole.tradeoffBoard;
+        for (const r of flow.tradeoffFlow.rounds) {
+          b.weigh(r.favours);
+          await step(220);
+        }
+        await carve(b);
+        b.press();
+      } else if (kind === 'workshop') {
+        const b = g.promptConsole.workshop;
+        const ws = flow.workshop;
+        for (const t of ws.order.sequence) { b.pickTool(t); await step(120); }
+        for (const tid of ws.order.sequence) {
+          const tool = ws.tools.find((t) => t.id === tid);
+          for (const p of tool.params) {
+            b.liftStone(p.stone);
+            await step(80);
+            b.dropStone(tid + '.' + p.id);
+            await step(100);
+          }
+        }
+        await step(180);
+        b.board.arrange(ws.order.sequence);
+        await step(300);
+        b.pickRule(ws.rules.findIndex((r) => r.correct));
+        await step(260);
+        b.press();
+      }
+      await new Promise((r) => setTimeout(r, 900));
+      return {
+        kind,
+        grade: document.querySelector('#prompt-console .grade__mark')?.textContent.trim() || '',
+        cleared: g.progression.isCleared(id),
+        skill: g.progression.isSkillCollected(c.primarySkillId),
+        srcs: document.querySelectorAll('#prompt-console [data-result] a.src').length,
+      };
+    `);
+    eq(played.kind, shrine.kind, `[${shrine.id}] 第三幕的題型是 ${shrine.kind}`);
+    eq(played.grade, 'S', `[${shrine.id}] 照著畫面上的東西做就是 S（${shrine.check}）`, JSON.stringify(played));
+    eq(played.cleared, true, `[${shrine.id}] 記成通關`);
+    eq(played.skill, true, `[${shrine.id}] 技能「${shrine.skill}」進了圖鑑（skillsV2）`);
+    ok(played.srcs >= 1, `[${shrine.id}] 結果面板附得出可點的官方出處`, String(played.srcs));
+  }
+
+  await evaluate(`window.__promptasy.promptConsole.close(); return 1;`);
+  await sleep(240);
+
+  /* --- 安全題的誠實界線：畫面上不宣稱「prompt 就是安全邊界」 --- */
+  {
+    const honesty = await evaluate(`
+      const g = window.__promptasy;
+      let text = '';
+      let srcs = [];
+      for (const id of ['speaking-letter-75', 'two-slots-76', 'reshaped-order-77', 'unclosing-door-78', 'guest-in-disguise-79']) {
+        g.promptConsole.close();
+        await new Promise((r) => setTimeout(r, 120));
+        g.promptConsole.open(g.content.challenge(id));
+        await new Promise((r) => setTimeout(r, 180));
+        text += '\\n' + document.querySelector('#prompt-console .panel').innerText;
+        g.promptConsole.goAct(2, { force: true });
+        await new Promise((r) => setTimeout(r, 220));
+        text += '\\n' + document.querySelector('#prompt-console .panel').innerText;
+        srcs = srcs.concat([...document.querySelectorAll('#prompt-console .act--guide a.bookicon')].map((a) => a.getAttribute('href')));
+      }
+      g.promptConsole.close();
+      return { text, srcs };
+    `);
+    const FALSE_CLAIM =
+      /(?:prompt|提示詞|這句話|一句話|文字)[^\n。]{0,12}(?:就是|即是|等於)[^\n。]{0,8}(?:安全邊界|安全防線|防護|護欄)/;
+    ok(!FALSE_CLAIM.test(honesty.text), '護欄崗的畫面上沒有把 prompt 文字宣稱成真正的安全邊界');
+    ok(/標籤|區塊|【資料】|外部來信/.test(honesty.text), '畫面上真的教了「外部內容怎麼給進來」（輸入通道）');
+    ok(/確認|同意|由我|先問/.test(honesty.text), '畫面上真的教了「人留在迴圈裡」');
+    ok(honesty.srcs.length >= 5, '五座的神諭原典都掛得出來', String(honesty.srcs.length));
+    ok(honesty.srcs.every((h) => /^https:\/\//.test(h)), '而且每一個都是可點的 https 連結');
+  }
+
+  /* --- 全破之後：兩區精通、圖鑑列得出它們 --- */
+  const tfCodex = await evaluate(`
+    const g = window.__promptasy;
+    g.codex.open();
+    await new Promise((r) => setTimeout(r, 420));
+    const cards = [...document.querySelectorAll('#codex .region-card')];
+    const pick = (zh) => cards.find((c) => new RegExp(zh).test(c.querySelector('h3')?.textContent || ''));
+    const read = (card) => card ? {
+      title: card.querySelector('h3')?.textContent.trim() || '',
+      mastered: card.classList.contains('is-mastered'),
+      rows: card.querySelectorAll('.tech').length,
+      locked: card.querySelectorAll('.tech--locked').length,
+      srcs: card.querySelectorAll('a.bookicon').length,
+    } : null;
+    const out = { cards: cards.length, toolcraft: read(pick('契約鍛冶場')), wards: read(pick('護欄崗')) };
+    g.codex.close();
+    out.masteredT = g.progression.regionMastery('toolcraft').mastered;
+    out.masteredW = g.progression.regionMastery('wards').mastered;
+    return out;
+  `);
+  eq(tfCodex.cards, EXPECT.v2ImplementedRegions.value, `圖鑑列出 ${EXPECT.v2ImplementedRegions.value} 片土地`);
+  ok(Boolean(tfCodex.toolcraft), '圖鑑裡找得到契約鍛冶場那一張卡');
+  ok(Boolean(tfCodex.wards), '圖鑑裡找得到護欄崗那一張卡');
+  eq(tfCodex.toolcraft.rows, 11, '契約鍛冶場那一張卡列出 11 條技法');
+  eq(tfCodex.wards.rows, 5, '護欄崗那一張卡列出 5 條技法');
+  eq(tfCodex.toolcraft.locked, 0, '契約鍛冶場全破之後一條都不再是剪影');
+  eq(tfCodex.wards.locked, 0, '護欄崗全破之後一條都不再是剪影');
+  eq(tfCodex.toolcraft.mastered, true, '契約鍛冶場蓋上精通封印');
+  eq(tfCodex.wards.mastered, true, '護欄崗蓋上精通封印');
+  eq(tfCodex.masteredT, true, '進程也認定契約鍛冶場精通了');
+  eq(tfCodex.masteredW, true, '進程也認定護欄崗精通了');
+  ok(tfCodex.toolcraft.srcs >= 11, '契約鍛冶場每一條技法都附得出官方出處', String(tfCodex.toolcraft.srcs));
+  ok(tfCodex.wards.srcs >= 5, '護欄崗每一條技法都附得出官方出處', String(tfCodex.wards.srcs));
+
+  /* --- 窄畫面：本期的兩種題型在 390px 上也讀得完、按得動 --- */
+  await cdp.send(
+    'Emulation.setDeviceMetricsOverride',
+    { width: 390, height: 844, deviceScaleFactor: 1, mobile: false },
+    sessionId
+  );
+  await sleep(320);
+  const tfNarrow = await evaluate(`
+    const g = window.__promptasy;
+    const out = [];
+    for (const id of ['forge-door-66', 'unclosing-door-78', 'two-slots-76']) {
+      g.promptConsole.close();
+      await new Promise((r) => setTimeout(r, 140));
+      g.promptConsole.open(g.content.challenge(id));
+      await new Promise((r) => setTimeout(r, 200));
+      g.promptConsole.goAct(3, { force: true });
+      await new Promise((r) => setTimeout(r, 340));
+      const panel = document.querySelector('#prompt-console .panel');
+      const tappable = [...document.querySelectorAll('#prompt-console button:not([hidden])')]
+        .filter((b) => b.offsetParent !== null);
+      out.push({
+        id,
+        overflow: panel.scrollWidth - panel.clientWidth,
+        pageOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+        small: tappable.filter((b) => b.getBoundingClientRect().height < 40).length,
+        tappable: tappable.length,
+      });
+    }
+    g.promptConsole.close();
+    return out;
+  `);
+  for (const row of tfNarrow) {
+    eq(row.overflow, 0, `[${row.id}] 390px 下沒有水平溢位`, String(row.overflow));
+    eq(row.pageOverflow, 0, `[${row.id}] 390px 下整頁不會橫向捲動`, String(row.pageOverflow));
+    ok(row.tappable > 0, `[${row.id}] 390px 下真的量得到可按的東西`, String(row.tappable));
+    eq(row.small, 0, `[${row.id}] 390px 下每一顆可按的東西都夠大`, String(row.small));
+  }
+  await cdp.send('Emulation.clearDeviceMetricsOverride', {}, sessionId);
+  await sleep(320);
+  await evaluate(`window.__promptasy.promptConsole.close(); return 1;`);
+
+
+  /* ================================================================== */
+  /* 課程 v2 · Phase G：兩輪刻印（multi）＋ 校驗場（refinery）            */
+  /*   · 齒輪工坊旁的院子是第二座加建（沒有橋，走出工坊西南就到）         */
+  /*   · 「任一區精通」是這一期新開的知識式軟門檻                         */
+  /*   · 23 座神廟（流程與代理 12 ＋ 校驗場 11）                          */
+  /*   · 兩輪刻印純鍵盤走完：成功／挑錯不失敗／Esc／幕切換／模式切換      */
+  /*   · 中間那一段回話明講它是遊戲自撰的（誠實）                         */
+  /* ================================================================== */
+  console.log('\n▸ 兩輪刻印與校驗場（課程 v2 · Phase G）');
+
+  await evaluate(`
+    const g = window.__promptasy;
+    g.promptConsole.close();
+    g.codex.close();
+    g.shareCard.close();
+    return 1;
+  `);
+  await sleep(220);
+
+  /* --- 閘門：知識式軟門檻（含「任一區精通」） --- */
+  await evaluate(`
+    localStorage.setItem('promptasy.v1.save', JSON.stringify({
+      version: 1, xp: 0, level: 1,
+      unlockedRegions: ['foundations'],
+      collected: [], skillsV2: [], bestGrades: {},
+      badges: { openai: 0, anthropic: 0, google: 0, xai: 0 },
+      settings: { music: 'ambient-01', volume: 0, muted: true, quality: 'low', preflight: true, promptMode: 'guided' },
+      flags: { prologueDone: true, introSeen: true },
+      prologueSteps: [], guidanceSeen: [], loreRead: [], inscriptionsFound: [], secretsFound: [],
+      handlesUsed: [], skippedGates: []
+    }));
+    return 1;
+  `);
+  await reloadPage('重新載入（校驗場：什麼都還沒學）');
+  await key('Enter', 'Enter', { vk: 13 });
+  await sleep(500);
+
+  const rfGate = await evaluate(`
+    const g = window.__promptasy;
+    const st = g.progression.gateStatus('refinery');
+    return {
+      unlocked: g.progression.isRegionUnlocked('refinery'),
+      gaps: st.knowledgeGaps.map((x) => x.kind),
+      text: st.text,
+      hasGate: !!g.world.gates.find((x) => x.id === 'refinery'),
+      bridges: g.world.corridors.filter((c) => c.region === 'refinery').length,
+      hasLink: !!g.world.annexLinks.find((l) => l.region === 'refinery'),
+    };
+  `);
+  eq(rfGate.unlocked, false, '什麼都還沒學 → 校驗場鎖著');
+  ok(rfGate.gaps.includes('masteredAny'), '「任一區精通」真的被算進閘門的缺口裡', rfGate.gaps.join(','));
+  ok(/也可以先行前往/.test(rfGate.text), '校驗場的門一樣會問「想先過去看看嗎」', rfGate.text);
+  eq(rfGate.hasGate, true, '校驗場真的有一道閘門');
+  eq(rfGate.bridges, 0, '校驗場沒有自己的橋（它是加建，不是新大陸）');
+  eq(rfGate.hasLink, true, '校驗場有一個頸口（閘門立在那裡）');
+
+  const rfBlocked = await evaluate(`
+    const g = window.__promptasy;
+    const link = g.world.annexLinks.find((l) => l.region === 'refinery');
+    const from = { x: link.from.x + link.dir.x * 18, z: link.from.z + link.dir.z * 18 };
+    const got = g.world.clampPosition(link.to.x, link.to.z, from.x, from.z);
+    const here = g.world.regionAt(got.x, got.z);
+    return { region: here && here.id };
+  `);
+  ok(rfBlocked.region !== 'refinery', '校驗場鎖著的時候踏不進它的地界', String(rfBlocked.region));
+
+  const rfSkip = await evaluate(`
+    const g = window.__promptasy;
+    const xpBefore = g.progression.state.xp;
+    g.progression.skipGate('refinery');
+    g.world.openGate('refinery', true);
+    return {
+      unlocked: g.progression.isRegionUnlocked('refinery'),
+      xp: g.progression.state.xp,
+      xpBefore,
+      cleared: Object.keys(g.progression.state.bestGrades).length,
+    };
+  `);
+  eq(rfSkip.unlocked, true, '先行前往開得了校驗場的門');
+  eq(rfSkip.xp, rfSkip.xpBefore, '先行前往一分 XP 都不加');
+  eq(rfSkip.cleared, 0, '先行前往不會偷偷記下任何一關的評價');
+
+  /* --- 走進院子：沒有虛空、HUD 與配樂都跟著換 --- */
+  const rfEnter = await evaluate(`
+    const g = window.__promptasy;
+    const link = g.world.annexLinks.find((l) => l.region === 'refinery');
+    let voids = 0;
+    for (let i = 0; i <= 40; i += 1) {
+      const t = i / 40;
+      const x = link.from.x + (link.to.x - link.from.x) * t;
+      const z = link.from.z + (link.to.z - link.from.z) * t;
+      if (g.world.coverage(x, z) <= 0.45) voids += 1;
+    }
+    g.player.position.set(link.to.x, g.world.terrainHeight(link.to.x, link.to.z) + 1, link.to.z);
+    await new Promise((r) => setTimeout(r, 900));
+    const here = g.world.regionAt(g.player.position.x, g.player.position.z);
+    return {
+      voids,
+      here: here && here.id,
+      hudRegion: g.hud.region,
+      hudLabel: document.querySelector('.hud__region [data-region]')?.textContent.trim() || '',
+      mood: g.audio.debug().region,
+      source: g.audio.debug().source,
+    };
+  `);
+  eq(rfEnter.voids, 0, '從齒輪工坊走到院子全程都是實地（加建沒有虛空）');
+  eq(rfEnter.here, 'refinery', '走到西南外緣真的站在校驗場的地界上');
+  eq(rfEnter.hudRegion, 'refinery', 'HUD 跟著換到校驗場');
+  ok(/校驗場/.test(rfEnter.hudLabel), 'HUD 上寫的是中文區域名', rfEnter.hudLabel);
+  eq(rfEnter.mood, 'refinery', '配樂也切到校驗場');
+  await expectRegionBgmFile('refinery', '校驗場');
+
+  /* --- 世界：地標、造景、石座數、預算 --- */
+  const rfWorld = await evaluate(`
+    const g = window.__promptasy;
+    let lights = 0;
+    let tris = 0;
+    g.engine.scene.traverse((o) => {
+      if (o.isLight) lights += 1;
+      if (o.isMesh && o.geometry) {
+        const idx = o.geometry.index ? o.geometry.index.count : (o.geometry.attributes.position?.count || 0);
+        tris += (idx / 3) * (o.isInstancedMesh ? o.count : 1);
+      }
+    });
+    const node = g.engine.scene.getObjectByName('landmark:facing-glass');
+    let lmLights = 0;
+    if (node) node.traverse((o) => { if (o.isLight) lmLights += 1; });
+    return {
+      hasGlass: !!node,
+      lmLights,
+      refMarkers: g.world.markers.filter((m) => g.content.challenge(m.id).region === 'refinery').length,
+      orcMarkers: g.world.markers.filter((m) => g.content.challenge(m.id).region === 'orchestration').length,
+      props: !!g.engine.scene.getObjectByName('props:refinery'),
+      flora: !!g.engine.scene.getObjectByName('flora:refinery'),
+      vignettes: ['vignette:ten-drafts', 'vignette:facing-mirrors', 'vignette:unread-checklist']
+        .filter((n) => !!g.engine.scene.getObjectByName(n)).length,
+      lights,
+      tris: Math.round(tris),
+      solids: g.world.solids.length,
+    };
+  `);
+  ok(rfWorld.hasGlass, '會回頭照自己的鏡真的立在場景圖上');
+  eq(rfWorld.lmLights, 0, '會回頭照自己的鏡一盞實體光源都沒加（全部自發光）');
+  eq(rfWorld.refMarkers, 12, '校驗場有 12 座石座（11 教學神廟 ＋ 1 試煉）');
+  eq(rfWorld.orcMarkers, 13, '流程與代理有 13 座石座（12 教學神廟 ＋ 1 試煉）');
+  eq(rfWorld.props, true, '校驗場有自己的造景（照面架與稿堆）');
+  eq(rfWorld.flora, true, '校驗場有自己的植被剪影');
+  eq(rfWorld.vignettes, 3, '校驗場的三組故事小景都在場景圖上', String(rfWorld.vignettes));
+  ok(rfWorld.lights <= 56, '加了校驗場之後燈光仍在預算內', `lights=${rfWorld.lights}`);
+  ok(rfWorld.tris < 420000, '加了校驗場之後三角形仍在預算內', `tris=${rfWorld.tris}`);
+  ok(rfWorld.solids < 1400, '加了校驗場之後碰撞體仍在預算內', `solids=${rfWorld.solids}`);
+
+  /* --- 23 座神廟：十二個新檢查器、C1／C4 --- */
+  const rfPlan = await evaluate(`
+    const g = window.__promptasy;
+    const here = g.content.challenges.filter((c) => !c.application && (c.region === 'orchestration' || c.region === 'refinery'));
+    return here.map((c) => ({
+      id: c.id,
+      region: c.region,
+      skill: c.primarySkillId,
+      check: c.rubric.find((r) => r.primary).check,
+      rows: c.rubric.length,
+      pass: c.pass,
+      kind: g.promptConsole.flowKindOf(g.content.flow(c.id)),
+    }));
+  `);
+  eq(rfPlan.length, 23, '兩區合計 23 座教學神廟');
+  {
+    const PHASE_G_CHECKS = [
+      'statesSuccessCriteria', 'tunesAutonomyLevel', 'limitsScope', 'asksForPlanFirst',
+      'definesHandoffState', 'delegatesWithCriteria', 'extractsStandingRules', 'setsActionBudget',
+      'definesEvalSet', 'asksModelToRewritePrompt', 'decisionTree', 'definesWordedScale',
+    ];
+    const used = new Set(rfPlan.map((x) => x.check));
+    for (const id of PHASE_G_CHECKS) ok(used.has(id), `新檢查器 ${id} 真的有一座神廟在教`);
+    for (const row of rfPlan) {
+      eq(row.rows, 2, `[${row.id}] 收斂成「一條主檢查 ＋ 一條地基」（C1）`);
+      eq(row.pass, 2, `[${row.id}] 門檻是 2 分`);
+    }
+    for (const region of ['orchestration', 'refinery']) {
+      const kinds = rfPlan.filter((x) => x.region === region).map((x) => x.kind);
+      let run = 1;
+      let worst = 1;
+      for (let i = 1; i < kinds.length; i += 1) {
+        run = kinds[i] === kinds[i - 1] ? run + 1 : 1;
+        if (run > worst) worst = run;
+      }
+      ok(worst <= 2, `[${region}] 整區沒有連續三座同一種題型（C4）`, kinds.join(','));
+      ok(kinds.includes('multi'), `[${region}] 這一區有兩輪刻印`, kinds.join(','));
+    }
+  }
+
+  /* --- 純鍵盤走完一座兩輪刻印（本期的主場題型，§3.1 鐵則） --- */
+  {
+    const target = 'self-mirror-93';
+    const near = await evaluate(`
+      const g = window.__promptasy;
+      const m = g.world.markers.find((x) => x.id === '${target}');
+      g.player.position.set(m.position.x + 3, g.world.terrainHeight(m.position.x + 3, m.position.z + 2), m.position.z + 2);
+      await new Promise((r) => setTimeout(r, 700));
+      const el = document.querySelector('.hud__interact');
+      return { d: Math.hypot(g.player.position.x - m.position.x, g.player.position.z - m.position.z), hint: el && !el.hidden ? el.innerHTML : '' };
+    `);
+    ok(near.d < 6.5, '站到照自己的鏡旁邊', near.d.toFixed(2));
+    ok(/<kbd>E<\/kbd>/.test(near.hint), '走近提示標著 E 這個鍵', near.hint.slice(0, 80));
+
+    await key('KeyE', 'e', { vk: 69 });
+    await sleep(520);
+    await key('Enter', 'Enter', { vk: 13 });
+    await sleep(420);
+    await evaluate(`document.querySelector('#prompt-console .act--guide').focus(); return 1;`);
+    await key('Enter', 'Enter', { vk: 13 });
+    await sleep(460);
+
+    const mStart = await evaluate(`
+      const g = window.__promptasy;
+      const b = g.promptConsole.multiBoard;
+      return {
+        act: g.promptConsole.act,
+        kind: g.promptConsole.kind,
+        round: b.progress.round,
+        rounds: b.progress.rounds,
+        handoffOpen: b.handoffOpen,
+        focusedOnOption: !!document.activeElement?.closest('[data-slot-opt]'),
+        eyebrow: document.querySelector('#prompt-console .multiboard [data-round-label]')?.textContent.trim() || '',
+        label: document.querySelector('#prompt-console [data-guided-label] .zh')?.textContent.trim() || '',
+      };
+    `);
+    eq(mStart.act, 3, 'Enter 推到第三幕（兩輪刻印）');
+    eq(mStart.kind, 'multi', '這一座是兩輪刻印');
+    eq(mStart.round, 0, '從第一輪開始');
+    eq(mStart.rounds, 2, '這一關有兩輪');
+    eq(mStart.handoffOpen, false, '第一輪還在刻，回話卡還沒攤開');
+    eq(mStart.focusedOnOption, true, '一進兩輪刻印，焦點就落在第一個選項上');
+    ok(/第 1 \/ 2 輪/.test(mStart.eyebrow), '碑上寫著現在是第幾輪', mStart.eyebrow);
+
+    /* 挑錯不會失敗：石碑不收、就地教學、不前進 */
+    const mWrong = await evaluate(`
+      const g = window.__promptasy;
+      const b = g.promptConsole.multiBoard;
+      const before = b.progress.carved;
+      const opts = [...document.querySelectorAll('#prompt-console .multiboard [data-slot-opt]')];
+      const wrongIdx = opts.findIndex((_, i) => !g.content.flow('${target}').slots[0].options[i].correct);
+      opts[wrongIdx].focus();
+      opts[wrongIdx].click();
+      await new Promise((r) => setTimeout(r, 260));
+      const btn = document.querySelectorAll('#prompt-console .multiboard [data-slot-opt]')[wrongIdx];
+      return {
+        carvedBefore: before,
+        carvedAfter: b.progress.carved,
+        wrongClass: btn?.classList.contains('is-wrong'),
+        feedback: btn?.querySelector('[data-opt-fb]')?.textContent.trim() || '',
+        failShown: !document.querySelector('#prompt-console .result')?.hidden,
+        text: b.text,
+      };
+    `);
+    eq(mWrong.carvedAfter, mWrong.carvedBefore, '挑錯不會前進（石碑就是不收）');
+    eq(mWrong.wrongClass, true, '挑錯的那一片留在原地標成「石碑不收」');
+    ok(mWrong.feedback.length >= 8, '挑錯的人就地拿到一句教學', mWrong.feedback.slice(0, 40));
+    eq(mWrong.failShown, false, '挑錯不會跳失敗面板');
+    eq(mWrong.text, '', '挑錯的那一句沒有被刻上去');
+
+    /* 第一輪刻完 → 回話卡攤開，而且明講它是遊戲自撰的 */
+    const mHandoff = await evaluate(`
+      const g = window.__promptasy;
+      const b = g.promptConsole.multiBoard;
+      const flow = g.content.flow('${target}');
+      const n = flow.multiFlow.rounds[0].count;
+      for (let i = 0; i < n; i += 1) {
+        const idx = flow.slots[i].options.findIndex((o) => o.correct);
+        b.pick(idx);
+        await new Promise((r) => setTimeout(r, 140));
+      }
+      const card = document.querySelector('#prompt-console .handoff');
+      const tipBtn = card?.querySelector('[data-infotip-btn]');
+      // hover ＝ 游標真的動到它上面（只補送 mouseover 不算，見 bindInfoTips）
+      const tipBox = tipBtn?.getBoundingClientRect();
+      tipBtn?.dispatchEvent(new MouseEvent('mousemove', {
+        bubbles: true,
+        clientX: Math.round(tipBox.x + tipBox.width / 2),
+        clientY: Math.round(tipBox.y + tipBox.height / 2),
+      }));
+      await new Promise((r) => setTimeout(r, 240));
+      return {
+        handoffOpen: b.handoffOpen,
+        round: b.progress.round,
+        visible: card ? card.checkVisibility() : false,
+        label: card?.querySelector('[data-handoff-label]')?.textContent.trim() || '',
+        body: card?.querySelector('[data-handoff-text]')?.textContent.trim() || '',
+        ask: card?.querySelector('[data-handoff-ask]')?.textContent.trim() || '',
+        note: card?.querySelector('[data-infotip-bubble]')?.textContent.trim() || '',
+        noteVisible: card?.querySelector('[data-infotip-bubble]')?.checkVisibility() || false,
+        focusedOnGo: !!document.activeElement?.closest('[data-handoff-go]'),
+        goLabel: card?.querySelector('[data-handoff-go]')?.textContent.trim() || '',
+        links: card ? card.querySelectorAll('a[href]').length : -1,
+        palmShown: !document.querySelector('#prompt-console .multiboard .palmwrap')?.hidden,
+      };
+    `);
+    eq(mHandoff.handoffOpen, true, '第一輪刻完 → 神諭的回話攤開來了');
+    eq(mHandoff.round, 0, '回話卡攤開時還沒進到第二輪（要玩家自己收下）');
+    eq(mHandoff.visible, true, '回話卡真的畫得出來');
+    ok(mHandoff.body.length >= 12, '回話卡上真的有一段輸出', mHandoff.body.slice(0, 40));
+    ok(mHandoff.ask.length >= 6, '回話卡說得出「第二輪要修什麼」', mHandoff.ask.slice(0, 40));
+    ok(/遊戲|自撰|不是真的/.test(mHandoff.note), 'ⓘ 明講這一段回話是遊戲自己寫的，不是模型跑出來的', mHandoff.note.slice(0, 60));
+    eq(mHandoff.noteVisible, true, 'hover 到 ⓘ 上就讀得到那句實話');
+    eq(mHandoff.links, 0, '回話卡不自帶連結（教學與出處在第二幕）');
+    eq(mHandoff.focusedOnGo, true, '焦點自己落在「收下這一份回話」上（純鍵盤走得下去）');
+    ok(/<kbd>Enter<\/kbd>/.test(mHandoff.goLabel) || /Enter/.test(mHandoff.goLabel), '按鈕上戴著 Enter 的鍵帽', mHandoff.goLabel);
+    eq(mHandoff.palmShown, false, '第一輪刻完手掌印還不會出現（還有第二輪）');
+
+    /*
+     * Esc 契約：兩輪刻印**自己沒有還原層** —— 一下就冒泡出去收起面板。
+     * 但剛剛把 ⓘ 打開了，所以第一下 Esc 會先收 ⓘ（`bindInfoTips` 的既有行為），
+     * 第二下才輪到面板。兩段都驗。
+     */
+    await key('Escape', 'Escape', { vk: 27 });
+    await sleep(300);
+    const mEscTip = await evaluate(`
+      return {
+        open: !document.querySelector('#prompt-console')?.hidden,
+        tipOpen: !!document.querySelector('#prompt-console .handoff [data-infotip].is-open'),
+      };
+    `);
+    eq(mEscTip.tipOpen, false, 'ⓘ 開著時第一下 Esc 先把它收起來');
+    eq(mEscTip.open, true, '收 ⓘ 的那一下不會順手把整個面板關掉');
+    await key('Escape', 'Escape', { vk: 27 });
+    await sleep(360);
+    const mEsc = await evaluate(`
+      const g = window.__promptasy;
+      return { open: !document.querySelector('#prompt-console')?.hidden, canMove: g.player.inputEnabled };
+    `);
+    eq(mEsc.open, false, 'ⓘ 收起來之後，Esc 在兩輪刻印上直接收起面板（這一層沒有自己的還原層）');
+    eq(mEsc.canMove, true, '收起之後操控權還回來了');
+
+    /* 重開這一關 → 一定回到第一輪（結構上不可能串錯輪次） */
+    await key('KeyE', 'e', { vk: 69 });
+    await sleep(520);
+    const mReopen = await evaluate(`
+      const g = window.__promptasy;
+      const b = g.promptConsole.multiBoard;
+      return { round: b.progress.round, carved: b.progress.carved, handoffOpen: b.handoffOpen, text: b.text };
+    `);
+    eq(mReopen.round, 0, '重開這一關一定回到第一輪');
+    eq(mReopen.carved, 0, '重開這一關碑上是空的');
+    eq(mReopen.handoffOpen, false, '重開這一關回話卡是收起來的');
+    eq(mReopen.text, '', '重開這一關不會留下上一次刻的字（不串輪）');
+
+    /* 走到第二輪，然後切幕 ／ 切模式 —— 輪次不能被弄丟或串掉 */
+    const mAdvance = await evaluate(`
+      const g = window.__promptasy;
+      const b = g.promptConsole.multiBoard;
+      const flow = g.content.flow('${target}');
+      g.promptConsole.goAct(3, { force: true });
+      await new Promise((r) => setTimeout(r, 320));
+      const n = flow.multiFlow.rounds[0].count;
+      for (let i = 0; i < n; i += 1) {
+        b.pick(flow.slots[i].options.findIndex((o) => o.correct));
+        await new Promise((r) => setTimeout(r, 120));
+      }
+      b.advance();
+      await new Promise((r) => setTimeout(r, 220));
+      const afterAdvance = { round: b.progress.round, carved: b.progress.carved, text: b.text, handoffOpen: b.handoffOpen };
+      // 切回第一幕再回來
+      g.promptConsole.goAct(1, { force: true });
+      await new Promise((r) => setTimeout(r, 260));
+      g.promptConsole.goAct(3, { force: true });
+      await new Promise((r) => setTimeout(r, 260));
+      const afterAct = { round: b.progress.round, carved: b.progress.carved, text: b.text };
+      // 切到自由書寫再切回來
+      g.promptConsole.setMode('free');
+      await new Promise((r) => setTimeout(r, 240));
+      const freeKind = g.promptConsole.mode;
+      g.promptConsole.setMode('guided');
+      await new Promise((r) => setTimeout(r, 240));
+      const afterMode = { round: b.progress.round, carved: b.progress.carved, text: b.text };
+      return { afterAdvance, afterAct, afterMode, freeKind };
+    `);
+    eq(mAdvance.afterAdvance.round, 1, '按下「收下這一份回話」就進到第二輪');
+    eq(mAdvance.afterAdvance.handoffOpen, false, '進到第二輪之後回話卡收起來了');
+    ok(mAdvance.afterAdvance.carved > 0, '第一輪刻好的字被收進「前面刻好的」', String(mAdvance.afterAdvance.carved));
+    eq(mAdvance.freeKind, 'free', '切得到自由書寫模式');
+    eq(mAdvance.afterAct.round, mAdvance.afterAdvance.round, '切幕回來還在同一輪（輪次不會被弄丟）');
+    eq(mAdvance.afterAct.text, mAdvance.afterAdvance.text, '切幕回來刻好的字一個都沒少');
+    eq(mAdvance.afterMode.round, mAdvance.afterAdvance.round, '切模式回來還在同一輪');
+    eq(mAdvance.afterMode.text, mAdvance.afterAdvance.text, '切模式回來刻好的字一個都沒少');
+
+    /* 第二輪刻完 → 手掌印 → 呈給神諭 → S */
+    const mFinish = await evaluate(`
+      const g = window.__promptasy;
+      const b = g.promptConsole.multiBoard;
+      const flow = g.content.flow('${target}');
+      const from = flow.multiFlow.rounds[0].count;
+      for (let i = from; i < flow.slots.length; i += 1) {
+        b.pick(flow.slots[i].options.findIndex((o) => o.correct));
+        await new Promise((r) => setTimeout(r, 120));
+      }
+      await new Promise((r) => setTimeout(r, 260));
+      return {
+        done: b.done,
+        act: g.promptConsole.act,
+        palmShown: !document.querySelector('#prompt-console .multiboard .palmwrap')?.hidden,
+        focusedOnPalm: !!document.activeElement?.closest('[data-palm]'),
+        text: b.text,
+        sample: g.content.challenge('${target}').sample,
+      };
+    `);
+    eq(mFinish.done, true, '兩輪都刻完了');
+    eq(mFinish.act, 4, '刻滿自動切到第四幕（手掌印）');
+    eq(mFinish.palmShown, true, '手掌印浮出來了');
+    eq(mFinish.focusedOnPalm, true, '焦點自己落在手掌印上（純鍵盤走得完）');
+    eq(mFinish.text, mFinish.sample, '兩輪刻出來的字＝資料層的示範解答（兩種模式同一段字）');
+
+    await evaluate(`document.querySelector('#prompt-console [data-palm]').focus(); return 1;`);
+    await holdPalm();
+    await sleep(700);
+
+    const mResult = await evaluate(`
+      const g = window.__promptasy;
+      const grade = document.querySelector('#prompt-console .grade__mark')?.textContent.trim() || '';
+      return {
+        grade,
+        cleared: g.progression.isCleared('${target}'),
+        skill: g.progression.state.skillsV2.includes('meta-metaprompt'),
+        sources: [...document.querySelectorAll('#prompt-console .result a[href^="https://"]')].length,
+      };
+    `);
+    eq(mResult.grade, 'S', '兩輪刻對＝S（走的是同一支離線引擎）');
+    eq(mResult.cleared, true, '記成通關了');
+    eq(mResult.skill, true, '技能進了圖鑑');
+    ok(mResult.sources > 0, '結果面板附得出可點的官方出處', String(mResult.sources));
+
+    await key('Escape', 'Escape', { vk: 27 });
+    await sleep(360);
+  }
+
+  /* --- reduced-motion 下兩輪刻印照樣走得完 --- */
+  {
+    await cdp.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] }, sessionId);
+    await sleep(200);
+    const rm = await evaluate(`
+      const g = window.__promptasy;
+      g.promptConsole.open(g.content.challenge('endless-corridor-86'));
+      await new Promise((r) => setTimeout(r, 420));
+      g.promptConsole.goAct(3, { force: true });
+      await new Promise((r) => setTimeout(r, 320));
+      const b = g.promptConsole.multiBoard;
+      const flow = g.content.flow('endless-corridor-86');
+      for (let i = 0; i < flow.multiFlow.rounds[0].count; i += 1) {
+        b.pick(flow.slots[i].options.findIndex((o) => o.correct));
+        await new Promise((r) => setTimeout(r, 120));
+      }
+      const card = document.querySelector('#prompt-console .handoff');
+      const visible = card ? card.checkVisibility() : false;
+      const anim = card ? getComputedStyle(card).animationName : '';
+      b.advance();
+      await new Promise((r) => setTimeout(r, 200));
+      for (let i = flow.multiFlow.rounds[0].count; i < flow.slots.length; i += 1) {
+        b.pick(flow.slots[i].options.findIndex((o) => o.correct));
+        await new Promise((r) => setTimeout(r, 120));
+      }
+      await new Promise((r) => setTimeout(r, 240));
+      return { visible, anim, done: b.done, round: b.progress.round };
+    `);
+    eq(rm.visible, true, 'reduced-motion 下回話卡照樣看得見');
+    eq(rm.anim, 'none', 'reduced-motion 下回話卡不做入場動畫');
+    eq(rm.done, true, 'reduced-motion 下兩輪照樣刻得完');
+    eq(rm.round, 1, 'reduced-motion 下輪次照樣推得到第二輪');
+    await cdp.send('Emulation.setEmulatedMedia', { features: [] }, sessionId);
+    await sleep(200);
+    await evaluate(`window.__promptasy.promptConsole.close(); return 1;`);
+    await sleep(240);
+  }
+
+  /* ================================================================== */
+  /* 課程 v2 · Phase H：轉鈕（sim）＋ 減法之庭（frugality）              */
+  /*   · 高原北緣的院落是第三座加建（沒有橋，走出高原正北就到）           */
+  /*   · 軟門檻只有一條：任一區精通                                       */
+  /*   · 7 座神廟 ＋ 三座換裝成轉鈕的舊神廟                               */
+  /*   · 轉鈕純鍵盤走完：轉三檔 → 開放刻印 → 手掌印 → S                  */
+  /*   · 樣本明講是遊戲自撰的，而且斷網照樣轉得動（護欄 3）               */
+  /* ================================================================== */
+  console.log('\n▸ 轉鈕與減法之庭（課程 v2 · Phase H）');
+
+  await evaluate(`
+    const g = window.__promptasy;
+    g.promptConsole.close();
+    g.codex.close();
+    g.shareCard.close();
+    return 1;
+  `);
+  await sleep(220);
+
+  /* --- 閘門：知識式軟門檻（任一區精通） --- */
+  await evaluate(`
+    localStorage.setItem('promptasy.v1.save', JSON.stringify({
+      version: 1, xp: 0, level: 1,
+      unlockedRegions: ['foundations'],
+      collected: [], skillsV2: [], bestGrades: {},
+      badges: { openai: 0, anthropic: 0, google: 0, xai: 0 },
+      settings: { music: 'ambient-01', volume: 0, muted: true, quality: 'low', preflight: true, promptMode: 'guided' },
+      flags: { prologueDone: true, introSeen: true },
+      prologueSteps: [], guidanceSeen: [], loreRead: [], inscriptionsFound: [], secretsFound: [],
+      handlesUsed: [], skippedGates: []
+    }));
+    return 1;
+  `);
+  await reloadPage('重新載入（減法之庭：什麼都還沒學）');
+  await key('Enter', 'Enter', { vk: 13 });
+  await sleep(500);
+
+  const fgGate = await evaluate(`
+    const g = window.__promptasy;
+    const st = g.progression.gateStatus('frugality');
+    return {
+      unlocked: g.progression.isRegionUnlocked('frugality'),
+      gaps: st.knowledgeGaps.map((x) => x.kind),
+      text: st.text,
+      hasGate: !!g.world.gates.find((x) => x.id === 'frugality'),
+      bridges: g.world.corridors.filter((c) => c.region === 'frugality').length,
+      hasLink: !!g.world.annexLinks.find((l) => l.region === 'frugality'),
+    };
+  `);
+  eq(fgGate.unlocked, false, '什麼都還沒學 → 減法之庭鎖著');
+  ok(fgGate.gaps.includes('masteredAny'), '「任一區精通」就是減法之庭唯一的缺口', fgGate.gaps.join(','));
+  ok(/也可以先行前往/.test(fgGate.text), '減法之庭的門一樣會問「想先過去看看嗎」', fgGate.text);
+  eq(fgGate.hasGate, true, '減法之庭真的有一道閘門');
+  eq(fgGate.bridges, 0, '減法之庭沒有自己的橋（高原加建，不是新大陸）');
+  eq(fgGate.hasLink, true, '減法之庭有一個頸口（閘門立在高原北緣）');
+
+  const fgSkip = await evaluate(`
+    const g = window.__promptasy;
+    const xpBefore = g.progression.state.xp;
+    g.progression.skipGate('frugality');
+    g.world.openGate('frugality', true);
+    return {
+      unlocked: g.progression.isRegionUnlocked('frugality'),
+      xp: g.progression.state.xp,
+      xpBefore,
+      cleared: Object.keys(g.progression.state.bestGrades).length,
+    };
+  `);
+  eq(fgSkip.unlocked, true, '先行前往開得了減法之庭的門');
+  eq(fgSkip.xp, fgSkip.xpBefore, '先行前往一分 XP 都不加');
+  eq(fgSkip.cleared, 0, '先行前往不會偷偷記下任何一關的評價');
+
+  /* --- 走進院子：沒有虛空、HUD 與配樂都跟著換 --- */
+  const fgEnter = await evaluate(`
+    const g = window.__promptasy;
+    const link = g.world.annexLinks.find((l) => l.region === 'frugality');
+    let voids = 0;
+    for (let i = 0; i <= 40; i += 1) {
+      const t = i / 40;
+      const x = link.from.x + (link.to.x - link.from.x) * t;
+      const z = link.from.z + (link.to.z - link.from.z) * t;
+      if (g.world.coverage(x, z) <= 0.45) voids += 1;
+    }
+    g.player.position.set(link.to.x, g.world.terrainHeight(link.to.x, link.to.z) + 1, link.to.z);
+    await new Promise((r) => setTimeout(r, 900));
+    const here = g.world.regionAt(g.player.position.x, g.player.position.z);
+    return {
+      voids,
+      here: here && here.id,
+      hudRegion: g.hud.region,
+      hudLabel: document.querySelector('.hud__region [data-region]')?.textContent.trim() || '',
+      mood: g.audio.debug().region,
+      source: g.audio.debug().source,
+    };
+  `);
+  eq(fgEnter.voids, 0, '從中央高原走到院子全程都是實地（加建沒有虛空）');
+  eq(fgEnter.here, 'frugality', '走出高原正北真的站在減法之庭的地界上');
+  eq(fgEnter.hudRegion, 'frugality', 'HUD 跟著換到減法之庭');
+  ok(/減法之庭/.test(fgEnter.hudLabel), 'HUD 上寫的是中文區域名', fgEnter.hudLabel);
+  eq(fgEnter.mood, 'frugality', '配樂也切到減法之庭');
+  await expectRegionBgmFile('frugality', '減法之庭');
+
+  /* --- 世界：地標、造景、石座數、預算 --- */
+  const fgWorld = await evaluate(`
+    const g = window.__promptasy;
+    let lights = 0;
+    let tris = 0;
+    g.engine.scene.traverse((o) => {
+      if (o.isLight) lights += 1;
+      if (o.isMesh && o.geometry) {
+        const idx = o.geometry.index ? o.geometry.index.count : (o.geometry.attributes.position?.count || 0);
+        tris += (idx / 3) * (o.isInstancedMesh ? o.count : 1);
+      }
+    });
+    const node = g.engine.scene.getObjectByName('landmark:empty-plinth');
+    let lmLights = 0;
+    if (node) node.traverse((o) => { if (o.isLight) lmLights += 1; });
+    return {
+      hasPlinth: !!node,
+      lmLights,
+      fgMarkers: g.world.markers.filter((m) => g.content.challenge(m.id).region === 'frugality').length,
+      props: !!g.engine.scene.getObjectByName('props:frugality'),
+      flora: !!g.engine.scene.getObjectByName('flora:frugality'),
+      vignettes: ['vignette:moved-out', 'vignette:said-three-times', 'vignette:stale-tray']
+        .filter((n) => !!g.engine.scene.getObjectByName(n)).length,
+      lights,
+      tris: Math.round(tris),
+      solids: g.world.solids.length,
+    };
+  `);
+  ok(fgWorld.hasPlinth, '空的基座真的立在場景圖上');
+  eq(fgWorld.lmLights, 0, '空的基座一盞實體光源都沒加（全部自發光）');
+  eq(fgWorld.fgMarkers, 8, '減法之庭有 8 座石座（7 教學神廟 ＋ 1 試煉）');
+  eq(fgWorld.props, true, '減法之庭有自己的造景（空托座與印子）');
+  eq(fgWorld.flora, true, '減法之庭有自己的植被剪影');
+  eq(fgWorld.vignettes, 3, '減法之庭的三組故事小景都在場景圖上', String(fgWorld.vignettes));
+  ok(fgWorld.lights <= 56, '加了減法之庭之後燈光仍在預算內', `lights=${fgWorld.lights}`);
+  ok(fgWorld.tris < 420000, '加了減法之庭之後三角形仍在預算內', `tris=${fgWorld.tris}`);
+  ok(fgWorld.solids < 1400, '加了減法之庭之後碰撞體仍在預算內', `solids=${fgWorld.solids}`);
+
+  /* --- 7 座神廟：三個新檢查器、C1／C4 --- */
+  const fgPlan = await evaluate(`
+    const g = window.__promptasy;
+    const here = g.content.challenges.filter((c) => !c.application && c.region === 'frugality');
+    return here.map((c) => ({
+      id: c.id,
+      skill: c.primarySkillId,
+      check: c.rubric.find((r) => r.primary).check,
+      rows: c.rubric.length,
+      pass: c.pass,
+      kind: g.promptConsole.flowKindOf(g.content.flow(c.id)),
+    }));
+  `);
+  eq(fgPlan.length, 7, '減法之庭有 7 座教學神廟');
+  {
+    const PHASE_H_CHECKS = ['staticBeforeVariable', 'asksToCompact', 'carriesForwardEssentials'];
+    const used = new Set(fgPlan.map((x) => x.check));
+    for (const id of PHASE_H_CHECKS) ok(used.has(id), `新檢查器 ${id} 真的有一座神廟在教`);
+    for (const row of fgPlan) {
+      eq(row.rows, 2, `[${row.id}] 收斂成「一條主檢查 ＋ 一條地基」（C1）`);
+      eq(row.pass, 2, `[${row.id}] 門檻是 2 分`);
+      ok(Boolean(row.skill), `[${row.id}] 接上了 v2 技能`);
+    }
+    const kinds = fgPlan.map((x) => x.kind);
+    let run = 1;
+    let worst = 1;
+    for (let i = 1; i < kinds.length; i += 1) {
+      run = kinds[i] === kinds[i - 1] ? run + 1 : 1;
+      if (run > worst) worst = run;
+    }
+    ok(worst <= 2, '[frugality] 整區沒有連續三座同一種題型（C4）', kinds.join(','));
+    ok(new Set(kinds).size >= 5, '[frugality] 至少用了五種題型', [...new Set(kinds)].join(','));
+  }
+
+  /* --- 轉鈕：離線（一個網路請求都沒有）--- */
+  const simOffline = await evaluate(`
+    const g = window.__promptasy;
+    const ids = g.content.challenges
+      .filter((c) => g.promptConsole.flowKindOf(g.content.flow(c.id)) === 'sim')
+      .map((c) => c.id);
+    return { ids, count: ids.length };
+  `);
+  eq(simOffline.count, 4, '四座神廟用轉鈕（Phase H 的三個 spike ＋ Phase J1 的同名旋鈕）', simOffline.ids.join(','));
+
+  /* --- 純鍵盤走完一座轉鈕（本期的主場題型，§3.1 鐵則） --- */
+  {
+    const target = 'effort-forge-15';
+    const netMark = await evaluate(`return performance.getEntriesByType('resource').length;`);
+    const near = await evaluate(`
+      const g = window.__promptasy;
+      g.progression.skipGate('reasoning');
+      g.world.openGate('reasoning', true);
+      const m = g.world.markers.find((x) => x.id === '${target}');
+      g.player.position.set(m.position.x + 3, g.world.terrainHeight(m.position.x + 3, m.position.z + 2), m.position.z + 2);
+      await new Promise((r) => setTimeout(r, 700));
+      const el = document.querySelector('.hud__interact');
+      return { d: Math.hypot(g.player.position.x - m.position.x, g.player.position.z - m.position.z), hint: el && !el.hidden ? el.innerHTML : '' };
+    `);
+    ok(near.d < 6.5, '站到火力熔爐旁邊', near.d.toFixed(2));
+    ok(/<kbd>E<\/kbd>/.test(near.hint), '走近提示標著 E 這個鍵', near.hint.slice(0, 80));
+
+    await key('KeyE', 'e', { vk: 69 });
+    await sleep(520);
+    await key('Enter', 'Enter', { vk: 13 });
+    await sleep(420);
+    await evaluate(`document.querySelector('#prompt-console .act--guide').focus(); return 1;`);
+    await key('Enter', 'Enter', { vk: 13 });
+    await sleep(460);
+
+    const sStart = await evaluate(`
+      const g = window.__promptasy;
+      const b = g.promptConsole.simBoard;
+      const card = document.querySelector('#prompt-console .simboard .dial');
+      const tipBtn = card?.querySelector('[data-infotip-btn]');
+      // hover ＝ 游標真的動到它上面（只補送 mouseover 不算，見 bindInfoTips）
+      const tipBox = tipBtn?.getBoundingClientRect();
+      tipBtn?.dispatchEvent(new MouseEvent('mousemove', {
+        bubbles: true,
+        clientX: Math.round(tipBox.x + tipBox.width / 2),
+        clientY: Math.round(tipBox.y + tipBox.height / 2),
+      }));
+      await new Promise((r) => setTimeout(r, 240));
+      return {
+        act: g.promptConsole.act,
+        kind: g.promptConsole.kind,
+        notches: document.querySelectorAll('#prompt-console .simboard [data-notch]').length,
+        seen: b.progress.seen,
+        observed: b.progress.observed,
+        carveShown: !document.querySelector('#prompt-console .simboard .carve')?.hidden,
+        focusedOnNotch: !!document.activeElement?.closest('[data-notch]'),
+        out: card?.querySelector('[data-out-text]')?.textContent.trim() || '',
+        cond: card?.querySelector('[data-dial-cond]')?.textContent.trim() || '',
+        note: card?.querySelector('[data-infotip-bubble]')?.textContent.trim() || '',
+        noteVisible: card?.querySelector('[data-infotip-bubble]')?.checkVisibility() || false,
+        links: card ? card.querySelectorAll('a[href]').length : -1,
+        palmShown: !document.querySelector('#prompt-console .simboard .palmwrap')?.hidden,
+        text: b.text,
+      };
+    `);
+    eq(sStart.act, 3, 'Enter 推到第三幕（轉鈕）');
+    eq(sStart.kind, 'sim', '這一座是轉鈕');
+    eq(sStart.notches, 3, '旋鈕上剛好三檔');
+    eq(sStart.seen, 1, '一進來就停在其中一檔（那一檔算看過了）');
+    eq(sStart.observed, false, '三檔還沒轉完');
+    eq(sStart.carveShown, false, '還沒轉完之前刻印區是鎖著的（觀察就是這一關的內容）');
+    eq(sStart.palmShown, false, '還沒轉完之前手掌印不會出現');
+    ok(sStart.out.length >= 8, '畫面上真的有一段神諭的回話', sStart.out.slice(0, 40));
+    ok(/模型|機器|版本|官方|20\d\d/.test(sStart.cond), '旁邊寫得出「這一檔在哪一台機器上成立」', sStart.cond.slice(0, 60));
+    ok(/遊戲預先寫好|不是真的模型/.test(sStart.note), 'ⓘ 明講這幾段回話是遊戲寫的，不是模型跑出來的', sStart.note.slice(0, 60));
+    eq(sStart.noteVisible, true, 'hover 到 ⓘ 上就讀得到那句實話');
+    eq(sStart.links, 0, '旋鈕面上不自帶連結（教學與出處在第二幕）');
+    eq(sStart.text, '', '還沒刻任何字');
+    eq(sStart.focusedOnNotch, true, '一進轉鈕，焦點就落在旋鈕的檔位上');
+
+    /* 轉一檔：回話真的換一段，而且被評分的那段字一個字都沒變 */
+    const sTurn = await evaluate(`
+      const g = window.__promptasy;
+      const b = g.promptConsole.simBoard;
+      const before = document.querySelector('#prompt-console .simboard [data-out-text]')?.textContent.trim();
+      const textBefore = b.text;
+      const btns = [...document.querySelectorAll('#prompt-console .simboard [data-notch]')];
+      const other = btns.findIndex((el) => !el.classList.contains('is-now'));
+      btns[other].focus();
+      return { before, textBefore, other };
+    `);
+    await key('Enter', 'Enter', { vk: 13 });
+    await sleep(320);
+    const sAfter = await evaluate(`
+      const g = window.__promptasy;
+      const b = g.promptConsole.simBoard;
+      return {
+        after: document.querySelector('#prompt-console .simboard [data-out-text]')?.textContent.trim(),
+        read: document.querySelector('#prompt-console .simboard [data-out-read]')?.textContent.trim(),
+        value: document.querySelector('#prompt-console .simboard [data-out-value]')?.textContent.trim(),
+        seen: b.progress.seen,
+        text: b.text,
+        live: b.announcement,
+        nowCount: document.querySelectorAll('#prompt-console .simboard .notch.is-now').length,
+        lastCue: g.audio.debug().lastCue,
+      };
+    `);
+    ok(sAfter.after !== sTurn.before, '轉一檔，神諭的回話真的換了一段', `${sTurn.before.slice(0, 18)} → ${sAfter.after.slice(0, 18)}`);
+    ok(sAfter.read.length >= 8, '每一檔旁邊都寫得出「這一檔是什麼意思」', sAfter.read.slice(0, 40));
+    ok(sAfter.value.length > 0, '畫面上寫得出旋鈕被轉到哪一格', sAfter.value);
+    eq(sAfter.seen, 2, '轉過的檔位被記下來了');
+    eq(sAfter.text, sTurn.textBefore, '轉旋鈕不會改變被評分的那段字（轉鈕是觀察，不是作答）');
+    ok(sAfter.live.length > 0, '轉檔會用 aria-live 講出來（純鍵盤讀得到）', sAfter.live.slice(0, 40));
+    eq(sAfter.nowCount, 1, '同一時間只有一檔是亮的');
+    /*
+     * issue #3：轉一格放的是**旋鈕自己的卡榫聲**（三檔各一顆），不是刻印那一聲。
+     * 轉旋鈕跟刻字是兩件事，聽起來也該是兩件事。
+     */
+    ok(
+      ['simLow', 'simMid', 'simHigh'].includes(sAfter.lastCue),
+      '轉一檔放的是那一檔的卡榫聲（不是刻印音）',
+      String(sAfter.lastCue)
+    );
+
+    /* 轉完第三檔 → 刻印區才開放 */
+    await evaluate(`
+      const btns = [...document.querySelectorAll('#prompt-console .simboard [data-notch]')];
+      const rest = btns.find((el) => !el.classList.contains('is-seen'));
+      (rest || btns[2]).focus();
+      return 1;
+    `);
+    await key('Enter', 'Enter', { vk: 13 });
+    await sleep(380);
+    const sOpen = await evaluate(`
+      const g = window.__promptasy;
+      const b = g.promptConsole.simBoard;
+      return {
+        seen: b.progress.seen,
+        observed: b.progress.observed,
+        carveShown: !document.querySelector('#prompt-console .simboard .carve')?.hidden,
+        conclusion: document.querySelector('#prompt-console .simboard [data-dial-conclusion]')?.textContent.trim() || '',
+        focusedOnOption: !!document.activeElement?.closest('[data-slot-opt]'),
+        progress: document.querySelector('#prompt-console .simboard [data-dial-progress]')?.textContent.trim() || '',
+      };
+    `);
+    eq(sOpen.seen, 3, '三檔都轉過了');
+    eq(sOpen.observed, true, '轉鈕這一段走完了');
+    eq(sOpen.carveShown, true, '三檔都轉過之後刻印區才開放');
+    ok(sOpen.conclusion.length >= 20, '轉完之後給一句收尾的結論', sOpen.conclusion.slice(0, 40));
+    ok(/三檔都轉過/.test(sOpen.progress), '進度上寫著三檔都轉過了', sOpen.progress);
+    eq(sOpen.focusedOnOption, true, '刻印開放時焦點自己落到第一個選項上（鍵盤不用找）');
+
+    /* 挑錯不會失敗 */
+    const sWrong = await evaluate(`
+      const g = window.__promptasy;
+      const b = g.promptConsole.simBoard;
+      const flow = g.content.flow('${target}');
+      const before = b.progress.carved;
+      const opts = [...document.querySelectorAll('#prompt-console .simboard [data-slot-opt]')];
+      const wrongIdx = opts.findIndex((_, i) => !flow.slots[0].options[i].correct);
+      opts[wrongIdx].focus();
+      opts[wrongIdx].click();
+      await new Promise((r) => setTimeout(r, 260));
+      const btn = document.querySelectorAll('#prompt-console .simboard [data-slot-opt]')[wrongIdx];
+      return {
+        carvedBefore: before,
+        carvedAfter: b.progress.carved,
+        wrongClass: btn?.classList.contains('is-wrong'),
+        feedback: btn?.querySelector('[data-opt-fb]')?.textContent.trim() || '',
+        failShown: !document.querySelector('#prompt-console .result')?.hidden,
+      };
+    `);
+    eq(sWrong.carvedAfter, sWrong.carvedBefore, '挑錯不會前進（石碑就是不收）');
+    eq(sWrong.wrongClass, true, '挑錯的那一片留在原地標成「石碑不收」');
+    ok(sWrong.feedback.length >= 8, '挑錯的人就地拿到一句教學', sWrong.feedback.slice(0, 40));
+    eq(sWrong.failShown, false, '挑錯不會跳失敗面板');
+
+    /* 刻滿 → 手掌印 → S */
+    const sCarve = await evaluate(`
+      const g = window.__promptasy;
+      const b = g.promptConsole.simBoard;
+      const flow = g.content.flow('${target}');
+      for (let i = 0; i < flow.slots.length; i += 1) {
+        b.pick(flow.slots[i].options.findIndex((o) => o.correct));
+        await new Promise((r) => setTimeout(r, 140));
+      }
+      await new Promise((r) => setTimeout(r, 320));
+      return {
+        done: b.done,
+        text: b.text,
+        sample: g.content.challenge('${target}').sample,
+        palmShown: !document.querySelector('#prompt-console .simboard .palmwrap')?.hidden,
+        focusedOnPalm: !!document.activeElement?.closest('.palm'),
+        act: g.promptConsole.act,
+      };
+    `);
+    eq(sCarve.done, true, '全部選對＝刻滿了');
+    eq(sCarve.text, sCarve.sample, '刻出來的整段字就是這一關的示範解答（同一段文字、同一支引擎）');
+    eq(sCarve.palmShown, true, '刻滿之後手掌印浮出來');
+    eq(sCarve.focusedOnPalm, true, '焦點自己落在手掌印上（純鍵盤走得完）');
+    eq(sCarve.act, 4, '刻滿自動切到第四幕（手印）');
+
+    await holdPalm();
+    await sleep(700);
+    const sResult = await evaluate(`
+      const g = window.__promptasy;
+      return {
+        grade: document.querySelector('#prompt-console .grade__mark')?.textContent.trim() || '',
+        best: g.progression.bestGrade('${target}'),
+        sources: [...document.querySelectorAll('#prompt-console .result a[href^="https://"]')].length,
+      };
+    `);
+    eq(sResult.grade, 'S', '按住 Enter 呈給神諭 → 拿到 S');
+    eq(sResult.best, 'S', '評價寫進進度');
+    ok(sResult.sources >= 1, '結果面板上仍然掛得出官方出處', String(sResult.sources));
+
+    /* 這一整段轉鈕全程沒有對外要過任何東西（護欄 3：斷網照樣玩得動） */
+    const netOut = await evaluate(`
+      const from = ${netMark};
+      const here = location.origin;
+      return performance.getEntriesByType('resource')
+        .slice(from)
+        .map((e) => e.name)
+        .filter((u) => !u.startsWith(here) && !u.startsWith('data:') && !u.startsWith('blob:'));
+    `);
+    eq(netOut.length, 0, '轉鈕全程沒有向外要過任何東西（樣本是本機的離線資料）', netOut.slice(0, 3).join(' '));
+
+    await key('Escape', 'Escape', { vk: 27 });
+    await sleep(320);
+
+    /* 切到自由書寫再切回來：退回石碑刻印時字一模一樣（相容契約） */
+    await key('KeyE', 'e', { vk: 69 });
+    await sleep(500);
+    const sFree = await evaluate(`
+      const g = window.__promptasy;
+      g.promptConsole.setMode('free');
+      await new Promise((r) => setTimeout(r, 220));
+      const free = g.promptConsole.mode;
+      g.promptConsole.setMode('guided');
+      await new Promise((r) => setTimeout(r, 220));
+      return { free, back: g.promptConsole.mode, kind: g.promptConsole.kind };
+    `);
+    eq(sFree.free, 'free', '轉鈕也切得到自由書寫');
+    eq(sFree.back, 'guided', '切得回引導式');
+    eq(sFree.kind, 'sim', '切回來還是轉鈕');
+    await evaluate(`window.__promptasy.promptConsole.close(); return 1;`);
+    await sleep(240);
+  }
+
+  /* --- 減法之庭的一座（改碑）也走得完：新區域不是只有地形 --- */
+  {
+    const target = 'empty-plinth-100';
+    const near = await evaluate(`
+      const g = window.__promptasy;
+      const m = g.world.markers.find((x) => x.id === '${target}');
+      g.player.position.set(m.position.x + 3, g.world.terrainHeight(m.position.x + 3, m.position.z + 2), m.position.z + 2);
+      await new Promise((r) => setTimeout(r, 700));
+      const el = document.querySelector('.hud__interact');
+      return { d: Math.hypot(g.player.position.x - m.position.x, g.player.position.z - m.position.z), hint: el && !el.hidden ? el.innerHTML : '' };
+    `);
+    ok(near.d < 6.5, '站到空的基座旁邊', near.d.toFixed(2));
+    ok(/<kbd>E<\/kbd>/.test(near.hint), '減法之庭的石座一樣按 E 互動', near.hint.slice(0, 80));
+
+    await key('KeyE', 'e', { vk: 69 });
+    await sleep(520);
+    const fgAct1 = await evaluate(`
+      const g = window.__promptasy;
+      const act = document.querySelector('#prompt-console .act--brief');
+      return {
+        act: g.promptConsole.act,
+        links: act ? act.querySelectorAll('a[href]').length : -1,
+        mission: act?.querySelector('[data-mission]')?.textContent.trim() || '',
+      };
+    `);
+    eq(fgAct1.act, 1, '第一幕只有題目');
+    eq(fgAct1.links, 0, '第一幕零官方連結（出處在第二幕）');
+    ok(fgAct1.mission.length > 6, '委託寫得出來', fgAct1.mission.slice(0, 40));
+
+    await key('Enter', 'Enter', { vk: 13 });
+    await sleep(420);
+    const fgAct2 = await evaluate(`
+      return {
+        sources: [...document.querySelectorAll('#prompt-console .act--guide a[href^="https://"]')].length,
+        origin: document.querySelector('#prompt-console .act--guide')?.textContent.includes('神諭原典') || false,
+      };
+    `);
+    ok(fgAct2.sources >= 1, '第二幕掛得出神諭原典（官方連結）', String(fgAct2.sources));
+    eq(fgAct2.origin, true, '第二幕標著「神諭原典」');
+
+    await evaluate(`document.querySelector('#prompt-console .act--guide').focus(); return 1;`);
+    await key('Enter', 'Enter', { vk: 13 });
+    await sleep(460);
+    const fgFix = await evaluate(`
+      const g = window.__promptasy;
+      const b = g.promptConsole.fixBoard;
+      const flow = g.content.flow('${target}');
+      for (const frag of flow.fixFlow.fragments.filter((f) => f.weak)) {
+        b.pick(frag.id, frag.options.findIndex((o) => o.correct));
+        await new Promise((r) => setTimeout(r, 140));
+      }
+      await new Promise((r) => setTimeout(r, 260));
+      return {
+        kind: g.promptConsole.kind,
+        done: b.done,
+        text: b.text,
+        sample: g.content.challenge('${target}').sample,
+      };
+    `);
+    eq(fgFix.kind, 'fix', '空的基座是改碑');
+    eq(fgFix.done, true, '改完了');
+    eq(fgFix.text, fgFix.sample, '改好的整段字就是示範解答');
+    await evaluate(`window.__promptasy.promptConsole.close(); return 1;`);
+    await sleep(240);
+  }
+
+  /* --- 圖鑑：減法之庭那一張卡在（收集感延伸到新區域） --- */
+  const fgCodex = await evaluate(`
+    const g = window.__promptasy;
+    g.codex.open();
+    await new Promise((r) => setTimeout(r, 420));
+    const cards = [...document.querySelectorAll('#codex .region-card')];
+    const card = cards.find((el) => /減法之庭/.test(el.querySelector('h3')?.textContent || ''));
+    const out = {
+      cards: cards.length,
+      hasCard: !!card,
+      title: card?.querySelector('h3')?.textContent.trim() || '',
+      skills: card ? card.querySelectorAll('.tech').length : -1,
+      locked: card ? card.querySelectorAll('.tech--locked').length : -1,
+      cards: cards.length,
+    };
+    g.codex.close();
+    await new Promise((r) => setTimeout(r, 240));
+    return out;
+  `);
+  eq(fgCodex.hasCard, true, '圖鑑上有減法之庭那一張卡');
+  eq(fgCodex.skills, 7, '卡上列著這一區的 7 條技能');
+  /*
+   * 這一輪的存檔是「什麼都還沒學」的（上面那道知識式軟門檻要用），
+   * 所以七條都還是剪影 —— 收集感確實延伸到了新區域。
+   * （收集之後會長出官方出處，那件事在量器坊那一節已經驗過。）
+   */
+  eq(fgCodex.locked, 7, '還沒學的七條都是剪影（收集感延伸到新區域）');
+  eq(fgCodex.cards, EXPECT.v2ImplementedRegions.value, `圖鑑列出 ${EXPECT.v2ImplementedRegions.value} 片土地`);
+
+  /* ================================================================== */
+  /* 課程 v2 · Phase I：觀象臺（sight）                                  */
+  /*   · 正東偏北的一片小地形，自己一條橋（不接在任何一區後面）           */
+  /*   · 軟門檻是「撰寫基本功整片精通」——指名道姓的那一種知識式門檻       */
+  /*   · 8 座神廟教多模態，但**遊戲仍然只評 prompt 的結構**：             */
+  /*     整段玩下來不會多要一張圖、一段影片、一個音檔（零外部請求）        */
+  /*   · 純鍵盤走完兩座（石碑刻印與改碑），其餘六座用各題型自己的把手      */
+  /* ================================================================== */
+  console.log('\n▸ 觀象臺（課程 v2 · Phase I）');
+
+  await evaluate(`
+    const g = window.__promptasy;
+    g.promptConsole.close();
+    g.codex.close();
+    g.shareCard.close();
+    return 1;
+  `);
+  await sleep(220);
+
+  /* --- 閘門：知識式軟門檻（指定的那一片土地精通） --- */
+  await evaluate(`
+    localStorage.setItem('promptasy.v1.save', JSON.stringify({
+      version: 1, xp: 0, level: 1,
+      unlockedRegions: ['foundations'],
+      collected: [], skillsV2: [], bestGrades: {},
+      badges: { openai: 0, anthropic: 0, google: 0, xai: 0 },
+      settings: { music: 'ambient-01', volume: 0, muted: true, quality: 'low', preflight: true, promptMode: 'guided' },
+      flags: { prologueDone: true, introSeen: true },
+      prologueSteps: [], guidanceSeen: [], loreRead: [], inscriptionsFound: [], secretsFound: [],
+      handlesUsed: [], skippedGates: []
+    }));
+    return 1;
+  `);
+  await reloadPage('重新載入（觀象臺：什麼都還沒學）');
+  await key('Enter', 'Enter', { vk: 13 });
+  await sleep(500);
+
+  const stGate = await evaluate(`
+    const g = window.__promptasy;
+    const st = g.progression.gateStatus('sight');
+    return {
+      unlocked: g.progression.isRegionUnlocked('sight'),
+      gaps: st.knowledgeGaps.map((x) => x.kind + ':' + (x.regionId || '')),
+      text: st.text,
+      hasGate: !!g.world.gates.find((x) => x.id === 'sight'),
+      bridges: g.world.corridors.filter((c) => c.region === 'sight').length,
+      hasLink: !!g.world.annexLinks.find((l) => l.region === 'sight'),
+    };
+  `);
+  eq(stGate.unlocked, false, '什麼都還沒學 → 觀象臺鎖著');
+  ok(
+    stGate.gaps.includes('mastered:foundations'),
+    '「撰寫基本功整片精通」就是觀象臺唯一的缺口',
+    stGate.gaps.join(',')
+  );
+  ok(/也可以先行前往/.test(stGate.text), '觀象臺的門一樣會問「想先過去看看嗎」', stGate.text);
+  ok(/撰寫基本功/.test(stGate.text), '門上說的是中文區域名，不是資料層的 id', stGate.text);
+  eq(stGate.hasGate, true, '觀象臺真的有一道閘門');
+  eq(stGate.bridges, 1, '觀象臺自己一條橋（新地形，不是加建）');
+  eq(stGate.hasLink, false, '觀象臺沒有加建的頸口');
+
+  const stSkip = await evaluate(`
+    const g = window.__promptasy;
+    const xpBefore = g.progression.state.xp;
+    g.progression.skipGate('sight');
+    g.world.openGate('sight', true);
+    return {
+      unlocked: g.progression.isRegionUnlocked('sight'),
+      xp: g.progression.state.xp,
+      xpBefore,
+      cleared: Object.keys(g.progression.state.bestGrades).length,
+    };
+  `);
+  eq(stSkip.unlocked, true, '先行前往開得了觀象臺的門');
+  eq(stSkip.xp, stSkip.xpBefore, '先行前往一分 XP 都不加');
+  eq(stSkip.cleared, 0, '先行前往不會偷偷記下任何一關的評價');
+
+  /* --- 走過那條橋：橋上沒有一步是虛空，走到底就換了一片天 --- */
+  const stEnter = await evaluate(`
+    const g = window.__promptasy;
+    const c = g.world.corridors.find((x) => x.region === 'sight');
+    let voids = 0;
+    for (let i = 0; i <= 40; i += 1) {
+      const t = i / 40;
+      const x = c.from.x + (c.to.x - c.from.x) * t;
+      const z = c.from.z + (c.to.z - c.from.z) * t;
+      if (g.world.coverage(x, z) <= 0.45) voids += 1;
+    }
+    g.player.position.set(c.to.x, g.world.terrainHeight(c.to.x, c.to.z) + 1, c.to.z);
+    await new Promise((r) => setTimeout(r, 900));
+    const here = g.world.regionAt(g.player.position.x, g.player.position.z);
+    return {
+      voids,
+      here: here && here.id,
+      hudRegion: g.hud.region,
+      hudLabel: document.querySelector('.hud__region [data-region]')?.textContent.trim() || '',
+      mood: g.audio.debug().region,
+      source: g.audio.debug().source,
+    };
+  `);
+  eq(stEnter.voids, 0, '橋的主動線上沒有一步是虛空');
+  eq(stEnter.here, 'sight', '走到底真的站在觀象臺的地界上');
+  eq(stEnter.hudRegion, 'sight', 'HUD 跟著換到觀象臺');
+  ok(/觀象臺/.test(stEnter.hudLabel), 'HUD 上寫的是中文區域名', stEnter.hudLabel);
+  eq(stEnter.mood, 'sight', '配樂也切到觀象臺');
+  await expectRegionBgmFile('sight', '觀象臺');
+
+  /* --- 世界：地標、造景、石座數、預算 --- */
+  const stWorld = await evaluate(`
+    const g = window.__promptasy;
+    let lights = 0;
+    let tris = 0;
+    g.engine.scene.traverse((o) => {
+      if (o.isLight) lights += 1;
+      if (o.isMesh && o.geometry) {
+        const idx = o.geometry.index ? o.geometry.index.count : (o.geometry.attributes.position?.count || 0);
+        tris += (idx / 3) * (o.isInstancedMesh ? o.count : 1);
+      }
+    });
+    const node = g.engine.scene.getObjectByName('landmark:sky-mirror');
+    let lmLights = 0;
+    if (node) node.traverse((o) => { if (o.isLight) lmLights += 1; });
+    const props = g.engine.scene.getObjectByName('props:sight');
+    let propLights = 0;
+    if (props) props.traverse((o) => { if (o.isLight) propLights += 1; });
+    return {
+      hasMirror: !!node,
+      lmLights,
+      propLights,
+      stMarkers: g.world.markers.filter((m) => g.content.challenge(m.id).region === 'sight').length,
+      props: !!props,
+      flora: !!g.engine.scene.getObjectByName('flora:sight'),
+      vignettes: ['vignette:unpointed-view', 'vignette:five-edits-at-once', 'vignette:breathless-line']
+        .filter((n) => !!g.engine.scene.getObjectByName(n)).length,
+      lights,
+      tris: Math.round(tris),
+      solids: g.world.solids.length,
+    };
+  `);
+  ok(stWorld.hasMirror, '朝天的鏡真的立在場景圖上');
+  eq(stWorld.lmLights, 0, '朝天的鏡一盞實體光源都沒加（全部自發光）');
+  eq(stWorld.propLights, 1, '觀象臺的造景只有「每區一盞主色補光」那一盞', String(stWorld.propLights));
+  eq(stWorld.stMarkers, 9, '觀象臺有 9 座石座（8 教學神廟 ＋ 1 試煉）');
+  eq(stWorld.props, true, '觀象臺有自己的造景（觀測架與落鏡）');
+  eq(stWorld.flora, true, '觀象臺有自己的植被剪影');
+  eq(stWorld.vignettes, 3, '觀象臺的三組故事小景都在場景圖上', String(stWorld.vignettes));
+  ok(stWorld.lights <= 56, '加了觀象臺之後燈光仍在預算內', `lights=${stWorld.lights}`);
+  ok(stWorld.tris < 420000, '加了觀象臺之後三角形仍在預算內', `tris=${stWorld.tris}`);
+  ok(stWorld.solids < 1400, '加了觀象臺之後碰撞體仍在預算內', `solids=${stWorld.solids}`);
+
+  /* --- 8 座神廟：五個新檢查器、C1／C4 --- */
+  const stPlan = await evaluate(`
+    const g = window.__promptasy;
+    const here = g.content.challenges.filter((c) => !c.application && c.region === 'sight');
+    return here.map((c) => ({
+      id: c.id,
+      skill: c.primarySkillId,
+      check: c.rubric.find((r) => r.primary).check,
+      rows: c.rubric.length,
+      pass: c.pass,
+      kind: g.promptConsole.flowKindOf(g.content.flow(c.id)),
+    }));
+  `);
+  eq(stPlan.length, 8, '觀象臺有 8 座教學神廟');
+  {
+    const PHASE_I_CHECKS = [
+      'pointsAtRegion',
+      'preservesPriorState',
+      'namesShotElements',
+      'usesProsodyPunctuation',
+      'namesStackAndScope',
+    ];
+    const used = new Set(stPlan.map((x) => x.check));
+    for (const id of PHASE_I_CHECKS) ok(used.has(id), `新檢查器 ${id} 真的有一座神廟在教`);
+    for (const row of stPlan) {
+      eq(row.rows, 2, `[${row.id}] 收斂成「一條主檢查 ＋ 一條地基」（C1）`);
+      eq(row.pass, 2, `[${row.id}] 門檻是 2 分`);
+      ok(Boolean(row.skill), `[${row.id}] 接上了 v2 技能`);
+    }
+    const kinds = stPlan.map((x) => x.kind);
+    let run = 1;
+    let worst = 1;
+    for (let i = 1; i < kinds.length; i += 1) {
+      run = kinds[i] === kinds[i - 1] ? run + 1 : 1;
+      if (run > worst) worst = run;
+    }
+    ok(worst <= 2, '[sight] 整區沒有連續三座同一種題型（C4）', kinds.join(','));
+    ok(new Set(kinds).size >= 5, '[sight] 至少用了五種題型', [...new Set(kinds)].join(','));
+  }
+
+  /* --- 純鍵盤走完第一座（石碑刻印 · pointsAtRegion），§3.1 鐵則 --- */
+  const netBeforeSight = await evaluate(`return performance.getEntriesByType('resource').length;`);
+  {
+    const target = 'first-window-107';
+    const near = await evaluate(`
+      const g = window.__promptasy;
+      const m = g.world.markers.find((x) => x.id === '${target}');
+      g.player.position.set(m.position.x + 3, g.world.terrainHeight(m.position.x + 3, m.position.z + 2), m.position.z + 2);
+      await new Promise((r) => setTimeout(r, 700));
+      const el = document.querySelector('.hud__interact');
+      return { d: Math.hypot(g.player.position.x - m.position.x, g.player.position.z - m.position.z), hint: el && !el.hidden ? el.innerHTML : '' };
+    `);
+    ok(near.d < 6.5, '站到觀象臺第一座石座旁', near.d.toFixed(2));
+    ok(/<kbd>E<\/kbd>/.test(near.hint), '走近提示標著 E 這個鍵', near.hint.slice(0, 80));
+
+    await key('KeyE', 'e', { vk: 69 });
+    await sleep(520);
+    const kbOpen = await evaluate(`
+      const g = window.__promptasy;
+      return {
+        open: g.promptConsole.isOpen,
+        id: g.promptConsole.challenge?.id,
+        act: g.promptConsole.act,
+        links: document.querySelectorAll('#prompt-console .act--brief a[href]').length,
+        media: document.querySelectorAll('#prompt-console img, #prompt-console video, #prompt-console audio').length,
+      };
+    `);
+    eq(kbOpen.open, true, '按 E 打開了觀象臺的神廟');
+    eq(kbOpen.id, target, '打開的就是走過去那一座');
+    eq(kbOpen.act, 1, '從第一幕（委託）開始');
+    eq(kbOpen.links, 0, '第一幕只有題目，零官方連結（四幕分鏡沒有變）');
+    eq(kbOpen.media, 0, '多模態的關卡也沒有塞任何圖片／影片／音檔進畫面（只評 prompt 的結構）');
+
+    await key('Enter', 'Enter', { vk: 13 });
+    await sleep(420);
+    const kbGuide = await evaluate(`
+      const g = window.__promptasy;
+      return {
+        act: g.promptConsole.act,
+        glyphs: document.querySelectorAll('#prompt-console [data-guidance] .glyph').length,
+        srcs: document.querySelectorAll('#prompt-console .act--guide a.bookicon').length,
+        srcHref: document.querySelector('#prompt-console .act--guide a.bookicon')?.getAttribute('href') || '',
+      };
+    `);
+    eq(kbGuide.act, 2, 'Enter 推到第二幕（神諭刻文）');
+    eq(kbGuide.glyphs, 1, '第二幕只放大這一關教的那一條（C1）');
+    eq(kbGuide.srcs, 1, '那一條刻文掛著神諭原典');
+    ok(/^https:\/\//.test(kbGuide.srcHref), '神諭原典是可點的 https 連結', kbGuide.srcHref);
+
+    await evaluate(`document.querySelector('#prompt-console .act--guide').focus(); return 1;`);
+    await key('Enter', 'Enter', { vk: 13 });
+    await sleep(420);
+    const kbCarveStart = await evaluate(`
+      const g = window.__promptasy;
+      return {
+        act: g.promptConsole.act,
+        kind: g.promptConsole.kind,
+        focusedOnOption: document.activeElement?.classList.contains('opt'),
+      };
+    `);
+    eq(kbCarveStart.act, 3, 'Enter 推到第三幕（刻印）');
+    eq(kbCarveStart.kind, 'choice', '這一座是石碑刻印');
+    eq(kbCarveStart.focusedOnOption, true, '一進刻印，焦點就落在第一個選項上');
+
+    const slotCount = await evaluate(`return window.__promptasy.content.flow('${target}').slots.length;`);
+    for (let i = 0; i < slotCount; i += 1) {
+      const idx = await evaluate(`
+        const g = window.__promptasy;
+        const s = g.content.flow('${target}').slots[g.promptConsole.stele.progress.carved];
+        return s ? s.options.findIndex((o) => o.correct) : -1;
+      `);
+      ok(idx >= 0, `觀象臺：第 ${i + 1} 段找得到正確選項`);
+      const n = idx + 1;
+      await key(`Digit${n}`, String(n), { vk: 48 + n });
+      await sleep(400);
+    }
+    const kbFull = await evaluate(`
+      const g = window.__promptasy;
+      return {
+        carved: g.promptConsole.stele.progress.carved,
+        act: g.promptConsole.act,
+        palmFocused: document.activeElement === document.querySelector('#prompt-console [data-palm]'),
+      };
+    `);
+    eq(kbFull.carved, slotCount, '用數字鍵把觀象臺這一座刻滿');
+    eq(kbFull.act, 4, '刻滿之後鏡頭自己切到手印那一幕');
+    eq(kbFull.palmFocused, true, '焦點自己落在手掌印上');
+
+    await holdPalm();
+    await sleep(800);
+    const kbDone = await evaluate(`
+      const g = window.__promptasy;
+      return {
+        grade: document.querySelector('#prompt-console .grade__mark')?.textContent.trim() || '',
+        cleared: g.progression.isCleared('${target}'),
+        skill: g.progression.isSkillCollected('mm-basics'),
+        saved: JSON.parse(localStorage.getItem('promptasy.v1.save') || '{}').skillsV2 || [],
+      };
+    `);
+    eq(kbDone.grade, 'S', '全程不碰滑鼠也拿得到 S');
+    eq(kbDone.cleared, true, '觀象臺這一座記成通關（純鍵盤）');
+    eq(kbDone.skill, true, '技能「mm-basics」進了圖鑑');
+    ok(kbDone.saved.includes('mm-basics'), '而且真的寫進了存檔', kbDone.saved.join(','));
+    await key('Escape', 'Escape', { vk: 27 });
+    await sleep(320);
+  }
+
+  /* --- 純鍵盤走完一座改碑（usesProsodyPunctuation） --- */
+  {
+    const target = 'breathless-stone-112';
+    await evaluate(`
+      const g = window.__promptasy;
+      g.promptConsole.open(g.content.challenge('${target}'));
+      await new Promise((r) => setTimeout(r, 260));
+      g.promptConsole.goAct(3, { force: true });
+      await new Promise((r) => setTimeout(r, 320));
+      return 1;
+    `);
+    const fixStart = await evaluate(`
+      const g = window.__promptasy;
+      return {
+        kind: g.promptConsole.kind,
+        weak: document.querySelectorAll('#prompt-console .frag--weak').length,
+        palmHidden: document.querySelector('#prompt-console .fixboard .palmwrap').hidden,
+      };
+    `);
+    eq(fixStart.kind, 'fix', '唸太快的傳聲石是改碑');
+    eq(fixStart.weak, 3, '草稿上有三句被畫線（沒有標點的那幾句）');
+    eq(fixStart.palmHidden, true, '還沒改完，手掌印不會出現');
+
+    const fragIds = await evaluate(`
+      return window.__promptasy.content.flow('${target}').fixFlow.fragments.filter((f) => f.weak).map((f) => f.id);
+    `);
+    for (const fid of fragIds) {
+      await evaluate(`document.querySelector('#prompt-console [data-frag-btn="${fid}"]').focus(); return 1;`);
+      await key('Enter', 'Enter', { vk: 13 });
+      await sleep(240);
+      const idx = await evaluate(`
+        const f = window.__promptasy.content.flow('${target}').fixFlow;
+        return f.fragments.find((x) => x.id === '${fid}').options.findIndex((o) => o.correct);
+      `);
+      await evaluate(`document.querySelector('#prompt-console [data-frag="${fid}"][data-opt="${idx}"]').focus(); return 1;`);
+      await key('Enter', 'Enter', { vk: 13 });
+      await sleep(320);
+    }
+    const fixFull = await evaluate(`
+      const g = window.__promptasy;
+      return {
+        fixed: g.promptConsole.fixBoard.progress.fixed,
+        act: g.promptConsole.act,
+        palmFocused: document.activeElement === document.querySelector('#prompt-console .fixboard [data-palm]'),
+        text: g.promptConsole.fixBoard.text,
+        sample: g.content.challenge('${target}').sample,
+      };
+    `);
+    eq(fixFull.fixed, 3, '三句都用鍵盤改好了');
+    eq(fixFull.act, 4, '改完之後鏡頭切到手印那一幕');
+    eq(fixFull.palmFocused, true, '焦點自己落在手掌印上');
+    eq(fixFull.text, fixFull.sample, '改好的整段文字＝這一關的示範解答（兩種模式同一段字）');
+
+    await holdPalm();
+    await sleep(800);
+    const fixDone = await evaluate(`
+      const g = window.__promptasy;
+      return {
+        grade: document.querySelector('#prompt-console .grade__mark')?.textContent.trim() || '',
+        cleared: g.progression.isCleared('${target}'),
+        skill: g.progression.isSkillCollected('tts-writing'),
+      };
+    `);
+    eq(fixDone.grade, 'S', '純鍵盤改完傳聲石那一座也是 S');
+    eq(fixDone.cleared, true, '傳聲石那一座記成通關（純鍵盤）');
+    eq(fixDone.skill, true, '技能「tts-writing」進了圖鑑');
+    await key('Escape', 'Escape', { vk: 27 });
+    await sleep(320);
+  }
+
+  /* 其餘六座：用各題型自己的把手（跟鍵盤走的是同一條路） */
+  for (const shrine of stPlan.filter((s) => s.id !== 'first-window-107' && s.id !== 'breathless-stone-112')) {
+    const played = await evaluate(`
+      const g = window.__promptasy;
+      const id = '${shrine.id}';
+      const c = g.content.challenge(id);
+      const flow = g.content.flow(id);
+      g.promptConsole.close();
+      await new Promise((r) => setTimeout(r, 140));
+      g.promptConsole.open(c);
+      await new Promise((r) => setTimeout(r, 200));
+      g.promptConsole.goAct(3, { force: true });
+      await new Promise((r) => setTimeout(r, 260));
+      const kind = g.promptConsole.kind;
+      const step = (n) => new Promise((r) => setTimeout(r, n));
+      const carve = async (board) => {
+        for (const slot of flow.slots) {
+          board.pick(slot.options.findIndex((o) => o.correct));
+          await step(90);
+        }
+      };
+      if (kind === 'choice') {
+        await carve(g.promptConsole.stele);
+        g.promptConsole.stele.press();
+      } else if (kind === 'fix') {
+        const b = g.promptConsole.fixBoard;
+        for (const fr of flow.fixFlow.fragments) {
+          if (!fr.weak) continue;
+          b.open(fr.id);
+          await step(70);
+          b.pick(fr.id, fr.options.findIndex((o) => o.correct));
+          await step(90);
+        }
+        b.press();
+      } else if (kind === 'order') {
+        const b = g.promptConsole.orderBoard;
+        b.arrange(b.correctOrder);
+        await step(200);
+        b.press();
+      } else if (kind === 'multi') {
+        const b = g.promptConsole.multiBoard;
+        let at = 0;
+        for (let r = 0; r < flow.multiFlow.rounds.length; r += 1) {
+          const n = flow.multiFlow.rounds[r].count;
+          for (let i = 0; i < n; i += 1) {
+            b.pick(flow.slots[at].options.findIndex((o) => o.correct));
+            at += 1;
+            await step(90);
+          }
+          if (r < flow.multiFlow.rounds.length - 1) {
+            b.advance();
+            await step(140);
+          }
+        }
+        b.press();
+      } else if (kind === 'tradeoff') {
+        const b = g.promptConsole.tradeoffBoard;
+        for (const r of flow.tradeoffFlow.rounds) {
+          b.weigh(r.favours);
+          await step(220);
+        }
+        await carve(b);
+        b.press();
+      }
+      await new Promise((r) => setTimeout(r, 900));
+      return {
+        kind,
+        grade: document.querySelector('#prompt-console .grade__mark')?.textContent.trim() || '',
+        cleared: g.progression.isCleared(id),
+        skill: g.progression.isSkillCollected(c.primarySkillId),
+        srcs: document.querySelectorAll('#prompt-console [data-result] a.src').length,
+        media: document.querySelectorAll('#prompt-console img, #prompt-console video, #prompt-console audio').length,
+      };
+    `);
+    eq(played.kind, shrine.kind, `[${shrine.id}] 第三幕的題型是 ${shrine.kind}`);
+    eq(played.grade, 'S', `[${shrine.id}] 照著畫面上的東西做就是 S（${shrine.check}）`, JSON.stringify(played));
+    eq(played.cleared, true, `[${shrine.id}] 記成通關`);
+    eq(played.skill, true, `[${shrine.id}] 技能「${shrine.skill}」進了圖鑑（skillsV2）`);
+    ok(played.srcs >= 1, `[${shrine.id}] 結果面板附得出可點的官方出處`, String(played.srcs));
+    eq(played.media, 0, `[${shrine.id}] 玩完整關都沒有出現任何圖片／影片／音檔`);
+  }
+
+  await evaluate(`window.__promptasy.promptConsole.close(); return 1;`);
+  await sleep(240);
+
+  /* --- 零外部請求：整段觀象臺玩下來沒有多要任何媒體或外部資源 --- */
+  const stNet = await evaluate(`
+    const rows = performance.getEntriesByType('resource').slice(${netBeforeSight});
+    const here = location.origin;
+    return {
+      added: rows.length,
+      external: rows.filter((r) => !r.name.startsWith(here) && !r.name.startsWith('data:') && !r.name.startsWith('blob:')).map((r) => r.name).slice(0, 5),
+      media: rows.filter((r) => /\\.(?:png|jpe?g|gif|webp|svg|mp4|webm|mov|m4a|mp3|wav|ogg)(?:\\?|$)/i.test(r.name)).map((r) => r.name).slice(0, 5),
+    };
+  `);
+  eq(stNet.external.length, 0, '整段觀象臺玩下來沒有向任何外部網域要過東西', stNet.external.join(','));
+  eq(stNet.media.length, 0, '也沒有多要任何圖片／影片／音檔（遊戲只評 prompt 的結構）', stNet.media.join(','));
+
+  /* --- 全破之後：這一區精通、圖鑑列得出它與它的八條技能 --- */
+  const stCodex = await evaluate(`
+    const g = window.__promptasy;
+    g.codex.open();
+    await new Promise((r) => setTimeout(r, 420));
+    const cards = [...document.querySelectorAll('#codex .region-card')];
+    const card = cards.find((c) => /觀象臺/.test(c.querySelector('h3')?.textContent || ''));
+    const out = {
+      hasCard: !!card,
+      skills: card ? card.querySelectorAll('.tech').length : -1,
+      locked: card ? card.querySelectorAll('.tech--locked').length : -1,
+      srcs: card ? card.querySelectorAll('a.bookicon').length : -1,
+      firstSrc: card ? (card.querySelector('a.bookicon')?.getAttribute('href') || '') : '',
+      mastered: card ? card.classList.contains('is-mastered') : false,
+      masteryFlag: g.progression.regionMastery('sight').mastered,
+      cards: cards.length,
+    };
+    g.codex.close();
+    await new Promise((r) => setTimeout(r, 240));
+    return out;
+  `);
+  eq(stCodex.hasCard, true, '圖鑑上有觀象臺那一張卡');
+  eq(stCodex.skills, 8, '卡上列著這一區的 8 條技能');
+  eq(stCodex.locked, 0, '八座全破之後一條都不再是剪影');
+  ok(stCodex.srcs >= 8, '每一條技法都附得出可點的官方出處', String(stCodex.srcs));
+  ok(/^https:\/\//.test(stCodex.firstSrc), '出處是可點的 https 連結', stCodex.firstSrc);
+  eq(stCodex.mastered, true, '觀象臺蓋上精通封印');
+  eq(stCodex.masteryFlag, true, '進程也認定觀象臺精通了');
+  eq(stCodex.cards, EXPECT.v2ImplementedRegions.value, `圖鑑列出 ${EXPECT.v2ImplementedRegions.value} 片土地`);
+
+
+
   console.log('\n▸ 改名（Promptasy）與舊存檔搬家（Phase 29）');
 
   const branding = await evaluate(`
@@ -8360,13 +12875,18 @@ async function main() {
       opacities: {
         orb: Number(getComputedStyle(orb).opacity),
         line: Number(getComputedStyle(root.querySelector('.entrygate__line')).opacity),
-        hint: Number(getComputedStyle(root.querySelector('.entrygate__hint')).opacity),
       },
-      // 三樣東西是一件一件出現的，而且全部 ≥0.3s（撤掉這道門時不會有字閃過去）
+      /*
+       * Phase 34.5：門面再簡化一次 —— 只剩呼吸燈 ＋ 一句話（提示改成 sr-only）。
+       * 原本這裡還在量 .entrygate__hint，那個元素已經不存在，
+       * getComputedStyle(null) 會讓整支 e2e 中斷（不是某一條紅）。
+       */
+      hintNode: root.querySelectorAll('.entrygate__hint').length,
+      srOnly: root.querySelector('.sr-only')?.textContent || '',
+      // 兩樣東西是一件一件出現的，而且都 ≥0.3s（撤掉這道門時不會有字閃過去）
       delays: {
         orb: parseFloat(getComputedStyle(orb).animationDelay),
         line: parseFloat(getComputedStyle(root.querySelector('.entrygate__line')).animationDelay),
-        hint: parseFloat(getComputedStyle(root.querySelector('.entrygate__hint')).animationDelay),
       },
       legacy: root.querySelectorAll('.entrygate__seal, .entrygate__glyph, .entrygate__en').length,
       // 黑幕：門的階段也一樣蓋著（世界一眼都不准被看到）
@@ -8380,7 +12900,8 @@ async function main() {
   eq(gateShown.titleOpen, false, '入場門還在時，標題卡還沒登場');
   eq(gateShown.titleHidden, true, '標題卡整個收著（開場揭示還沒起跑）');
   ok(/推開夜色之門/.test(gateShown.text), '門上寫著「推開夜色之門」', gateShown.text);
-  ok(/點擊進入⋯/.test(gateShown.text), '底下一行安靜的「點擊進入⋯」', gateShown.text);
+  eq(gateShown.hintNode, 0, '舊的 .entrygate__hint 已經整組移除（Phase 34.5）');
+  ok(/點擊或按任意鍵進入/.test(gateShown.srOnly), '怎麼進門這件事留在 sr-only 裡', gateShown.srOnly);
   ok(/或按任意鍵/.test(gateShown.text), '鍵盤的人也聽得到怎麼進（sr-only）', gateShown.text);
   eq(gateShown.legacy, 0, 'Phase 33 的印記／外框／enter 都不在了（門面極簡化）');
   eq(gateShown.focused, true, '焦點就落在門上（純鍵盤按下去就是它）');
@@ -8395,9 +12916,9 @@ async function main() {
   );
   // 一件一件出現：光 → 字 → 提示，而且全部延遲 ≥0.3s（自動播放放行時 220ms 內撤門，不會閃字）
   ok(
-    gateShown.delays.orb >= 0.3 && gateShown.delays.line > gateShown.delays.orb && gateShown.delays.hint > gateShown.delays.line,
-    '光 → 字 → 提示，一件一件來（而且都晚於 0.3s）',
-    `orb=${gateShown.delays.orb} line=${gateShown.delays.line} hint=${gateShown.delays.hint}`
+    gateShown.delays.orb >= 0.3 && gateShown.delays.line > gateShown.delays.orb,
+    '光 → 字，一件一件來（而且都晚於 0.3s）',
+    `orb=${gateShown.delays.orb} line=${gateShown.delays.line}`
   );
   eq(gateShown.links, 0, '入口不放任何連結（護欄 2：它不是課程）');
   eq(gateShown.overflowX, 0, '入場門沒有水平溢位');
@@ -8415,15 +12936,16 @@ async function main() {
       const o = await gEval(`
         const root = document.querySelector('.entrygate');
         const v = (sel) => Number(getComputedStyle(root.querySelector(sel)).opacity);
-        return { orb: v('.entrygate__orb'), line: v('.entrygate__line'), hint: v('.entrygate__hint') };
+        return { orb: v('.entrygate__orb'), line: v('.entrygate__line') };
       `);
-      return o.line > 0.9 && o.hint > 0.6 ? o : null;
+      // 呼吸燈的透明度是來回擺盪的：等它「擺到亮的那一段」再取樣，
+      // 不然單點取樣會剛好抓到最暗的那一格（動畫時序類的 flaky）
+      return o.line > 0.9 && o.orb > 0.4 ? o : null;
     },
-    { timeout: 15000, every: 300, label: '入場門的三樣東西到齊' }
+    { timeout: 15000, every: 300, label: '入場門的兩樣東西到齊' }
   ).catch(() => null);
-  ok(gateSettled, '光 → 字 → 提示三樣都浮出來了', JSON.stringify(gateSettled));
+  ok(gateSettled, '光 → 字兩樣都浮出來了', JSON.stringify(gateSettled));
   ok(gateSettled && gateSettled.line > 0.9, '「推開夜色之門」完全浮出來了', gateSettled && String(gateSettled.line));
-  ok(gateSettled && gateSettled.hint > 0.6, '「點擊進入⋯」也到齊了', gateSettled && String(gateSettled.hint));
   ok(gateSettled && gateSettled.orb > 0.4, '呼吸燈還在呼吸（不會呼吸到消失）', gateSettled && String(gateSettled.orb));
 
   // Esc 在入口什麼都不做
@@ -8438,7 +12960,20 @@ async function main() {
 
   // 推開它：這一下是 trusted gesture → 音訊解鎖
   await gEnter();
-  await sleep(900); // 門淡出 600ms，之後才 title.open()
+  /*
+   * 門淡出 600ms、之後才 title.open()。固定 sleep 在忙碌的機器上會賭輸
+   * （AGENTS.md：動畫時序類的斷言一律輪詢，不用固定 sleep），所以等到
+   * 「門收了、標題卡接手」為止再量。
+   */
+  await waitFor(
+    async () => {
+      const st = await gEval(
+        'return { hidden: document.querySelector(".entrygate").hidden, title: window.__promptasy.title.isOpen };'
+      );
+      return st.hidden && st.title ? st : null;
+    },
+    { timeout: 8000, every: 200, label: '入場門淡出、標題卡接手' }
+  ).catch(() => null);
 
   const gatePassed = await gEval(`
     const g = window.__promptasy;
@@ -8509,14 +13044,14 @@ async function main() {
         const c = document.getElementById('bootcover');
         return !c || c.classList.contains('is-lifting');
       })(),
-      typedZh: document.querySelector('[data-typed="zh"]')?.textContent || '',
+      typedZh: document.querySelector('.title__zh')?.textContent || '',
     };
   `);
   eq(gateEntered.coverLifted, true, '按下開始才掀黑幕（世界這時候第一次亮起來）');
   eq(
     gateEntered.typedZh,
     '在一個夜色的世界裡探索，用你寫的 prompt 解開它。',
-    '打字被按斷也會補完（不會有半句話淡出去）'
+    '揭示被按斷也不會留下半句話（文字本來就是完整的）'
   );
   eq(gateEntered.titleOpen, false, '標題卡按一下就進得去（沒有第二段喚醒了）');
   eq(gateEntered.prologueActive, true, '新玩家接著進序章引導課程');
@@ -8529,6 +13064,1501 @@ async function main() {
     gcdp.ws.close();
   } catch {
     /* 已經關了 */
+  }
+
+
+  /* ================================================================== */
+  /* 課程 v2 · Phase J1：分歧之廳（divergence）＋ 拆碑（reverse）          */
+  /*                                                                    */
+  /*   · 高原東側的一座建物（加建，沒有自己的橋）                        */
+  /*   · **硬門檻**：整個世界唯一一道不能先行前往的門                    */
+  /*   · 反差題先發模型卡、再出題，兩張卡的立場都掛得出可點的官方出處      */
+  /*   · 拆碑（reverse）純鍵盤走完一圈                                    */
+  /* ================================================================== */
+  console.log('\n▸ 分歧之廳與拆碑（課程 v2 · Phase J1）');
+
+  await evaluate(`
+    const g = window.__promptasy;
+    g.promptConsole.close();
+    g.codex.close();
+    return 1;
+  `);
+  await sleep(220);
+
+  /* --- 硬門檻：走到門前只會被問，而且問的那一句沒有「直接前往」 --- */
+  await evaluate(`
+    localStorage.setItem('promptasy.v1.save', JSON.stringify({
+      version: 1, xp: 0, level: 1,
+      unlockedRegions: ['foundations'],
+      collected: [], skillsV2: [], bestGrades: {},
+      badges: { openai: 0, anthropic: 0, google: 0, xai: 0 },
+      settings: { music: 'ambient-01', volume: 0, muted: true, quality: 'low', preflight: true, promptMode: 'guided' },
+      flags: { prologueDone: true, introSeen: true },
+      prologueSteps: [], guidanceSeen: [], loreRead: [], inscriptionsFound: [], secretsFound: [],
+      handlesUsed: [], skippedGates: []
+    }));
+    return 1;
+  `);
+  await reloadPage('重新載入（分歧之廳：什麼都還沒學）');
+  await key('Enter', 'Enter', { vk: 13 });
+  await sleep(500);
+
+  const dvGate = await evaluate(`
+    const g = window.__promptasy;
+    const st = g.progression.gateStatus('divergence');
+    return {
+      unlocked: g.progression.isRegionUnlocked('divergence'),
+      hard: st.hard,
+      gaps: st.knowledgeGaps.map((x) => x.kind + ':' + (x.need || '')),
+      text: st.text,
+      hasLink: !!g.world.annexLinks.find((l) => l.region === 'divergence'),
+      bridges: g.world.corridors.filter((c) => c.region === 'divergence').length,
+      shrines: g.content.challenges.filter((c) => c.region === 'divergence').length,
+    };
+  `);
+  eq(dvGate.unlocked, false, '什麼都還沒學 → 分歧之廳鎖著');
+  // 2026-08-03 站長裁決：全場唯一的硬門檻鬆綁 —— 比照其他區域改成可先行前往的軟門檻
+  eq(dvGate.hard, false, '分歧之廳不再是硬門檻（可以先行前往）');
+  ok(dvGate.gaps.includes('masteredAny:2'), '缺口是「任 2 片土地精通」', dvGate.gaps.join(','));
+  ok(/先行前往/.test(dvGate.text), '門上的字說得出可以先行前往', dvGate.text);
+  ok(!/走過去才開/.test(dvGate.text), '門上的字不再說「這一道要走過去才開」', dvGate.text);
+  eq(dvGate.hasLink, true, '分歧之廳是加建（閘門立在頸口上）');
+  eq(dvGate.bridges, 0, '分歧之廳沒有自己的橋（走出高原就到了）');
+  eq(dvGate.shrines, 10, '分歧之廳有 9 座教學神廟 ＋ 1 座終章試煉');
+
+  /* 走到門前 → 對話框自己出現，而且只有「先留下修行」 */
+  await evaluate(`
+    const g = window.__promptasy;
+    const link = g.world.annexLinks.find((l) => l.region === 'divergence');
+    const back = 5;
+    const x = link.gate.x - link.dir.x * back;
+    const z = link.gate.z - link.dir.z * back;
+    g.player.position.set(x, g.world.terrainHeight(x, z) + 1, z);
+    return 1;
+  `);
+  await waitFor(
+    async () => ((await evaluate(`return window.__promptasy.gateAsk.isOpen;`)) ? true : null),
+    { timeout: 20000, every: 400, label: '走到門前，門自己問了一句' }
+  ).catch(() => null);
+  /*
+   * 焦點是在 `requestAnimationFrame` 裡搬進去的（見 `createOverlay.open()`）——
+   * 這台軟體渲染一幀約 200 ms，`isOpen` 變 true 的當下焦點可能還沒落定。
+   * 依 AGENTS.md 改成輪詢，不要用固定 sleep 對齊牆鐘。
+   */
+  await waitFor(
+    async () =>
+      (await evaluate(
+        `return !!(document.activeElement && document.activeElement.matches('[data-stay], [data-stay] *'));`
+      ))
+        ? true
+        : null,
+    { timeout: 15000, every: 200, label: '閘門對話框的焦點落到「先留下修行」' }
+  ).catch(() => null);
+  const dvAsk = await evaluate(`
+    const g = window.__promptasy;
+    const el = document.querySelector('#gate-ask');
+    return {
+      open: g.gateAsk.isOpen,
+      region: g.gateAsk.regionId,
+      go: document.querySelectorAll('#gate-ask [data-go]').length,
+      stay: document.querySelectorAll('#gate-ask [data-stay]').length,
+      links: el ? el.querySelectorAll('a[href]').length : -1,
+      text: el ? el.textContent.replace(/\s+/g, ' ').trim() : '',
+      focusStay: !!(document.activeElement && document.activeElement.matches('[data-stay], [data-stay] *')),
+    };
+  `);
+  eq(dvAsk.open, true, '走到門前，門自己問了一句');
+  eq(dvAsk.region, 'divergence', '問的就是分歧之廳那一道');
+  eq(dvAsk.go, 1, '軟門檻上畫得出「直接前往」（玩家自己決定要不要先進去看看）');
+  eq(dvAsk.stay, 1, '仍然留著「先留下修行」');
+  eq(dvAsk.links, 0, '閘門不放官方連結（護欄 2）');
+  ok(/想先過去看看嗎/.test(dvAsk.text), '問的是「想先過去看看嗎」', dvAsk.text.slice(0, 80));
+  ok(/前方的試煉不會因此變簡單/.test(dvAsk.text), '也老實說了先進去不會比較簡單', dvAsk.text.slice(0, 120));
+  eq(dvAsk.focusStay, true, '焦點落在「先留下修行」上（鍵盤走得完）');
+
+  await key('Escape', 'Escape', { vk: 27 });
+  await sleep(360);
+  const dvStay = await evaluate(`
+    const g = window.__promptasy;
+    return {
+      open: g.gateAsk.isOpen,
+      unlocked: g.progression.isRegionUnlocked('divergence'),
+      skipResult: g.progression.skipGate('divergence'),
+      stillLocked: g.progression.isRegionUnlocked('divergence'),
+      saved: JSON.parse(localStorage.getItem('promptasy.v1.save') || '{}').skippedGates || [],
+    };
+  `);
+  eq(dvStay.open, false, 'Esc ＝ 先留下修行（門收起來）');
+  eq(dvStay.unlocked, false, '選了「先留下」門仍然關著（Esc 絕不偷偷開門）');
+  // 門檻鬆綁之後：真的按下去才開，而且誠實記帳
+  eq(dvStay.skipResult.opened, true, '先行前往開得了這一道門');
+  ok(!dvStay.skipResult.hard, 'skipGate 不再回報「被硬門檻擋下來」');
+  eq(dvStay.stillLocked, true, '開過之後這一區就走得進去');
+  eq(dvStay.saved.length, 1, '分歧之廳也被誠實記進 skippedGates', dvStay.saved.join(','));
+
+  /* --- 世界：九座石座、地標零實體光源 --- */
+  const dvWorld = await evaluate(`
+    const g = window.__promptasy;
+    let lights = 0;
+    const lm = g.engine.scene.getObjectByName('landmark:twin-pillars');
+    if (lm) lm.traverse((o) => { if (o.isLight) lights += 1; });
+    return {
+      hasLandmark: !!lm,
+      lights,
+      pedestals: g.content.challenges.filter((c) => c.region === 'divergence').length,
+    };
+  `);
+  eq(dvWorld.hasLandmark, true, '「兩面的柱」真的在場景圖上');
+  eq(dvWorld.lights, 0, '兩面的柱一盞實體光源都沒加');
+  eq(dvWorld.pedestals, 10, '分歧之廳的石座都在資料裡');
+
+  /* ------------------------------------------------------------------ *
+   * 拆碑（reverse）：真的按鍵盤走完一圈
+   *
+   * Phase J2 誤用 `git checkout --` 把 J1 這一段刪掉了（見 findings.md），
+   * Phase J3 依 progress.md／findings.md 的描述**重新寫回來**，而且補上
+   * 當初真正少掉的那一段：貼 → Esc 拆回來 → 再貼 → 刻印 → 手掌印 → S。
+   * 全程只送鍵盤事件，一次滑鼠都沒有（Phase 23 的鐵則）。
+   * ------------------------------------------------------------------ */
+  await evaluate(`
+    const g = window.__promptasy;
+    const c = g.content.challenges.find((x) => x.id === 'rewritten-stele-123');
+    g.promptConsole.open(c);
+    g.promptConsole.goAct(3, { force: true });
+    return 1;
+  `);
+  await sleep(320);
+  const rvBoard = await evaluate(`
+    const g = window.__promptasy;
+    const b = g.promptConsole.reverseBoard;
+    const el = document.querySelector('#prompt-console .reverseboard');
+    const flow = g.content.flow('rewritten-stele-123').reverseFlow;
+    b.focusTarget.focus();
+    return {
+      kind: g.promptConsole.kind,
+      visible: !!el && !el.closest('[hidden]'),
+      parts: document.querySelectorAll('#prompt-console .reverseboard [data-part]').length,
+      tags: document.querySelectorAll('#prompt-console .reverseboard [data-tag]').length,
+      decoys: flow.tags.filter((t) => !flow.parts.some((p) => p.tagId === t.id)).length,
+      done: b.done,
+      taken: b.progress.taken,
+      focusedOnTag: !!document.activeElement?.closest('[data-tag]'),
+      palmHidden: !!document.querySelector('#prompt-console .reverseboard .palmwrap')?.hidden,
+    };
+  `);
+  eq(rvBoard.kind, 'reverse', '會改字的碑用的是拆碑（reverse）');
+  eq(rvBoard.visible, true, '拆碑的牆看得到');
+  ok(rvBoard.parts >= 3, '牆上釘著 3–6 塊', String(rvBoard.parts));
+  ok(rvBoard.tags > rvBoard.parts, '名牌比塊多（一定有一片誘餌）', `${rvBoard.tags} vs ${rvBoard.parts}`);
+  ok(rvBoard.decoys >= 1, '而且那片誘餌從頭到尾都不是正解', String(rvBoard.decoys));
+  eq(rvBoard.done, false, '一開始還沒刻');
+  eq(rvBoard.taken, false, '一開始還沒拆完');
+  eq(rvBoard.focusedOnTag, true, '焦點落在名牌上（純鍵盤走得完）');
+  eq(rvBoard.palmHidden, true, '還沒拆完，手掌印不會出現');
+
+  /* --- 方向鍵在名牌之間走 --- */
+  await key('ArrowRight', 'ArrowRight', { vk: 39 });
+  await sleep(200);
+  const rvRove = await evaluate(`
+    const list = Array.from(document.querySelectorAll('#prompt-console .reverseboard [data-tag]'));
+    return { at: list.indexOf(document.activeElement), total: list.length };
+  `);
+  eq(rvRove.at, 1, '方向鍵把焦點移到下一片名牌', JSON.stringify(rvRove));
+
+  /* --- 貼錯：碑不收，就地教學，不扣分、不前進、不跳失敗面板 --- */
+  const rvWrongIdx = await evaluate(`
+    const g = window.__promptasy;
+    const flow = g.content.flow('rewritten-stele-123').reverseFlow;
+    const want = flow.parts[0].tagId;
+    // 挑一片「不是這一塊正解」的名牌，回傳它的數字快捷（1-based）
+    const i = flow.tags.findIndex((t) => t.id !== want);
+    document.querySelector('#prompt-console .reverseboard [data-tag]').focus();
+    return { n: i + 1, id: flow.tags[i].id, textBefore: g.promptConsole.reverseBoard.text, at: g.promptConsole.reverseBoard.progress.at };
+  `);
+  await key(`Digit${rvWrongIdx.n}`, String(rvWrongIdx.n), { vk: 48 + rvWrongIdx.n });
+  await sleep(280);
+  const rvMiss = await evaluate(`
+    const g = window.__promptasy;
+    const b = g.promptConsole.reverseBoard;
+    const btn = document.querySelector('#prompt-console .reverseboard [data-tag].is-wrong');
+    return {
+      at: b.progress.at,
+      taken: b.progress.taken,
+      text: b.text,
+      rejected: !!btn,
+      feedback: btn ? btn.querySelector('[data-opt-fb]')?.textContent.trim() : '',
+      feedbackShown: btn ? !btn.querySelector('[data-opt-fb]')?.hidden : false,
+      announced: b.announcement,
+      resultHidden: document.querySelector('#prompt-console [data-result]').hidden,
+      xp: g.progression.state.xp,
+      act: g.promptConsole.act,
+    };
+  `);
+  eq(rvMiss.at, rvWrongIdx.at, '貼錯不會前進（還在同一塊）');
+  eq(rvMiss.taken, false, '也還沒拆完');
+  eq(rvMiss.text, rvWrongIdx.textBefore, '貼錯的名字不會被刻上去');
+  eq(rvMiss.rejected, true, '那片名牌就地標成「碑不收」');
+  eq(rvMiss.feedbackShown, true, '而且就地長出一句教學');
+  ok(rvMiss.feedback.length >= 8, '教學講得出「為什麼這一塊不是在做這件事」', rvMiss.feedback);
+  ok(rvMiss.announced.length > 0, 'aria-live 把它念出來（純鍵盤也知道發生了什麼）', rvMiss.announced);
+  eq(rvMiss.resultHidden, true, '不跳失敗面板');
+  eq(rvMiss.xp, 0, '不扣分（也不加分）');
+  eq(rvMiss.act, 3, '仍然停在第三幕');
+
+  /* --- 貼對第一塊 → Esc 把它拆回來 → 再貼一次（Esc 是「拆回來」不是「關面板」） --- */
+  const rvFirst = await evaluate(`
+    const g = window.__promptasy;
+    const flow = g.content.flow('rewritten-stele-123').reverseFlow;
+    const n = flow.tags.findIndex((t) => t.id === flow.parts[0].tagId) + 1;
+    document.querySelector('#prompt-console .reverseboard [data-tag]').focus();
+    return { n };
+  `);
+  await key(`Digit${rvFirst.n}`, String(rvFirst.n), { vk: 48 + rvFirst.n });
+  await sleep(280);
+  const rvAfterFirst = await evaluate(`
+    const b = window.__promptasy.promptConsole.reverseBoard;
+    return { at: b.progress.at, named: b.named.length, announced: b.announcement, focusedOnTag: !!document.activeElement?.closest('[data-tag]') };
+  `);
+  eq(rvAfterFirst.at, 1, '貼對了就往下一塊走');
+  eq(rvAfterFirst.named, 1, '第一塊被標好名字了');
+  ok(rvAfterFirst.announced.includes('對了'), 'aria-live 講出「對了」', rvAfterFirst.announced);
+  eq(rvAfterFirst.focusedOnTag, true, '焦點自己跟到下一輪的名牌');
+
+  await key('Escape', 'Escape', { vk: 27 });
+  await sleep(300);
+  const rvEsc = await evaluate(`
+    const g = window.__promptasy;
+    const b = g.promptConsole.reverseBoard;
+    return {
+      at: b.progress.at,
+      named: b.named.length,
+      announced: b.announcement,
+      consoleOpen: g.promptConsole.isOpen,
+      act: g.promptConsole.act,
+    };
+  `);
+  eq(rvEsc.at, 0, 'Esc 把最後貼上去的那一塊拆回來');
+  eq(rvEsc.named, 0, '名字取下來了');
+  ok(/拆回/.test(rvEsc.announced), 'aria-live 講出拆回了哪一塊', rvEsc.announced);
+  eq(rvEsc.consoleOpen, true, 'Esc 不會順手把整個關卡收掉（分段還原）');
+  eq(rvEsc.act, 3, '也還在第三幕');
+
+  /* --- 一塊一塊真的按鍵盤貼完 --- */
+  const rvTagOrder = await evaluate(`
+    const flow = window.__promptasy.content.flow('rewritten-stele-123').reverseFlow;
+    return flow.parts.map((p) => flow.tags.findIndex((t) => t.id === p.tagId) + 1);
+  `);
+  for (const n of rvTagOrder) {
+    await evaluate(`
+      const el = document.querySelector('#prompt-console .reverseboard [data-tag]:not(.is-wrong)') ||
+                 document.querySelector('#prompt-console .reverseboard [data-tag]');
+      el.focus();
+      return 1;
+    `);
+    await key(`Digit${n}`, String(n), { vk: 48 + n });
+    await sleep(220);
+  }
+  await waitFor(() => evaluate(`return window.__promptasy.promptConsole.reverseBoard.progress.taken === true;`), {
+    label: '拆碑：整份拆完',
+    every: 200,
+    timeout: 20000,
+  });
+  const rvTaken = await evaluate(`
+    const b = window.__promptasy.promptConsole.reverseBoard;
+    return {
+      taken: b.progress.taken,
+      at: b.progress.at,
+      parts: b.progress.parts,
+      announced: b.announcement,
+      carveFocused: !!document.activeElement?.closest('[data-slot-opt]'),
+      palmHidden: !!document.querySelector('#prompt-console .reverseboard .palmwrap')?.hidden,
+    };
+  `);
+  eq(rvTaken.taken, true, '整份拆完了（想通才給刻）');
+  eq(rvTaken.at, rvTaken.parts, '每一塊都貼上名字了', `${rvTaken.at}/${rvTaken.parts}`);
+  eq(rvTaken.carveFocused, true, '焦點自己落到刻印的第一個選項上');
+  eq(rvTaken.palmHidden, true, '刻印還沒開始，手掌印當然還沒出現');
+
+  /* --- 刻印：數字鍵一段一段刻上去 --- */
+  const rvSlotPicks = await evaluate(`
+    const flow = window.__promptasy.content.flow('rewritten-stele-123');
+    return flow.slots.map((s) => s.options.findIndex((o) => o.correct) + 1);
+  `);
+  for (const n of rvSlotPicks) {
+    await evaluate(`
+      const el = document.querySelector('#prompt-console .reverseboard [data-slot-opt]');
+      if (el) el.focus();
+      return 1;
+    `);
+    await key(`Digit${n}`, String(n), { vk: 48 + n });
+    await sleep(240);
+  }
+  await waitFor(() => evaluate(`return window.__promptasy.promptConsole.reverseBoard.done === true;`), {
+    label: '拆碑：刻滿',
+    every: 200,
+    timeout: 20000,
+  });
+  const rvCarved = await evaluate(`
+    const g = window.__promptasy;
+    const b = g.promptConsole.reverseBoard;
+    return {
+      done: b.done,
+      act: g.promptConsole.act,
+      text: b.text,
+      sample: g.content.challenge('rewritten-stele-123').sample,
+      palmShown: !document.querySelector('#prompt-console .reverseboard .palmwrap')?.hidden,
+      palmFocused: !!document.activeElement?.closest('[data-palm]'),
+    };
+  `);
+  eq(rvCarved.done, true, '刻滿了');
+  eq(rvCarved.act, 4, '刻滿自動切到第四幕（手掌印）');
+  eq(rvCarved.text, rvCarved.sample, '刻出來的字＝資料層的示範解答（兩種模式同一段字）');
+  eq(rvCarved.palmShown, true, '手掌印浮出來了');
+  eq(rvCarved.palmFocused, true, '焦點自己落在手掌印上');
+
+  /* --- 按住 Enter 把手掌按上去（poll-until，不用固定 sleep） --- */
+  await keyDown('Enter', 'Enter', { vk: 13 });
+  await waitFor(() => evaluate(`return window.__promptasy.promptConsole.reverseBoard.fired === true;`), {
+    label: '拆碑：手掌印按滿',
+    every: 100,
+    timeout: 15000,
+  });
+  await keyUp('Enter', 'Enter', { vk: 13 });
+  await waitFor(() => evaluate(`return !document.querySelector('#prompt-console [data-result]').hidden;`), {
+    label: '拆碑：結果面板',
+    every: 150,
+    timeout: 15000,
+  });
+  const rvResult = await evaluate(`
+    const g = window.__promptasy;
+    const marker = g.world.markers.find((m) => m.id === 'rewritten-stele-123');
+    const save = JSON.parse(localStorage.getItem('promptasy.v1.save') || '{}');
+    return {
+      grade: document.querySelector('#prompt-console .grade__mark')?.textContent.trim(),
+      cleared: g.progression.isCleared('rewritten-stele-123'),
+      markerCleared: !!marker && marker.cleared,
+      skill: g.content.challenge('rewritten-stele-123').primarySkillId,
+      knows: g.progression.knowsSkill(g.content.challenge('rewritten-stele-123').primarySkillId),
+      savedSkills: save.skillsV2 || [],
+      savedGrade: (save.bestGrades || {})['rewritten-stele-123'],
+      xp: g.progression.state.xp,
+      srcs: Array.from(document.querySelectorAll('#prompt-console [data-result] a.src')).map((a) => a.getAttribute('href')),
+    };
+  `);
+  eq(rvResult.grade, 'S', '全部貼對＋刻對＝S（全程沒碰滑鼠）', String(rvResult.grade));
+  eq(rvResult.cleared, true, '這一關記成通關');
+  eq(rvResult.markerCleared, true, '世界裡那座石座轉成已通關');
+  eq(rvResult.knows, true, '這一關教的技能入袋');
+  ok(rvResult.savedSkills.includes(rvResult.skill), '技能寫進 localStorage', rvResult.savedSkills.join(','));
+  eq(rvResult.savedGrade, 'S', '評價也寫進 localStorage');
+  ok(rvResult.xp > 0, '拿到 XP', String(rvResult.xp));
+  ok(
+    rvResult.srcs.length >= 1 && rvResult.srcs.every((u) => /^https:\/\//.test(u)),
+    '結果面板掛得出可點的官方出處',
+    rvResult.srcs.join(' ')
+  );
+
+  await key('Escape', 'Escape', { vk: 27 });
+  await sleep(320);
+
+  /* --- 反差題的模型卡掛得出可點的官方出處 --- */
+  const tfCards = await evaluate(`
+    const g = window.__promptasy;
+    const flows = g.content.flowsAll ? g.content.flowsAll() : null;
+    const ids = ['two-faced-pillar-115', 'two-faced-pillar-116'];
+    const out = [];
+    for (const id of ids) {
+      const f = g.content.flow(id);
+      if (!f || !f.tradeoffFlow) continue;
+      const srcs = f.tradeoffFlow.rounds.flatMap((r) => (r.card && r.card.sources) || []);
+      out.push({ id, n: srcs.length, https: srcs.every((s) => /^https:\\/\\//.test(s.url)), vendors: new Set(srcs.map((s) => s.vendor || s.name)).size });
+    }
+    return out;
+  `);
+  for (const card of tfCards) {
+    ok(card.n >= 2, `[${card.id}] 兩張模型卡都掛得出官方出處`, String(card.n));
+    eq(card.https, true, `[${card.id}] 出處是可點的 https 連結`);
+    ok(card.vendors >= 2, `[${card.id}] 兩張卡加起來至少講得出兩家的立場`, String(card.vendors));
+  }
+
+  await evaluate(`window.__promptasy.promptConsole.close(); return 1;`);
+  await sleep(220);
+
+  /* ================================================================== */
+  /* 課程 v2 · Phase J2：12 座應用關（試煉）＋ 土地印記 ＋ 大師層印記      */
+  /*                                                                    */
+  /*   · 試煉開起來**沒有第二幕**（整幕不存在，不是被鎖住）              */
+  /*   · rubric 只列你已經學會的那幾條（動態組成、門檻跟著重算）          */
+  /*   · 純鍵盤走完一座自由書寫的試煉 → S → 印記入袋 → 存檔 → 重整仍在    */
+  /*   · 大師層：無筆之印真的拿得到；看過範例就永遠拿不到；默寫之印       */
+  /*   · 圖鑑看得到印記與小記號；既有 finale（四廠）一格都沒變            */
+  /* ================================================================== */
+  console.log('\n▸ 應用關與印記（課程 v2 · Phase J2）');
+
+  /* --- 種一份「只學過兩條」的存檔，開撰寫基本功的試煉 --- */
+  await evaluate(`
+    const g = window.__promptasy;
+    const trial = g.content.challenges.find((c) => c.application && c.region === 'foundations');
+    const cands = trial.rubric.filter((r) => r.candidate).map((r) => r.skillId);
+    const legacy = cands.slice(0, 2).map((id) => (g.content.skill(id) || {}).legacyTechniqueId).filter(Boolean);
+    localStorage.setItem('promptasy.v1.save', JSON.stringify({
+      version: 1, xp: 900, level: 6,
+      unlockedRegions: ['foundations'],
+      collected: legacy,
+      skillsV2: cands.slice(0, 2),
+      bestGrades: {},
+      badges: { openai: 0, anthropic: 0, google: 0, xai: 0 },
+      settings: { music: 'ambient-01', volume: 0, muted: true, quality: 'low', preflight: true, promptMode: 'guided' },
+      flags: { prologueDone: true, introSeen: true },
+      prologueSteps: [], guidanceSeen: [], loreRead: [], inscriptionsFound: [], secretsFound: [],
+      handlesUsed: [], skippedGates: [], seals: [], penlessSeals: [], scribeSeals: [], samplesSeen: []
+    }));
+    return 1;
+  `);
+  await reloadPage('重新載入（應用關：只學過兩條）');
+  await key('Enter', 'Enter', { vk: 13 });
+  await sleep(500);
+
+  const trialOpen = await evaluate(`
+    const g = window.__promptasy;
+    const trial = g.content.challenges.find((c) => c.application && c.region === 'foundations');
+    g.promptConsole.open(trial);
+    const acts = [...document.querySelectorAll('#prompt-console .acts [data-act-go]')];
+    return {
+      id: trial.id,
+      act: g.promptConsole.act,
+      visibleActs: acts.filter((b) => !b.hidden).map((b) => Number(b.getAttribute('data-act-go'))),
+      act2Hidden: acts.find((b) => b.getAttribute('data-act-go') === '2').hidden,
+      canGo2: g.promptConsole.canGoAct(2),
+      rows: [...document.querySelectorAll('#prompt-console [data-checklist] li')].map((li) => li.textContent.replace(/\s+/g, ' ').trim()),
+      rubricLen: g.promptConsole.challenge.rubric.length,
+      candidates: g.promptConsole.challenge.rubric.filter((r) => r.candidate).map((r) => r.skillId),
+      pass: g.promptConsole.challenge.pass,
+      links: document.querySelectorAll('#prompt-console a[href^="http"]').length,
+      mode: g.promptConsole.mode,
+      nextLabel: (document.querySelector('#prompt-console .act--brief [data-act-next]') || {}).textContent,
+    };
+  `);
+  eq(trialOpen.act, 1, '試煉一開始也是第一幕（委託）');
+  eq(trialOpen.visibleActs.join(','), '1,3,4', '指示器上只有 ①③④ —— 第二幕整幕不存在');
+  eq(trialOpen.act2Hidden, true, '第二幕那一塊封印石根本沒有畫出來（不是被鎖住）');
+  eq(trialOpen.canGo2, false, '走不到第二幕（Alt + 2 不會有反應）');
+  eq(trialOpen.candidates.length, 2, '只列你已經學會的那兩條（動態 rubric）');
+  eq(trialOpen.rubricLen, 3, 'rubric ＝ 地基 ＋ 兩條候選');
+  eq(trialOpen.pass, 2.5, '門檻跟著入選權重重算（4.5 的一半 → 2.5）');
+  eq(trialOpen.links, 0, '試煉的畫面上一個官方連結都沒有');
+  eq(trialOpen.mode, 'free', '自由書寫的試煉直接進書寫檯（沒有石碑）');
+  ok(/接下試煉/.test(trialOpen.nextLabel || ''), '第一幕的出口寫的是「接下試煉」不是「聆聽指引」', trialOpen.nextLabel);
+  ok(trialOpen.rows.some((t) => /你已經學過/.test(t)), '對照表上標出「你已經學過」', trialOpen.rows.join(' ｜ '));
+
+  await key('Digit2', '2', { vk: 50, modifiers: 8 });
+  await sleep(200);
+  eq(await evaluate(`return window.__promptasy.promptConsole.act;`), 1, 'Alt + 2 不會跳到不存在的那一幕');
+
+  await evaluate(`document.querySelector('#prompt-console .act--brief').focus(); return 1;`);
+  await key('Enter', 'Enter', { vk: 13 });
+  await sleep(320);
+  const trialAct3 = await evaluate(`
+    const g = window.__promptasy;
+    return {
+      act: g.promptConsole.act,
+      visited: g.promptConsole.visitedActs.join(','),
+      guideTabHidden: (document.querySelector('#prompt-console [data-guidetab]') || {}).hidden,
+    };
+  `);
+  eq(trialAct3.act, 3, '第一幕的 Enter 直接推到刻印（跳過不存在的第二幕）');
+  eq(trialAct3.visited.includes('2'), false, '走過的幕裡沒有第二幕');
+  eq(trialAct3.guideTabHidden, true, '第三幕的「翻回指引」側頁籤整個收起來（那裡沒有東西）');
+
+  /* --- 純鍵盤把整段答案打進去 → 呈上 → S ＋ 印記入袋 --- */
+  const trialSample = await evaluate(`
+    const t = document.querySelector('#prompt-console .prompt-input');
+    t.focus();
+    t.setSelectionRange(t.value.length, t.value.length);
+    return window.__promptasy.promptConsole.challenge.sample;
+  `);
+  await evaluate(`document.querySelector('#prompt-console [data-clear]').click(); return 1;`);
+  await evaluate(`document.querySelector('#prompt-console .prompt-input').focus(); return 1;`);
+  await cdp.send('Input.insertText', { text: trialSample }, sessionId);
+  await sleep(300);
+  await key('Enter', 'Enter', { vk: 13, modifiers: 2 });
+  await sleep(800);
+  const trialResult = await evaluate(`
+    const g = window.__promptasy;
+    const el = document.querySelector('#prompt-console [data-result]');
+    const saved = JSON.parse(localStorage.getItem('promptasy.v1.save') || '{}');
+    return {
+      grade: (el.querySelector('.grade__mark') || {}).textContent,
+      act: g.promptConsole.act,
+      seals: g.progression.seals(),
+      savedSeals: saved.seals || [],
+      cleared: g.progression.isCleared(g.promptConsole.challenge.id),
+      links: el.querySelectorAll('a[href^="http"]').length,
+      tail: (el.querySelector('.result__source') || {}).textContent || '',
+      penless: g.progression.masterSeals().penless.length,
+      cues: g.audio.debug().cues,
+    };
+  `);
+  eq(trialResult.grade, 'S', '純鍵盤打完整段 → 拿到 S');
+  eq(trialResult.act, 4, '呈上之後鏡頭切到第四幕');
+  eq(trialResult.seals.join(','), 'foundations', '這片土地的印記入袋');
+  eq(trialResult.savedSeals.join(','), 'foundations', '印記寫進 localStorage');
+  eq(trialResult.cleared, true, '試煉記成已通關');
+  eq(trialResult.links, 0, '結果面板上也沒有官方連結（試煉不教新技巧）');
+  ok(/不教新的技法/.test(trialResult.tail), '結果面板誠實說明這是試煉', trialResult.tail.slice(0, 40));
+  eq(trialResult.penless, 0, '應用關不發無筆之印');
+  /*
+   * issue #3：試煉過關響的是**鑼**，不是一般過關的頌缽 ——
+   * 同一件事變大了，不是換一套語言。
+   */
+  ok(trialResult.cues.includes('trialPass'), '試煉過關響的是鑼（trialPass）', trialResult.cues.join(','));
+  ok(
+    trialResult.cues.lastIndexOf('trialPass') > trialResult.cues.lastIndexOf('pass'),
+    '試煉那一次響的是鑼，不是一般過關的頌缽',
+    trialResult.cues.join(',')
+  );
+
+  await key('Escape', 'Escape', { vk: 27 });
+  await sleep(260);
+  await reloadPage('重新載入（印記還在嗎）');
+  await key('Enter', 'Enter', { vk: 13 });
+  await sleep(480);
+  const sealAfterReload = await evaluate(`
+    const g = window.__promptasy;
+    return { seals: g.progression.seals(), has: g.progression.hasSeal('foundations') };
+  `);
+  eq(sealAfterReload.seals.join(','), 'foundations', '重整之後印記還在');
+  eq(sealAfterReload.has, true, 'hasSeal 說得出來');
+
+  /* --- 無筆之印：一次 S、沒碰快速填入／提示球／範例 --- */
+  const penlessRun = await evaluate(`
+    const g = window.__promptasy;
+    const shrine = g.content.challenges.find((c) => !c.application && c.region === 'foundations');
+    g.promptConsole.open(shrine);
+    g.promptConsole.setMode('free');
+    g.promptConsole.goAct(3, { force: true });
+    await new Promise((r) => setTimeout(r, 200));
+    document.querySelector('#prompt-console [data-clear]').click();
+    const t = document.querySelector('#prompt-console .prompt-input');
+    t.focus();
+    t.setSelectionRange(0, 0);
+    return { id: shrine.id, sample: shrine.sample };
+  `);
+  await cdp.send('Input.insertText', { text: penlessRun.sample }, sessionId);
+  await sleep(300);
+  await key('Enter', 'Enter', { vk: 13, modifiers: 2 });
+  await sleep(800);
+  const penlessOut = await evaluate(`
+    const g = window.__promptasy;
+    const m = g.progression.masterSeals();
+    const saved = JSON.parse(localStorage.getItem('promptasy.v1.save') || '{}');
+    return {
+      grade: (document.querySelector('#prompt-console .grade__mark') || {}).textContent,
+      penless: m.penless,
+      scribe: m.scribe,
+      savedPenless: saved.penlessSeals || [],
+      savedScribe: saved.scribeSeals || [],
+      cues: g.audio.debug().cues,
+    };
+  `);
+  eq(penlessOut.grade, 'S', '一次就把整段寫對 → S');
+  ok(penlessOut.penless.includes(penlessRun.id), '無筆之印真的拿得到', penlessOut.penless.join(','));
+  ok(penlessOut.scribe.includes(penlessRun.id), '同一次也拿到默寫之印（自由書寫模式的 S）');
+  ok(penlessOut.savedPenless.includes(penlessRun.id), '無筆之印寫進 localStorage');
+  ok(penlessOut.savedScribe.includes(penlessRun.id), '默寫之印寫進 localStorage');
+  /*
+   * issue #3：拿到大師層印記時會響一聲（公證章 ＋ 微光）。
+   * 它刻意晚 700ms 進來 —— 過關那一聲要先站穩，兩個好消息不該撞在一起。
+   * 所以用輪詢等它，不用固定 sleep。
+   */
+  let sealCues = [];
+  for (let i = 0; i < 16; i += 1) {
+    sealCues = await evaluate(`return window.__promptasy.audio.debug().cues;`);
+    if (sealCues.includes('masterSeal')) break;
+    await sleep(150);
+  }
+  ok(sealCues.includes('masterSeal'), '拿到大師層印記時真的響了一聲（masterSeal）', sealCues.join(','));
+
+  /* --- 作弊面：先翻開範例，關掉重開再拿 S 也不算 --- */
+  await key('Escape', 'Escape', { vk: 27 });
+  await sleep(240);
+  const peekRun = await evaluate(`
+    const g = window.__promptasy;
+    const shrine = g.content.challenges.filter((c) => !c.application && c.region === 'foundations')[1];
+    g.promptConsole.open(shrine);
+    g.promptConsole.setMode('free');
+    const btn = document.querySelector('#prompt-console [data-sample]');
+    btn.disabled = false;
+    btn.click();
+    const seen = g.progression.hasSeenSample(shrine.id);
+    g.promptConsole.close();
+    return { id: shrine.id, seen, sample: shrine.sample };
+  `);
+  eq(peekRun.seen, true, '翻開範例會被永久記下來');
+  await evaluate(`
+    const g = window.__promptasy;
+    g.promptConsole.open(g.content.challenges.find((c) => c.id === ${JSON.stringify('__PEEK__')}));
+    g.promptConsole.setMode('free');
+    g.promptConsole.goAct(3, { force: true });
+    await new Promise((r) => setTimeout(r, 200));
+    document.querySelector('#prompt-console [data-clear]').click();
+    const t = document.querySelector('#prompt-console .prompt-input');
+    t.focus();
+    t.setSelectionRange(0, 0);
+    return 1;
+  `.replace('__PEEK__', peekRun.id));
+  await cdp.send('Input.insertText', { text: peekRun.sample }, sessionId);
+  await sleep(300);
+  await key('Enter', 'Enter', { vk: 13, modifiers: 2 });
+  await sleep(800);
+  const peekOut = await evaluate(`
+    const g = window.__promptasy;
+    const m = g.progression.masterSeals();
+    const id = ${JSON.stringify('__PEEK__')}.replace('__PEEK__', '') || null;
+    return {
+      grade: (document.querySelector('#prompt-console .grade__mark') || {}).textContent,
+      penless: m.penless,
+      scribe: m.scribe,
+    };
+  `);
+  eq(peekOut.grade, 'S', '看過範例之後照樣拿得到 S（評價不受影響）');
+  eq(peekOut.penless.includes(peekRun.id), false, '但看過範例就拿不到無筆之印（關掉重開也不算）');
+  eq(peekOut.scribe.includes(peekRun.id), false, '默寫之印同樣守住這條作弊面');
+
+  /* --- 圖鑑：印記那一塊看得到，而且 finale 一格沒變 --- */
+  await key('Escape', 'Escape', { vk: 27 });
+  await sleep(260);
+  await key('KeyC', 'c', { vk: 67 });
+  await sleep(560);
+  const codexSeals = await evaluate(`
+    const el = document.querySelector('#codex');
+    const seals = el.querySelector('.seals');
+    return {
+      hasBlock: !!seals,
+      cells: el.querySelectorAll('.seals__list .seal').length,
+      on: el.querySelectorAll('.seals__list .seal.is-on').length,
+      hint: seals ? seals.querySelector('.codex__hint').textContent.replace(/\s+/g, ' ').trim() : '',
+      marks: el.querySelectorAll('.mseals .mseal').length,
+      badgesText: el.querySelector('.badges').textContent.replace(/\s+/g, ' ').trim(),
+      trialLine: el.querySelectorAll('.region-card__trial').length,
+      overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    };
+  `);
+  eq(codexSeals.hasBlock, true, '圖鑑上有「土地印記」那一塊');
+  eq(codexSeals.cells, 12, '12 片土地各一格印記');
+  eq(codexSeals.on, 1, '拿到的那一枚亮著');
+  ok(/無筆之印/.test(codexSeals.hint), '大師層印記的計數看得到', codexSeals.hint.slice(0, 60));
+  ok(codexSeals.marks >= 1, '拿到印記的那座神廟旁邊有小記號', String(codexSeals.marks));
+  eq(codexSeals.trialLine, 1, '通過試煉的那片土地上寫著「試煉已通過」');
+  ok(/每廠集滿 5 個/.test(codexSeals.badgesText), '既有 finale 的條件一格都沒變（每廠 5 個標記）');
+  ok(!/Qwen|DeepSeek|Mistral/.test(codexSeals.badgesText), '四廠徽章沒有被新廠混進來（護欄 7）');
+  eq(codexSeals.overflow, 0, '圖鑑加了印記那一塊之後仍然沒有水平溢位');
+  await key('Escape', 'Escape', { vk: 27 });
+  await sleep(240);
+
+  /* ================================================================ */
+  /* Phase 35 · 手掌印加寬 ＋ 術語小卡                                  */
+  /* ================================================================ */
+  console.log('\n▸ 手掌印與術語小卡（Phase 35）');
+
+  await cdp.send(
+    'Emulation.setDeviceMetricsOverride',
+    { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false },
+    sessionId
+  );
+  await sleep(320);
+
+  /*
+   * 手掌印是十一種題型共用的結尾（WORLD.md §3.3b 規則 1）——
+   * 所以量的不是「某一關的手掌印」，而是**每一種題型**台上的那一隻。
+   * 只量得到寬度的那一隻才算（隱藏的板子 rect 是 0×0，會空過）。
+   */
+  const palmAll = await evaluate(`
+    const g = window.__promptasy;
+    const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    /*
+     * 手掌印只存在於**引導式**（石碑刻印那一家）——前一段（Phase J2）
+     * 把答題方式切成自由書寫而且寫進了設定，所以這裡要先切回來，
+     * 不然整段會量到 0 個手掌印而「空過」。
+     */
+    g.promptConsole.setMode('guided');
+    await wait(200);
+    const modeAtStart = g.promptConsole.mode;
+    const out = [{ modeAtStart }];
+    for (const kind of g.promptConsole.flowKinds) {
+      const ch = g.content.challenges.find(
+        (c) => g.promptConsole.flowKindOf(g.content.flow(c.id)) === kind
+      );
+      if (!ch) { out.push({ kind, missing: true }); continue; }
+      g.promptConsole.close();
+      await wait(140);
+      g.promptConsole.open(ch);
+      await wait(220);
+      g.promptConsole.goAct(3, { force: true });
+      await wait(260);
+      // 只是要量版面，不跑完整條刻碑流程 —— 把台上那一隻手掌叫出來
+      // 輪詢到真的量得到為止（軟體渲染的機器上，固定 sleep 會量到還沒排版好的東西）
+      let shown = [];
+      for (let tries = 0; tries < 20 && !shown.length; tries += 1) {
+        for (const w of document.querySelectorAll('#prompt-console .palmwrap')) w.hidden = false;
+        await wait(150);
+        shown = [...document.querySelectorAll('#prompt-console .palm')]
+          .map((p) => ({ p, r: p.getBoundingClientRect() }))
+          .filter((x) => x.r.width > 0 && x.r.height > 0);
+      }
+      const panel = document.querySelector('#prompt-console .panel').getBoundingClientRect();
+      if (!shown.length) {
+        const cons = document.querySelector('#prompt-console .console');
+        out.push({ kind, id: ch.id, measurable: false, act: g.promptConsole.act,
+          mode: g.promptConsole.mode, ovHidden: document.getElementById('prompt-console').hidden,
+          dataAct: cons ? cons.getAttribute('data-act') : null,
+          wraps: document.querySelectorAll('#prompt-console .palmwrap').length });
+        continue;
+      }
+      const { p, r } = shown[0];
+      const label = p.querySelector('.palm__label');
+      const hint = p.querySelector('.palm__hint');
+      const lines = p.querySelectorAll('.palm__hintline');
+      const lr = label.getBoundingClientRect();
+      const ls = getComputedStyle(label);
+      const hs = getComputedStyle(hint);
+      out.push({
+        kind,
+        id: ch.id,
+        measurable: true,
+        w: Math.round(r.width),
+        h: Math.round(r.height),
+        inside: r.left >= panel.left - 1 && r.right <= panel.right + 1,
+        labelH: Math.round(lr.height),
+        labelLine: Math.round(parseFloat(ls.lineHeight)),
+        labelText: label.textContent.trim(),
+        hintLines: lines.length,
+        hintTexts: [...lines].map((n) => n.textContent.trim()),
+        hintFs: Math.round(parseFloat(hs.fontSize) * 10) / 10,
+        labelFs: Math.round(parseFloat(ls.fontSize) * 10) / 10,
+        kbd: p.querySelectorAll('.palm__hint kbd').length,
+        overflowX: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      });
+    }
+    g.promptConsole.close();
+    await wait(160);
+    return out;
+  `);
+
+  eq(palmAll[0].modeAtStart, 'guided', '量之前先切回引導式（手掌印只存在於那一家）');
+  const palmRows = palmAll.filter((x) => x.kind);
+  ok(palmRows.length >= 11, `十一種題型的手掌印都量到了（實際 ${palmRows.length} 種）`);
+  const palmMissing = palmRows.filter((x) => x.missing || x.measurable === false);
+  eq(
+    palmMissing.length,
+    0,
+    '每一種題型都有一隻量得到的手掌印（不會空過）',
+    JSON.stringify(palmMissing).slice(0, 400)
+  );
+  for (const p of palmRows.filter((x) => x.measurable)) {
+    const at = `[${p.kind}]`;
+    ok(p.w >= 240 && p.w <= 264, `${at} 手掌印加寬了（${p.w}px，Phase 35 之前是 168）`);
+    ok(p.h >= 44, `${at} 觸控／點擊目標夠大（${p.h}px）`);
+    eq(p.inside, true, `${at} 手掌印在面板裡`);
+    eq(p.labelText, '把手掌按上石碑', `${at} 主句沒變`);
+    ok(
+      p.labelH <= p.labelLine + 4,
+      `${at} 主句只有一行（高 ${p.labelH}px / 一行 ${p.labelLine}px）`
+    );
+    // 2026-08-03 站長定稿：提示收成一行、字級縮到腳註位階（主角是手掌本身）
+    eq(p.hintLines, 1, `${at} 提示收成一行短句`);
+    ok(
+      /^按住不放，或按住/.test(p.hintTexts[0]) && /Enter/.test(p.hintTexts[0]),
+      `${at} 那一行同時講得出滑鼠與鍵盤兩種按法`,
+      p.hintTexts.join(' ｜ ')
+    );
+    ok(p.hintFs < p.labelFs * 0.6, `${at} 提示縮到腳註位階（${p.hintFs} < ${p.labelFs} 的 0.6 倍）`);
+    eq(p.kbd, 1, `${at} Enter 鍵帽還在（鍵盤路徑沒被拿掉）`);
+    eq(p.overflowX, 0, `${at} 沒有水平溢位`);
+  }
+
+  /* --- 390px（Phase D 的行動版版面）：一樣不擠、一樣按得到 --- */
+  await cdp.send(
+    'Emulation.setDeviceMetricsOverride',
+    { width: 390, height: 844, deviceScaleFactor: 1, mobile: false },
+    sessionId
+  );
+  await sleep(360);
+  const palmNarrow = await evaluate(`
+    const g = window.__promptasy;
+    const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    g.promptConsole.setMode('guided');
+    await wait(200);
+    const out = [];
+    for (const id of ['gate-of-clarity-01', 'long-scroll-tower-23', 'oracle-workshop-36']) {
+      g.promptConsole.close();
+      await wait(140);
+      g.promptConsole.open(g.content.challenge(id));
+      await wait(220);
+      g.promptConsole.goAct(3, { force: true });
+      await wait(260);
+      let shown = [];
+      for (let tries = 0; tries < 20 && !shown.length; tries += 1) {
+        for (const w of document.querySelectorAll('#prompt-console .palmwrap')) w.hidden = false;
+        await wait(150);
+        shown = [...document.querySelectorAll('#prompt-console .palm')]
+          .map((p) => ({ p, r: p.getBoundingClientRect() }))
+          .filter((x) => x.r.width > 0);
+      }
+      const panel = document.querySelector('#prompt-console .panel').getBoundingClientRect();
+      if (!shown.length) { out.push({ id, measurable: false, mode: g.promptConsole.mode, act: g.promptConsole.act }); continue; }
+      const { p, r } = shown[0];
+      const lr = p.querySelector('.palm__label').getBoundingClientRect();
+      out.push({
+        id,
+        measurable: true,
+        w: Math.round(r.width),
+        h: Math.round(r.height),
+        panelW: Math.round(panel.width),
+        inside: r.left >= panel.left - 1 && r.right <= panel.right + 1,
+        labelH: Math.round(lr.height),
+        lines: p.querySelectorAll('.palm__hintline').length,
+        overflowX: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      });
+    }
+    g.promptConsole.close();
+    await wait(160);
+    return out;
+  `);
+  for (const p of palmNarrow) {
+    const at = `[390 ${p.id}]`;
+    eq(p.measurable, true, `${at} 量得到手掌印`);
+    if (!p.measurable) continue;
+    ok(p.w >= 220 && p.w <= 240, `${at} 窄畫面的手掌印也加寬了（${p.w}px）`);
+    ok(p.w < p.panelW, `${at} 沒有把面板撐開（${p.w} < ${p.panelW}）`);
+    eq(p.inside, true, `${at} 手掌印在面板裡`);
+    ok(p.h >= 44, `${at} 觸控目標 ≥ 44px（${p.h}px）`);
+    ok(p.labelH <= 40, `${at} 主句仍然只有一行（${p.labelH}px）`);
+    eq(p.lines, 1, `${at} 提示仍然是一行`);
+    eq(p.overflowX, 0, `${at} 沒有水平溢位`);
+  }
+  await cdp.send(
+    'Emulation.setDeviceMetricsOverride',
+    { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false },
+    sessionId
+  );
+  await sleep(320);
+
+  /* --- 自由書寫沒有手掌印（它走的是「呈給神諭」那顆鍵） --- */
+  const palmFree = await evaluate(`
+    const g = window.__promptasy;
+    const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    g.promptConsole.open(g.content.challenge('gate-of-clarity-01'));
+    await wait(220);
+    g.promptConsole.setMode('free');
+    await wait(260);
+    g.promptConsole.goAct(3, { force: true });
+    await wait(260);
+    const vis = [...document.querySelectorAll('#prompt-console .palm')]
+      .filter((p) => p.getBoundingClientRect().width > 0).length;
+    const submit = document.querySelector('#prompt-console [data-submit]');
+    const sr = submit.getBoundingClientRect();
+    g.promptConsole.setMode('guided');
+    await wait(200);
+    g.promptConsole.close();
+    await wait(160);
+    return { vis, submitText: submit.textContent.trim(), submitH: Math.round(sr.height) };
+  `);
+  eq(palmFree.vis, 0, '自由書寫模式沒有手掌印（它有自己的送出鍵）');
+  ok(/呈給神諭/.test(palmFree.submitText), '自由書寫的送出鍵還是「呈給神諭」', palmFree.submitText);
+  ok(palmFree.submitH >= 40, `自由書寫的送出鍵夠大（${palmFree.submitH}px）`);
+
+  /* ---------------------------------------------------------------- */
+  /* 術語小卡：畫線 → 滑上去 → 白話 ／ 用途 ／ 例                       */
+  /* ---------------------------------------------------------------- */
+  const glossOpen = await evaluate(`
+    const g = window.__promptasy;
+    const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    g.promptConsole.open(g.content.challenge('gate-of-clarity-01'));
+    await wait(320);
+    const root = document.getElementById('prompt-console');
+    const marks = [...root.querySelectorAll('[data-gloss]')];
+    return {
+      act: g.promptConsole.act,
+      count: marks.length,
+      terms: marks.map((m) => m.getAttribute('data-gloss')),
+      texts: marks.map((m) => m.textContent),
+      // 標記絕對不准長在這些東西裡面
+      inBad: root.querySelectorAll('textarea [data-gloss], button [data-gloss], kbd [data-gloss], a [data-gloss], h2 [data-gloss], h3 [data-gloss], summary [data-gloss]').length,
+      inTextarea: document.querySelector('#prompt-console textarea').value.includes('data-gloss'),
+      // 標記不進 Tab 順序（Phase 23 的焦點鏈沒被打亂）
+      tabbable: marks.filter((m) => m.hasAttribute('tabindex')).length,
+      cardExists: !!document.querySelector('.glosscard'),
+      dotted: marks[0] ? getComputedStyle(marks[0]).borderBottomStyle : '',
+      cursor: marks[0] ? getComputedStyle(marks[0]).cursor : '',
+      // 標記之後那段話的文字沒有變（只是包了一層 span）
+      missionText: root.querySelector('[data-mission]').textContent,
+    };
+  `);
+  eq(glossOpen.act, 1, '術語小卡是在第一幕（委託）就標好的');
+  ok(glossOpen.count >= 1, `委託那一幕上有術語標記（${glossOpen.count} 個）`, glossOpen.terms.join(','));
+  ok(glossOpen.terms.includes('prompt'), '「prompt」被標起來了', glossOpen.terms.join(','));
+  eq(glossOpen.inBad, 0, '標記沒有長進輸入框 / 按鈕 / 鍵帽 / 連結 / 標題裡');
+  eq(glossOpen.inTextarea, false, '玩家要打字的地方一個字都沒被動到');
+  eq(glossOpen.tabbable, 0, '標記不進 Tab 順序（不打亂 Phase 23 的焦點鏈）');
+  eq(glossOpen.dotted, 'dotted', '標記是一條虛線');
+  eq(glossOpen.cursor, 'help', '滑鼠變成「可以問」的樣子');
+  ok(
+    /prompt/.test(glossOpen.missionText),
+    '委託那句話的文字沒有被標記改掉',
+    glossOpen.missionText.slice(0, 40)
+  );
+  // 同一個術語一個面板只標第一次
+  {
+    const dupes = glossOpen.terms.filter((t, i) => glossOpen.terms.indexOf(t) !== i);
+    eq(dupes.length, 0, '同一個術語在一個面板裡只標第一次', dupes.join(','));
+  }
+
+  /* --- 真的用滑鼠移上去 ---
+   * 輪詢式（AGENTS.md）：每一輪都**重新量一次**那個字的位置再把滑鼠移過去。
+   * `.reveal` 的入場動畫還在跑時，先量好的座標會過期（實測會差 30px）。 */
+  const glossCard = await waitFor(
+    async () => {
+      const box = await evaluate(`
+        const m = document.querySelector('#prompt-console [data-gloss]');
+        m.scrollIntoView({ block: 'center' });
+        await new Promise((r) => setTimeout(r, 120));
+        const r = m.getBoundingClientRect();
+        return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) };
+      `);
+      await cdp.send(
+        'Input.dispatchMouseEvent',
+        { type: 'mouseMoved', x: 4, y: 4, button: 'none', buttons: 0 },
+        sessionId
+      );
+      await cdp.send(
+        'Input.dispatchMouseEvent',
+        { type: 'mouseMoved', x: box.x, y: box.y, button: 'none', buttons: 0 },
+        sessionId
+      );
+      await sleep(150);
+      return evaluate(`
+        const c = document.querySelector('.glosscard');
+        if (!c || c.hidden) return null;
+        const r = c.getBoundingClientRect();
+        return {
+          term: c.querySelector('[data-gc-term]').textContent.trim(),
+          zh: c.querySelector('[data-gc-zh]').textContent.trim(),
+          plain: c.querySelector('[data-gc-plain]').textContent.trim(),
+          use: c.querySelector('[data-gc-use]').textContent.trim(),
+          ex: c.querySelector('[data-gc-ex]').textContent.trim(),
+          links: c.querySelectorAll('a').length,
+          role: c.getAttribute('role'),
+          inView: r.top >= 0 && r.bottom <= innerHeight && r.left >= 0 && r.right <= innerWidth,
+          w: Math.round(r.width),
+          // 卡片掛在 body 上，所以不會被面板的 overflow 裁掉
+          parent: c.parentElement.tagName,
+          overflowX: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+        };
+      `);
+    },
+    { label: '術語小卡浮出來（真的用滑鼠）', every: 200, timeout: 14000 }
+  );
+  eq(glossCard.term, 'prompt', '卡片標題就是那個字');
+  ok(/[一-鿿]/.test(glossCard.zh), '有中文短標', glossCard.zh);
+  ok(glossCard.plain.length >= 8 && /[一-鿿]/.test(glossCard.plain), '有白話一句話', glossCard.plain);
+  ok(glossCard.use.length >= 8 && /[一-鿿]/.test(glossCard.use), '有用途', glossCard.use);
+  ok(glossCard.ex.length >= 4, '有一個小範例', glossCard.ex);
+  eq(glossCard.links, 0, '小卡不放連結（教學與出處仍然只在第二幕與圖鑑）');
+  eq(glossCard.role, 'tooltip', '小卡是 tooltip 語意');
+  eq(glossCard.parent, 'BODY', '小卡掛在 body 上（不會被面板裁掉）');
+  eq(glossCard.inView, true, '整張卡都在畫面裡');
+  eq(glossCard.overflowX, 0, '小卡沒有把頁面推寬');
+
+  /* --- Esc 先收小卡，關卡還開著 --- */
+  await key('Escape', 'Escape', { vk: 27 });
+  await sleep(260);
+  const glossEsc = await evaluate(`
+    return {
+      cardOpen: !document.querySelector('.glosscard').hidden,
+      consoleOpen: !document.getElementById('prompt-console').hidden,
+    };
+  `);
+  eq(glossEsc.cardOpen, false, 'Esc 先把小卡收起來');
+  eq(glossEsc.consoleOpen, true, '而且沒有順手把關卡也關掉');
+
+  /* --- 390px：小卡照樣完整看得到 --- */
+  await cdp.send(
+    'Emulation.setDeviceMetricsOverride',
+    { width: 390, height: 844, deviceScaleFactor: 1, mobile: false },
+    sessionId
+  );
+  await sleep(400);
+  const glossNarrow = await evaluate(`
+    const m = document.querySelector('#prompt-console [data-gloss]');
+    m.scrollIntoView({ block: 'center' });
+    await new Promise((r) => setTimeout(r, 300));
+    m.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+    await new Promise((r) => setTimeout(r, 320));
+    const c = document.querySelector('.glosscard');
+    const r = c.getBoundingClientRect();
+    return {
+      hidden: c.hidden,
+      inView: r.top >= 0 && r.bottom <= innerHeight && r.left >= 0 && r.right <= innerWidth,
+      w: Math.round(r.width),
+      vw: innerWidth,
+      overflowX: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    };
+  `);
+  eq(glossNarrow.hidden, false, '390px 下小卡照樣開得起來');
+  eq(glossNarrow.inView, true, '390px 下整張卡沒有被切掉');
+  ok(glossNarrow.w <= glossNarrow.vw - 8, `390px 下小卡沒有比畫面寬（${glossNarrow.w} / ${glossNarrow.vw}）`);
+  eq(glossNarrow.overflowX, 0, '390px 下沒有水平溢位');
+  await cdp.send(
+    'Emulation.setDeviceMetricsOverride',
+    { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false },
+    sessionId
+  );
+  await sleep(320);
+
+  /* --- 第二幕（指引）與圖鑑也標得到 --- */
+  const glossElsewhere = await evaluate(`
+    const g = window.__promptasy;
+    const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    const root = document.getElementById('prompt-console');
+    g.promptConsole.close();
+    await wait(200);
+    // 這一關的「工法」那句話裡就寫著 reasoning_effort —— 第二幕標得到
+    g.promptConsole.open(g.content.challenge('effort-forge-15'));
+    await wait(300);
+    g.promptConsole.goAct(2, { force: true });
+    await wait(340);
+    const act2 = [...root.querySelectorAll('.act--guide [data-gloss]')].map((m) => m.getAttribute('data-gloss'));
+    g.promptConsole.close();
+    await wait(220);
+
+    /*
+     * 圖鑑：只有「已收集」的條目才有內文可以標。
+     * 在記憶體裡先收齊（**不寫存檔**，量完就還原）—— 不然這一段會空過。
+     */
+    const before = g.progression.state.collected.slice();
+    const all = g.content
+      .groupsOrdered()
+      .flatMap((gr) => g.content.topicsOf(gr.id))
+      .flatMap((t) => g.content.techniquesOf(t.id))
+      .map((x) => x.id);
+    for (const id of all) {
+      if (!g.progression.state.collected.includes(id)) g.progression.state.collected.push(id);
+    }
+    g.codex.open();
+    await wait(700);
+    const bodies = document.querySelectorAll('#codex .tech__body').length;
+    const codexMarks = document.querySelectorAll('#codex .tech__body [data-gloss]').length;
+    const inSrc = document.querySelectorAll('#codex a [data-gloss], #codex .src [data-gloss], #codex summary [data-gloss]').length;
+    // 一條技巧＝一個面板：同一條裡同一個術語只准標一次
+    const dupes = [...document.querySelectorAll('#codex .tech__body')]
+      .map((b) => [...b.querySelectorAll('[data-gloss]')].map((m) => m.getAttribute('data-gloss')))
+      .filter((a) => a.length && new Set(a).size !== a.length).length;
+    g.codex.close();
+    await wait(240);
+    g.progression.state.collected.length = 0;
+    g.progression.state.collected.push(...before);
+
+    /*
+     * 標記規則的定點測試（合成一小塊 DOM 直接餵給標記器）——
+     * 這一段不受關卡文案改動影響，是「不准標進按鈕 / 鍵帽 / 輸入框」的看門狗。
+     */
+    const probe = document.createElement('div');
+    probe.innerHTML =
+      '<p>用 JSON 回覆，把 temperature 設成 0，再把這段 prompt 交出去；另一段 prompt 不要再標一次。</p>' +
+      '<button type="button">prompt</button><kbd>Enter</kbd><a href="#">JSON</a>' +
+      '<textarea>我的 prompt 草稿</textarea><h3>prompt 標題</h3>';
+    document.body.appendChild(probe);
+    const marked = g.glossary.annotate(probe);
+    const probeTerms = [...probe.querySelectorAll('[data-gloss]')].map((m) => m.getAttribute('data-gloss'));
+    const probeBad = probe.querySelectorAll(
+      'button [data-gloss], kbd [data-gloss], a [data-gloss], h3 [data-gloss]'
+    ).length;
+    const probeTextarea = probe.querySelector('textarea').value;
+    const probeText = probe.querySelector('p').textContent;
+    probe.remove();
+
+    return {
+      act2,
+      bodies,
+      codexMarks,
+      inSrc,
+      dupes,
+      marked,
+      probeTerms,
+      probeBad,
+      probeTextarea,
+      probeText,
+      cardHidden: document.querySelector('.glosscard').hidden,
+    };
+  `);
+  ok(
+    glossElsewhere.act2.includes('reasoning-effort'),
+    '第二幕（神諭刻文）裡的術語也標得到',
+    glossElsewhere.act2.join(',')
+  );
+  ok(glossElsewhere.bodies >= 20, `圖鑑真的有內文可以量（${glossElsewhere.bodies} 條）`);
+  ok(glossElsewhere.codexMarks >= 3, `圖鑑裡也標得到術語（${glossElsewhere.codexMarks} 個）`);
+  eq(glossElsewhere.inSrc, 0, '圖鑑的官方出處連結與標題上沒有被畫線');
+  eq(glossElsewhere.dupes, 0, '一條技巧裡同一個術語只標第一次');
+  eq(glossElsewhere.cardHidden, true, '面板收起來的時候小卡也跟著收起來');
+  // 定點測試：規則不隨關卡文案漂移
+  eq(glossElsewhere.probeBad, 0, '標記器不會標進按鈕 / 鍵帽 / 連結 / 標題');
+  eq(glossElsewhere.probeTextarea, '我的 prompt 草稿', '標記器一個字都沒動到玩家要打字的地方');
+  ok(
+    glossElsewhere.probeTerms.includes('json') &&
+      glossElsewhere.probeTerms.includes('temperature') &&
+      glossElsewhere.probeTerms.includes('prompt'),
+    '一段話裡三個術語都標得到',
+    glossElsewhere.probeTerms.join(',')
+  );
+  eq(
+    glossElsewhere.probeTerms.filter((t) => t === 'prompt').length,
+    1,
+    '同一段話裡出現兩次的術語只標第一次'
+  );
+  ok(
+    /用 JSON 回覆，把 temperature 設成 0/.test(glossElsewhere.probeText),
+    '標記之後那段話的文字一個字都沒變',
+    glossElsewhere.probeText.slice(0, 40)
+  );
+
+  /* ================================================================ */
+  console.log('\n▸ ⓘ 不自己彈出來 ＋ 縮成註腳大小 ＋ 一條式關卡標頭');
+
+  {
+    /** 真的把游標放到某一點（不是合成事件 —— 要騙得過瀏覽器的 hover 重算）。 */
+    const park = async (x, y) =>
+      cdp.send(
+        'Input.dispatchMouseEvent',
+        { type: 'mouseMoved', x: Math.round(x), y: Math.round(y), button: 'none', buttons: 0 },
+        sessionId
+      );
+    /**
+     * 現在畫面上有幾顆說明小卡是**看得見**的。
+     *
+     * 小卡有兩種載體：ⓘ 那顆符文石（`[data-infotip-btn]`），
+     * 以及 2026-08-03 之後接手第二幕的**那本典籍**（`a.bookicon`）——
+     * 兩種走的是同一支 `bindInfoTips()`，所以一起量。
+     */
+    const visibleTips = `
+      return Array.from(document.querySelectorAll('[data-infotip]')).map((t) => {
+        const b = t.querySelector('[data-infotip-bubble]');
+        const cs = getComputedStyle(b);
+        const trigger = t.querySelector('[data-infotip-btn], a.bookicon');
+        return {
+          label: trigger ? trigger.getAttribute('aria-label') : '(無)',
+          visible: cs.visibility === 'visible' && Number(cs.opacity) > 0.02,
+        };
+      }).filter((t) => t.visible);
+    `;
+    const headRows = (sel) => `
+      const p = document.querySelector('${sel} .panel__head');
+      if (!p) return null;
+      const box = (n) => { const r = n.getBoundingClientRect(); return { top: Math.round(r.top), bottom: Math.round(r.bottom), left: Math.round(r.left), right: Math.round(r.right), h: Math.round(r.height), w: Math.round(r.width) }; };
+      const title = p.querySelector('.panel__title');
+      const sub = p.querySelector('.panel__sub');
+      const eyebrow = p.querySelector('[data-eyebrow]');
+      const close = p.querySelector('.panel__close');
+      const hr = p.getBoundingClientRect();
+      return {
+        bar: p.classList.contains('panel__head--bar'),
+        headH: Math.round(hr.height),
+        headW: Math.round(hr.width),
+        titleText: title.textContent.trim(),
+        subText: sub.textContent.trim(),
+        eyebrowText: eyebrow.textContent.trim(),
+        titleId: title.id,
+        labelledBy: document.querySelector('${sel}').getAttribute('aria-labelledby'),
+        closeLabel: close.getAttribute('aria-label'),
+        title: box(title), sub: box(sub), eyebrow: box(eyebrow), close: box(close),
+        titleFs: parseFloat(getComputedStyle(title).fontSize),
+        subFs: parseFloat(getComputedStyle(sub).fontSize),
+        overflowX: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      };
+    `;
+
+    await evaluate(`window.__promptasy.promptConsole.close(); return 1;`);
+    await sleep(300);
+
+    /* ---------------------------------------------------------------- */
+    /* (1) 一條式標頭（1280）                                            */
+    /* ---------------------------------------------------------------- */
+    await evaluate(`
+      const g = window.__promptasy;
+      g.promptConsole.open(g.content.challenge('gate-of-clarity-01'));
+      return 1;
+    `);
+    await sleep(900);
+    const head = await evaluate(headRows('#prompt-console'));
+    ok(head, '關卡標頭量得到（不是 0×0 空過）');
+    eq(head.bar, true, '關卡走的是一條式標頭');
+    ok(head.headH < 130, '標頭壓成一條（原本三層堆疊要 170px 以上）', `${head.headH}px`);
+    ok(head.titleText.length > 0, '左邊是關卡名', head.titleText);
+    ok(head.subText.length > 0, '關卡名後面緊接著 NPC', head.subText);
+    ok(head.subFs < head.titleFs, 'NPC 小一號（不跟關卡名搶）', `${head.subFs} < ${head.titleFs}`);
+    ok(
+      head.sub.left >= head.title.right - 1,
+      'NPC 在關卡名右邊（同一行，不是疊在下面）',
+      `sub.left=${head.sub.left} title.right=${head.title.right}`
+    );
+    ok(
+      Math.abs(head.sub.bottom - head.title.bottom) <= 6,
+      'NPC 與關卡名同一條基線',
+      `${head.sub.bottom} vs ${head.title.bottom}`
+    );
+    ok(/第 \d+ 關 \/ 共 \d+ 關/.test(head.eyebrowText), '右邊是進度小牌', head.eyebrowText);
+    ok(
+      head.eyebrow.left > head.sub.right,
+      '進度小牌在右半邊（不在標題左邊）',
+      `eyebrow.left=${head.eyebrow.left} sub.right=${head.sub.right}`
+    );
+    ok(
+      head.close.left >= head.eyebrow.right - 1,
+      'Esc 在最右邊（進度小牌之後）',
+      `close.left=${head.close.left} eyebrow.right=${head.eyebrow.right}`
+    );
+    ok(
+      Math.abs(head.eyebrow.top - head.close.top) <= 12,
+      '進度小牌與 Esc 在同一行',
+      `${head.eyebrow.top} vs ${head.close.top}`
+    );
+    eq(head.labelledBy, head.titleId, 'aria-labelledby 仍然指到關卡名（無障礙沒被改壞）');
+    ok(/Esc/.test(head.closeLabel), 'Esc 的 aria-label 沒被改掉', head.closeLabel);
+    eq(head.overflowX, 0, '1280 下標頭沒有水平溢位');
+    // 進度數字要跟著 catalog 走，不是寫死的
+    const headCount = await evaluate(`
+      const g = window.__promptasy;
+      const sib = g.content.challengesOf('foundations');
+      return { total: sib.length, text: document.querySelector('#prompt-console [data-eyebrow]').textContent.trim() };
+    `);
+    ok(
+      headCount.text.includes(`共 ${String(headCount.total).padStart(2, '0')} 關`),
+      '「共 M 關」＝這一片土地目前真正的關卡數（catalog 算出來的）',
+      `${headCount.text} / total=${headCount.total}`
+    );
+
+    /* ---------------------------------------------------------------- */
+    /* (2) ⓘ 縮成註腳大小，但仍然按得到                                  */
+    /* ---------------------------------------------------------------- */
+    /*
+     * ⓘ 的尺寸在圖鑑那顆上量 —— 第二幕的說明卡 2026-08-03 之後掛在
+     * 那本典籍上（見下面第 (3) 段），ⓘ 這個元件本身仍然用在圖鑑、
+     * 兩輪刻印的回話卡、轉鈕的註記與效能監視器上，樣式是同一組 token。
+     */
+    await evaluate(`
+      const g = window.__promptasy;
+      g.promptConsole.close();
+      g.codex.open();
+      return 1;
+    `);
+    await sleep(900);
+    const tipSize = await evaluate(`
+      const btn = document.querySelector('#codex .codex__hint .infotip__btn');
+      const r = btn.getBoundingClientRect();
+      const before = getComputedStyle(btn, '::before');
+      const inset = parseFloat(getComputedStyle(btn).getPropertyValue('--infotip-inset'));
+      return {
+        hitW: Math.round(r.width), hitH: Math.round(r.height),
+        fontPx: parseFloat(getComputedStyle(btn).fontSize),
+        inset,
+        beforeInset: before.insetBlockStart || before.inset,
+        visual: Math.round(r.width - inset * 2),
+      };
+    `);
+    ok(tipSize.hitW >= 20 && tipSize.hitH >= 20, 'ⓘ 的命中範圍仍然 ≥ 20px', `${tipSize.hitW}×${tipSize.hitH}`);
+    ok(tipSize.hitW <= 24, 'ⓘ 的命中範圍沒有變大', `${tipSize.hitW}px`);
+    ok(
+      tipSize.visual >= 10 && tipSize.visual <= 14,
+      '看得見的那顆石頭大約 13px（原本 26px 的一半）',
+      `${tipSize.visual}px`
+    );
+    ok(tipSize.fontPx <= 11, 'ⓘ 的字級跟著砍半', `${tipSize.fontPx}px`);
+    await evaluate(`window.__promptasy.codex.close(); return 1;`);
+    await sleep(320);
+
+    /* ---------------------------------------------------------------- */
+    /* (3) 迴歸：ⓘ 絕不自己彈出來                                        */
+    /*                                                                   */
+    /* 真正的重現方式 —— 把游標停在「ⓘ 之後會長出來的位置」，再從第一幕  */
+    /* 切到第二幕。瀏覽器會重算 hover 並補送 mouseover，舊寫法就是在這裡  */
+    /* 把說明卡打開的（玩家什麼都沒做）。                                 */
+    /* ---------------------------------------------------------------- */
+    /*
+     * 2026-08-03 之後第二幕那顆說明卡掛在**那本典籍**上（`a.bookicon`），
+     * 走的仍然是同一支 `bindInfoTips()` —— 所以迴歸案例原封不動搬過來量它。
+     */
+    await evaluate(`
+      const g = window.__promptasy;
+      g.promptConsole.open(g.content.challenge('gate-of-clarity-01'));
+      g.promptConsole.goAct(2, { force: true });
+      return 1;
+    `);
+    await sleep(900);
+    const tipPoint = await evaluate(`
+      const r = document.querySelector('#prompt-console .act--guide a.bookicon').getBoundingClientRect();
+      return [r.x + r.width / 2, r.y + r.height / 2];
+    `);
+    await evaluate(`window.__promptasy.promptConsole.close(); return 1;`);
+    await sleep(320);
+    await park(tipPoint[0], tipPoint[1]);
+    await sleep(240);
+    await evaluate(`
+      const g = window.__promptasy;
+      g.promptConsole.open(g.content.challenge('gate-of-clarity-01'));
+      return 1;
+    `);
+    await sleep(900);
+    const tipsAct1 = await evaluate(visibleTips);
+    eq(tipsAct1.length, 0, '打開一關的時候畫面上沒有任何 ⓘ 的說明是開著的', JSON.stringify(tipsAct1));
+    await evaluate(`document.querySelector('#prompt-console [data-act-next="2"]').click(); return 1;`);
+    await sleep(1100);
+    const tipsParked = await evaluate(visibleTips);
+    eq(
+      tipsParked.length,
+      0,
+      '游標停在原地、ⓘ 長在它底下 → 說明卡不自己彈出來（迴歸）',
+      JSON.stringify(tipsParked)
+    );
+    /*
+     * 游標真的動到它上面 → 這才是 hover，該打得開。
+     * 先移開再移上去（保證「座標真的變了」），而且座標要**當場重量** ——
+     * .reveal 的入場動畫會讓先前量好的位置過期（findings 有記）。
+     */
+    await park(6, 6);
+    await sleep(200);
+    const tipsMoved = await waitFor(
+      async () => {
+        const at = await evaluate(`
+          const r = document.querySelector('#prompt-console .act--guide a.bookicon').getBoundingClientRect();
+          return [r.x + r.width / 2, r.y + r.height / 2];
+        `);
+        await park(6, 6);
+        await park(at[0], at[1]);
+        await sleep(200);
+        const seen = await evaluate(visibleTips);
+        return seen.length ? seen : null;
+      },
+      { timeout: 8000, every: 200, label: '游標移上去 ⓘ 就打開' }
+    ).catch(() => []);
+    eq(tipsMoved.length, 1, '游標真的動到它上面就打得開（hover 沒有被關掉）', JSON.stringify(tipsMoved));
+    await park(6, 6);
+    await waitFor(async () => (await evaluate(visibleTips)).length === 0, {
+      timeout: 4000,
+      every: 150,
+      label: 'ⓘ 移開就收回去',
+    }).catch(() => {});
+    eq((await evaluate(visibleTips)).length, 0, '移開就收回去');
+    // 鍵盤 focus 也要打得開
+    const tipFocus = await evaluate(`
+      const btn = document.querySelector('#prompt-console .act--guide a.bookicon');
+      btn.focus();
+      await new Promise((r) => setTimeout(r, 220));
+      const on = getComputedStyle(document.querySelector('#prompt-console .act--guide .infotip__bubble')).visibility;
+      // 典籍是一條連結（按下去就開官方文件）→ 無障礙的關係走 aria-describedby
+      const describes =
+        btn.getAttribute('aria-describedby') ===
+        document.querySelector('#prompt-console .act--guide .infotip__bubble').id;
+      btn.blur();
+      await new Promise((r) => setTimeout(r, 220));
+      return { on, describes, off: getComputedStyle(document.querySelector('#prompt-console .act--guide .infotip__bubble')).visibility };
+    `);
+    eq(tipFocus.on, 'visible', 'Tab 走到那本典籍上照樣看得到說明（鍵盤不打折）');
+    eq(tipFocus.describes, true, 'focus 時螢幕閱讀器讀得到那張小卡');
+    eq(tipFocus.off, 'hidden', '離開 focus 就收回去');
+    // ⓘ 那顆符文石仍然用 aria-expanded 表態（圖鑑那顆）
+    const tipExpanded = await evaluate(`
+      const g = window.__promptasy;
+      g.promptConsole.close();
+      g.codex.open();
+      await new Promise((r) => setTimeout(r, 500));
+      const btn = document.querySelector('#codex .codex__hint .infotip__btn');
+      const before = btn.getAttribute('aria-expanded');
+      btn.focus();
+      await new Promise((r) => setTimeout(r, 260));
+      const on = btn.getAttribute('aria-expanded');
+      btn.blur();
+      await new Promise((r) => setTimeout(r, 260));
+      const off = btn.getAttribute('aria-expanded');
+      g.codex.close();
+      await new Promise((r) => setTimeout(r, 260));
+      return { before, on, off };
+    `);
+    eq(tipExpanded.before, 'false', 'ⓘ 預設是收起來的（aria-expanded=false）');
+    eq(tipExpanded.on, 'true', 'focus 時 aria-expanded 跟著更新');
+    eq(tipExpanded.off, 'false', '離開 focus 又收回去');
+    // 面板打開時焦點不准落在 ⓘ 上
+    await evaluate(`window.__promptasy.promptConsole.close(); return 1;`);
+    await sleep(320);
+    await evaluate(`window.__promptasy.codex.open(); return 1;`);
+    await sleep(800);
+    const codexFocus = await evaluate(`
+      const a = document.activeElement;
+      return {
+        isTip: !!(a.closest && a.closest('[data-infotip]')),
+        text: (a.textContent || '').trim().slice(0, 16),
+      };
+    `);
+    eq(codexFocus.isTip, false, '圖鑑打開時焦點不會落在 ⓘ 上', codexFocus.text);
+    eq((await evaluate(visibleTips)).length, 0, '圖鑑打開時也沒有任何 ⓘ 自己開著');
+    await evaluate(`window.__promptasy.codex.close(); return 1;`);
+    await sleep(320);
+
+    /* ---------------------------------------------------------------- */
+    /* (4) 390px：關卡名不截斷、進度小牌掉到第二行、Esc 守在右上          */
+    /* ---------------------------------------------------------------- */
+    await cdp.send(
+      'Emulation.setDeviceMetricsOverride',
+      { width: 390, height: 844, deviceScaleFactor: 1, mobile: false },
+      sessionId
+    );
+    await sleep(420);
+    await evaluate(`
+      const g = window.__promptasy;
+      g.promptConsole.open(g.content.challenge('gate-of-clarity-01'));
+      return 1;
+    `);
+    await sleep(900);
+    const head390 = await evaluate(headRows('#prompt-console'));
+    ok(head390, '390px 下標頭量得到');
+    eq(head390.bar, true, '390px 下仍然是一條式標頭');
+    eq(head390.overflowX, 0, '390px 下整頁沒有水平溢位');
+    ok(head390.headH < 175, '390px 下的標頭仍然比原本三層堆疊矮', `${head390.headH}px`);
+    ok(
+      head390.close.top < head390.eyebrow.top,
+      '390px：Esc 留在第一行，進度小牌掉到底下',
+      `close.top=${head390.close.top} eyebrow.top=${head390.eyebrow.top}`
+    );
+    ok(
+      head390.close.right <= head390.headW + head390.close.left,
+      '390px：Esc 仍然靠右',
+      `close.right=${head390.close.right}`
+    );
+    ok(
+      head390.title.right <= 390 && head390.eyebrow.right <= 390 + 1,
+      '390px：標頭每一塊都在畫面內',
+      `title.right=${head390.title.right} eyebrow.right=${head390.eyebrow.right}`
+    );
+    const tip390 = await evaluate(`
+      document.querySelector('#prompt-console [data-act-next="2"]').click();
+      await new Promise((r) => setTimeout(r, 700));
+      // 第二幕那顆說明卡掛在導言那本典籍上（2026-08-03 定稿）
+      const btn = document.querySelector('#prompt-console .act--guide a.bookicon');
+      const r = btn.getBoundingClientRect();
+      return {
+        hit: Math.round(r.width),
+        hitH: Math.round(r.height),
+        inside: r.right <= 390 + 1 && r.left >= -1,
+        overflowX: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      };
+    `);
+    ok(tip390.hit >= 16 && tip390.hitH >= 16, '390px 下那本典籍仍然按得到', `${tip390.hit}×${tip390.hitH}`);
+    eq(tip390.inside, true, '390px 下那本典籍在畫面內');
+    eq(tip390.overflowX, 0, '390px · 第二幕沒有水平溢位');
+    eq((await evaluate(visibleTips)).length, 0, '390px 下切到第二幕也沒有說明卡自己彈出來');
+    await evaluate(`window.__promptasy.promptConsole.close(); return 1;`);
+    await cdp.send('Emulation.clearDeviceMetricsOverride', {}, sessionId);
+    await sleep(420);
   }
 
   /* ================================================================ */

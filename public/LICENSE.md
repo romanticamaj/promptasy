@@ -36,8 +36,17 @@ node scripts/subset-fonts.mjs --fetch   # 缺檔就從 github.com/google/fonts �
 
 ## 音樂（`audio/bgm_*.m4a`）
 
-六首配樂（開場曲＋五區配樂）著作權標示：**Gary Hsieh，由 SUNO.ai 輔助生成**，為本專案的原創授權曲目（本專案使用）。
-每首約 3 分鐘、AAC（m4a）、響度對齊 −20 LUFS、頭尾已去除靜音。
+十二首配樂（開場曲＋十一區配樂）著作權標示：**Gary Hsieh，由 SUNO.ai 輔助生成**，為本專案的原創授權曲目（本專案使用）。
+
+> 本人原創，由 SUNO.ai 輔助生成，授權本專案使用。— Gary Hsieh
+
+每首約 3 分鐘、AAC（m4a）、48 kHz stereo、128 kbps。
+
+**檔案本身不做響度處理**（v2 那六首是 raw 交付，轉檔指令裡沒有任何 volume filter）——
+統一是在播放時用 Web Audio 的 gain 做的，逐檔的量測值與倍率見
+[`docs/design/audio-loudness.md`](../docs/design/audio-loudness.md) 與 `src/audio/audio.js` 的 `BGM_TRACKS`。
+配樂床的目標是 **−20 LUFS**、音效是 **−19 LUFS**（只比配樂高 1 LU —— 配樂全是沒有
+attack transient 的 pad，音效是全場唯一的瞬態來源，跳出來一點點就夠了）。
 
 | 檔案 | 曲名 | 對應區域 | 來源 / 授權 |
 | --- | --- | --- | --- |
@@ -47,12 +56,22 @@ node scripts/subset-fonts.mjs --fetch   # 缺檔就從 github.com/google/fonts �
 | `audio/bgm_grounding.m4a` | Sunken Archive Bowed | 脈絡與長文（grounding） | Gary Hsieh，由 SUNO.ai 輔助生成（原創授權本專案使用） |
 | `audio/bgm_orchestration.m4a` | Gear Workshop Pulse | 流程與代理（orchestration） | Gary Hsieh，由 SUNO.ai 輔助生成（原創授權本專案使用） |
 | `audio/bgm_config.m4a` | Mask Theatre Veil | 角色與參數（config） | Gary Hsieh，由 SUNO.ai 輔助生成（原創授權本專案使用） |
+| `audio/bgm_forms.m4a` | Foundry of Measures | 量器坊（forms） | Gary Hsieh，由 SUNO.ai 輔助生成（原創授權本專案使用） |
+| `audio/bgm_toolcraft.m4a` | Contract Forge | 契約鍛冶場（toolcraft） | Gary Hsieh，由 SUNO.ai 輔助生成（原創授權本專案使用） |
+| `audio/bgm_frugality.m4a` | Garden of Subtraction | 減法之庭（frugality） | Gary Hsieh，由 SUNO.ai 輔助生成（原創授權本專案使用） |
+| `audio/bgm_refinery.m4a` | Proving Yard | 校驗場（refinery） | Gary Hsieh，由 SUNO.ai 輔助生成（原創授權本專案使用） |
+| `audio/bgm_sight.m4a` | Observatory Terrace | 觀象臺（sight） | Gary Hsieh，由 SUNO.ai 輔助生成（原創授權本專案使用） |
+| `audio/bgm_divergence.m4a` | Hall of Divergence | 分歧之廳（divergence） | Gary Hsieh，由 SUNO.ai 輔助生成（原創授權本專案使用） |
+| `audio/bgm_wards.m4a` | The Unclosing Door | 護欄崗（wards） | Gary Hsieh，由 SUNO.ai 輔助生成（原創授權本專案使用） |
+
+護欄崗（wards）還沒有自己的一首 —— 它誠實地登記在 `SYNTH_ONLY_REGIONS` 裡，走合成 pad。
 
 ## 音效（`audio/sfx_*.m4a`）
 
 音效素材取自 **Splice**，依 Splice sample license 授權給站長帳號，已釐清可用於本專案。
 （Splice 的樣本授權是**買斷、可用於作品**；不得再以樣本包的形式轉售或散布素材本身。）
-全部峰值 −6 dBFS。
+v1 那批峰值 −6 dBFS、v2 那批峰值 −12 dBFS；兩批**都沒有做響度處理**，
+播放時的 gain 依同一條公式算出來（見下方與 `docs/design/audio-loudness.md`）。
 
 | 檔案 | 長度 | 用在哪裡 | 來源 / 授權 |
 | --- | --- | --- | --- |
@@ -66,9 +85,24 @@ node scripts/subset-fonts.mjs --fetch   # 缺檔就從 github.com/google/fonts �
 | `audio/sfx_gear.m4a` | 1.3 s | 絞盤與齒輪工坊的器物 | Splice sample license（同上） |
 | `audio/sfx_shrine.m4a` | 1.8 s | 起始祭壇的門檻 ＋ 刻文小語 | Splice sample license（同上） |
 | `audio/sfx_finale.m4a` | 4.1 s | 隱藏成就（68 條全收集） | Splice sample license（同上） |
+| `audio/sfx_sim_low.m4a` | 0.7 s | 轉鈕・第 1 檔（卡帶卡榫，移調 −2） | Splice sample license（同上） |
+| `audio/sfx_sim_mid.m4a` | 0.7 s | 轉鈕・第 2 檔（原始音高） | Splice sample license（同上） |
+| `audio/sfx_sim_high.m4a` | 0.7 s | 轉鈕・第 3 檔（移調 ＋2） | Splice sample license（同上） |
+| `audio/sfx_trial_pass.m4a` | 4.8 s | 應用關（試煉）通過（鑼） | Splice sample license（同上） |
+| `audio/sfx_seal_stamp.m4a` | 0.8 s | 大師層印記・實體層（公證章） | Splice sample license（同上） |
+| `audio/sfx_seal_sparkle.m4a` | 0.9 s | 大師層印記・微光層（延遲 200 ms 疊上） | Splice sample license（同上） |
+| `audio/sfx_hard_gate.m4a` | 2.4 s | 分歧之廳硬門檻開啟（厚重閂鎖） | Splice sample license（同上） |
+| `audio/sfx_forms_tap.m4a` | 0.2 s | 量器坊・刻上一段（敲模） | Splice sample license（同上） |
+| `audio/sfx_toolcraft_strike_1.m4a` | 0.3 s | 契約鍛冶場・鍛打 A（與 B 隨機輪播） | Splice sample license（同上） |
+| `audio/sfx_toolcraft_strike_2.m4a` | 0.3 s | 契約鍛冶場・鍛打 B | Splice sample license（同上） |
+| `audio/sfx_toolcraft_complete.m4a` | 1.9 s | 契約鍛冶場・石碑刻滿（契約完成） | Splice sample license（同上） |
+| `audio/sfx_frugality_remove.m4a` | 2.2 s | 減法之庭・刻上一段（倒放鋼琴＝被抽走） | Splice sample license（同上） |
+| `audio/sfx_refinery_rerun.m4a` | 0.6 s | 校驗場・刻上一段（倒帶＝再跑一輪） | Splice sample license（同上） |
+| `audio/sfx_sight_focus.m4a` | 2.3 s | 觀象臺・刻上一段（對焦鎖定） | Splice sample license（同上） |
 
-音檔合計約 **15 MB**，一律等到標題卡按下去（AudioContext 需要的使用者手勢）之後才開始下載，
-不影響第一個畫面。`src/audio/audio.js` 的**合成引擎完整保留**：檔案還沒到、抓不到或解不開時，
+音檔合計約 **34.6 MB**（12 首配樂 ＋ 24 支音效），**一律等到標題卡按下去**（AudioContext 需要的
+使用者手勢）之後才開始下載，而且只抓當區與鄰區的那幾首 —— 玩家不會一次下載 34.6 MB，
+第一個畫面也不受影響。`src/audio/audio.js` 的**合成引擎完整保留**：檔案還沒到、抓不到或解不開時，
 遊戲會自動退回即時合成的配樂與音效 —— 把 `audio/` 清空，核心迴圈照樣可玩（護欄 3）。
 
 ## 其他資產

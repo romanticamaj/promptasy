@@ -903,6 +903,57 @@ export const LANDMARK_SOLIDS = Object.freeze({
     [-5.6, 0, 1.6],
     [5.6, 0, 1.6],
   ],
+  // 刻度之柱：臺座 cyl(4.6, 5.6, 1.3) ＋ 方柱 box(3.2, 15.4, 3.2)。
+  // 柱頂那把尺懸在 20.8 公尺高，走得過去（也走不到），不登記。
+  'gauge-column': [
+    [0, 0, 4.8],
+    [0, 0, 2.3],
+  ],
+  /*
+   * 兩面的柱：臺座 cyl(9.4, 10.6, 1.2) ＋ 五根 cyl(0.82, 1.08, 17.4) 的柱子。
+   *
+   * 臺座**要自己登記**（issue：玩家走上這片圓盤會陷到腰）。
+   * 原本的註解寫「1.2 公尺跨得上去」—— 但這個世界沒有跨上臺階這件事：
+   * 地形高度不會因為上面擺了一塊石頭而改變，人踩進去就是整個沉下去。
+   * 其他三座地標（斷環／無盡階梯／巨臂吊車）Phase 20 就是因為同一個原因補上臺座的。
+   *
+   * 稽核為什麼沒抓到：`collision-audit.mjs` 只拿**外接盒的中心點**去問有沒有碰撞體，
+   * 而臺座的中心正好被中間那根柱子的圓蓋住 —— 一塊直徑 19 公尺的圓盤，
+   * 中心被 1.3 公尺的圓蓋住就算「有覆蓋」。看得到卻走得上去的鬼影就是這樣來的。
+   *
+   * 半徑取上緣 9.4 ＋ 0.2（同其他三座的作法：站在臺邊時腳尖剛好抵著石頭）。
+   * 五根柱子的圓仍然留著 —— 它們比臺座高，是同一片區域裡另一層剪影，
+   * 而且臺座的圓萬一之後改小，柱子不會跟著變成鬼影。
+   * 柱頂那道楣懸在 20 公尺高，走得過去（也走不到），不登記。
+   */
+  'twin-pillars': [
+    [0, 0, 9.6], // 臺座 cyl(9.4, 10.6, 1.2)：整片圓盤都擋著，人上不去也就不會陷進去
+    [-7.0, 0.8, 1.3],
+    [-3.5, -0.1, 1.3],
+    [0, -0.8, 1.3],
+    [3.5, -0.1, 1.3],
+    [7.0, 0.8, 1.3],
+  ],
+  /*
+   * 課程 v2 · Phase E–J 蓋的四座地標當初沒有登記自己的臺座 —— 和兩面的柱
+   * 完全同一個毛病（每一座都是一塊一公尺多高、六到九公尺寬的圓盤）。
+   * 這四塊圓盤的碰撞只來自 `markSolidParts` 用外接盒推出來的圓，
+   * 而那個圓被 `SOLID_MAX_RADIUS`（3.6）夾住 —— 中間擋得住，外圈那幾公尺
+   * 卻是「看得到、走得上去、然後陷下去」的石頭。
+   * 半徑一律取上緣 ＋ 0.2，四座的淨空（clear 13–15）都遠大於它。
+   */
+  'nameless-keys': [
+    [0, 0, 5.2], // 臺座 cyl(5.0, 6.2, 1.3)（中央那根短柱本來就擋得住，含在裡面）
+  ],
+  'facing-glass': [
+    [0, 0, 7.8], // 臺座 cyl(7.6, 8.8, 1.2)（兩面鏡的框另有自己的碰撞體）
+  ],
+  'empty-plinth': [
+    [0, 0, 6.8], // 臺座 cyl(6.6, 7.8, 1.3)（三階往上收的基座含在裡面）
+  ],
+  'sky-mirror': [
+    [0, 0, 6.2], // 臺座 cyl(6.0, 7.2, 1.4)（斜插的鏡與楔形座另有自己的碰撞體）
+  ],
 });
 
 /* ------------------------------------------------------------------ *
@@ -1137,6 +1188,247 @@ export const STORY_VIGNETTES = Object.freeze([
       ['spot', [-3.8, 0, 2.8], 0, { h: 2.8 }],
     ],
   },
+  /* --- forms：把話倒進模子裡（課程 v2 · Phase E） --- */
+  {
+    id: 'half-poured-mould',
+    region: 'forms',
+    name: '倒到一半的那一模',
+    at: [-24, 112],
+    rot: 0.5,
+    parts: [
+      ['anvil', [0, 0, 0], 0, {}],
+      ['crates', [3.4, 0, 1.8], 0.3, {}],
+      ['tools', [-3.0, 0, 1.4], -0.5, {}],
+      ['slate', [2.2, 0, -2.6], 0.2, { marks: 7 }],
+      ['cairn', [-3.8, 0, -2.2], 0, {}],
+    ],
+  },
+  {
+    id: 'measure-bench',
+    region: 'forms',
+    name: '量過就沒再量的桌',
+    at: [26, 116],
+    rot: -0.9,
+    parts: [
+      ['desk', [0, 0, 0], 0, { light: false }],
+      ['ink', [1.6, 0.4, 0.8], 0.4, {}],
+      ['dial', [-4.2, 0, 1.6], 0.6, {}],
+      ['column', [4.4, 0, -1.8], 0, { h: 2.4 }],
+      ['lamp', [-2.4, 0, -3.4], 0, { h: 3.2, light: false }],
+    ],
+  },
+  {
+    id: 'overflow-trough',
+    region: 'forms',
+    name: '溢出來的那一槽',
+    at: [4, 152],
+    rot: 1.4,
+    parts: [
+      ['pool', [0, 0, 0], 0, { r: 3.0 }],
+      ['column', [-5.2, 0, 1.4], 0.2, { h: 2.8 }],
+      ['slate', [4.6, 0, -1.2], -0.4, { marks: 13 }],
+      ['shard', [3.0, 0, 3.4], 0.8, { len: 3.0, seed: 4 }],
+      ['cairn', [-2.6, 0, -3.8], 0, {}],
+    ],
+  },
+
+  /* --- toolcraft：替神諭打造它的手（課程 v2 · Phase F） --- */
+  {
+    id: 'nameless-tools',
+    region: 'toolcraft',
+    name: '沒有人替它取名字的那一把',
+    at: [-108, -22],
+    rot: 0.6,
+    parts: [
+      ['anvil', [0, 0, 0], 0, {}],
+      ['tools', [3.2, 0, 1.6], -0.4, {}],
+      ['slate', [-2.8, 0, 2.2], 0.3, { marks: 5 }],
+      ['crates', [-3.6, 0, -2.4], 0.2, {}],
+      ['cairn', [3.0, 0, -3.2], 0, {}],
+    ],
+  },
+  {
+    id: 'crowded-bench',
+    region: 'toolcraft',
+    name: '擺到放不下的那張檯',
+    at: [-140, 20],
+    rot: -1.1,
+    parts: [
+      ['drafttable', [0, 0, 0], 0, {}],
+      ['tools', [-3.4, 0, 1.2], 0.5, {}],
+      ['crates', [3.6, 0, 0.8], -0.2, {}],
+      ['cart', [1.4, 0, -4.0], 0.7, {}],
+      ['lamp', [-4.2, 0, -2.6], 0, { h: 3.4, light: false }],
+    ],
+  },
+  {
+    id: 'untouched-machine',
+    region: 'toolcraft',
+    name: '沒有人敢動的那一台',
+    at: [-124, 32],
+    rot: 2.3,
+    parts: [
+      ['machine', [0, 0, 0], 0, {}],
+      ['pipes', [3.8, 0, 1.4], 0.4, {}],
+      ['signpost', [-4.0, 0, 1.8], -0.5, {}],
+      ['firepit', [-2.2, 0, -3.6], 0, { light: false }],
+      ['column', [4.2, 0, -2.8], 0, { h: 2.6 }],
+    ],
+  },
+  /* --- wards：外面來的字也是指令（課程 v2 · Phase F） --- */
+  {
+    id: 'opened-letters',
+    region: 'wards',
+    name: '被拆開讀過的那幾封',
+    at: [106.9, -129.3],
+    rot: 0.8,
+    parts: [
+      ['desk', [0, 0, 0], 0, { light: false }],
+      ['scrolls', [3.0, 0, 1.2], -0.3, {}],
+      ['ink', [1.2, 0.4, 0.6], 0.5, {}],
+      ['seat', [-2.6, 0, 1.8], 0.2, {}],
+      ['lamp', [-3.4, 0, -2.4], 0, { h: 3.0, light: false }],
+    ],
+  },
+  {
+    id: 'unwatched-post',
+    region: 'wards',
+    name: '沒有人在的那個崗',
+    at: [90.3, -133],
+    rot: -0.7,
+    parts: [
+      ['signpost', [0, 0, 0], 0, {}],
+      ['cairn', [3.2, 0, 1.6], 0, {}],
+      ['stele', [-3.0, 0, 1.4], 0.2, { h: 2.8, seed: 9, tilt: 0.08 }],
+      ['firepit', [0.6, 0, -3.4], 0, { light: false }],
+      ['column', [-3.8, 0, -2.6], 0, { h: 2.2 }],
+    ],
+  },
+
+  /* --- refinery：改 prompt 的 prompt（課程 v2 · Phase G） --- */
+  {
+    id: 'ten-drafts',
+    region: 'refinery',
+    name: '改到第十版的那一疊',
+    at: [-121.2, 142.4],
+    rot: 0.5,
+    parts: [
+      ['desk', [0, 0, 0], 0, { light: false }],
+      ['scrolls', [3.0, 0, 1.4], -0.3, {}],
+      ['ink', [1.1, 0.4, 0.5], 0.4, {}],
+      ['crates', [-3.4, 0, -2.2], 0.2, {}],
+      ['seat', [-2.6, 0, 1.8], 0.2, {}],
+    ],
+  },
+  {
+    id: 'facing-mirrors',
+    region: 'refinery',
+    name: '照著照著就沒有人看的兩面',
+    at: [-144.4, 127.6],
+    rot: -0.9,
+    parts: [
+      ['mirror', [-2.4, 0, 0], 0.25, { h: 3.2 }],
+      ['mirror', [2.4, 0, 0], Math.PI - 0.25, { h: 3.2 }],
+      ['stele', [0, 0, -3.4], 0.1, { h: 2.4, seed: 11, tilt: 0.06 }],
+      ['cairn', [4.2, 0, 2.4], 0, {}],
+    ],
+  },
+  {
+    id: 'unread-checklist',
+    region: 'refinery',
+    name: '只蓋了章的那張檢查表',
+    at: [-142.6, 103.3],
+    rot: 1.8,
+    parts: [
+      ['drafttable', [0, 0, 0], 0, {}],
+      ['slate', [-3.2, 0, 1.6], 0.4, { marks: 6 }],
+      ['signpost', [3.6, 0, 1.2], -0.4, {}],
+      ['column', [-4.0, 0, -2.8], 0, { h: 2.4 }],
+    ],
+  },
+
+  /* --- frugality：學會拿掉（課程 v2 · Phase H） --- */
+  {
+    id: 'moved-out',
+    region: 'frugality',
+    name: '搬走之後留下的那一格',
+    at: [-12.8, -77.3],
+    rot: 0.6,
+    parts: [
+      ['crates', [0, 0, 0], 0, {}],
+      ['slate', [3.2, 0, 1.4], -0.3, { marks: 3 }],
+      ['column', [-3.6, 0, -2.4], 0, { h: 2.0 }],
+      ['cairn', [3.8, 0, -2.6], 0, {}],
+    ],
+  },
+  {
+    id: 'said-three-times',
+    region: 'frugality',
+    name: '同一句話寫了三遍的那一卷',
+    at: [-4.7, -94.8],
+    rot: -0.8,
+    parts: [
+      ['desk', [0, 0, 0], 0, { light: false }],
+      ['scrolls', [2.9, 0, 1.3], 0.4, {}],
+      ['scrolls', [-2.9, 0, 1.1], -0.4, {}],
+      ['ink', [1.0, 0.4, 0.4], 0.2, {}],
+    ],
+  },
+  {
+    id: 'stale-tray',
+    region: 'frugality',
+    name: '沒有人再看的那一疊托盤',
+    at: [12.8, -86.7],
+    rot: 2.1,
+    parts: [
+      ['drafttable', [0, 0, 0], 0, {}],
+      ['crates', [-3.4, 0, 1.8], 0.3, {}],
+      ['signpost', [3.6, 0, 1.0], -0.5, {}],
+      ['slate', [2.4, 0, -2.8], 0.6, { marks: 4 }],
+    ],
+  },
+
+  /* --- sight：看得見，不代表看清楚（課程 v2 · Phase I） --- */
+  {
+    id: 'unpointed-view',
+    region: 'sight',
+    name: '沒有指名要看哪裡的那一面',
+    at: [110.5, -26.6],
+    rot: 0.9,
+    parts: [
+      ['mirror', [0, 0, 0], 0, { h: 3.4 }],
+      ['signpost', [3.2, 0, 1.4], -0.6, {}],
+      ['slate', [-3.0, 0, 1.2], 0.5, { marks: 5 }],
+      ['cairn', [2.6, 0, -2.8], 0, {}],
+    ],
+  },
+  {
+    id: 'five-edits-at-once',
+    region: 'sight',
+    name: '一次改了五處的那一張',
+    at: [142.6, 5.5],
+    rot: -1.7,
+    parts: [
+      ['drafttable', [0, 0, 0], 0, {}],
+      ['mirror', [3.4, 0, 0.8], -0.5, { h: 2.6 }],
+      ['ink', [1.0, 0.4, 0.5], 0.2, {}],
+      ['crates', [-3.4, 0, 1.6], 0.4, {}],
+    ],
+  },
+  {
+    id: 'breathless-line',
+    region: 'sight',
+    name: '沒有留下呼吸的那一段話',
+    at: [120.0, -40.0],
+    rot: 2.4,
+    parts: [
+      ['pool', [0, 0, 0], 0, { r: 2.6 }],
+      ['column', [3.6, 0, 1.2], 0, { h: 2.2 }],
+      ['slate', [-3.2, 0, 1.6], -0.4, { marks: 14 }],
+      ['dial', [3.0, 0, -2.6], 0.6, {}],
+    ],
+  },
+
   {
     id: 'little-stage',
     region: 'config',
@@ -1162,6 +1454,20 @@ export const LANDMARKS = Object.freeze([
   { id: 'great-tree', region: 'grounding', name: '藏書之樹', at: [95, -95], height: 25, clear: 16 },
   { id: 'great-crane', region: 'orchestration', name: '巨臂吊車', at: [-95, 95], height: 27, clear: 16 },
   { id: 'mask-arch', region: 'config', name: '面具拱門', at: [95, 95], height: 22, clear: 16 },
+  // 課程 v2 · Phase E：量器坊的地標（curriculum-v2 §二：「一根被刻滿量度的斷柱，柱頂懸著一把不動的尺」）
+  { id: 'gauge-column', region: 'forms', name: '刻度之柱', at: [0, 124], height: 24, clear: 15 },
+  // 課程 v2 · Phase F：契約鍛冶場（§二：「半空中一圈懸浮的鑰匙，每一把都沒有刻名字」）
+  { id: 'nameless-keys', region: 'toolcraft', name: '未命名的工具', at: [-124, 0], height: 23, clear: 15 },
+  // 課程 v2 · Phase F：護欄崗（§二：「一道永遠留一條縫的雙層門」）
+  { id: 'ajar-doors', region: 'wards', name: '不會關上的門', at: [92.5, -153.5], height: 19, clear: 13 },
+  // 課程 v2 · Phase G：校驗場（§二：「兩面互相對照的鏡」）
+  { id: 'facing-glass', region: 'refinery', name: '會回頭照自己的鏡', at: [-129, 129], height: 20, clear: 14 },
+  // 課程 v2 · Phase H：減法之庭（§二：「一座什麼都沒放的基座，銘文寫著被拿走的東西」）
+  { id: 'empty-plinth', region: 'frugality', name: '空的基座', at: [0, -82], height: 18, clear: 13 },
+  // 課程 v2 · Phase I：觀象臺（§二：「一面朝天的鏡（斜插在坡上、映著整片星空的巨鏡）」）
+  { id: 'sky-mirror', region: 'sight', name: '朝天的鏡', at: [149, -31], height: 21, clear: 14 },
+  // 課程 v2 · Phase J：分歧之廳（§二：「五根兩面刻著相反神諭的柱」）
+  { id: 'twin-pillars', region: 'divergence', name: '兩面的柱', at: [90, 31], height: 22, clear: 14 },
 ]);
 
 /** 斷環：一圈立起來的巨石環，缺了一角 —— 「有人試著把話說圓，還差一塊」。 */
@@ -1308,12 +1614,367 @@ function landmarkMaskArch(kit) {
   return grp;
 }
 
+/**
+ * 刻度之柱：一根被刻滿量度的斷柱，柱頂懸著一把不動的尺。
+ *
+ * 抄寫人量過所有東西，最後量到自己頭上 —— 柱子斷在還沒刻完的那一格，
+ * 那把尺卻還停在半空，指著一個沒有人再讀得到的刻度。
+ * 只有臺座與柱身擋人；尺是懸空的（下緣離地 17 公尺，遠高於 FLOAT_MIN）。
+ */
+function landmarkGaugeColumn(kit) {
+  const grp = new THREE.Group();
+  // 臺座
+  put(grp, cyl(4.6, 5.6, 1.3, 8), stone(kit.dark), [0, 0.65, 0]);
+  put(grp, cyl(3.4, 4.0, 0.5, 8), stone(kit.mid), [0, 1.55, 0]);
+
+  // 斷柱：方柱，上緣削掉一角 —— 剪影看得出「斷在半路」
+  const shaft = put(grp, box(3.2, 15.4, 3.2), stone(kit.mid), [0, 9.5, 0]);
+  bulky(shaft);
+  put(grp, box(3.3, 1.4, 1.6), stone(kit.dark), [0, 17.0, 0.85], [0.34, 0, 0]);
+
+  // 柱身上的刻度：一格一格往上，越高越短（instanced —— 重複元素不各自建 mesh）
+  const marks = 15;
+  const tick = new THREE.InstancedMesh(box(3.44, 0.16, 0.18), glow(kit.accent, 1.15), marks * 2);
+  const mtx = new THREE.Matrix4();
+  const q = new THREE.Quaternion();
+  const p = new THREE.Vector3();
+  const s = new THREE.Vector3(1, 1, 1);
+  let n = 0;
+  for (let i = 0; i < marks; i += 1) {
+    const t = (i + 1) / (marks + 1);
+    const y = 2.4 + t * 14.0;
+    const w = 1 - t * 0.5;
+    for (const face of [0, Math.PI / 2]) {
+      p.set(0, y, 0);
+      q.setFromEuler(new THREE.Euler(0, face, 0));
+      s.set(w, 1, 1);
+      tick.setMatrixAt(n, mtx.compose(p, q, s));
+      n += 1;
+    }
+  }
+  tick.count = n;
+  tick.instanceMatrix.needsUpdate = true;
+  grp.add(tick);
+
+  // 柱頂懸著的那把尺：不動、發著微光、比柱子寬很多（所以遠遠就認得出這是量器坊）
+  put(grp, box(14.5, 0.55, 1.1), stone(kit.light), [0, 20.8, 0], [0, 0, 0.035]);
+  put(grp, box(14.6, 0.14, 0.16), glow(kit.accent, 1.5), [0, 20.5, 0.6], [0, 0, 0.035]);
+  for (const side of [-1, 1]) {
+    put(grp, box(0.5, 1.5, 0.5), stone(kit.dark), [side * 6.6, 21.6, 0]);
+  }
+  // 尺尖上的一點暖光 —— 全區唯一的暖金熱點（成就色留給它）
+  put(grp, ico(0.55, 0), glow(PALETTE.warm, 2.0), [0, 22.9, 0]);
+  put(grp, torus(1.9, 0.16, 4, 16), glow(kit.accent, 1.2), [0, 20.8, 0], [Math.PI / 2, 0, 0]);
+  return grp;
+}
+
+/**
+ * 未命名的工具：半空中一圈懸浮的鑰匙，每一把都沒有刻名字。
+ *
+ * 抄寫人替神諭打了一整圈的手，卻沒有一把寫得出「什麼時候該用我」——
+ * 所以它們就一直懸在那裡，誰也不知道該伸手拿哪一把。
+ * 只有臺座與中央的柱擋人；鑰匙全部懸空（下緣離地 11 公尺以上）。
+ * **零實體光源**：刻痕與鑰匙齒都是自發光（WORLD.md §6.1）。
+ */
+function landmarkNamelessKeys(kit) {
+  const grp = new THREE.Group();
+  // 臺座 ＋ 中央那根沒有刻字的短柱
+  put(grp, cyl(5.0, 6.2, 1.3, 8), stone(kit.dark), [0, 0.65, 0]);
+  put(grp, cyl(3.6, 4.2, 0.5, 8), stone(kit.mid), [0, 1.55, 0]);
+  const pillar = put(grp, cyl(1.5, 1.9, 9.4, 8), stone(kit.mid), [0, 6.5, 0]);
+  bulky(pillar);
+  // 柱頂那一圈空的名牌（每一片都留白）
+  put(grp, torus(4.6, 0.22, 5, 22), glow(kit.accent, 1.15), [0, 11.6, 0], [Math.PI / 2, 0, 0]);
+
+  // 懸浮的鑰匙：一圈 9 把，每一把＝一根桿 ＋ 一個環 ＋ 兩顆齒（instanced）
+  const KEYS = 9;
+  const shafts = new THREE.InstancedMesh(box(0.26, 3.4, 0.26), stone(kit.light), KEYS);
+  const bows = new THREE.InstancedMesh(torus(0.62, 0.16, 4, 12), glow(kit.accent, 1.0), KEYS);
+  const teeth = new THREE.InstancedMesh(box(0.9, 0.24, 0.24), stone(kit.light), KEYS * 2);
+  const mtx = new THREE.Matrix4();
+  const q = new THREE.Quaternion();
+  const p = new THREE.Vector3();
+  const one = new THREE.Vector3(1, 1, 1);
+  let t = 0;
+  for (let i = 0; i < KEYS; i += 1) {
+    const a = (i / KEYS) * Math.PI * 2;
+    const r = 7.2;
+    const x = Math.cos(a) * r;
+    const z = Math.sin(a) * r;
+    const y = 13.4 + Math.sin(a * 2) * 1.6;
+    const tilt = Math.sin(a * 3) * 0.35;
+    q.setFromEuler(new THREE.Euler(tilt, -a, 0.12));
+    shafts.setMatrixAt(i, mtx.compose(p.set(x, y, z), q, one));
+    bows.setMatrixAt(i, mtx.compose(p.set(x, y + 2.0, z), q, one));
+    for (const k of [0, 1]) {
+      const off = -1.0 - k * 0.6;
+      teeth.setMatrixAt(t, mtx.compose(p.set(x + Math.sin(-a) * 0.42, y + off, z + Math.cos(-a) * 0.42), q, one));
+      t += 1;
+    }
+  }
+  shafts.instanceMatrix.needsUpdate = true;
+  bows.instanceMatrix.needsUpdate = true;
+  teeth.count = t;
+  teeth.instanceMatrix.needsUpdate = true;
+  grp.add(shafts);
+  grp.add(bows);
+  grp.add(teeth);
+
+  // 那一圈鑰匙下面的一點暖光 —— 全區唯一的暖金熱點
+  put(grp, ico(0.5, 0), glow(PALETTE.warm, 2.0), [0, 12.3, 0]);
+  put(grp, torus(7.6, 0.12, 4, 26), glow(kit.accent, 1.25), [0, 14.6, 0], [Math.PI / 2, 0, 0]);
+  return grp;
+}
+
+/**
+ * 不會關上的門：一道永遠留一條縫的雙層門。
+ *
+ * 哨所的門是兩層的：外面那一層擋得住莽撞的人，裡面那一層只擋得住自己人。
+ * 兩層都關不上 —— 中間那條縫是刻意留的，人要進得來、話要傳得出去。
+ * 門框與門扇擋人；縫裡那道光是自發光的。**零實體光源**。
+ */
+function landmarkAjarDoors(kit) {
+  const grp = new THREE.Group();
+  put(grp, box(13.5, 0.9, 7.0), stone(kit.dark), [0, 0.45, 0]);
+
+  // 兩層門：外層高、內層矮一點，各自留一條縫
+  const layers = [
+    { z: 2.0, h: 16.5, w: 4.6, gap: 1.05, mat: kit.mid },
+    { z: -2.0, h: 12.5, w: 3.9, gap: 0.7, mat: kit.dark },
+  ];
+  for (const L of layers) {
+    for (const side of [-1, 1]) {
+      bulky(put(grp, box(1.5, L.h, 1.5), stone(L.mat), [side * (L.w + L.gap + 0.75), L.h / 2 + 0.9, L.z]));
+      // 門扇：向外開了一點點，所以永遠合不起來
+      const leaf = put(
+        grp,
+        box(L.w, L.h - 1.6, 0.55),
+        stone(L.mat),
+        [side * (L.gap + L.w / 2 + 0.1), (L.h - 1.6) / 2 + 0.9, L.z + side * 0.5],
+        [0, side * -0.16, 0]
+      );
+      bulky(leaf);
+      // 門扇上的橫閂（合不起來的那一根）
+      put(grp, box(L.w * 0.86, 0.3, 0.2), glow(kit.accent, 0.9), [
+        side * (L.gap + L.w / 2 + 0.1),
+        L.h * 0.52,
+        L.z + side * 0.5 + 0.35,
+      ]);
+    }
+    put(grp, box(L.w * 2 + L.gap * 2 + 3.0, 1.4, 1.8), stone(L.mat), [0, L.h + 0.9, L.z]);
+  }
+
+  // 兩道縫裡透出來的光（自發光的薄片，不是燈）
+  put(grp, box(0.55, 14.0, 0.5), glow(kit.accent, 1.5), [0, 8.0, 2.0]);
+  put(grp, box(0.4, 10.5, 0.4), glow(kit.accent, 1.2), [0, 6.4, -2.0]);
+  // 門楣上那一點暖光 —— 有人還在守著
+  put(grp, ico(0.46, 0), glow(PALETTE.warm, 2.0), [0, 18.4, 2.0]);
+  put(grp, torus(1.5, 0.14, 4, 16), glow(kit.accent, 1.1), [0, 18.4, 2.0], [0, 0, 0]);
+  return grp;
+}
+
+/**
+ * 會回頭照自己的鏡（校驗場 · 課程 v2 · Phase G）：兩面高大的鏡互相對著，
+ * 中間那條窄縫裡是一層層越縮越小的自己 —— 這一區教的就是「拿自己的東西照自己」。
+ * 零實體光源：所有的光都是自發光薄片與加色反光層。
+ */
+function landmarkFacingGlass(kit) {
+  const grp = new THREE.Group();
+  put(grp, cyl(7.6, 8.8, 1.2, 12), stone(kit.dark), [0, 0.6, 0]);
+
+  // 兩面鏡：面對面，各自往內傾一點，所以中間那條縫會一直反下去
+  for (const side of [-1, 1]) {
+    const frame = put(
+      grp,
+      box(1.1, 17.5, 7.4),
+      stone(kit.mid),
+      [side * 4.3, 17.5 / 2 + 1.2, 0],
+      [0, 0, side * -0.05]
+    );
+    bulky(frame);
+    // 鏡面本身（自發光的薄片，不是燈）
+    put(
+      grp,
+      box(0.22, 15.4, 6.2),
+      glow(kit.accent, 0.8),
+      [side * (4.3 - 0.62), 15.4 / 2 + 1.9, 0],
+      [0, 0, side * -0.05]
+    );
+    // 磨損：鏡框上一道一道被改過的刻痕
+    for (let i = 0; i < 5; i += 1) {
+      put(grp, box(1.16, 0.16, 0.5), glow(kit.accent, 0.5), [side * 4.3, 3.6 + i * 2.9, 3.4]);
+    }
+  }
+
+  // 中間那條縫裡越縮越小的「自己」：六層一層比一層小的薄片
+  for (let i = 0; i < 6; i += 1) {
+    const t = i / 5;
+    put(
+      grp,
+      box(0.16, 12.0 * (1 - t * 0.72), 0.9 * (1 - t * 0.6)),
+      glow(kit.accent, 1.4 - t * 1.05),
+      [0, 7.4 - t * 1.6, -1.4 + t * 2.6]
+    );
+  }
+
+  // 頂上橫過去的那一根（把兩面接起來 —— 它們照的是同一件事）
+  put(grp, box(10.6, 1.3, 1.9), stone(kit.mid), [0, 19.4, 0]);
+  put(grp, ico(0.42, 0), glow(PALETTE.warm, 2.0), [0, 20.3, 0]);
+  put(grp, torus(1.35, 0.13, 4, 16), glow(kit.accent, 1.0), [0, 20.3, 0], [Math.PI / 2, 0, 0]);
+  return grp;
+}
+
+/**
+ * 空的基座（減法之庭）：一座什麼都沒放的基座。
+ *
+ * 這是整張地圖上唯一一座「地標本身不是東西」的地標 —— 被拿走的那件東西
+ * 只剩下一圈懸在半空的光輪廓，銘文刻在基座正面，寫的是被拿掉的清單。
+ * **零實體光源**（輪廓與銘文全部是自發光材質 ＋ 加色混合）。
+ */
+function landmarkEmptyPlinth(kit) {
+  const grp = new THREE.Group();
+  // 三階往上收的基座（唯一被留下來的東西）
+  put(grp, cyl(6.6, 7.8, 1.3, 12), stone(kit.dark), [0, 0.65, 0]);
+  bulky(put(grp, box(8.4, 3.2, 8.4), stone(kit.mid), [0, 1.3 + 1.6, 0]));
+  bulky(put(grp, box(6.2, 2.8, 6.2), stone(kit.mid), [0, 4.5 + 1.4, 0]));
+  bulky(put(grp, box(4.4, 2.4, 4.4), stone(kit.dark), [0, 7.3 + 1.2, 0]));
+
+  // 銘文：基座正面一行一行被刻上去的「拿掉了什麼」
+  for (let i = 0; i < 7; i += 1) {
+    put(grp, box(5.2 - i * 0.18, 0.14, 0.12), glow(kit.accent, 0.42), [0, 2.1 + i * 0.62, 4.24]);
+  }
+
+  // 頂面：一圈光印子（東西原本站的位置）
+  put(grp, torus(1.9, 0.1, 4, 22), glow(PALETTE.warm, 0.9), [0, 9.76, 0], [Math.PI / 2, 0, 0]);
+
+  // 被拿走的那件東西：只剩八條垂直的光線畫出它的輪廓，裡面什麼都沒有
+  for (let i = 0; i < 8; i += 1) {
+    const a = (i / 8) * Math.PI * 2;
+    const r = 1.9 - (i % 2) * 0.35;
+    put(grp, box(0.1, 7.2, 0.1), glow(kit.accent, 1.15 - (i % 2) * 0.35), [
+      Math.cos(a) * r,
+      9.8 + 3.6,
+      Math.sin(a) * r,
+    ]);
+  }
+  // 輪廓的頂：一圈更小的環（越往上越收，剪影才讀得出「那裡曾經有東西」）
+  put(grp, torus(1.15, 0.08, 4, 18), glow(kit.accent, 0.85), [0, 17.0, 0], [Math.PI / 2, 0, 0]);
+  put(grp, ico(0.3, 0), glow(PALETTE.warm, 1.6), [0, 17.6, 0]);
+  return grp;
+}
+
+/**
+ * 朝天的鏡（觀象臺）：一面斜插在坡上的巨鏡，鏡面朝著天。
+ *
+ * 遠遠看過去它不像一座塔，而像一塊被掀起來的天 —— 走近才發現那是鏡子，
+ * 映著的是你頭上那片星空（Phase 4 就有的星空與極光，這裡把它拉到地面上）。
+ * **零實體光源**：鏡面、星點、鏡框上的刻度全部是自發光材質。
+ * 鏡框用 `solidSpan` 沿著整片寬度排一串小圓 —— 12 公尺寬的東西不能只放一個圓
+ * （那會讓玩家從鏡子的兩邊穿過去，Phase 20 的穿模鐵則）。
+ */
+function landmarkSkyMirror(kit) {
+  const grp = new THREE.Group();
+  // 埋進坡裡的臺座（斜的，因為鏡子是插進去的、不是立起來的）
+  bulky(put(grp, cyl(6.0, 7.2, 1.4, 10), stone(kit.dark), [0, 0.7, 0]));
+  const wedge = put(grp, box(11.4, 3.4, 6.2), stone(kit.mid), [0, 2.5, -1.2], [0.2, 0, 0]);
+  bulky(wedge);
+  wedge.userData.solidSpan = [5.7, 1.6];
+
+  // 鏡子本體：往後仰 35 度的一整片
+  const panel = new THREE.Group();
+  panel.position.set(0, 3.4, -1.6);
+  panel.rotation.x = -0.61;
+  grp.add(panel);
+
+  const frame = put(panel, box(12.4, 20.2, 1.0), stone(kit.mid), [0, 10.1, -0.6]);
+  bulky(frame);
+  frame.userData.solidSpan = [6.2, 1.5];
+
+  // 鏡面（自發光的薄片，不是燈）
+  put(panel, box(10.8, 18.6, 0.22), glow(kit.accent, 0.72), [0, 10.2, 0.05]);
+
+  // 映在鏡面上的星：越往鏡頂越密（那一頭照的是天頂）
+  for (let i = 0; i < 22; i += 1) {
+    const t = i / 21;
+    const x = (((i * 37) % 19) / 18 - 0.5) * 9.2;
+    const y = 2.2 + t * t * 16.0;
+    put(panel, ico(0.12 + (i % 3) * 0.05, 0), glow(PALETTE.warm, 0.6 + t * 1.1), [x, y, 0.24]);
+  }
+
+  // 鏡框兩側的刻度：觀測用的，一格一格往上（讀得出「這是量天的東西」）
+  for (const side of [-1, 1]) {
+    for (let i = 0; i < 9; i += 1) {
+      put(panel, box(0.9 - (i % 2) * 0.35, 0.12, 0.16), glow(kit.accent, 0.5), [
+        side * 6.0,
+        1.8 + i * 2.1,
+        0.22,
+      ]);
+    }
+  }
+
+  // 鏡頂：一圈環與一顆亮點（整片剪影的最高處）
+  put(panel, torus(1.5, 0.12, 4, 18), glow(kit.accent, 0.95), [0, 19.4, 0.3]);
+  put(panel, ico(0.34, 0), glow(PALETTE.warm, 1.8), [0, 19.4, 0.5]);
+
+  // 撐住鏡背的兩根斜柱（不然它看起來會倒）
+  for (const side of [-1, 1]) {
+    bulky(put(grp, cyl(0.36, 0.5, 9.4, 5), stone(kit.dark), [side * 4.2, 4.6, -4.4], [0.62, 0, 0]));
+  }
+  return grp;
+}
+
+/**
+ * 兩面的柱（分歧之廳）：五根並排的柱子，每一根的兩面刻著相反的神諭。
+ *
+ * 遠遠看過去是一排整齊的柱列；走近才發現**同一根柱子的兩面刻的是相反的話**——
+ * 一面的刻痕是冷星光、一面是暖金，中間一道細縫把它們隔開。
+ * 沒有一根比別根高：五根一樣高，因為沒有哪一面比較對。
+ * **零實體光源**：刻痕、縫、柱頂的環全部是自發光材質。
+ * 柱子是實心的，`solidSpan` 不需要（每根都是細長的圓柱，一個圓就貼得住）。
+ */
+function landmarkTwinPillars(kit) {
+  const grp = new THREE.Group();
+  // 廳的地面：一塊寬而扁的臺座（柱子立在上面）
+  bulky(put(grp, cyl(9.4, 10.6, 1.2, 14), stone(kit.dark), [0, 0.6, 0]));
+  put(grp, torus(9.0, 0.1, 4, 32), glow(kit.accent, 0.5), [0, 1.24, 0], [Math.PI / 2, 0, 0]);
+
+  const COUNT = 5;
+  for (let i = 0; i < COUNT; i += 1) {
+    const t = (i / (COUNT - 1) - 0.5) * 2; // -1 … 1
+    const x = t * 7.0;
+    const z = Math.abs(t) * 1.6 - 0.8; // 微微彎成一道弧，剪影才不是一堵牆
+    const h = 17.4;
+    bulky(put(grp, cyl(0.82, 1.08, h, 6), stone(kit.mid), [x, 1.2 + h / 2, z]));
+    // 兩面的刻痕：一面冷星光、一面暖金（同一根柱子，兩種相反的說法）
+    for (let k = 0; k < 7; k += 1) {
+      const y = 3.4 + k * 1.9;
+      put(grp, box(1.12 - (k % 2) * 0.3, 0.13, 0.1), glow(kit.accent, 0.62), [x, y, z + 0.86]);
+      put(grp, box(1.12 - ((k + 1) % 2) * 0.3, 0.13, 0.1), glow(PALETTE.warm, 0.58), [x, y + 0.9, z - 0.86]);
+    }
+    // 把兩面隔開的那一道細縫
+    put(grp, box(0.08, h - 2.2, 1.78), glow(kit.accent, 0.34), [x, 1.2 + h / 2, z]);
+    // 柱頂：一圈環（五根一樣高 —— 沒有哪一面比較對）
+    put(grp, torus(1.05, 0.11, 4, 16), glow(kit.accent, 0.9), [x, 1.2 + h + 0.5, z], [Math.PI / 2, 0, 0]);
+  }
+  // 廳的最高處：橫過五根柱頂的一道楣，中央一顆亮點
+  bulky(put(grp, box(15.4, 0.9, 1.5), stone(kit.dark), [0, 1.2 + 17.4 + 1.6, 0.0]));
+  put(grp, ico(0.36, 0), glow(PALETTE.warm, 1.9), [0, 1.2 + 17.4 + 2.6, 0]);
+  return grp;
+}
+
 const LANDMARK_BUILDERS = {
   'broken-ring': landmarkBrokenRing,
   'endless-stair': landmarkEndlessStair,
   'great-tree': landmarkGreatTree,
   'great-crane': landmarkGreatCrane,
   'mask-arch': landmarkMaskArch,
+  'gauge-column': landmarkGaugeColumn,
+  'nameless-keys': landmarkNamelessKeys,
+  'ajar-doors': landmarkAjarDoors,
+  'facing-glass': landmarkFacingGlass,
+  'empty-plinth': landmarkEmptyPlinth,
+  'sky-mirror': landmarkSkyMirror,
+  'twin-pillars': landmarkTwinPillars,
 };
 
 /* ------------------------------------------------------------------ *

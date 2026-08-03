@@ -35,6 +35,24 @@ export const GRADE_ORDER = Object.freeze(['C', 'B', 'A', 'S']);
 export const DEFAULT_BASE_XP = 40;
 
 /**
+ * 分數在畫面上的寫法。
+ *
+ * Phase A 之後門檻與權重會出現 **0.5 這一階**（assignsTask 降成地基的 0.5 分，
+ * 通過門檻一律 −0.5），所以畫面上一定會看到「2.5 分」這種數字。
+ * 這支負責兩件事：整數不要拖一條 `.0` 的尾巴、浮點加總不要漏出
+ * `3.4000000000000004` 這種東西。
+ *
+ * @param {number} n
+ * @returns {string} 例如 3 → "3"、3.5 → "3.5"、3.875 → "3.88"
+ */
+export function formatScore(n) {
+  const v = Number(n);
+  if (!Number.isFinite(v)) return '0';
+  const rounded = Math.round(v * 100) / 100;
+  return Number.isInteger(rounded) ? String(rounded) : String(rounded).replace(/0+$/, '');
+}
+
+/**
  * @param {number} ratio 0..1
  * @returns {'S'|'A'|'B'|'C'}
  */
