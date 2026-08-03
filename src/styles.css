@@ -5641,6 +5641,18 @@ select option:disabled {
   font-size: var(--t-micro);
   color: var(--paper-4);
 }
+/*
+ * 一面碑的文字都住在這一塊裡（標題 / 一句話 / 判詞）。
+ * 它必須是**第二欄唯一的那個孩子** —— 否則自動排版會把後面的文字
+ * 丟進 18px 寬的鍵位欄，中文就變成一字一行。
+ * `min-width: 0` 讓長句在 grid 裡照樣收得住（grid item 預設 min-width: auto）。
+ */
+.face__body {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
 .face__title {
   display: block;
   color: #eef4fa;
@@ -5690,6 +5702,16 @@ select option:disabled {
 }
 .tradelog__card {
   color: var(--paper-4);
+}
+/*
+ * 那一張卡的前提（模型卡上的那一句）。安靜地墊在卡名底下 ——
+ * 兩條紀錄選了同一面卻收到相反的判詞時，差別就在這一行。
+ */
+.tradelog__premise {
+  color: var(--paper-4);
+  font-size: 0.92em;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
 }
 .tradelog__side {
   color: #eef4fa;

@@ -2988,7 +2988,7 @@ ok(
 );
 ok(
   testWorld.solids.every((s) => (s.explicit ? s.r <= World.SOLID_MAX_EXPLICIT : s.r <= World.SOLID_MAX_RADIUS)),
-  '每個碰撞體的半徑都在合理範圍（外接盒推出來的 ≤ 3.6；擺放時明講的地標臺座 ≤ 8）',
+  `每個碰撞體的半徑都在合理範圍（外接盒推出來的 ≤ ${World.SOLID_MAX_RADIUS}；擺放時明講的地標臺座 ≤ ${World.SOLID_MAX_EXPLICIT}）`,
   `max=${Math.max(...testWorld.solids.map((s) => s.r)).toFixed(2)}`
 );
 ok(
@@ -8051,7 +8051,18 @@ console.log('\n▸ 分歧之廳與拆碑（課程 v2 · Phase J1）');
     });
     eq(lightCount, 0, '兩面的柱一盞實體光源都沒加（只用自發光材質）');
     ok(Boolean(Props.LANDMARK_SOLIDS['twin-pillars']), '五根柱子都登記了碰撞體（走不進柱子裡）');
-    eq(Props.LANDMARK_SOLIDS['twin-pillars'].length, 5, '五根柱子各一個碰撞體');
+    {
+      const solids = Props.LANDMARK_SOLIDS['twin-pillars'];
+      eq(solids.length, 6, '臺座一個 ＋ 五根柱子各一個碰撞體');
+      eq(solids.filter(([, , r]) => r <= 2).length, 5, '五根柱子各一個小圓');
+      /* 臺座 cyl(9.4, 10.6, 1.2)：整片圓盤都要擋著，人才不會走上去陷到腰 */
+      const base = solids.find(([, , r]) => r > 2);
+      ok(Boolean(base), '臺座自己也登記了碰撞體（地形高度不會因為擺了石頭就抬高）');
+      eq(base[0], 0, '臺座的碰撞體就在地標中心');
+      eq(base[1], 0, '臺座的碰撞體就在地標中心');
+      ok(base[2] >= 9.4, '臺座的碰撞半徑蓋得住上緣（9.4）', `r=${base[2]}`);
+      ok(base[2] <= World.SOLID_MAX_EXPLICIT, '臺座的碰撞半徑沒有超過明講的上限', `r=${base[2]}`);
+    }
     {
       const props = testScene.getObjectByName('props:divergence');
       ok(Boolean(props), '分歧之廳的造景蓋起來了');

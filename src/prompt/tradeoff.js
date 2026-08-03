@@ -186,13 +186,22 @@ export function createTradeoffBoard({
     renderCardSources(r.card);
     progressEl.textContent = `第 ${round + 1} / ${flow.rounds.length} 張卡`;
     askEl.textContent = r.ask;
+    /*
+     * 版面：一面碑 = 「數字鍵 ｜ 一整塊文字」兩欄。
+     * 標題／一句話／判詞**一定要包在 `.face__body` 裡** —— 它們如果是按鈕的
+     * 直接子元素，兩欄的 grid 會把第三、第四個孩子自動排到下一列，
+     * 那一句話就落進 20px 寬的鍵位欄裡：中文的 min-content 是「一個字」，
+     * 於是整段變成一字一行的直書。包起來之後那一塊永遠占滿第二欄。
+     */
     sidesEl.innerHTML = flow.sides
       .map(
         (s, i) => `<button class="face" type="button" data-face="${esc(s.id)}" style="--i:${i}">
           <span class="face__key" aria-hidden="true">${i + 1}</span>
-          <span class="face__title">${esc(s.title)}</span>
-          <span class="face__gist">${esc(s.gist || '')}</span>
-          <span class="face__verdict" data-face-verdict="${esc(s.id)}" hidden></span>
+          <span class="face__body">
+            <span class="face__title">${esc(s.title)}</span>
+            <span class="face__gist">${esc(s.gist || '')}</span>
+            <span class="face__verdict" data-face-verdict="${esc(s.id)}" hidden></span>
+          </span>
         </button>`
       )
       .join('');
@@ -203,12 +212,24 @@ export function createTradeoffBoard({
       logEl.innerHTML = '';
       return;
     }
+    /*
+     * 秤過的帳：**每一條都要看得出它秤的是哪一張卡**。
+     *
+     * 同一題換一張卡，划算的那一面會翻面 —— 所以兩條紀錄的「倒向哪一面」
+     * 很可能一模一樣，判詞卻相反。只寫「第一張卡 / 第二張卡 ＋ 選了哪一面」，
+     * 讀起來會像同一題被問了兩次而且自相矛盾。
+     * 因此每一條都帶上那張卡自己的名字（模型卡／機器／委託的名稱）
+     * 與它的前提那一句 —— 那正是兩條紀錄唯一的差別。
+     */
     logEl.innerHTML = picks
       .map((p, i) => {
         const r = flow.rounds[i];
         const s = sideById(p.side);
+        const card = r.card || {};
+        const premise = typeof card.text === 'string' ? card.text.trim() : '';
         return `<li class="tradelog${p.wins ? ' is-win' : ' is-cost'}" style="--i:${i}">
-          <span class="tradelog__card">${esc((r.card && r.card.label) || `第 ${i + 1} 張卡`)}</span>
+          <span class="tradelog__card">${esc(card.label || `第 ${i + 1} 張卡`)}</span>
+          ${premise ? `<span class="tradelog__premise">${esc(premise)}</span>` : ''}
           <span class="tradelog__side">${esc(s ? s.title : p.side)}</span>
           <span class="tradelog__verdict">${esc(r.verdicts[p.side].text)}</span>
           ${sourceLinks(r.card).length ? `<span class="tradelog__srcs">${sourceLinks(r.card).join('')}</span>` : ''}

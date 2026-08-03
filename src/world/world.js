@@ -660,8 +660,14 @@ export const SOLID_MIN_RADIUS = 0.5;
  * 地標的臺座本來就有五、六公尺寬，硬夾到 3.6 只會讓人半個身體陷進石頭裡。
  */
 export const SOLID_MAX_RADIUS = 3.6;
-/** 明講的 `solidRadius` 的上限（地標臺座這種真的很大的東西）。 */
-export const SOLID_MAX_EXPLICIT = 8;
+/**
+ * 明講的 `solidRadius` 的上限（地標臺座這種真的很大的東西）。
+ *
+ * 8 → 10：分歧之廳的「兩面的柱」臺座是 cyl(9.4, 10.6, 1.2) —— 全世界最大的一塊臺座。
+ * 夾到 8 會留下一圈 1.6 公尺寬、走得上去卻沒有地面的邊（人會陷到腰）。
+ * 這個上限的用途是攔住手打錯的數字，不是限制真的很大的東西；10 仍然攔得住。
+ */
+export const SOLID_MAX_EXPLICIT = 10;
 /** 玩家身體的半徑。 */
 export const PLAYER_RADIUS = 0.62;
 
