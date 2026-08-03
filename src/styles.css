@@ -2099,6 +2099,9 @@ a.src:hover {
   font-size: 17px;
   width: 1.3em;
   height: 1.3em;
+  /* 對齊標題第一行的視覺中線：標題行盒高（--t-body × --lh-prose）減掉
+     圖示自身高度的一半。用 calc 跨單位算，型級再改也不會又歪掉。 */
+  margin-top: calc((var(--t-body) * var(--lh-prose) - 1.3em) / 2);
   display: flex;
   align-items: center;
   justify-content: center;

@@ -82,7 +82,7 @@ export function infoTip(text, { label = '說明' } = {}) {
  * 有書脊、有壓在封面上的束帶與扣環、書口露出一截書籤緞帶 —— 一眼就讀得出
  * 「這是一本被珍藏的原典」，而不是隨手一本冊子。20px，暖金（夜間檔案館色）。
  */
-export const BOOK_ICON = `<svg class="bookicon__glyph" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false"><path d="M6.8 2.4h10.2a1.2 1.2 0 0 1 1.2 1.2v16.8a1.2 1.2 0 0 1-1.2 1.2H6.8a1.4 1.4 0 0 1-1.4-1.4V3.8a1.4 1.4 0 0 1 1.4-1.4Z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M8.1 2.4v19.2" fill="none" stroke="currentColor" stroke-width="1.2" opacity="0.6"/><path d="M13.3 6.2v11.6" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M10.9 10h4.8" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M18.2 10.8h1.5a1.1 1.1 0 0 1 1.1 1.1v.4a1.1 1.1 0 0 1-1.1 1.1h-1.5" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" opacity="0.9"/></svg>`;
+export const BOOK_ICON = `<svg class="bookicon__glyph" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false"><path d="M12 6.2C9.6 4.3 6.6 3.9 4.1 4.6v13.9c2.5-.7 5.5-.3 7.9 1.6 2.4-1.9 5.4-2.3 7.9-1.6V4.6c-2.5-.7-5.5-.3-7.9 1.6Z" fill="currentColor" fill-opacity="0.1" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M12 6.2v13.9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>`;
 
 /** 畫面上對「官方出處」的世界觀說法（和 console.js 的 SOURCE_LABEL 同一句）。 */
 export const BOOK_LABEL = '神諭原典';
