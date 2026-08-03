@@ -29,6 +29,7 @@ import {
   infoTip,
   on,
   rovingList,
+  sourceBook,
   sourceNoteHtml,
 } from '../ui/dom.js';
 import { glossary } from '../ui/glossary.js';
@@ -59,6 +60,34 @@ export const ACTS = Object.freeze([
   { n: 3, num: '③', zh: '刻印', roman: 'ACT III', en: 'THE CARVING' },
   { n: 4, num: '④', zh: '手印', roman: 'ACT IV', en: 'THE PALM' },
 ]);
+
+/**
+ * 幕名的統一寫法（Phase 35.1）：**ACT I 第一幕 · 委託**。
+ *
+ * 指示器與每一幕的小標從此長得一模一樣 —— 玩家在指示器上看到的那一塊，
+ * 走進去之後標題上寫的是同一句話。
+ *
+ * `pos` 是**這一關實際上的第幾幕**，不是 `ACTS` 的索引：試煉沒有第二幕
+ * （走的是 1 → 3 → 4），所以刻印在它眼裡就是「ACT II 第二幕」——
+ * 畫面上不會出現「第一幕之後是第三幕」這種只有程式看得懂的編號。
+ */
+export const ACT_ROMAN = Object.freeze(['I', 'II', 'III', 'IV']);
+export const ACT_ZH_NUM = Object.freeze(['一', '二', '三', '四']);
+
+/**
+ * @param {number} pos 這一關的第幾幕（1 起算）
+ * @param {string} zh  這一幕的名字（委託 / 指引 / 刻印 / 手印 · 呈遞）
+ */
+export function actLabelText(pos, zh) {
+  const i = Math.max(0, Math.min(ACT_ROMAN.length - 1, pos - 1));
+  return { roman: `ACT ${ACT_ROMAN[i]}`, zh: `第${ACT_ZH_NUM[i]}幕 · ${zh}` };
+}
+
+/** 幕名的 HTML（羅馬數字 ＋ 中文，同一行）。 */
+export function actLabelHtml(pos, zh) {
+  const { roman, zh: zhText } = actLabelText(pos, zh);
+  return `${roman} <span class="act__kickerzh">${esc(zhText)}</span>`;
+}
 
 /** 第二幕的世界觀名稱（遊戲自撰的白話刻文，出處另掛「神諭原典」）。 */
 export const GUIDE_TITLE = '神諭刻文';
@@ -279,14 +308,14 @@ export function createPromptConsole({
       <nav class="acts" data-acts aria-label="四幕進度">
         ${ACTS.map(
           (a) => `<button class="acts__item" type="button" data-act-go="${a.n}">
-            <span class="acts__num" aria-hidden="true">${a.num}</span>
+            <span class="acts__roman" data-act-roman="${a.n}" aria-hidden="true">${a.roman}</span>
             <span class="acts__zh" data-act-zh="${a.n}">${a.zh}</span>
           </button>`
         ).join('<span class="acts__rule" aria-hidden="true"></span>')}
       </nav>
 
       <section class="act act--brief" data-in-acts="1" tabindex="-1" aria-label="第一幕 · 委託">
-        <p class="act__kicker reveal">${ACTS[0].roman} <span class="act__kickerzh">第一幕 · 委託</span></p>
+        <p class="act__kicker reveal" data-kicker="1">${actLabelHtml(1, ACTS[0].zh)}</p>
         <p class="console__scenario reveal d1" data-scenario></p>
         <div class="mission reveal d2">
           <div class="meta-rule"><h4><span class="zh">你的任務</span><span class="en">Mission</span></h4></div>
@@ -304,11 +333,8 @@ export function createPromptConsole({
       </section>
 
       <section class="act act--guide" data-in-acts="2" tabindex="-1" aria-label="第二幕 · 指引">
-        <p class="act__kicker reveal">${ACTS[1].roman} <span class="act__kickerzh">第二幕 · 指引</span></p>
-        <h3 class="act__head reveal d1">${GUIDE_TITLE}</h3>
-        <p class="act__lead reveal d1">抄寫人用白話刻下這幾段。${infoTip(SOURCE_NOTE, {
-          label: `什麼是${SOURCE_LABEL}`,
-        })}</p>
+        <p class="act__kicker reveal" data-kicker="2">${actLabelHtml(2, ACTS[1].zh)}</p>
+        <h3 class="act__head reveal d1">${GUIDE_TITLE}<span class="act__lead act__lead--inline" data-guide-lead></span></h3>
         <p class="craft reveal d2" data-craft hidden></p>
         <ol class="glyphs" data-guidance></ol>
         <p class="extras reveal" data-guidance-extra hidden></p>
@@ -326,7 +352,7 @@ export function createPromptConsole({
 
       <section class="act act--carve" data-in-acts="3 4" aria-label="第三幕 · 刻印">
         <div class="carvehead">
-          <p class="act__kicker" data-carve-kicker>${ACTS[2].roman} <span class="act__kickerzh">第三幕 · 刻印</span></p>
+          <p class="act__kicker" data-carve-kicker>${actLabelHtml(3, ACTS[2].zh)}</p>
           <span class="spacer"></span>
           <label class="console__label" for="prompt-input" data-free-label hidden><span class="zh">你的 prompt</span><span class="en">Your Prompt</span></label>
           <p class="console__label" data-guided-label><span class="zh">石碑刻印</span><span class="en">Carve</span></p>
@@ -426,6 +452,12 @@ export function createPromptConsole({
   const actNavEl = overlay.body.querySelector('[data-acts]');
   const actBtns = Array.from(overlay.body.querySelectorAll('[data-act-go]'));
   const actRules = Array.from(overlay.body.querySelectorAll('.acts__rule'));
+  /** 第一幕與第二幕的小標（第三 / 四幕另有一顆會依模式改口的 carveKicker）。 */
+  const actKickers = Array.from(overlay.body.querySelectorAll('[data-kicker]')).map((node) => [
+    Number(node.getAttribute('data-kicker')),
+    node,
+  ]);
+  const guideLeadEl = overlay.body.querySelector('[data-guide-lead]');
   const act1NextBtn = overlay.body.querySelector('.act--brief [data-act-next]');
   const act1El = overlay.body.querySelector('.act--brief');
   const act2El = overlay.body.querySelector('.act--guide');
@@ -861,18 +893,27 @@ export function createPromptConsole({
       btn.disabled = !isNow && !canGoAct(n);
       btn.setAttribute('aria-current', isNow ? 'step' : 'false');
       const zh = n === 4 ? act4Zh() : ACTS[n - 1].zh;
+      // 編號一律照「這一關實際上的第幾幕」算（試煉沒有第二幕 → 刻印就是第二幕）
+      const { roman, zh: zhText } = actLabelText(seq.indexOf(n) + 1, zh);
+      const romanEl = btn.querySelector(`[data-act-roman="${n}"]`);
+      if (romanEl) romanEl.textContent = roman;
       const label = btn.querySelector(`[data-act-zh="${n}"]`);
-      if (label) label.textContent = zh;
-      btn.title = isNow
-        ? `第 ${n} 幕 · ${zh}（現在在這裡）`
-        : `回到第 ${n} 幕 · ${zh}　按 Alt + ${n} 也可以`;
+      if (label) label.textContent = zhText;
+      btn.setAttribute('aria-label', `${roman} ${zhText}`);
+      btn.title = isNow ? `${roman} ${zhText}（現在在這裡）` : `回到 ${roman} ${zhText}　按 Alt + ${n} 也可以`;
+    }
+    // 每一幕的小標與指示器同一句話（第四幕還會依模式改成「手印 / 呈遞」）
+    for (const [n, node] of actKickers) {
+      const pos = seq.indexOf(n) + 1;
+      if (pos < 1) continue;
+      node.innerHTML = actLabelHtml(pos, ACTS[n - 1].zh);
+      const section = actSections.find((s) => s.getAttribute('data-in-acts').split(' ')[0] === String(n));
+      if (section) section.setAttribute('aria-label', `${actLabelText(pos, ACTS[n - 1].zh).zh}`);
     }
     // 第三幕的小標在第四幕改成「手印 / 呈遞」——畫面上寫的一定要跟玩家在做的事一致
-    const meta = act === 4 ? ACTS[3] : ACTS[2];
+    const carveAct = act === 4 ? 4 : 3;
     const zh = act === 4 ? act4Zh() : ACTS[2].zh;
-    carveKickerEl.innerHTML = `${meta.roman} <span class="act__kickerzh">第${
-      act === 4 ? '四' : '三'
-    }幕 · ${esc(zh)}</span>`;
+    carveKickerEl.innerHTML = actLabelHtml(seq.indexOf(carveAct) + 1, zh);
     consoleEl.classList.toggle('is-palm', act === 4 && guided);
   }
 
@@ -1015,6 +1056,19 @@ export function createPromptConsole({
     const aside = guidanceAside(challenge);
     craftEl.hidden = !challenge.craft;
     craftEl.textContent = challenge.craft || '';
+    /*
+     * Phase 35.1：導言收成一句、貼在「神諭刻文」旁邊，小 0.8 倍。
+     *
+     * 它原本是自己一行、加一顆 ⓘ 講「神諭原典就是各家官方文件」。
+     * 那顆 ⓘ 講的是**出處**，所以它的內容跟著那本書走了 ——
+     * 現在把游標停在主刻文那枚書上，就會一起讀到這句解釋（見 sourceBook 的 extra）。
+     * 沒有主出處的關卡（資料異常的降級路徑）才留下原本那顆 ⓘ。
+     */
+    if (guideLeadEl) {
+      guideLeadEl.innerHTML = primary && primary.src
+        ? '抄寫人用白話刻下這幾段。'
+        : `抄寫人用白話刻下這幾段。${infoTip(SOURCE_NOTE, { label: `什麼是${SOURCE_LABEL}` })}`;
+    }
     guidanceEl.innerHTML = primary
       ? `<li class="glyph glyph--primary reveal" style="--i:3">
           <span class="glyph__mark" aria-hidden="true">✦</span>
@@ -1027,9 +1081,10 @@ export function createPromptConsole({
             ${datedNoteHtml(primary.dated)}
             ${
               primary.src
-                ? `<a class="src" href="${esc(primary.src.url)}" target="_blank" rel="noopener">${esc(
-                    SOURCE_LABEL
-                  )}：${esc(primary.src.name)} ↗</a>${sourceNoteHtml(primary.srcNote)}`
+                ? `<p class="srcrow">${sourceBook(primary.src, {
+                    label: SOURCE_LABEL,
+                    extra: SOURCE_NOTE,
+                  })}${sourceNoteHtml(primary.srcNote)}</p>`
                 : ''
             }
           </div>
@@ -1052,9 +1107,9 @@ export function createPromptConsole({
                 ${datedNoteHtml(r.dated)}
                 ${
                   r.src
-                    ? `<a class="src" href="${esc(r.src.url)}" target="_blank" rel="noopener">${esc(
-                        SOURCE_LABEL
-                      )}：${esc(r.src.name)} ↗</a>${sourceNoteHtml(r.srcNote)}`
+                    ? `<p class="srcrow">${sourceBook(r.src, { label: SOURCE_LABEL })}${sourceNoteHtml(
+                        r.srcNote
+                      )}</p>`
                     : ''
                 }
               </div>
@@ -1077,13 +1132,7 @@ export function createPromptConsole({
       ? `<li>
           <b>${esc(primary.title)}</b>
           ${primary.how ? `<span>${esc(primary.how)}</span>` : ''}
-          ${
-            primary.src
-              ? `<a class="src" href="${esc(primary.src.url)}" target="_blank" rel="noopener">${esc(
-                  SOURCE_LABEL
-                )} ↗</a>`
-              : ''
-          }
+          ${primary.src ? sourceBook(primary.src, { label: SOURCE_LABEL }) : ''}
         </li>${aside.map((r) => `<li class="is-quiet"><b>${esc(r.title)}</b></li>`).join('')}`
       : // 應用關：維持每一條各一行（含各自的原典）
         challenge.rubric
@@ -1092,13 +1141,7 @@ export function createPromptConsole({
             (r) => `<li>
               <b>${esc(r.title)}</b>
               ${r.how ? `<span>${esc(r.how)}</span>` : ''}
-              ${
-                r.src
-                  ? `<a class="src" href="${esc(r.src.url)}" target="_blank" rel="noopener">${esc(
-                      SOURCE_LABEL
-                    )} ↗</a>`
-                  : ''
-              }
+              ${r.src ? sourceBook(r.src, { label: SOURCE_LABEL }) : ''}
             </li>`
           )
           .join('');
@@ -1800,7 +1843,6 @@ export function createPromptConsole({
         evaluation.passed
           ? `<div class="result__share reveal" style="--i:${tail + 3}">
               <button class="btn btn--ghost" type="button" data-share>分享這次的刻印<kbd>S</kbd></button>
-              <span class="muted">做成一張圖，存下來或貼給別人看。</span>
             </div>`
           : ''
       }

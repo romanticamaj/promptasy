@@ -2578,7 +2578,15 @@ a.src:hover {
   padding: 0;
   display: flex;
   flex-wrap: wrap;
-  gap: var(--s2) var(--s5);
+  align-items: center;
+  gap: var(--s2) var(--s3);
+}
+/* 一列書之前的那個小標 —— 出處是什麼東西，不能只靠圖示自己講（護欄 2） */
+.tech__srcslabel {
+  font-family: var(--font-ui);
+  font-size: var(--t-micro);
+  letter-spacing: var(--tr-cjk);
+  color: var(--paper-4);
 }
 @media (max-width: 720px) {
   .tech__body {
@@ -5105,9 +5113,27 @@ select option:disabled {
   transition: transform 220ms var(--e-out);
   transform: translate3d(0, var(--lift, 0), 0);
 }
+/*
+ * 拖曳中的那一片：**永遠看得見、永遠跟著指標**（Phase 35.1）。
+ *
+ * `transition: none` —— 位移由指標每一幀寫進 `--lift`，補間只會讓它落後於手指。
+ * `z-index` 拉高 —— 它是「被拿起來的那一片」，要壓在別片上面（不然滑過去會被蓋住，
+ * 看起來就像消失了）。`will-change` 讓它自己一層，搬動時不會連累整張清單重畫。
+ */
 .slip.is-dragging {
-  z-index: 3;
+  z-index: 5;
   transition: none;
+  will-change: transform;
+}
+/*
+ * 入場動畫只播一次。
+ *
+ * 搬動一片石版在 DOM 上是「移除再插入」，只要 `opt-in` 還掛在身上就會從頭重播
+ * ——那一片會先變成 opacity:0（還帶著 `--i × 42ms` 的延遲）再淡回來，
+ * 拖曳時看起來就是「卡片不見了」。入場跑完（或第一次搬動）就關掉。
+ */
+.slips.is-settled .slip__grip {
+  animation: none;
 }
 .slip__grip {
   --cut: 10px;
@@ -5202,6 +5228,12 @@ select option:disabled {
 .slip.is-held .slip__grip,
 .slip.is-dragging .slip__grip {
   transform: scale(1.012);
+}
+/* 拖著的時候：手是握著的，石版離開了地面（陰影是唯一在說「它被拿起來了」的東西） */
+.slip.is-dragging .slip__grip {
+  cursor: grabbing;
+  box-shadow: inset 0 1px 0 rgba(230, 199, 155, 0.3), inset 0 0 0 1px rgba(230, 199, 155, 0.55),
+    0 18px 40px -18px rgba(0, 0, 0, 0.95);
 }
 
 /* ================================================================
@@ -6317,19 +6349,30 @@ select option:disabled {
   /* 七個字一行寫得完 —— 不准在詞中間被擠斷 */
   white-space: nowrap;
 }
-/* 提示比主句再小一階，安靜地待在下面；一行一句，不靠溢位換行 */
+/*
+ * 提示（Phase 35.1）：**一行寫完、非常小**。
+ *
+ * 原本是兩行、約 18px —— 在一顆已經寫著「把手掌按上石碑」的牌子上，
+ * 那是第二句主文，不是註腳。收成原本的 0.4 倍、併成一句，
+ * 它就退回它該待的地方：需要的時候看得到，不需要的時候不吵。
+ */
 .palm__hint {
-  display: grid;
-  justify-items: center;
-  gap: 1px;
-  margin-top: 1px;
-  font-size: calc(var(--t-micro) * 0.86);
+  display: block;
+  margin-top: 2px;
+  font-size: calc(var(--t-micro) * 0.86 * 0.4);
   line-height: 1.4;
   color: rgba(230, 199, 155, 0.6);
+  text-align: center;
 }
 .palm__hintline {
   display: block;
   white-space: nowrap;
+}
+/* 鍵帽跟著縮：內距寫成 em，才不會在 7px 的字上還撐著 7px 的邊 */
+.palm .palm__hint kbd {
+  min-width: 1.6em;
+  margin-left: 0.4em;
+  padding: 0.1em 0.45em;
 }
 .palm.is-slipped .palm__hint {
   color: var(--warn);
@@ -6471,12 +6514,21 @@ select option:disabled {
   font-weight: 500;
   letter-spacing: var(--tr-cjk);
 }
-.acts__num {
-  font-family: var(--font-mono);
-  font-size: 1.6rem;
+/*
+ * 幕號（Phase 35.1）：從 ①②③④ 換成 ACT I / II / III / IV。
+ * 指示器與幕內的小標從此是同一句話 ——「ACT I 第一幕 · 委託」。
+ */
+.acts__roman {
+  font-family: var(--font-meta);
+  font-size: var(--t-meta);
+  letter-spacing: var(--tr-meta);
+  text-transform: uppercase;
   line-height: 1;
   color: inherit;
-  opacity: 0.85;
+  opacity: 0.7;
+}
+.acts__item.is-now .acts__roman {
+  opacity: 1;
 }
 /* 還沒走到的幕：看得見但按不下去（不能跳過指引） */
 .acts__item:disabled {
@@ -6503,9 +6555,6 @@ select option:disabled {
 .acts__item.is-now::before {
   background-image: linear-gradient(180deg, #ffffff, rgba(169, 201, 216, 0.7) 52%, rgba(12, 22, 32, 0.9));
   filter: drop-shadow(0 0 10px rgba(169, 201, 216, 0.34));
-}
-.acts__item.is-now .acts__num {
-  opacity: 1;
 }
 
 /* ---------------------------------------------------------------- 一幕 */
@@ -6561,6 +6610,93 @@ select option:disabled {
   line-height: 1.8;
   letter-spacing: var(--tr-cjk);
   color: var(--paper-4);
+}
+/*
+ * 導言（Phase 35.1）：貼在「神諭刻文」旁邊、同一行、小 0.8 倍。
+ *
+ * 它是一句旁白，不是第二個標題 —— 站在標題後面就夠了。
+ * 五秒一次很淺的一眨：只是告訴你「這裡還有一句話」，不是在閃燈。
+ */
+.act__head .act__lead--inline {
+  display: inline;
+  margin: 0 0 0 var(--s3);
+  font-size: calc(var(--t-micro) * 0.8);
+  line-height: 1.6;
+  letter-spacing: var(--tr-cjk);
+  vertical-align: 0.12em;
+  color: var(--paper-4);
+  animation: lead-wink 5s var(--e-inout) infinite;
+}
+@keyframes lead-wink {
+  0%,
+  86%,
+  100% {
+    opacity: 1;
+  }
+  93% {
+    opacity: 0.42;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .act__head .act__lead--inline {
+    animation: none;
+  }
+}
+
+/* ---------------------------------------------------------------- 神諭原典
+   一枚 14px 的書，永遠看得見（護欄 2）：hover / focus 說出是哪一份文件，
+   按下去就開那份官方文件。氣泡沿用 ⓘ 那一套（不會自己彈出來）。 */
+.infotip--book {
+  margin-left: 6px;
+  vertical-align: -0.12em;
+}
+.bookicon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  color: rgba(230, 199, 155, 0.72);
+  text-decoration: none;
+  transition: color var(--d-fast) var(--e-snap), filter var(--d-fast) var(--e-snap);
+}
+.bookicon:hover,
+.bookicon:focus-visible {
+  color: #f7e7c9;
+  filter: drop-shadow(0 0 6px rgba(230, 199, 155, 0.45));
+}
+.bookicon:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 1px;
+}
+/*
+ * 書大多長在一段文字的**左緣**（刻文底下、圖鑑那一列）——
+ * 氣泡照 ⓘ 的規矩置中就會有一半跑到面板外面被裁掉。
+ * 所以書的氣泡靠左長；長在右欄（側頁籤）的那幾本反過來靠右。
+ */
+.infotip--book .infotip__bubble {
+  left: 0;
+  transform: translate(0, 4px);
+}
+/* `.infotip` 那一組打開時的位移是 `translate(-50%)`，特異度跟這裡一樣、
+   又寫在後面 —— 所以這裡多掛一個 `.infotip` 把它壓過去（不然書的氣泡
+   會被往左推半個身位，整塊跑出面板外被裁掉）。 */
+.infotip.infotip--book:focus-within .infotip__bubble,
+.infotip.infotip--book.is-open .infotip__bubble {
+  transform: translate(0, 0);
+}
+.rail .infotip--book .infotip__bubble,
+.guidetab .infotip--book .infotip__bubble {
+  left: auto;
+  right: 0;
+}
+/* 原典那一行：一本書（或好幾本）＋ 出處狀態註記 */
+.srcrow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2);
+  margin: var(--s3) 0 0;
 }
 .act__foot {
   display: flex;
@@ -7528,6 +7664,112 @@ select option:disabled {
   text-decoration: none;
 }
 
+/* 一排圖示（Phase 35.1）
+   Facebook / Instagram / Threads / 複製 —— 只有圖，名字在 aria-label 與 title 裡。
+   刻印牌的 quiet 階：切角石面、hover 才注金、focus 是符文環。 */
+.sharecard__icons {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  min-width: 0;
+}
+.iconbtn {
+  --cut: 6px;
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--paper-3);
+  cursor: pointer;
+  transition: color var(--d-fast) var(--e-out), translate var(--d-fast) var(--e-out);
+}
+.iconbtn::before,
+.iconbtn::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  clip-path: var(--seal-shape);
+  background-image: linear-gradient(180deg, var(--seal-lit), var(--seal-shade));
+}
+.iconbtn::after {
+  inset: 1px;
+  clip-path: var(--seal-shape-in);
+  background-image: var(--face, linear-gradient(180deg, var(--seal-face-a), var(--seal-face-b)));
+}
+.iconbtn:hover {
+  color: #f0e3cd;
+  translate: 0 -1px;
+}
+.iconbtn:hover::before {
+  background-image: linear-gradient(180deg, rgba(230, 199, 155, 0.55), rgba(230, 199, 155, 0.14));
+}
+.iconbtn:active {
+  translate: 0 0;
+}
+.iconbtn:active::after {
+  background-image: linear-gradient(0deg, var(--seal-face-a), var(--seal-face-b));
+}
+.iconbtn:focus-visible {
+  outline: none;
+  color: var(--gold);
+}
+.iconbtn:focus-visible::before {
+  background-image: linear-gradient(180deg, var(--gold), rgba(230, 199, 155, 0.6));
+  filter: drop-shadow(0 0 8px rgba(230, 199, 155, 0.5));
+}
+.iconbtn svg {
+  display: block;
+}
+/* 沒有系統分享面板時，複製那顆就是主角 —— 石面翻成暖金 */
+.iconbtn.is-hero {
+  --face: linear-gradient(180deg, rgba(230, 199, 155, 0.24), rgba(230, 199, 155, 0.05));
+  color: #f4e6cd;
+}
+/* 複製成功：整顆翻成勾記（顏色 ＋ 形狀一起換，不只換顏色） */
+.iconbtn__face--done {
+  display: none;
+}
+.iconbtn.is-done {
+  color: var(--gold);
+}
+.iconbtn.is-done .iconbtn__face--done {
+  display: block;
+}
+.iconbtn.is-done .iconbtn__face:not(.iconbtn__face--done) {
+  display: none;
+}
+/* 下載：最安靜的那一階（一個小圖示 ＋ 兩個字，不是石頭） */
+.sharecard__dl {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  padding: 6px 4px;
+  color: var(--paper-4);
+  font-family: var(--font-ui);
+  font-size: var(--t-micro);
+  letter-spacing: var(--tr-cjk);
+  text-decoration: none;
+  transition: color var(--d-fast) var(--e-out);
+}
+.sharecard__dl svg {
+  width: 16px;
+  height: 16px;
+}
+.sharecard__dl:hover {
+  color: #dfe9f3;
+}
+.sharecard__dl:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 3px;
+}
+
 /* 一段話（Phase 28）
    分享出去的兩樣東西之一 —— 所以它是一個真的能改的框，不是一行說明。
    玩家自己打的字一律走系統字型（子集缺字也不會破圖）。 */
@@ -7975,6 +8217,22 @@ select option:disabled {
   #settings .panel__body * {
     max-width: 100%;
   }
+  /*
+   * 例外：說明氣泡。
+   * 它的容器只有一顆圖示那麼寬（ⓘ 22px、書 24px），套上 `max-width: 100%`
+   * 會把整段話壓成一個字寬的直條。氣泡本來就有自己的上限，讓它自己管。
+   */
+  #codex .panel__body .infotip__bubble,
+  #settings .panel__body .infotip__bubble {
+    max-width: min(26ch, 74vw);
+  }
+  /*
+   * 窄畫面把「神諭原典」那個小標放成獨立一行，書就從最左邊排起 ——
+   * 書的氣泡是靠左長的，起點越靠右就越容易被畫面右緣切掉。
+   */
+  .tech__srcslabel {
+    flex: 1 1 100%;
+  }
   .tech__ex,
   .tech__head,
   .tech__body,
@@ -8011,6 +8269,12 @@ select option:disabled {
   .infotip.is-open .infotip__bubble,
   .infotip:focus-within .infotip__bubble {
     transform: translate(0, 0);
+  }
+  /* 書幾乎都貼在一段文字的左緣 —— 靠左展開才不會整塊跑到畫面外 */
+  .infotip--book .infotip__bubble {
+    left: 0;
+    right: auto;
+    max-width: min(26ch, 74vw);
   }
 }
 

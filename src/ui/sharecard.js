@@ -48,7 +48,7 @@ export const CARD_H = 630;
  *     不會和文字搶同一次貼上。
  *   · Facebook 的 `sharer.php` 只吃連結（`quote` 早就失效），
  *     也沒有帶得動內容的撰寫入口 → 只開首頁，圖走剪貼簿，
- *     文字另外給一顆「複製文案」（一次貼上只帶得走一種東西，所以老實分成兩步）。
+ *     文字讓玩家從那個框裡自己選起來（一次貼上只帶得走一種東西，所以老實分成兩步）。
  *   · Instagram 網頁版的「建立」走的是選檔案，不吃貼上 → 先把 PNG 下載下來，
  *     再開那一頁，讓玩家選剛剛那張圖。**不假裝它貼得上。**
  *
@@ -138,7 +138,7 @@ export function platformOpenUrl(id, { text = '' } = {}) {
  *   · `download`  —— 下載成檔案，玩家在那邊選檔案
  * `textVia` 說的是「那段話怎麼跟過去」：
  *   · `url`    —— 網址參數直接帶進撰寫框
- *   · `manual` —— 那邊帶不進去 → 旁邊另外給一顆「複製文案」
+ *   · `manual` —— 那邊帶不進去 → 玩家自己從上面那個框裡選起來複製
  *
  * **每一顆都一定帶得走圖**（這是 Phase 31 和 Phase 24 最大的差別）。
  */
@@ -158,7 +158,7 @@ export const SHARE_TARGETS = [
     carry: 'clipboard',
     textVia: 'manual',
     clipboard: 'image',
-    toast: '圖片複製好了 —— 點開貼文框按 Ctrl+V 貼上圖片，文字回來按「複製文案」。',
+    toast: '圖片複製好了 —— 點開貼文框按 Ctrl+V 貼上圖片，文字從上面那個框裡選起來複製。',
   },
   {
     id: 'instagram',
@@ -166,9 +166,30 @@ export const SHARE_TARGETS = [
     // 網頁版的「建立」只選得了檔案，貼不上 —— 所以先下載，不假裝貼得上
     carry: 'download',
     textVia: 'manual',
-    toast: '圖片下載好了 —— 在那邊按「建立」，選剛剛那張圖，文字回來按「複製文案」。',
+    toast: '圖片下載好了 —— 在那邊按「建立」，選剛剛那張圖，文字從上面那個框裡選起來複製。',
   },
 ];
+
+/* ------------------------------------------------------------------ *
+ * 圖示（Phase 35.1）
+ *
+ * 全部是行內 SVG —— 沒有圖檔、沒有 icon font、沒有任何外部請求（護欄 3）。
+ * 用 `currentColor` 上色，所以它們跟著刻印牌的受光狀態一起變。
+ * 名字只放在 `aria-label` 裡（螢幕閱讀器讀得到），畫面上是純圖示。
+ * ------------------------------------------------------------------ */
+const ICON_ATTRS = 'viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false"';
+
+export const SHARE_ICONS = {
+  facebook: `<svg ${ICON_ATTRS}><path fill="currentColor" d="M9.1 23.7v-8H6.6v-3.7h2.5v-1.6c0-4.1 1.9-6 5.9-6 .4 0 1 0 1.5.1.4.1.8.1 1.1.2v3.3l-.7-.1h-.7c-.7 0-1.3.1-1.7.3-.3.2-.5.4-.7.6-.2.4-.4 1-.4 1.8V12h3.9l-.4 2.1-.3 1.6h-3.2v8.2c5.4-.8 10-5.8 10-11.9C23.4 5.4 18.1 0 11.5 0S-.5 5.4-.5 12c0 5.6 3.9 10.3 9.1 11.6z" transform="translate(.5)"/></svg>`,
+  instagram: `<svg ${ICON_ATTRS}><rect x="3" y="3" width="18" height="18" rx="5.2" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="12" r="4.1" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="17.2" cy="6.9" r="1.2" fill="currentColor"/></svg>`,
+  threads: `<svg ${ICON_ATTRS}><path fill="currentColor" d="M12.2 24h-.02c-3.58-.02-6.33-1.2-8.18-3.51C2.35 18.44 1.5 15.59 1.47 12.01v-.02c.03-3.58.88-6.43 2.53-8.48C5.85 1.2 8.6.02 12.18 0h.01c2.75.02 5.05.73 6.83 2.1 1.68 1.29 2.86 3.13 3.51 5.47l-2.04.57c-1.1-3.96-3.9-5.99-8.3-6.02-2.91.02-5.11.94-6.54 2.72C4.31 6.5 3.62 8.91 3.59 12c.03 3.09.72 5.5 2.06 7.16 1.43 1.79 3.63 2.7 6.54 2.72 2.62-.02 4.36-.63 5.8-2.05 1.65-1.61 1.62-3.59 1.09-4.8-.31-.71-.87-1.3-1.63-1.75-.2 1.36-.63 2.45-1.29 3.27-.89 1.11-2.14 1.71-3.73 1.8-1.2.06-2.36-.22-3.26-.8-1.06-.69-1.69-1.74-1.75-2.97-.07-1.19.4-2.28 1.33-3.08.88-.76 2.12-1.21 3.58-1.29 1.07-.06 2.08-.01 3.02.14-.13-.74-.38-1.33-.75-1.76-.51-.59-1.31-.88-2.36-.89h-.03c-.84 0-1.99.23-2.72 1.32l-1.74-1.17c.98-1.45 2.57-2.26 4.48-2.26h.04c3.19.02 5.1 1.98 5.29 5.39l.32.14c1.49.7 2.58 1.76 3.15 3.07.8 1.82.87 4.79-1.55 7.16C17.63 23.16 15.38 23.98 12.2 24Zm1-11.69c-.24 0-.49 0-.74.02-1.84.1-2.98.95-2.92 2.14.07 1.26 1.45 1.84 2.78 1.77 1.23-.07 2.82-.54 3.09-3.71a10.5 10.5 0 0 0-2.21-.22Z"/></svg>`,
+  copy: `<svg ${ICON_ATTRS}><rect x="8.6" y="3.4" width="12" height="14.6" rx="2.2" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M15.4 20.6H5.6a2.2 2.2 0 0 1-2.2-2.2V7.4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>`,
+  done: `<svg ${ICON_ATTRS}><path d="M4.5 12.8 9.6 18 19.5 6.6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+  download: `<svg ${ICON_ATTRS}><path d="M12 3.6v11.2m0 0 4-4m-4 4-4-4M4.4 18.2v1.4a1.8 1.8 0 0 0 1.8 1.8h11.6a1.8 1.8 0 0 0 1.8-1.8v-1.4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+};
+
+/** 按下去「成功了」的那一下，勾記留多久（毫秒）。 */
+export const COPY_DONE_MS = 1900;
 
 /**
  * 一個只有 PNG 檔頭的假檔案。
@@ -397,7 +418,7 @@ export function drawCard(canvas, m) {
   const RW = CARD_W - R - 78;
 
   /* --- 標頭 --- */
-  tracked(ctx, 'PROMPTARCADE', L, 92, { size: 14, color: '#a9c9d8', track: 4.6 });
+  tracked(ctx, 'PROMPTASY', L, 92, { size: 14, color: '#a9c9d8', track: 4.6 });
   tracked(ctx, m.kindLabel || '', CARD_W - 78, 92, { size: 13, color: '#e6c79b', track: 3.6, align: 'right' });
   hairline(ctx, L, 108, CARD_W - 156);
 
@@ -615,6 +636,8 @@ export function createShareCard({ content, progression, ranksFile, onClose, onTo
   let lastFile = null;
   /** 玩家改過那段話沒？改過就不再被預設值蓋掉。 */
   let captionEdited = false;
+  /** 複製成功之後那個勾記要收回去的計時器。 */
+  let copyDoneTimer = 0;
 
   /** 子集字型要先真的載進來，canvas 才畫得出中文（否則會退回系統字型）。 */
   async function ensureFonts() {
@@ -716,7 +739,7 @@ export function createShareCard({ content, progression, ranksFile, onClose, onTo
   /**
    * 誰是主角？
    *   · 系統分享面板帶得動檔案 → 「分享圖＋文」（那是唯一能把圖交給那些 app 的路）
-   *   · 帶不動 → 「複製圖＋文」；連剪貼簿都不給寫 → 「下載圖片」
+   *   · 帶不動 → 那顆複製圖示；連剪貼簿都不給寫 → 只剩「下載」
    * 一個畫面只有一個主角，其餘退成安靜的那一階。
    */
   function applySupport() {
@@ -725,17 +748,7 @@ export function createShareCard({ content, progression, ranksFile, onClose, onTo
     const supported = systemShareSupported(lastFile || SHARE_PROBE);
     if (sys) sys.hidden = !supported;
     const copy = overlay.body.querySelector('[data-copy]');
-    const dl = overlay.body.querySelector('[data-download]');
-    const copyIsHero = !supported && !!copy;
-    if (copy) {
-      copy.classList.toggle('btn--primary', copyIsHero);
-      copy.classList.toggle('btn--ghost', !copyIsHero);
-    }
-    const dlIsHero = !supported && !copyIsHero;
-    if (dl) {
-      dl.classList.toggle('btn--primary', dlIsHero);
-      dl.classList.toggle('btn--ghost', !dlIsHero);
-    }
+    if (copy) copy.classList.toggle('is-hero', !supported);
   }
 
   /** 這個畫面的主角（開卡時焦點就落在它上面）。 */
@@ -811,26 +824,6 @@ export function createShareCard({ content, progression, ranksFile, onClose, onTo
     } catch {
       return false;
     }
-  }
-
-  /** 只把那段話放進剪貼簿（Facebook / Instagram 那邊帶不進去，得自己貼）。 */
-  async function copyTextOnly(text) {
-    if (!text) return false;
-    const clip = typeof navigator !== 'undefined' ? navigator.clipboard : null;
-    if (!clip) return false;
-    try {
-      if (typeof clip.writeText === 'function') {
-        await clip.writeText(text);
-        return true;
-      }
-      if (typeof clip.write === 'function' && typeof window !== 'undefined' && typeof window.ClipboardItem === 'function') {
-        await clip.write([new window.ClipboardItem({ 'text/plain': new Blob([text], { type: 'text/plain' }) })]);
-        return true;
-      }
-    } catch {
-      /* 沒權限就回 false，上面會改口叫玩家用別條路 */
-    }
-    return false;
   }
 
   /**
@@ -919,37 +912,35 @@ export function createShareCard({ content, progression, ranksFile, onClose, onTo
         <div class="sharecard__frame" data-frame></div>
         <div class="sharecard__side">
           <div class="sharecard__say">
-            <label class="sharecard__saylabel" for="sharecard-say">一段話（可以改成你想說的）</label>
-            <textarea class="sharecard__saybox" id="sharecard-say" data-caption rows="2"
-              aria-describedby="sharecard-sayhint" spellcheck="false"></textarea>
+            <label class="sharecard__saylabel" for="sharecard-say">一段話</label>
+            <textarea class="sharecard__saybox" id="sharecard-say" data-caption rows="3" spellcheck="false"></textarea>
           </div>
           <div class="sharecard__acts">
             <button class="btn btn--primary" type="button" data-sysshare hidden aria-label="把這張圖和這段話一起分享出去">分享圖＋文</button>
-            ${canCopy ? '<button class="btn btn--primary" type="button" data-copy>複製圖＋文</button>' : ''}
-            <a class="btn btn--ghost" data-download download="promptasy.png" href="#">下載圖片</a>
-            <button class="btn btn--ghost" type="button" data-back>回去</button>
-          </div>
-          <p class="sharecard__hint" id="sharecard-sayhint">複製起來，到 Facebook / Instagram / Threads 直接貼上 —— 圖和文字都在剪貼簿裡。</p>
-          <div class="sharecard__send">
-            <p class="sharecard__sendlabel">直接開這裡貼上</p>
-            <div class="sharecard__chips" data-targets>
+            <div class="sharecard__icons" data-targets>
               ${SHARE_TARGETS.map(
                 (t) =>
-                  `<button class="fill sharecard__chip" type="button" data-chip="${esc(t.id)}" aria-label="${esc(
-                    `${t.label}：${t.toast}`
-                  )}">${esc(t.label)}<span class="fill__plus" aria-hidden="true">↗</span></button>`
+                  `<button class="iconbtn" type="button" data-chip="${esc(t.id)}" title="${esc(
+                    t.label
+                  )}" aria-label="${esc(`${t.label}：${t.toast}`)}">${SHARE_ICONS[t.id] || ''}</button>`
               ).join('')}
-              <button class="fill sharecard__chip" type="button" data-chip="caption" aria-label="只把那段話複製起來">複製文案<span class="fill__plus" aria-hidden="true">⧉</span></button>
+              ${
+                canCopy
+                  ? `<button class="iconbtn iconbtn--copy" type="button" data-copy title="複製圖＋文" aria-label="把這張圖和這段話一起複製起來">
+                      <span class="iconbtn__face" aria-hidden="true">${SHARE_ICONS.copy}</span>
+                      <span class="iconbtn__face iconbtn__face--done" aria-hidden="true">${SHARE_ICONS.done}</span>
+                    </button>`
+                  : ''
+              }
             </div>
-            <p class="sharecard__hint">按下去會先把圖備好，再開那一頁 —— 你本來就登入著，貼上就能發。</p>
-            <p class="sharecard__hint">這一排用 <kbd>←</kbd> <kbd>→</kbd> 移動、<kbd>Enter</kbd> 挑一個。</p>
+            <a class="sharecard__dl" data-download download="promptasy.png" href="#" aria-label="把這張圖存到裝置上">${
+              SHARE_ICONS.download
+            }<span>下載</span></a>
           </div>
-          <p class="sharecard__hint">圖只在這台裝置上，不會上傳。用 <kbd>Tab</kbd> 移動、<kbd>Enter</kbd> 按下去。</p>
         </div>
       </div>
     `;
     overlay.body.querySelector('[data-frame]').appendChild(canvas);
-    overlay.body.querySelector('[data-back]').addEventListener('click', () => api.close());
 
     /* --- 那段話：玩家動過就不再被覆蓋 --- */
     const sayBox = overlay.body.querySelector('[data-caption]');
@@ -961,10 +952,18 @@ export function createShareCard({ content, progression, ranksFile, onClose, onTo
         const ready = !!lastBlob;
         // blob 開卡時就備好了 → 這裡不 await，寫剪貼簿仍在使用者手勢裡
         copyBundle(captionNow()).then((copied) => {
-          if (copied) onToast?.('圖和那段話都複製好了 —— 到想貼的地方直接貼上。', 'good');
-          else if (!ready) onToast?.('圖還在刻 —— 等一下再按一次。', 'warn');
+          if (copied) {
+            // 成功那一下就地翻成勾記 —— 不用讀 toast 也知道剛剛那一按有效
+            copyBtn.classList.add('is-done');
+            if (copyDoneTimer) clearTimeout(copyDoneTimer);
+            copyDoneTimer = setTimeout(() => {
+              copyDoneTimer = 0;
+              copyBtn.classList.remove('is-done');
+            }, COPY_DONE_MS);
+            onToast?.('圖和那段話都複製好了 —— 到想貼的地方直接貼上。', 'good');
+          } else if (!ready) onToast?.('圖還在刻 —— 等一下再按一次。', 'warn');
           // 沒有權限 / 瀏覽器不給 → 退回「下載」這條一定走得通的路
-          else onToast?.('這個瀏覽器不讓程式寫剪貼簿，改用「下載圖片」吧。', 'warn');
+          else onToast?.('這個瀏覽器不讓程式寫剪貼簿，改用「下載」吧。', 'warn');
         });
       });
     }
@@ -999,20 +998,12 @@ export function createShareCard({ content, progression, ranksFile, onClose, onTo
     /* --- 那一排：先備好圖，再開那一頁（Phase 31） --- */
     const targetsEl = overlay.body.querySelector('[data-targets]');
     if (targetsEl) {
-      rovingList(targetsEl, '[data-chip]');
+      rovingList(targetsEl, '.iconbtn');
       targetsEl.addEventListener('click', (e) => {
         const chip = e.target.closest?.('[data-chip]');
         if (!chip || chip.disabled || !targetsEl.contains(chip)) return;
         const id = chip.getAttribute('data-chip');
         chip.classList.add('is-used');
-        if (id === 'caption') {
-          // 只複製那段話（開新頁的那幾顆帶不進去文字，回來按這顆補上）
-          copyTextOnly(captionNow()).then((copied) => {
-            if (copied) onToast?.('文案複製好了 —— 到那邊的框裡貼上。', 'good');
-            else onToast?.('這個瀏覽器不讓程式複製 —— 那段話可以直接從框裡選起來自己複製。', 'warn');
-          });
-          return;
-        }
         goToPlatform(SHARE_TARGETS.find((t) => t.id === id));
       });
     }

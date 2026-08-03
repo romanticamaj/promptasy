@@ -62,6 +62,49 @@ export function infoTip(text, { label = '說明' } = {}) {
   )}</span></span>`;
 }
 
+/* ------------------------------------------------------------------ *
+ * 神諭原典（Phase 35.1）—— 一本很小的書
+ *
+ * 出處原本是一整行字（「神諭原典：Anthropic · Prompting best practices ↗」）。
+ * 一段刻文只有兩三句，那一行比刻文本身還長，讀起來像是註腳搶了正文。
+ * 改成一枚 14px 的書：
+ *
+ *   · **它一直看得見**（護欄 2：出處不是藏在第二層點擊後面的東西）
+ *   · 滑到 / Tab 到就說出是哪一份文件（沿用 ⓘ 的氣泡機制，不會自己彈出來）
+ *   · 按下去就開那份官方文件（一次點擊，新分頁，`rel="noopener"`）
+ *   · 一列有好幾份出處，就排好幾本書 —— 一本對一份，不合併
+ * ------------------------------------------------------------------ */
+
+/** 書的剪影（行內 SVG，零外部資產）。 */
+export const BOOK_ICON = `<svg class="bookicon__glyph" viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" focusable="false"><path d="M4.8 4.4a2.4 2.4 0 0 1 2.4-2.4h11.4a.9.9 0 0 1 .9.9v15.4a.9.9 0 0 1-.9.9H7.2a2.4 2.4 0 0 0-2.4 2.4V4.4Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M8.4 6.6h7.2" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M8.4 10.2h5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>`;
+
+/** 畫面上對「官方出處」的世界觀說法（和 console.js 的 SOURCE_LABEL 同一句）。 */
+export const BOOK_LABEL = '神諭原典';
+
+/**
+ * 一枚指得回官方文件的書。
+ *
+ * @param {{url:string,name:string}|null} src
+ * @param {object} [opts]
+ * @param {string} [opts.label] 前綴（預設「神諭原典」）
+ * @param {string} [opts.extra] 氣泡裡要多說的一句（例如「什麼是神諭原典」的解釋）
+ * @returns {string} HTML（沒有出處就回空字串 —— 不畫一本空的書）
+ */
+export function sourceBook(src, { label = BOOK_LABEL, extra = '' } = {}) {
+  if (!src || !src.url) return '';
+  tipSeq += 1;
+  const id = `bookicon-${tipSeq}`;
+  const name = src.name || src.url;
+  const tip = `${label}：${name}${extra ? `　${extra}` : ''}`;
+  return `<span class="infotip infotip--book" data-infotip><a class="bookicon" href="${esc(
+    src.url
+  )}" target="_blank" rel="noopener" aria-describedby="${id}" aria-label="${esc(
+    `${label}：${name}（開新分頁）`
+  )}">${BOOK_ICON}</a><span class="infotip__bubble" id="${id}" role="tooltip" data-infotip-bubble>${esc(
+    tip
+  )}</span></span>`;
+}
+
 /**
  * 時代註記（dated-notes.json）的一小塊 HTML。
  *

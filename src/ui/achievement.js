@@ -53,8 +53,7 @@ export function createAchievement({ content, progression, onClose, onShare = nul
         <p class="finale__note">旅程沒有終點：回頭把每一關重寫成 S 評價，或直接把這些技巧用在你今天要寫的那個 prompt 上。</p>
         ${
           onShare
-            ? `<div class="result__share"><button class="btn btn--ghost" type="button" data-share>分享這趟旅程</button>
-                <span class="muted">做成一張圖，存下來或貼給別人看。</span></div>`
+            ? `<div class="result__share"><button class="btn btn--ghost" type="button" data-share>分享這趟旅程</button></div>`
             : ''
         }
         <div class="meta-rule"><h4><span class="zh">官方文件</span><span class="en">Primary Sources</span></h4></div>

@@ -13,9 +13,13 @@ import {
   infoTip,
   rovingList,
   safeRich,
+  sourceBook,
   sourceNoteHtml,
 } from './dom.js';
 import { glossary } from './glossary.js';
+
+/** 官方出處在畫面上的說法（和主控台第二幕同一句話）。 */
+const SOURCE_LABEL = '神諭原典';
 
 export function createCodex({
   content,
@@ -243,12 +247,13 @@ export function createCodex({
               : ''
           }
           <ul class="tech__srcs">
+            <li class="tech__srcslabel">${esc(SOURCE_LABEL)}</li>
             ${(view.sources || [])
               .map(
                 (s) =>
-                  `<li><a class="src" href="${esc(s.url)}" target="_blank" rel="noopener">${esc(
-                    s.name
-                  )} ↗</a>${sourceNoteHtml(content.sourceNote ? content.sourceNote(s.url) : null)}</li>`
+                  `<li>${sourceBook(s, { label: SOURCE_LABEL })}${sourceNoteHtml(
+                    content.sourceNote ? content.sourceNote(s.url) : null
+                  )}</li>`
               )
               .join('')}
           </ul>
@@ -283,12 +288,14 @@ export function createCodex({
         <div class="tech__body">
           <p class="tech__tip">${esc(skill.oneLiner)}</p>
           <ul class="tech__srcs">
+            <li class="tech__srcslabel">${esc(SOURCE_LABEL)}</li>
             ${sources
               .map(
                 (s) =>
-                  `<li><a class="src" href="${esc(s.url)}" target="_blank" rel="noopener">${esc(
-                    s.docName || s.vendor
-                  )} ↗</a>${sourceNoteHtml(content.sourceNote ? content.sourceNote(s.url) : null)}</li>`
+                  `<li>${sourceBook(
+                    { url: s.url, name: s.docName || s.vendor },
+                    { label: SOURCE_LABEL }
+                  )}${sourceNoteHtml(content.sourceNote ? content.sourceNote(s.url) : null)}</li>`
               )
               .join('')}
           </ul>

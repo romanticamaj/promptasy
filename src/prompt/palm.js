@@ -49,10 +49,7 @@ export function createPalm({ lead = '石碑已刻滿。把手掌按上去，讓�
         <span class="palm__thumb"></span><span class="palm__pad"></span>
       </span>
       <span class="palm__label">把手掌按上石碑</span>
-      <span class="palm__hint">
-        <span class="palm__hintline">按住不放</span>
-        <span class="palm__hintline">或按住 <kbd>Enter</kbd></span>
-      </span>
+      <span class="palm__hint"><span class="palm__hintline">按住不放，或按住 <kbd>Enter</kbd></span></span>
     </button>
   `;
   const leadEl = root.querySelector('[data-palm-lead]');

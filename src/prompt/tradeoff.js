@@ -29,7 +29,7 @@
  *   `Esc`                    這一層沒有東西可以還原 → 冒泡出去收起面板
  *   按住 `Enter`（手掌上）   呈給神諭
  */
-import { esc, on, rovingList } from '../ui/dom.js';
+import { esc, on, rovingList, sourceBook } from '../ui/dom.js';
 import { createPalm, PALM_HOLD_MS } from './palm.js';
 import { createSlotStage, isSlotList } from './slots.js';
 
@@ -158,12 +158,7 @@ export function createTradeoffBoard({
   const sourceLinks = (card) =>
     ((card && card.sources) || [])
       .filter((s) => s && typeof s.url === 'string' && /^https:\/\//.test(s.url))
-      .map(
-        (s) =>
-          `<a class="twoface__src" href="${esc(s.url)}" target="_blank" rel="noopener noreferrer">神諭原典：${esc(
-            s.name || s.url
-          )} ↗</a>`
-      );
+      .map((s) => sourceBook(s, { label: '神諭原典' }));
 
   function renderCardSources(card) {
     const links = sourceLinks(card);

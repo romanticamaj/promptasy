@@ -2333,3 +2333,142 @@ OpenAI、Anthropic、Google、xAI 的官方文件。」）**會自己彈出來**
 - 圖鑑 ／ 設定 ／ 成就 ／ 分享 ／ 石碑小窗的標頭（維持三層堆疊）。
 - 術語小卡（`.gloss`，Phase 35）—— 它是另一套元件，`mouseover` 照舊。
 - 未 commit／未 push。
+
+## 2026-08-03 · 站長六件事：拖曳手感 ／ 幕名格式 ／ 手掌印提示 ／ 分享面板 ／ 神諭原典圖示 ／ 第二幕導言
+
+> **本輪依站長指示「不要跑測試套件」** —— `test:rubric` / `test:playtest` / `test:e2e` 一律沒跑。
+> 只跑了 `npm run build`（語法安全網）與 `npm run fonts`（中文語料變了），
+> 其餘驗證一律用 headless CDP 自己截圖 ＋ 量測。**測試套件會因為這些改動而紅**（見最後一節）。
+
+### Fix 1（優先）— 排序刻印的拖曳不再閃、不再彈
+
+站長回報：`一張圖到一支片`（sight 試煉，`order` 題型）拖曳時**卡片會消失、清單會彈**。
+
+**三個真因，全部找到並修掉**（`src/prompt/order.js` ＋ `src/styles.css`）：
+
+1. **卡片消失 ＝ 入場動畫被重播。**
+   搬動一片在 DOM 上是 `slipsEl.insertBefore(已在文件裡的節點)` —— 規格上那是
+   「先移除、再插入」，於是 `.slip__grip` 身上的 `animation: opt-in ... both`
+   **整段重播**：`opacity: 0` ＋ `animation-delay: var(--i) × 42ms`。
+   拖過三片就會閃三次，看起來就是「卡片不見了」。
+   → 入場跑完（或第一次搬動、或按下去的那一刻）就把 `.slips` 標成 `.is-settled`，
+   CSS `animation: none`。**這也順手修掉鍵盤搬動時的同一個閃爍**（一樣走 `insertBefore`）。
+2. **彈跳 ＝ FLIP 的 inline `transform` 蓋掉了指標位移。**
+   `moveTo()` 走 `withSlide()`（FLIP），而 FLIP 會對**每一片**寫 inline `transform`
+   —— 包含正在被拖的那一片。它的位置本來由 `--lift`（CSS `transform: translate3d(0, var(--lift), 0)`）
+   決定，被 inline transform 蓋掉之後就跳到一個跟指標無關的位置，放手才彈回來。
+   → `withSlide()` **一律跳過 `dragging` 那一片**（它不需要補間，它就在指標下面）。
+3. **邊界抖動 ＋ 位移越算越歪 ＝ 拿 `getBoundingClientRect()` 當基準。**
+   舊碼用 `e.clientY - rect.top - dragOffset` 算位移，而 `rect` 本身**含**目前的位移
+   → 每一幀都在累加誤差；`indexAtY()` 也是量 rect，而別片正在補間中，
+   讀到的是動畫中途的假座標 → 指標停在交界上時上下互換不停。
+   → 位移與換位判定全部改用**版面座標**（`slipsEl` 的 rect ＋ `li.offsetTop`，
+   transform 動不到它），並加上 `DRAG_HYSTERESIS = 9px`：
+   要真的越過鄰居中線 9px 才換位。比較的是**被拖那一片的中線**（不是指標），
+   抓住卡片底部時才不會提早半張卡就換位。
+
+其他：`.slip.is-dragging` 的 `z-index` 3 → 5 ＋ `will-change: transform` ＋ 抬起來的陰影
+＋ `cursor: grabbing`；放手時**先** `render()` 拿掉 `is-dragging`（transition 才回得來）、
+**下一幀**再放開 `--lift` → 石版會滑進格子裡而不是瞬移。
+`prefers-reduced-motion` 下維持既有語意（不補間，直接落定）。
+**鍵盤路徑（`Enter` 拿起 → `↑`/`↓` 搬 → `Enter` 放下）與 aria-live 一行未改。**
+
+**實測（真 CDP 指標序列，1280 與 390 各一次）**：
+- 1280：拖曳全程 `.slip.is-dragging` **opacity 恆為 1**、`animation-name: none`、`z-index: 5`，
+  卡片 `top` 隨指標**單調移動**（607→542→477→412→347→282→217→152→87→23），
+  排序只翻面**兩次**（`question|docs|ground` → `question|ground|docs` → `ground|question|docs`），
+  沒有任何來回互換；放手後三片的 `--lift` 都清空。
+- 390：同一組量測，opacity 恆為 1、`top` 單調（296→423→…→1189）、只翻面一次。
+- 鍵盤：焦點自動落在第一片 → `Enter` 拿起（`board.held === 'question'`）→ `ArrowDown` 搬動
+  → `Enter` 放下 → 排序真的變了、aria-live 念出「放下：你要問的那一句。第 2 片，共 3 片。…」、
+  三片的 opacity 全是 1（沒有閃）。
+
+### Fix 2 — 幕名統一成「ACT I 第一幕 · 委託」
+
+`ACTS` 旁邊新增 `actLabelText(pos, zh)` / `actLabelHtml(pos, zh)`（`src/prompt/console.js` 匯出）。
+指示器的 ①②③④ 換成 `ACT I…IV`，中文改成完整的「第一幕 · 委託」；
+每一幕的小標與指示器**現在是同一句話**。
+`pos` 用的是**這一關實際上的第幾幕**（`actOrder()`）—— 試煉沒有第二幕（1 → 3 → 4），
+所以它眼裡的刻印就是「ACT II 第二幕」，畫面上不會出現「第一幕之後是第三幕」。
+`aria-label` / `title` 一起改成同一句；第四幕在自由書寫模式仍然叫「呈遞」。
+序章練習台（`src/prompt/practice.js`）同步。
+
+### Fix 3 — 手掌印提示縮到 0.4 倍、併成一行
+
+`按住不放` ／ `或按住 Enter` 兩行 18.3px → **一行「按住不放，或按住 Enter」7.32px**
+（`calc(var(--t-micro) * 0.86 * 0.4)`，literal 0.4×）。鍵帽內距改用 `em` 才跟著縮
+（實測 5.56px）。實測 1280：一行、85px 寬、牌子仍是 252px；390：一行、85px、牌子 232px。
+`src/prompt/palm.js` 與 `src/prompt/stele.js` 兩份 DOM 都改（它們刻意是各自獨立的）。
+
+### Fix 4 — 拿掉「做成一張圖，存下來或貼給別人看。」
+
+結果面板（`console.js`）與隱藏成就（`achievement.js`）兩處，全 repo 已歸零。
+
+### Fix 5 — 分享面板重排（`src/ui/sharecard.js`）
+
+- **拿掉**「回去」按鈕、`複製起來，到 Facebook / Instagram / Threads 直接貼上 ——
+  圖和文字都在剪貼簿裡。`、`按下去會先把圖備好…`、`這一排用 ← → 移動…`、
+  `圖只在這台裝置上…` 四句說明，以及「複製文案」那顆石籤。
+- **版面**：圖在左、那段話在右（≥900px；窄畫面照舊上下疊）。
+- **圖示列**：Threads / Facebook / Instagram ＋ 複製，四顆 44×44 的切角石牌
+  （`SHARE_ICONS`，**行內 SVG、零外部資產**，名字在 `title` 與 `aria-label` 裡）。
+  每一顆背後仍是 Phase 31 的「先備好圖 → 再開那一頁」流程，一行未改。
+- **複製成功會翻成勾記**（`.iconbtn.is-done`，`COPY_DONE_MS = 1900`）——
+  兩個 SVG 互換，不是只換顏色。
+- **下載**降成最安靜的一階（一個小圖示 ＋「下載」兩個字，靠右）。
+- `Esc` 仍然關得掉（`createOverlay` 未動）；焦點仍落在當下的主角
+  （有系統分享面板就是它，沒有就是複製那顆）。
+- 實測：1280 圖在左、四顆各 44×44、無水平溢位；390 上下疊、四顆都在、無溢位。
+- 兩顆平台按鈕的 toast 原本寫「文字回來按『複製文案』」，那顆已經不在了 →
+  改成「文字從上面那個框裡選起來複製」（**誠實**：那邊本來就帶不進去文字）。
+
+### Fix 6 — 神諭原典換成一本書（`sourceBook()` in `src/ui/dom.js`）
+
+`神諭原典：<文件名> ↗` 這一整行文字 → **一枚 14px 的書**（行內 SVG，暖金、安靜）：
+- **永遠看得見**（護欄 2：出處不是藏在第二層點擊後面的東西）；
+- hover / focus 出現氣泡「神諭原典：<文件名>」（沿用 `bindInfoTips` 的機制，
+  **不會自己彈出來**，維持上一輪的修正）；
+- 按一下就開那份官方文件（`target="_blank" rel="noopener"`），一次點擊，不多一層；
+- 鍵盤走得到（它是 `<a href>`，仍在 `focusableIn` 的焦點鎖裡）；
+- **一列有好幾份出處就排好幾本書**（圖鑑的多來源技巧）。
+
+改到的 render site（8 處）：主控台第二幕主刻文 ／ 降級路徑 ／ 第三幕側頁籤 ×2、
+序章練習台 ×2、刻文小語、雙面碑的模型卡、圖鑑的技巧與技能出處列
+（圖鑑那一列前面留一個「神諭原典」小標，出處是什麼東西不能只靠圖示自己講）。
+
+### Fix 7 — 第二幕導言收成一行、貼在標題旁
+
+`神諭刻文` 與 `抄寫人用白話刻下這幾段。` 併成同一行，導言 **0.8×**（17.02px）、
+`lead-wink` 5 秒一次很淺的一眨（`prefers-reduced-motion` 下不眨）。
+那顆 ⓘ 的內容（「神諭原典 —— 也就是 OpenAI、Anthropic、Google、xAI 的官方文件」）
+**併進主刻文那本書的氣泡**（`sourceBook(..., { extra })`）—— 它講的就是出處，
+掛在出處上最合理，也少一顆要點的東西。沒有主出處的降級路徑才留下原本那顆 ⓘ。
+
+### 截圖（人工複審）
+
+`/tmp/claude-1000/.../scratchpad/final/`：
+`drag-midflight-1280.png`、`drag-dropped-1280.png`、`drag-midflight-390.png`、
+`act2-and-indicator-1280.png`、`act2-and-indicator-390.png`、`order-act3-1280.png`、
+`palm-1280.png`、`palm-390.png`、`share-1280.png`、`share-390.png`、
+`act2-booktip-1280.png`、`codex-1280.png`、`codex-booktip-390.png`。
+全程 **零 console error**（四輪 headless 都是）。
+
+### 建置狀態
+
+- `npm run build` ✓（CSS 138 KB / gzip 25.5 KB）。
+- `npm run fonts` ✓ 重跑（語料 73 檔 / Latin 257 · CJK 1849 · Display 104 / 1466.2 KB）。
+- **測試套件依指示未跑。**
+
+### 會紅的既有斷言（預期之內）
+
+- `acts__num` / `①②③④` / 幕名字串（`第 N 幕 · X`、`回到第 N 幕`）—— Fix 2 全改了。
+- `神諭原典：<name> ↗` 的文字比對、`a.src` 的存在、`SOURCE_LABEL` 出現在 DOM 文字裡
+  —— Fix 6 改成圖示 ＋ 氣泡（`aria-label` / 氣泡文字裡仍有那句話）。
+- `.act__lead` 是獨立段落、第二幕那顆 ⓘ 的存在 —— Fix 7 併進標題列 ／ 併進書的氣泡。
+- 分享面板：`[data-back]`、`複製圖＋文` / `下載圖片` 的按鈕文字、`.sharecard__chip`、
+  `data-chip="caption"`、`.sharecard__hint` / `__send` / `__sendlabel`、
+  `rovingList(targetsEl, '[data-chip]')` 的選擇器、`applySupport` 的 `btn--primary` 切換。
+- `做成一張圖…` 那句 muted 說明。
+- `palm__hintline` 是兩行 / 兩個節點；「面板內字級不得小於 12px」那一類掃描
+  （手掌印提示現在是 7.32px，站長指定的 0.4×）。
+- `.slip__grip` 的 `animation` 在搬動後還在（現在被 `.is-settled` 關掉了）。
