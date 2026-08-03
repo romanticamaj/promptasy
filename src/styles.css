@@ -1094,6 +1094,13 @@ a.src:hover {
   color: rgba(120, 137, 161, 0.9);
   text-shadow: 0 1px 10px #000;
   white-space: nowrap;
+  /* 平常幾乎隱形（20%），滑過去才浮現 —— 老玩家不需要它一直站在那裡。 */
+  opacity: 0.2;
+  transition: opacity var(--d-mid) var(--e-out);
+  pointer-events: auto;
+}
+.hud__controls:hover {
+  opacity: 1;
 }
 
 .hud__toasts {
