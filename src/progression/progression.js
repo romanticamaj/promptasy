@@ -424,7 +424,12 @@ export function createProgression({ catalog = null, curriculum = null, challenge
             const s = cat.skill(g.skillId);
             needs.push(`先學會「${s ? s.nameZh : g.skillId}」`);
           } else if (g.kind === 'masteredAny') {
-            needs.push(`任何一片土地精通（目前 ${g.have}）`);
+            // need 可能不只 1（分歧之廳是 4）—— 數字一定要講出來，不然讀起來像只要一片
+            needs.push(
+              g.need > 1
+                ? `任 ${g.need} 片土地精通（目前 ${g.have}）`
+                : `任何一片土地精通（目前 ${g.have}）`
+            );
           } else if (g.kind === 'mastered') {
             const r = cat.region(g.regionId);
             needs.push(`${r ? r.name : g.regionId} 整片精通`);
