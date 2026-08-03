@@ -333,7 +333,7 @@ export function createPromptConsole({
         <p class="craft reveal d2" data-craft hidden></p>
         <ol class="glyphs" data-guidance></ol>
         <details class="clue reveal">
-          <summary>還想要一點線索 · Clue<kbd>L</kbd></summary>
+          <summary>聽聽委託人多說的那一句<kbd>L</kbd></summary>
           <p data-clue></p>
         </details>
         <div class="act__foot reveal">
