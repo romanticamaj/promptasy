@@ -2645,3 +2645,91 @@ JetBrains Mono 原字型就沒有這兩個字，於是它們掉到**系統備援
   與 `aria-label`（通過／部分達成／未達成）。
 - （**與本輪無關、既有**）6064 起那一排期待 4 顆含 `data-chip="caption"`、
   `.sharecard__sendlabel`、`.sharecard__hint` —— 那是 Phase 35.1 圖示化之前的形狀，本來就已過期。
+
+## 2026-08-03 · 142 關內容稽核修正（12-agent review 的 79 條 findings）· `done`
+
+**輸入**：12 個 Sonnet 代理逐關審 142 關產出的 79 條 findings（24 高 / 29 中 / 26 低，涵蓋 65 關）。
+**處置**：**54 條照建議套用、20 條調整後套用、5 條記錄理由後跳過**（逐條表在 `findings.md`）。
+另修一個站長回報的系統性 UI bug（合尺板的空狀態）。
+
+### 動到的檔案
+
+| 檔案 | 動了什麼 |
+|---|---|
+| `src/data/challenges.json` | 情境／素材／任務／線索／工法／示範解答／快速填入（約 45 關） |
+| `src/data/flows.json` | 選項、教學回饋、工坊工具與值石、排序石版、合尺片、雙面碑判詞（約 35 關） |
+| `src/data/coach.json` | 兩處跟著關卡答案走的示範句（decisionTree 的「其他情況」、namesComponents 的資料列） |
+| `src/data/skill-codex-v2.json` | 兩條出處：Magistral 錨點降回頁面層 ＋ `param-not-plead` 補一條真的講 temperature 的 Google 出處 |
+| `scripts/expected-counts.json` | `skillRowsWithoutAnchor` 75 → 76（把一條指錯段落的深連結改成誠實的頁面層引用，理由寫進 `why`） |
+| `src/prompt/constraint.js` ＋ `src/styles.css` | 合尺板的空狀態（見下） |
+| `public/fonts/*` | `npm run fonts` 重切（CJK 1857 字 / 1471.8 KB） |
+
+### 修正的主軸（24 條高風險逐條見 findings.md）
+
+1. **素材要真的拿得出被問到的那些字**（護欄：Act 1 看到的 ＝ Act 3 要判斷的）。
+   `shout-stone-11`／`nodding-courier-09`／`nightwatch-relief-07`／`working-draft-19`
+   的點碑・改碑片段有一半是玩家在素材卡上從沒讀過的句子 —— 素材補成完整委託全文。
+   `empty-adjective-60`（要重寫的告示根本不存在）、`two-rulers-57`（640 字的航班說明不存在）、
+   `for-newcomer-59`（正解說「只保留日期與金額」，素材裡沒有日期也沒有金額）同一類。
+2. **謎題要對準被評分的那一條**。`three-maxims-82` 的柱子磨掉的是第二句箴言，
+   評分卻只量第一句 —— 把磨掉的那一句換成被評分的那一句，剩下兩句留在素材上。
+3. **遊戲不能自己打自己的臉**。`effort-forge-15` 的旋鈕模擬演完「中火就夠、開到最大只是更慢」，
+   下一步卻要玩家選 high、還回饋「思考火力要開高」——正解、快速填入、示範解答、
+   rubric 的 `checkOptions.example` 全部改成 medium（檢查器三檔都滿分，評分邏輯零影響）。
+   `wish-pool-52` 的「temperature 轉到 0 —— 這是保證」與同畫面的時代註記
+   （設 0 也只是趨近確定、Claude Sonnet 5 會直接報錯）互相打臉，判詞收成「通常最穩，
+   但不是每一台都給得起這個保證」。
+4. **出處要點得到對的那一段**（護欄 2）。`two-faced-pillar-115` 拿 Magistral 的
+   `#sampling-parameters` 佐證「模型卡建議附上身分設定」——那一節只有 top_p／temperature；
+   降回頁面層並寫下理由。`wish-pool-52` 的官方出處是 xAI 的「網頁搜尋限定網域」，
+   跟 temperature 毫無關係 —— 換成 Google 的 Model parameters（同時補進技能的 sources，
+   `challenge.source` 必須屬於它的主技能）。
+5. **數字要經得起玩家自己數**。`draft-review-wheel-32` 的示範草稿自稱 96 字、實際 65 字
+   而且沒超過 80 字的標準（這一關教的正是「照標準逐條核對」）→ 草稿補長到 89 字。
+   `crowded-bench-68` 第一步篩出 2 把工具、正解規矩卻寫「只留 3 把」→ 改成 2。
+   `dispatch-window-88` 五張／三張工單、`scribe-longtable-49` 八片／四片、
+   `four-elements-mirror-44` 9 個字／6 個字、`sevenfold-door-96` 八百次＝「一整個下午」
+   （實際 33 小時）同一類。
+6. **敘事承諾要兌現**。`unwatched-forge-128`（四把名字很像的工具 → 實際三把且沒有相似命名）、
+   `three-machines-133`（三張模型卡 → 實際兩張）、`priority-stair-42`
+   （情境鋪陳五段式結構、玩法教的是規矩優先序）、`oracle-workshop-36`
+   （情境點名「什麼都拿去翻檔案庫」，但檔案庫不在工具清單裡，玩家修不到）。
+7. **題型要配得上內容**。`handover-table-87` 教的是「交班紀錄要記哪幾欄」，
+   卻套用派工工坊寫死的『呼叫「NAME」，LABEL＝VALUE。』樣板，
+   組出來的字變成「呼叫『目前做到哪』」——**kind 由 `workshop` 改成 `order`**，
+   四片石版就是 `c.sample` 的四行，排好即等於示範解答（漏掉的第三欄「卡住的地方」也回來了）。
+
+### 系統性 UI 修正：合尺板的空狀態
+
+一片石片都還沒放時，`measure()` 對每一把尺呼叫 `runCheck('')`，
+引擎一律回同一句「字太少了，看不出你用了什麼技巧。至少寫成一句完整的指令。」——
+於是每一把尺底下都複述同一句廢話，加上一排「還沒合尺」。
+現在 `measure()` 多回一個 `idle`（＝檯上那段文字是空的），這種狀態下：
+
+- 尺只留自己那一句「這把尺要量什麼」（`gauge.want`），**引擎的證據整條不畫**；
+- `.gauge.is-idle` 把整條壓暗（`○` 記號降到 22% 白）；
+- 螢幕閱讀器讀到的是「還沒放石片」而不是「還沒合尺」。
+
+**判定一個位元都沒動**：空字串本來就每一把尺都不亮（實測七個檢查器在 `''` 上
+`passed=false, partial=false`），`isDone()` 也本來就要求 `chosen.length > 0`。
+放上第一片之後，逐把尺的真回饋照舊出現。
+headless 實拍兩態複審（自己的 port 5197 / CDP 9337，全程沒碰 5175）。
+
+### 驗證
+
+| 指令 | 之前（baseline） | 之後 |
+|---|---|---|
+| `node scripts/test-rubric.mjs` | 8416 行 `TypeError`（既有壞損，見下） | 同一行、同一個 `TypeError`（未惡化） |
+| 同上，繞過那一行的副本 | 51 失敗 / 80,318 通過 | **51 失敗 / 80,377 通過（失敗清單逐條相同）** |
+| `npm run test:playtest` | 2,372 全過 | **2,372 全過** |
+| `npm run build` | ✓ | **✓** |
+| `npm run fonts` | — | 重切（73 檔語料 / CJK 1857 / 1471.8 KB） |
+
+**既有壞損（不是這次造成的，未修）**：`scripts/test-rubric.mjs:8416` 會丟 `TypeError`
+—— `platformOpenUrl('instagram', …)` 現在回 `null`（Phase 31 之後 Instagram 沒有網頁入口，
+老實不做連結），但那一行直接 `url.includes(...)`。這一支因此**跑不到終點**，
+後面約 3,000 行完全沒有執行。為了取得完整訊號，本輪用上一輪留下的
+`scripts/test-rubric-patched-tmp.mjs`（同一份、只把那一行包進 try/catch）做前後比對。
+那 51 條失敗全部集中在分享（Phase 24/28/31 之間的字串漂移）與幾條 UI 打磨斷言，
+**與 142 關的內容一條都沒有交集**。順帶一提，字型總量那一條（`≤ 1.5 MB`，
+比的是 1,500,000 bytes）本來就已經紅著（1,505,320），這次的新中文字讓它變成 1,507,123。

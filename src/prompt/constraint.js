@@ -148,12 +148,25 @@ export function createConstraintBoard({
   /**
    * 量一次尺。**這裡沒有第二套判準**：呼叫的就是 rubric 引擎在用的那支
    * `runCheck()`（護欄 3），所以石片上亮的燈與送出後的評分一定一致。
+   *
+   * 一片都還沒放的時候（檯上那段文字是空的），引擎會對每一把尺回同一句
+   * 「字太少了，看不出你用了什麼技巧」——那句話在這裡沒有意義，每一把尺
+   * 底下複述一次只是噪音。所以這種狀態標成 `idle`：尺只留自己那一句
+   * 「這把尺要量什麼」，引擎的證據等到玩家真的放上第一片才出現。
+   * 判定本身一個位元都沒動（空字串本來就每一把都不亮）。
    */
   function measure() {
     const t = text();
+    const idle = !t.trim();
     return gauges().map((g) => {
       const r = runCheck(g.check, t, g.checkOptions || {});
-      return { gauge: g, passed: r.passed, partial: r.partial, evidence: r.evidence };
+      return {
+        gauge: g,
+        passed: r.passed,
+        partial: r.partial,
+        idle,
+        evidence: idle ? '' : r.evidence,
+      };
     });
   }
 
@@ -189,13 +202,13 @@ export function createConstraintBoard({
   function renderGauges(measured) {
     gaugesEl.innerHTML = measured
       .map(
-        (m, i) => `<li class="gauge${m.passed ? ' is-lit' : m.partial ? ' is-half' : ''}" style="--i:${i}">
+        (m, i) => `<li class="gauge${m.passed ? ' is-lit' : m.partial ? ' is-half' : ''}${m.idle ? ' is-idle' : ''}" style="--i:${i}">
           <span class="gauge__mark" aria-hidden="true">${m.passed ? '✦' : m.partial ? '◐' : '○'}</span>
           <span class="gauge__body">
             <span class="gauge__want">${esc(m.gauge.want)}</span>
-            <span class="gauge__note">${esc(m.evidence || '')}</span>
+            ${m.evidence ? `<span class="gauge__note">${esc(m.evidence)}</span>` : ''}
           </span>
-          <span class="sr-only">${m.passed ? '已合尺' : '還沒合尺'}</span>
+          <span class="sr-only">${m.passed ? '已合尺' : m.idle ? '還沒放石片' : '還沒合尺'}</span>
         </li>`
       )
       .join('');

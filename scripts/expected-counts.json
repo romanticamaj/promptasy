@@ -162,12 +162,12 @@
     },
     "sourceAnchors": {
       "value": {
-        "skillRowsWithoutAnchor": 75,
+        "skillRowsWithoutAnchor": 76,
         "legacyOverlayEntries": 64,
         "legacyRowsWithoutAnchor": 41,
         "textFragments": 20
       },
-      "why": "出處深連結稽核（2026-08-03）的驗收數字。130 座教學神廟與圖鑑顯示的每一個官方連結都要直接跳到**被引用的那一節**：v2 技能的 445 列出處就地升級（370 列帶得出片段、75 列查核後確認是頁面層引用而誠實留白），舊 68 條的 105 列走顯示層疊加 source-anchors.json（64 條疊得上、41 列停在頁面層）。textFragments ＝ 兩層加起來用 W3C `#:~:text=` 的條數（那些頁面沒有可用的標題 id）。這幾個「沒有深連結」的數字就是誠實度本身 —— 只准往下走，往上就是有人把片段亂加或把驗證拿掉；max 是硬上限。逐網址的驗證紀錄在 docs/design/source-anchor-audit.md。",
+      "why": "出處深連結稽核（2026-08-03）的驗收數字。130 座教學神廟與圖鑑顯示的每一個官方連結都要直接跳到**被引用的那一節**：v2 技能的 445 列出處就地升級（369 列帶得出片段、76 列查核後確認是頁面層引用而誠實留白），舊 68 條的 105 列走顯示層疊加 source-anchors.json（64 條疊得上、41 列停在頁面層）。textFragments ＝ 兩層加起來用 W3C `#:~:text=` 的條數（那些頁面沒有可用的標題 id）。這幾個「沒有深連結」的數字就是誠實度本身 —— 只准往下走，往上就是有人把片段亂加或把驗證拿掉；max 是硬上限。逐網址的驗證紀錄在 docs/design/source-anchor-audit.md。 ｜ 2026-08-03 內容稽核：contrast-persona 的 Magistral-Small-2509 那一列原本掛 #sampling-parameters，該錨點指到的是取樣參數、與身分設定無關（連結會把玩家帶到對不上的段落），已降回頁面層並寫下理由 —— 75 → 76 是把一條錯的深連結改成誠實的頁面層引用，不是把驗證拿掉。",
       "max": {
         "skillRowsWithoutAnchor": 80,
         "legacyRowsWithoutAnchor": 45

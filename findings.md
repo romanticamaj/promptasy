@@ -1520,3 +1520,152 @@ Phase 35 的「十一種題型的手掌印都量得到」第一輪紅了 4 條�
   `copyBundle()` 直接 return false，看起來像「剪貼簿沒帶文字」的 bug。
   在軟體渲染的機器上 1200×630 的 `toBlob` 要好幾秒 —— 探針要等的是**狀態**（blob 備好了沒），
   不是牆鐘時間。
+
+## 2026-08-03 — 142 關內容稽核：79 條 findings 的逐條處置
+
+12 個代理逐關審完 142 關，交回 79 條（24 高 / 29 中 / 26 低，涵蓋 65 關）。
+**54 照建議套用、20 調整後套用、5 記錄理由後跳過。**
+
+### 這一輪學到的（比逐條表更重要）
+
+- **「素材裡有沒有那句話」是點碑／改碑題型的存亡前提，而不是文案細節。**
+  `spot`／`fix` 的玩法是「從你已經看過的句子裡挑」，但有五關的 slips／fragments
+  一半是玩家在 Act 1 素材卡從沒讀過的新句子 —— 題型的前提整個不成立，
+  玩家只會困惑「這是哪來的」。**新增 spot／fix 關卡時，
+  material.text 必須逐句涵蓋 flow 裡的每一張紙條**，這比任何評分細節都先決。
+- **謎題挖掉的那一塊，必須就是被評分的那一塊。** `three-maxims-82` 的柱子磨掉第二句箴言，
+  primary check 卻只量第一句 —— 玩家填對了被問的那格，分數卻是別的地方給的。
+  這種錯位在資料上完全合法（rubric 與 flow 是兩份檔案），只有實際玩過才看得出來。
+- **同一關內兩段教學可以互相打臉，而且不會有任何測試攔下來。**
+  `effort-forge-15` 的旋鈕模擬演完「中火就夠」，下一步的刻印正解卻是 high，
+  錯誤回饋還寫著「思考火力要開高」。`wish-pool-52` 的「temperature 轉到 0 是保證」
+  與同畫面 `dated-notes.json` 的「設 0 也只是趨近確定、Claude Sonnet 5 會報錯」同框。
+  **sim／tradeoff／multi 這種「先給你看一段結論、再叫你作答」的題型，
+  結論與正解要放在一起讀過一遍。**
+- **C1 契約（一關恰好一條主檢查 ＋ 至多一條地基）會讓「故事說三件事、只評一件」變成常態。**
+  三條 findings（`three-maxims-82`／`endless-corridor-86`／`unclosing-door-78`）
+  都是同一件事：自由書寫模式下只滿足主檢查就能拿 S，跳過情境明講「唯獨缺了這幾條才會出事」的其餘部分。
+  引導模式不受影響（每個 slot 都要刻）。要真的修，得在 `checks.js` 寫複合檢查器
+  （像 `asksToCompact` 的 compact/keep/drop 三合一那樣）——**這是引擎工作，不是內容工作**，
+  而且 `requiresConfirmation` 有四關共用，改了要重驗四關。
+- **`workshop` 題型的組裝樣板是寫死的工具呼叫語法，換皮換不掉。**
+  `handover-table-87` 的 labels 已經把「工具」換成「欄位」，
+  但 `callLine()` 仍然吐『呼叫「目前做到哪」，停在哪一間＝第 7 間。』——
+  欄位不是函式，這段話讀起來不成立。而且 `order` 題型有
+  「排好的字＝`c.sample`」的斷言、`workshop` 沒有，所以工坊組出來的字
+  跟自由書寫的「看看範例」可以是兩篇不同的文章而測試全綠。
+  **不是在教工具呼叫的關卡就不要用 `workshop`**（這一關改成 `order` 之後，
+  四片石版排好即逐字等於示範解答，漏掉的第三欄也順勢回來了）。
+- **`challenge.source` 必須屬於它的主技能（測試有守），所以「換一條正確的出處」
+  一定會連動到 `skill-codex-v2.json`。** `wish-pool-52` 教 temperature，
+  掛的卻是 xAI「網頁搜尋限定網域」——換成 Google Model parameters 時，
+  同時要把那一列加進 `param-not-plead.sources` 並補 `masterRef`（76），
+  否則 `[wish-pool-52] source 屬於它所教技能的出處` 會紅。
+- **錯的深連結比沒有深連結更傷。** Magistral 模型卡的 `#sampling-parameters`
+  被拿來佐證「模型卡建議附上身分設定」，那一節只有 `top_p`／`temperature`。
+  查不到正確錨點時，正確的動作是**降回頁面層 ＋ 寫下誠實理由**，
+  不是猜一個新的片段；`expected-counts.json` 的 `skillRowsWithoutAnchor`
+  跟著 75 → 76，並在 `why` 裡寫清楚「這是把一條錯的深連結改成誠實的頁面層引用，
+  不是把驗證拿掉」（那個數字的契約明講「只准往下走」，所以往上一定要留下理由）。
+- **快速填入有兩條互相拉扯的斷言**：`2–4 片`、以及
+  `全部按下去 ≠ 示範解答` 但 `全部按下去必須過關`。
+  補一片「交代任務」讓掛零的地基分回來時，很容易一腳踩進上限、
+  另一腳踩進「等於答案卷」——正解是**併進既有的某一片**（多一行），
+  而不是新增一片。
+- **合尺板的空狀態會把引擎的「字太少了」複述 N 次。**
+  `runCheck('')` 對每一把尺回同一句通用證據；合尺板每一把尺底下都畫它，
+  於是玩家開場看到的是三到四行一模一樣的廢話。
+  **「還沒開始」不是「做錯了」**——這種狀態應該只呈現「這把尺要量什麼」。
+
+### 逐條處置表
+
+| 關卡 | 嚴重度 | 位置 | 處置 | 說明 |
+|---|---|---|---|---|
+| dispatch-window-88 | high | scenario/material | **applied** | scenario/material 五張→三張，與 mission／material.text／三把工具一致 |
+| dispatch-window-88 | medium | flow slot 3 (workshop.stages[2] / order) | **adapted** | 工坊的四步（含排順序）是引擎寫死的，拿不掉；改成把順序講出理由：兩件互不相干、可同時派，先派最久的那一件（copy 的說明也改成「最久的一件」） |
+| diagnosis-bench-95 | high | clue / rubric primary check (diagnosesFailureCause) / coach 教學 | **adapted** | 沒有動檢查器（改 checks.js 會波及 coach 與回歸案例）；改走 reviewer 的備案：把素材補成真的含有那三類病因（「那個東西」＝資料沒給、表格逼它硬填、問下個月水位＝超出範圍），craft 補上「每一條再說出病因是哪一種」 |
+| diagnosis-bench-95 | high | material / spotFlow d2 | **applied** | 「閘門日誌」寫進委託本文，附註改成廠裡的名詞表（不再提素材裡沒有的「巡檢紀錄」） |
+| diagnosis-bench-95 | medium | material | **applied** | 處裡 → 處理 |
+| empty-handed-inspector-97 | high | flow slots (第 2、3 段標號) | **applied** | 四段標號改成第一／第二／第三／最後 |
+| sevenfold-door-96 | medium | tradeoffFlow rounds[1].verdicts.drop | **applied** | 「八百次就是一整個下午」→「八百次疊起來就是一整天的機器時間」 |
+| clashing-tablets-94 | medium | orderFlow (decisionTree 第二層與 else 分支) | **applied** | else 分支改成「排進明天的例行批次」，第二層（急件→當天寄出）才真的產生區別；sample／快速填入／orderFlow／coach 四處同步 |
+| wrong-door-91 | medium | flow slots / sample 不一致 | **adapted** | sample 補上開場那句委託；快速填入不是新增一片（上限 4 片）而是併進第一片 |
+| effort-forge-15 | high | sim（simFlow reasoning-effort 旋鈕模擬）vs. flow slots 最後一段／quickFills／sample | **applied** | 最後一段正解、快速填入、示範解答、rubric hint 與 checkOptions.example 全部 high → medium；high 降為錯誤選項並回饋「模擬剛剛才看到」；low 選項移除（它的教訓模擬裡已經演過） |
+| wordfork-12 | medium | sample／quickFills（第一段與第二段拼起來的完整句） | **applied** | 走 reviewer 建議的 (a)：任務句保留「語言」這個歧義詞，第二段才把它講死；順手改掉那個會誤導的干擾選項回饋 |
+| two-lampkeepers-18 | medium | material／sample／quickFills（『這本帳』／『下面的帳目』） | **applied** | material 補上那本收成帳的數字，sample／快速填入／slot 的任務句後面實際附上帳目 |
+| parts-wall-16 | low | sample／quickFill「掛資料」（資料段） | **applied** | sample／flow／coach 的資料句改回素材裡真的有的「水井這週停用三天。」（namesComponents 只有這一關在用，所以 coach 也跟著改） |
+| verify-spring-24 | high | sample / flow slot 1 / constraintFlow piece(read) | **applied** | 三處「地圖室裡的三張筆記」→「泉守推來的三張筆記」 |
+| well-pause-22 | medium | scenario | **applied** | scenario「數字互相打架」→「說法兜不起來」（走 reviewer 的 (a)） |
+| well-pause-22 | medium | flow slot 3（第三段：第二桶推翻了第一桶，怎麼辦？） | **applied** | 配合 (a)：「取平均值」錯誤選項改成「兩桶各算一半可信度，含糊帶過」，回饋跟著改 |
+| well-pause-22 | low | flow（multiFlow.handoffs[0].text） | **applied** | 過場文字的第二桶改成與素材逐字相同的「偏濁，帶鐵鏽味」 |
+| three-wells-25 | medium | scenario | **applied** | scenario 改成「加總只算過一遍」，動機對準「同一題重複驗算」而不是調解三口井 |
+| working-draft-19 | low | flow（fixFlow.fragments 的 longwind 片段） | **adapted** | 沒有改 mission，而是把整份弱草稿寫進 material（任務句／示範／那段冗長思路），與 [19][20][21] 同一條原則：Act 1 看到的＝Act 3 要處理的 |
+| shout-stone-11 | high | material vs flow(spotFlow.slips) / craft | **applied** | material 補成完整委託（雜訊句 ＋ 兩句有資訊的 ＋ 那句帶長度的），與 spotFlow 的六張紙條逐句對得上 |
+| nodding-courier-09 | medium | material vs flow(spotFlow.slips) / craft | **applied** | s2（門牌與取水時間）、s5（同一張紙、最多 12 行）併進 material |
+| nightwatch-relief-07 | medium | flow(fixFlow.fragments) — id: story | **adapted** | 走 (a) 而不是 (b)：那段身世寫進交班紙（craft 本來就寫著「補過頭的身世就整段拿掉」，只是素材沒給） |
+| mimic-mirror-04 | medium | rubric(hasFewShot, primary) / sample / primarySkillId="prefill-completion" | **adapted** | 查了官方出處：Google 的 completion strategy 本來就是「幾組成對範例 ＋ 最後一組留白」，sample 正是那個形狀，所以不改 rubric 也不改 skillId；改的是 clue —— 補一句「最後一組只寫到『輸出：』就停手」，把 format-03（部分輸入）那一半講明 |
+| lost-automaton-03 | low | clue / flow slot1 | **adapted** | clue 換成這一關素材自己的例子（不要走左邊→請靠右走）；南門北門改成在 scenario 裡先交代（不動 slot 選項） |
+| triple-echo-124 | medium | mission ＋ constraint gauge | **applied** | mission「三把尺」→「每一把尺」 |
+| one-pour-cast-127 | medium | mission ＋ constraint gauge | **applied** | 同上 |
+| one-pour-cast-127 | medium | material | **applied** | material 補上六段回報的實際內容，補給／航路／天氣三類看得出出處 |
+| unwatched-forge-128 | high | scenario ＋ material vs flow(workshop.tools) | **applied** | 走 (a)：scenario／material 改成三把工具，其中一把跟今晚這件事無關 |
+| one-line-left-129 | high | sample | **applied** | 那句從別關抄來的 ctx-pruning 範例拿掉，換成素材裡真的有的「開場那段舊客套話整段拿掉」（asksToCompact 仍然滿分） |
+| who-can-mend-130 | medium | flow reverseFlow.tags/parts vs slots | **applied** | stop 收進最後一段的正解與 sample；settled 改寫成真的涵蓋四塊 |
+| who-can-mend-130 | medium | flow reverseFlow.lead | **applied** | lead 改成「另外掛著的一份成功範例——不是牆上那三版」 |
+| still-to-reel-132 | low | flow orderFlow piece p4 / sample | **applied** | p4 主體改成木牌本身（呼應 p2 的無人畫面）；順手修掉 p3／p4 標籤對調的既有錯誤 |
+| three-machines-133 | high | scenario ＋ clue vs flow tradeoffFlow.rounds | **adapted** | 走 (a) 但保住區域主題：scenario 改成「這片土地上三台機器的守則卡——今晚攤開的是其中兩張」（標題「三台機器」不動），clue 收成「只有身分那一件會翻面，另外兩件哪一張卡都要寫」 |
+| full-cast-theatre-126 | low | clue ＋ flow orderFlow | **applied** | clue 補上「中間才輪到『請它做什麼』」 |
+| stale-tray-104 | medium | material | **applied** | material 第一句範圍排除第三份，第三份改寫成「雖然也是上個月的，卻是唯一寫著初始數量的一份」 |
+| storyboard-wall-111 | medium | quickFills | **adapted** | 補「場景」片、運鏡片改成「鏡頭緩緩推近，構圖用中景」；上限 4 片，所以把委託句併進最後一片（順手補上原本掛零的 assignsTask） |
+| storyboard-wall-111 | low | material / flow slot order | **applied** | material 改寫成與六片實際石版一致（動作併進主體、補上那片委託牌） |
+| twice-copied-101 | low | title / npc | **applied** | 標題／NPC 改成「先抄一遍才敢答」 |
+| twice-copied-101 | low | flow slot (spotFlow p3) | **applied** | p3 改成「先把整張收成帳的品項重列一次」，因果貼回「抄一遍」 |
+| two-faced-pillar-115 | high | flow/source（tradeoffFlow.rounds[1].card.sources ＋ challenge.source） | **adapted** | 查不到 Magistral 頁上真的講身分設定的錨點 → 不亂猜一個新錨點，改成頁面層 ＋ `anchor:"none"` ＋ 誠實理由；challenge.source 與卡片同步；`expected-counts.json` 的 75 → 76 一起改並寫下為什麼 |
+| same-name-dial-117 | medium | flow slot（simFlow.ask） | **adapted** | sim 真的有三台機器（第三台沒有這一格），所以不是改 ask 而是把第三台鋪陳進 material 與 scenario |
+| breathless-stone-112 | low | quickFills | **applied** | 補一片「交代任務」；為了不讓四片剛好等於示範解答，最後一片多一句節奏交代 |
+| patched-robe-121 | low | npc / scenario | **applied** | npc 改成「一件貼滿補丁的舊袍」 |
+| sealed-scale-118 | low | npc / scenario | **applied** | npc／scenario 的「一整排」收成「幾個」 |
+| rewritten-stele-123 | low | flow slot（reverseFlow.settled） | **applied** | settled 改寫成涵蓋四塊（含「找不到就老實說」） |
+| two-faced-pillar-116 | low | flow slot（tradeoffFlow.rounds[0].card.sources） | **applied** | 卡片補上但書：只要呼叫過工具，推理內容依官方規定要整段留著 |
+| draft-review-wheel-32 | high | flow multiFlow.handoffs[0].text（校準師轉出來的第一格草稿／神諭第一次回話） | **adapted** | 走 (a)：草稿補長到真的 89 字（超過 80 字的標準），括號同時寫出「超過標準」與「沒寫出是哪三天」 |
+| irreversible-gate-34 | medium | flow workshop.tools[1]（"set" 閘門_調高度）＋ material | **applied** | set 工具補上「閘號」參數 ＋ 新增「二號閘」值石，呼叫句變成「閘號＝二號閘、目標高度＝60 公分」；miss 提示跟著改 |
+| irreversible-gate-34 | low | clue | **applied** | clue 的「八把鑰匙、兩把沒備份」改成「有一把沒有備份」 |
+| laden-desk-27 | low | flow constraintFlow.gauges（第 2 支尺 putsQuestionLast）與 rubric | **skipped** | C1 契約（test-rubric.mjs:6190）規定神廟恰好一條主檢查 ＋ 至多一條地基，rubric 上不准有雜項 —— 加 putsQuestionLast 會直接違約，而且會動到 pass 門檻。這是全部合尺神廟共通的架構（完全資訊、單點評分），不是這一關的 bug。留作後續：要嘛結果面板另外列出「你還多做到的」，要嘛改 C1 |
+| tool-forge-33 | low | craft 與 flow fixFlow.fragments（desc 片段的正確替換） | **applied** | craft 拿掉「關鍵規則放最前面」（正解沒有這樣排），改成「把邊界也寫進去」 |
+| three-maxims-82 | high | rubric（主檢查 setsPersistence）／scenario／craft | **adapted** | 複合檢查器＝改 checks.js（本輪範圍外，且 C1 不准加 rubric 列）。改的是更根本的錯位：柱子磨掉的是第二句箴言、評分卻只量第一句 —— 把磨掉的那一句換成被評分的那一句（做到完全解決才交還），另外兩句留在素材上讓玩家抄進去。flow 的段落標號同步 |
+| endless-corridor-86 | high | rubric（主檢查 setsPersistence）／scenario／material | **skipped** | 同 [51] 的架構限制，但這一關沒有錯位可修：scenario／clue 本來就把 persistence 擺在第一輪、回報節奏擺在第二輪，multi 流程也強制兩輪都走完。要真的評到第二輪的東西，得在 checks.js 加一個複合檢查器 —— 記為後續 |
+| handover-table-87 | high | flow（kind: workshop，composition template）／sample | **applied** | kind 由 workshop 改成 order（reviewer 的首選）。四片石版＝c.sample 的四行，排好即逐字等於示範解答；漏掉的第三欄「卡住的地方」跟著回來；workshop 區塊整個移除 |
+| two-slots-76 | medium | flow slot 2（tradeoff round 2 card / verdicts） | **adapted** | 不改被仿冒的那一組標籤（改掉就沒有伏筆了），而是把伏筆接完：兩邊判詞都給出「換成這一封信裡絕不會出現的字元組合」的具體示範，settled 補上「每一封都要重看一次」 |
+| guest-in-disguise-79 | low | flow（workshop.stages 第 3 步 order 排序 / workshop.tools 的 miss 文案） | **adapted** | 工坊的排序步驟拿不掉（引擎寫死四步），照 reviewer 的次選：把理由寫進題目本身 —— 「先測哪一種？照案例紙上出現的先後排。」 |
+| unclosing-door-78 | low | rubric（主檢查 requiresConfirmation）／scenario | **skipped** | 同 [51][52]：requiresConfirmation 是四關共用的檢查器，改成複合式要動 checks.js 並重驗四關。記為後續 |
+| forge-door-66 | high | material／flow（workshop 第2步 params）／sample | **applied** | 1310 寫進這一關自己的素材（「西元 1310 年立的那一份」），填錯時的提示改成對得上那句話 |
+| crowded-bench-68 | high | flow（workshop 第4步 rules）／sample | **applied** | 規矩正解／快速填入／示範解答的「只留 3 把」全部改成 2 把 |
+| twice-carved-64 | medium | flow（spotFlow ask 與 s5） | **applied** | ask 改成「哪幾句有問題 —— 寫重複了，或者該寫卻沒寫？」，同時涵蓋重複與遺漏 |
+| two-seals-63 | low | clue | **applied** | clue 收窄成「這一批要直接進帳本」，跟 tradeoff 的 settled 同一個語氣 |
+| gear-mesh-71 | low | flow（orderFlow order） | **adapted** | 沒有放寬排序判定（會動到 order 的契約），改成 reviewer 的次選：craft 補一句「先寫有先後的，再寫可以並行的，讀的人才不會漏看依賴」 |
+| priority-stair-42 | high | scenario ↔ mission/material | **applied** | scenario 整段改寫成規矩優先序的鋪陳，拿掉五段式結構的敘述 |
+| scribe-longtable-49 | high | craft ↔ orderFlow.order | **applied** | craft 拿掉「範例」（桌上沒有那一片） |
+| scribe-longtable-49 | medium | scenario ↔ flow.orderFlow.ask | **applied** | scenario「八張段落石版」→「四片」，並把「範例躺在資料堆裡」改成「收工那一塊還是空的」 |
+| oracle-workshop-36 | high | scenario/material ↔ workshop.tools/rules | **applied** | 走 (a)：肇事案例改成「把明天的天氣拿去翻昨天的帳本」，正確規矩正好修得到；四把工具的說法一併收成三把 |
+| four-elements-mirror-44 | medium | mission ↔ material | **applied** | mission 的「9 個字」→「六個字」 |
+| four-elements-mirror-44 | low | rubric | **skipped** | 同 [49]：C1 契約不准在 rubric 上加第三列。四要素由刻印的四個 slot 強制，畫面上的 rubric 清單也已經誠實列出被評的是哪一條 |
+| dial-room-43 | medium | scenario/material ↔ craft/quickFills/sample | **adapted** | 走 reviewer 的第二個選項（拿掉「火力」那面牆）而不是加句子 —— 這一關的時代註記本來就寫著「一次只轉一個旋鈕」，再塞一個 effort 反而衝突 |
+| dial-room-43 | low | sample / flow slot 2 | **applied** | sample／slot 拿掉 top_p=0.8，只留 temperature 設為 0；快速填入補一句「不必再多轉一個 top_p」 |
+| lintel-words-46 | medium | craft ↔ material/flow.spotFlow/slots | **applied** | craft 收成實際示範到的三種（角色、禁區、輸出語言） |
+| one-slot-window-47 | low | flow.fixFlow (tail fragment) | **applied** | 走 (a)：tail 那句寫進 material 與 starter 的弱寫法裡，它才真的是「被黏住的一部分」 |
+| two-grammar-hall-50 | low | scenario/craft ↔ flow.tradeoffFlow.sides | **adapted** | 沒有新增第三個分支（要多一輪素材與判詞），照 reviewer 的次選在 clue 補上原因：方括號跟一般文字裡的括號長得太像，通常第一個被刷掉 |
+| lintel-words-46 | low | 跨關卡（lintel-words-46／one-slot-window-47／six-lantern-48／scribe-longtable-49／two-grammar-hall-50） | **skipped** | 五座骨架神廟共用同一份停水公告是刻意的（一次只換一個變因，認知負荷最低），reviewer 自己也寫明這一點。換掉其中一兩關會讓五關的素材與示範解答全部要重對，收益低於風險 |
+| wish-pool-52 | high | 其他（rubric 主檢查 techniqueId="params-01" 對應的 skill "param-not-plead" 的官方出處，顯示於第二幕神諭刻文與過關後 Act4「本關技巧的官方出處」連結） | **applied** | 出處換成 Google 的 Model parameters（同時補進 param-not-plead 的 sources ＋ masterRef 76，因為 challenge.source 必須屬於主技能）；craft 與 tradeoff 判詞改掉「這是保證」的絕對說法，與同畫面的時代註記不再打臉 |
+| empty-adjective-60 | high | material | **applied** | material 補上真正要重寫的告示原文，並讓「各位鄉親好！」這句樣板句真的重複三次 |
+| two-rulers-57 | high | material | **applied** | material 補上航班說明節錄與「原文共 640 字，已經算好」，sample 裡那個數字不再憑空冒出來 |
+| for-newcomer-59 | high | material | **applied** | 走 (a)：素材補上 5 月 20 日與 3,000 元，過場的第一版結論改寫成真的對應這份素材（並點名那兩個數字被省掉了） |
+| abacus-count-56 | medium | sample | **adapted** | 「紀錄筆數是 14 筆」不是刪掉就好 —— 它同時是 spotFlow 一張紙條的正解，刪了 sample 就對不上。改成素材裡真的有的東西：三份稿各自寫的字數不用理會，一律以 812 字為準 |
+
+### 留給後續
+
+1. **複合檢查器**（`checks.js`）：`setsPersistence` 與 `requiresConfirmation` 都只量情境所講的一半。
+   要嘛比照 `asksToCompact` 寫成三合一，要嘛放寬 C1 讓神廟掛得起第二條低權重檢查。
+2. **合尺神廟的「多做的沒有被承認」**：合尺板要求全部亮才給手掌印，但結果面板只列 rubric 上那兩條。
+3. **`scripts/test-rubric.mjs:8416` 的既有 `TypeError`**：`platformOpenUrl('instagram', …)` 回 `null`
+   （Phase 31 之後 Instagram 沒有網頁入口是刻意的），那一行沒有防呆，整支測試因此跑不到終點——
+   後面約 3,000 行從來沒有被執行過。連同分享那 51 條漂掉的斷言一起翻面，是下一輪的第一件事。

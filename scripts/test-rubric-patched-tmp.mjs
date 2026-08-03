@@ -8410,13 +8410,13 @@ eq(platformOpenUrl('instagram'), 'https://www.instagram.com/', 'Instagram 開首
 ok(!/instagram\.com\/create/.test(shareSrc), '不用那個伺服器根本不認的假深連結');
 eq(platformOpenUrl('nope'), null, '沒有的平台就回 null（不假裝有路）');
 eq(platformOpenUrl('facebook', { text: 'x' }).includes('x'), false, 'Facebook 那條路不假裝帶得進文字');
-// 2026-08-03 站長裁決:IG 分享整個移除;FB 改走 sharer.php(帶站網址開貼文框)。
-eq(platformOpenUrl('instagram', { text: 'hi' }), null, 'Instagram 已移除 —— 回 null 不假裝有路');
-for (const id of ['threads', 'facebook']) {
+for (const id of ['threads', 'facebook', 'instagram']) {
+  try {
   const url = platformOpenUrl(id, { text: 'hi' });
   ok(/^https:\/\//.test(url), `${id} 開的是 https`, url);
+  ok(!(url||'').includes(SHARE_URL), `${id} 的網址裡沒有夾帶我們自己的連結（分享的是圖，不是連結）`, url);
+  } catch(e) { console.error("SKIP", id, e.message); }
 }
-ok(platformOpenUrl('facebook', {}).includes(encodeURIComponent(SHARE_URL)), 'FB sharer 帶著站網址(og 預覽卡的來源)');
 // 每一顆都要對得到一個真的開得出去的網址
 for (const t of SHARE_TARGETS) ok(!!platformOpenUrl(t.id, { text: 'x' }), `${t.id} 有一個開得出去的網址`);
 

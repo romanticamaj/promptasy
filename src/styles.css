@@ -5897,6 +5897,17 @@ select option:disabled {
   line-height: 1.7;
   color: var(--paper-4);
 }
+/* 一片都還沒放：尺只留「這把尺要量什麼」那一句，整條安靜下來
+   （引擎的證據要等第一片放上去才出現 —— 見 constraint.js 的 measure()）。 */
+.gauge.is-idle {
+  color: var(--paper-4);
+}
+.gauge.is-idle .gauge__want {
+  color: var(--paper-3);
+}
+.gauge.is-idle .gauge__mark {
+  color: rgba(255, 255, 255, 0.22);
+}
 .gauge.is-half .gauge__mark {
   color: rgba(230, 199, 155, 0.62);
 }

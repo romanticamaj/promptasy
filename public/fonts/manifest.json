@@ -75,7 +75,7 @@
     "src/world/reactive.js",
     "src/world/world.js"
   ],
-  "corpusHash": "a5b0056af7fd8279",
+  "corpusHash": "c03aa0c57029e3d8",
   "coverage": {
     "latin": [
       32,
@@ -922,6 +922,7 @@
       24615,
       24616,
       24618,
+      24656,
       24674,
       24687,
       24688,
@@ -1305,6 +1306,7 @@
       27927,
       27934,
       27963,
+      27965,
       27966,
       27969,
       28010,
@@ -1315,6 +1317,7 @@
       28085,
       28120,
       28129,
+      28132,
       28136,
       28145,
       28151,
@@ -2550,7 +2553,7 @@
       "id": "serif-tc",
       "family": "Arcade Serif TC",
       "file": "arcade-serif-tc.woff2",
-      "bytes": 670672,
+      "bytes": 672140,
       "role": "cjk",
       "variable": true,
       "weight": null,
@@ -2561,7 +2564,7 @@
           "default": 400
         }
       },
-      "requested": 1854,
+      "requested": 1857,
       "missing": 0,
       "source": "NotoSerifTC.ttf",
       "author": "Google (Noto Project)",
@@ -2573,7 +2576,7 @@
       "id": "sans-tc",
       "family": "Arcade Sans TC",
       "file": "arcade-sans-tc.woff2",
-      "bytes": 511412,
+      "bytes": 511748,
       "role": "cjk",
       "variable": true,
       "weight": null,
@@ -2584,7 +2587,7 @@
           "default": 400
         }
       },
-      "requested": 1854,
+      "requested": 1857,
       "missing": 0,
       "source": "NotoSansTC.ttf",
       "author": "Google (Noto Project)",
@@ -2593,5 +2596,5 @@
       "url": "https://github.com/google/fonts/tree/main/ofl/notosanstc"
     }
   ],
-  "totalBytes": 1505320
+  "totalBytes": 1507124
 }

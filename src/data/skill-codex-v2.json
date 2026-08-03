@@ -2926,12 +2926,20 @@
         "clear-constraint"
       ],
       "masterRefs": [
-        10
+        10,
+        76
       ],
       "oneLiner": "「請每次都一樣」是願望，`temperature=0` 才是保證。",
       "legacyTechniqueId": null,
       "legacyTechniqueSource": null,
       "sources": [
+        {
+          "vendor": "Google",
+          "docName": "Prompt design strategies（Model parameters）",
+          "url": "https://ai.google.dev/gemini-api/docs/prompting-strategies#model-parameters",
+          "masterRef": 76,
+          "anchor": "already"
+        },
         {
           "vendor": "xAI",
           "docName": "Web Search",
@@ -5511,9 +5519,10 @@
         {
           "vendor": "Mistral",
           "docName": "Magistral-Small-2509 模型卡",
-          "url": "https://huggingface.co/mistralai/Magistral-Small-2509#sampling-parameters",
+          "url": "https://huggingface.co/mistralai/Magistral-Small-2509",
           "masterRef": 277,
-          "anchor": "heading"
+          "anchor": "none",
+          "anchorNote": "模型卡建議的身分設定寫在對話樣板那一段，該段在這一版頁面上沒有可以直接連過去的錨點（原本掛的 #sampling-parameters 指到的是取樣參數，與身分設定無關）"
         },
         {
           "vendor": "Mistral",
