@@ -1060,11 +1060,8 @@ export function createPromptConsole({
     if (guideLeadEl) {
       guideLeadEl.innerHTML =
         primary && primary.src
-          ? `抄寫人用白話刻下這幾段。${sourceBook(primary.src, {
-              label: SOURCE_LABEL,
-              extra: SOURCE_NOTE,
-            })}`
-          : `抄寫人用白話刻下這幾段。${infoTip(SOURCE_NOTE, { label: `什麼是${SOURCE_LABEL}` })}`;
+          ? `抄寫人用白話刻下這幾段。${sourceBook(primary.src, { label: SOURCE_LABEL })}`
+          : '抄寫人用白話刻下這幾段。';
     }
     guidanceEl.innerHTML = primary
       ? `<li class="glyph glyph--primary reveal" style="--i:3">

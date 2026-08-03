@@ -6654,7 +6654,11 @@ select option:disabled {
  */
 .infotip--book .infotip__bubble {
   left: 0;
-  transform: translate(0, 4px);
+  /* 書的氣泡一律往下開：它多半出現在段落開頭（第二幕導言、圖鑑條目首行），
+     往上開會撞到面板頭與幕指示器被裁掉（實際回報過的 bug）。 */
+  bottom: auto;
+  top: calc(100% + 8px);
+  transform: translate(0, -4px);
 }
 /* `.infotip` 那一組打開時的位移是 `translate(-50%)`，特異度跟這裡一樣、
    又寫在後面 —— 所以這裡多掛一個 `.infotip` 把它壓過去（不然書的氣泡

@@ -24,7 +24,7 @@ import { bindInfoTips, createOverlay, esc, on, safeRich, sourceBook } from '../u
 import { evaluate, formatScore } from '../challenges/rubric.js';
 import { CHECKS } from '../challenges/checks.js';
 import { createStele } from './stele.js';
-import { ACTS, GUIDE_TITLE, SOURCE_LABEL, SOURCE_NOTE, actLabelText } from './console.js';
+import { ACTS, GUIDE_TITLE, SOURCE_LABEL, actLabelText } from './console.js';
 
 const GRADE_LABEL = { S: '完美', A: '優秀', B: '良好', C: '通過' };
 
@@ -299,10 +299,7 @@ export function createPractice({
         ${ins.how ? `<p class="glyph__how">${esc(ins.how)}</p>` : ''}
         ${
           ins.source
-            ? `<p class="srcrow">${sourceBook(ins.source, {
-                label: SOURCE_LABEL,
-                extra: SOURCE_NOTE,
-              })}</p>`
+            ? `<p class="srcrow">${sourceBook(ins.source, { label: SOURCE_LABEL })}</p>`
             : ''
         }
       </div>
