@@ -6652,6 +6652,24 @@ select option:disabled {
  * 氣泡照 ⓘ 的規矩置中就會有一半跑到面板外面被裁掉。
  * 所以書的氣泡靠左長；長在右欄（側頁籤）的那幾本反過來靠右。
  */
+/*
+ * 氣泡打開時把「含著它的那一行」整個抬到最上層。
+ *
+ * 為什麼需要這一手：`.reveal` 的入場動畫結束後 fill-mode 會留下 transform，
+ * 非 none 的 transform 讓底下每個段落各自成為 stacking context ——
+ * DOM 順序在後的段落（craft 引言、刻文本體）就算 z-index 沒設，
+ * 也會畫在前一行氣泡的**上面**（實際回報過：氣泡被底下的文字穿透）。
+ * 把 z-index 設在氣泡自己身上救不了（它被關在自己那一行的 context 裡），
+ * 要抬就要抬整行。:has() 在目標瀏覽器（Chrome/Edge）都支援。
+ */
+.reveal:has(.infotip.is-open),
+.reveal:has(.infotip:focus-within),
+:where(h1, h2, h3, h4, h5, p, div, li, span):has(> .infotip.is-open),
+:where(h1, h2, h3, h4, h5, p, div, li, span):has(> .infotip:focus-within) {
+  position: relative;
+  z-index: 45;
+}
+
 .infotip--book .infotip__bubble {
   left: 0;
   /* 書的氣泡一律往下開：它多半出現在段落開頭（第二幕導言、圖鑑條目首行），
