@@ -6791,20 +6791,22 @@ console.log('\n▸ 契約鍛冶場與護欄崗（課程 v2 · Phase F）');
     memory.clear();
   }
 
-  /* --- 配樂：契約鍛冶場有自己的一首了；護欄崗仍然走合成 pad（護欄 3） --- */
+  /* --- 配樂：十二區全數有自己的音檔（護欄崗於 2026-08-03 補齊）--- */
   {
     ok(Boolean(MOODS.toolcraft), '契約鍛冶場仍然留著自己的合成配樂性格（檔案抓不到時的備援）');
     ok(!SYNTH_ONLY_REGIONS.includes('toolcraft'), '契約鍛冶場已經有自己的配樂音檔（issue #3）');
     ok(Boolean(TRACKS.toolcraft), '契約鍛冶場在配樂表上有自己的一首');
     ok(Number.isFinite(TRACKS.toolcraft.gain), '契約鍛冶場的配樂記著把它拉到 -20 LUFS 的 gain');
     for (const [regionId, zh] of [['wards', '護欄崗']]) {
-      ok(SYNTH_ONLY_REGIONS.includes(regionId), `${zh}誠實登記成「還沒有配樂音檔」`);
-      ok(!TRACKS[regionId], `${zh}沒有音檔條目（不假裝有一首）`);
-      ok(Boolean(MOODS[regionId]), `${zh}有自己的合成配樂性格`);
+      ok(!SYNTH_ONLY_REGIONS.includes(regionId), `${zh}已有自己的配樂音檔（The Unclosing Door）`);
+      ok(Boolean(TRACKS[regionId]), `${zh}在配樂表上有自己的一首`);
+      ok(Number.isFinite(TRACKS[regionId].gain), `${zh}的配樂記著把它拉到 -20 LUFS 的 gain`);
+      ok(Boolean(MOODS[regionId]), `${zh}仍留著自己的合成配樂性格（備援）`);
       for (const other of Object.keys(MOODS).filter((k) => k !== regionId)) {
         ok(MOODS[regionId].root !== MOODS[other].root, `${zh}的根音與 ${other} 不同（不是拿別區的來墊）`);
       }
     }
+    eq(SYNTH_ONLY_REGIONS.length, 0, '十二區全部有音檔 —— 合成專用清單目前是空的（機制留著給未來新區）');
   }
 
   /* ------------------------------------------------------------------ *

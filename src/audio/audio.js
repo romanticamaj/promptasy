@@ -623,6 +623,15 @@ export const BGM_TRACKS = Object.freeze({
     lufs: -14.1,
     gain: 0.507,
   }),
+  wards: Object.freeze({
+    region: 'wards',
+    file: 'bgm_wards.m4a',
+    peak: -3.7,
+    title: 'The Unclosing Door',
+    mode: 'A Phrygian',
+    lufs: -13.2,
+    gain: 0.4571,
+  }),
 });
 
 /**
@@ -639,9 +648,10 @@ export const BGM_TRACKS = Object.freeze({
  *
  * issue #3 交付了六首（量器坊 / 契約鍛冶場 / 減法之庭 / 校驗場 / 觀象臺 / 分歧之廳），
  * 所以那六個 id 已經搬進 `BGM_TRACKS`；這條路走了一遍，證明它真的只要改一行。
- * 現在只剩護欄崗 —— 它是沉書檔案庫北緣的加建院落，還沒有自己的一首。
+ * 護欄崗的《The Unclosing Door》也在 2026-08-03 補齊 —— 十二區至此全部有自己的音檔，
+ * 這份清單目前是空的，但機制留著：任何新區域上線時先進這裡，音檔到了再搬走。
  */
-export const SYNTH_ONLY_REGIONS = Object.freeze(['wards']);
+export const SYNTH_ONLY_REGIONS = Object.freeze([]);
 
 /**
  * 鄰區：走過一座橋就到得了的地方（中央高原是樞紐，四片土地各自接一條橋）。

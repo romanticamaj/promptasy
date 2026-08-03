@@ -62,6 +62,7 @@ attack transient 的 pad，音效是全場唯一的瞬態來源，跳出來一�
 | `audio/bgm_refinery.m4a` | Proving Yard | 校驗場（refinery） | Gary Hsieh，由 SUNO.ai 輔助生成（原創授權本專案使用） |
 | `audio/bgm_sight.m4a` | Observatory Terrace | 觀象臺（sight） | Gary Hsieh，由 SUNO.ai 輔助生成（原創授權本專案使用） |
 | `audio/bgm_divergence.m4a` | Hall of Divergence | 分歧之廳（divergence） | Gary Hsieh，由 SUNO.ai 輔助生成（原創授權本專案使用） |
+| `audio/bgm_wards.m4a` | The Unclosing Door | 護欄崗（wards） | Gary Hsieh，由 SUNO.ai 輔助生成（原創授權本專案使用） |
 
 護欄崗（wards）還沒有自己的一首 —— 它誠實地登記在 `SYNTH_ONLY_REGIONS` 裡，走合成 pad。
 
