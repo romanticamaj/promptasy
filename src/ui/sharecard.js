@@ -110,11 +110,11 @@ export function shareCaption(model = {}) {
  *   所以直接寫新的網域，少跳一次。沒登入的話會先到登入頁，登入完自己回到這一頁。
  * · `facebook` —— 沒有任何帶得動內容的撰寫入口（`sharer.php` 只吃連結），
  *   所以就開首頁，讓玩家在自己已經登入的帳號裡點開貼文框。
- * · `instagram` —— 網頁版沒有任何「直接開撰寫」的網址（`/create/select/` 這種路徑
+ * · instagram —— 已依站長指示移除（網頁版無撰寫入口，體驗太差）
  *   伺服器根本不認，2026-07 實測會落回一般的首頁殼），所以老實開首頁，
  *   讓玩家自己按左邊那顆「建立」。圖是先下載好的，因為那個視窗只選得了檔案。
  *
- * @param {string} id threads / facebook / instagram
+ * @param {string} id threads / facebook
  * @param {object} [opts]
  * @param {string} [opts.text] 帶得進去的話（只有 Threads 收）
  * @returns {string|null} 沒有這條路就回 null（不假裝有）
@@ -124,9 +124,8 @@ export function platformOpenUrl(id, { text = '' } = {}) {
     case 'threads':
       return `https://www.threads.com/intent/post?text=${encodeURIComponent(text)}`;
     case 'facebook':
-      return 'https://www.facebook.com/';
-    case 'instagram':
-      return 'https://www.instagram.com/';
+      // 分享對話框（無需 app_id 的老入口）：自動開貼文框、帶上連結與 og 預覽
+      return `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(SHARE_URL)}`;
     default:
       return null;
   }
@@ -148,27 +147,18 @@ export const SHARE_TARGETS = [
   {
     id: 'threads',
     label: 'Threads',
-    carry: 'clipboard',
-    textVia: 'url',
-    // 剪貼簿只放圖 → 那一次 Ctrl+V 不會變成貼上文字
-    clipboard: 'image',
-    toast: '文字已經帶過去了 —— 在那邊的框裡按 Ctrl+V 貼上圖片。',
+    // 純文字分享（站長指示 2026-08-03）：文字直接帶進撰寫框，不再動剪貼簿
+    carry: 'none',
+    toast: '文字已經帶過去了 —— 檢查一下就能發。',
   },
   {
     id: 'facebook',
     label: 'Facebook',
+    // sharer.php 會直接開 FB 的貼文對話框（帶著遊戲連結與 og 預覽卡）；
+    // FB 政策禁止預填文字，所以那段話先複製好，玩家在框裡 Ctrl+V。
     carry: 'clipboard',
-    textVia: 'manual',
-    clipboard: 'image',
-    toast: '圖片複製好了 —— 點開貼文框按 Ctrl+V 貼上圖片，文字從上面那個框裡選起來複製。',
-  },
-  {
-    id: 'instagram',
-    label: 'Instagram',
-    // 網頁版的「建立」只選得了檔案，貼不上 —— 所以先下載，不假裝貼得上
-    carry: 'download',
-    textVia: 'manual',
-    toast: '圖片下載好了 —— 在那邊按「建立」，選剛剛那張圖，文字從上面那個框裡選起來複製。',
+    clipboard: 'text',
+    toast: '文字已複製 —— 貼文框裡按 Ctrl+V 貼上（連結預覽會自動帶上）。',
   },
 ];
 
@@ -183,7 +173,6 @@ const ICON_ATTRS = 'viewBox="0 0 24 24" width="20" height="20" aria-hidden="true
 
 export const SHARE_ICONS = {
   facebook: `<svg ${ICON_ATTRS}><path fill="currentColor" d="M9.1 23.7v-8H6.6v-3.7h2.5v-1.6c0-4.1 1.9-6 5.9-6 .4 0 1 0 1.5.1.4.1.8.1 1.1.2v3.3l-.7-.1h-.7c-.7 0-1.3.1-1.7.3-.3.2-.5.4-.7.6-.2.4-.4 1-.4 1.8V12h3.9l-.4 2.1-.3 1.6h-3.2v8.2c5.4-.8 10-5.8 10-11.9C23.4 5.4 18.1 0 11.5 0S-.5 5.4-.5 12c0 5.6 3.9 10.3 9.1 11.6z" transform="translate(.5)"/></svg>`,
-  instagram: `<svg ${ICON_ATTRS}><rect x="3" y="3" width="18" height="18" rx="5.2" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="12" r="4.1" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="17.2" cy="6.9" r="1.2" fill="currentColor"/></svg>`,
   threads: `<svg ${ICON_ATTRS}><path fill="currentColor" d="M12.2 24h-.02c-3.58-.02-6.33-1.2-8.18-3.51C2.35 18.44 1.5 15.59 1.47 12.01v-.02c.03-3.58.88-6.43 2.53-8.48C5.85 1.2 8.6.02 12.18 0h.01c2.75.02 5.05.73 6.83 2.1 1.68 1.29 2.86 3.13 3.51 5.47l-2.04.57c-1.1-3.96-3.9-5.99-8.3-6.02-2.91.02-5.11.94-6.54 2.72C4.31 6.5 3.62 8.91 3.59 12c.03 3.09.72 5.5 2.06 7.16 1.43 1.79 3.63 2.7 6.54 2.72 2.62-.02 4.36-.63 5.8-2.05 1.65-1.61 1.62-3.59 1.09-4.8-.31-.71-.87-1.3-1.63-1.75-.2 1.36-.63 2.45-1.29 3.27-.89 1.11-2.14 1.71-3.73 1.8-1.2.06-2.36-.22-3.26-.8-1.06-.69-1.69-1.74-1.75-2.97-.07-1.19.4-2.28 1.33-3.08.88-.76 2.12-1.21 3.58-1.29 1.07-.06 2.08-.01 3.02.14-.13-.74-.38-1.33-.75-1.76-.51-.59-1.31-.88-2.36-.89h-.03c-.84 0-1.99.23-2.72 1.32l-1.74-1.17c.98-1.45 2.57-2.26 4.48-2.26h.04c3.19.02 5.1 1.98 5.29 5.39l.32.14c1.49.7 2.58 1.76 3.15 3.07.8 1.82.87 4.79-1.55 7.16C17.63 23.16 15.38 23.98 12.2 24Zm1-11.69c-.24 0-.49 0-.74.02-1.84.1-2.98.95-2.92 2.14.07 1.26 1.45 1.84 2.78 1.77 1.23-.07 2.82-.54 3.09-3.71a10.5 10.5 0 0 0-2.21-.22Z"/></svg>`,
   copy: `<svg ${ICON_ATTRS}><rect x="8.6" y="3.4" width="12" height="14.6" rx="2.2" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M15.4 20.6H5.6a2.2 2.2 0 0 1-2.2-2.2V7.4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>`,
   done: `<svg ${ICON_ATTRS}><path d="M4.5 12.8 9.6 18 19.5 6.6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
@@ -649,7 +638,7 @@ const KIND_LABEL = {
 export function createShareCard({ content, progression, ranksFile, onClose, onToast = null }) {
   const overlay = createOverlay({
     id: 'sharecard',
-    title: '分享你的刻印紀錄',
+    title: '刻印記錄',
     subtitle: '',
     onClose: () => api.close(),
   });
@@ -803,18 +792,13 @@ export function createShareCard({ content, progression, ranksFile, onClose, onTo
    * 一個畫面只有一個主角，其餘退成安靜的那一階。
    */
   function applySupport() {
-    const sys = overlay.body.querySelector('[data-sysshare]');
-    // 用假檔案問就夠了 → 開卡的第一幀就知道要不要露出這個入口
-    const supported = systemShareSupported(lastFile || SHARE_PROBE);
-    if (sys) sys.hidden = !supported;
+    // 系統分享鈕已依站長指示移除（2026-08-03）—— 複製鈕永遠是這一頁的主角。
     const copy = overlay.body.querySelector('[data-copy]');
-    if (copy) copy.classList.toggle('is-hero', !supported);
+    if (copy) copy.classList.add('is-hero');
   }
 
   /** 這個畫面的主角（開卡時焦點就落在它上面）。 */
   function heroAction() {
-    const sys = overlay.body.querySelector('[data-sysshare]');
-    if (sys && !sys.hidden) return sys;
     return (
       overlay.body.querySelector('[data-copy]') ||
       overlay.body.querySelector('[data-download]') ||
@@ -929,6 +913,25 @@ export function createShareCard({ content, progression, ranksFile, onClose, onTo
     const url = platformOpenUrl(target.id, { text });
     const ready = !!lastBlob;
 
+    // 純文字分享：什麼都不用備，直接開那一頁（文字已在網址裡）
+    if (target.carry === 'none') {
+      openTab(url);
+      onToast?.(target.toast, 'good');
+      return;
+    }
+
+    // 文字進剪貼簿 → 開那一頁（FB 不能預填文字，玩家在框裡 Ctrl+V）
+    if (target.carry === 'clipboard' && target.clipboard === 'text') {
+      const writing = navigator.clipboard?.writeText
+        ? navigator.clipboard.writeText(text).then(() => true, () => false)
+        : Promise.resolve(false);
+      openTab(url);
+      writing.then((copied) => {
+        onToast?.(copied ? target.toast : '複製不了文字 —— 從上面那個框選起來複製吧。', copied ? 'good' : 'warn');
+      });
+      return;
+    }
+
     // 這個瀏覽器不讓程式複製圖 → 那就走「存下來再選檔案」那條路（一樣帶得走圖）
     if (target.carry === 'clipboard' && !canCopyImage()) {
       const saved = downloadImage();
@@ -976,7 +979,6 @@ export function createShareCard({ content, progression, ranksFile, onClose, onTo
             <textarea class="sharecard__saybox" id="sharecard-say" data-caption rows="3" spellcheck="false"></textarea>
           </div>
           <div class="sharecard__acts">
-            <button class="btn btn--primary" type="button" data-sysshare hidden aria-label="把這張圖和這段話一起分享出去">分享圖＋文</button>
             <div class="sharecard__icons" data-targets>
               ${SHARE_TARGETS.map(
                 (t) =>
@@ -1025,33 +1027,6 @@ export function createShareCard({ content, progression, ranksFile, onClose, onTo
           // 沒有權限 / 瀏覽器不給 → 退回「下載」這條一定走得通的路
           else onToast?.('這個瀏覽器不讓程式寫剪貼簿，改用「下載」吧。', 'warn');
         });
-      });
-    }
-
-    /* --- 系統分享面板：唯一能把「圖片本身」交給那些 app 的路 --- */
-    const sysBtn = overlay.body.querySelector('[data-sysshare]');
-    if (sysBtn) {
-      sysBtn.addEventListener('click', () => {
-        if (!lastModel) return;
-        if (!lastFile) {
-          onToast?.('圖還在刻 —— 等一下再按一次。', 'warn');
-          return;
-        }
-        // 讀的是輸入框裡當下那段話（玩家改過的版本）—— 同步讀，手勢不會斷
-        const text = captionNow();
-        try {
-          // 注意：這一行前面不准有任何 await —— 手勢一斷，系統分享面板就開不起來
-          const p = navigator.share({ files: [lastFile], text });
-          if (p && typeof p.catch === 'function') {
-            p.catch((err) => {
-              // 玩家自己按取消不算失敗，什麼都不要說
-              if (err && (err.name === 'AbortError' || err.name === 'NotAllowedError')) return;
-              onToast?.('這台裝置沒接受這次分享 —— 改用「複製圖＋文」吧。', 'warn');
-            });
-          }
-        } catch {
-          onToast?.('這台裝置沒接受這次分享 —— 改用「複製圖＋文」吧。', 'warn');
-        }
       });
     }
 
@@ -1109,7 +1084,6 @@ export function createShareCard({ content, progression, ranksFile, onClose, onTo
       if (cap) cap.value = shareCaption(lastModel);
       // 開卡的第一幀就決定「分享圖＋文」在不在 —— 焦點才不會落在別的地方之後又被搶走
       applySupport();
-      overlay.setEyebrow('分享 · SHARE');
       // 副標留空：這句話已經在下面的說明裡，標頭少一行就能把高度讓給圖
       overlay.setTitle('分享你的刻印紀錄', '');
       overlay.resetScroll();
