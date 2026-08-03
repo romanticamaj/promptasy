@@ -2545,3 +2545,103 @@ console 與 practice 兩邊、四幕全部移除（`.act__kicker` 的節點與 `
 - 指示器高度 / 石頭 `min-height` 40px 一類的幾何斷言（Fix 6 收到 32px）。
 - 第二幕「主出處在刻文底下的 `.srcrow`」的位置斷言（Fix 3 搬到 `[data-guide-lead]`）、
   書的尺寸 14px / 外框 24px。
+
+---
+
+## 2026-08-03 · 站長三件事（第三輪）：結果列刻記置中 ／ 分享卡 v2 重排 ／ 那段話帶網址
+
+分支 `dev`。依現行工作模式**不跑測試套件**（過期斷言另記於下），
+以 headless 實拍 ＋ 實際輸出 PNG 逐張複審；`npm run build` ✓、`npm run fonts` ✓。
+
+### Fix 1 — 結果列最前面那三枚刻記沒有置中
+
+**根因（量出來的，不是眼睛看的）**：`.row__icon` 畫的是三個**文字符號**（`✓ ◐ ✕`），
+字族是 `var(--font-mono)`＝自架子集 `arcade-mono.woff2`。
+`public/fonts/manifest.json` 的 `missing` 清單裡有 **10003（`✓`）與 9680（`◐`）**——
+JetBrains Mono 原字型就沒有這兩個字，於是它們掉到**系統備援字型**：
+換一套字型就換一組 side bearing 與基線，圓框裡的符號因此偏左偏下。
+`✕`（10005）**有**在子集裡，所以只有它看起來是正的 —— 這正好對上站長截圖裡
+「✓ 與半圓歪、叉沒事」的現象。
+
+**修法**：不再靠字型。`src/ui/dom.js` 新增 `ROW_MARKS` ＋ `rowIcon(state)`——
+三枚刻記改成**行內 SVG**（viewBox 24×24、圖形一律以 (12,12) 為中心、零外部資產），
+`.row__icon` 改成 `display:flex` ＋ `line-height:1`，尺寸全部改用**自己的 font-size 當單位**
+（`width/height: 1.3em`、`.row__mark: .68em`）—— 置中變成幾何事實，
+型級再放大也不會跑掉。狀態語意補上 `role="img"` ＋ `aria-label`（通過／部分達成／未達成），
+外框的形狀（圓／圓角／方）與顏色三重編碼一格未動。
+兩個呼叫端一起換：`prompt/console.js`（正式關卡結果列）、`prompt/practice.js`（序章沒過的那幾列）。
+
+**驗證**：1280 與 390 兩個寬度，三種狀態的 SVG 中心與外框中心距離 **dx=dy=-0.008px**
+（改動前 `◐` 明顯偏左下）。截圖：`result-rows-1280.png` / `result-rows-390.png` /
+`crop-before.png` ↔ `crop-after.png`（5× 放大對照）。
+
+### Fix 2 — 分享卡跑版（v1 版面畫 v2 的世界）
+
+`drawCard()` 還在畫課程 v1：右欄「技巧已收集 x / **68**」＋「**五片土地**」一片一行、
+每行 28px。12 片土地會從 y=412 一路排到 748 —— **整片壓過頁腳、掉出 630 的畫布外**。
+
+**重排**（1200×630 不變，夜間檔案館 ＋ 刻印牌語言不變）：
+- **進度**改成 **`技法已收集 x / 130`**，數字由 runtime catalog 現算（`catalog.skills.length`），
+  已收集走 `progression.knowsSkill()`（＝`skillsV2` ∪ 舊技巧祖先對照，D2 不倒退），
+  和世界裡的知識式軟門檻同一把尺。
+- **土地封印**改成 **3 欄 × 4 列的印記格**（一格＝切角封印 ＋ 土地名），
+  欄數與列高由土地數現算（`pitch` 夾在 26px 以內，並保證離頁腳髮絲線 ≥34px），
+  之後再多一片也不會溢出；標題右邊補一格 **`N / 12 MASTERED`**。
+  已精通＝暖金面 ＋ 金框 ＋ 一枚金菱形（原本是 `◈` 字，同樣不在子集裡 → 改成**畫的**）。
+- **順手修掉三個 v2 的錯**：(a) `rankStats(progression, content.curriculum)` → `content.catalog`
+  （原本只認得舊五區，同一份存檔在卡上與 HUD／圖鑑會算出不一樣的稱號）；
+  (b) 技法列改成 **v2 技能優先**（`markFor()`：先查 `catalog.skill()` 再退回舊技巧）——
+  142 關裡有 **101 關沒有 legacy `teaches`**，原本通關後那一欄是空的；
+  `console.js` 分享時一併把 `skillIds: [challenge.primarySkillId]` 帶出來；
+  (c) 技法名稱的截斷寬度改成**先量右邊那個 id 有多寬**再算（長 id 會被壓字）。
+- 左欄「本次刻印」整塊上移 10px，第三條技法離頁腳從 26px 變成 38px。
+
+**驗證**：用**真的** `createShareCard()` 種一份存檔（77 / 130、Lv.10、3 片精通）開四種卡，
+輸出 `card-result.png` / `card-codex.png` / `card-mastery.png` / `card-finale.png`；
+另外壓兩個極端：`card-full.png`（12 片全精通 ＋ 130/130 ＋ 超長關卡名與技法名）與
+`card-fresh.png`（全新存檔 0/130、沒有 headline）。四張 ＋ 兩張都**沒有溢出、沒有壓字、沒有壓頁腳**。
+
+### Fix 3 — 那段話最後一行是網址（站長決定，WORLD.md 同步修訂）
+
+- `SHARE_URL` 從 `https://github.com/romanticamaj/promptasy`（帶著「部署後改」的 TODO）
+  換成站長指定的正式短寫法 **`https://garyhsieh.com/promptasy`**，TODO 一併結案。
+- `shareCaption()` 從「世界的說法 ＋ 品牌落款」變成「世界的說法 ＋ 品牌落款 ＋ **自己一行的網址**」。
+- 三條出口都自動跟著走（都讀同一個框）：框裡的預設值、系統分享的 `text`、
+  「複製圖＋文」的 `text/plain`、Threads 撰寫入口的 `?text=`。實測：
+  `prefillLastLine === 'https://garyhsieh.com/promptasy'`、剪貼簿的 `text/plain` 含網址、
+  Threads 網址解碼後含網址、`navigator.share` 的參數仍然只有 `files,text`（不帶 `url`／`title`）、
+  玩家改過那段話之後三條出口讀的都是改過的版本。
+- **WORLD.md §3.5b 改寫**：Phase 28 訂的「那段話裡不准有網址」由站長決定作廢，
+  改成三條新規矩（網址自己佔一行／網址是落款不是替代品，圖仍然一定要跟著走／
+  全遊戲只有 `SHARE_URL` 一個網址常數）。「只送得出連結的入口永遠不准做」那條鐵則未動。
+
+### 驗證
+
+- `npm run build` ✓（CSS 137.5 KB / gzip 25.5 KB）。
+- `npm run fonts` ✓（新中文：刻記的 `aria-label`、`技法已收集`、`土地封印` 與註解）——
+  語料 73 檔 / Latin 257 · CJK 1854 · Display 104，總計 1470.0 KB。
+- headless（自己的 port 5197 / CDP 9337，全程沒碰使用者的 5175）實拍：
+  結果列三態 ×2 寬度、四種分享卡 ＋ 兩個極端、分享面板實景（`sharepanel.png`）。
+- 依工作模式**未跑** `test:rubric` / `test:playtest` / `test:e2e`。
+
+### 會紅的既有斷言（預期之內，需翻面）
+
+`scripts/test-rubric.mjs`
+- 8287 `SHARE_URL === 'https://github.com/romanticamaj/promptasy'` → 改成 `https://garyhsieh.com/promptasy`。
+- 8288 `/TODO 部署後改成正式網址/` → 該字條已結案，斷言要移除。
+- 8291–8296 `shareHosts` 白名單 `github.com,...` → 改成 `garyhsieh.com,www.facebook.com,www.instagram.com,www.threads.com`。
+- 8345 `!caption.includes(SHARE_URL)` → **翻面**成「那段話最後一行就是網址」。
+- 8348 `!/https?:\/\//.test(c)`（四種卡） → **翻面**；8349 的「沒有 github 字眼」仍然成立（新網域不是 github）。
+- 8351 `c.length <= 120` → 加上網址後約 128–150 字，門檻要放寬（建議 ≤170）。
+- 9265 改名那一節的 `SHARE_URL` 比對 → 同 8287。
+- 8416 `!url.includes(SHARE_URL)`：它用 `text:'hi'` 呼叫，**仍然通過**（不必動）。
+
+`scripts/headless-check.mjs`
+- 5830 `!/https?:\/\//.test(card.caption)` → **翻面**。
+- 6090 `!/https?:\/\//.test(wholeText)` / 6091 github 字眼 → 前者翻面（框裡現在看得到網址），後者仍成立。
+- 5833 `card.model.collected === 46`、5834 `card.model.total === TECHNIQUE_TOTAL`（68）
+  → 卡片改用 v2 技能，要換成 `catalog.counts.skills`（130）與 `knowsSkill` 算出來的數。
+- 結果列若有「`.row__icon` 的文字是 `✓`／`◐`／`✕`」一類的比對 → 改成查 `.row__mark`（SVG）
+  與 `aria-label`（通過／部分達成／未達成）。
+- （**與本輪無關、既有**）6064 起那一排期待 4 顆含 `data-chip="caption"`、
+  `.sharecard__sendlabel`、`.sharecard__hint` —— 那是 Phase 35.1 圖示化之前的形狀，本來就已過期。

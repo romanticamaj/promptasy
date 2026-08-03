@@ -29,6 +29,7 @@ import {
   infoTip,
   on,
   rovingList,
+  rowIcon,
   sourceBook,
   sourceNoteHtml,
 } from '../ui/dom.js';
@@ -1720,7 +1721,6 @@ export function createPromptConsole({
     const rows = evaluation.results
       .map((r, i) => {
         const state = r.passed ? 'pass' : r.partial ? 'part' : 'miss';
-        const icon = r.passed ? '✓' : r.partial ? '◐' : '✕';
         // 課程 v2 的神廟：這一列教的是 v2 技能時，原典從 catalog 拿（一樣是官方連結）
         const rowSpec = (challenge && challenge.rubric && challenge.rubric[i]) || {};
         const skillId = rowSpec.primary
@@ -1730,7 +1730,7 @@ export function createPromptConsole({
         const src = trial ? null : (skillId && content.sourceForSkill(skillId)) || content.sourceFor(r.techniqueId);
         const tech = skill ? { title: skill.nameZh } : content.technique(r.techniqueId);
         return `<li class="row row--${state}" style="--i:${i}">
-          <span class="row__icon">${icon}</span>
+          ${rowIcon(state)}
           <div class="row__main">
             <div class="row__head">
               <b>${esc(r.label)}</b>
@@ -1835,6 +1835,8 @@ export function createPromptConsole({
           kind: 'result',
           grade: evaluation.grade,
           headline: challenge.title,
+          // 課程 v2：這一座神廟教的技能（新蓋的神廟沒有 legacy teaches，只有它）
+          skillIds: challenge.primarySkillId ? [challenge.primarySkillId] : [],
           techniqueIds: (evaluation.teaches || []).slice(0, 3),
         })
       );

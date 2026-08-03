@@ -2090,18 +2090,26 @@ a.src:hover {
 .row:last-child {
   border-bottom: 0;
 }
-/* 狀態一律「符號 ＋ 形狀 ＋ 顏色」三重編碼，不只靠顏色 */
+/* 狀態一律「符號 ＋ 形狀 ＋ 顏色」三重編碼，不只靠顏色。
+   刻記是行內 SVG（見 ui/dom.js 的 ROW_MARKS）——
+   置中因此是幾何事實，不是字型 side bearing 的運氣；
+   尺寸全部用自己的 font-size 當單位，型級再放大也不會跑掉。 */
 .row__icon {
   flex: none;
-  width: 22px;
-  height: 22px;
-  display: grid;
-  place-items: center;
-  border: 1px solid currentColor;
-  font-family: var(--font-mono);
   font-size: 17px;
-  font-weight: 600;
+  width: 1.3em;
+  height: 1.3em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  border: 1px solid currentColor;
   color: var(--paper-4);
+}
+.row__mark {
+  display: block;
+  width: 0.68em;
+  height: 0.68em;
 }
 .row--pass .row__icon {
   border-radius: 50%;

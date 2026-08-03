@@ -6,7 +6,9 @@
  *
  * 分享出去的就是**這張圖 ＋ 一段話**（Phase 28）——
  * 那段話預設是世界的說法，玩家可以在框裡改成自己想說的，
- * 按下去的那一刻讀的就是框裡當下的字。沒有連結、沒有別的東西。
+ * 按下去的那一刻讀的就是框裡當下的字。
+ * 那段話的最後一行是遊戲的網址（站長決定；WORLD.md §3.5b 已同步修訂）——
+ * 主體仍然是圖，網址只是讓看到的人走得過來。
  *
  * Phase 31 把「直接開 Threads / Facebook / Instagram」那一排放了回來，
  * 但每一顆都是「**先把圖備好 → 再開那個地方**」的一次動作，
@@ -32,8 +34,9 @@ export const CARD_H = 630;
  * 分享出去的東西只有兩樣：**這張圖 ＋ 一段話**（Phase 28 / Phase 31）
  *
  * Phase 24 曾經在下面排了一列「分享到 ⭕⭕」的網頁入口 ——
- * 那些入口把**連結**丟過去，收到的人看到的是一個程式碼倉庫，
- * 不是玩家剛刻出來的那張卡。Phase 28 因此把整排拿掉。
+ * 那些入口把**連結**丟過去（而且是程式碼倉庫的連結），
+ * 收到的人看不到玩家剛刻出來的那張卡。Phase 28 因此把整排拿掉。
+ * （現在那段話裡有網址，但它是**跟著圖一起走**的落款，不是替代品。）
  *
  * Phase 31 把那一排放回來，但換了做法：**先備好圖，再開那個地方**。
  * 每一顆的規則都一樣 ——
@@ -57,13 +60,12 @@ export const CARD_H = 630;
  * ------------------------------------------------------------------ */
 
 /**
- * 這個遊戲之後會住的地方。
+ * 這個遊戲住的地方（2026-08 已上線；站長指定的短寫法）。
  *
- * **不放進玩家貼出去的那段話裡** —— 分享的是那張圖與玩家自己寫的話，
- * 不是一個連結。留著這個常數是為了之後真的部署時有地方可以改。
- * TODO 部署後改成正式網址
+ * 分享出去的主體仍然是**那張圖 ＋ 一段話**，但那段話的最後一行會帶上這個網址 ——
+ * 看到卡片的人才走得過來（站長決定，WORLD.md §3.5b 已同步修訂）。
  */
-export const SHARE_URL = 'https://github.com/romanticamaj/promptasy';
+export const SHARE_URL = 'https://garyhsieh.com/promptasy';
 
 /** 品牌那一句（和 index.html 的標題同一句）。 */
 export const SHARE_TAGLINE = 'Learn Prompt Engineering by Playing';
@@ -87,13 +89,13 @@ export function shareText(model = {}) {
 }
 
 /**
- * 預設的那段話：世界的說法 ＋ 品牌那一句當落款。
+ * 預設的那段話：世界的說法 ＋ 品牌那一句當落款 ＋ 自己一行的網址。
  *
  * 玩家可以在分享卡上把它改成自己想說的（那個輸入框裡的字才是真的送出去的）。
- * **不帶網址** —— 分享的是圖，不是連結。
+ * 網址單獨佔一行 —— 各家撰寫框都會把它認成連結，也不會黏在落款上。
  */
 export function shareCaption(model = {}) {
-  return `${shareText(model)}\n${SHARE_TAGLINE}`;
+  return `${shareText(model)}\n${SHARE_TAGLINE}\n${SHARE_URL}`;
 }
 
 /* ------------------------------------------------------------------ *
@@ -321,6 +323,26 @@ function paragraph(ctx, str, x, y, { font, color, maxWidth, lineHeight = 30, max
   return y + Math.max(0, lines.length - 1) * lineHeight;
 }
 
+/**
+ * 一枚小小的菱形刻記（技法列的項目符號、土地封印的印記）。
+ *
+ * 刻意用**畫的**而不是寫一個字：`◈`／`✦` 都不在自架子集裡
+ * （`public/fonts/manifest.json` 的 `missing`），寫字就會掉到系統備援字型，
+ * 換一台機器就換一種形狀與位置。畫出來的東西每一台都一樣。
+ */
+function diamond(ctx, cx, cy, r, fill) {
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(cx, cy - r);
+  ctx.lineTo(cx + r * 0.72, cy);
+  ctx.lineTo(cx, cy + r);
+  ctx.lineTo(cx - r * 0.72, cy);
+  ctx.closePath();
+  ctx.fillStyle = fill;
+  ctx.fill();
+  ctx.restore();
+}
+
 /** 一條金／星光髮絲線（兩端淡出）。 */
 function hairline(ctx, x, y, w, color = 'rgba(196,220,236,0.22)') {
   const g = ctx.createLinearGradient(x, y, x + w, y);
@@ -348,12 +370,12 @@ function hairline(ctx, x, y, w, color = 'rgba(196,220,236,0.22)') {
  * @param {string} m.rankTitleEn 稱號英文
  * @param {string} m.rankLine    稱號的一句話
  * @param {number} m.level
- * @param {number} m.collected
- * @param {number} m.total
+ * @param {number} m.collected   已刻進圖鑑的技法數（v2：skillsV2 ＋ 舊技巧對照）
+ * @param {number} m.total       目前的技法總數（catalog 現算，課程長大就跟著長）
  * @param {string} [m.grade]     通關評價（只有關卡結果卡有）
  * @param {string} [m.headline]  這張卡的主事件（例如關卡名）
  * @param {Array}  m.techniques  [{title, id}] 最多 3 條
- * @param {Array}  m.regions     [{name, nameEn, color, mastered}]
+ * @param {Array}  m.regions     [{name, nameEn, color, mastered}] —— 12 片土地
  */
 export function drawCard(canvas, m) {
   canvas.width = CARD_W;
@@ -442,16 +464,16 @@ export function drawCard(canvas, m) {
   });
 
   /* --- 左欄下半：本次刻印（可選）＋ 刻進圖鑑的技法 --- */
-  let listTop = 330; // 沒有 headline 時，技法清單從這裡開始
+  let listTop = 326; // 沒有 headline 時，技法清單從這裡開始
   if (m.headline) {
-    hairline(ctx, L, 316, 540);
-    tracked(ctx, '本次刻印', L, 338, { size: 12, color: '#66768d', track: 3.2 });
+    hairline(ctx, L, 308, 540);
+    tracked(ctx, '本次刻印', L, 330, { size: 12, color: '#66768d', track: 3.2 });
     ctx.save();
     ctx.font = `500 26px ${FONT_UI}`;
     ctx.fillStyle = '#e6c79b';
-    ctx.fillText(clipLine(ctx, m.headline, 540), L, 372);
+    ctx.fillText(clipLine(ctx, m.headline, 540), L, 364);
     ctx.restore();
-    listTop = 406;
+    listTop = 396;
   }
 
   const techs = (m.techniques || []).slice(0, 3);
@@ -461,12 +483,13 @@ export function drawCard(canvas, m) {
     let ty = listTop + 44;
     for (const t of techs) {
       ctx.save();
-      ctx.fillStyle = '#e6c79b';
-      ctx.font = `400 16px ${FONT_UI}`;
-      ctx.fillText('◈', L, ty);
+      diamond(ctx, L + 5, ty - 7, 7, '#e6c79b');
+      // 先量右邊那個 id 有多寬，名稱才知道自己能佔到哪裡（不能寫死，id 有長有短）
+      ctx.font = `400 13px ${FONT_META}`;
+      const idW = ctx.measureText(t.id).width;
       ctx.font = `500 21px ${FONT_UI}`;
       ctx.fillStyle = '#eef4fa';
-      ctx.fillText(clipLine(ctx, t.title, 404), L + 24, ty);
+      ctx.fillText(clipLine(ctx, t.title, Math.max(120, 540 - 24 - idW - 18)), L + 24, ty);
       ctx.font = `400 13px ${FONT_META}`;
       ctx.fillStyle = '#66768d';
       ctx.textAlign = 'right';
@@ -518,57 +541,69 @@ export function drawCard(canvas, m) {
   }
 
   /* --- 右欄：收集進度 --- */
-  const py = 288;
-  tracked(ctx, '技巧已收集', R, py, { size: 12, color: '#66768d', track: 3.2 });
+  const py = 284;
+  tracked(ctx, '技法已收集', R, py, { size: 12, color: '#66768d', track: 3.2 });
   ctx.save();
   ctx.font = `500 44px ${FONT_DISPLAY}`;
   ctx.fillStyle = '#eef4fa';
-  ctx.fillText(String(m.collected), R, py + 46);
+  ctx.fillText(String(m.collected), R, py + 44);
   const w1 = ctx.measureText(String(m.collected)).width;
   ctx.font = `400 24px ${FONT_DISPLAY}`;
   ctx.fillStyle = '#66768d';
-  ctx.fillText(` / ${m.total}`, R + w1 + 4, py + 46);
+  ctx.fillText(` / ${m.total}`, R + w1 + 4, py + 44);
   ctx.restore();
 
   const ratio = m.total ? Math.max(0, Math.min(1, m.collected / m.total)) : 0;
   ctx.fillStyle = 'rgba(196,220,236,0.14)';
-  ctx.fillRect(R, py + 64, RW, 3);
+  ctx.fillRect(R, py + 60, RW, 3);
   const meter = ctx.createLinearGradient(R, 0, R + Math.max(2, RW * ratio), 0);
   meter.addColorStop(0, 'rgba(169,201,216,0.75)');
   meter.addColorStop(1, '#e6c79b');
   ctx.fillStyle = meter;
-  ctx.fillRect(R, py + 64, Math.max(2, RW * ratio), 3);
+  ctx.fillRect(R, py + 60, Math.max(2, RW * ratio), 3);
 
-  /* --- 右欄：五片土地的封印 --- */
-  tracked(ctx, '五片土地', R, py + 104, { size: 12, color: '#66768d', track: 3.2 });
-  let sy = py + 124;
-  for (const region of m.regions || []) {
+  /* ------------------------------------------------------------------ *
+   * 右欄：土地封印
+   *
+   * 課程 v2 之前這裡是「五片土地」，一片一行、每行 28px —— 12 片土地就會
+   * 一路長到卡片外面去，壓在頁腳上。現在改成 **3 欄 × 4 列的印記格**：
+   * 一格＝一枚切角封印 ＋ 土地名，12 片剛好排滿、離頁腳仍有一段留白。
+   * 欄數與列高由土地數現算，之後真的再多一片也不會溢出（超過 12 片就縮列高）。
+   * ------------------------------------------------------------------ */
+  const regions = m.regions || [];
+  const masteredCount = regions.filter((r) => r.mastered).length;
+  const sealTop = py + 98;
+  tracked(ctx, '土地封印', R, sealTop, { size: 12, color: '#66768d', track: 3.2 });
+  tracked(ctx, `${masteredCount} / ${regions.length} MASTERED`, R + RW, sealTop, {
+    size: 12,
+    color: masteredCount ? '#e6c79b' : '#66768d',
+    track: 2.4,
+    align: 'right',
+  });
+
+  const cols = 3;
+  const rowsN = Math.max(1, Math.ceil(regions.length / cols));
+  const colW = RW / cols;
+  // 格線的垂直預算：從印記格頂端到頁腳髮絲線之間，永遠留 34px 的呼吸
+  const gridTop = sealTop + 22;
+  const pitch = Math.min(26, Math.floor((CARD_H - 76 - 34 - gridTop) / rowsN));
+  regions.forEach((region, i) => {
     const on = region.mastered;
-    chamfer(ctx, R, sy, 20, 20, 4);
-    ctx.fillStyle = on ? 'rgba(230,199,155,0.26)' : 'rgba(169,201,216,0.05)';
+    const cx = R + (i % cols) * colW;
+    const cy = gridTop + Math.floor(i / cols) * pitch;
+    chamfer(ctx, cx, cy, 17, 17, 4);
+    ctx.fillStyle = on ? 'rgba(230,199,155,0.24)' : 'rgba(169,201,216,0.05)';
     ctx.fill();
-    ctx.strokeStyle = on ? 'rgba(230,199,155,0.75)' : 'rgba(196,220,236,0.18)';
+    ctx.strokeStyle = on ? 'rgba(230,199,155,0.78)' : 'rgba(196,220,236,0.16)';
     ctx.lineWidth = 1;
     ctx.stroke();
-    if (on) {
-      ctx.save();
-      ctx.textAlign = 'center';
-      ctx.font = `400 13px ${FONT_UI}`;
-      ctx.fillStyle = '#e6c79b';
-      ctx.fillText('◈', R + 10, sy + 15);
-      ctx.restore();
-    }
+    if (on) diamond(ctx, cx + 8.5, cy + 8.5, 4.6, '#e6c79b');
     ctx.save();
-    ctx.font = `${on ? 500 : 400} 19px ${FONT_UI}`;
-    ctx.fillStyle = on ? '#eef4fa' : '#66768d';
-    ctx.fillText(region.name, R + 32, sy + 15);
-    ctx.font = `400 12px ${FONT_META}`;
-    ctx.fillStyle = on ? 'rgba(230,199,155,0.7)' : 'rgba(102,118,141,0.6)';
-    ctx.textAlign = 'right';
-    ctx.fillText(on ? 'MASTERED' : '—', R + RW, sy + 15);
+    ctx.font = `${on ? 500 : 400} 16px ${FONT_UI}`;
+    ctx.fillStyle = on ? '#eef4fa' : '#7c8ca3';
+    ctx.fillText(clipLine(ctx, region.name, colW - 34), cx + 25, cy + 13);
     ctx.restore();
-    sy += 28;
-  }
+  });
 
   /* --- 頁腳 --- */
   hairline(ctx, L, CARD_H - 76, CARD_W - 156, 'rgba(230,199,155,0.2)');
@@ -659,20 +694,45 @@ export function createShareCard({ content, progression, ranksFile, onClose, onTo
     }
   }
 
+  /**
+   * 一枚要秀在卡上的技法（v2 技能優先，查不到再退回舊技巧）。
+   * 課程 v2 之後大多數神廟教的是 `skill-codex-v2.json` 的技能，
+   * 只查舊 68 條的話，新蓋的那 100 多座通關之後卡上會是空的。
+   */
+  function markFor(id) {
+    const sk = content.skill(id);
+    if (sk) return { title: sk.nameZh, id: sk.id };
+    const t = content.technique(id);
+    return t ? { title: t.title, id: t.id } : null;
+  }
+
   /** 依 kind 組出這張卡要畫的東西。 */
   function buildModel(opts = {}) {
-    const stats = rankStats(progression, content.curriculum);
+    /*
+     * 稱號 / 等級 / 精通片數一律走 runtime catalog ——
+     * 以前這裡傳的是 `content.curriculum`（只認得舊五區），
+     * 於是同一份存檔在卡上與在 HUD／圖鑑上會算出不一樣的稱號。
+     */
+    const stats = rankStats(progression, content.catalog);
     const { rank } = rankFor(stats, ranksFile.ranks || []);
     const groups = content.groupsOrdered();
 
-    // 要秀在卡上的技巧：關卡結果卡用「這一關剛學到的」，其餘用「最近收集的」
-    const ids = (opts.techniqueIds && opts.techniqueIds.length ? opts.techniqueIds : null) ||
-      progression.state.collected.slice(-3).reverse();
-    const techniques = ids
-      .map((id) => content.technique(id))
-      .filter(Boolean)
-      .slice(0, 3)
-      .map((t) => ({ title: t.title, id: t.id }));
+    /*
+     * 卡上的「已收集」＝**課程 v2 的技法**（130 條，由 catalog 現算）。
+     * 判定沿用 `knowsSkill()`：技能本身進了 skillsV2，或它的祖先技巧
+     * 已經在舊的 collected 裡（收集不倒退，D2）—— 和世界裡的軟門檻同一把尺。
+     */
+    const skills = content.catalog.skills || [];
+    const skillsGot = skills.filter((s) => progression.knowsSkill(s.id)).length;
+
+    // 要秀在卡上的技法：關卡結果卡用「這一關剛學到的」，其餘用「最近收集的」
+    const recent = progression.collectedSkills().slice(-3).reverse();
+    const fallback = recent.length ? recent : progression.state.collected.slice(-3).reverse();
+    const ids =
+      (opts.skillIds && opts.skillIds.length ? opts.skillIds : null) ||
+      (opts.techniqueIds && opts.techniqueIds.length ? opts.techniqueIds : null) ||
+      fallback;
+    const techniques = ids.map(markFor).filter(Boolean).slice(0, 3);
 
     return {
       kind: opts.kind || 'codex',
@@ -681,8 +741,8 @@ export function createShareCard({ content, progression, ranksFile, onClose, onTo
       rankTitleEn: rank ? rank.titleEn : 'Traveller',
       rankLine: rank ? rank.line : '',
       level: stats.level,
-      collected: stats.collected,
-      total: stats.total,
+      collected: skills.length ? skillsGot : stats.collected,
+      total: skills.length ? skills.length : stats.total,
       grade: opts.grade || '',
       headline: opts.headline || '',
       techniques,
@@ -703,7 +763,7 @@ export function createShareCard({ content, progression, ranksFile, onClose, onTo
     await ensureFonts();
     lastModel = buildModel(opts);
     drawCard(canvas, lastModel);
-    const alt = `Promptasy 結果卡：${lastModel.rankTitle} · Lv.${lastModel.level} · 已收集 ${lastModel.collected} / ${lastModel.total} 條技巧`;
+    const alt = `Promptasy 結果卡：${lastModel.rankTitle} · Lv.${lastModel.level} · 已收集 ${lastModel.collected} / ${lastModel.total} 條技法`;
     canvas.setAttribute('aria-label', alt);
 
     const dl = overlay.body.querySelector('[data-download]');
@@ -1023,7 +1083,7 @@ export function createShareCard({ content, progression, ranksFile, onClose, onTo
     model() {
       return lastModel;
     },
-    /** 這次要帶出去的那段話（除錯 / 自動化測試用）—— 沒有網址，只有圖與話。 */
+    /** 這次要帶出去的那段話（除錯 / 自動化測試用）—— 圖 ＋ 話 ＋ 最後一行的網址。 */
     shareData() {
       if (!lastModel) return null;
       return { text: captionNow(), preset: shareCaption(lastModel) };

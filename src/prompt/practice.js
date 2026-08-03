@@ -20,7 +20,7 @@
  * 「刻對了會長什麼樣」由 prologue.json 的 flow.slots 定義，正確選項串起來
  * 必須通過該課的 rubric —— 這件事由測試強制驗證，不是靠人工目視。
  */
-import { bindInfoTips, createOverlay, esc, on, safeRich, sourceBook } from '../ui/dom.js';
+import { bindInfoTips, createOverlay, esc, on, rowIcon, safeRich, sourceBook } from '../ui/dom.js';
 import { evaluate, formatScore } from '../challenges/rubric.js';
 import { CHECKS } from '../challenges/checks.js';
 import { createStele } from './stele.js';
@@ -476,7 +476,7 @@ export function createPractice({
         <ul class="rows">${missing
           .map(
             (r, i) =>
-              `<li class="row row--miss" style="--i:${i}"><span class="row__icon">✕</span>
+              `<li class="row row--miss" style="--i:${i}">${rowIcon('miss')}
                 <div class="row__main"><div class="row__head"><b>${esc(r.label)}</b></div>
                 <p class="row__hint">${esc(r.hint)}</p></div></li>`
           )

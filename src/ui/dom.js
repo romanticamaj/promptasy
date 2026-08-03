@@ -87,6 +87,47 @@ export const BOOK_ICON = `<svg class="bookicon__glyph" viewBox="0 0 24 24" width
 /** 畫面上對「官方出處」的世界觀說法（和 console.js 的 SOURCE_LABEL 同一句）。 */
 export const BOOK_LABEL = '神諭原典';
 
+/* ------------------------------------------------------------------ *
+ * 結果列的狀態刻記（通過 / 部分 / 未達成）
+ *
+ * 原本畫的是三個文字符號（✓ ◐ ✕）。前兩個**不在** JetBrains Mono 的子集裡
+ * （`public/fonts/manifest.json` 的 `missing` 清單：10003 ✓、9680 ◐），
+ * 於是它們掉到系統備援字型 —— 換一套字型就換一組 side bearing 與基線，
+ * 圓框裡的符號因此偏左偏下（✕ 有在子集裡，所以只有它看起來是正的）。
+ *
+ * 所以刻記改成**幾何圖形**：行內 SVG、viewBox 24×24、圖形一律以 (12,12) 為中心，
+ * 尺寸用 em（跟著型級走）。這樣「置中」是幾何事實，不再是字型的運氣，
+ * 也不會因為之後放大字級而重新跑掉。零外部資產（護欄 3）。
+ * ------------------------------------------------------------------ */
+const MARK_ATTRS = 'class="row__mark" viewBox="0 0 24 24" aria-hidden="true" focusable="false"';
+
+/** 三種狀態的剪影 ＋ 給輔助科技的說法。 */
+export const ROW_MARKS = {
+  pass: {
+    label: '通過',
+    svg: `<svg ${MARK_ATTRS}><path d="M5.2 12 9.8 16.8 18.8 7.2" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+  },
+  part: {
+    label: '部分達成',
+    svg: `<svg ${MARK_ATTRS}><circle cx="12" cy="12" r="7" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M12 5a7 7 0 0 0 0 14Z" fill="currentColor"/></svg>`,
+  },
+  miss: {
+    label: '未達成',
+    svg: `<svg ${MARK_ATTRS}><path d="M6.9 6.9 17.1 17.1M17.1 6.9 6.9 17.1" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></svg>`,
+  },
+};
+
+/**
+ * 結果列最前面那一枚刻記（外框的形狀由 `.row--pass/part/miss` 的 CSS 決定）。
+ *
+ * @param {'pass'|'part'|'miss'} state
+ * @returns {string} HTML
+ */
+export function rowIcon(state) {
+  const mark = ROW_MARKS[state] || ROW_MARKS.miss;
+  return `<span class="row__icon" role="img" aria-label="${esc(mark.label)}">${mark.svg}</span>`;
+}
+
 /**
  * 一枚指得回官方文件的書。
  *
