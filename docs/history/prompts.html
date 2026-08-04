@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Promptasy — Goal / Prompt 開發歷程</title>
+<style>
+  :root{
+    --bg:#0b1119; --panel:#111a26; --panel2:#0e1620;
+    --ink:#e8eef6; --ink-dim:#9fb0c3; --ink-faint:#6b7c90;
+    --gold:#d9a441; --gold-dim:#8a6b2f;
+    --rule:#223243; --goal:#1a2536;
+    --green:#7fc98f; --blue:#7fb3d9;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font:15px/1.75 "Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif;
+    padding:40px 20px 80px}
+  .wrap{max-width:1180px;margin:0 auto}
+  h1{font-size:1.9rem;margin:0 0 4px;letter-spacing:.02em}
+  h1 .en{color:var(--gold);font-size:1.1rem;letter-spacing:.18em;display:block;margin-bottom:6px}
+  .sub{color:var(--ink-dim);margin:0 0 18px}
+  .stats{display:flex;flex-wrap:wrap;gap:10px;margin:18px 0 26px}
+  .stat{background:var(--panel);border:1px solid var(--rule);border-radius:6px;padding:10px 16px}
+  .stat b{display:block;font-size:1.25rem;color:var(--gold)}
+  .stat span{color:var(--ink-dim);font-size:.82rem}
+  .note{background:var(--panel2);border-left:3px solid var(--gold-dim);padding:12px 16px;
+    border-radius:0 6px 6px 0;color:var(--ink-dim);font-size:.9rem;margin:0 0 30px}
+  h2{font-size:1.15rem;color:var(--gold);border-bottom:1px solid var(--rule);
+    padding-bottom:8px;margin:44px 0 14px;letter-spacing:.04em}
+  h2 small{color:var(--ink-faint);font-weight:400;font-size:.8rem;margin-left:10px}
+  .tblwrap{overflow-x:auto}
+  table{border-collapse:collapse;width:100%;font-size:.92rem}
+  th{color:var(--ink-faint);text-align:left;font-weight:600;font-size:.78rem;
+    letter-spacing:.1em;padding:8px 10px;border-bottom:1px solid var(--rule);white-space:nowrap}
+  td{padding:12px 10px;border-bottom:1px solid var(--rule);vertical-align:top}
+  tr.goal td{background:var(--goal)}
+  .when{white-space:nowrap;color:var(--ink-faint);font-size:.8rem;font-variant-numeric:tabular-nums}
+  .tag{display:inline-block;font-size:.72rem;letter-spacing:.08em;padding:1px 8px;
+    border-radius:3px;border:1px solid var(--rule);color:var(--ink-dim);white-space:nowrap}
+  .tag.g{border-color:var(--gold-dim);color:var(--gold)}
+  .tag.p{border-color:#3a4d63;color:var(--blue)}
+  .q{color:var(--ink);min-width:280px}
+  .q .quote{color:var(--ink-dim)}
+  .q .quote::before{content:"「"}
+  .q .quote::after{content:"」"}
+  .abridged{color:var(--ink-faint);font-size:.8rem}
+  details{margin-top:6px}
+  summary{cursor:pointer;color:var(--gold-dim);font-size:.8rem}
+  details pre{white-space:pre-wrap;background:var(--panel2);border:1px solid var(--rule);
+    border-radius:6px;padding:12px;color:var(--ink-dim);font-size:.83rem;
+    font-family:inherit;margin:8px 0 0;max-height:420px;overflow:auto}
+  .fx{min-width:320px;color:var(--ink-dim)}
+  .fx b{color:var(--ink)}
+  .ph{color:var(--green);font-size:.8rem;white-space:nowrap}
+  footer{margin-top:50px;color:var(--ink-faint);font-size:.8rem;border-top:1px solid var(--rule);padding-top:16px}
+  a{color:var(--blue)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1><span class="en">PROMPTASY · DEVELOPMENT LOG</span>Goal / Prompt 開發歷程</h1>
+<p class="sub">從空 repo 到 v1.1 上線,站長下過的每一個 goal 與實質 prompt,以及各自達成的效果。</p>
+
+<div class="stats">
+  <div class="stat"><b>2026-07-25 → 08-05</b><span>開發期間(11 天)</span></div>
+  <div class="stat"><b>9</b><span>/goal 長程目標</span></div>
+  <div class="stat"><b>60+</b><span>實質指令與回饋</span></div>
+  <div class="stat"><b>34 + 11</b><span>v1 Phases + v2 Phases(0, A–J)</span></div>
+  <div class="stat"><b>12 區 / 142 關 / 130 技能</b><span>最終規模(v1.1)</span></div>
+</div>
+
+<p class="note">
+  金底列＝<b>/goal</b>(長程自主目標,一條 goal 通常驅動多個 phase);其餘為單則指令或遊玩回饋。
+  原文取自 session transcript 逐字引用(長文收在「展開全文」);
+  有兩則(技巧積木位置、導航提示/世界觀/彩蛋 goal)原文在早期 context 壓縮時佚失,
+  以「<b>摘述</b>」標示、內容依當時摘要重建。效果欄的 Phase 編號對照
+  <a href="./CHANGELOG.md">docs/history/CHANGELOG.md</a> 的完整紀錄。
+</p>
+
+<!-- ============ 第一夜 ============ -->
+<h2>Ⅰ · 從零到可玩<small>2026-07-25 ~ 07-26 · v1 Phase 1–13</small></h2>
+<div class="tblwrap"><table>
+<tr><th>時間</th><th>類型</th><th>你說了什麼</th><th>達成效果</th></tr>
+
+<tr class="goal"><td class="when">07-25 19:03</td><td><span class="tag g">GOAL</span></td>
+<td class="q"><span class="quote">finish the website definded in CLAUDE.md, use subagent Opus5 to implement</span></td>
+<td class="fx"><span class="ph">Phase 1–4</span><br>一夜之間從空 repo 到完整可玩:抽出 <b>curriculum.json</b>(68 技巧全附官方出處)、離線 rubric 引擎(13 檢查器)、26 關、五片土地的 three.js 夜色世界、後製美術、生成式配樂、走跑手感、序章前身,以及 95 項 headless e2e。M0–M6 路線圖一次走完骨架。</td></tr>
+
+<tr><td class="when">07-25 22:16</td><td><span class="tag p">指令</span></td>
+<td class="q"><span class="quote">give me the site url to test</span></td>
+<td class="fx">提供本機測試網址——站長開始親自實測,之後所有遊玩回饋的起點。</td></tr>
+
+<tr class="goal"><td class="when">07-25 22:49</td><td><span class="tag g">GOAL</span></td>
+<td class="q"><span class="quote">優化場景: 增加物件,增加場景細節,增加故事性,字體要具藝術美感…要有引導課程先讓使用者可以練習原出處的核心概念…修改主角外型,要是真正的一個人物</span>
+<details><summary>展開全文</summary><pre>優化場景: 增加物件，增加場景細節，增加故事性，字體要具藝術美感; 每個對話窗參考 site of the year 的風格; 要有引導課程先讓使用者可以練習原出處的核心概念; 練習室創的風格要更具設計感; 修改主角外型，要是真正的一個人物可以探索，場景也更多源；參考網路上的 best practice</pre></details></td>
+<td class="fx"><span class="ph">Phase 5–7</span><br><b>主角</b>變成 rigless 程序化人形(15 關節、步態取自真實關節活動度);<b>場景敘事</b>:16 組故事小景+5 座地標+12 塊石碑+走出來的路;<b>「夜間檔案館」設計系統</b>+六套 OFL 字型自架子集(1.1MB 離線);<b>序章「喚醒神諭」</b>:9 拍 teach-by-doing 引導課程,教學內容逐字取自 curriculum。</td></tr>
+
+<tr class="goal"><td class="when">07-26 03:14</td><td><span class="tag g">GOAL</span></td>
+<td class="q"><span class="quote">我覺得問題在於,沒有設計題目讓使用者去解謎,所以沒有人知道要輸入什麼,這是關鍵問題</span>
+<details><summary>展開全文</summary><pre>技巧積木裡面都用中文範例
+
+我看完 hint之後，右側還是不知道要輸入什麼
+可能要placeholder 後面半透明的字體先給一些 hint
+
+像 迷路的自動機 這個我根本不知道要輸入什麼才能過關，提示或是要使用者做什麼事的指令實在太少了
+
+我覺得問題在於，沒有設計題目讓使用者去解謎，所以沒有人知道要輸入什麼，這是關鍵問題
+
+每一關題目都要設計一下，而且要引導使用者，要跟左邊的發問有關聯，這樣這個題目回答才有茅點
+
+然後其實可以給範例，或是選項直接填進去，這樣玩的成本才不會太高
+
+每個關卡展開後，要 scroll 回頂端
+
+設定裡面有獎一些網站設計技術跟細節，不用提
+然後石頭現在主角可以穿過去，設計成主角會被阻擋</pre></details></td>
+<td class="fx"><span class="ph">Phase 8</span><br>26 關全部<b>題目化</b>:每關有明確任務(mission)、NPC 遞給你的素材(material)、填空 placeholder、預填弱寫法、快速填入短句、兩次沒過解鎖範例;技巧積木中文化;捲軸歸零;286 個道具碰撞體+脫困保險絲。</td></tr>
+
+<tr class="goal"><td class="when">07-26 04:29</td><td><span class="tag g">GOAL</span></td>
+<td class="q"><span class="quote">我們要的是,超容易學到東西,引導他們超容易過關…以上都改好後,開一堆 subagent 每個關卡都測試看看</span>
+<details><summary>展開全文</summary><pre>抬頭看看四周。這片夜色比你以為的還大。視角好像沒有辦法看到天空畫面，是不是有點誤導人?
+
+Summarize the notice on the altar for a traveller who has just arrived.
+Use a 3 to 5 sentence paragraph. Respond in 3 bullet points.
+
+Do not use markdown in your response.
+這種起始答案，都把它改成中文
+
+弱：Do not use markdown in your response.
+強：Your response should be composed of smoothly flowing prose paragraphs.
+這種所有英文提示出現的地方都改成中文
+
+我們的使用者面向是中文用戶，一般人，
+
+找出所有地方，都改用中文
+
+然後為了降低難度，使用者開始輸入後，可以即時預檢很好，但是有些東西，其實不提示是不可能知道的
+比方說 指定輸出格式 Format，先假設使用者是不知道什麼 JSON HTML 等等
+我希望不定時可以黃色高亮提示框，讓使用者有一個漂浮球，就可以去看到提示，直接就學會，我們要的是，超容易學到東西，引導他們超容易過關
+
+正面表述 這一關我也一直過不了關，完全不知道要填什麼那個 rule 才可以 pass
+因為我們一定是用 rule base 去判斷的，所以一定要提示明確使用要填哪個方向
+
+然後整個驗證也要寬鬆一點
+在使用者回答答案的同事，即時預檢也要可以亮燈，讓使用者知道方向對了
+
+以上都改好後，開一堆 subagent 每個關卡都測試看看，要確認他們有辦法從提示下過關，不行的話就修正</pre></details></td>
+<td class="fx"><span class="ph">Phase 9–10</span><br>視角可<b>抬頭看星空</b>(空白鍵/拖曳);全面中文化+英文句子掃描測試;<b>漂浮教練提示球</b>(22 條檢查全覆蓋、「幫我填」);門檻降到權重 50%、評價曲線放寬、預檢常駐亮燈;接著 <b>13 位模擬玩家</b>只靠畫面資訊玩完 26 關,抓出的誤判/行話/對不上的提示以 36 條回歸案例修掉(playtest 測試由此誕生)。</td></tr>
+
+<tr><td class="when">07-26 11:53</td><td><span class="tag p">回饋</span></td>
+<td class="q"><span class="quote">我覺得要讓玩家打 prompt 還是太難了…優化成…選擇建構題…一個小段一個小段詢問使用者要填入哪個 prompt</span></td>
+<td class="fx"><span class="ph">Phase 11</span><br><b>石碑刻印</b>誕生——26 關預設改成一段一段「選」出 prompt(111 段/332 選項),選錯不失敗、就地教學;選對的段落全部串起來仍丟進同一支離線 rubric(全 S);手掌印按住送出的儀式。這成為後來 11 種題型的母體。</td></tr>
+
+<tr><td class="when">07-26 15:08</td><td><span class="tag p">回饋</span></td>
+<td class="q"><span class="quote">左側又看到一堆官方怎麼說,好像又太早了,完全看不出指引動線…她應該要做出電影導演的引導式視野</span></td>
+<td class="fx"><span class="ph">Phase 12</span><br><b>四幕分鏡</b>:委託→指引→刻印→手印,一次只有一幕擁有畫面;教學換皮成「神諭刻文」但每段掛真實官方出處(換皮不說謊);「送出評分」全改為「呈給神諭」。</td></tr>
+
+<tr><td class="when">07-26 16:33</td><td><span class="tag p">回饋</span></td>
+<td class="q"><span class="quote">「—— 也就是各家的官方文件」用 info 方式呈現,hover 上去才出現…開頭的神諭祭壇應該 onboarding 第一場,他沒有改成電影導演式,內容也鬆散</span></td>
+<td class="fx"><span class="ph">Phase 13</span><br>ⓘ 資訊提示元件(世界觀旁白收進 hover);<b>序章整段重做</b>成導演語言:一拍最多兩句、三堂課改用與正式關卡同一套四幕+石碑,台詞收緊到每句 ≤31 字。</td></tr>
+</table></div>
+
+<!-- ============ 打磨 ============ -->
+<h2>Ⅱ · 系統化打磨<small>2026-07-27 ~ 07-30 · v1 Phase 14–25</small></h2>
+<div class="tblwrap"><table>
+<tr><th>時間</th><th>類型</th><th>你說了什麼</th><th>達成效果</th></tr>
+
+<tr><td class="when">07-27 06:50</td><td><span class="tag p">指令</span></td>
+<td class="q"><span class="quote">官方給的範例都是用原文,我想要都改成中文,我們面向一般使用者(可以用展開的方式保留原文)</span>＋字體放大＋畫面上放一個指南針</td>
+<td class="fx"><span class="ph">Phase 14</span><br>curriculum-zh 譯寫層(32 條、curriculum.json 一位元組未動,原文收「原文 ↗」摺頁);說明字級整組 ×1.75;HUD <b>指南針</b>(金針指向下一個目標、五地標淡針)。</td></tr>
+
+<tr><td class="when">07-27~28</td><td><span class="tag p">回饋(摘述)</span></td>
+<td class="q"><span class="abridged">※原文佚失於壓縮。</span>技巧積木出現在右下角,視覺動線不對,應該在輸入 prompt 附近,也不用每個項目這麼大</td>
+<td class="fx"><span class="ph">Phase 18</span><br>積木從右欄卡片牆(400px)壓成書寫檯下緣的一條單行石籤工具列(40px/片),完整說明收進 title/aria。</td></tr>
+
+<tr><td class="when">07-27 16:07</td><td><span class="tag p">回饋</span></td>
+<td class="q"><span class="quote">我覺得按鈕都太醜,我們奇幻風格 按鈕的回饋 邊角 等等都要設計 像在看一部電影,每個小元件都跟這個遊戲主題有關連的外型設計</span></td>
+<td class="fx"><span class="ph">Phase 15</span><br><b>刻印牌元件系統</b>:全部可按元素統一成 clip-path 切角石牌(hero/base/quiet 三階級、六種狀態、hover 金線注入、按下受光顛倒),零圖檔;四幕指示器變成一件「封印石+注金軌道」的器物。</td></tr>
+
+<tr><td class="when">07-28 05:07</td><td><span class="tag p">指令</span></td>
+<td class="q"><span class="quote">use wasd to control avatar walking direction, and use arrow up down right left to control view port instead of q and r</span></td>
+<td class="fx"><span class="ph">Phase 16</span><br>操作分家:WASD 只管走路、方向鍵只管視角(左右轉+抬頭低頭),邊走邊抬頭合法;Q/R 留成靜默別名。</td></tr>
+
+<tr><td class="when">07-28 06:14</td><td><span class="tag p">指令</span></td>
+<td class="q"><span class="quote">不用提到任何跟 API key 有關的資訊,然後這個網頁是不是要吃使用者 GPU? 我感覺可以 floating 一個 performance monitor</span></td>
+<td class="fx"><span class="ph">Phase 17</span><br>介面金鑰旁白清零(並寫成可執行的禁字掃描測試);<b>F3 浮動效能監視器</b>(FPS 柱狀圖/每幀毫秒/繪製/三角形/記憶體,關掉真的停掉)。</td></tr>
+
+<tr><td class="when">07-28 08:00</td><td><span class="tag p">追問</span></td>
+<td class="q"><span class="quote">GPU 顯示呢? 沒看到</span></td>
+<td class="fx"><span class="ph">Phase 19</span><br>誠實補上瀏覽器拿得到的兩件事:GPU 型號(清 ANGLE 雜訊)+每幀 GPU 耗時(EXT timer query、非阻塞),軟體渲染亮警示;拿不到「使用率 %」就明講拿不到。</td></tr>
+
+<tr><td class="when">07-29 15:49</td><td><span class="tag p">回饋</span></td>
+<td class="q"><span class="quote">設定內的 combobox dropdown 樣式不對,她是全白…給一個關卡的石頭 主角也穿透過去了…其他環境物也都確認一下,主角不能穿透</span></td>
+<td class="fx"><span class="ph">Phase 20</span><br>下拉深色化(color-scheme);一顆石頭引發<b>全場穿模稽核</b>——寫成可執行定義掃出 174 件「有份量卻走得過去」的物件,三個根因(旋轉外接盒/淨空濾網/根節點單圓)全修,碰撞體 475→828、稽核歸零;沿牆滑改切線分解。</td></tr>
+
+<tr><td class="when">07-29 18:56</td><td><span class="tag p">指令</span></td>
+<td class="q"><span class="quote">我想支援可以純鍵盤控制 使用者還要拉上去用滑鼠 有點麻煩</span></td>
+<td class="fx"><span class="ph">Phase 23</span><br>逐畫面稽核七個「只有滑鼠做得到」的缺口並全部補上鍵盤路徑:縮放鍵、? 操作一覽、roving focus、焦點落內容區;e2e 加 94 項「全程只發鍵盤事件走完一圈」;「新增互動先問純鍵盤怎麼做」寫進 WORLD.md 鐵則。</td></tr>
+
+<tr class="goal"><td class="when">07-30 前後</td><td><span class="tag g">GOAL(摘述)</span></td>
+<td class="q"><span class="abridged">※原文佚失於壓縮。</span>使用者一段時間沒去指定區域給 hint 閃爍;環境道具整理成基本世界觀;可分享遊戲過程結果;給一個 level/稱號;設計地圖上的彩蛋</td>
+<td class="fx"><span class="ph">Phase 21–22</span><br><b>導航提示</b>(閒置 50 秒的回聲刻文+解鎖播報);<b>canvas 離線分享結果卡</b>+8 級稱號;<b>WORLD.md 世界觀聖經</b>(八節+29 項維護清單);13 則刻文小語、22 處會回應的東西(風鈴/音石/小獸…)、4 個藏起來的地方。</td></tr>
+
+<tr><td class="when">07-29 20:01</td><td><span class="tag p">協作</span></td>
+<td class="q"><span class="quote">我要來設計音樂,現在有幾區?…不要太鎖定 我自己會設計出好聽的,我只想知道我要交付給你的項目</span></td>
+<td class="fx">給出五區配樂的<b>交付規格</b>(每區調性方向/長度/格式/響度),開啟「站長作曲(Suno)→遊戲整合」的音樂管線。</td></tr>
+
+<tr><td class="when">07-30 03:27</td><td><span class="tag p">指令</span></td>
+<td class="q"><span class="quote">幫我開一個 issue 在這個 repo github</span></td>
+<td class="fx">GitHub <b>issue #1</b>:五區 BGM 交付規格表(後續 #3 是 v2 六區)。</td></tr>
+
+<tr><td class="when">07-30 08:23</td><td><span class="tag p">指令</span></td>
+<td class="q"><span class="quote">卡片我想要支援直接分享到使用者登入的 facebook, instagram 或是 threads, 或是傳 messenger</span></td>
+<td class="fx"><span class="ph">Phase 24</span><br>系統分享(navigator.share 帶檔案)為主路,各平台網頁入口為側路——並誠實研究出「哪些平台根本帶不動圖」,能力邊界直接寫在畫面上。</td></tr>
+
+<tr class="goal"><td class="when">07-30 15:12</td><td><span class="tag g">GOAL</span></td>
+<td class="q"><span class="quote">把所有可以找到 LLM 大廠的 prompt book 教學…紮紮實實的抓下來…除了a b c 選擇題也可以設計一些互動題…像是 tool use, function calling…環境再多設計一些小物件…就像常見的RPG 一樣</span>
+<details><summary>展開全文</summary><pre>最早我們的教學資料來源是: https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices
+
+1. 我在玩的過程中發現，其實很多關卡會出現重複的我不知道是不是 bug，需要你確認一下
+2. 我想要你把所有可以找到 LLM 大廠的 prompt book 教學 (openAI anthropic, goolgle, xAI, Qwen 所有市場上常見的 LLM 公司)，紮紮實實的抓下來，整理成 MD，附上參考連結，更新日期。我要 comprehesive 的確認一次 prompt 的技巧，確保我們的關卡豐富度
+除了a b c 選擇題也可以設計一些互動題，讓使用者去拖拉東西，或是互動操作，在過程中學會正確的 prompt 技巧以及 LLM 使用的概念像是 tool use, function calling 都可以
+
+嘴後我希望環境再多設計一些小物件，讓主角再玩得過程中可以跟他們互動，就像常見的RPG 一樣，月豐富月好，可以去參考網路上 RPG 遊戲跟我們一樣的軟體架構的遊戲</pre></details></td>
+<td class="fx"><span class="ph">Phase 25–27</span><br><b>Phase 25</b>:8 種 RPG 器物 22 件(火盆點了一直亮、絞盤推三下、長凳真的坐下…);<b>Phase 26</b>:9 廠 promptbook 逐條擷取→gap-analysis(14 項已過時內容+38 條新技巧候選)+「時代註記」誠實層;<b>Phase 27</b>:排序刻印(拖拉排順序)與神諭工坊(tool use 派工:挑工具→填參數→排相依→立規矩)兩種動手題型+第 27 關。重複度診斷後來成為 v2 的種子。</td></tr>
+
+<tr><td class="when">07-30 23:57</td><td><span class="tag p">糾正</span></td>
+<td class="q"><span class="quote">分享的東西錯了,我想要的是 分享使用者完成任務的那張圖,然後配上一段話分享</span></td>
+<td class="fx"><span class="ph">Phase 28</span><br>分享收斂為「<b>那張圖+一段話</b>」:可編輯文案框、share 帶 files+text 不帶 url;帶不走圖的平台入口整排拿掉。此規則後來寫死進 WORLD.md §3.5b。</td></tr>
+</table></div>
+
+<!-- ============ 改名部署 ============ -->
+<h2>Ⅲ · 改名、音樂、部署、開場<small>2026-07-31 · v1 Phase 29–34 + 上線</small></h2>
+<div class="tblwrap"><table>
+<tr><th>時間</th><th>類型</th><th>你說了什麼</th><th>達成效果</th></tr>
+
+<tr><td class="when">07-31 04:07</td><td><span class="tag p">指令</span></td>
+<td class="q"><span class="quote">我想要讓使用者可以直接前進到下一個關卡…跳出提示詢問使用者…我要把這個遊戲跟 repo 改名叫 promptasy 是 prompt + fantasy (這樣拚合適嗎?)</span></td>
+<td class="fx"><span class="ph">Phase 29</span><br><b>詢問式閘門</b>:門會問「想先過去看看嗎?」,先行前往誠實記帳(skippedGates,不給 XP 不算通關);<b>PromptArcade → Promptasy</b> 全面改名+存檔命名空間無痛搬家。</td></tr>
+
+<tr><td class="when">07-31 06:38</td><td><span class="tag p">交付</span></td>
+<td class="q"><span class="quote">issue #1 這張也做好了,音樂在 D:\garysrc\ulovemusic\…</span></td>
+<td class="fx"><span class="ph">Phase 30</span><br>站長五首 Suno 原創配樂+10 支 Splice 音效上線:「音檔優先、合成備援」雙軌(清空音檔照樣能玩)、-20 LUFS、交叉淡入循環、musicDuck。</td></tr>
+
+<tr><td class="when">07-31 07:42</td><td><span class="tag p">指令</span></td>
+<td class="q"><span class="quote">幫我把我們工程時做的 Harness 流程寫下來,放到 CLAUDE.md 內(尤其是你每次跑測試那段…如果項目不多,先詢問使用者是不是要全跑,或是跑部分測試)</span></td>
+<td class="fx">工程 Harness 正式入檔 CLAUDE.md+AGENTS.md(測試金字塔、先問再跑、flaky 對策、subagent 分工)——之後所有 phase 與其他 coding agent 都照這套走。</td></tr>
+
+<tr><td class="when">07-31 08:16</td><td><span class="tag p">指令</span></td>
+<td class="q"><span class="quote">參考一下網路上人家是怎麼樣直接分享圖片跟文字…透過外部瀏覽器開啟,然後直接用 copy-paste 的方式帶進去</span></td>
+<td class="fx"><span class="ph">Phase 31</span><br>實測三平台真實能力(Threads intent 收文字、FB sharer 只收連結、IG 無網頁入口)→「平台入口可以存在,前提是圖一定帶得走(剪貼簿或下載)」。</td></tr>
+
+<tr><td class="when">07-31(午前)</td><td><span class="tag p">指令(摘述)</span></td>
+<td class="q"><span class="abridged">※mid-turn 追加。</span>promptasy 改成 public repo,根據現在的資料修改 README,變成專業高星星樹的格式,可以放一張截圖在上面</td>
+<td class="fx"><span class="ph">Phase 32</span><br>repo 轉公開:六張實機截圖(種存檔取景)+高星格式 README(誠實徽章、驗證過的數字、License 當時誠實標 TBD)。</td></tr>
+
+<tr class="goal"><td class="when">07-31 09:23</td><td><span class="tag g">GOAL</span></td>
+<td class="q"><span class="quote">部屬這個到 garyhsieh.com 底下,參考 ai-lab 模式,用 submodule,然後要做 SEO 跟 OG…幫我在 dev 先做一次,用 vercel.com 開 preview 確認可以用,然後部屬上 main</span></td>
+<td class="fx">以 git submodule 掛進 garyhsieh 站、SEO/OG 注入、Vercel preview → main;<b>garyhsieh.com/promptasy 上線</b>。途中排掉 Vercel 擋 commit author 與 CDN 快取兩個坑。</td></tr>
+
+<tr><td class="when">07-31 11:51~12:43</td><td><span class="tag p">回饋</span></td>
+<td class="q"><span class="quote">首頁的音樂不見了…我測試還是沒聲音…要按一次再進到第一首音樂 意義不大…有其他更好做法嗎</span></td>
+<td class="fx">根因=新網域的瀏覽器自動播放政策;兩段式喚醒方案被否決後演化成 <span class="ph">Phase 33</span> 的<b>入場門</b>(那一下必要手勢變成「推開夜色之門」)。</td></tr>
+
+<tr><td class="when">07-31 16:05</td><td><span class="tag p">指令</span></td>
+<td class="q"><span class="quote">還沒進去前,看到遊戲畫面滿遜的,要先擋起來…很簡單的呼吸燈效果…文字慢慢浮現,下面一個簡單的 點擊進入…然後配一個音效</span></td>
+<td class="fx"><span class="ph">Phase 34</span><br>行內黑幕 bootcover(第一幀就蓋住 3D 世界)+呼吸燈入場門+推門音效+標題打字機。</td></tr>
+
+<tr><td class="when">07-31 16:54</td><td><span class="tag p">回饋</span></td>
+<td class="q"><span class="quote">推開夜色之門 這幾個字就好,其他東西都不用…打字效果我覺得不好,一行一行 fade in 就好…「在一個夜色的世界裡探索,」然後把馬上換行</span></td>
+<td class="fx">開場定稿:極簡呼吸燈+單句門、標題逐行淡入、中文句指定斷行——現在上線的版本。</td></tr>
+
+<tr class="goal"><td class="when">07-31 17:06</td><td><span class="tag g">GOAL</span></td>
+<td class="q"><span class="quote">整理一個完整的 prompt engineering 的清單…包含 openai, anthropic 等等全部…每一個技巧都有出處,跟使用方式…找不到的就寫找不到</span></td>
+<td class="fx"><b>docs/prompt-engineering-master-list.md</b>——完整技巧清單,每條附使用方式+官方出處,找不到的誠實標注。成為 v2 130 技能的原料。</td></tr>
+</table></div>
+
+<!-- ============ v2 ============ -->
+<h2>Ⅳ · Curriculum v2:一關一技<small>2026-08-01 ~ 08-02 · v2 Phase 0 + A–J(R4)</small></h2>
+<div class="tblwrap"><table>
+<tr><th>時間</th><th>類型</th><th>你說了什麼</th><th>達成效果</th></tr>
+
+<tr class="goal"><td class="when">08-01 02:41</td><td><span class="tag g">GOAL</span></td>
+<td class="q"><span class="quote">參考 docs/prompt-engineering-master-list.md,優化關卡豐富度…把所有技巧以不重複的方式教學,一個關卡就一個教學…類似薩爾達那種,可以進去不同的神廟各種解題的遊戲方式,先去找到網路上的 reference 然後列下來</span></td>
+<td class="fx">研究先行:Zelda 神廟模型等關卡設計參考入檔 <b>docs/design/level-design-references.md</b>;設計定稿 <b>docs/design/curriculum-v2.md</b>——130 技能/12 區/一技一廟/多樣互動題型。</td></tr>
+
+<tr><td class="when">08-01 04:11</td><td><span class="tag p">指令</span></td>
+<td class="q"><span class="quote">幫我開一個 dev branch,切換過去,然後開一個 session handoff,附上我們要做的方向相關文件,接著我會用別的 coding agent 先做 planning</span></td>
+<td class="fx">dev 分支+HANDOFF.md;外部 agent 產出 task_plan.md(Phase 0+A–J 的完整計畫),經 PR #2 review 後成為 v2 的執行藍圖。</td></tr>
+
+<tr><td class="when">08-01 05:36</td><td><span class="tag p">指令</span></td>
+<td class="q"><span class="quote">在 README 上,寫一個 release note,目前是 1.0 版,我要來做 1.1 版</span></td>
+<td class="fx">README Release notes 區塊,v1.0 條目入檔,為 v1.1 立起版本節奏。</td></tr>
+
+<tr class="goal"><td class="when">08-01 05:43</td><td><span class="tag g">GOAL</span></td>
+<td class="q"><span class="quote">持續實作 Promptasy 課程與關卡設計 v2,直到 task_plan.md 的 Phase 0、A–J 全部完成,達成 130 座教學神廟+12 座應用關/12 區/130 技能的 R4 完整版本</span>
+<details><summary>展開全文(執行規則 14 條)</summary><pre>持續實作 Promptasy 課程與關卡設計 v2，直到 `task_plan.md` 的 Phase 0、A–J 全部完成，達成 130 座教學神廟＋12 座應用關／12 區／130 技能的 R4 完整版本；Phase K `disclose` 是選配，不得阻塞 R4。
+
+每次開始或 context compaction 後，先完整讀取：
+1. `AGENTS.md`
+2. `CLAUDE.md` 的護欄與最近變更
+3. `WORLD.md`
+4. `HANDOFF.md`
+5. `task_plan.md`
+6. `findings.md`
+7. `progress.md`
+8. 當期涉及的 `docs/design/curriculum-v2.md`、`docs/design/level-design-references.md`、`docs/prompt-engineering-master-list.md`、`docs/promptbooks/gap-analysis.md`
+
+執行規則：
+- 先完成 `task_plan.md` Phase 0 的基線、migration manifest 與 D1–D3 契約決策，再按 A→J 順序推進。
+- 一次只實作一個 phase；每個 phase 必須端到端完成、驗證、記錄、commit、push 到 `dev`，然後自動繼續下一個 phase，不要因 context 壓縮、單一期完成或工作時間較長而提早收工。
+- 寫程式不得並行代理，避免互踩；研究工作才可並行。任何代理都不得修改 `CLAUDE.md`，changelog 由主代理統一處理。
+- `src/data/curriculum.json` 必須保持 byte-identical。新 130 技能使用獨立 authored/sourced catalog layer，不能把遊戲摘要冒充官方引文。
+- 不碰 `vite.config.js`、使用者的 port 5175 或使用者既有 dev server。自開測試 server 必須使用其他 port，結束時清除整個 process group。
+- 玩家可見中文字串有變更時必跑 `npm run fonts`。
+- 每次改動至少跑 `npm run test:rubric` 與 `npm run build`；關卡、flows 或 checker 變更另跑 `npm run test:playtest`。
+- 新 kind、四幕互動、鍵盤、存檔、地形或大型流程改動必跑完整 `npm run test:e2e`。小型資料／文案改動依 `AGENTS.md` 先詢問是否跑 e2e，不要擅自花 15–20 分鐘。
+- 新功能測試先確認會失敗，再讓它通過；動畫與幾何斷言使用 poll-until，並先證明元素真的可量測。
+- 每個 phase 結束逐條檢查 WORLD.md 29 項維護清單中適用項目，更新 `progress.md`、`findings.md`、`task_plan.md` 狀態及 `CLAUDE.md` changelog，再 commit、push `dev`。
+- 不自行 merge `main` 或部署。只在 `task_plan.md` 的 R1／R2／R3／R4 release checkpoint 回報完整驗證結果，等待 owner 決定是否合入。
+- 遇到錯誤必須記錄；不要重複完全相同的失敗操作。三種合理方法仍無法前進、需要新的權限、或規格選擇會明顯改變產品時，才停下並提出一個精確問題。
+- 不得虛構來源、測試結果、完成度、效能數字或使用者成果。交接文件中的綠燈只算歷史資訊，必須由本次實際測試重新確認。
+
+完成條件以 `task_plan.md` §0 為準。只有 Phase 0、A–J 全部完成、R4 全套驗證通過、所有必要 commit 已 push 到 `dev`，才可以宣告 goal 完成。</pre></details></td>
+<td class="fx"><span class="ph">v2 Phase 0 + A–J(R4 達成)</span><br>整個 v2 用一條 goal 跑完(中間僅需數次 continue):<b>12 區/142 關(130 教學+12 應用)/130 技能/81 檢查器/11 種題型</b>(choice/order/workshop/fix/spot/induct/tradeoff/constraint/multi/sim/reverse);6 片新地形+3 座 annex;知識式軟門檻;土地印記/無筆之印;rubric 斷言 16,490→76,757、e2e 3,013 項零 console error 零 flaky;curriculum.json 全程 byte-identical。</td></tr>
+
+<tr><td class="when">08-02 13:59</td><td><span class="tag p">指令</span></td>
+<td class="q"><span class="quote">help me to launch to verify</span></td>
+<td class="fx">起本機驗收環境,站長開始實測 v2——之後兩天的細修回饋皆源於此。</td></tr>
+</table></div>
+
+<!-- ============ 細修 ============ -->
+<h2>Ⅴ · 上線前細修<small>2026-08-02 ~ 08-03 · 音訊整合+UI 打磨+內容品檢</small></h2>
+<div class="tblwrap"><table>
+<tr><th>時間</th><th>類型</th><th>你說了什麼</th><th>達成效果</th></tr>
+
+<tr><td class="when">08-02 16:04</td><td><span class="tag p">指令</span></td>
+<td class="q"><span class="quote">1. 新增音樂跟音效,幫我開 issue…2. Enter stone 要加寬…3. 工程技術關鍵字,markdown 什麼的,多一個 hover 功能</span></td>
+<td class="fx">issue #3(v2 六區 BGM+SFX 規格);手掌印石牌重排(252×179、提示兩行);<b>術語小卡</b>:24 條工程關鍵字 hover 白話解釋(glossary.json)。</td></tr>
+
+<tr><td class="when">08-02 21:11</td><td><span class="tag p">指令</span></td>
+<td class="q"><span class="quote">for each 關卡…reference link…directly to the section, which is hash in the link…確保每個 stage / link is being presented accordingly</span></td>
+<td class="fx"><b>出處深連結</b>:當日實抓 114 份官方文件,550 列出處逐列裁定(升級章節錨點 201、Text Fragment 20、修 9 條本來就死掉的錨、116 條誠實保持頁級附理由);稽核方法入檔 source-anchor-audit.md。</td></tr>
+
+<tr><td class="when">08-02 22:13</td><td><span class="tag p">交付</span></td>
+<td class="q"><span class="quote">issue #3 ready…</span>＋<span class="quote">#3 下面有留言也要一起讀,此外要確認整體音量差不多,音效跳出來一點點即可(比音樂大一點點)</span></td>
+<td class="fx">六區 BGM+14 SFX 整合:依站長規則「檔案不改音量」,全部 runtime Web Audio 增益校準(音樂 -20 / 音效 -19 LUFS),polyphony 首次強制執行;數學入檔 audio-loudness.md。</td></tr>
+
+<tr><td class="when">08-03 03:33~04:00</td><td><span class="tag p">協作</span></td>
+<td class="q"><span class="quote">護欄崗 是什麼感覺</span>→<span class="quote">bgm_guardrail.wav 可以推進了</span></td>
+<td class="fx">描述區域調性供作曲→《The Unclosing Door》入檔;<b>十二區全數有自己的音檔</b>,SYNTH_ONLY_REGIONS 清空。</td></tr>
+
+<tr><td class="when">08-03 04:05</td><td><span class="tag p">回饋</span></td>
+<td class="q"><span class="quote">這個 info 不要自動彈出來…i icon 不用這麼大,改成原本 0.5x…關卡的標題,我覺得三行太多,把他跟 ESC 合併成一行</span></td>
+<td class="fx">ⓘ 自動彈出根因修正(瀏覽器合成 mouseover→改真實 mousemove 判定)+縮 0.5x;關卡標題三行→單列 bar(172→93px)。</td></tr>
+
+<tr><td class="when">08-03 05:27</td><td><span class="tag p">指令</span></td>
+<td class="q"><span class="quote">現在有一些小地方,我想一次修正,先不跑 test:1. drag and drop 類的不是很順…卡片會消失,然後很容易彈跳…用 sonnet 驗證 2.…</span>(共 7 項)</td>
+<td class="fx"><b>拖曳三根因根治</b>(入場動畫重播/FLIP 蓋 transform/量測含飛行中位移),獨立 Sonnet CDP 驗證 PASS;幕標籤/手掌印提示縮字/分享頁圖左字右+圖示化/神諭原典改書本圖示/刻文導言併行。</td></tr>
+
+<tr><td class="when">08-03 07:02~07:39</td><td><span class="tag p">回饋×5</span></td>
+<td class="q">(附截圖)kicker 重複移除、聖典圖示、✕ 去 ESC、燈泡提示球、幕指示器縮 2/3;<span class="quote">神諭的 hover 彈窗被擋住了…直接給出處就好</span>;<span class="quote">順手會用到…是每個關卡都會出現的字串嗎</span>→選 1 整行移除</td>
+<td class="fx">六項截圖細修落地;氣泡改向下開+stacking context 穿透修正;130 關通用的零資訊「順手會用到」列整行移除。</td></tr>
+
+<tr><td class="when">08-03 07:51~09:06</td><td><span class="tag p">回饋×3</span></td>
+<td class="q"><span class="quote">紅圈處 前面的 leading icon 都跑掉了…分享圖格式是跑版的…分享文字最後要加上我們網站 URL</span>;圖示對齊中線;HUD 操作列 20% 透明</td>
+<td class="fx">✓/◐ 改內聯 SVG(根因=字型子集缺字);<b>分享卡 v2 重排</b>(130 技能計、12 區封印格,順修 3 個 v2 bug);文案尾加 garyhsieh.com/promptasy;HUD 操作列 hover 才清晰。</td></tr>
+
+<tr><td class="when">08-03 10:44</td><td><span class="tag p">指令</span></td>
+<td class="q"><span class="quote">分享 · SHARE 小標移除…不用那個圖+文的鈕了…threads 跟 facebook 都分享文字就好…查一下網路上 fb 分享貼文怎麼做的…然後移除 ig</span></td>
+<td class="fx">分享面板收斂:Threads 純文字 intent、FB 走 sharer.php(官方無 app_id 入口,查證後採用)、IG 移除。</td></tr>
+
+<tr><td class="when">08-03 10:47</td><td><span class="tag p">指令</span></td>
+<td class="q"><span class="quote">每個關卡可能都有一點瑕疵…我想要全面的用 sonnet 多個 subagent review 每個關卡,把不合理的地方提出來給你,統一修正</span></td>
+<td class="fx"><b>142 關全面內容品檢</b>:12 個 Sonnet subagent 以「中文玩家+嚴格編輯」視角逐關審查→79 findings,統一修正 74(高風險含同關自打臉、素材因果斷裂、憑空場景),5 件跳過皆附理由;playtest 2,372 全綠把關零破壞。</td></tr>
+
+<tr><td class="when">08-03 12:57~13:19</td><td><span class="tag p">回饋×5</span></td>
+<td class="q"><span class="quote">分歧之廳為什麼要先至少完成一關?</span>→<span class="quote">比照其他的區域好了</span>;發亮的字被截;<span class="quote">為什麼要用直式的字? 先回答我,別改動</span>;同題兩問;<span class="quote">主角在五根柱子這裡陷進去了</span></td>
+<td class="fx">分歧之廳硬門檻取消(軟門檻+任 2 片精通);石座標籤 canvas 依文字量寬;三問題修正——tradeoff 直排字(grid 自動放置根因)、recap 補前提句、<b>五座地標臺座碰撞</b>(邊緣採樣掃出同缺陷四座一併修)。「先回答我,別改動」的先診斷後動手節奏在此定型。</td></tr>
+</table></div>
+
+<!-- ============ 發版 ============ -->
+<h2>Ⅵ · 發版與收尾<small>2026-08-03 ~ 08-05 · v1.1</small></h2>
+<div class="tblwrap"><table>
+<tr><th>時間</th><th>類型</th><th>你說了什麼</th><th>達成效果</th></tr>
+
+<tr><td class="when">08-03 14:12</td><td><span class="tag p">指令</span></td>
+<td class="q"><span class="quote">update readme and related files, then merge this PR into main, and release as v1.1</span>＋(mid-turn)<span class="quote">release 後,到 garyhsieh source code 更新 dev 和 submodule 並推到 main 部署,然後開啟 garyhsieh.com/promptasy 用 sonnet subagent 做 e2e testing</span></td>
+<td class="fx"><b>v1.1 發版</b>:發版前測試債全清(62 條 rubric+89 條 e2e 過期斷言重釘、零刪除、四輪 e2e 零 flaky);README/截圖/og 圖全面刷新至 v2 數字;merge main+tag+GitHub release;garyhsieh.com 部署更新;<b>production Sonnet e2e PASS、零 console error</b>(順手抓到一處漏改的舊標題並 hotfix)。</td></tr>
+
+<tr><td class="when">08-03 22:24~22:34</td><td><span class="tag p">指令×3</span></td>
+<td class="q"><span class="quote">.claude 應該可以 ignore? 移除他? HANDOFF.md, findings.md, task_plan.md, progress.md 有需要動嗎?或移除?</span>;<span class="quote">.gitkeep 是做什麼用的</span>→<span class="quote">好,目錄內如果有類似檔案也一併處理</span></td>
+<td class="fx">倉庫整理:.claude/ 進 gitignore;三份 v2 規劃紀錄歸檔 docs/history/;HANDOFF.md 移除;全部 12 個 .gitkeep 移除。</td></tr>
+
+<tr><td class="when">08-04 23:42</td><td><span class="tag p">指令</span></td>
+<td class="q"><span class="quote">1. 幫我把這個專案從一開始到完成使用的所有 goal, prompt 整理成一個 html 表格,放到 docs…2. 優化 CLAUDE.md 檔案…檔案分層…同步 AGENTS.md 3. License 可以確定,全開源,一併更新 README</span></td>
+<td class="fx">本表(docs/history/prompts.html);CLAUDE.md 分層——harness 留主檔、變更紀錄搬到 docs/history/CHANGELOG.md、文件地圖入檔,AGENTS.md 同步;MIT LICENSE 落地、README 徽章與授權段更新。</td></tr>
+</table></div>
+
+<footer>
+  Promptasy · 開發歷程對照表 · 產出於 2026-08-05。
+  原文皆逐字取自 session transcript;標「摘述」者原文佚失於 context 壓縮,依當時摘要重建。
+  完整技術紀錄見 <a href="./CHANGELOG.md">CHANGELOG.md</a>。
+</footer>
+
+</div>
+</body>
+</html>
