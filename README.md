@@ -13,7 +13,7 @@
 [![130 skills cited](https://img.shields.io/badge/130%20skills-every%20one%20cited-e6c79b?style=flat-square)](#content--sources)
 [![142 challenges](https://img.shields.io/badge/142%20challenges-12%20regions-8ecae6?style=flat-square)](#features)
 [![Language](https://img.shields.io/badge/game%20language-繁體中文-8ecae6?style=flat-square)](#繁體中文)
-[![License](https://img.shields.io/badge/license-TBD-lightgrey?style=flat-square)](#license)
+[![License](https://img.shields.io/badge/license-MIT-2ea44f?style=flat-square)](./LICENSE)
 [![PRs welcome](https://img.shields.io/badge/PRs-welcome-blueviolet?style=flat-square)](#contributing)
 
 <img src="docs/media/hero.png" alt="Promptasy — a hooded traveller with a lantern stands on a night plateau; glowing challenge beacons, lore steles and three lit region gateways rise out of the mist under a starfield" width="100%">
@@ -349,11 +349,10 @@ Per-asset licensing is recorded in [`public/LICENSE.md`](./public/LICENSE.md).
 
 ## License
 
-**Code license: TBD.** `package.json` currently declares `MIT`, but no `LICENSE` file has been committed yet, so treat
-the code as *not yet licensed* until one lands. **Assets are licensed separately** — see
-[`public/LICENSE.md`](./public/LICENSE.md) (fonts are OFL 1.1 and redistributable; music and SFX are licensed to this
-project and are **not** free to reuse elsewhere). Technique text and links remain the property of their original
-vendors.
+**Code: [MIT](./LICENSE).** The source code of this repository is fully open source under the MIT License.
+**Assets are licensed separately** — see [`public/LICENSE.md`](./public/LICENSE.md) (fonts are OFL 1.1 and
+redistributable; music and SFX are licensed to this project and are **not** free to reuse elsewhere). Technique text
+and links remain the property of their original vendors.
 
 ---
 
