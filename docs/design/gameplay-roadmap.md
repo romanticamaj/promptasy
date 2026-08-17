@@ -36,7 +36,7 @@ CLAUDE.md 的五個方向與七條護欄仍是最高準則。本 roadmap 只回�
   - 依賴：無。方案：1-A（實體半）。Spec §3、§4.1、§4.2。
   - DoD：8 隻可見可互動；rubric 測試驗資料層；碰撞體 +8、collision-audit 0；tris 增量 <5k；e2e：teleport→提示→E→console open→free；舊斷言零改動。
 
-- [ ] **P02 · 濁靈進程與存檔＋圖鑑第四列**（S–M）— 主控台 `renderResult()` 依 `challenge.kind` 選**唯一** recorder：`murk` → `progression.recordMurk(id, evaluation)`（**不**走 `recordResult`、不進 `bestGrades`、不觸發 `refreshUnlocks()`）；存檔新增單一物件欄 `murks: { [id]: { hits:[rubricIndex…], grade } }`（純加法、`normalize()` 給 `{}`、reset 清空）；`hits` 為跨次**累積聯集**（永不清零）；**安撫規則定死**：累積命中的權重和 ≥ `pass` 即安撫（可能仍剩殼——剩的殼變成半透明「餘殼」，之後補上可拿更高評價，全剝＝S）；`grade` 由累積權重和經既有評分函數算出、只升不降；`recordMurk()` **原子回傳** `{ newlyPassedIndices, hits, score, grade, calmed, newlyCalmed }`，供 P03 回呼使用；XP 只補差額（`murks.json.xp`）；圖鑑 `worldFinds()` 第四列「濁言與正言 n/8」＋條目（濁言 → 你的最佳評價 → 範例強句 → 技巧連結 → 出處）；`progression.murkCount()`。
+- [~] **P02 · 濁靈進程與存檔＋圖鑑第四列**（S–M）— 主控台 `renderResult()` 依 `challenge.kind` 選**唯一** recorder：`murk` → `progression.recordMurk(id, evaluation)`（**不**走 `recordResult`、不進 `bestGrades`、不觸發 `refreshUnlocks()`）；存檔新增單一物件欄 `murks: { [id]: { hits:[rubricIndex…], grade } }`（純加法、`normalize()` 給 `{}`、reset 清空）；`hits` 為跨次**累積聯集**（永不清零）；**安撫規則定死**：累積命中的權重和 ≥ `pass` 即安撫（可能仍剩殼——剩的殼變成半透明「餘殼」，之後補上可拿更高評價，全剝＝S）；`grade` 由累積權重和經既有評分函數算出、只升不降；`recordMurk()` **原子回傳** `{ newlyPassedIndices, hits, score, grade, calmed, newlyCalmed }`，供 P03 回呼使用；XP 只補差額（`murks.json.xp`）；圖鑑 `worldFinds()` 第四列「濁言與正言 n/8」＋條目（濁言 → 你的最佳評價 → 範例強句 → 技巧連結 → 出處）；`progression.murkCount()`。
   - 依賴：P01。方案：1-A（進程半）。Spec §4.4、§4.5。
   - DoD：安撫不改「已通關數／稱號／142 分母」（rubric 測試明確斷言）；舊檔載入補 `murks:{}`；e2e：送 taint 原文→未安撫但 hits 可能 >0（**不**斷言殼數不變）→送 sample→安撫、圖鑑 1/8、save 有 id；reset 清空。
 

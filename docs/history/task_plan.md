@@ -775,6 +775,40 @@ Exit criteria：
 - [x] rubric 84,234／playtest 2,429／build ✓／e2e 3,409 全綠、console error 0；`npm run fonts` 已跑（1474.1 KB）。
 - [x] 預算實測：三角 192,170 → 195,530（+3.4k）、光源 37、碰撞體 962 → 969、collision-audit 未涵蓋 0。
 
+### P02 — 濁靈進程與存檔＋圖鑑第四列（2026-08-18 開工）
+
+狀態：`in progress`（Codex 額度用盡至 8/20 → consult 改由 orchestrator 對照程式碼自審；review 用 `/code-review high`）
+
+**現狀（P01 之後）**：`progression.recordMurk(id, evaluation, meta)` 是唯讀 stub（回傳 recordResult 同形 outcome、不寫 state）；主控台 `renderResult()` 已依 `kind==='murk'` 分流；`main.js` `onResult` murk 分支只給音效就 return；存檔 `save.js` 無 `murks` 欄；圖鑑 `worldFinds()`（`src/ui/codex.js:76`）有三列（刻文／祕密／器物）。評分：`evaluate()` 回 `results[i].passed`（布林）與 `weight`；`gradeForRatio(ratio)`、`xpForGrade(grade, baseXp)`、`betterGrade` 在 `src/challenges/rubric.js`。
+
+**目標**：安撫會被記住（跨次累積、永不清零）、有評價、有 XP、進圖鑑第四列；不污染 142 關統計。
+
+**範圍**
+1. `src/save/save.js`：`defaultSave().murks = {}`；`normalize()` 逐鍵驗 `{ hits:[int…去重排序], grade: 'S'|'A'|'B'|'C'|null }`，壞值丟棄；`reset()` 自然清空；純加法、不動 `migrate` 版本號。
+2. `src/progression/progression.js`：`recordMurk(id, evaluation, meta)` **真正落盤**：`hits = 聯集(舊 hits, evaluation.results 中 passed===true 的 index)`；`score = Σ rubric[i].weight for i in hits`；`calmed = score ≥ challenge.pass`（`pass` 由 murks.json 帶入——`recordMurk` 需拿到 rubric/pass：由 challenge 形物件傳入或從 murk 資料表查；建議簽名 `recordMurk(challenge, evaluation, meta)`，`challenge.kind==='murk'`）；`grade = calmed ? betterGrade(舊 grade, gradeForRatio(score/total)) : 舊 grade`（只升不降；全部命中 → S）；XP 只補差額：`xpForGrade(grade, murks.json.xp) − xpForGrade(舊 grade, xp)`，寫進 `state.xp`、升等照 `levelFromXp`；**不動** `bestGrades`／`collected`／`skillsV2`／`refreshUnlocks()`；`newlyCollected` 保持空（教學技巧的收集仍只由神廟給——保守，避免濁靈變成收集捷徑）。**原子回傳** `{ xpGain, levelBefore, levelAfter, leveledUp, newlyCollected:[], newlySkills:[], newlyUnlocked:[], previousGrade, bestGrade:grade, improved, newSeal:null, newPenless:false, newScribe:false, murk:{ newlyPassedIndices, hits, score, total, calmed, newlyCalmed } }`（前 13 鍵與 recordResult 同形，加一個 `murk` 子物件給 P03）。另加 `murkCount()`（有 grade 的數）、`murkState(id)`、`murkHits(id)`。**主控台第一次送出前**（`open()`）：既有 `best` 對 murk 改讀 `murkState(id).grade` 顯示「最佳評價」。
+3. `src/prompt/console.js`：`renderResult` 對 murk 顯示：安撫時「牠聽懂了…」＋ `+N XP`（若 xpGain>0）＋ 評價；未安撫時既有「再修一次」＋缺什麼；`outcome.murk` 存在時把「本次新命中 N 條」寫進結果面一行（P03 會拿同一資料剝殼）。不重播殼（P03 才有殼動畫）。
+4. `src/ui/codex.js`：`worldFinds()` 第四列「濁言與正言 n/8」（`murkTotal` 由 main.js 傳入＝`murkFile.entries.length`），列後可展開清單：每隻 `title`、`taint`（弱）、最佳評價、`sample`（強）、`teaches`／`primarySkillId` 技能名、`source` 出處連結（護欄 2）；未安撫者只顯示 title＋「還沒聽懂」。
+5. `src/main.js`：`onResult` murk 分支：`outcome.murk.newlyCalmed` → `hud.celebrate`／`audio.cue('pass')`、`hud.refresh()`；升等照既有 toast＋`engine.pulse(0.7)`；仍不找 marker、不 `refreshGates`。`createCodex({ murkTotal })`。`window.__promptasy` 已有 murks。
+6. `scripts/expected-counts.json` 不動（8 已在）。
+
+**非目標**：殼剝落／清燈／SFX／回呼（P03）；WORLD.md／文案定稿（P04）；`bestGrades`；`refreshUnlocks`。
+
+**受影響檔案**：`src/save/save.js`、`src/progression/progression.js`、`src/prompt/console.js`、`src/ui/codex.js`、`src/main.js`、`src/styles.css`（圖鑑第四列最小樣式）、`scripts/test-rubric.mjs`、`scripts/headless-check.mjs`、fonts 產物。
+
+**預算**：無場景改動（三角／光／碰撞不變）；存檔 +1 欄。
+
+**Acceptance tests（先紅後綠）**
+- rubric：`normalize()` 對舊檔補 `murks:{}`、壞值（非陣列 hits、非法 grade、非整數 index）被丟、`reset()` 清空；`recordMurk` 累積聯集（兩次送出不同命中 → 聯集）、安撫規則（score≥pass）、grade 只升不降、XP 只補差額、**`bestGrades`／`collected`／`skillsV2`／已通關數／稱號前後 deep-equal**、`levelFromXp` 一致；`murkCount()`。
+- e2e：送 taint 原文 → 未安撫但 `murks[id].hits` 可能 >0、save 有 `murks` 鍵；關掉重開 → 主控台顯示的狀態一致（無殼動畫可驗，只驗 state）；送 sample → `murks[id].grade` 有值、XP 增加 `xpForGrade`、圖鑑第四列 `1/8`＋條目含 taint／sample／出處連結、「已通關數／稱號」不變；`reset` 後 `murks` 為 `{}`；舊斷言零改動；console error 0。
+- 舊斷言零改動；`npm run fonts`。
+
+**禁區**：同 P01（另：不動 `expected-counts` 既有值）。
+
+Exit criteria：
+- [ ] 安撫被記住、跨次累積、有評價與 XP、進圖鑑；142 關統計不變。
+- [ ] rubric／playtest／build／e2e 全綠、console error 0；fonts 已跑。
+- [ ] 數字與 outcome 契約寫進 progress.md 與 CHANGELOG（給 P03）。
+
 ## v1.2 錯誤紀錄
 
 （沿用 §8 規則：任何錯誤記在此；同一錯誤不原樣重試；連續三種方法仍無法前進才報阻塞。）
