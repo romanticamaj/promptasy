@@ -1,4 +1,4 @@
-# Promptasy 遊戲性 Roadmap（v1.1 → v2「濁靈之夜」）
+# Promptasy 遊戲性 Roadmap（v1.1 → v1.2「濁靈之夜」）
 
 > **這是什麼**：v1.1 上線後、以「更好玩」為目標的長程 roadmap。它把五份研究（[遊戲性總研究＋Codex 審查](./gameplay-research-2026-08.md)、[世界觀擴充](./research-worldbuilding-2026-08.md)、[地圖與關卡結構](./research-map-2026-08.md)、[濁靈遭遇 spec](./spec-murk-encounter.md)、[關卡設計參考](./level-design-references.md)）裡的所有方案排成**每一格都能在一次 `/goal` 執行內交付**的 phase 序列。
 > **怎麼用**：`/goal` 每次執行時讀本檔，接續 `[~]`（進行中）或取第一個 `[ ]`，做完打 `[x]`、寫 changelog。方案編號（1-A、M3、W-2…）對應各研究文件的表格，細節去那裡查；本檔只管**順序、範圍、依賴、完成定義、預算**。
@@ -15,7 +15,7 @@ CLAUDE.md 的五個方向與七條護欄仍是最高準則。本 roadmap 只回�
 3. **一律夜景、沒有日出**（WORLD.md:163）：不做日夜循環，做「一夜的時辰」：入夜 → 深夜 → 月落 → **月落後、星最亮的夜**（終態）。不出現黎明、魚肚白、東方發白。
 4. **`E` 是唯一互動鍵**；跳躍若上線，用一顆**新的**桌機鍵（不搶 `E`、不搶抬頭的空白鍵，見 P13）。
 
-## 1. 主題：v2「濁靈之夜」
+## 1. 主題：v1.2「濁靈之夜」
 
 **一句話**：這一夜，你替這片土地上「沒說清楚的話」把話說完；說得越清楚，夜越亮、星越滿。
 
@@ -155,7 +155,7 @@ CLAUDE.md 的五個方向與七條護欄仍是最高準則。本 roadmap 只回�
 
 - [ ] **P25a · 打磨：果汁複核 ＋ 音訊 ＋ 無障礙**（M）— game-feel 複核（只保留不造成壓力的：squash、粒子、音層、`pulse`）；12 區 SFX／BGM 補錄（**以 `src/audio/audio.js` 與 WORLD.md §6.5 為準：BGM -20 LUFS、SFX -19 LUFS、峰值上限 -3 dBFS**；順手把 CLAUDE.md 那句「SFX 峰值 -6 dBFS」改成一致）；無障礙（reduced-motion 全覆蓋、螢幕閱讀器路徑）。
   - 依賴：P24。方案：2-C（子集）。
-- [ ] **P25b · 效能回歸 ＋ 測試收斂 ＋ v2 發版**（M）— 低階機 low quality 30fps；e2e flaky 清零；README／CLAUDE.md 數字同步；`expected-counts.json` 契約更新；`docs/history/prompts.html` 補 v2 goal；v2 發版。
+- [ ] **P25b · 效能回歸 ＋ 測試收斂 ＋ v1.2 發版**（M）— 低階機 low quality 30fps；e2e flaky 清零；README／CLAUDE.md 數字同步；`expected-counts.json` 契約更新；`docs/history/prompts.html` 補 v1.2 goal；v1.2 發版。
   - 依賴：P25a。
 
 ### 可夾帶項（任一 phase 順手做，S，各自 ≤ 半小時）
@@ -173,7 +173,7 @@ P05→P06 ─────────┼─▶ 閘門A ─▶ P07→P08 ─┐  
                  │                     └────────────────┘
 閘門B ─▶ P11→P12→P13→P14→P15→P16a→P16b ─▶ 閘門C
 閘門C ─▶ P17→P18 ─▶ P19          P20a→P20b→P21→P22 ─▶ 閘門D   （P17 依 P10a；P20a 依 P08；P22 依 P05、P07、P21）
-閘門D ─▶ P23 ─▶ P24（功能凍結後）─▶ P25a→P25b v2
+閘門D ─▶ P23 ─▶ P24（功能凍結後）─▶ P25a→P25b v1.2
 ```
 
 ## 5. 每個 phase 的固定流程（`/goal` 的操作定義）
@@ -204,7 +204,7 @@ P05→P06 ─────────┼─▶ 閘門A ─▶ P07→P08 ─┐  
 ## 附：`/goal` 文字（站長核准後直接下）
 
 ```
-/goal 依 docs/design/gameplay-roadmap.md 推進 Promptasy v2「濁靈之夜」，每次只做一個 phase。
+/goal 依 docs/design/gameplay-roadmap.md 推進 Promptasy v1.2「濁靈之夜」，每次只做一個 phase。
 流程照該檔 §5：先 git status——來源不明或非本 phase 的未提交／已暫存改動不得 stash／reset／納入 commit，
 與目標重疊就停下請示；roadmap 有 [~] 就續做，否則取第一個 [ ] 並標 [~]；phase 依賴 §6 未決事項且找不到站長決定就停；
 遇到「▶ 閘門」且 changelog 無站長「過」的紀錄就寫閘門摘要並停止。讀 CLAUDE.md 護欄與 Harness、
