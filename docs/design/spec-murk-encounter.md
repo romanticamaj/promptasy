@@ -8,7 +8,7 @@
 
 ## 0. 一句話
 
-在地圖上放幾隻**濁靈（Murk）**——每一隻是一段「寫壞的請求」具象化的小生物。走近按 `E`，用現有主控台**自由書寫**一段好 prompt；評分引擎每命中一項檢查，牠身上就剝掉一層濁氣（閃光＋粒子＋音效）；達標後牠被「安撫」成一盞安靜的小光靈，跟你走幾步、然後回到原位變成路燈，並收進圖鑑「走出來的收集」。**沒有血量、沒有追逐、沒有懲罰、不會失敗**——這是 Promptasy 版本的「遇到哥布林」。
+在地圖上放幾隻**濁靈（Murk）**——每一隻是一段「寫壞的請求」具象化的小生物。走近按 `E`，用現有主控台**自由書寫**一段好 prompt；評分引擎每命中一項檢查，牠身上就剝掉一層濁氣（閃光＋粒子＋音效）；達標後牠被「安撫」成一盞安靜的清燈（原位常駐），並收進圖鑑「走出來的收集」；沒達標時已命中的部分會留著，下次接著補。**沒有血量、沒有追逐、沒有懲罰、不會失敗**——這是 Promptasy 版本的「遇到哥布林」。
 
 ## 1. 目標與非目標
 
@@ -76,7 +76,7 @@
 ### 4.1 世界實體 `src/world/murks.js`（新）
 - `createMurkField({ entries, kitOf, terrainHeight, isBusy, reducedMotion })` → `{ group, murks, update(dt,t,px,pz), nearest(pos, maxDist), calm(id, grade), setCalmed(id, grade) }`。樣板照 `reactive.js` 的 `createReactiveField`：扁平陣列、`FAR_SQ=45²` 整組跳過、`NEAR_SQ=15²` 外每 3 幀一次、**零每幀配置**（暫存向量提模組層）。
 - 每隻＝`THREE.Group` 命名 `murk:<id>`（`類型:id` 慣例，碰撞稽核與 e2e 靠它）；子件：`core`（眼光，emissive）、`shells[]`（濁氣殼，數量＝rubric 條數，半透明 → 稽核自動免除）、`body`（實心底座，`userData.solidRadius = 0.9`）、`glow`（sprite）。**0 光源**。
-- 狀態機：`idle → aware（玩家 ≤8m，轉頭＋stir 音效節流 TRIGGER_COOLDOWN）→ struck（逐殼剝落動畫，由 console 回呼驅動）→ calming（縮成光靈）→ following（跟隨 8s 計時器，不是幀數）→ settled（原位小燈）`；`reducedMotion` 時跳過跟隨、直接 settled。
+- 狀態機：`idle → aware（玩家 ≤8m，轉頭＋stir 音效節流 TRIGGER_COOLDOWN）→ struck（逐殼剝落動畫，由 console 回呼驅動）→ calming（殼散、光屑繞玩家一圈 ≤3s，計時器不是幀數）→ settled（原位清燈）`；`reducedMotion` 時跳過光屑、直接 settled。開機時依存檔 `murks[id].hits` 還原殼數、`grade` 有值則直接 settled。
 - 幾何預算：每隻 ≤ 600 三角形（8 隻 < 5k，總量遠低於 420k 上限）。
 
 ### 4.2 互動仲裁 `src/main.js`
@@ -109,18 +109,18 @@
 |---|---|
 | WORLD §3.5 不扣分、不失敗、不前進 | 沒過只剩殼在、可再寫；無 HP、無掉落、無傳送、無倒退 |
 | `E` 唯一互動鍵 | 濁靈走 E；無新鍵 |
-| 沒有會走動的 NPC | 濁靈原位；跟隨光靈是過關後 8 秒的演出、不可互動、不擋路、之後回原位 |
+| 沒有會走動的 NPC | 濁靈原位；過關只有 ≤3 秒的光屑演出，無實體跟隨 |
 | 光源 ≤56（現 37） | 新增 0 光源，全 emissive |
 | 碰撞體 ≤1,400（現 957） | +8（`solidRadius 0.9`，`keepSolid` 不設） |
 | 三角形 ≤420k（現 194k） | +<5k |
 | 零每幀配置、距離分帶 | 照 reactive.js 樣板 |
 | 內容正確附出處 | `authored:"game"`；rubric 只引用既有 checks；source 必在 anchors |
-| 存檔純加法、reset 乾淨 | `murksCalmed` 走 normalize；bestGrades 複用 |
+| 存檔純加法、reset 乾淨 | 單一 `murks` 物件欄走 normalize；不碰 `bestGrades` |
 | 不倒退 | 不改既有 142 關與 flows；e2e 舊斷言全保留 |
 
 ## 6. 測試計畫
 
-- **`npm run test:rubric`** 新增：`murks.json` 結構與 `authored:"game"`；每個 `check` 存在於 checks.js；`source` 在 anchors；座標淨空規則；在 node 蓋世界後 solids 數含 8 隻且總數 <1,400；`murk:` 名字路徑通過 `collision-audit`（半透明殼自動免除，底座被涵蓋）；`save.normalize` 對舊檔補 `murksCalmed: []`；`reset` 後為空。
+- **`npm run test:rubric`** 新增：`murks.json` 結構與 `authored:"game"`；每個 `check` 存在於 checks.js；`source` 在 anchors；座標淨空規則；在 node 蓋世界後 solids 數含 8 隻且總數 <1,400；`murk:` 名字路徑通過 `collision-audit`（半透明殼自動免除，底座被涵蓋）；`save.normalize` 對舊檔補 `murks: {}` 並過濾壞值；`reset` 後為空；`recordMurk` 不改已通關數／稱號／`bestGrades`。
 - **`npm run test:playtest`** 新增：每隻 `sample` ≥ A；`taint` 本身送進去必不過（弱起手必不過；**不**斷言其命中數為 0——部分命中是允許的）。
 - **`npm run test:e2e`** 新增（鏡像 `headless-check.mjs:1849-1866` 與 `2437-2481`）：teleport 到某隻濁靈旁 → `[data-interact]` 顯示「濁靈…安撫」→ `KeyE` → `promptConsole.isOpen` 且模式為 free、第一幕含 taint 文字 → 送 taint 原文 → 未安撫、無 XP、`murks[id].hits` 可能 >0 且殼數＝total−hits → 關掉重開殼數不重播 → 送 sample → `murks[id].grade` 有值、殼數 0、圖鑑第四列 `1/8`、「已通關數／稱號」不變；`Escape` 後光屑演出 ≤3 秒、清燈在原位；tris/lights 預算斷言沿用；console error 0。動畫時序斷言一律**輪詢式**。
 - **`npm run build`**、**`npm run fonts`**（指紋測試會攔）。
