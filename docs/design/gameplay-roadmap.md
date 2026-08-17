@@ -2,7 +2,7 @@
 
 > **這是什麼**：v1.1 上線後、以「更好玩」為目標的長程 roadmap。它把五份研究（[遊戲性總研究＋Codex 審查](./gameplay-research-2026-08.md)、[世界觀擴充](./research-worldbuilding-2026-08.md)、[地圖與關卡結構](./research-map-2026-08.md)、[濁靈遭遇 spec](./spec-murk-encounter.md)、[關卡設計參考](./level-design-references.md)）裡的所有方案排成**每一格都能在一次 `/goal` 執行內交付**的 phase 序列。
 > **怎麼用**：`/goal` 每次執行時讀本檔，接續 `[~]`（進行中）或取第一個 `[ ]`，做完打 `[x]`、寫 changelog。方案編號（1-A、M3、W-2…）對應各研究文件的表格，細節去那裡查；本檔只管**順序、範圍、依賴、完成定義、預算**。
-> **版本**：v2（2026-08-17，吸收 Codex 第一輪審查：拆成 24 個單次可交付 phase、修正日出／傳送／勝負／streak／跟隨光靈與鐵則的衝突、補 `/goal` 的恢復與失敗政策、每 phase 補預算）｜ **分支**：`feature/tainted-request-encounter`。
+> **版本**：v2（2026-08-17，吸收 Codex 第一輪審查：拆成 25 個 phase（其中 5 個拆 a/b，共 30 次執行）、修正日出／傳送／勝負／streak／跟隨光靈與鐵則的衝突、補 `/goal` 的恢復與失敗政策、每 phase 補預算）｜ **分支**：`feature/tainted-request-encounter`。
 
 ---
 
@@ -24,7 +24,7 @@ CLAUDE.md 的五個方向與七條護欄仍是最高準則。本 roadmap 只回�
 - **主線弧**：序章問句「抄寫人去哪了、母碑原本寫什麼」→ 中點揭示（分歧之廳：神諭不只一種聽法；凡學會說話的人都是抄寫人）→ 終局（回聲把你序章的第一句 prompt 還給你，你重寫它，母碑重立）。
 - **進度外顯**：時辰（天空）、四宿（星圖）、清燈（地面）、衣角光點（角色）——四處同時看得到「我變強了」。
 
-## 2. Phase 序列（24 個，5 個里程碑）
+## 2. Phase 序列（25 個 phase／30 次執行，5 個里程碑）
 
 **粒度**：一個 phase ＝ 一次 `/goal` 執行 ＝ 一個 subagent 端到端做完（估 CC 時間 1–3 小時；超過就該再拆）。**每個 phase 都必須**：rubric＋playtest＋build＋e2e 全綠、console error 0、改中文字串跑 `npm run fonts`、WORLD.md 維護檢查表逐條過、`docs/history/CHANGELOG.md` 一行、本檔打勾。**每個 phase 開工前 `/codex consult` 審 brief，收尾前 `/codex review` 審 diff**。**每個里程碑結束＝站長實玩閘門**（見 §3），未過閘門不得開下一里程碑。
 
@@ -32,15 +32,15 @@ CLAUDE.md 的五個方向與七條護欄仍是最高準則。本 roadmap 只回�
 
 ### 里程碑 A：先讓「遭遇」存在（怪物 × 互動 × 世界觀）
 
-- [ ] **P01 · 濁靈資料層＋世界實體＋互動仲裁**（M）— `src/data/murks.json`（`authored:"game"`，8 隻／前四區各 2；rubric 只引用既有 checks、source 必在 anchors、座標淨空規則）；`src/world/murks.js`（`createMurkField`，reactive.js 樣板：距離分帶、零每幀配置、`murk:<id>` 命名、`solidRadius 0.9`、0 光源、每隻 ≤600 三角）；main.js 第 ⑥ 互動層（半徑 5.5，石座 > 濁靈 > 石碑 > 刻文 > 器物 > 閘門，面向排名）；HUD 提示「濁靈 · 一段沒說清楚的請求 `E` 安撫」；`E` 開既有主控台（challenge 形物件、無 flow → 自動 free）。**本 phase 不做評分演出、不記存檔**（送出走既有流程但 `kind:'murk'` 時 **不** 呼叫 `recordResult`，只顯示結果）。
+- [ ] **P01 · 濁靈資料層＋世界實體＋互動仲裁**（M）— `src/data/murks.json`（`authored:"game"`，8 隻／前四區各 2；rubric 只引用既有 checks、source 必在 anchors、座標淨空規則）；`src/world/murks.js`（`createMurkField`，reactive.js 樣板：距離分帶、零每幀配置、`murk:<id>` 命名、`solidRadius 0.9`、0 光源、每隻 ≤600 三角）；main.js 第 ⑥ 互動層（半徑 5.5，石座 > 濁靈 > 石碑 > 刻文 > 器物 > 閘門，面向排名）；HUD 提示「濁靈 · 一段沒說清楚的請求 `E` 安撫」；`E` 開既有主控台（challenge 形物件、無 flow → 自動 free）。**本 phase 不做演出、不寫存檔**：`renderResult()` 依 `kind` 分流到最小版 `progression.recordMurk()`——它回傳與 `recordResult` 同形狀的 **outcome**（`xpGain 0、leveledUp false、newly* 空陣列…`）但不落盤，讓既有 `renderResult()` 的解參照全部安全；P02 再補持久化。
   - 依賴：無。方案：1-A（實體半）。Spec §3、§4.1、§4.2。
   - DoD：8 隻可見可互動；rubric 測試驗資料層；碰撞體 +8、collision-audit 0；tris 增量 <5k；e2e：teleport→提示→E→console open→free；舊斷言零改動。
 
-- [ ] **P02 · 濁靈進程與存檔＋圖鑑第四列**（S–M）— 主控台 `renderResult()` 依 `challenge.kind` 選**唯一** recorder：`murk` → `progression.recordMurk(id, evaluation)`（**不**走 `recordResult`、不進 `bestGrades`、不觸發 `refreshUnlocks()`）；存檔新增單一物件欄 `murks: { [id]: { hits:[rubricIndex…], grade } }`（純加法、`normalize()` 給 `{}`、reset 清空）；`hits` 為跨次**累積聯集**（永不清零）；XP 只補差額（`murks.json.xp`）；圖鑑 `worldFinds()` 第四列「濁言與正言 n/8」＋條目（濁言 → 你的最佳評價 → 範例強句 → 技巧連結 → 出處）；`progression.murkCount()`。
+- [ ] **P02 · 濁靈進程與存檔＋圖鑑第四列**（S–M）— 主控台 `renderResult()` 依 `challenge.kind` 選**唯一** recorder：`murk` → `progression.recordMurk(id, evaluation)`（**不**走 `recordResult`、不進 `bestGrades`、不觸發 `refreshUnlocks()`）；存檔新增單一物件欄 `murks: { [id]: { hits:[rubricIndex…], grade } }`（純加法、`normalize()` 給 `{}`、reset 清空）；`hits` 為跨次**累積聯集**（永不清零）；**安撫規則定死**：累積命中的權重和 ≥ `pass` 即安撫（可能仍剩殼——剩的殼變成半透明「餘殼」，之後補上可拿更高評價，全剝＝S）；`grade` 由累積權重和經既有評分函數算出、只升不降；`recordMurk()` **原子回傳** `{ newlyPassedIndices, hits, score, grade, calmed, newlyCalmed }`，供 P03 回呼使用；XP 只補差額（`murks.json.xp`）；圖鑑 `worldFinds()` 第四列「濁言與正言 n/8」＋條目（濁言 → 你的最佳評價 → 範例強句 → 技巧連結 → 出處）；`progression.murkCount()`。
   - 依賴：P01。方案：1-A（進程半）。Spec §4.4、§4.5。
   - DoD：安撫不改「已通關數／稱號／142 分母」（rubric 測試明確斷言）；舊檔載入補 `murks:{}`；e2e：送 taint 原文→未安撫但 hits 可能 >0（**不**斷言殼數不變）→送 sample→安撫、圖鑑 1/8、save 有 id；reset 清空。
 
-- [ ] **P03 · 濁靈演出：`onRubricHits` 契約＋剝殼＋清燈＋SFX**（M）— 主控台新增回呼 `onRubricHits({ challenge, passedIndices, newlyPassedIndices, total })`（以 rubric index 為穩定 ID；`newly` 相對於存檔的累積 hits；評分完成、顯示結果**之前**觸發）；世界端只對 `newlyPassedIndices` 剝殼（閃白 2 幀、8–12 顆加法粒子、`murkHit` 合成 SFX 依累積數換音高層、`engine.pulse(0.28)`），重開面板時殼數＝存檔 hits 數（不重播）；達標→`murkCalm`、眼光轉暖白、縮成清燈（原位）；**過關演出**＝一撮光屑從濁靈飛出、繞玩家一圈（≤3 秒）回到清燈位（無實體、無碰撞、`reducedMotion` 直接落成清燈）；`murkStir` 靠近雜訊（節流）。
+- [ ] **P03 · 濁靈演出：`onRubricHits` 契約＋剝殼＋清燈＋SFX**（M）— 主控台新增回呼 `onRubricHits({ challenge, passedIndices, newlyPassedIndices, total })`（以 rubric index 為穩定 ID；**時序**：`recordMurk()` 先寫聯集並原子回傳 `newlyPassedIndices`，回呼**用它的回傳值**觸發，顯示結果之前；非 murk 關卡的差量＝「本次開啟主控台 session 內」的差量，記憶體暫存、開面板時歸零）；世界端只對 `newlyPassedIndices` 剝殼（閃白 2 幀、8–12 顆加法粒子、`murkHit` 合成 SFX 依累積數換音高層、`engine.pulse(0.28)`），重開面板時殼數＝存檔 hits 數（不重播）；達標→`murkCalm`、眼光轉暖白、縮成清燈（原位）；**過關演出**＝一撮光屑從濁靈飛出、繞玩家一圈（≤3 秒）回到清燈位（無實體、無碰撞、`reducedMotion` 直接落成清燈）；`murkStir` 靠近雜訊（節流）。
   - 依賴：P02。方案：1-A（演出半）、5-A（最小版）。Spec §2、§4.3、§4.6。
   - DoD：e2e 輪詢式斷言「newly=N → 殼少 N」「重開不重播」；SFX 皆有合成 fallback；tris 增量 <3k；`reducedMotion` 路徑測過。
 
@@ -72,9 +72,12 @@ CLAUDE.md 的五個方向與七條護欄仍是最高準則。本 roadmap 只回�
   - 依賴：P03、閘門 A。方案：5-A。
   - DoD：142 關資料零改動；tris 增量 <8k、0 光源；e2e 輪詢式「命中 N 條→演出 N 段」；低畫質可關演出。
 
-- [ ] **P10 · 石座演出 b：其餘 4 個 check ＋ 鋪 12 區 ＋ 解法百分位**（M）— `hasFewShot / hasDelimiters / asksToVerify / groundsInContext` 演出；鋪全部石座（三角形總量檢查）；過關後「你在第 X 百分位」（內建範例解分布：分數／字數／技巧數三軸，UI 明寫「內建分布」）＋「最少技巧達成」隱藏徽章（**不用「最少字」**）。
-  - 依賴：P09。方案：5-A、5-H。
-  - DoD：tris <215k；百分位資料 `authored:"game"`；e2e 一關驗百分位顯示。
+- [ ] **P10a · 石座演出 b：其餘 4 個 check ＋ 鋪 12 區**（M）— `hasFewShot / hasDelimiters / asksToVerify / groundsInContext` 演出；鋪全部石座（三角形總量檢查）。
+  - 依賴：P09。方案：5-A。
+  - DoD：tris <215k；低畫質可關；e2e 兩區各驗一關。
+- [ ] **P10b · 解法百分位 ＋ 最少技巧徽章**（S）— 過關後「你在第 X 百分位」（內建範例解分布：分數／字數／技巧數三軸，UI 明寫「內建分布」）＋「最少技巧達成」隱藏徽章（**不用「最少字」**）。
+  - 依賴：P10a。方案：5-H。
+  - DoD：百分位資料 `authored:"game"`；e2e 一關驗百分位顯示；不動 `refreshUnlocks()`。
 
 **▶ 閘門 B（站長實玩）**：石座演出是否讓「寫得更好」變得有感？殘頁／星圖是否被讀？砍案條件：演出若干擾閱讀回饋 → P10 的鋪量回退為「只保留 4 個 check」。
 
@@ -93,15 +96,18 @@ CLAUDE.md 的五個方向與七條護欄仍是最高準則。本 roadmap 只回�
   - DoD：rubric 測試驗 solidTop 資料；e2e 舊斷言零改動；WORLD.md §3.1 加跳躍鍵條目（標「尚未啟用」）。
 
 - [ ] **P14 · 跳躍原型（單區）**（M）— Y 軸與重力、跳（coyote 100ms、input buffer 150ms、鬆手提前下落）、程序化 squash-stretch、落地塵、落地音；只在 foundations 允許（其他區跳躍高度 0，行為不變）；**邊界護欄**：跳躍落點若不在 coverage 內或會穿 solids，起跳即被夾住（不會掉進虛空、無傳送）；`reducedMotion` 保留位移去掉擠壓。
-  - 依賴：P13。方案：2-A（只跳）。
-  - DoD：舊路線全部不需要跳就走得完；e2e 跳上一處 1.6m 高台；FPS 低畫質不降。
+  - 依賴：P13。方案：2-A（只跳）。**本 phase 自建一座 foundations 的 1.6m 測試高台**（也是正式的第一座）。
+  - DoD：舊路線全部不需要跳就走得完；e2e 跳上該高台；FPS 低畫質不降。
 
 - [ ] **P15 · 高台語法 ＋ 高處秘密 ＋ 橋缺口（鋪 4 區）**（M）— 每區 2 處 1.6–3.0m 高台（屋頂／欄杆／書架頂／齒輪背，「站上去看得到別的東西」）；secrets 4→12（三種 tell：不對的東西／聲音先到／高處），圖鑑「秘境」章節（純風味無 source）；橋中段 3m 缺口（跳躍後）＋ 旁邊保留可繞行的窄板（不倒退）。
   - 依賴：P14。方案：M5、M10、M11（缺口版）。
   - DoD：collision-audit 0；秘密皆有 tell；不跳也走得完每一座橋。
 
-- [ ] **P16 · 跳躍全區啟用 ＋ 母題／遮擋帶鋪完 12 區**（M）— 跳躍高度全區開；剩餘區的中景、粒子、高台；pacing-audit 全區。
-  - 依賴：P15。方案：M1、M5、M8 收尾。
+- [ ] **P16a · 跳躍全區啟用 ＋ 母題／高台鋪 forms／toolcraft／frugality／refinery**（M）— 跳躍高度全區開；四區的中景、粒子、高台。
+  - 依賴：P15。方案：M1、M5、M8。
+  - DoD：tris <232k、碰撞體 <1,100；四區 pacing-audit 死區 ≤1。
+- [ ] **P16b · 母題／高台鋪 wards／sight／divergence ＋ 全區收尾**（M）— 剩餘區；pacing-audit 全區。
+  - 依賴：P16a。
   - DoD：tris <240k、光源 37、碰撞體 <1,150；pacing-audit 每區 >45m 死區 ≤1。
 
 **▶ 閘門 C（站長實玩）**：跳躍是否有理由（看得到、想上去）？中景是否讓 12 區讀得出差別？砍案條件：跳躍體感差 → P19 滑翔直接砍。
@@ -109,7 +115,7 @@ CLAUDE.md 的五個方向與七條護欄仍是最高準則。本 roadmap 只回�
 ### 里程碑 D：遭遇 II ＋ 捷徑 ＋ 收攏故事（怪物 × 地圖 × 世界觀 × 小知識）
 
 - [ ] **P17 · 大濁靈（累積理解式）＋ 濁言圖鑑分層**（M）— 每區 1 隻大濁靈（原地、體積大、多殼、rubric 6–8 條）：**沒有回合、沒有勝負**——每次送出把新命中的檢查累積上去（沿用 P02/P03 契約），殼剝完即安撫；圖鑑分層：安撫開濁言、A 開抄寫人眉批、S 開一句來歷（純風味）；規則疊加關型（每一層殼揭示下一條限制，Password Game 式，但已剝的殼不會回來）。
-  - 依賴：P10。方案：1-B（改造後）、5-F、W-5 分層。
+  - 依賴：P10a。方案：1-B（改造後）、5-F、W-5 分層。
   - DoD：無任何清零／勝負文案；rubric 只引用既有 checks；tris 增量 <6k。
 
 - [ ] **P18 · 護欄崗守門者（離線腳本）＋ 選配 LLM 模式**（M）— wards 區守門者＝「有 system prompt 的守衛」（教注入防禦／護欄／指令階層）：離線＝腳本化狀態機（≥12 條分支，對「你用的技巧」反應）；線上 LLM 模式僅選配（既有 API key 設定），核心迴圈不依賴；無失敗態（守衛「還沒被說服」）。
@@ -120,9 +126,12 @@ CLAUDE.md 的五個方向與七條護欄仍是最高準則。本 roadmap 只回�
   - 依賴：P16。方案：M2、M4、M6（決策）。
   - DoD：未解鎖真的走不過（e2e）；守望石仍在；WORLD.md §4.4 加導向規則。
 
-- [ ] **P20 · 傳聞連線頁 ＋ 回聲重演（小景內）＋ 檔案廊（AI 小知識）**（M）— 圖鑑「傳聞」頁（Outer Wilds Rumor 式，`links:[[a,b]]` 純資料，不加存檔欄，未找到的一端只畫虛線不劇透）；回聲重演：每區 1 處小景旁一團坐著的光，`E` 後 4–6 秒 rigless 殘影**在小景範圍內**重演（零碰撞零光源，`reducedMotion` 直接顯示結果）；檔案廊＝每區一座小展館：收集到的技巧＝展品，走近浮出小知識（不彈窗）。**小知識的分工**：`glossary.json`（術語小卡，24 條，§3.7）＝「是什麼」、130 技能＝「怎麼做」、小知識＝「為什麼／背後機制」（token、context window、temperature、指令階層、注入為何有效…），來源限官方文件與一手論文，每則 ≤ 60 字＋出處，`authored:"game"`，先寫 24 則（每區 2）。
-  - 依賴：P08。方案：W-3、W-4、5-B（博物館部分）。
-  - DoD：小知識每則附出處；圖鑑三分法（Lore／Creatures／Research）成形；e2e 舊斷言零改動。
+- [ ] **P20a · 傳聞連線頁 ＋ 回聲重演（小景內）**（M）— 圖鑑「傳聞」頁（Outer Wilds Rumor 式，`links:[[a,b]]` 純資料，不加存檔欄，未找到的一端只畫虛線不劇透）；回聲重演：每區 1 處小景旁一團坐著的光，`E` 後 4–6 秒 rigless 殘影**在小景範圍內**重演（零碰撞零光源，`reducedMotion` 直接顯示結果）。
+  - 依賴：P08。方案：W-3、W-4。
+  - DoD：e2e 舊斷言零改動；重演不離開小景 6m。
+- [ ] **P20b · 檔案廊（AI 小知識 24 則）**（M）— 每區一座小展館：收集到的技巧＝展品，走近浮出小知識（不彈窗）。**小知識的分工**：`glossary.json`（術語小卡，24 條，§3.7）＝「是什麼」、130 技能＝「怎麼做」、小知識＝「為什麼／背後機制」（token、context window、temperature、指令階層、注入為何有效…），來源限官方文件與一手論文，每則 ≤ 60 字＋出處，`authored:"game"`，先寫 24 則（每區 2）。
+  - 依賴：P20a。方案：5-B（博物館部分）。
+  - DoD：小知識每則附出處、`zh-scan`；圖鑑三分法（Lore／Creatures／Research）成形；e2e 舊斷言零改動。
 
 - [ ] **P21 · 中點揭示 ＋ 鏡碑第二層**（S–M）— 分歧之廳兩面柱＋回聲一句＝中點揭示（觸發：走進分歧之廳；跳門者不錯過）；校驗場鏡碑第二層（「凡學會說話的人都是抄寫人」，綁稱號鏈第三階）。
   - 依賴：P08、P17。方案：W-6（中點）。
@@ -144,8 +153,10 @@ CLAUDE.md 的五個方向與七條護欄仍是最高準則。本 roadmap 只回�
   - 方案：3-A、3-B、3-D。
   - DoD：390×844 直向走完「移動→開石座→自由書寫→關面板繼續走→跳上高台→安撫一隻濁靈」；鍵鼠零回歸；e2e 觸控斷言；iOS Safari／Android Chrome 各實機一次。
 
-- [ ] **P25 · 打磨與 v2 發版**（M）— game-feel 複核（只保留不造成壓力的：squash、粒子、音層、`pulse`）；12 區 SFX／BGM 補錄（**以 `src/audio/audio.js` 與 WORLD.md §6.5 為準：BGM -20 LUFS、SFX -19 LUFS、峰值上限 -3 dBFS**；順手把 CLAUDE.md 那句「SFX 峰值 -6 dBFS」改成一致）；無障礙（reduced-motion 全覆蓋、螢幕閱讀器路徑）；效能回歸（低階機 low quality 30fps）；e2e flaky 清零；README／CLAUDE.md 數字同步；`expected-counts.json` 契約更新；v2 發版。
-  - 依賴：全部。方案：2-C（子集）。
+- [ ] **P25a · 打磨：果汁複核 ＋ 音訊 ＋ 無障礙**（M）— game-feel 複核（只保留不造成壓力的：squash、粒子、音層、`pulse`）；12 區 SFX／BGM 補錄（**以 `src/audio/audio.js` 與 WORLD.md §6.5 為準：BGM -20 LUFS、SFX -19 LUFS、峰值上限 -3 dBFS**；順手把 CLAUDE.md 那句「SFX 峰值 -6 dBFS」改成一致）；無障礙（reduced-motion 全覆蓋、螢幕閱讀器路徑）。
+  - 依賴：P24。方案：2-C（子集）。
+- [ ] **P25b · 效能回歸 ＋ 測試收斂 ＋ v2 發版**（M）— 低階機 low quality 30fps；e2e flaky 清零；README／CLAUDE.md 數字同步；`expected-counts.json` 契約更新；`docs/history/prompts.html` 補 v2 goal；v2 發版。
+  - 依賴：P25a。
 
 ### 可夾帶項（任一 phase 順手做，S，各自 ≤ 半小時）
 - 4-B Toon／描邊或低解析後製（畫質設定可關）；開主控台時隨機一句 tip（來自小知識）；圖鑑「還有 N 條相關未發現」；技巧牌桌（5-E，只在圖鑑內的練習模式，不進世界）。
@@ -158,22 +169,22 @@ CLAUDE.md 的五個方向與七條護欄仍是最高準則。本 roadmap 只回�
 
 ```
 P01→P02→P03→P04 ─┐
-P05→P06 ─────────┼─▶ 閘門A ─▶ P07→P08 ─┐  P09→P10 ─▶ 閘門B
+P05→P06 ─────────┼─▶ 閘門A ─▶ P07→P08 ─┐  P09→P10a→P10b ─▶ 閘門B
                  │                     └────────────────┘
-閘門B ─▶ P11→P12→P13→P14→P15→P16 ─▶ 閘門C
-閘門C ─▶ P17→P18 ─▶ P19          P20→P21→P22 ─▶ 閘門D   （P17 依 P10；P20 依 P08；P22 依 P05、P07、P21）
-閘門D ─▶ P23 ─▶ P24（功能凍結後）─▶ P25 v2
+閘門B ─▶ P11→P12→P13→P14→P15→P16a→P16b ─▶ 閘門C
+閘門C ─▶ P17→P18 ─▶ P19          P20a→P20b→P21→P22 ─▶ 閘門D   （P17 依 P10a；P20a 依 P08；P22 依 P05、P07、P21）
+閘門D ─▶ P23 ─▶ P24（功能凍結後）─▶ P25a→P25b v2
 ```
 
 ## 5. 每個 phase 的固定流程（`/goal` 的操作定義）
 
-0. **恢復狀態**：`git status` 檢查工作樹；有未提交改動先讀懂再決定續做或 stash（**不丟棄**）。讀本檔：有 `[~]` 就續做該 phase（讀其 brief 與 changelog 末條），沒有就取第一個 `[ ]` 並改成 `[~]`。若遇到「▶ 閘門」且上一里程碑剛完成、changelog 沒有站長「過」的紀錄 → 寫閘門摘要、**停止**。
+0. **恢復狀態**：`git status` 檢查工作樹。**有來源不明或非本 phase 的未提交／已暫存改動時：不得 stash、不得 reset、不得納入 commit；若與本 phase 目標重疊即停下請示，不重疊則繞開它們工作**。讀本檔：有 `[~]` 就續做該 phase（讀其 brief 與 changelog 末條），沒有就取第一個 `[ ]` 並改成 `[~]`。若遇到「▶ 閘門」且上一里程碑剛完成、changelog 沒有站長「過」的紀錄 → 寫閘門摘要、**停止**。**若該 phase 依賴 §6 尚未決定的事項（P01 依 §6-1；P08 依 §6-2；P21 依 §6-3；P07 依 §6-4；P13 依 §6-5；P19 依 §6-6）且 changelog／brief 目錄找不到站長決定 → 停下請示**。
 1. 讀 `CLAUDE.md`（護欄＋Harness）→ `docs/history/CHANGELOG.md` 最後幾條 → 本檔 → 該 phase 引用的研究文件段落 → `WORLD.md` 相關節。
 2. 寫 **phase brief** 到 `docs/design/briefs/P<NN>.md`（現狀、目標、範圍、非目標、預算、驗證、禁區）；`/codex consult` 審 brief，吸收合理意見。**若 brief 顯示 phase 超過一次執行量 → 先在本檔拆成 a/b，只做 a。**
 3. 交**一個** subagent 實作（不並行寫程式）。禁區永遠包含：`curriculum.json`、`challenges.json`／`flows.json`（除非 brief 明列）、`vite.config.js`、使用者 dev server 5175、`CLAUDE.md`（changelog 由 orchestrator 寫）。
-4. 驗證：`npm run test:rubric` → `npm run test:playtest` → `npm run build` → `npm run test:e2e`（subagent 全綠則 orchestrator 只快檢：rubric＋build＋curl）；改中文字串 → `npm run fonts`。**測試失敗**：先定位修復；已知 flaky（拖曳／火盆／風鈴時序）只重跑一次；**禁止刪除或放寬既有斷言**（設計變更需重釘的斷言要在 changelog 說明理由）。
+4. 驗證：依 CLAUDE.md 測試策略——每個 phase 至少 `npm run test:rubric` → `npm run test:playtest` → `npm run build`；動到互動流程／世界／存檔的 phase 跑完整 `npm run test:e2e`（本 roadmap 幾乎每個 phase 都算），純文案／資料微調可只跑快檢並在 changelog 註明；subagent 全綠則 orchestrator 只快檢（rubric＋build＋curl）；改中文字串 → `npm run fonts`。**測試失敗**：先定位修復；已知 flaky（拖曳／火盆／風鈴時序）只重跑一次；**禁止刪除或放寬既有斷言**（設計變更需重釘的斷言要在 changelog 說明理由）。
 5. `/codex review` 審 diff；**P1 必修**、P2 判斷並記錄；再跑快檢。**Codex 與護欄／本檔衝突時，護欄與本檔優先；Codex 指出的護欄違反則必修。**
-6. 收尾：WORLD.md 維護檢查表逐條過、`docs/history/CHANGELOG.md` 一行（做了什麼＋預算實測數字＋下一步）、本檔 `[~]`→`[x]`（範圍有變就改本檔）、commit（訊息繁中；**不切分支**、留在當前 feature 分支；push 僅在該分支已有 upstream 時）。**做完即停**，不連做下一個 phase。
+6. 收尾：WORLD.md 維護檢查表逐條過、`docs/history/CHANGELOG.md` 一行（做了什麼＋預算實測數字＋下一步）、本檔 `[~]`→`[x]`（範圍有變就改本檔）、**commit 前 `git diff --cached --stat` 確認 staged 只含本 phase 的檔案**、commit（訊息繁中；**不切分支**、留在當前 feature 分支；push 僅在該分支已有 upstream 時）。**做完即停**，不連做下一個 phase。
 7. **停下請示**的情況：護欄衝突、Codex P1 無法在本 phase 內解、範圍要砍或大改、里程碑閘門、需要新資產授權、任何要動 `curriculum.json` 的念頭。
 8. **不倒退**：任何 phase 都不得刪既有可玩內容；不留壞建置（做不完就把可獨立交付的部分交付、其餘標回 `[ ]` 並寫進 changelog）。
 
@@ -192,15 +203,18 @@ P05→P06 ─────────┼─▶ 閘門A ─▶ P07→P08 ─┐  
 
 ```
 /goal 依 docs/design/gameplay-roadmap.md 推進 Promptasy v2「濁靈之夜」，每次只做一個 phase。
-流程照該檔 §5：先 git status 保留既有改動；roadmap 有 [~] 就續做，否則取第一個 [ ] 並標 [~]；
+流程照該檔 §5：先 git status——來源不明或非本 phase 的未提交／已暫存改動不得 stash／reset／納入 commit，
+與目標重疊就停下請示；roadmap 有 [~] 就續做，否則取第一個 [ ] 並標 [~]；phase 依賴 §6 未決事項且找不到站長決定就停；
 遇到「▶ 閘門」且 changelog 無站長「過」的紀錄就寫閘門摘要並停止。讀 CLAUDE.md 護欄與 Harness、
 CHANGELOG 末幾條、WORLD.md 相關節；寫 brief 到 docs/design/briefs/P<NN>.md 並 /codex consult；
 brief 顯示做不完就先在 roadmap 拆 a/b 只做 a。一次只讓一個 subagent 寫碼；禁區：curriculum.json、
 challenges.json／flows.json（除非 brief 明列）、vite.config.js、dev server 5175、CLAUDE.md。
-rubric／playtest／build／e2e 全綠、console error 0；改中文字串跑 npm run fonts；測試失敗先定位修復，
+測試依 CLAUDE.md 策略：至少 rubric／playtest／build，動到互動／世界／存檔就跑完整 e2e；全綠、console error 0；
+改中文字串跑 npm run fonts；測試失敗先定位修復，
 已知 flaky 只重跑一次，禁止刪除或放寬斷言。/codex review 審 diff 並修 P1；護欄與 roadmap 優先於 Codex。
 護欄衝突、P1 解不了、範圍要砍、要動 curriculum.json 一律停下請示。收尾：WORLD.md 檢查表、
-CHANGELOG 一行（含預算實測數字＋下一步）、roadmap 打 [x]、commit（不切分支；有 upstream 才 push）。
+CHANGELOG 一行（含預算實測數字＋下一步）、roadmap 打 [x]、git diff --cached --stat 確認只含本 phase、
+commit（不切分支；有 upstream 才 push）。
 鐵則：威脅不懲罰且進度只累積、沒有會走動的 NPC、一律夜景沒有日出、E 唯一互動鍵、
 內容正確附出處、核心可離線、存檔純加法可重置、每次可執行、不倒退。做完即停。
 ```
