@@ -704,3 +704,31 @@ Exit：跨世界素材有 reload/reset/e2e；或有一份明確的「不實作�
 | rubric baseline 有 12 個既有開場斷言失敗（entrygate/title 舊結構） | 1 | 規劃文件未觸及產品碼；不擴大 PR 修復，於 PR 明列 16,490 pass／12 fail，留 Phase 0 重建 baseline。**Phase 0 已修**：12 條全部改寫成 Phase 34.5 現行設計的斷言（不是刪掉），並實測破壞會紅 |
 | Windows Node 搭配 Linux `node_modules` 執行 Vite，缺 `@rollup/rollup-win32-x64-msvc` | 1 | 不刪 lockfile/node_modules、不改依賴；先找 WSL 既有 Node，沒有則標記 build 為環境未執行 |
 | PowerShell 再次展開 bash status 變數，合併命令結尾無法回傳正確 code | 1 | 不再依賴合併變數；以各工具明確輸出判定：rubric 12 fail、Vite build passed |
+
+---
+
+# v1.2「濁靈之夜」長時間實作計畫（2026-08-17 起）
+
+> 狀態：**ready for execution**（站長已裁決 D1–D6，見 `findings.md`）
+> 分期清單、依賴、預算、閘門、`/goal`：**`docs/design/gameplay-roadmap.md`**（本檔不重複列，只放每個 phase 開工時寫的章節與錯誤紀錄）。
+> 上游研究：`docs/design/gameplay-research-2026-08.md`（＋Codex 兩輪）、`research-worldbuilding-2026-08.md`、`research-map-2026-08.md`、`spec-murk-encounter.md`。
+> 工程護欄：`AGENTS.md`、`CLAUDE.md`、`WORLD.md`；長時間執行節奏沿用本檔 §1（重讀三件組 → manifest／acceptance tests 先列、新測試先紅後綠 → 垂直切片、寫程式不並行 → fonts → 測試矩陣 → WORLD 29 項 → 更新三件組＋changelog → commit＋push `dev`）＋ roadmap §5 的 v1.2 增補（Codex consult／review、里程碑閘門、自主模式的 e2e 規則）。
+
+## v1.2 終點與完成條件
+
+- [ ] 25 個 phase（30 次執行）全部 `[x]`，五個里程碑閘門皆有站長「過」（`findings.md`）。
+- [ ] 四條 v1.2 鐵則全程成立：威脅不懲罰且進度只累積、沒有會走動的 NPC、一律夜景沒有日出、`E` 唯一互動鍵（跳躍用 `J`）。
+- [ ] 預算：三角形 ≤ 420k、光源 37（不增）、碰撞體 ≤ 1,400、collision-audit 0、每幀零配置。
+- [ ] `curriculum.json` byte-identical；新內容全在 `authored: "game"` 層並附出處；`expected-counts.json` 既有契約值不變（只加鍵）。
+- [ ] 存檔純加法（`murks`、`firstPrompt`、`shortcuts`…）＋ `normalize()` 預設；reset 乾淨；舊檔可讀。
+- [ ] 每個 phase：rubric／playtest／build 全綠，動到互動／世界／存檔者 e2e 全綠、console error 0。
+- [ ] release gate（P25b）：README／CLAUDE.md／AGENTS.md 數字與音訊規格同步、`prompts.html` 補 v1.2 goal、合入 `main`。
+
+## v1.2 各 phase 章節
+
+（`/goal` 每開一個 phase 在此新增「### P<NN> — 名稱」：現狀、目標、範圍／非目標、資料 manifest、受影響檔案、預算、acceptance tests、禁區；收尾時逐條打勾 exit criteria。）
+
+## v1.2 錯誤紀錄
+
+（沿用 §8 規則：任何錯誤記在此；同一錯誤不原樣重試；連續三種方法仍無法前進才報阻塞。）
+

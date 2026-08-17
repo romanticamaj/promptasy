@@ -2945,3 +2945,14 @@ e2e 一輪（同時破壞三處：Instagram 那顆回來、divergence 變回硬�
 `build` ✓ ／ `test:e2e` **3,357 項、零 console error、零重跑**。
 `npm run fonts` 未跑（這一輪一個玩家看得到的中文字串都沒有動；指紋測試綠）。
 沒有孤兒的 dev server 或無頭 Chrome，port 5175 全程沒碰。
+
+## 2026-08-17 · v1.2「濁靈之夜」規劃 · `done`
+
+- 站長定調：遊戲性優先、手機延後（GitHub #4）；下一版號 v1.2。
+- 四個並行研究 agent（Sky＋手機操控／Web 動作戰鬥／教育遊戲＋美術／repo 盤點）→ `docs/design/gameplay-research-2026-08.md`；Codex 第一輪審查糾正盤點事實與估工（寫進其 §六）。
+- 補研究：世界觀擴充、地圖結構 → `docs/design/research-*.md`；濁靈遭遇 spec → `docs/design/spec-murk-encounter.md`。
+- Roadmap → `docs/design/gameplay-roadmap.md`：Codex 兩輪（第一輪 NOT-READY：13→25 phase、recorder 污染、日出、換詞規避、/goal 缺政策；第二輪 READY-WITH-EDITS：5 項全套用）。
+- 站長裁決 D1–D6 照推薦（`findings.md`）。
+- 對齊既有 harness：phase 章節改寫進本三件組（不另開 briefs/）、裁決入 `findings.md`、push `dev` 政策、新測試先紅後綠、錯誤紀錄與三法則。
+- 本輪純文件、未動產品碼、未跑測試。下一步：`/goal`（roadmap 附錄）從 P01 開跑。
+
