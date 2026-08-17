@@ -206,7 +206,7 @@ P05→P06 ─────────┼─▶ 閘門A ─▶ P07→P08 ─┐  
 ## 附：`/goal` 文字（站長核准後直接下）
 
 ```
-/goal 依 docs/design/gameplay-roadmap.md 推進 Promptasy v1.2「濁靈之夜」，每次只做一個 phase，流程照該檔 §5
+/goal 依 docs/design/gameplay-roadmap.md 推進 Promptasy v1.2「濁靈之夜」，連續模式：一個 phase 一個 phase 做、做到里程碑閘門才停，流程照該檔 §5
 （＝CLAUDE.md／AGENTS.md Harness ＋ docs/history/ task_plan／findings／progress 三件組的 v1.2 版）。
 先 git status——來源不明或非本 phase 的未提交／已暫存改動不得 stash／reset／納入 commit，與目標重疊就停下請示；
 roadmap 有 [~] 就續做，否則取第一個 [ ] 並標 [~]；phase 依賴 findings.md「v1.2 裁決」找不到就停；
