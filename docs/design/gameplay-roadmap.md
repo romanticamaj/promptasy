@@ -186,8 +186,8 @@ P05→P06 ─────────┼─▶ 閘門A ─▶ P07→P08 ─┐  
 3. 交**一個** subagent 實作（不並行寫程式；研究才可並行）。禁區永遠包含：`curriculum.json`、`challenges.json`／`flows.json`（除非章節明列）、`vite.config.js`、使用者 dev server 5175、`CLAUDE.md`（changelog 由 orchestrator 寫）。**新功能的測試先讓它紅一次再綠**（rubric／e2e 各至少一組，記進 `progress.md`）。
 4. **驗證（自主模式的替代規則）**：Harness 原則是「先問再跑 e2e」，`/goal` 無人可問，改為——每個 phase 至少 `npm run test:rubric` → `npm run test:playtest` → `npm run build`；**動到 `src/`（非純 CSS）、`src/data/*`、存檔、互動流程的 phase 一律跑完整 `npm run test:e2e`**（本 roadmap 幾乎每個 phase 都算）；純文案／資料微調可只跑快檢並在 changelog 註明；subagent 全綠則 orchestrator 只快檢（rubric＋build＋curl）。改中文字串 → `npm run fonts`。**測試失敗**：先定位修復；已知 flaky（拖曳／火盆／風鈴時序）只重跑一次；**禁止刪除或放寬既有斷言**（設計變更需重釘的斷言在 changelog 說明理由）。**任何錯誤記進 `task_plan.md` §8；同一錯誤不原樣重試；連續三種方法仍無法前進才停下報阻塞。**
 5. `/codex review` 審 diff；**P1 必修**、P2 判斷並記錄；再跑快檢。**Codex 與護欄／本檔衝突時，護欄與本檔優先；Codex 指出的護欄違反則必修。**
-6. **收尾**：WORLD.md 維護檢查表逐條過 → `progress.md` 加本 phase 條目（做了什麼＋先紅後綠紀錄＋預算實測）→ `findings.md` 記發現／裁決 → `docs/history/CHANGELOG.md` 一行（做了什麼＋數字＋下一步）→ 本檔 `[~]`→`[x]`（範圍有變就改本檔）→ **`git diff --cached --stat` 確認 staged 只含本 phase** → commit（訊息繁中）→ **push `dev`**（release gate 才合 `main`，見 P25b）。**做完即停**，不連做下一個 phase。
-7. **停下請示**：護欄衝突、Codex P1 無法在本 phase 內解、範圍要砍或大改、里程碑閘門、需要新資產授權、任何要動 `curriculum.json` 的念頭、三種方法仍卡住的錯誤。
+6. **收尾**：WORLD.md 維護檢查表逐條過 → `progress.md` 加本 phase 條目（做了什麼＋先紅後綠紀錄＋預算實測）→ `findings.md` 記發現／裁決 → `docs/history/CHANGELOG.md` 一行（做了什麼＋數字＋下一步）→ 本檔 `[~]`→`[x]`（範圍有變就改本檔）→ **`git diff --cached --stat` 確認 staged 只含本 phase** → commit（訊息繁中）→ **push `dev`**（release gate 才合 `main`，見 P25b）。**連續模式（站長 2026-08-17 指示：一路做到可玩、只驗最終結果）**：一個 phase 收尾後**直接接下一個 `[ ]`**，直到遇到「▶ 閘門」才停下等站長實玩；每個 phase 仍各自 commit＋push，任何一步失敗就照 §5-4／§5-7 處理，不跳過。
+7. **停下請示（連續模式下只剩這些）**：護欄衝突、任何要動 `curriculum.json` 的念頭、需要新資產授權、里程碑閘門、三種方法仍卡住且無法繞開的錯誤。**其他歧義（範圍取捨、Codex P1 在本 phase 解不了、設計細節）一律自己選最保守、最不倒退的做法**，把選擇與理由記進 `findings.md`，繼續做；站長在閘門一次驗收。
 8. **不倒退**：任何 phase 都不得刪既有可玩內容；不留壞建置（做不完就把可獨立交付的部分交付、其餘標回 `[ ]` 並寫進 changelog）。
 
 ## 6. 待站長決定（開 P01 前）
@@ -210,15 +210,15 @@ P05→P06 ─────────┼─▶ 閘門A ─▶ P07→P08 ─┐  
 （＝CLAUDE.md／AGENTS.md Harness ＋ docs/history/ task_plan／findings／progress 三件組的 v1.2 版）。
 先 git status——來源不明或非本 phase 的未提交／已暫存改動不得 stash／reset／納入 commit，與目標重疊就停下請示；
 roadmap 有 [~] 就續做，否則取第一個 [ ] 並標 [~]；phase 依賴 findings.md「v1.2 裁決」找不到就停；
-遇到「▶ 閘門」且 findings.md 閘門紀錄無站長「過」就寫閘門摘要並停止。讀 CLAUDE.md 護欄與 Harness、CHANGELOG 末幾條、
+遇到「▶ 閘門」且 findings.md 閘門紀錄無站長「過」就寫閘門摘要並停止；否則連續模式：一個 phase 收尾後直接接下一個 [ ]，做到閘門為止。讀 CLAUDE.md 護欄與 Harness、CHANGELOG 末幾條、
 task_plan.md（v1.2 章節＋§8 錯誤紀錄）、findings.md、WORLD.md 相關節；把 phase 章節寫進 task_plan.md 並 /codex consult；
 做不完就先在 roadmap 拆 a/b 只做 a。一次只讓一個 subagent 寫碼；新測試先紅後綠；禁區：curriculum.json、
 challenges.json／flows.json（除非章節明列）、vite.config.js、dev server 5175、CLAUDE.md。
 測試：至少 rubric／playtest／build，動到 src／data／存檔／互動就跑完整 e2e；全綠、console error 0；改中文字串跑 npm run fonts；
 測試失敗先定位修復，已知 flaky 只重跑一次，禁止刪除或放寬斷言；錯誤記 task_plan §8、同一錯誤不原樣重試、三種方法仍卡才報阻塞。
-/codex review 審 diff 並修 P1；護欄與 roadmap 優先於 Codex。護欄衝突、P1 解不了、範圍要砍、要動 curriculum.json 一律停下請示。
+/codex review 審 diff 並修 P1；護欄與 roadmap 優先於 Codex。只有護欄衝突、要動 curriculum.json、需要新資產授權、三種方法仍卡住才停下請示；其他歧義自己選最保守不倒退的做法並記進 findings.md 繼續做。
 收尾：WORLD.md 檢查表、progress.md／findings.md、CHANGELOG 一行（含預算實測數字＋下一步）、roadmap 打 [x]、
 git diff --cached --stat 確認只含本 phase、commit、push dev（release gate 才合 main）。
 鐵則：威脅不懲罰且進度只累積、沒有會走動的 NPC、一律夜景沒有日出、E 唯一互動鍵、內容正確附出處、核心可離線、
-存檔純加法可重置、每次可執行、不倒退。做完即停。
+存檔純加法可重置、每次可執行、不倒退。做到閘門才停。
 ```

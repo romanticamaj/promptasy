@@ -49,6 +49,8 @@
 
 **每次迭代的節奏**：讀本檔 → 選一個最高槓桿的改進 → 實作到可玩 → 自我驗證（能跑、能玩、無錯）→ 更新變更紀錄與路線圖。不求一次做完，求每次都往前一格且不倒退。
 
+> **目前執行中的長程計畫（2026-08-17 起）：v1.2「濁靈之夜」** —— phase 序列、閘門與 `/goal` 文字在 [`docs/design/gameplay-roadmap.md`](./docs/design/gameplay-roadmap.md)；每個 phase 的章節、裁決與流水在 `docs/history/task_plan.md`／`findings.md`／`progress.md`。接手時先讀那三處。
+
 ---
 
 ## 遊戲願景與核心體驗
