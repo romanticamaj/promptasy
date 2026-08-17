@@ -2,7 +2,7 @@
 
 > **這是什麼**：v1.1 上線後、以「更好玩」為目標的長程 roadmap。它把五份研究（[遊戲性總研究＋Codex 審查](./gameplay-research-2026-08.md)、[世界觀擴充](./research-worldbuilding-2026-08.md)、[地圖與關卡結構](./research-map-2026-08.md)、[濁靈遭遇 spec](./spec-murk-encounter.md)、[關卡設計參考](./level-design-references.md)）裡的所有方案排成**每一格都能在一次 `/goal` 執行內交付**的 phase 序列。
 > **怎麼用**：`/goal` 每次執行時讀本檔，接續 `[~]`（進行中）或取第一個 `[ ]`，做完打 `[x]`、寫 changelog。方案編號（1-A、M3、W-2…）對應各研究文件的表格，細節去那裡查；本檔只管**順序、範圍、依賴、完成定義、預算**。
-> **版本**：v2（2026-08-17，吸收 Codex 第一輪審查：拆成 25 個 phase（其中 5 個拆 a/b，共 30 次執行）、修正日出／傳送／勝負／streak／跟隨光靈與鐵則的衝突、補 `/goal` 的恢復與失敗政策、每 phase 補預算）｜ **分支**：`feature/tainted-request-encounter`。
+> **版本**：v2（2026-08-17，吸收 Codex 第一輪審查：拆成 25 個 phase（其中 5 個拆 a/b，共 30 次執行）、修正日出／傳送／勝負／streak／跟隨光靈與鐵則的衝突、補 `/goal` 的恢復與失敗政策、每 phase 補預算）＋ 對齊既有 Harness（phase 章節寫進 `docs/history/task_plan.md`、裁決入 `findings.md`、流水入 `progress.md`、push `dev`）｜ **規劃分支**：`feature/tainted-request-encounter`（合入 `dev` 後由 `/goal` 在 `dev` 上執行）。
 
 ---
 
@@ -26,7 +26,7 @@ CLAUDE.md 的五個方向與七條護欄仍是最高準則。本 roadmap 只回�
 
 ## 2. Phase 序列（25 個 phase／30 次執行，5 個里程碑）
 
-**粒度**：一個 phase ＝ 一次 `/goal` 執行 ＝ 一個 subagent 端到端做完（估 CC 時間 1–3 小時；超過就該再拆）。**每個 phase 都必須**：rubric＋playtest＋build＋e2e 全綠、console error 0、改中文字串跑 `npm run fonts`、WORLD.md 維護檢查表逐條過、`docs/history/CHANGELOG.md` 一行、本檔打勾。**每個 phase 開工前 `/codex consult` 審 brief，收尾前 `/codex review` 審 diff**。**每個里程碑結束＝站長實玩閘門**（見 §3），未過閘門不得開下一里程碑。
+**粒度**：一個 phase ＝ 一次 `/goal` 執行 ＝ 一個 subagent 端到端做完（估 CC 時間 1–3 小時；超過就該再拆）。**每個 phase 都必須**：rubric＋playtest＋build＋e2e 全綠、console error 0、改中文字串跑 `npm run fonts`、WORLD.md 維護檢查表逐條過、`docs/history/CHANGELOG.md` 一行、本檔打勾。**每個 phase 開工前 `/codex consult` 審 task_plan 章節，收尾前 `/codex review` 審 diff**。**每個里程碑結束＝站長實玩閘門**（見 §3），未過閘門不得開下一里程碑。
 
 **預算基線**（WORLD.md §6.1；每 phase DoD 都要重新實測填數）：三角形 194k／420k、光源 37／56（新增內容一律 0 光源）、碰撞體 957／1,400、collision-audit 未涵蓋 0、每幀零配置。
 
@@ -176,21 +176,23 @@ P05→P06 ─────────┼─▶ 閘門A ─▶ P07→P08 ─┐  
 閘門D ─▶ P23 ─▶ P24（功能凍結後）─▶ P25a→P25b v1.2
 ```
 
-## 5. 每個 phase 的固定流程（`/goal` 的操作定義）
+## 5. 每個 phase 的固定流程（`/goal` 的操作定義＝既有 Harness 的 v1.2 版）
 
-0. **恢復狀態**：`git status` 檢查工作樹。**有來源不明或非本 phase 的未提交／已暫存改動時：不得 stash、不得 reset、不得納入 commit；若與本 phase 目標重疊即停下請示，不重疊則繞開它們工作**。讀本檔：有 `[~]` 就續做該 phase（讀其 brief 與 changelog 末條），沒有就取第一個 `[ ]` 並改成 `[~]`。若遇到「▶ 閘門」且上一里程碑剛完成、changelog 沒有站長「過」的紀錄 → 寫閘門摘要、**停止**。**若該 phase 依賴 §6 尚未決定的事項（P01 依 §6-1；P08 依 §6-2；P21 依 §6-3；P07 依 §6-4；P13 依 §6-5；P19 依 §6-6）且 changelog／brief 目錄找不到站長決定 → 停下請示**。
-1. 讀 `CLAUDE.md`（護欄＋Harness）→ `docs/history/CHANGELOG.md` 最後幾條 → 本檔 → 該 phase 引用的研究文件段落 → `WORLD.md` 相關節。
-2. 寫 **phase brief** 到 `docs/design/briefs/P<NN>.md`（現狀、目標、範圍、非目標、預算、驗證、禁區）；`/codex consult` 審 brief，吸收合理意見。**若 brief 顯示 phase 超過一次執行量 → 先在本檔拆成 a/b，只做 a。**
-3. 交**一個** subagent 實作（不並行寫程式）。禁區永遠包含：`curriculum.json`、`challenges.json`／`flows.json`（除非 brief 明列）、`vite.config.js`、使用者 dev server 5175、`CLAUDE.md`（changelog 由 orchestrator 寫）。
-4. 驗證：依 CLAUDE.md 測試策略——每個 phase 至少 `npm run test:rubric` → `npm run test:playtest` → `npm run build`；動到互動流程／世界／存檔的 phase 跑完整 `npm run test:e2e`（本 roadmap 幾乎每個 phase 都算），純文案／資料微調可只跑快檢並在 changelog 註明；subagent 全綠則 orchestrator 只快檢（rubric＋build＋curl）；改中文字串 → `npm run fonts`。**測試失敗**：先定位修復；已知 flaky（拖曳／火盆／風鈴時序）只重跑一次；**禁止刪除或放寬既有斷言**（設計變更需重釘的斷言要在 changelog 說明理由）。
+> 本節不另造流程：它就是 CLAUDE.md／AGENTS.md 的「每個 Phase 的節奏」＋ `docs/history/` 三件組（`task_plan.md`／`findings.md`／`progress.md`）的長時間執行 loop，加上 v1.2 才有的三樣東西：本檔的 phase 清單、里程碑閘門、Codex 交錯審查。
+
+0. **恢復狀態**：`git status`。**有來源不明或非本 phase 的未提交／已暫存改動時：不得 stash、不得 reset、不得納入 commit；若與本 phase 目標重疊即停下請示，不重疊則繞開它們工作**。讀本檔：有 `[~]` 就續做該 phase（讀 `task_plan.md` 該 phase 章節與 `progress.md` 末條），沒有就取第一個 `[ ]` 並改成 `[~]`。若遇到「▶ 閘門」且 `findings.md`「閘門紀錄」沒有站長「過」→ 寫閘門摘要到 `progress.md`、**停止**。**若該 phase 依賴 §6 的決定（P01 依 D1；P08 依 D2；P21 依 D3；P07 依 D4；P13 依 D5；P19 依 D6）而 `findings.md`「v1.2 裁決」找不到 → 停下請示**。
+1. **讀北極星**：`CLAUDE.md`（護欄＋Harness）→ `docs/history/CHANGELOG.md` 最後幾條 → `task_plan.md`（v1.2 章節＋§8 錯誤紀錄）→ `findings.md`（v1.2 裁決）→ 本檔 → 該 phase 引用的研究文件段落 → `WORLD.md` 相關節。
+2. **寫 phase 章節到 `docs/history/task_plan.md`**（v1.2 區塊下新增「### P<NN> — 名稱」：現狀、目標、範圍／非目標、資料 manifest、受影響檔案、預算、acceptance tests、禁區）；`/codex consult` 審它，吸收合理意見。**若顯示 phase 超過一次執行量 → 先在本檔拆成 a/b，只做 a。**
+3. 交**一個** subagent 實作（不並行寫程式；研究才可並行）。禁區永遠包含：`curriculum.json`、`challenges.json`／`flows.json`（除非章節明列）、`vite.config.js`、使用者 dev server 5175、`CLAUDE.md`（changelog 由 orchestrator 寫）。**新功能的測試先讓它紅一次再綠**（rubric／e2e 各至少一組，記進 `progress.md`）。
+4. **驗證（自主模式的替代規則）**：Harness 原則是「先問再跑 e2e」，`/goal` 無人可問，改為——每個 phase 至少 `npm run test:rubric` → `npm run test:playtest` → `npm run build`；**動到 `src/`（非純 CSS）、`src/data/*`、存檔、互動流程的 phase 一律跑完整 `npm run test:e2e`**（本 roadmap 幾乎每個 phase 都算）；純文案／資料微調可只跑快檢並在 changelog 註明；subagent 全綠則 orchestrator 只快檢（rubric＋build＋curl）。改中文字串 → `npm run fonts`。**測試失敗**：先定位修復；已知 flaky（拖曳／火盆／風鈴時序）只重跑一次；**禁止刪除或放寬既有斷言**（設計變更需重釘的斷言在 changelog 說明理由）。**任何錯誤記進 `task_plan.md` §8；同一錯誤不原樣重試；連續三種方法仍無法前進才停下報阻塞。**
 5. `/codex review` 審 diff；**P1 必修**、P2 判斷並記錄；再跑快檢。**Codex 與護欄／本檔衝突時，護欄與本檔優先；Codex 指出的護欄違反則必修。**
-6. 收尾：WORLD.md 維護檢查表逐條過、`docs/history/CHANGELOG.md` 一行（做了什麼＋預算實測數字＋下一步）、本檔 `[~]`→`[x]`（範圍有變就改本檔）、**commit 前 `git diff --cached --stat` 確認 staged 只含本 phase 的檔案**、commit（訊息繁中；**不切分支**、留在當前 feature 分支；push 僅在該分支已有 upstream 時）。**做完即停**，不連做下一個 phase。
-7. **停下請示**的情況：護欄衝突、Codex P1 無法在本 phase 內解、範圍要砍或大改、里程碑閘門、需要新資產授權、任何要動 `curriculum.json` 的念頭。
+6. **收尾**：WORLD.md 維護檢查表逐條過 → `progress.md` 加本 phase 條目（做了什麼＋先紅後綠紀錄＋預算實測）→ `findings.md` 記發現／裁決 → `docs/history/CHANGELOG.md` 一行（做了什麼＋數字＋下一步）→ 本檔 `[~]`→`[x]`（範圍有變就改本檔）→ **`git diff --cached --stat` 確認 staged 只含本 phase** → commit（訊息繁中）→ **push `dev`**（release gate 才合 `main`，見 P25b）。**做完即停**，不連做下一個 phase。
+7. **停下請示**：護欄衝突、Codex P1 無法在本 phase 內解、範圍要砍或大改、里程碑閘門、需要新資產授權、任何要動 `curriculum.json` 的念頭、三種方法仍卡住的錯誤。
 8. **不倒退**：任何 phase 都不得刪既有可玩內容；不留壞建置（做不完就把可獨立交付的部分交付、其餘標回 `[ ]` 並寫進 changelog）。
 
 ## 6. 待站長決定（開 P01 前）
 
-> **已定案（2026-08-17，照推薦）**：見 [`briefs/DECISIONS.md`](./briefs/DECISIONS.md)。`/goal` 以該檔為準；下方保留原始題目。
+> **已定案（2026-08-17，照推薦）**：見 `docs/history/findings.md`「v1.2 裁決 D1–D6」。`/goal` 以該檔為準；下方保留原始題目。
 
 1. 濁靈名字外觀（「濁靈／濁言／清燈」）與數量（8 隻前四區 vs 12 區各 1）。
 2. 四廠世界化採「四部原典／四宿」（推薦）還是學派別名。
@@ -204,19 +206,19 @@ P05→P06 ─────────┼─▶ 閘門A ─▶ P07→P08 ─┐  
 ## 附：`/goal` 文字（站長核准後直接下）
 
 ```
-/goal 依 docs/design/gameplay-roadmap.md 推進 Promptasy v1.2「濁靈之夜」，每次只做一個 phase。
-流程照該檔 §5：先 git status——來源不明或非本 phase 的未提交／已暫存改動不得 stash／reset／納入 commit，
-與目標重疊就停下請示；roadmap 有 [~] 就續做，否則取第一個 [ ] 並標 [~]；phase 依賴 §6 未決事項且找不到站長決定就停；
-遇到「▶ 閘門」且 changelog 無站長「過」的紀錄就寫閘門摘要並停止。讀 CLAUDE.md 護欄與 Harness、
-CHANGELOG 末幾條、WORLD.md 相關節；寫 brief 到 docs/design/briefs/P<NN>.md 並 /codex consult；
-brief 顯示做不完就先在 roadmap 拆 a/b 只做 a。一次只讓一個 subagent 寫碼；禁區：curriculum.json、
-challenges.json／flows.json（除非 brief 明列）、vite.config.js、dev server 5175、CLAUDE.md。
-測試依 CLAUDE.md 策略：至少 rubric／playtest／build，動到互動／世界／存檔就跑完整 e2e；全綠、console error 0；
-改中文字串跑 npm run fonts；測試失敗先定位修復，
-已知 flaky 只重跑一次，禁止刪除或放寬斷言。/codex review 審 diff 並修 P1；護欄與 roadmap 優先於 Codex。
-護欄衝突、P1 解不了、範圍要砍、要動 curriculum.json 一律停下請示。收尾：WORLD.md 檢查表、
-CHANGELOG 一行（含預算實測數字＋下一步）、roadmap 打 [x]、git diff --cached --stat 確認只含本 phase、
-commit（不切分支；有 upstream 才 push）。
-鐵則：威脅不懲罰且進度只累積、沒有會走動的 NPC、一律夜景沒有日出、E 唯一互動鍵、
-內容正確附出處、核心可離線、存檔純加法可重置、每次可執行、不倒退。做完即停。
+/goal 依 docs/design/gameplay-roadmap.md 推進 Promptasy v1.2「濁靈之夜」，每次只做一個 phase，流程照該檔 §5
+（＝CLAUDE.md／AGENTS.md Harness ＋ docs/history/ task_plan／findings／progress 三件組的 v1.2 版）。
+先 git status——來源不明或非本 phase 的未提交／已暫存改動不得 stash／reset／納入 commit，與目標重疊就停下請示；
+roadmap 有 [~] 就續做，否則取第一個 [ ] 並標 [~]；phase 依賴 findings.md「v1.2 裁決」找不到就停；
+遇到「▶ 閘門」且 findings.md 閘門紀錄無站長「過」就寫閘門摘要並停止。讀 CLAUDE.md 護欄與 Harness、CHANGELOG 末幾條、
+task_plan.md（v1.2 章節＋§8 錯誤紀錄）、findings.md、WORLD.md 相關節；把 phase 章節寫進 task_plan.md 並 /codex consult；
+做不完就先在 roadmap 拆 a/b 只做 a。一次只讓一個 subagent 寫碼；新測試先紅後綠；禁區：curriculum.json、
+challenges.json／flows.json（除非章節明列）、vite.config.js、dev server 5175、CLAUDE.md。
+測試：至少 rubric／playtest／build，動到 src／data／存檔／互動就跑完整 e2e；全綠、console error 0；改中文字串跑 npm run fonts；
+測試失敗先定位修復，已知 flaky 只重跑一次，禁止刪除或放寬斷言；錯誤記 task_plan §8、同一錯誤不原樣重試、三種方法仍卡才報阻塞。
+/codex review 審 diff 並修 P1；護欄與 roadmap 優先於 Codex。護欄衝突、P1 解不了、範圍要砍、要動 curriculum.json 一律停下請示。
+收尾：WORLD.md 檢查表、progress.md／findings.md、CHANGELOG 一行（含預算實測數字＋下一步）、roadmap 打 [x]、
+git diff --cached --stat 確認只含本 phase、commit、push dev（release gate 才合 main）。
+鐵則：威脅不懲罰且進度只累積、沒有會走動的 NPC、一律夜景沒有日出、E 唯一互動鍵、內容正確附出處、核心可離線、
+存檔純加法可重置、每次可執行、不倒退。做完即停。
 ```
