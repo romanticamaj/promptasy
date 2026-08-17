@@ -728,6 +728,43 @@ Exit：跨世界素材有 reload/reset/e2e；或有一份明確的「不實作�
 
 （`/goal` 每開一個 phase 在此新增「### P<NN> — 名稱」：現狀、目標、範圍／非目標、資料 manifest、受影響檔案、預算、acceptance tests、禁區；收尾時逐條打勾 exit criteria。）
 
+### P01 — 濁靈資料層＋世界實體＋互動仲裁（2026-08-17 開工）
+
+狀態：`in progress`
+
+**現狀**：世界只有五層互動（反應／風味／小語／石座／器物）與一種「會動的活物」（守望小獸）；主控台 `renderResult()`（`src/prompt/console.js:1702` 附近）固定呼叫 `progression.recordResult()` 後解參照 `outcome`；沒有 `kind` 分流。四區座標：foundations (0,0) r62 flat50、reasoning (-95,-95) r46 flat34、grounding (95,-95) r46 flat34、orchestration (-95,95) r46 flat34；四區石座 15／16／13／13 座（座標見 `challenges.json`），器物 22、反應物 23、地標／小景各區皆有。
+
+**目標**：8 隻濁靈可見、可互動、按 `E` 開既有主控台（自由書寫）、送出走既有流程但**不落盤**；演出與存檔留給 P02／P03。
+
+**範圍**
+1. `src/data/murks.json`（`authored:"game"`）：`{ version:1, authored:"game", note, xp:24, entries[8] }`；entry ＝ `{ id, region, at:[x,z], title, taint, mission, clue, teaches:[legacy technique id], primarySkillId, rubric:[{check,weight,hint}], pass, sample, source }`。**8 隻**（D1）：foundations ×2、reasoning ×2、grounding ×2、orchestration ×2，各綁該區已有神廟的技巧，`source` **直接沿用該技巧神廟的 `source`**（保證在 anchors）：建議對應 `gate-of-clarity-01`（assignsTask+specifiesFormat+hasConstraint）、`lost-automaton-03`（positiveFraming）、`example-hall-11`（hasFewShot）、`step-bridge-20`（hasStepByStep）、`citation-desk-21`（asksToCiteSources）、`well-of-unknowing-22`（givesOutForUncertainty）、`subtask-workbench-31`（decomposesTask）、`sprawling-site-84`（limitsScope）。`rubric` 3 條（主檢查 weight 2 ＋ 兩條 weight 1，其中一條可為 `assignsTask`）、`pass` = 3。`taint`＝像玩家自己會寫的爛 prompt（繁中，1–2 句）；`sample`＝範例解（playtest 要求 ≥A，且 `taint` 原文必不過）。文案照 WORLD.md §3.6 禁字表。
+2. `src/world/murks.js`：`createMurkField({ entries, kitOf, terrainHeight, isBusy, reducedMotion })` → `{ group, murks, update(dt,t,px,pz), nearest(pos, maxDist, forward), byId }`；照 `reactive.js` 樣板（`FAR_SQ 45²` 整組跳過、`NEAR_SQ 15²` 外每 3 幀、零每幀配置、暫存向量提模組層）；每隻 `THREE.Group` 名 `murk:<id>`，子件：`body`（實心底座 `userData.solidRadius=0.9`）、`core`（眼光 emissive）、`shells[]`（殼數＝rubric 條數，**半透明材質**→稽核自動免除）、`glow` sprite；**0 光源**、每隻 ≤600 三角；狀態 `idle→aware`（≤8m 轉頭看玩家、`isBusy()` 時不動）；本 phase 沒有 struck／calming／settled 的視覺（P03）。用區域 `kitOf(region)` 的 dark／mid 色。
+3. `src/world/world.js`：`createWorld` 接 `murks` 資料、建 field、`root.add`、每幀 `update`、對外 `murks`／`nearestMurk(pos, maxDist=5.5, forward)`（面向排名同 `nearestHandle`）。
+4. `src/main.js`：第 ⑥ 層互動——優先序 石座 6.5 > **濁靈 5.5** > 石碑 4.6 > 刻文 3.8 > 器物 3.2 > 閘門；HUD `setInteract` 文案「濁靈 · 一段沒說清楚的請求 <kbd>E</kbd> 安撫」；`KeyE && nearMurk` → `audio.cue('open'); openPanel(promptConsole, murk.challenge)`；`murk.challenge` ＝ `{ id, region, title, npc:'濁靈', scenario: taint, mission, clue, teaches, primarySkillId, rubric, pass, sample, source, kind:'murk' }`（無 flow → 既有邏輯自動 free）。`onResult` 對 `kind==='murk'` 只 `hud.refresh()`＋音效，**不**找 marker、不慶祝解鎖。
+5. `src/prompt/console.js`：`renderResult()` 依 `challenge.kind==='murk'` 分流到 `progression.recordMurk(id, evaluation, meta)`；第一幕標題「濁言」＋ `taint` 引文樣式（最小 CSS）。
+6. `src/progression/progression.js`：**最小版** `recordMurk()`：回傳與 `recordResult` **同形狀** outcome（`xpGain:0, levelBefore/After 現值, leveledUp:false, newlyCollected:[], newlySkills:[], newlyUnlocked:[], previousGrade:null, bestGrade:null, improved:false, newSeal:null, newPenless:false, newScribe:false` 及其他 `renderResult` 會讀的欄位）且**不寫任何 state**。
+7. `expected-counts.json`：只**新增** `murks: 8` 鍵；既有值不動。
+8. 座標由實作者用 node 蓋世界後計算並驗證：離任何石座 ≥8m、離橋 lane／頸口 ≥4m、離器物／反應物／石碑／刻文／地標／小景中心 ≥4m、離出生點 ≥7m、在該區 `flat` 半徑內、且 `isClear`；規則寫進 rubric 測試。
+
+**非目標**：存檔／XP／圖鑑（P02）、剝殼演出／SFX／回呼（P03）、WORLD.md 修訂與文案定稿（P04）、任何新按鍵、任何會移動的實體。
+
+**受影響檔案**：新增 `src/data/murks.json`、`src/world/murks.js`；修改 `src/world/world.js`、`src/main.js`、`src/prompt/console.js`、`src/progression/progression.js`、`src/styles.css`（最小）、`scripts/test-rubric.mjs`、`scripts/playtest-verify.mjs`（或 playtest 資料入口）、`scripts/headless-check.mjs`、`scripts/expected-counts.json`；`npm run fonts` 產物。
+
+**預算**：三角 +<5k（194k→<200k）、光源 37 不變、碰撞體 +8（957→965）、collision-audit 未涵蓋 0、零每幀配置。
+
+**Acceptance tests（先紅後綠）**
+- rubric：`murks.json` 結構／`authored`／8 筆／每筆 `check ∈ CHECK_IDS`／`source ∈ anchors`／座標規則／`expected-counts.murks===8`；node 蓋世界 solids 含 8 個 `murk:` 且總數 <1,400、collision-audit 0；`recordMurk` 不改 `state`（deep-equal 前後）。
+- playtest：8 隻 `sample` ≥A、`taint` 原文不過。
+- e2e：teleport 到 `murk-*` 旁 → `[data-interact]` 含「濁靈」與「安撫」→ `KeyE` → `promptConsole.isOpen` 且 free 模式、第一幕含 taint → 送 taint → 未通過、XP 不變、save 無 murk 欄 → `Escape`；tris/lights 舊斷言沿用；console error 0。
+- 舊斷言零改動。
+
+**禁區**：`curriculum.json`、`challenges.json`、`flows.json`、`vite.config.js`、dev server 5175、`CLAUDE.md`、`WORLD.md`（P04 才動）。
+
+Exit criteria：
+- [ ] 8 隻可見可互動；E 開主控台 free；送出不落盤。
+- [ ] rubric／playtest／build／e2e 全綠、console error 0；`npm run fonts` 已跑。
+- [ ] 預算實測數字寫進 progress.md 與 CHANGELOG。
+
 ## v1.2 錯誤紀錄
 
 （沿用 §8 規則：任何錯誤記在此；同一錯誤不原樣重試；連續三種方法仍無法前進才報阻塞。）
