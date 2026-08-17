@@ -173,6 +173,10 @@
         "legacyRowsWithoutAnchor": 45
       }
     },
+    "murks": {
+      "value": 8,
+      "why": "v1.2「濁靈之夜」· D1 裁決：v1 放 8 隻濁靈，前四區（foundations／reasoning／grounding／orchestration）各 2 隻，各綁該區已有神廟的技巧（rubric 只引用既有檢查器、source 沿用該神廟的官方出處）。它們不是關卡：不進 142 關、不進 bestGrades、不影響解鎖。P01 只放實體與互動，存檔與圖鑑在 P02。"
+    },
     "applicationTrials": {
       "value": 12,
       "why": "12 片土地各一座試煉（curriculum-v2 §5.2）。它們不教新技巧（第二幕整幕不存在）、不計入 130 座教學神廟、不進 C1／C2 的「一關一技巧」統計，rubric 是開關卡當下依「你已經學會什麼」組出來的。"

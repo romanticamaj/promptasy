@@ -1064,6 +1064,33 @@ export function runPlaytestVerify({ ok, eq }) {
       ok(typeof c.sample === 'string' && c.sample.length > 20, `[${c.id}] playtest：仍然寫得出一份可以拿 S 的參考解答`);
     }
   }
+
+  /* --- v1.2 · P01：濁靈 —— 範例解 ≥ A、濁言原文不過（部分命中是允許的） --- */
+  {
+    const murkFile = readJson('src/data/murks.json');
+    const murks = murkFile.entries || [];
+    ok(murks.length === 8, `playtest：8 隻濁靈（實際 ${murks.length}）`);
+    for (const m of murks) {
+      const tag = `[${m.id}]`;
+      const sample = evaluate(m, m.sample);
+      ok(
+        sample.passed && GRADE_RANK[sample.grade] >= GRADE_RANK.A,
+        `${tag} playtest：範例解至少 A`,
+        `grade=${sample.grade} earned=${sample.earned}/${sample.total}`
+      );
+      const primary = (m.rubric || []).find((r) => r.primary);
+      const primaryResult = primary && sample.results.find((r) => r.check === primary.check);
+      ok(primaryResult && primaryResult.score === 1, `${tag} playtest：範例解真的做到主檢查 ${primary && primary.check}`);
+      const taint = evaluate(m, m.taint);
+      ok(!taint.passed, `${tag} playtest：濁言原文送進去必不過`, `earned=${taint.earned}/${taint.total} pass=${m.pass}`);
+      ok(!taint.tooShort, `${tag} playtest：濁言不是靠太短才不過`, String(m.taint.length));
+      const taintPrimary = primary && taint.results.find((r) => r.check === primary.check);
+      ok(taintPrimary && taintPrimary.score < 1, `${tag} playtest：濁言沒有剛好做到主檢查（不然沒有東西可以學）`);
+      // 濁靈走自由書寫：不該有石碑流程、也不該有快速填入（那是關卡的鷹架）
+      ok(!flowFile.flows[m.id], `${tag} playtest：濁靈沒有石碑流程（自由書寫）`);
+      ok(!Array.isArray(m.quickFills) || m.quickFills.length === 0, `${tag} playtest：濁靈沒有快速填入`);
+    }
+  }
 }
 
 /* --- 單獨執行時自己印報告 --- */

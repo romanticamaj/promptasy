@@ -2939,6 +2939,8 @@ const inscriptionFile = readJson('src/data/inscriptions.json');
 const secretFile = readJson('src/data/secrets.json');
 // Phase 25：動得了的器物也要蓋進測試世界（碰撞、淨空、穿模稽核都要含它們）
 const handleFile = readJson('src/data/handles.json');
+// v1.2 · P01：濁靈也要蓋進測試世界（碰撞體 +8、穿模稽核要含牠們）
+const murkFile = readJson('src/data/murks.json');
 const stubProgression = {
   bestGrade: () => null,
   gateStatus: () => ({ unlocked: false, text: '' }),
@@ -2958,12 +2960,24 @@ const worldOpts = {
   inscriptions: inscriptionFile.entries,
   secrets: secretFile.entries,
   handles: handleFile.entries,
+  murks: murkFile.entries,
 };
 const testScene = new THREE.Scene();
 const testWorld = World.createWorld({
   engine: { scene: testScene, camera: {}, onUpdate() {} },
   quality: 'high',
   ...worldOpts,
+});
+/*
+ * v1.2 · P01：濁靈的座標規則要對「加入濁靈之前」的世界驗（isClear 是對 baseline 說的：
+ * 牠自己有碰撞體，加進去之後那一點當然不清）。這一個世界只給那一節用。
+ */
+const baselineScene = new THREE.Scene();
+const baselineWorld = World.createWorld({
+  engine: { scene: baselineScene, camera: {}, onUpdate() {} },
+  quality: 'high',
+  ...worldOpts,
+  murks: [],
 });
 // 低畫質是另一組道具數量與另一批位置，穿模稽核兩種都要過
 const lowScene = new THREE.Scene();
@@ -5004,6 +5018,321 @@ memory.clear();
   eq(again.handleCount(), 0, '重置會清掉動過的器物');
 }
 memory.clear();
+
+/* ================================================================== */
+/* v1.2 · P01：濁靈（Murk）—— 資料層 ＋ 世界實體 ＋ 互動仲裁 ＋ 不落盤   */
+/* ================================================================== */
+console.log('▸ 濁靈（v1.2 · P01）');
+const Murks = await import('../src/world/murks.js');
+const distToSeg = (px, pz, ax, az, bx, bz) => {
+  const dx = bx - ax;
+  const dz = bz - az;
+  const l2 = dx * dx + dz * dz;
+  let t = l2 ? ((px - ax) * dx + (pz - az) * dz) / l2 : 0;
+  t = Math.max(0, Math.min(1, t));
+  return Math.hypot(px - (ax + dx * t), pz - (az + dz * t));
+};
+{
+  const murks = murkFile.entries;
+  const MURK_REGIONS = ['foundations', 'reasoning', 'grounding', 'orchestration'];
+  const challengeByIdM = new Map(challenges.map((c) => [c.id, c]));
+
+  /* --- ① 檔頭與數量（契約在 expected-counts） --- */
+  eq(murkFile.version, 1, 'murks.json 有版本欄');
+  eq(murkFile.authored, 'game', 'murks.json 檔頭明講是遊戲自撰的層');
+  ok(nonEmptyStr(murkFile.note) && /出處|官方/.test(murkFile.note), 'murks.json 檔頭說明「出處以官方文件為準」');
+  ok(Number.isFinite(murkFile.xp) && murkFile.xp > 0 && murkFile.xp <= 40, '安撫一隻濁靈的 XP 是少量（P02 才發）', String(murkFile.xp));
+  eq(murks.length, EXPECT.murks.value, `濁靈數＝契約（${EXPECT.murks.value} 隻）`);
+  eq(new Set(murks.map((m) => m.id)).size, murks.length, '濁靈 id 沒有重複');
+  for (const rid of MURK_REGIONS) {
+    eq(murks.filter((m) => m.region === rid).length, 2, `[${rid}] 有 2 隻濁靈（D1：前四區各 2）`);
+  }
+  eq(murks.every((m) => MURK_REGIONS.includes(m.region)), true, '濁靈只落在前四區');
+
+  /* --- ② 每一筆的結構、教學正典、出處（護欄 2） --- */
+  const MURK_TEXT_FIELDS = ['title', 'taint', 'mission', 'clue', 'sample'];
+  const BANNED = ['送出評分', '按鈕', '面板', 'localStorage', 'bloom', '後製', 'Web Audio', 'API key', 'rubric', 'debug'];
+  for (const m of murks) {
+    const tag = `[${m.id}]`;
+    ok(/^murk-[a-z0-9-]+$/.test(m.id), `${tag} id 是 kebab-case 且帶 murk- 前綴`);
+    ok(Array.isArray(m.at) && m.at.length === 2 && m.at.every(Number.isFinite), `${tag} at 是 [x, z]`);
+    for (const f of MURK_TEXT_FIELDS) {
+      ok(nonEmptyStr(m[f]), `${tag} ${f} 非空`);
+      ok(!ENGLISH(m[f] || ''), `${tag} ${f} 沒有整句英文`, m[f]);
+      for (const b of BANNED) ok(!(m[f] || '').includes(b), `${tag} ${f} 不出現系統術語「${b}」`);
+    }
+    ok(m.taint.length >= MIN_PROMPT_LENGTH, `${tag} 濁言長得像一段真的請求（不是靠太短才不過）`, String(m.taint.length));
+    ok(m.taint.length <= 60, `${tag} 濁言只有一兩句`, String(m.taint.length));
+    ok(m.taint !== m.sample, `${tag} 濁言與範例解是弱→強對照，不是同一段`);
+    ok(Array.isArray(m.teaches), `${tag} teaches 是陣列`);
+    for (const t of m.teaches) ok(techById.has(t), `${tag} teaches "${t}" 存在於 curriculum`);
+    ok(typeof m.primarySkillId === 'string' && Boolean(catalog.skill(m.primarySkillId)), `${tag} primarySkillId 是 v2 catalog 裡真的技能`, m.primarySkillId);
+    ok(m.primaryTechniqueId === null || techById.has(m.primaryTechniqueId), `${tag} primaryTechniqueId 是 null 或存在的舊技巧`);
+    // rubric：主列 weight 2 ＋ 兩條 weight 1，pass 3
+    ok(Array.isArray(m.rubric) && m.rubric.length === 3, `${tag} rubric 三條`);
+    const primaries = m.rubric.filter((r) => r.primary === true);
+    eq(primaries.length, 1, `${tag} rubric 恰好一條主列（primary:true）`);
+    const primary = primaries[0] || {};
+    eq(primary.weight, 2, `${tag} 主列 weight 2`);
+    eq(primary.skillId, m.primarySkillId, `${tag} 主列的 skillId 就是 primarySkillId（第二幕靠它找主刻文）`);
+    for (const r of m.rubric) {
+      ok(CHECK_IDS.includes(r.check), `${tag} rubric check "${r.check}" 是既有檢查器`);
+      ok(!r.techniqueId || techById.has(r.techniqueId), `${tag} rubric techniqueId "${r.techniqueId}" 存在`);
+      ok(!r.skillId || Boolean(catalog.skill(r.skillId)), `${tag} rubric skillId "${r.skillId}" 存在於 v2 catalog`);
+      ok(nonEmptyStr(r.hint), `${tag} rubric ${r.check} 有提示`);
+      for (const b of BANNED) ok(!(r.hint || '').includes(b), `${tag} 提示不出現系統術語「${b}」`);
+      if (!r.primary) eq(r.weight, 1, `${tag} 副列 ${r.check} weight 1`);
+    }
+    const total = m.rubric.reduce((n, r) => n + r.weight, 0);
+    eq(total, 4, `${tag} 總權重 4`);
+    eq(m.pass, 3, `${tag} 門檻 3`);
+    // 出處：沿用該區已有神廟的 source（保證是它所教技能的官方出處）
+    ok(/^https:\/\//.test(m.source), `${tag} source 是 https 連結`);
+    ok((skillSourceUrls.get(m.primarySkillId) || new Set()).has(m.source), `${tag} source 是它所教技能的官方出處（回查 skill-codex-v2）`, m.source);
+    const src = challengeByIdM.get(m.sourceChallengeId);
+    ok(Boolean(src), `${tag} sourceChallengeId 指向真的存在的神廟`, m.sourceChallengeId);
+    if (src) {
+      eq(src.region, m.region, `${tag} 綁的是同一區的神廟`);
+      eq(src.source, m.source, `${tag} source 逐字沿用那座神廟的 source`);
+      eq(src.primarySkillId, m.primarySkillId, `${tag} 教的技能就是那座神廟教的`);
+      const srcPrimary = (src.rubric || []).find((r) => r.primary);
+      eq(primary.check, srcPrimary && srcPrimary.check, `${tag} 主檢查沿用那座神廟的主檢查`);
+      ok(JSON.stringify(m.teaches) === JSON.stringify(src.teaches), `${tag} teaches 與那座神廟一致（收集不亂加）`);
+    }
+    // 弱 → 強：範例解 ≥ A、濁言原文不過（詳細門檻在 playtest）
+    const s = evaluate(m, m.sample);
+    ok(s.passed && ['A', 'S'].includes(s.grade), `${tag} 範例解至少 A`, `grade=${s.grade} ${s.earned}/${s.total}`);
+    const t = evaluate(m, m.taint);
+    ok(!t.passed && !t.tooShort, `${tag} 濁言原文本身不過（而且不是因為太短）`, `earned=${t.earned}`);
+  }
+
+  /* --- ③ 座標規則（WORLD.md §6.4 淨空；對 baseline 世界驗） --- */
+  /*
+   * 濁靈的互動圈（5.5）比石碑（4.6）／刻文（3.8）／器物（3.2）大、而且搶 E 時排在它們前面 ——
+   * 所以牠不能站進那些東西的可讀範圍：距離 ≥ 5.5 ＋ 那一層的半徑，兩個圈才不會疊。
+   * 石座（6.5）雖然贏過濁靈，但兩圈疊在一起就會有「站在石座前卻按到濁靈」或
+   * 反過來的雙目標區，一律 ≥ 12（6.5 ＋ 5.5）。其他不搶 E 的東西（反應物／地標／小景／祕密）≥ 4。
+   */
+  const MURK_R = Murks.MURK_RADIUS; // 5.5
+  const LAYER_R = { handle: 3.2, tablet: 4.6, inscription: 3.8 };
+  const nearRules = [
+    ...handleFile.entries.map((h) => [h.at[0], h.at[1], `handle:${h.id}`, MURK_R + LAYER_R.handle]),
+    ...Props.LORE_TABLETS.map((t) => [t.at[0], t.at[1], `tablet:${t.id}`, MURK_R + LAYER_R.tablet]),
+    ...inscriptionFile.entries.map((i) => [i.at[0], i.at[1], `inscription:${i.id}`, MURK_R + LAYER_R.inscription]),
+    ...Reactive.REACTIVE_SPOTS.map((s) => [s.at[0], s.at[1], `reactive:${s.id}`, 4]),
+    ...Props.LANDMARKS.map((l) => [l.at[0], l.at[1], `landmark:${l.id}`, 4]),
+    ...Props.STORY_VIGNETTES.map((v) => [v.at[0], v.at[1], `vignette:${v.id}`, 4]),
+    ...secretFile.entries.map((s) => [s.at[0], s.at[1], `secret:${s.id}`, 4]),
+  ];
+  /*
+   * 石座淨空的例外表：流程與代理區（orchestration）13 座石座擠在半徑 34 的平地上，
+   * 找不到任何一點同時離全部石座 ≥ 12 —— 這一隻退到 ≥ 10（兩圈疊 2 公尺；石座在仲裁裡本來就贏，
+   * 玩家端零倒退：站在石座前永遠是石座）。要加例外就要寫理由。
+   */
+  const MARKER_MIN_EXCEPTIONS = Object.freeze({ 'murk-while-at-it': { min: 10, why: 'orchestration 13 座石座飽和，全區無 ≥12 的位置' } });
+  for (const m of murks) {
+    const tag = `[${m.id}]`;
+    const [x, z] = m.at;
+    const site = World.REGION_SITES.find((s) => s.id === m.region);
+    ok(Math.hypot(x - site.x, z - site.z) <= site.flat, `${tag} 在該區的平地半徑內`, `d=${Math.hypot(x - site.x, z - site.z).toFixed(1)} flat=${site.flat}`);
+    const here = World.regionAt(x, z);
+    ok(here && here.id === m.region && !here.onBridge, `${tag} regionAt 說牠站在 ${m.region}`, JSON.stringify(here));
+    const markerMin = MARKER_MIN_EXCEPTIONS[m.id] ? MARKER_MIN_EXCEPTIONS[m.id].min : 12;
+    for (const c of challenges) {
+      const d = Math.hypot(x - c.position[0], z - c.position[1]);
+      ok(d >= markerMin, `${tag} 離石座 ${c.id} ≥ ${markerMin}m（互動圈不重疊）`, d.toFixed(1));
+    }
+    ok(Object.keys(MARKER_MIN_EXCEPTIONS).length <= 1, '石座淨空例外表最多 1 條');
+    for (const l of World.BRIDGE_LANES) {
+      ok(distToSeg(x, z, l.ax, l.az, l.bx, l.bz) >= World.LANE_HALF + 4, `${tag} 離 ${l.region} 橋的主動線 ≥ 4m`);
+    }
+    for (const a of World.ANNEX_LINKS) ok(Math.hypot(x - a.gate.x, z - a.gate.z) >= 8, `${tag} 離 ${a.region} 頸口 ≥ 8m`);
+    for (const c of World.CORRIDORS) ok(Math.hypot(x - c.gate.x, z - c.gate.z) >= 8, `${tag} 離 ${c.region} 閘門 ≥ 8m`);
+    for (const [px, pz, name, min] of nearRules) {
+      ok(Math.hypot(x - px, z - pz) >= min, `${tag} 離 ${name} ≥ ${min}m`, Math.hypot(x - px, z - pz).toFixed(1));
+    }
+    ok(Math.hypot(x, z - 6) >= 7, `${tag} 離出生點 ≥ 7m`);
+    ok(Math.hypot(x - prologueForWorld.shrine.at[0], z - prologueForWorld.shrine.at[1]) >= 9, `${tag} 離起始祭壇 ≥ 9m`);
+    for (const other of murks) {
+      if (other === m) continue;
+      ok(Math.hypot(x - other.at[0], z - other.at[1]) >= 12, `${tag} 與 ${other.id} 距離 ≥ 12m（互動半徑 5.5 不重疊）`);
+    }
+    ok(baselineWorld.isClear(x, z), `${tag} 座標在加入濁靈之前的世界是清的`);
+    // 加了濁靈之後：牠自己擋人，但四面八方都走得到互動距離
+    ok(Boolean(testWorld.solidAt(x, z)), `${tag} 濁靈本體擋得住人`);
+    for (let a = 0; a < 8; a += 1) {
+      const ang = (a / 8) * Math.PI * 2;
+      for (const d of [1.7, 2.6, 3.5]) {
+        ok(testWorld.isClear(x + Math.cos(ang) * d, z + Math.sin(ang) * d), `${tag} 周圍 ${d}m 走得到（安撫不會被擋）`, `a=${a}`);
+      }
+    }
+  }
+
+  /* --- ④ 世界實體：命名、碰撞體、預算、0 光源 --- */
+  const murkGroups = [];
+  testScene.traverse((o) => {
+    if (o.name && o.name.startsWith('murk:')) murkGroups.push(o);
+  });
+  eq(murkGroups.length, murks.length, '每一隻濁靈都蓋在測試世界裡（murk:<id>）');
+  eq(new Set(murkGroups.map((g) => g.name)).size, murks.length, '場景圖節點名沒有重複');
+  const murkSolids = testWorld.solids.filter((s) => murks.some((m) => Math.abs(m.at[0] - s.x) < 0.01 && Math.abs(m.at[1] - s.z) < 0.01));
+  eq(murkSolids.length, murks.length, '碰撞登記表含 8 個濁靈底座');
+  ok(murkSolids.every((s) => Math.abs(s.r - 0.9) < 0.01 && s.keep === true), '濁靈底座 solidRadius 0.9 且 keepSolid（淨空區不會把牠掃掉）', murkSolids.map((s) => `${s.r}/${s.keep}`).join(' '));
+  ok(testWorld.solids.length < 1400, '加了濁靈之後碰撞體仍在預算內', `n=${testWorld.solids.length}`);
+  ok(testWorld.solids.length - baselineWorld.solids.length <= 16, '濁靈只多了少數幾個碰撞體', `Δ=${testWorld.solids.length - baselineWorld.solids.length}`);
+  {
+    let lights = 0;
+    let tris = 0;
+    testWorld.murks.group.traverse((o) => {
+      if (o.isLight) lights += 1;
+      if (o.isMesh && o.geometry) {
+        const idx = o.geometry.index;
+        tris += idx ? idx.count / 3 : o.geometry.attributes.position.count / 3;
+      }
+    });
+    eq(lights, 0, '濁靈一盞燈都沒加（只用自發光與半透明）');
+    ok(tris / murks.length <= 600, '每隻濁靈 ≤ 600 三角形', `perMurk=${(tris / murks.length).toFixed(0)}`);
+    ok(tris < 5000, '8 隻濁靈總共 < 5k 三角形', `tris=${tris}`);
+  }
+  for (const m of testWorld.murks.murks) {
+    const tag = `[${m.id}]`;
+    eq(m.body.userData.solidRadius, 0.9, `${tag} body.userData.solidRadius = 0.9`);
+    eq(m.body.userData.keepSolid, true, `${tag} body.userData.keepSolid = true`);
+    eq(m.shells.length, m.entry.rubric.length, `${tag} 殼數 ＝ rubric 條數`);
+    ok(m.shells.every((s) => s.material.transparent === true), `${tag} 殼是半透明材質（穿模稽核自動免除）`);
+    ok(m.body.material.transparent !== true, `${tag} 底座是實心材質`);
+    ok(m.core.material.emissiveIntensity > 0, `${tag} 眼光是自發光`);
+    ok(m.glow && m.glow.isSprite, `${tag} 有一片光暈 sprite`);
+    ok(m.group.name === `murk:${m.id}`, `${tag} 群組命名 murk:<id>`);
+  }
+  {
+    // 穿模稽核也要含濁靈（testScene 已含；這裡只驗濁靈自己的路徑）
+    const Audit = await import('./collision-audit.mjs');
+    const res = Audit.auditCoverage(testWorld.murks.group, World.solidAt, testWorld.solids, World.terrainHeight);
+    eq(res.uncovered.length, 0, '濁靈沒有「有份量卻走得過去」的零件', res.uncovered.map((u) => u.name).join(' '));
+  }
+
+  /* --- ⑤ 場的行為：面向排名、轉頭不走動、面板打開就停手、45m 外整組跳過 --- */
+  {
+    const field = testWorld.murks;
+    ok(Murks.MURK_RADIUS === 5.5, '濁靈互動半徑 5.5');
+    ok(Murks.MURK_RADIUS < 6.5 && Murks.MURK_RADIUS > 4.6, '互動半徑夾在石座（6.5）與石碑（4.6）之間');
+    const one = field.murks[0];
+    const hitFar = field.nearest({ x: one.x + 6, z: one.z }, Murks.MURK_RADIUS, null);
+    ok(hitFar === null || hitFar.murk !== one, '6 公尺外按不到這隻');
+    const hitNear = field.nearest({ x: one.x + 3, z: one.z }, Murks.MURK_RADIUS, null);
+    ok(hitNear && hitNear.murk === one, '3 公尺內按得到', JSON.stringify(hitNear && hitNear.distance));
+    eq(one.near, true, '被選中的那一隻進入「走近」狀態');
+    ok(field.nearest({ x: one.x + 3, z: one.z }, Murks.MURK_RADIUS, { x: -1, z: 0 }).murk === one, '面向牠時仍是牠');
+    // 兩隻假想同距：面向哪一隻就選哪一隻（用真的 field 驗排名式）
+    const fake = { murks: [ { x: 0, z: 3, setNear() {} }, { x: 0, z: -3, setNear() {} } ] };
+    const rank = (pos, forward) => {
+      let best = null; let bestScore = Infinity;
+      for (const m of fake.murks) {
+        const dx = m.x - pos.x; const dz = m.z - pos.z; const d = Math.hypot(dx, dz);
+        let score = d;
+        if (forward) score = d * (1 - 0.35 * ((dx / d) * forward.x + (dz / d) * forward.z));
+        if (score < bestScore) { bestScore = score; best = m; }
+      }
+      return best;
+    };
+    eq(rank({ x: 0, z: 0 }, { x: 0, z: 1 }), fake.murks[0], '排名式：面向 +z 選 +z 那一隻');
+    eq(rank({ x: 0, z: 0 }, { x: 0, z: -1 }), fake.murks[1], '排名式：面向 −z 選 −z 那一隻');
+    // 走近會轉頭，但整隻不動
+    const before = one.group.position.clone();
+    one.facing = 0;
+    one.head.rotation.y = 0;
+    for (let i = 0; i < 90; i += 1) field.update(1 / 60, i / 60, one.x + 4, one.z + 0.001);
+    eq(one.state, 'aware', '4 公尺內：idle → aware');
+    ok(Math.abs(one.head.rotation.y - Math.PI / 2) < 0.2, '轉頭看向玩家（+x 方向 ≈ π/2）', one.head.rotation.y.toFixed(2));
+    ok(one.group.position.equals(before), '濁靈本體一寸都沒移動（沒有會走動的 NPC）');
+    for (let i = 0; i < 30; i += 1) field.update(1 / 60, i / 60, one.x + 20, one.z);
+    eq(one.state, 'idle', '走遠（> 8m）：回到 idle');
+    // 面板打開（isBusy）→ 不轉頭
+    const busyScene = new THREE.Scene();
+    void busyScene;
+    const busyField = Murks.createMurkField({
+      entries: murks.slice(0, 1),
+      kitOf: () => Props.kitFor('#8aa0b4'),
+      terrainHeight: World.terrainHeight,
+      isBusy: () => true,
+    });
+    const b = busyField.murks[0];
+    b.facing = 0;
+    for (let i = 0; i < 60; i += 1) busyField.update(1 / 60, i / 60, b.x + 3, b.z);
+    eq(b.state, 'idle', '面板打開時不進 aware（isBusy 停手）');
+    ok(Math.abs(b.facing) < 0.5, '面板打開時不轉頭看人', b.facing.toFixed(2));
+    // 沒有 entries 也蓋得起來（世界照樣成立）
+    const empty = Murks.createMurkField({ entries: [], kitOf: () => Props.kitFor('#8aa0b4'), terrainHeight: World.terrainHeight });
+    eq(empty.count, 0, '沒有濁靈資料時場是空的');
+    eq(empty.nearest({ x: 0, z: 0 }), null, '空的場 nearest 回 null');
+    empty.update(0.016, 0, 0, 0);
+  }
+
+  /* --- ⑥ recordMurk：同形狀 outcome、零 state 寫入 --- */
+  memory.clear();
+  {
+    const p = createProgression({ catalog, challenges });
+    ok(typeof p.recordMurk === 'function', 'progression 有 recordMurk');
+    // 先讓存檔有點內容，再比較（空存檔的 deep-equal 太容易過）
+    p.recordResult(evaluate(challengeByIdM.get('gate-of-clarity-01'), challengeByIdM.get('gate-of-clarity-01').sample));
+    const snapshot = JSON.stringify(p.state);
+    const savedBefore = memory.get(SaveIO.SAVE_KEY);
+    const refOutcome = p.recordResult(evaluate(challengeByIdM.get('gate-of-clarity-01'), '幫我弄一下'));
+    const snapshot2 = JSON.stringify(p.state);
+    eq(snapshot2, snapshot, '（對照組）沒過關的 recordResult 也不改 state');
+    const m = murks[0];
+    for (const text of [m.taint, m.sample]) {
+      const ev = evaluate(m, text);
+      const out = p.recordMurk(m.id, ev, { mode: 'free', attempt: 1 });
+      eq(JSON.stringify(Object.keys(out).sort()), JSON.stringify(Object.keys(refOutcome).sort()), `recordMurk 回傳與 recordResult 同一組欄位（${ev.passed ? '過' : '沒過'}）`);
+      eq(out.xpGain, 0, 'recordMurk：xpGain 0');
+      eq(out.leveledUp, false, 'recordMurk：leveledUp false');
+      eq(out.levelAfter, p.levelInfo().level, 'recordMurk：levelAfter 是現值');
+      eq(out.levelBefore, out.levelAfter, 'recordMurk：levelBefore ＝ levelAfter');
+      ok(Array.isArray(out.newlyCollected) && out.newlyCollected.length === 0, 'recordMurk：newlyCollected 空');
+      ok(Array.isArray(out.newlySkills) && out.newlySkills.length === 0, 'recordMurk：newlySkills 空');
+      ok(Array.isArray(out.newlyUnlocked) && out.newlyUnlocked.length === 0, 'recordMurk：newlyUnlocked 空');
+      eq(out.previousGrade, null, 'recordMurk：previousGrade null');
+      eq(out.bestGrade, null, 'recordMurk：bestGrade null');
+      eq(out.improved, false, 'recordMurk：improved false');
+      eq(out.newSeal, null, 'recordMurk：newSeal null');
+      eq(out.newPenless, false, 'recordMurk：newPenless false');
+      eq(out.newScribe, false, 'recordMurk：newScribe false');
+      eq(JSON.stringify(p.state), snapshot, `recordMurk（${ev.passed ? '過' : '沒過'}）之後 state 深比較相同（零寫入）`);
+      eq(memory.get(SaveIO.SAVE_KEY), savedBefore, `recordMurk（${ev.passed ? '過' : '沒過'}）之後 localStorage 一個位元組都沒動`);
+    }
+    eq(p.bestGrade(m.id), null, '濁靈 id 沒有進 bestGrades');
+    eq(p.isCleared(m.id), false, '濁靈不算通關');
+    const saved = JSON.parse(memory.get(SaveIO.SAVE_KEY));
+    ok(!('murks' in saved), 'P01 的存檔沒有 murks 欄（持久化留給 P02）');
+    ok(!JSON.stringify(saved).includes('murk-'), '存檔裡沒有任何 murk id');
+  }
+  memory.clear();
+
+  /* --- ⑦ 靜態掃描：主控台與 main.js 的分流真的在 --- */
+  {
+    const consoleSrc = readFileSync(resolve(root, 'src/prompt/console.js'), 'utf8');
+    ok(/progression\.recordMurk\(/.test(consoleSrc), 'renderResult 依 kind 分流到 progression.recordMurk');
+    ok(/!isMurk\(current\)\) progression\.markGuidanceSeen/.test(consoleSrc), '濁靈不記 guidanceSeen');
+    ok(/!isMurk\(current\)\) progression\.markSampleSeen/.test(consoleSrc), '濁靈不記 samplesSeen');
+    ok(/濁言/.test(consoleSrc), '濁靈的第一幕有專用 eyebrow「濁言」');
+    ok(!/zh: '濁言'/.test(consoleSrc), '沒有動全域 ACTS 的幕名');
+    const mainSrc = readFileSync(resolve(root, 'src/main.js'), 'utf8');
+    ok(/world\.nearestMurk\(/.test(mainSrc), 'main.js 有第 ⑥ 層互動 nearestMurk');
+    ok(/濁靈<\/b><span>\$\{esc\(nearMurk\.entry\.title\)\}<\/span><kbd>E<\/kbd> 安撫/.test(mainSrc), 'HUD 提示：濁靈 · <牠自己的名字> E 安撫（副標不寫死）');
+    ok(/kind: 'murk'/.test(mainSrc), 'main.js 組出的 challenge 形物件帶 kind: murk');
+    ok(/challenge\.kind === 'murk'\)[\s\S]{0,400}return;/.test(mainSrc), 'onResult 的 murk 分支置頂並 return');
+    ok(/nearMurk = !hitMarker && hitMurk/.test(mainSrc), '石座優先於濁靈');
+    ok(/nearTablet = !hitMarker && !hitMurk && hitTablet/.test(mainSrc), '濁靈優先於石碑');
+    const worldSrc = readFileSync(resolve(root, 'src/world/world.js'), 'utf8');
+    ok(/murks\.map\(\(m\) => \[m\.at\[0\], m\.at\[1\]/.test(worldSrc), 'keepClear 納入濁靈');
+    ok(/murkField\.update\(dt, t, x, z\)/.test(worldSrc), 'updateReactions 每幀更新濁靈場');
+    const murkSrc = readFileSync(resolve(root, 'src/world/murks.js'), 'utf8');
+    ok(!/new THREE\.(Point|Spot|Directional|Hemisphere|Ambient|RectArea)Light/.test(murkSrc), 'murks.js 沒有任何光源');
+    ok(!/position\.(add|lerp|copy)\(/.test(murkSrc.split('export function createMurkField')[1] || ''), '更新迴圈裡沒有移動實體的程式（濁靈不走動）');
+  }
+}
 
 /* ================================================================== */
 /* Phase 7：序章「喚醒神諭」引導課程                                     */

@@ -1535,6 +1535,38 @@ a.src:hover {
   font-weight: 500;
 }
 
+/* v1.2 · P01 · 濁言：濁靈那段寫壞的請求，用引文樣式呈現 —— 它是「牠說的話」，不是敘述。 */
+.console__scenario.is-taint {
+  position: relative;
+  margin: 0 0 var(--s5);
+  padding: var(--s3) var(--s4) var(--s3) var(--s5);
+  border-left: 2px solid rgba(160, 172, 190, 0.45);
+  border-radius: 0 var(--radius) var(--radius) 0;
+  background: rgba(8, 10, 16, 0.55);
+  font-style: italic;
+  color: #b9c6d4;
+}
+.console__scenario.is-taint::first-letter {
+  -webkit-initial-letter: 1;
+  initial-letter: 1;
+  margin-right: 0;
+  color: inherit;
+  font-weight: inherit;
+}
+.console__scenario.is-taint::before {
+  content: '「';
+  position: absolute;
+  left: 0.55em;
+  top: 0.35em;
+  font-style: normal;
+  color: rgba(160, 172, 190, 0.6);
+}
+.console__scenario.is-taint::after {
+  content: '」';
+  font-style: normal;
+  color: rgba(160, 172, 190, 0.6);
+}
+
 /* 你的任務：整個練習室最重要的一塊。左邊的情境是氛圍，這裡是「要做什麼」。 */
 .mission {
   margin: 0 0 var(--s4);

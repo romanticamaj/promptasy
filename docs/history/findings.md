@@ -1798,3 +1798,10 @@ rubric 原本有一條「那一排石籤有自己的樣式」正是靠這幾塊�
 - rubric 主列沒有 `primary:true` 時第二幕找不到主教學列；`expected-counts.json` 是 `contract.<key>:{value,why}`；`noCollideZones` 會把靠石座 <9.9m 且無 `keepSolid` 的實體當雜物濾掉。
 - 保守選擇：murk 第一幕用專用 eyebrow「濁言」而不動全域 `ACTS`；`onResult` murk 分支置頂 return。
 
+## v1.2 · P01 執行中的發現（2026-08-18）
+
+- 實作 subagent 兩次被外部因素中斷（API 連線中斷；Anthropic session 用量上限），續跑後完成；磁碟上的改動沒有遺失。
+- **Codex 額度用盡**（提示 2026-08-20 12:46 前不可用）：`/codex review` 無法執行。保守替代：改用 Claude 內建 `/code-review high` 做獨立審查，P1 仍必修；Codex 恢復後的下一個 phase 再回到「Codex consult＋review」。此替代不算違反 §5（審查仍有、且獨立於實作者）。
+- **濁靈座標規則升級（獨立審查＋e2e 抓到）**：原本「離石座 ≥8m、離其他互動物 ≥4m」會讓濁靈的 5.5m 互動圈蓋住石碑（4.6）／刻文（3.8）／器物（3.2）的可讀範圍（濁靈搶 E 排在它們前面），也讓舊 e2e「石座前 8m 不該有提示」失敗。定案：**互動圈不重疊**——離石座 ≥12（6.5＋5.5）、離石碑 ≥10.1、刻文 ≥9.3、器物 ≥8.7、其他不搶 E 的東西 ≥4；**唯一例外** `murk-while-at-it` ≥10（orchestration 13 座石座飽和、全區無 ≥12 的點；石座在仲裁裡本來就贏，玩家端零倒退），例外表寫在 `test-rubric.mjs` 且上限 1 條。因此 6 隻搬家：vague-ask (6,-27)→(21,-32)、only-donts (16,39)→(27,39)、no-example (-100,-106)→(-105,-106)、trust-me (91,-106)→(86,-103)、all-at-once (-108.5,71.5)→(-94,85)、while-at-it (-71,100.5)→(-85.5,99)。
+- 獨立審查其餘 P2（`nearest()` 與 handles.js 重複、near 光暈在面板開著時不重置、`murkChallenge` 手抄 15 欄、`recordMurk` 手抄 outcome 形狀）**留給 P02／P03 吸收**（P03 會重寫濁靈狀態機，P02 會動 recorder），不在 P01 擴 scope。已修：結果面「+0 XP（本關已拿過更高評價）」假文案 → 濁靈專用一句、分享鍵對濁靈隱藏、HUD 副標改用牠自己的名字、材質快取（WORLD E16）＋殼只畫正面、`keepSolid` 註解改實話。
+

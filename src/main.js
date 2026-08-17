@@ -8,6 +8,7 @@
  *   跨區時：配樂交叉淡入淡出 ＋ 霧色 / 色偏 / 光強平滑漂移。
  */
 import curriculum from './data/curriculum.json';
+import { esc } from './ui/dom.js';
 import skillCodexV2 from './data/skill-codex-v2.json';
 import regionsV2 from './data/regions-v2.json';
 import challengeFile from './data/challenges.json';
@@ -20,6 +21,7 @@ import ranksFile from './data/ranks.json';
 import inscriptionFile from './data/inscriptions.json';
 import secretFile from './data/secrets.json';
 import handleFile from './data/handles.json';
+import murkFile from './data/murks.json';
 import datedFile from './data/dated-notes.json';
 import sourceAnchorFile from './data/source-anchors.json';
 import simSamples from './data/sim-samples.json';
@@ -134,6 +136,8 @@ function boot() {
     inscriptions: inscriptionFile.entries || [],
     secrets: secretFile.entries || [],
     handles: handleFile.entries || [],
+    // v1.2 · P01：濁靈（留在原地的東西；走近會轉頭，按 E 開主控台安撫）
+    murks: murkFile.entries || [],
     reducedMotion,
     onReact: (evt) => audio.cue(evt.sound, { baseScale: evt.baseScale }),
     onSecret: (id) => findSecret(id),
@@ -275,6 +279,16 @@ function boot() {
     onShare: (opts) => openShare(opts),
     onResult: ({ challenge, evaluation, outcome }) => {
       hud.refresh();
+      /*
+       * v1.2 · P01：濁靈的安撫走的是同一座主控台，但**不是關卡**——
+       * 沒有石座可以點亮、沒有解鎖可以慶祝、這一個 phase 也還不落盤（P02／P03）。
+       * 只給一聲回饋就收手，其餘的關卡收尾一律不跑。
+       */
+      if (challenge && challenge.kind === 'murk') {
+        if (evaluation.passed) audio.cue('pass', { grade: evaluation.grade });
+        else audio.cue('fail');
+        return;
+      }
       if (evaluation.passed) {
         /*
          * 應用關（試煉）過關響的是**鑼**，不是頌缽 —— 同一件事變大了，
@@ -638,6 +652,34 @@ function boot() {
     practice.isOpen ||
     title.isOpen;
 
+  /**
+   * v1.2 · P01：把一隻濁靈的資料組成主控台看得懂的 challenge 形物件。
+   * `scenario` 就是牠的濁言（那段寫壞的請求）；沒有 flow → 主控台自動走自由書寫；
+   * `kind: 'murk'` 讓主控台與 onResult 知道這不是關卡（不落盤、不點石座、不慶祝解鎖）。
+   */
+  function murkChallenge(murk) {
+    const e = murk.entry;
+    return {
+      id: e.id,
+      region: e.region,
+      title: e.title,
+      npc: '濁靈',
+      scenario: e.taint,
+      taint: e.taint,
+      mission: e.mission,
+      clue: e.clue,
+      teaches: Array.isArray(e.teaches) ? e.teaches.slice() : [],
+      primarySkillId: e.primarySkillId,
+      primaryTechniqueId: e.primaryTechniqueId ?? null,
+      rubric: e.rubric,
+      pass: e.pass,
+      sample: e.sample,
+      source: e.source,
+      xp: murkFile.xp,
+      kind: 'murk',
+    };
+  }
+
   /* --- 互動迴圈：偵測最近的石座 / 石碑 / 閘門，以及玩家目前在哪一區 --- */
   let nearMarker = null;
   let nearGate = null;
@@ -645,6 +687,8 @@ function boot() {
   let nearInscription = null;
   /** Phase 25：走近的器物（陶罐 / 火盆 / 響石 / 守望石 / 撈月池 / 指路石 / 絞盤 / 長凳）。 */
   let nearHandle = null;
+  /** v1.2 · P01：走近的濁靈（第 ⑥ 層：石座 > 濁靈 > 石碑 > 刻文 > 器物 > 閘門）。 */
+  let nearMurk = null;
   /**
    * Phase 29：剛剛選了「先留下修行」的那道門。
    * 走遠一點（離開互動半徑）再回來才會重新問一次 —— 站在門口不會被連問。
@@ -894,6 +938,7 @@ function boot() {
       nearTablet = null;
       nearInscription = null;
       nearHandle = null;
+      nearMurk = null;
       nearGate = null;
       return;
     }
@@ -909,11 +954,14 @@ function boot() {
     camForward.x = Math.sin(player.cameraYaw);
     camForward.z = Math.cos(player.cameraYaw);
     const hitHandle = world.nearestHandle(player.position, undefined, camForward);
-    const blocked = Boolean(hitMarker || hitTablet || hitInscription);
+    // v1.2 · P01：濁靈（半徑 5.5）—— 石座讓它、它讓石碑以下的每一層
+    const hitMurk = world.nearestMurk(player.position, undefined, camForward);
+    const blocked = Boolean(hitMarker || hitMurk || hitTablet || hitInscription);
     const hitGate = blocked || hitHandle ? null : world.nearestGate(player.position);
     nearMarker = hitMarker ? hitMarker.marker : null;
-    nearTablet = !hitMarker && hitTablet ? hitTablet.tablet : null;
-    nearInscription = !hitMarker && !hitTablet && hitInscription ? hitInscription.inscription : null;
+    nearMurk = !hitMarker && hitMurk ? hitMurk.murk : null;
+    nearTablet = !hitMarker && !hitMurk && hitTablet ? hitTablet.tablet : null;
+    nearInscription = !hitMarker && !hitMurk && !hitTablet && hitInscription ? hitInscription.inscription : null;
     nearHandle = !blocked && hitHandle ? hitHandle.handle : null;
     nearGate = hitGate ? hitGate.gate : null;
 
@@ -940,6 +988,10 @@ function boot() {
           best ? ` · 最佳 ${best}` : ''
         }</span><kbd>E</kbd> 互動`
       );
+    } else if (nearMurk) {
+      // 標題 ＋ 一句狀態 ＋ E ＋ 動詞（WORLD.md §3.1）
+      // 副標用牠自己的名字（含糊的請求／只說不要的請求…），不是寫死的一句
+      hud.setInteract(`<b>濁靈</b><span>${esc(nearMurk.entry.title)}</span><kbd>E</kbd> 安撫`);
     } else if (nearTablet) {
       const seen = progression.hasReadLore(nearTablet.id);
       hud.setInteract(
@@ -1026,6 +1078,10 @@ function boot() {
       e.preventDefault();
       audio.cue('open');
       openPanel(promptConsole, nearMarker.challenge);
+    } else if (e.code === 'KeyE' && nearMurk) {
+      e.preventDefault();
+      audio.cue('open');
+      openPanel(promptConsole, murkChallenge(nearMurk));
     } else if (e.code === 'KeyE' && nearTablet) {
       e.preventDefault();
       readTablet(nearTablet);
@@ -1119,6 +1175,12 @@ function boot() {
     handlePanel,
     handleData: handleFile,
     handleKinds: HANDLE_KINDS,
+    /** v1.2 · P01：濁靈資料與「組成 challenge 形物件」的把手（測試 / 除錯用）。 */
+    murks: murkFile,
+    murkChallenge: (id) => {
+      const m = world.murks.byId(id);
+      return m ? murkChallenge(m) : null;
+    },
     /** 目前坐在哪一張長凳上（測試用）。 */
     seatedOn: () => (seatedOn ? seatedOn.id : null),
     /** 課程 v2 的 runtime catalog（測試用：所有「x / y」都該從這裡推導）。 */

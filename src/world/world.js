@@ -27,6 +27,7 @@ import {
 import { buildInscription, INSCRIPTION_RADIUS } from './inscriptions.js';
 import { createReactiveField, REACTIVE_SPOTS } from './reactive.js';
 import { createHandleField, HANDLE_RADIUS } from './handles.js';
+import { createMurkField, MURK_RADIUS } from './murks.js';
 
 /** 每片土地：中心、半徑、內圈（完全平坦的核心）。 */
 export const REGION_SITES = Object.freeze([
@@ -2615,6 +2616,8 @@ export function createWorld({
   secrets = [],
   /** Phase 25：動得了的器物（handles.json 的 entries）。沒給就不蓋，世界照樣成立。 */
   handles = [],
+  /** v1.2 · P01：濁靈（murks.json 的 entries）。沒給就不蓋，世界照樣成立。 */
+  murks = [],
   /** Phase 22：走近會有反應的東西要不要放聲音（面板打開時整組停手）。 */
   onReact = null,
   onSecret = null,
@@ -2656,6 +2659,8 @@ export function createWorld({
     ...secrets.map((s) => [s.at[0], s.at[1], 9]),
     // Phase 25：動得了的器物 —— 走近才看得到細節，旁邊被草叢埋掉就等於沒放
     ...handles.map((h) => [h.at[0], h.at[1], 5.5]),
+    // v1.2 · P01：濁靈 —— 一團暗色濁氣，旁邊被草叢埋掉就看不出「這裡有東西」
+    ...murks.map((m) => [m.at[0], m.at[1], 5.5]),
     ...(shrineSpec ? [[shrineSpec.at[0], shrineSpec.at[1], 10]] : []),
   ];
 
@@ -2748,6 +2753,16 @@ export function createWorld({
   for (const spec of handles) {
     if (progression.hasUsedHandle && progression.hasUsedHandle(spec.id)) handleField.markUsed(spec.id);
   }
+
+  /* --- v1.2 · P01：濁靈（留在原地的東西；走近會轉頭，按 E 開主控台安撫） --- */
+  const murkField = createMurkField({
+    entries: murks,
+    kitOf: (regionId) => kits.get(regionId) || kits.get('foundations'),
+    terrainHeight,
+    isBusy,
+    reducedMotion,
+  });
+  root.add(murkField.group);
 
   const motes = buildMotes(quality, colorOf, vignetteAnchors);
   root.add(motes);
@@ -3018,6 +3033,8 @@ export function createWorld({
     reactive,
     /** Phase 25：動得了的器物。 */
     handles: handleField,
+    /** v1.2 · P01：濁靈場。 */
+    murks: murkField,
     vignetteAnchors,
     landmarks: LANDMARKS,
     /** 起始祭壇（序章）。世界沒有序章資料時為 null。 */
@@ -3206,6 +3223,7 @@ export function createWorld({
     updateReactions(dt, t, x, z) {
       reactive.update(dt, t, x, z);
       handleField.update(dt, t, x, z);
+      murkField.update(dt, t, x, z);
     },
 
     /**
@@ -3217,6 +3235,17 @@ export function createWorld({
      */
     nearestHandle(position, maxDistance = HANDLE_RADIUS, forward = null) {
       return handleField.nearest(position, maxDistance, forward);
+    },
+
+    /**
+     * 走近的濁靈（v1.2 · P01）。半徑 5.5，介於石座（6.5）與石碑（4.6）之間 ——
+     * 搶 E 的順序是「石座 > 濁靈 > 石碑 > 刻文小語 > 器物 > 閘門」。
+     * @param {THREE.Vector3} position
+     * @param {number} [maxDistance]
+     * @param {{x:number,z:number}|null} [forward] 鏡頭的水平前方向（兩隻同時在範圍內時用來排名）
+     */
+    nearestMurk(position, maxDistance = MURK_RADIUS, forward = null) {
+      return murkField.nearest(position, maxDistance, forward);
     },
 
     /** 標記某件器物已經動過（世界端的視覺變化）。 */

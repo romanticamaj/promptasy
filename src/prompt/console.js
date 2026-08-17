@@ -142,6 +142,12 @@ function tickUp(node, ms = 900) {
 /** 連續幾次沒過之後解鎖「看看範例」（先自己試，試不出來才給答案）。 */
 export const SAMPLE_AFTER_FAILS = 2;
 
+/**
+ * v1.2 · P01：這一份「委託」是不是一隻濁靈（kind === 'murk'）。
+ * 濁靈走同一座主控台，但不是關卡：不記 guidanceSeen／samplesSeen、不走 recordResult。
+ */
+const isMurk = (c) => Boolean(c && c.kind === 'murk');
+
 /** 停手多久之後，漂浮提示球會自己「呼吸」一下提醒你它在那裡（毫秒）。 */
 export const ORB_IDLE_MS = 20000;
 
@@ -936,7 +942,8 @@ export function createPromptConsole({
       sec.hidden = !inActs.includes(String(n));
     }
     // 看過指引就記下來：下次重玩這一關可以直接跳到刻印
-    if (n === 2 && current) progression.markGuidanceSeen(current.id);
+    // （v1.2 · P01：濁靈不是關卡 —— 牠的 id 不進 guidanceSeen，這一個 phase 一個位元組都不落盤）
+    if (n === 2 && current && !isMurk(current)) progression.markGuidanceSeen(current.id);
     renderActNav();
     if (changed) overlay.resetScroll();
     if (focus) {
@@ -1305,7 +1312,8 @@ export function createPromptConsole({
     if (sampleBtn.disabled || !current || !current.sample) return;
     sampleShown = true;
     // 大師層的防作弊面：範例翻開過就**永久**記著（關掉重開再拿 S 也不算「沒看範例」）
-    progression.markSampleSeen?.(current.id);
+    // （v1.2 · P01：濁靈不是關卡 —— 不記）
+    if (!isMurk(current)) progression.markSampleSeen?.(current.id);
     textarea.value = current.sample;
     updateCount();
     runPreflight();
@@ -1706,17 +1714,27 @@ export function createPromptConsole({
      * 判定本身寫在 progression（`masterSealFor`），這裡只負責誠實回報
      * 「這一次到底用了什麼輔助」。
      */
-    const outcome = progression.recordResult(evaluation, {
+    const meta = {
       mode: isGuided() ? 'guided' : 'free',
       attempt: attempts,
       usedQuickFill,
       usedCoach,
       rejects,
       sampleShown,
-    });
+    };
+    /*
+     * v1.2 · P01：濁靈走**另一個** recorder。`recordResult` 會進 bestGrades、給 XP、
+     * 收技巧、refreshUnlocks —— 那是 142 關的分子，濁靈不能污染它。
+     * `recordMurk` 回傳同形狀的 outcome，所以下面的解參照一個都不用改。
+     */
+    const outcome = isMurk(challenge)
+      ? progression.recordMurk(challenge.id, evaluation, meta)
+      : progression.recordResult(evaluation, meta);
     lastEvaluation = evaluation;
     /** 試煉不教新技巧 —— 畫面上不放官方連結（curriculum-v2 §5.2）。 */
     const trial = isApplicationTrial(challenge);
+    /* v1.2 · P01：濁靈的結果面 —— 沒有 XP、沒有「本關」、沒有分享（牠不是關卡；P02 才記帳）。 */
+    const murkResult = isMurk(challenge);
 
     const rows = evaluation.results
       .map((r, i) => {
@@ -1777,7 +1795,9 @@ export function createPromptConsole({
           <div class="meter"><i style="width:${Math.round((evaluation.earned / evaluation.total) * 100)}%"></i>
             <u style="left:${Math.round((evaluation.pass / evaluation.total) * 100)}%"></u></div>
           ${
-            evaluation.passed
+            evaluation.passed && murkResult
+              ? `<p class="gain">牠聽懂了。這一句話，你替牠說完了。</p>`
+              : evaluation.passed
               ? `<p class="gain"><span class="xp-tick" data-xptick data-to="${outcome.xpGain}">+${outcome.xpGain}</span> XP${
                   outcome.leveledUp ? ` · 升到 Lv.${outcome.levelAfter}！` : ''
                 }${
@@ -1813,14 +1833,14 @@ export function createPromptConsole({
           ? `<p class="result__source reveal" style="--i:${
               tail + 2
             }">這是試煉 —— 它不教新的技法，只把你在這片土地上學過的再用一次。</p>`
-          : `<p class="result__source reveal" style="--i:${tail + 2}">本關技巧的官方出處
+          : `<p class="result__source reveal" style="--i:${tail + 2}">${murkResult ? '這一句話背後的技法，官方出處' : '本關技巧的官方出處'}
         <a class="src" href="${esc(challenge.source)}" target="_blank" rel="noopener">${esc(
           content.sourceName(challenge.source)
         )} ↗</a>
       </p>`
       }
       ${
-        evaluation.passed
+        evaluation.passed && !murkResult
           ? `<div class="result__share reveal" style="--i:${tail + 3}">
               <button class="btn btn--ghost" type="button" data-share>分享這次的刻印<kbd>S</kbd></button>
             </div>`
@@ -2012,17 +2032,29 @@ export function createPromptConsole({
       usedQuickFill = false;
       usedCoach = false;
       rejects = 0;
-      const best = progression.bestGrade(challenge.id);
+      const murk = isMurk(challenge);
+      const best = murk ? null : progression.bestGrade(challenge.id);
       const group = content.group(challenge.region);
-      const siblings = content.challengesOf(challenge.region);
-      const index = siblings.findIndex((c) => c.id === challenge.id) + 1;
-      overlay.setEyebrow(
-        `${group ? group.name : challenge.region} · 第 ${String(Math.max(index, 1)).padStart(2, '0')} 關 / 共 ${String(
-          siblings.length
-        ).padStart(2, '0')} 關`
-      );
+      if (murk) {
+        /*
+         * v1.2 · P01：濁靈不在 `content.challengesOf()` 裡，沒有「第 N 關／共 M 關」可以數；
+         * 用專用的 eyebrow「濁言」（不動全域 ACTS），第一幕的情境就是牠那段寫壞的請求。
+         */
+        overlay.setEyebrow(`${group ? group.name : challenge.region} · 濁言`);
+      } else {
+        const siblings = content.challengesOf(challenge.region);
+        const index = siblings.findIndex((c) => c.id === challenge.id) + 1;
+        overlay.setEyebrow(
+          `${group ? group.name : challenge.region} · 第 ${String(Math.max(index, 1)).padStart(2, '0')} 關 / 共 ${String(
+            siblings.length
+          ).padStart(2, '0')} 關`
+        );
+      }
       overlay.setTitle(challenge.title, `${challenge.npc}${best ? ` · 最佳評價 ${best}` : ''}`);
       scenarioEl.textContent = challenge.scenario;
+      // 濁言：那段寫壞的請求用引文樣式呈現（跟一般關卡的情境敘述分得開）
+      scenarioEl.classList.toggle('is-taint', murk);
+      consoleEl.classList.toggle('is-murk', murk);
       missionEl.textContent = challenge.mission || '';
       // 素材：NPC 真的遞給你的東西（模糊的原話、壞掉的指令、要依據的那一卷）
       const material = challenge.material;

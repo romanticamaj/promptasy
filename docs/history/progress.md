@@ -2956,3 +2956,11 @@ e2e 一輪（同時破壞三處：Instagram 那顆回來、divergence 變回硬�
 - 對齊既有 harness：phase 章節改寫進本三件組（不另開 briefs/）、裁決入 `findings.md`、push `dev` 政策、新測試先紅後綠、錯誤紀錄與三法則。
 - 本輪純文件、未動產品碼、未跑測試。下一步：`/goal`（roadmap 附錄）從 P01 開跑。
 
+## 2026-08-18 · v1.2 P01 濁靈資料層＋世界實體＋互動仲裁 · `done`
+
+- 新增 `src/data/murks.json`（`authored:"game"`、8 隻、前四區各 2、rubric 主列 primary:true weight 2＋兩條 weight 1、pass 3、source 逐字沿用同區神廟）、`src/world/murks.js`（`createMurkField`：reactive.js 樣板、`murk:<id>`、底座 solidRadius 0.9＋keepSolid、殼半透明只畫正面、材質快取、0 光源、每隻 420 三角）；`world.js` 接線＋`nearestMurk`（面向排名）；`main.js` 第 ⑥ 層（石座 6.5 > 濁靈 5.5 > 石碑 > 刻文 > 器物 > 閘門）、HUD「濁靈 · <牠的名字> E 安撫」、`onResult` murk 分支置頂 return、`window.__promptasy.murks`；`console.js` 依 `kind` 分流到 `progression.recordMurk()`（唯讀 outcome）、跳過 guidanceSeen／samplesSeen、專用 eyebrow「濁言」、濁靈結果面沒有 XP／分享；`expected-counts.contract.murks = 8`。
+- 先紅後綠：rubric（murks.json 缺檔／缺欄／座標違規三次破壞）、e2e（提示字串與 state 深比較）皆先紅一次再綠——subagent 回報中，orchestrator 未重跑紅燈。
+- 獨立審查（Claude `/code-review high`，Codex 額度用盡）10 條：4 條當場修（假 XP 文案、座標規則、HUD 副標、分享鍵）、1 條材質快取修、其餘 P02／P03 吸收（見 findings）。
+- 數字：rubric 80,453 → **84,234**、playtest 2,372 → **2,429**、e2e 3,357 → **3,409**（零 console error）、fonts 1474.1 KB；三角 195,530／光 37／碰撞 969／穿模 0。
+- 下一步：P02（progression 持久化 `murks` 存檔欄、圖鑑第四列）。
+

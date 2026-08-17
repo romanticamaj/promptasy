@@ -672,6 +672,40 @@ export function createProgression({ catalog = null, curriculum = null, challenge
       return outcome;
     },
 
+    /**
+     * v1.2 · P01：濁靈的 recorder（**最小版**）。
+     *
+     * 濁靈走同一座主控台，但不是關卡 —— 不能進 `bestGrades`（那是 142 關的分子）、
+     * 不給 XP、不收技巧、不碰 `refreshUnlocks()`。這一個 phase **一個位元組都不落盤**：
+     * 回傳與 `recordResult` 同形狀的 outcome（`xpGain 0、leveledUp false、newly* 空陣列…`），
+     * 讓主控台 `renderResult()` 的每一個解參照都安全；持久化（`murks` 存檔欄）留給 P02。
+     *
+     * @param {string} id          murk id
+     * @param {object} evaluation  評分引擎的結果（這一版只讀不寫）
+     * @param {object} [context]   主控台的作答脈絡（同 recordResult；這一版不用）
+     */
+    recordMurk(id, evaluation, context = null) {
+      void id;
+      void evaluation;
+      void context;
+      const level = levelFromXp(state.xp).level;
+      return {
+        xpGain: 0,
+        levelBefore: level,
+        levelAfter: level,
+        leveledUp: false,
+        newlyCollected: [],
+        newlySkills: [],
+        newlyUnlocked: [],
+        previousGrade: null,
+        bestGrade: null,
+        improved: false,
+        newSeal: null,
+        newPenless: false,
+        newScribe: false,
+      };
+    },
+
     /* ---------------------------------------------------------------- *
      * 課程 v2 · Phase J2：土地印記與大師層印記
      * ---------------------------------------------------------------- */

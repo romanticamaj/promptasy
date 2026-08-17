@@ -728,9 +728,9 @@ Exit：跨世界素材有 reload/reset/e2e；或有一份明確的「不實作�
 
 （`/goal` 每開一個 phase 在此新增「### P<NN> — 名稱」：現狀、目標、範圍／非目標、資料 manifest、受影響檔案、預算、acceptance tests、禁區；收尾時逐條打勾 exit criteria。）
 
-### P01 — 濁靈資料層＋世界實體＋互動仲裁（2026-08-17 開工）
+### P01 — 濁靈資料層＋世界實體＋互動仲裁（2026-08-17 開工 · 2026-08-18 完成）
 
-狀態：`in progress`
+狀態：`done`
 
 **現狀**：世界只有五層互動（反應／風味／小語／石座／器物）與一種「會動的活物」（守望小獸）；主控台 `renderResult()`（`src/prompt/console.js:1702` 附近）固定呼叫 `progression.recordResult()` 後解參照 `outcome`；沒有 `kind` 分流。四區座標：foundations (0,0) r62 flat50、reasoning (-95,-95) r46 flat34、grounding (95,-95) r46 flat34、orchestration (-95,95) r46 flat34；四區石座 15／16／13／13 座（座標見 `challenges.json`），器物 22、反應物 23、地標／小景各區皆有。
 
@@ -771,11 +771,14 @@ Exit：跨世界素材有 reload/reset/e2e；或有一份明確的「不實作�
 **禁區**：`curriculum.json`、`challenges.json`、`flows.json`、`vite.config.js`、dev server 5175、`CLAUDE.md`、`WORLD.md`（P04 才動）。
 
 Exit criteria：
-- [ ] 8 隻可見可互動；E 開主控台 free；送出不落盤。
-- [ ] rubric／playtest／build／e2e 全綠、console error 0；`npm run fonts` 已跑。
-- [ ] 預算實測數字寫進 progress.md 與 CHANGELOG。
+- [x] 8 隻可見可互動；E 開主控台 free；送出不落盤（e2e 深比較 state 與序列化 save 前後相同）。
+- [x] rubric 84,234／playtest 2,429／build ✓／e2e 3,409 全綠、console error 0；`npm run fonts` 已跑（1474.1 KB）。
+- [x] 預算實測：三角 192,170 → 195,530（+3.4k）、光源 37、碰撞體 962 → 969、collision-audit 未涵蓋 0。
 
 ## v1.2 錯誤紀錄
 
 （沿用 §8 規則：任何錯誤記在此；同一錯誤不原樣重試；連續三種方法仍無法前進才報阻塞。）
+
+- 2026-08-18 · P01：實作 subagent 被 API 連線中斷、再被 session 用量上限中斷各一次 → `SendMessage` 續跑同一 agent，磁碟改動未失；Codex 額度用盡（8/20 前）→ 改 `/code-review high` 獨立審查。
+- 2026-08-18 · P01：e2e 五輪才全綠——第 1 輪「石座前 8m 不該有提示」（真問題：濁靈圈蓋到石座圈 → 座標規則升級）、第 2 輪濁靈仲裁測試的寫死座標（改為動態找相疊那一對）、第 3／4 輪各為不同的既有時序斷言（派工檯 `sleep(460)`；開場曲／觀象臺換區），皆非 P01 改動範圍、第 5 輪全過。**觀察**：這台機器同時有其他 Claude session 時 e2e flake 率明顯升高；建議 P25b 把 `sleep(460)` 類斷言改輪詢。
 

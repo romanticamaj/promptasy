@@ -12,6 +12,7 @@
     "src/data/glossary.json",
     "src/data/handles.json",
     "src/data/inscriptions.json",
+    "src/data/murks.json",
     "src/data/prologue.json",
     "src/data/ranks.json",
     "src/data/regions-v2.json",
@@ -71,11 +72,12 @@
     "src/ui/title.js",
     "src/world/handles.js",
     "src/world/inscriptions.js",
+    "src/world/murks.js",
     "src/world/props.js",
     "src/world/reactive.js",
     "src/world/world.js"
   ],
-  "corpusHash": "35bbd73cd7056ac1",
+  "corpusHash": "cc7f7afbf5c3b044",
   "coverage": {
     "latin": [
       32,
@@ -529,6 +531,7 @@
       21069,
       21070,
       21083,
+      21085,
       21097,
       21098,
       21103,
@@ -1058,6 +1061,7 @@
       25758,
       25764,
       25765,
+      25771,
       25773,
       25776,
       25778,
@@ -2555,7 +2559,7 @@
       "id": "serif-tc",
       "family": "Arcade Serif TC",
       "file": "arcade-serif-tc.woff2",
-      "bytes": 672560,
+      "bytes": 673440,
       "role": "cjk",
       "variable": true,
       "weight": null,
@@ -2566,7 +2570,7 @@
           "default": 400
         }
       },
-      "requested": 1859,
+      "requested": 1861,
       "missing": 0,
       "source": "NotoSerifTC.ttf",
       "author": "Google (Noto Project)",
@@ -2578,7 +2582,7 @@
       "id": "sans-tc",
       "family": "Arcade Sans TC",
       "file": "arcade-sans-tc.woff2",
-      "bytes": 512204,
+      "bytes": 512812,
       "role": "cjk",
       "variable": true,
       "weight": null,
@@ -2589,7 +2593,7 @@
           "default": 400
         }
       },
-      "requested": 1859,
+      "requested": 1861,
       "missing": 0,
       "source": "NotoSansTC.ttf",
       "author": "Google (Noto Project)",
@@ -2598,5 +2602,5 @@
       "url": "https://github.com/google/fonts/tree/main/ofl/notosanstc"
     }
   ],
-  "totalBytes": 1508000
+  "totalBytes": 1509488
 }

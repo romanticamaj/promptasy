@@ -7018,6 +7018,224 @@ async function main() {
 
   /* ================================================================ */
   /*
+   * 濁靈（v1.2 · P01）
+   *
+   * 世界的第六層互動：一段寫壞的請求具象化的小生物。走近 → 提示 → 按 E →
+   * 既有主控台自由書寫、第一幕是牠的濁言 → 送濁言原文 → 沒過、XP 不變 →
+   * **完整 state 深比較 ＋ 序列化存檔逐字相同**（P01 一個位元組都不落盤）→ Esc。
+   */
+  console.log('\n▸ 濁靈（v1.2 · P01）');
+  const murkWorld = await evaluate(`
+    const g = window.__promptasy;
+    const names = [];
+    g.world.root.traverse((o) => { if (o.name && o.name.startsWith('murk:')) names.push(o.name); });
+    let lights = 0, tris = 0;
+    g.engine.scene.traverse((o) => {
+      if (o.isLight) lights += 1;
+      if (o.isMesh && o.geometry && o.geometry.index) tris += (o.geometry.index.count / 3) * (o.isInstancedMesh ? o.count : 1);
+    });
+    let murkLights = 0, murkTris = 0;
+    g.world.murks.group.traverse((o) => {
+      if (o.isLight) murkLights += 1;
+      if (o.isMesh && o.geometry) { const idx = o.geometry.index; murkTris += idx ? idx.count / 3 : o.geometry.attributes.position.count / 3; }
+    });
+    const regions = {};
+    for (const e of g.murks.entries) regions[e.region] = (regions[e.region] || 0) + 1;
+    const solids = g.murks.entries.filter((e) => g.world.solids.some((s) => Math.abs(s.x - e.at[0]) < 0.01 && Math.abs(s.z - e.at[1]) < 0.01 && Math.abs(s.r - 0.9) < 0.01 && s.keep)).length;
+    return {
+      built: names.length, total: g.murks.entries.length, unique: new Set(names).size,
+      regions, lights, tris, murkLights, murkTris, solids, allSolids: g.world.solids.length,
+      shells: g.world.murks.murks.map((m) => m.shells.length),
+      rubricLens: g.murks.entries.map((e) => e.rubric.length),
+      hasNearest: typeof g.world.nearestMurk === 'function',
+    };
+  `);
+  eq(murkWorld.total, 8, '資料層有 8 隻濁靈');
+  eq(murkWorld.built, murkWorld.total, '每一隻濁靈都蓋在世界裡（murk:<id>）');
+  eq(murkWorld.unique, murkWorld.total, '場景圖節點名沒有重複');
+  eq(JSON.stringify(murkWorld.regions), JSON.stringify({ foundations: 2, reasoning: 2, grounding: 2, orchestration: 2 }), '前四區各 2 隻', JSON.stringify(murkWorld.regions));
+  eq(murkWorld.murkLights, 0, '濁靈一盞燈都沒加');
+  ok(murkWorld.murkTris / murkWorld.total <= 600, '每隻濁靈 ≤ 600 三角形', `perMurk=${(murkWorld.murkTris / murkWorld.total).toFixed(0)}`);
+  ok(murkWorld.lights <= 56, '多了濁靈之後燈光仍在預算內', `lights=${murkWorld.lights}`);
+  ok(murkWorld.tris < 420000, '多了濁靈之後三角形仍在預算內', `tris=${murkWorld.tris}`);
+  ok(murkWorld.allSolids < 1400, '碰撞體仍在預算內', `solids=${murkWorld.allSolids}`);
+  eq(murkWorld.solids, 8, '8 個底座都在碰撞登記表裡（r 0.9、keepSolid）');
+  eq(JSON.stringify(murkWorld.shells), JSON.stringify(murkWorld.rubricLens), '殼數 ＝ rubric 條數');
+  eq(murkWorld.hasNearest, true, 'world.nearestMurk 存在');
+
+  /* --- 走近 → 提示 → E → 主控台（自由書寫、第一幕是濁言） --- */
+  const murkPre = await evaluate(`
+    const g = window.__promptasy;
+    const e = g.murks.entries.find((x) => x.id === 'murk-vague-ask');
+    // 先站遠一點：這一隻的提示不該出現
+    g.player.teleport(e.at[0] + 14, e.at[1] + 14);
+    await new Promise((r) => setTimeout(r, 380));
+    const farHint = document.querySelector('[data-interact]');
+    const hintFar = farHint.hidden || !/濁靈/.test(farHint.textContent);
+    const m = g.world.murks.byId(e.id);
+    const posBefore = [m.group.position.x, m.group.position.y, m.group.position.z];
+    // 走過去（斜角 2.5 公尺 ≈ 3.5m，在 5.5 內、離石座 > 6.5）
+    g.player.teleport(e.at[0] + 2.5, e.at[1] + 2.5);
+    return {
+      id: e.id, taint: e.taint, hintFar, posBefore,
+      state: JSON.stringify(g.progression.state),
+      save: localStorage.getItem('promptasy.v1.save'),
+      xp: g.progression.state.xp,
+    };
+  `);
+  eq(murkPre.hintFar, true, '離得遠的時候沒有濁靈的提示');
+  const murkHint = await waitFor(async () => {
+    const r = await evaluate(`
+      const h = document.querySelector('[data-interact]');
+      const m = window.__promptasy.world.murks.byId('murk-vague-ask');
+      return { hidden: h.hidden, text: h.textContent.replace(/\\s+/g, ' ').trim(), near: m.near, state: m.state };
+    `);
+    return !r.hidden && /濁靈/.test(r.text) ? r : null;
+  }, { timeout: 8000, label: '濁靈的互動提示' });
+  ok(/濁靈/.test(murkHint.text) && /含糊的請求/.test(murkHint.text), '提示是「濁靈 · 含糊的請求」（副標是牠自己的名字）', murkHint.text);
+  ok(/E/.test(murkHint.text) && /安撫/.test(murkHint.text), '提示帶 E ＋ 動詞「安撫」', murkHint.text);
+  eq(murkHint.near, true, '走近的那一隻進入「走近」狀態');
+  eq(murkHint.state, 'aware', '8 公尺內牠注意到你（aware）');
+  const murkTurn = await waitFor(async () => {
+    const r = await evaluate(`
+      const m = window.__promptasy.world.murks.byId('murk-vague-ask');
+      const g = window.__promptasy;
+      const dx = g.player.position.x - m.x, dz = g.player.position.z - m.z;
+      const want = Math.atan2(dx, dz);
+      let diff = want - m.head.rotation.y; while (diff > Math.PI) diff -= Math.PI * 2; while (diff < -Math.PI) diff += Math.PI * 2;
+      return { diff: Math.abs(diff), pos: [m.group.position.x, m.group.position.y, m.group.position.z] };
+    `);
+    return r.diff < 0.25 ? r : null;
+  }, { timeout: 8000, label: '濁靈轉頭看玩家' });
+  ok(murkTurn.diff < 0.25, '牠轉頭看向你', String(murkTurn.diff.toFixed(2)));
+  eq(JSON.stringify(murkTurn.pos), JSON.stringify(murkPre.posBefore), '牠本體一寸都沒移動（沒有會走動的 NPC）');
+
+  await key('KeyE', 'e', { vk: 69 });
+  await sleep(500);
+  const murkOpen = await evaluate(`
+    const g = window.__promptasy;
+    const c = g.promptConsole;
+    const head = document.querySelector('#prompt-console');
+    const eyebrow = head.querySelector('[data-eyebrow]');
+    const scenario = head.querySelector('[data-scenario]');
+    return {
+      open: c.isOpen, mode: c.mode, kind: c.challenge && c.challenge.kind, id: c.challenge && c.challenge.id,
+      eyebrow: (eyebrow ? eyebrow.textContent : head.textContent).replace(/\\s+/g, ' ').trim(),
+      scenario: scenario ? scenario.textContent : '', taintClass: scenario ? scenario.classList.contains('is-taint') : false,
+      murkClass: head.querySelector('.console').classList.contains('is-murk'),
+      act1Nav: head.querySelector('[data-act-zh="1"]')?.textContent.trim(),
+      steleHidden: !head.querySelector('.stele') || head.querySelector('.stele').hidden || head.querySelector('.stele').offsetParent === null,
+      title: [head.querySelector('.panel__title')?.textContent, head.querySelector('.panel__sub')?.textContent].join(' ').replace(/\\s+/g, ' ').trim(),
+    };
+  `);
+  eq(murkOpen.open, true, '按 E 打開既有的主控台');
+  eq(murkOpen.kind, 'murk', '主控台拿到的是濁靈的 challenge 形物件（kind: murk）');
+  eq(murkOpen.id, 'murk-vague-ask', '就是這一隻');
+  eq(murkOpen.mode, 'free', '沒有流程資料 → 自動走自由書寫');
+  ok(/濁言/.test(murkOpen.eyebrow), '專用 eyebrow「濁言」', murkOpen.eyebrow);
+  ok(!/第 \d+ 關/.test(murkOpen.eyebrow) && !/共 \d+ 關/.test(murkOpen.eyebrow), 'eyebrow 沒有「第 N 關／共 M 關」（濁靈不是關卡）', murkOpen.eyebrow);
+  eq(murkOpen.scenario, murkPre.taint, '第一幕的情境就是牠的濁言（原文）');
+  eq(murkOpen.taintClass, true, '濁言用引文樣式呈現');
+  eq(murkOpen.act1Nav, '委託', '全域 ACTS 的幕名沒有被改');
+  ok(/濁靈/.test(murkOpen.title), '標頭上是「濁靈」', murkOpen.title);
+
+  /* --- 走到第二幕、送濁言原文兩次、翻開範例：什麼都不落盤 --- */
+  const murkSubmit = await evaluate(`
+    const g = window.__promptasy;
+    const c = g.promptConsole;
+    document.querySelector('#prompt-console [data-act-next="2"]').click();
+    await new Promise((r) => setTimeout(r, 400));
+    const guideLinks = document.querySelectorAll('#prompt-console .act--guide a[href^="https://"]').length;
+    c.goAct(3, { force: true });
+    await new Promise((r) => setTimeout(r, 200));
+    const ta = document.querySelector('.prompt-input');
+    const out = { guideLinks, guidanceSeen: g.progression.state.guidanceSeen.slice() };
+    for (let i = 0; i < 2; i += 1) {
+      ta.value = ${JSON.stringify(murkPre.taint)};
+      document.querySelector('#prompt-console [data-submit]').click();
+      await new Promise((r) => setTimeout(r, 450));
+    }
+    out.gradeMark = document.querySelector('#prompt-console .grade__mark')?.textContent.trim();
+    out.fail = !!document.querySelector('#prompt-console .result__top.is-fail');
+    out.resultHidden = document.querySelector('#prompt-console .result')?.hidden;
+    out.hints = document.querySelectorAll('#prompt-console .row--miss .row__hint, #prompt-console .row--part .row__hint').length;
+    out.sourceLinks = document.querySelectorAll('#prompt-console .result a.src[href^="https://"]').length;
+    out.fails = c.fails;
+    // 兩次沒過 → 範例解鎖 → 翻開它（samplesSeen 不准多一筆）
+    const sampleBtn = document.querySelector('#prompt-console [data-sample]') || [...document.querySelectorAll('#prompt-console button')].find((b) => /範例/.test(b.textContent));
+    out.sampleBtnFound = !!sampleBtn;
+    out.sampleDisabled = sampleBtn ? sampleBtn.disabled : null;
+    if (sampleBtn && !sampleBtn.disabled) sampleBtn.click();
+    await new Promise((r) => setTimeout(r, 200));
+    out.taAfterSample = ta.value;
+    out.sample = c.challenge.sample;
+    out.xp = g.progression.state.xp;
+    out.state = JSON.stringify(g.progression.state);
+    out.save = localStorage.getItem('promptasy.v1.save');
+    out.best = g.progression.bestGrade('murk-vague-ask');
+    out.markerCleared = g.world.markers.some((m) => m.id === 'murk-vague-ask');
+    return out;
+  `);
+  ok(murkSubmit.guideLinks >= 1, '第二幕仍有官方出處連結（護欄 2）', String(murkSubmit.guideLinks));
+  eq(murkSubmit.guidanceSeen.includes('murk-vague-ask'), false, '進第二幕不記 guidanceSeen（濁靈不是關卡）');
+  eq(murkSubmit.resultHidden, false, '送出濁言原文有結果');
+  eq(murkSubmit.fail, true, '濁言原文沒過');
+  eq(murkSubmit.gradeMark, '—', '沒過 → 沒有評價');
+  ok(murkSubmit.hints >= 1, '沒過時逐條指出缺什麼', String(murkSubmit.hints));
+  ok(murkSubmit.sourceLinks >= 1, '結果上有官方出處連結（護欄 2）', String(murkSubmit.sourceLinks));
+  eq(murkSubmit.fails, 2, '送了兩次都沒過');
+  eq(murkSubmit.sampleBtnFound, true, '範例解的入口存在');
+  eq(murkSubmit.sampleDisabled, false, '兩次沒過之後範例解鎖（SAMPLE_AFTER_FAILS 沿用）');
+  eq(murkSubmit.taAfterSample, murkSubmit.sample, '翻開範例會填進書寫檯');
+  eq(murkSubmit.xp, murkPre.xp, 'XP 一分都沒變');
+  eq(murkSubmit.best, null, '濁靈 id 沒有進 bestGrades');
+  eq(murkSubmit.markerCleared, false, '沒有石座被當成通關');
+  eq(murkSubmit.state, murkPre.state, '送出前後 progression.state 深比較完全相同（含 guidanceSeen / samplesSeen）');
+  eq(murkSubmit.save, murkPre.save, '序列化存檔逐字相同（P01 一個位元組都不落盤）');
+  ok(!(murkSubmit.save || '').includes('murk-'), '存檔裡沒有任何 murk id');
+
+  await key('Escape', 'Escape', { vk: 27 });
+  await sleep(300);
+  const murkClosed = await evaluate(`
+    const g = window.__promptasy;
+    return {
+      open: g.promptConsole.isOpen,
+      state: JSON.stringify(g.progression.state),
+      save: localStorage.getItem('promptasy.v1.save'),
+      hint: document.querySelector('[data-interact]')?.textContent || '',
+    };
+  `);
+  eq(murkClosed.open, false, 'Escape 收起主控台');
+  eq(murkClosed.state, murkPre.state, '關掉之後 state 仍與開之前完全相同');
+  eq(murkClosed.save, murkPre.save, '關掉之後存檔仍逐字相同');
+
+  /* --- 仲裁：石座 > 濁靈 > 石碑 ---
+   * 濁靈的座標規則要求離石座 ≥ 12（兩個互動圈不重疊），唯一的例外是流程與代理區那一隻
+   * （≥ 10，石座飽和）。就用那一對：站在石座 5.5 公尺、也在濁靈 5.5 內的點，按到的必須是石座。 */
+  const murkArb = await evaluate(`
+    const g = window.__promptasy;
+    let best = null;
+    for (const e of g.murks.entries) {
+      for (const m of g.world.markers) {
+        const d = Math.hypot(e.at[0] - m.position.x, e.at[1] - m.position.z);
+        if (d < 12 && (!best || d < best.d)) best = { e, m, d };
+      }
+    }
+    if (!best) return { none: true };
+    const { e, m, d } = best;
+    const dx = e.at[0] - m.position.x, dz = e.at[1] - m.position.z;
+    const px = m.position.x + (dx / d) * 5.5, pz = m.position.z + (dz / d) * 5.5;
+    g.player.teleport(px, pz);
+    await new Promise((r) => setTimeout(r, 400));
+    const h = document.querySelector('[data-interact]');
+    return { murk: e.id, marker: m.id, title: m.challenge.title, text: h.textContent.replace(/\\s+/g, ' ').trim(), dMurk: Math.hypot(px - e.at[0], pz - e.at[1]), dPair: d };
+  `);
+  ok(!murkArb.none, '（前提）世界裡有一對石座／濁靈互動圈相疊（淨空例外那一隻）', JSON.stringify(murkArb));
+  ok(murkArb.dMurk < 5.5, '（前提）這個點也在濁靈的 5.5 內', `${murkArb.murk}↔${murkArb.marker} d=${murkArb.dMurk && murkArb.dMurk.toFixed(2)}`);
+  ok(new RegExp(murkArb.title || '§').test(murkArb.text) && !/濁靈/.test(murkArb.text), '石座與濁靈同時在範圍內 → 石座優先', murkArb.text);
+
+  /* ================================================================ */
+  /*
    * 動得了的器物（Phase 25）
    *
    * 世界的第五層互動：抄寫人留在原地、你真的碰得到的東西。

@@ -1,0 +1,363 @@
+{
+  "version": 1,
+  "authored": "game",
+  "note": "遊戲自撰的「濁言」（寫壞的請求）與情境。這不是官方文字：每一條的檢查器與教學出處都沿用同一區已有神廟的官方文件（curriculum.json / skill-codex-v2.json），不新增技巧、不改課程資料。",
+  "xp": 24,
+  "entries": [
+    {
+      "id": "murk-vague-ask",
+      "region": "foundations",
+      "at": [
+        21,
+        -32
+      ],
+      "title": "含糊的請求",
+      "sourceChallengeId": "gate-of-clarity-01",
+      "taint": "幫我把這張告示弄好一點，不要太長也不要太短，反正你懂我的意思。",
+      "mission": "把這句話說清楚：說明要它做什麼、輸出成什麼樣子、多長。",
+      "clue": "把「好一點」「不要太長」換成看得見的規格 —— 幾個重點、每點幾個字、什麼形式。",
+      "teaches": [
+        "clarity-02",
+        "clarity-03",
+        "format-01"
+      ],
+      "primaryTechniqueId": "clarity-03",
+      "primarySkillId": "clear-specific",
+      "rubric": [
+        {
+          "check": "hasConstraint",
+          "weight": 2,
+          "primary": true,
+          "techniqueId": "clarity-03",
+          "skillId": "clear-specific",
+          "hint": "把「不要太長」換成數字：「3 個重點」「每點不超過 20 個字」。"
+        },
+        {
+          "check": "assignsTask",
+          "weight": 1,
+          "foundation": true,
+          "techniqueId": "clarity-02",
+          "hint": "動詞開頭直接說要做什麼：「請把下面這張告示改寫成…」。"
+        },
+        {
+          "check": "specifiesFormat",
+          "weight": 1,
+          "techniqueId": "format-01",
+          "hint": "說出答案長什麼樣子：條列、表格，還是一段短文。"
+        }
+      ],
+      "pass": 3,
+      "sample": "請把下面這張告示改寫成清楚好懂的公告。\n輸出成 3 個條列重點，每點不超過 20 個字。",
+      "source": "https://learn.microsoft.com/en-us/azure/ai-foundry/openai/concepts/prompt-engineering#best-practices"
+    },
+    {
+      "id": "murk-only-donts",
+      "region": "foundations",
+      "at": [
+        27,
+        39
+      ],
+      "title": "滿口「不要」的請求",
+      "sourceChallengeId": "lost-automaton-03",
+      "taint": "不要寫太長，不要太正式，不要用難字，也不要跟上次一樣。",
+      "mission": "把這串「不要」翻成它做得到的事：要做什麼、用什麼語氣、多長。",
+      "clue": "每一句「不要」都換成「請做＿＿」，再給一個數字當長度。",
+      "teaches": [
+        "positive-01",
+        "clarity-05"
+      ],
+      "primaryTechniqueId": "positive-01",
+      "primarySkillId": "clear-positive",
+      "rubric": [
+        {
+          "check": "positiveFraming",
+          "weight": 2,
+          "primary": true,
+          "techniqueId": "positive-01",
+          "skillId": "clear-positive",
+          "hint": "用「請做 Y」取代「不要做 X」：「請用日常聊天的語氣」而不是「不要太正式」。"
+        },
+        {
+          "check": "assignsTask",
+          "weight": 1,
+          "foundation": true,
+          "techniqueId": "clarity-02",
+          "hint": "先說要它做的那件事：「請把下面這封通知改寫成…」。"
+        },
+        {
+          "check": "hasConstraint",
+          "weight": 1,
+          "techniqueId": "clarity-03",
+          "hint": "把「不要太長」換成數字，例如「全文 80 個字以內」。"
+        }
+      ],
+      "pass": 3,
+      "sample": "請把下面這封通知改寫成給鄰居看的口語短信。\n請用日常聊天的語氣，只用常見的字。\n全文控制在 80 個字以內。",
+      "source": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#control-the-format-of-responses"
+    },
+    {
+      "id": "murk-no-example",
+      "region": "reasoning",
+      "at": [
+        -105,
+        -106
+      ],
+      "title": "只會形容的請求",
+      "sourceChallengeId": "example-hall-11",
+      "taint": "幫每張留言標一個心情，就是那種感覺，你看了就知道。",
+      "mission": "別再形容了 —— 給它兩組「輸入 → 輸出」的示範，再說清楚每一行長什麼樣。",
+      "clue": "牆只學它看得到的樣本：寫兩組「輸入：…／輸出：…」，再指定每張留言各佔一行。",
+      "teaches": [
+        "fewshot-01",
+        "fewshot-02",
+        "structure-04"
+      ],
+      "primaryTechniqueId": "fewshot-01",
+      "primarySkillId": "fewshot-basics",
+      "rubric": [
+        {
+          "check": "hasFewShot",
+          "weight": 2,
+          "primary": true,
+          "techniqueId": "fewshot-01",
+          "skillId": "fewshot-basics",
+          "hint": "至少示範一組成對的「輸入：…／輸出：…」；放兩三組最穩。"
+        },
+        {
+          "check": "assignsTask",
+          "weight": 1,
+          "foundation": true,
+          "techniqueId": "clarity-02",
+          "hint": "先說要做什麼：「請照著範例，替每一張留言標上心情」。"
+        },
+        {
+          "check": "specifiesFormat",
+          "weight": 1,
+          "techniqueId": "format-01",
+          "hint": "說出每一行長什麼樣：「每張留言輸出一行，寫成條列」。"
+        }
+      ],
+      "pass": 3,
+      "sample": "請照著下面的範例，替每一張留言標上心情，請用條列回答，每張留言一行。\n輸入：橋斷了，但有個陌生人划船載我過河。\n輸出：帶著希望\n輸入：連下三天雨，燈油也用完了。\n輸出：灰暗",
+      "source": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#use-examples-effectively"
+    },
+    {
+      "id": "murk-leap-answer",
+      "region": "reasoning",
+      "at": [
+        -86,
+        -97
+      ],
+      "title": "一口氣跳過去的請求",
+      "sourceChallengeId": "step-bridge-20",
+      "taint": "這批貨最後剩幾袋？直接給我答案，不用解釋。",
+      "mission": "讓它一階一階踩：先把每一段的變化列出來，最後才寫結論。",
+      "clue": "加一句「回答前先一步一步列出每一段的耗損，再寫結論」，並說清楚結論只要一句話。",
+      "teaches": [],
+      "primaryTechniqueId": null,
+      "primarySkillId": "cot-explicit",
+      "rubric": [
+        {
+          "check": "hasStepByStep",
+          "weight": 2,
+          "primary": true,
+          "techniqueId": "cot-01",
+          "skillId": "cot-explicit",
+          "hint": "要它先想再答：「回答前請先一步一步列出每一段的耗損，再寫結論」。"
+        },
+        {
+          "check": "assignsTask",
+          "weight": 1,
+          "foundation": true,
+          "techniqueId": "clarity-02",
+          "hint": "把要算的東西講出來：「請算出這批貨最後還剩幾袋」。"
+        },
+        {
+          "check": "hasConstraint",
+          "weight": 1,
+          "techniqueId": "clarity-03",
+          "hint": "給結論一個尺寸：「結論用一句話」。"
+        }
+      ],
+      "pass": 3,
+      "sample": "請算出這批貨過了北坡、渡河與山口之後還剩幾袋。\n回答前請先一步一步列出每一段路的耗損，再寫結論。\n每一步寫成一行，結論用一句話。",
+      "source": "https://developers.openai.com/cookbook/examples/gpt4-1_prompting_guide#3-chain-of-thought"
+    },
+    {
+      "id": "murk-trust-me",
+      "region": "grounding",
+      "at": [
+        86,
+        -103
+      ],
+      "title": "憑印象作答的請求",
+      "sourceChallengeId": "citation-desk-21",
+      "taint": "你看一下這本帳，然後告訴我這一季少了幾袋，你記得的就好。",
+      "mission": "讓它別憑印象：只依這份帳回答，而且回答前先把支持答案的原文抄出來。",
+      "clue": "兩句話：「請只根據下面這份帳回答」＋「回答前先引用支持答案的原文段落，再作答」。",
+      "teaches": [
+        "grounding-01",
+        "grounding-04"
+      ],
+      "primaryTechniqueId": "grounding-04",
+      "primarySkillId": "ground-quote-first",
+      "rubric": [
+        {
+          "check": "asksToCiteSources",
+          "weight": 2,
+          "primary": true,
+          "techniqueId": "grounding-04",
+          "skillId": "ground-quote-first",
+          "hint": "要它先把證據抄出來：「回答前，先引用資料裡支持答案的原文段落，再作答」。"
+        },
+        {
+          "check": "assignsTask",
+          "weight": 1,
+          "foundation": true,
+          "techniqueId": "clarity-02",
+          "hint": "把問題講成一件要做的事：「請只根據這份帳回答下面的問題」。"
+        },
+        {
+          "check": "groundsInContext",
+          "weight": 1,
+          "techniqueId": "grounding-01",
+          "hint": "把帳貼進來，並說「請只根據上面這份資料回答」。"
+        }
+      ],
+      "pass": 3,
+      "sample": "請只根據下面這份收成帳回答問題。\n回答前，請先引用資料中支持答案的原文段落，再根據引文作答。\n資料：第三季：入庫 42 袋，雨損 9 袋，換鹽 4 袋。\n問題：這一季有多少袋離開了倉庫？",
+      "source": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#long-context-prompting"
+    },
+    {
+      "id": "murk-never-unsure",
+      "region": "grounding",
+      "at": [
+        106,
+        -96
+      ],
+      "title": "不准說不知道的請求",
+      "sourceChallengeId": "well-of-unknowing-22",
+      "taint": "今晚最後一班渡船幾點？一定要給我一個時間，不知道也要猜一個。",
+      "mission": "給它一條可以說「告示上沒有提到」的路，而且只依告示回答。",
+      "clue": "「請只根據這份告示回答；告示上沒寫的就回答『告示上沒有提到』，並反問需要哪一項資訊。」",
+      "teaches": [
+        "grounding-02",
+        "grounding-03"
+      ],
+      "primaryTechniqueId": "grounding-02",
+      "primarySkillId": "ground-out",
+      "rubric": [
+        {
+          "check": "givesOutForUncertainty",
+          "weight": 2,
+          "primary": true,
+          "techniqueId": "grounding-02",
+          "skillId": "ground-out",
+          "hint": "給它一條退路：「如果告示上沒有提到，就回答『告示上沒有提到』」。"
+        },
+        {
+          "check": "assignsTask",
+          "weight": 1,
+          "foundation": true,
+          "techniqueId": "clarity-02",
+          "hint": "把問題講成一件事：「請只根據這份告示回答旅人的問題」。"
+        },
+        {
+          "check": "groundsInContext",
+          "weight": 1,
+          "techniqueId": "grounding-01",
+          "hint": "把告示貼進來，並說「所有內容都要出自這份告示」。"
+        }
+      ],
+      "pass": 3,
+      "sample": "請只根據下面這份告示內容回答旅人的問題，所有內容都要出自這份告示。\n告示：渡口每日辰時開、酉時關。\n旅人問：今晚最後一班是幾點？\n如果告示上沒有提到，就回答「告示上沒有提到」，並反問旅人需要哪一項資訊。",
+      "source": "https://claude.com/blog/best-practices-for-prompt-engineering#customer-stories"
+    },
+    {
+      "id": "murk-all-at-once",
+      "region": "orchestration",
+      "at": [
+        -94,
+        85
+      ],
+      "title": "一口氣做完的請求",
+      "sourceChallengeId": "subtask-workbench-31",
+      "taint": "把整座水道整修好，全部一次弄完，我不管你怎麼做。",
+      "mission": "把這件大事拆成幾張做得完的工單，一件一件交出去，而且照先後排。",
+      "clue": "「請拆成子任務，一件一件完成」再列 1. 2. 3.，並說清楚總共拆成幾件。",
+      "teaches": [
+        "decompose-01",
+        "decompose-02",
+        "decompose-04"
+      ],
+      "primaryTechniqueId": "decompose-01",
+      "primarySkillId": "chain-serial",
+      "rubric": [
+        {
+          "check": "decomposesTask",
+          "weight": 2,
+          "primary": true,
+          "techniqueId": "decompose-01",
+          "skillId": "chain-serial",
+          "hint": "把工作列成 1. 2. 3.，或直接說「請拆成子任務，一件一件完成」。"
+        },
+        {
+          "check": "assignsTask",
+          "weight": 1,
+          "foundation": true,
+          "techniqueId": "clarity-02",
+          "hint": "先說要它做的事：「請把下面這張整修委託拆解成子任務」。"
+        },
+        {
+          "check": "hasConstraint",
+          "weight": 1,
+          "techniqueId": "clarity-03",
+          "hint": "給一個數字：「總共拆成 3 件」。"
+        }
+      ],
+      "pass": 3,
+      "sample": "請把下面這張整修委託拆解成子任務，一件一件完成，總共拆成 3 件。\n1. 列出工坊裡所有壞掉的零件。\n2. 替每個零件寫一行修法。\n3. 把上一步寫好的修法合併成一張工單。",
+      "source": "https://ai.google.dev/gemini-api/docs/prompting-strategies#prompt-components"
+    },
+    {
+      "id": "murk-while-at-it",
+      "region": "orchestration",
+      "at": [
+        -85.5,
+        99
+      ],
+      "title": "順便多做一點的請求",
+      "sourceChallengeId": "sprawling-site-84",
+      "taint": "把北面那扇窗修好，順便看看別的窗要不要一起弄，反正都來了。",
+      "mission": "把「順便」拿掉：只修那一扇窗，範圍外的先問，做完就停。",
+      "clue": "一句界線「只動北面那扇窗，不要順便修別的」＋「必須動到別處時先問我」＋「做好就停下來回報」。",
+      "teaches": [],
+      "primaryTechniqueId": null,
+      "primarySkillId": "agent-scope-drift",
+      "rubric": [
+        {
+          "check": "limitsScope",
+          "weight": 2,
+          "primary": true,
+          "skillId": "agent-scope-drift",
+          "hint": "寫一句「只動＿＿，不要順便做別的」；真的需要動到範圍外，就先問一句再動。"
+        },
+        {
+          "check": "assignsTask",
+          "weight": 1,
+          "foundation": true,
+          "techniqueId": "clarity-02",
+          "hint": "先說要它做的那一件事：「請把北面那扇窗修好」。"
+        },
+        {
+          "check": "hasStopRule",
+          "weight": 1,
+          "hint": "補一條收工規則：「那扇窗做好就停下來回報，不要再往下做」。"
+        }
+      ],
+      "pass": 3,
+      "sample": "請把北面那扇窗修好。\n只動北面那扇窗這一塊，不要順便修別的地方。\n如果真的必須動到承重柱這類範圍外的東西，請先問我一句再動。\n那扇窗做好就停下來回報，不要再往下做。",
+      "source": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#overeagerness"
+    }
+  ]
+}

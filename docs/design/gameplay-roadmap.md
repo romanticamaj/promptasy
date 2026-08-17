@@ -32,7 +32,7 @@ CLAUDE.md 的五個方向與七條護欄仍是最高準則。本 roadmap 只回�
 
 ### 里程碑 A：先讓「遭遇」存在（怪物 × 互動 × 世界觀）
 
-- [~] **P01 · 濁靈資料層＋世界實體＋互動仲裁**（M）— `src/data/murks.json`（`authored:"game"`，8 隻／前四區各 2；rubric 只引用既有 checks、source 必在 anchors、座標淨空規則）；`src/world/murks.js`（`createMurkField`，reactive.js 樣板：距離分帶、零每幀配置、`murk:<id>` 命名、`solidRadius 0.9`、0 光源、每隻 ≤600 三角）；main.js 第 ⑥ 互動層（半徑 5.5，石座 > 濁靈 > 石碑 > 刻文 > 器物 > 閘門，面向排名）；HUD 提示「濁靈 · 一段沒說清楚的請求 `E` 安撫」；`E` 開既有主控台（challenge 形物件、無 flow → 自動 free）。**本 phase 不做演出、不寫存檔**：`renderResult()` 依 `kind` 分流到最小版 `progression.recordMurk()`——它回傳與 `recordResult` 同形狀的 **outcome**（`xpGain 0、leveledUp false、newly* 空陣列…`）但不落盤，讓既有 `renderResult()` 的解參照全部安全；P02 再補持久化。
+- [x] **P01 · 濁靈資料層＋世界實體＋互動仲裁**（M）— `src/data/murks.json`（`authored:"game"`，8 隻／前四區各 2；rubric 只引用既有 checks、source 必在 anchors、座標淨空規則）；`src/world/murks.js`（`createMurkField`，reactive.js 樣板：距離分帶、零每幀配置、`murk:<id>` 命名、`solidRadius 0.9`、0 光源、每隻 ≤600 三角）；main.js 第 ⑥ 互動層（半徑 5.5，石座 > 濁靈 > 石碑 > 刻文 > 器物 > 閘門，面向排名）；HUD 提示「濁靈 · 一段沒說清楚的請求 `E` 安撫」；`E` 開既有主控台（challenge 形物件、無 flow → 自動 free）。**本 phase 不做演出、不寫存檔**：`renderResult()` 依 `kind` 分流到最小版 `progression.recordMurk()`——它回傳與 `recordResult` 同形狀的 **outcome**（`xpGain 0、leveledUp false、newly* 空陣列…`）但不落盤，讓既有 `renderResult()` 的解參照全部安全；P02 再補持久化。
   - 依賴：無。方案：1-A（實體半）。Spec §3、§4.1、§4.2。
   - DoD：8 隻可見可互動；rubric 測試驗資料層；碰撞體 +8、collision-audit 0；tris 增量 <5k；e2e：teleport→提示→E→console open→free；舊斷言零改動。
 
