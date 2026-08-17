@@ -746,6 +746,16 @@ Exit：跨世界素材有 reload/reset/e2e；或有一份明確的「不實作�
 7. `expected-counts.json`：只**新增** `murks: 8` 鍵；既有值不動。
 8. 座標由實作者用 node 蓋世界後計算並驗證：離任何石座 ≥8m、離橋 lane／頸口 ≥4m、離器物／反應物／石碑／刻文／地標／小景中心 ≥4m、離出生點 ≥7m、在該區 `flat` 半徑內、且 `isClear`；規則寫進 rubric 測試。
 
+**Codex consult 增補（2026-08-17，六點必修）**
+- 主控台進第二幕會 `markGuidanceSeen()`、看範例會 `markSampleSeen()`（`console.js:939` 附近）——`kind==='murk'` 時**跳過**兩者，否則 murk id 會落進 `guidanceSeen/samplesSeen`；e2e 要比較送出前後**完整 state 與序列化 save 相同**，不是只驗「沒有 murk 欄」。
+- murk `rubric` 主列必須 `primary:true`（第二幕靠它找主教學列，`primarySkillId` 才會呈現）；其他列補 `foundation`／`skillId`／`techniqueId` 與既有神廟同形。
+- `body.userData.keepSolid = true`（否則靠石座 <9.9m 會被 `noCollideZones` 當雜物濾掉，`world.js:2858`）；座標 `isClear` 對「加入 murk 前的 baseline world」檢查。
+- `expected-counts.json` 是 `contract.<key>: {value, why}` 形；新增 `contract.murks: {value:8, why:"…"}`，測試讀 `EXPECT.murks.value`。
+- 第一幕標題不得改全域 `ACTS`；murk 用專用 eyebrow（不能顯示「第 01 關／共 N 關」——murk 不在 `content.challengesOf()`）。
+- `main.js`：import `murks.json` → `createWorld({murks})`；`nearMurk` 的 reset 與 gate blocking 一起處理；`onResult` 的 murk 分支**置頂並 `return`**；`world.updateReactions()`／每幀呼叫 `murkField.update()`；`keepClear` 納入 murk；`window.__promptasy.murks` 暴露資料給 e2e。測試世界（`test-rubric` 的 `World.createWorld`）也要傳 murks。
+- 最小 outcome（`onResult` 已提前 return 前提下）：`{ xpGain:0, newlyCollected:[], newlyUnlocked:[], leveledUp:false, levelAfter:<現值>, improved:false, previousGrade:null, bestGrade:null }`，再補齊 `levelBefore/newlySkills/newSeal/newPenless/newScribe` 與 `recordResult` 同形。
+- 既有 hook：e2e `evaluate()/key()/waitFor()`、遊戲端 `player.teleport()/promptConsole.open()/setMode()/goAct()`；playtest `runPlaytestVerify()` 追加 murks 的 sample/taint 迴圈。
+
 **非目標**：存檔／XP／圖鑑（P02）、剝殼演出／SFX／回呼（P03）、WORLD.md 修訂與文案定稿（P04）、任何新按鍵、任何會移動的實體。
 
 **受影響檔案**：新增 `src/data/murks.json`、`src/world/murks.js`；修改 `src/world/world.js`、`src/main.js`、`src/prompt/console.js`、`src/progression/progression.js`、`src/styles.css`（最小）、`scripts/test-rubric.mjs`、`scripts/playtest-verify.mjs`（或 playtest 資料入口）、`scripts/headless-check.mjs`、`scripts/expected-counts.json`；`npm run fonts` 產物。

@@ -1792,3 +1792,9 @@ rubric 原本有一條「那一排石籤有自己的樣式」正是靠這幾塊�
 
 （每個里程碑閘門的「過／砍」在此追加：日期、閘門、決定、理由。`/goal` 在閘門處找不到「過」就停。）
 
+## v1.2 · P01 開工前的發現（2026-08-17）
+
+- Codex consult 指出「不落盤」不只 `recordResult`：主控台第二幕 `markGuidanceSeen()`、看範例 `markSampleSeen()` 也會持久化 challenge id → murk 要在 console 端依 `kind` 跳過；e2e 改比「送出前後 state 深比較＋序列化 save 相同」。
+- rubric 主列沒有 `primary:true` 時第二幕找不到主教學列；`expected-counts.json` 是 `contract.<key>:{value,why}`；`noCollideZones` 會把靠石座 <9.9m 且無 `keepSolid` 的實體當雜物濾掉。
+- 保守選擇：murk 第一幕用專用 eyebrow「濁言」而不動全域 `ACTS`；`onResult` murk 分支置頂 return。
+
