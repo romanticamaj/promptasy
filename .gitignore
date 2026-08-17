@@ -8,3 +8,6 @@ dist/
 
 # Claude Code 工作目錄(session 狀態,不進版控)
 .claude/
+
+# gstack /codex session state
+.context/
