@@ -1,16 +1,24 @@
 /**
- * Promptasy — 濁靈（Murk）：一段「寫壞的請求」具象化的小生物（v1.2 · P01）
+ * Promptasy — 濁靈（Murk）：一段「寫壞的請求」具象化的小生物（v1.2 · P01–P03）
  *
  * 牠是**留在原地的東西**（WORLD.md：世界裡沒有會走動的 NPC）：
  * 一團低矮的暗色濁氣在原地翻湧，中央一顆微弱的眼光。玩家走近（≤ 8 公尺）
  * 牠只會轉頭看你；按 `E` 開既有的主控台，用一段好 prompt 去「安撫」牠。
  *
- * 這一個 phase（P01）只有 idle → aware 兩個狀態；剝殼／安撫／清燈的演出留給 P03，
- * 存檔與圖鑑留給 P02 —— 所以這裡刻意**沒有**任何跟評分結果有關的方法。
+ * P03 的演出（全部由主控台的 `onRubricHits` 回呼驅動，世界端只負責看得見）：
+ *   · `strike(id, murkOutcome)`：每命中一條 rubric → 對應那一層殼**剝落**（0.6s 縮小＋淡出→隱藏）、
+ *     眼光閃白一下、噴 8–12 顆加法粒子；`newlyCalmed` → 剩下的殼變**餘殼**（半透明、停轉）、
+ *     眼光轉暖白、頭縮成一盞**清燈**（原位、常駐）；過關演出＝一撮光屑從濁靈飛出、
+ *     繞玩家一圈（≤ 3 秒）回到清燈位 —— **粒子而已，沒有任何實體跟隨玩家**。
+ *   · `restore(id, { hits, calmed })`：開機依存檔還原（直接套終態、不播動畫、不噴粒子）。
+ *   · `settled` 的濁靈不再 aware 轉頭（清燈是安靜的），光暈暖色微弱呼吸。
+ *   · `reducedMotion`：跳過剝落動畫與光屑，直接套終態（關掉的是「動」，不是「回應」）。
  *
  * 樣板照 `reactive.js`：
- *   · 平方距離、45 公尺外整組跳過、15 公尺外每 3 幀一次（index 錯開）
- *   · **零每幀配置**：暫存變數提到模組層，tick 裡不 new、不 map/filter、不建閉包
+ *   · 平方距離、45 公尺外整組跳過、15 公尺外每 3 幀一次（index 錯開）；正在演出的那一隻不跳
+ *   · **零每幀配置**：暫存變數提到模組層，tick 裡不 new、不 map/filter、不建閉包；
+ *     粒子池是**一組**共用的 `THREE.Points`（≤ 12 顆，buffer 一次配好，只改位置／生命值）；
+ *     剝落／閃白／安撫都是 field 內的計時器（秒），不綁幀數
  *   · **0 光源**：眼光與濁氣全部是自發光／半透明材質
  *   · 每隻 ≤ 600 三角形（8 隻 < 5k）
  *
@@ -18,7 +26,7 @@
  *   · `body`  實心底座 —— `userData.solidRadius = 0.9`、`userData.keepSolid = true`
  *             （靠石座 < 9.9 公尺時，`noCollideZones` 不會把牠當雜物掃掉）
  *   · `head`  會轉頭的那一團（含 `core` 眼光）
- *   · `shells[]` 濁氣殼，數量＝rubric 條數，**半透明材質**（穿模稽核自動免除）
+ *   · `shells[]` 濁氣殼，數量＝rubric 條數（殼 index ＝ rubric index），**半透明材質**（穿模稽核自動免除）
  *   · `glow`  一片加色混合的光暈 sprite
  */
 import * as THREE from 'three';
@@ -35,6 +43,41 @@ const NEAR_SQ = 15 * 15;
 const AWARE_SQ = MURK_AWARE_RADIUS * MURK_AWARE_RADIUS;
 
 /* ------------------------------------------------------------------ *
+ * 演出參數（秒；全部是計時器，不是幀數）
+ * ------------------------------------------------------------------ */
+/** 一層殼剝落的時間（縮小＋淡出）。 */
+export const PEEL_SECONDS = 0.6;
+/** 眼光閃白的時間（「2 幀」在軟體渲染下可能是 0.4 秒，所以用秒）。 */
+const FLASH_SECONDS = 0.12;
+/** 安撫：頭縮成清燈、眼光轉暖的過渡。 */
+const SETTLE_SECONDS = 1.2;
+/** 光屑繞玩家一圈的總長（≤ 3 秒）。 */
+export const SCRAP_LOOP_SECONDS = 2.6;
+/** 走近同一隻濁靈，murkStir 最少隔多久才再吼一次（每隻各自算）。 */
+export const STIR_COOLDOWN = 4;
+/** 粒子池大小（≤ 12）。 */
+export const PARTICLE_CAPACITY = 12;
+/** 光屑用幾顆。 */
+const SCRAP_COUNT = 6;
+/** 餘殼的透明度倍率。 */
+const RESIDUAL_OPACITY = 0.35;
+/** 清燈的頭縮到多大。 */
+const LAMP_HEAD_SCALE = 0.55;
+/** 殼的三種狀態碼。 */
+const SHELL_INTACT = 0;
+const SHELL_PEELING = 1;
+const SHELL_HIDDEN = 2;
+const SHELL_NAMES = ['intact', 'peeling', 'hidden'];
+/** 粒子模式。 */
+const P_DEAD = 0;
+const P_BURST = 1;
+const P_SCRAP = 2;
+/** 清燈的暖白（眼光／光暈的目標色）。 */
+const WARM = new THREE.Color('#fff2d6');
+/** 暫存（模組層，tick 裡不 new）。 */
+const _c = new THREE.Color();
+
+/* ------------------------------------------------------------------ *
  * 幾何體 / 材質快取（重複的東西一律共用）
  * ------------------------------------------------------------------ */
 const GEO = new Map();
@@ -46,7 +89,7 @@ const g = (k, make) => {
   }
   return v;
 };
-/** 材質快取（WORLD.md 檢查表 E16：同色盤的濁靈共用材質；P03 要逐隻動的殼再另外 clone）。 */
+/** 材質快取（WORLD.md 檢查表 E16：同色盤的濁靈共用材質；要逐隻動的殼在第一次動它時才 clone 成自己的）。 */
 const MAT = new Map();
 const mat = (k, make) => {
   let v = MAT.get(k);
@@ -80,6 +123,9 @@ const bodyGeo = () => g('body', () => new THREE.IcosahedronGeometry(0.9, 1));
 const headGeo = () => g('head', () => new THREE.IcosahedronGeometry(0.4, 1));
 const coreGeo = () => g('core', () => new THREE.IcosahedronGeometry(0.11, 0));
 const shellGeo = (r) => g(`shell:${r}`, () => new THREE.IcosahedronGeometry(r, 1));
+
+/** 平滑步進（0..1）。 */
+const smooth = (u) => (u <= 0 ? 0 : u >= 1 ? 1 : u * u * (3 - 2 * u));
 
 /**
  * 蓋出一隻濁靈。
@@ -162,6 +208,9 @@ export function buildMurk(entry, kit, terrainHeight) {
     shell.position.y = 0.95;
     shell.scale.set(1, 0.78, 1);
     shell.rotation.set(i * 0.7, i * 1.3, 0);
+    // 這一層原本的透明度（剝落／餘殼都從它算）；`own` ＝ 材質已經 clone 成自己的
+    shell.userData.baseOpacity = 0.2 - i * 0.04;
+    shell.userData.own = false;
     grp.add(shell);
     shells.push(shell);
   }
@@ -184,6 +233,8 @@ export function buildMurk(entry, kit, terrainHeight) {
   glow.userData.noCollide = true;
   grp.add(glow);
 
+  const kitLight = new THREE.Color(kit.light);
+
   return {
     id: entry.id,
     entry,
@@ -196,17 +247,64 @@ export function buildMurk(entry, kit, terrainHeight) {
     glow,
     x,
     z,
+    y,
+    kitLight,
     position: new THREE.Vector3(x, y, z),
-    /** 目前狀態：'idle' | 'aware'（P03 再加 struck / calming / settled）。 */
+    /** 目前狀態：'idle' | 'aware' | 'calming' | 'settled'。 */
     state: 'idle',
     /** 是不是「玩家附近可互動的那一隻」（nearest 更新）。 */
     near: false,
     facing: 0,
     awareAmt: 0,
+    /* --- P03：演出狀態（全部是計時器） --- */
+    /** 每一層殼的狀態碼（SHELL_INTACT / SHELL_PEELING / SHELL_HIDDEN）。 */
+    shellCode: new Uint8Array(n),
+    /** 剝落中的殼走到哪（0..1）。 */
+    peelT: new Float32Array(n),
+    /** 剝落開始時那一層殼的 opacity（從它當時的樣子淡出，不跳變）。 */
+    peelFrom: new Float32Array(n),
+    /** 剩下的殼是不是餘殼（安撫過）。 */
+    residual: false,
+    /** 眼光閃白剩幾秒。 */
+    flash: 0,
+    /** 安撫過（＝存了 grade）。settled 或 calming 都算。 */
+    settled: false,
+    /** 安撫過渡走到哪（0..1）：頭縮成清燈、眼光轉暖。 */
+    settleT: 0,
+    /** 光屑演出剩幾秒（> 0 ＝ 還在繞）。 */
+    scrapT: 0,
+    /** 有沒有演出在跑（剝落／閃白／安撫／光屑）→ 距離分帶不跳過牠。 */
+    active: false,
+    /** 上一次 murkStir 的時間（秒；-Infinity ＝ 還沒吼過）。 */
+    stirAt: -Infinity,
+    /** 上一幀是不是 aware（偵測「第一次 aware」）。 */
+    wasAware: false,
     setNear(v) {
       this.near = Boolean(v);
     },
+    /** 還在的殼（intact ＋ 餘殼；剝落中／隱藏的不算）。 */
+    visibleShellCount() {
+      let c = 0;
+      for (let i = 0; i < this.shellCode.length; i += 1) if (this.shellCode[i] === SHELL_INTACT) c += 1;
+      return c;
+    },
+    /** 這一層殼的狀態：'intact' | 'peeling' | 'hidden' | 'residual'（安撫後還在的殼）。 */
+    shellState(i) {
+      const code = this.shellCode[i];
+      if (code === undefined) return null;
+      if (code === SHELL_INTACT && this.residual) return 'residual';
+      return SHELL_NAMES[code];
+    },
   };
+}
+
+/** 讓這一層殼的材質變成自己的（只 clone 一次；共用快取不動）。 */
+function ownShellMaterial(shell) {
+  if (!shell.userData.own) {
+    shell.material = shell.material.clone();
+    shell.userData.own = true;
+  }
+  return shell.material;
 }
 
 /**
@@ -216,10 +314,20 @@ export function buildMurk(entry, kit, terrainHeight) {
  * @param {Array} opts.entries                    murks.json 的 entries
  * @param {(regionId:string)=>object} opts.kitOf
  * @param {(x:number,z:number)=>number} opts.terrainHeight
- * @param {()=>boolean} [opts.isBusy]             面板打開時整組停手（不轉頭）
+ * @param {()=>boolean} [opts.isBusy]             面板打開時不轉頭（演出照播）
  * @param {boolean} [opts.reducedMotion]
+ * @param {(id:string)=>({hits:number[],grade:string|null}|null)} [opts.stateOf] 建構時還原（存檔）
+ * @param {(murk:object)=>void} [opts.onStir]     走近 8m 內第一次 aware（每隻 ≥ 4s 一次）
  */
-export function createMurkField({ entries = [], kitOf, terrainHeight, isBusy = null, reducedMotion = false } = {}) {
+export function createMurkField({
+  entries = [],
+  kitOf,
+  terrainHeight,
+  isBusy = null,
+  reducedMotion = false,
+  stateOf = null,
+  onStir = null,
+} = {}) {
   const group = new THREE.Group();
   group.name = 'murks';
   const murks = [];
@@ -233,9 +341,204 @@ export function createMurkField({ entries = [], kitOf, terrainHeight, isBusy = n
   const kinetic = reducedMotion ? 0.12 : 1;
   let frame = 0;
 
-  return {
+  /* ---------------- 粒子池：一組共用的 Points，buffer 一次配好 ---------------- */
+  const N = PARTICLE_CAPACITY;
+  const pPos = new Float32Array(N * 3);
+  const pVel = new Float32Array(N * 3);
+  /** 光屑的起點（清燈位；世界座標）。 */
+  const pHome = new Float32Array(N * 3);
+  const pLife = new Float32Array(N);
+  const pMax = new Float32Array(N);
+  const pPhase = new Float32Array(N);
+  const pMode = new Uint8Array(N);
+  for (let i = 0; i < N; i += 1) pPos[i * 3 + 1] = -999; // 沒在用的粒子藏在地底
+  const pGeo = new THREE.BufferGeometry();
+  pGeo.setAttribute('position', new THREE.BufferAttribute(pPos, 3));
+  const pMat = new THREE.PointsMaterial({
+    color: 0xfff2d6,
+    size: 0.22,
+    transparent: true,
+    opacity: 0.85,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    sizeAttenuation: true,
+    fog: false,
+  });
+  const particles = new THREE.Points(pGeo, pMat);
+  particles.name = 'murk-particles';
+  particles.frustumCulled = false; // 粒子會飛離初始包圍球（繞著玩家）
+  particles.userData.noCollide = true;
+  group.add(particles);
+  let particlesSpawned = 0;
+  let particlesActive = 0;
+
+  /** 找一顆沒在用的粒子（沒有就回收最老的一顆）。 */
+  function claimParticle() {
+    let best = -1;
+    let oldest = Infinity;
+    for (let i = 0; i < N; i += 1) {
+      if (pMode[i] === P_DEAD) return i;
+      if (pLife[i] < oldest) {
+        oldest = pLife[i];
+        best = i;
+      }
+    }
+    return best;
+  }
+
+  /** 從 (x,y,z) 噴一顆碎光。 */
+  function spawnBurst(x, y, z, seed) {
+    const i = claimParticle();
+    if (i < 0) return;
+    if (pMode[i] === P_DEAD) particlesActive += 1;
+    const a = seed * 2.399963 + Math.random() * 0.6; // 黃金角錯開 ＋ 一點亂數
+    const sp = 1.4 + Math.random() * 1.2;
+    pPos[i * 3] = x;
+    pPos[i * 3 + 1] = y;
+    pPos[i * 3 + 2] = z;
+    pVel[i * 3] = Math.cos(a) * sp;
+    pVel[i * 3 + 1] = 1.2 + Math.random() * 1.4;
+    pVel[i * 3 + 2] = Math.sin(a) * sp;
+    pMax[i] = 0.5 + Math.random() * 0.35;
+    pLife[i] = pMax[i];
+    pMode[i] = P_BURST;
+    particlesSpawned += 1;
+  }
+
+  /** 從清燈位放一顆光屑（繞玩家一圈再回來）。 */
+  function spawnScrap(x, y, z, k) {
+    const i = claimParticle();
+    if (i < 0) return;
+    if (pMode[i] === P_DEAD) particlesActive += 1;
+    pPos[i * 3] = x;
+    pPos[i * 3 + 1] = y;
+    pPos[i * 3 + 2] = z;
+    pHome[i * 3] = x;
+    pHome[i * 3 + 1] = y;
+    pHome[i * 3 + 2] = z;
+    pPhase[i] = (k / SCRAP_COUNT) * Math.PI * 2;
+    pMax[i] = SCRAP_LOOP_SECONDS;
+    pLife[i] = SCRAP_LOOP_SECONDS;
+    pMode[i] = P_SCRAP;
+    particlesSpawned += 1;
+  }
+
+  /** 每幀更新粒子（零配置）。光屑繞的是**玩家現在的位置**，回的是清燈位。 */
+  function updateParticles(dt, px, pz) {
+    if (particlesActive === 0) return;
+    let py = 0;
+    let needPy = true;
+    for (let i = 0; i < N; i += 1) {
+      const mode = pMode[i];
+      if (mode === P_DEAD) continue;
+      pLife[i] -= dt;
+      if (pLife[i] <= 0) {
+        pMode[i] = P_DEAD;
+        particlesActive -= 1;
+        pPos[i * 3 + 1] = -999;
+        continue;
+      }
+      if (mode === P_BURST) {
+        pVel[i * 3 + 1] -= 3.2 * dt; // 一點重力
+        pPos[i * 3] += pVel[i * 3] * dt;
+        pPos[i * 3 + 1] += pVel[i * 3 + 1] * dt;
+        pPos[i * 3 + 2] += pVel[i * 3 + 2] * dt;
+      } else {
+        // 光屑：三段 —— 飛向玩家（0–0.3）→ 繞一圈（0.3–0.75）→ 回清燈位（0.75–1）
+        if (needPy) {
+          py = terrainHeight(px, pz) + 1.0;
+          needPy = false;
+        }
+        const u = 1 - pLife[i] / pMax[i];
+        const hx = pHome[i * 3];
+        const hy = pHome[i * 3 + 1];
+        const hz = pHome[i * 3 + 2];
+        const rad = 1.4;
+        let theta;
+        let w; // 0 ＝ 在清燈位、1 ＝ 在玩家身邊
+        if (u < 0.3) {
+          theta = pPhase[i];
+          w = smooth(u / 0.3);
+        } else if (u < 0.75) {
+          theta = pPhase[i] + ((u - 0.3) / 0.45) * Math.PI * 2;
+          w = 1;
+        } else {
+          theta = pPhase[i] + Math.PI * 2;
+          w = 1 - smooth((u - 0.75) / 0.25);
+        }
+        const ox = px + Math.cos(theta) * rad;
+        const oy = py + Math.sin(theta * 2) * 0.18;
+        const oz = pz + Math.sin(theta) * rad;
+        pPos[i * 3] = hx + (ox - hx) * w;
+        pPos[i * 3 + 1] = hy + (oy - hy) * w;
+        pPos[i * 3 + 2] = hz + (oz - hz) * w;
+      }
+    }
+    pGeo.attributes.position.needsUpdate = true;
+  }
+
+  /* ---------------- 單隻的狀態變化（不播動畫的「套終態」） ---------------- */
+
+  /** 這一層殼直接隱藏（restore／reducedMotion）。 */
+  function hideShellNow(m, i) {
+    const shell = m.shells[i];
+    if (!shell) return;
+    m.shellCode[i] = SHELL_HIDDEN;
+    m.peelT[i] = 1;
+    shell.visible = false;
+  }
+
+  /** 剩下的殼變餘殼（半透明、停轉）。 */
+  function makeResidual(m) {
+    if (m.residual) return;
+    m.residual = true;
+    for (let i = 0; i < m.shells.length; i += 1) {
+      if (m.shellCode[i] !== SHELL_INTACT) continue;
+      const shell = m.shells[i];
+      const sm = ownShellMaterial(shell);
+      sm.opacity = shell.userData.baseOpacity * RESIDUAL_OPACITY;
+      shell.scale.set(1, 0.78, 1);
+    }
+  }
+
+  /** 安撫過渡的一格（settleT 0..1 → 眼光轉暖、頭縮成清燈）。 */
+  function applySettle(m, u) {
+    m.settleT = u;
+    const s = 1 + (LAMP_HEAD_SCALE - 1) * u;
+    m.head.scale.set(s, s, s);
+    m.coreMat.color.copy(m.kitLight).lerp(WARM, u);
+    m.coreMat.emissive.copy(m.kitLight).lerp(WARM, u);
+    _c.copy(m.kitLight).lerp(WARM, u);
+    m.glow.material.color.copy(_c);
+  }
+
+  /** 直接落成清燈（restore／reducedMotion）。 */
+  function settleNow(m) {
+    m.settled = true;
+    m.state = 'settled';
+    m.awareAmt = 0;
+    m.wasAware = false;
+    m.scrapT = 0;
+    makeResidual(m);
+    applySettle(m, 1);
+    m.head.position.y = 1.05;
+    m.glow.material.opacity = 0.2;
+  }
+
+  const api = {
     group,
     murks,
+    /** 共用的粒子池（測試／除錯用）。 */
+    particles,
+    particleCapacity: N,
+    /** 累計噴過幾顆（測試用：strike 有沒有真的噴；restore 不噴）。 */
+    get particlesSpawned() {
+      return particlesSpawned;
+    },
+    /** 現在還活著的粒子數。 */
+    activeParticles() {
+      return particlesActive;
+    },
     get count() {
       return murks.length;
     },
@@ -274,8 +577,135 @@ export function createMurkField({ entries = [], kitOf, terrainHeight, isBusy = n
       for (let i = 0; i < murks.length; i += 1) murks[i].setNear(murks[i] === best);
       return best ? { murk: best, distance: bestDist } : null;
     },
+
     /**
-     * 每幀更新（玩家座標）。面板打開時牠不轉頭、但濁氣照樣慢慢翻湧。
+     * 主控台判完這一次、畫結果之前（`onRubricHits`）：對新命中的殼剝落；安撫就落成清燈。
+     * 面板開著（isBusy）也照播 —— 玩家正看著結果面，世界在背景。
+     * @param {string} id
+     * @param {{newlyPassedIndices:number[], hits?:number[], total?:number, calmed?:boolean, newlyCalmed?:boolean}} outcome
+     * @returns {boolean} 有沒有這一隻
+     */
+    strike(id, outcome) {
+      const m = byId.get(id);
+      if (!m || !outcome || typeof outcome !== 'object') return false;
+      const newly = outcome.newlyPassedIndices;
+      const list = Array.isArray(newly) ? newly : [];
+      let peeled = 0;
+      for (let k = 0; k < list.length; k += 1) {
+        const i = list[k];
+        if (!Number.isInteger(i) || i < 0 || i >= m.shells.length) continue;
+        if (m.shellCode[i] !== SHELL_INTACT) continue;
+        peeled += 1;
+        if (reducedMotion) {
+          hideShellNow(m, i);
+          continue;
+        }
+        // 剝落：先把材質變成自己的（共用快取不能動），再開計時器
+        const own = ownShellMaterial(m.shells[i]);
+        m.shellCode[i] = SHELL_PEELING;
+        m.peelT[i] = 0;
+        m.peelFrom[i] = own.opacity;
+      }
+      if (peeled > 0) {
+        // 眼光閃白（reduced-motion 也閃：光是回應，不是動）
+        m.flash = FLASH_SECONDS;
+        m.active = true;
+        if (!reducedMotion) {
+          // 8–12 顆碎光從殼的位置噴出（一殼 8、兩殼以上 12）
+          // 這一次同時安撫的話，留 SCRAP_COUNT 顆給光屑（同一個池，別搶）
+          const willCalm = Boolean(outcome.calmed || outcome.newlyCalmed) && !m.settled;
+          const count = Math.min(willCalm ? N - SCRAP_COUNT : N, 8 + (peeled - 1) * 4);
+          const sy = m.y + 0.95;
+          for (let k = 0; k < count; k += 1) spawnBurst(m.x, sy, m.z, k);
+        }
+      }
+      /*
+       * 安撫（存了 grade）而世界端還沒落成清燈 ＝ **這一次才安撫**（世界的 settled 與存檔同步：
+       * 開機 restore、之後每次 strike）→ 餘殼、暖眼光、縮成清燈；光屑繞玩家一圈（粒子而已）。
+       * 呼叫端若明講 `newlyCalmed: false`（早就安撫、只是世界端沒同步）→ 直接套終態、不播。
+       */
+      const calmed = Boolean(outcome.calmed || outcome.newlyCalmed);
+      if (calmed && !m.settled) {
+        m.settled = true;
+        m.awareAmt = 0;
+        m.wasAware = false;
+        m.active = true;
+        makeResidual(m);
+        if (reducedMotion || outcome.newlyCalmed === false) {
+          settleNow(m);
+        } else {
+          m.state = 'calming';
+          m.settleT = 0;
+          m.scrapT = SCRAP_LOOP_SECONDS;
+          const sy = m.y + 1.05;
+          for (let k = 0; k < SCRAP_COUNT; k += 1) spawnScrap(m.x, sy, m.z, k);
+        }
+      }
+      return true;
+    },
+
+    /**
+     * 進度重置（不重載頁面）時把世界端拉回「一隻都沒碰過」：殼全部長回來、清燈變回濁靈。
+     * 不播動畫、不噴粒子；正在跑的計時器全部清掉。
+     */
+    reset() {
+      for (let i = 0; i < murks.length; i += 1) {
+        const m = murks[i];
+        for (let sIdx = 0; sIdx < m.shells.length; sIdx += 1) {
+          const shell = m.shells[sIdx];
+          m.shellCode[sIdx] = SHELL_INTACT;
+          m.peelT[sIdx] = 0;
+          m.peelFrom[sIdx] = shell.userData.baseOpacity;
+          shell.visible = true;
+          shell.material.opacity = shell.userData.baseOpacity;
+          shell.scale.set(1, 0.78, 1);
+        }
+        m.residual = false;
+        m.settled = false;
+        m.settleT = 0;
+        m.scrapT = 0;
+        m.flash = 0;
+        m.active = false;
+        m.state = 'idle';
+        m.awareAmt = 0;
+        m.wasAware = false;
+        m.stirAt = -Infinity;
+        m.head.scale.set(1, 1, 1);
+        applySettle(m, 0);
+        m.glow.material.opacity = 0.16;
+      }
+      // 池裡還在飛的粒子全部收掉
+      for (let i = 0; i < N; i += 1) {
+        if (pMode[i] !== P_DEAD) {
+          pMode[i] = P_DEAD;
+          pLife[i] = 0;
+        }
+      }
+      particlesActive = 0;
+      return true;
+    },
+
+    /**
+     * 開機／載入存檔時還原（不播動畫、不噴粒子）：`hits` 的殼直接隱藏；`calmed` 直接 settled。
+     * @param {string} id
+     * @param {{hits?:number[], calmed?:boolean}} st
+     * @returns {boolean} 有沒有這一隻
+     */
+    restore(id, st) {
+      const m = byId.get(id);
+      if (!m || !st || typeof st !== 'object') return false;
+      const hits = Array.isArray(st.hits) ? st.hits : [];
+      for (let k = 0; k < hits.length; k += 1) {
+        const i = hits[k];
+        if (!Number.isInteger(i) || i < 0 || i >= m.shells.length) continue;
+        hideShellNow(m, i);
+      }
+      if (st.calmed) settleNow(m);
+      return true;
+    },
+
+    /**
+     * 每幀更新（玩家座標）。面板打開時牠不轉頭、但濁氣照樣慢慢翻湧；演出照播。
      * @param {number} dt
      * @param {number} t
      * @param {number} px
@@ -285,18 +715,71 @@ export function createMurkField({ entries = [], kitOf, terrainHeight, isBusy = n
       frame += 1;
       const busy = isBusy ? isBusy() : false;
       const k = Math.min(1, dt * 3);
+      // 演出計時器用夾過的 dt：分頁被切走／軟體渲染一幀 0.3s 時，剝落與光屑不會一格就結束
+      const adt = Math.min(dt, 0.1);
       for (let i = 0; i < murks.length; i += 1) {
         const m = murks[i];
         const dx = px - m.x;
         const dz = pz - m.z;
         const d2 = dx * dx + dz * dz;
-        if (d2 > FAR_SQ) continue;
-        if (d2 > NEAR_SQ && (i + frame) % 3 !== 0) continue;
+        // 正在演出的那一隻不跳（計時器要走完）；其餘照距離分帶
+        if (!m.active) {
+          if (d2 > FAR_SQ) continue;
+          if (d2 > NEAR_SQ && (i + frame) % 3 !== 0) continue;
+        }
+
+        /* --- 演出計時器（剝落／閃白／安撫過渡／光屑） --- */
+        let anim = false;
+        for (let s = 0; s < m.shells.length; s += 1) {
+          if (m.shellCode[s] !== SHELL_PEELING) continue;
+          m.peelT[s] += adt / PEEL_SECONDS;
+          if (m.peelT[s] >= 1) {
+            hideShellNow(m, s);
+          } else {
+            anim = true;
+            const shell = m.shells[s];
+            const p = smooth(m.peelT[s]);
+            const sc = 1 - p * 0.8;
+            shell.scale.set(sc, 0.78 * sc, sc);
+            shell.material.opacity = m.peelFrom[s] * (1 - p);
+          }
+        }
+        if (m.flash > 0) {
+          m.flash = Math.max(0, m.flash - adt);
+          anim = true;
+        }
+        if (m.settled && m.settleT < 1) {
+          applySettle(m, Math.min(1, m.settleT + adt / SETTLE_SECONDS));
+          anim = true;
+        }
+        if (m.scrapT > 0) {
+          m.scrapT = Math.max(0, m.scrapT - adt);
+          anim = true;
+          if (m.scrapT === 0) m.state = 'settled';
+        }
+        m.active = anim;
+
+        if (m.settled) {
+          /* --- 清燈是安靜的：不 aware、不轉頭；餘殼不轉；光暈暖色微弱呼吸 --- */
+          if (m.state !== 'calming') m.state = 'settled';
+          m.head.position.y = 1.05 + Math.sin(t * 0.9 + i) * 0.02 * kinetic;
+          m.coreMat.emissiveIntensity = 1.3 + Math.sin(t * 1.1 + i) * 0.12 + (m.flash > 0 ? 2.4 : 0);
+          m.glow.material.opacity = 0.18 + Math.sin(t * 0.9 + i) * 0.04 + (m.near ? 0.06 : 0) + (m.flash > 0 ? 0.2 : 0);
+          continue;
+        }
 
         // idle → aware：走到 8 公尺內牠會注意到你（面板打開時停手）
-        const aware = !busy && d2 < AWARE_SQ;
+        const inRange = d2 < AWARE_SQ;
+        const aware = !busy && inRange;
         m.state = aware ? 'aware' : 'idle';
         m.awareAmt += ((aware ? 1 : 0) - m.awareAmt) * k;
+        // 第一次走進 8m → 短促雜訊（每隻 ≥ 4 秒一次；面板開著不吼）。
+        // 「第一次」看的是**距離**，不是 aware —— 開關面板不算重新走近。
+        if (inRange && !m.wasAware && !busy && onStir && t - m.stirAt >= STIR_COOLDOWN) {
+          m.stirAt = t;
+          onStir(m);
+        }
+        m.wasAware = inRange;
 
         // 轉頭看你（只轉 Y 軸；不移動、不靠近）
         if (aware && (dx !== 0 || dz !== 0)) {
@@ -311,9 +794,10 @@ export function createMurkField({ entries = [], kitOf, terrainHeight, isBusy = n
         }
         m.head.rotation.y = m.facing;
 
-        // 濁氣翻湧：殼慢慢轉、輕微呼吸；眼光隨著注意力變亮
+        // 濁氣翻湧：還在的殼慢慢轉、輕微呼吸；眼光隨著注意力變亮
         const breathe = 1 + Math.sin(t * 1.3 + i * 0.9) * 0.04 * kinetic;
         for (let s = 0; s < m.shells.length; s += 1) {
+          if (m.shellCode[s] !== SHELL_INTACT) continue;
           const shell = m.shells[s];
           const dir = s % 2 === 0 ? 1 : -1;
           shell.rotation.y = t * (0.18 + s * 0.06) * dir * kinetic;
@@ -322,11 +806,21 @@ export function createMurkField({ entries = [], kitOf, terrainHeight, isBusy = n
           shell.scale.set(sc, 0.78 * sc, sc);
         }
         m.head.position.y = 1.05 + Math.sin(t * 1.6 + i) * 0.05 * kinetic;
-        m.coreMat.emissiveIntensity = 1.1 + m.awareAmt * 1.2 + Math.sin(t * 5.1 + i) * 0.1;
-        m.glow.material.opacity = 0.16 + m.awareAmt * 0.16 + (m.near ? 0.1 : 0);
+        m.coreMat.emissiveIntensity = 1.1 + m.awareAmt * 1.2 + Math.sin(t * 5.1 + i) * 0.1 + (m.flash > 0 ? 2.4 : 0);
+        m.glow.material.opacity = 0.16 + m.awareAmt * 0.16 + (m.near ? 0.1 : 0) + (m.flash > 0 ? 0.25 : 0);
       }
+      updateParticles(dt, px, pz);
     },
   };
+
+  /* 建構時依存檔還原（`stateOf(id)` → `{ hits, grade }`；有 grade ＝ 安撫過）—— 不播動畫 */
+  if (typeof stateOf === 'function') {
+    for (let i = 0; i < murks.length; i += 1) {
+      const st = stateOf(murks[i].id);
+      if (st && typeof st === 'object') api.restore(murks[i].id, { hits: st.hits, calmed: Boolean(st.grade) });
+    }
+  }
+  return api;
 }
 
 export default { MURK_RADIUS, MURK_AWARE_RADIUS, buildMurk, createMurkField, disposeMurkCache };

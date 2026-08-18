@@ -148,6 +148,47 @@ export const SAMPLE_AFTER_FAILS = 2;
  */
 const isMurk = (c) => Boolean(c && c.kind === 'murk');
 
+/**
+ * v1.2 · P03：`onRubricHits` 回呼的資料（以 **rubric 陣列 index** 為穩定 ID）。
+ * 純函式，主控台在 recorder 回傳後、畫結果之前呼叫一次；rubric 測試也直接測它。
+ *
+ *   · 濁靈（`kind === 'murk'`）：直接用 recorder 的 `outcome.murk` ——
+ *     `passedIndices` ＝ 存檔累積 `hits`、`newlyPassedIndices` ＝ 相對於存檔的新增（重開面板不重播）。
+ *   · 關卡（給 P09）：`passedIndices` ＝ 這一次 `results[i].passed === true` 的 index；
+ *     `newlyPassedIndices` ＝ 相對於「本次開啟主控台 session 內已命中集合」（`sessionHits`，`open()` 清空）的新增。
+ *   · `total` ＝ rubric 條數（＝濁靈的殼數）。
+ *
+ * @param {object} challenge
+ * @param {object} evaluation   evaluate() 的結果
+ * @param {object} outcome      recorder 的回傳（濁靈才有 `murk` 子物件）
+ * @param {Set<number>} sessionHits  session 內已命中集合（會被就地更新）
+ * @returns {{challenge:object, passedIndices:number[], newlyPassedIndices:number[], total:number}}
+ */
+export function rubricHitsFor(challenge, evaluation, outcome, sessionHits) {
+  const rubric = (challenge && challenge.rubric) || [];
+  const total = rubric.length;
+  const mk = isMurk(challenge) && outcome && outcome.murk ? outcome.murk : null;
+  if (mk) {
+    const passedIndices = Array.isArray(mk.hits) ? mk.hits.slice() : [];
+    const newlyPassedIndices = Array.isArray(mk.newlyPassedIndices) ? mk.newlyPassedIndices.slice() : [];
+    // 濁靈多帶一份 recorder 的 murk 子物件（calmed／newlyCalmed），世界端不用自己猜「這一次才安撫」
+    return { challenge, passedIndices, newlyPassedIndices, total, murk: { ...mk } };
+  }
+  const results = (evaluation && evaluation.results) || [];
+  const passedIndices = [];
+  const newlyPassedIndices = [];
+  for (let i = 0; i < results.length; i += 1) {
+    if (results[i] && results[i].passed === true) {
+      passedIndices.push(i);
+      if (sessionHits && !sessionHits.has(i)) {
+        newlyPassedIndices.push(i);
+        sessionHits.add(i);
+      }
+    }
+  }
+  return { challenge, passedIndices, newlyPassedIndices, total };
+}
+
 /** 停手多久之後，漂浮提示球會自己「呼吸」一下提醒你它在那裡（毫秒）。 */
 export const ORB_IDLE_MS = 20000;
 
@@ -260,6 +301,11 @@ export function createPromptConsole({
   content,
   progression,
   onResult,
+  /**
+   * v1.2 · P03：`onRubricHits({ challenge, passedIndices, newlyPassedIndices, total })` ——
+   * recorder 回傳後、畫結果之前觸發一次（世界端拿它剝殼；P09 拿它演石座）。見 `rubricHitsFor`。
+   */
+  onRubricHits,
   onSubmit,
   onClose,
   onChime,
@@ -292,6 +338,11 @@ export function createPromptConsole({
   let rejects = 0;
   /** 上一次預檢時「已經亮起來」的檢查 id —— 用來偵測「這一項剛剛才亮」。 */
   let litBefore = new Set();
+  /**
+   * v1.2 · P03：本次開啟主控台 session 內已命中的 rubric index（非 murk 的 `onRubricHits` 差量基準）。
+   * `open()` 時清空；濁靈不用它（牠的差量看存檔）。
+   */
+  const sessionHits = new Set();
   /** 漂浮提示球目前指著哪一條檢查（在還沒做到的項目之間循環）。 */
   let coachIndex = 0;
   let coachOpen = false;
@@ -1732,6 +1783,17 @@ export function createPromptConsole({
       ? progression.recordMurk(challenge, evaluation, meta)
       : progression.recordResult(evaluation, meta);
     lastEvaluation = evaluation;
+    /*
+     * v1.2 · P03：命中的檢查先讓世界看見（剝殼／清燈），再畫結果 ——
+     * 回呼在 recorder 回傳後、畫結果之前只觸發一次；回呼裡丟例外不能弄壞結果面。
+     */
+    if (onRubricHits) {
+      try {
+        onRubricHits(rubricHitsFor(challenge, evaluation, outcome, sessionHits));
+      } catch (err) {
+        console.warn('[console] onRubricHits 回呼失敗：', err);
+      }
+    }
     /** 試煉不教新技巧 —— 畫面上不放官方連結（curriculum-v2 §5.2）。 */
     const trial = isApplicationTrial(challenge);
     /*
@@ -2061,6 +2123,8 @@ export function createPromptConsole({
       usedQuickFill = false;
       usedCoach = false;
       rejects = 0;
+      // P03：新的一次 session —— 非 murk 的 onRubricHits 差量從零算
+      sessionHits.clear();
       const murk = isMurk(challenge);
       // v1.2 · P02：濁靈的最佳評價住在 `state.murks`（不是 bestGrades）
       const best = murk ? (progression.murkState?.(challenge.id) || {}).grade || null : progression.bestGrade(challenge.id);

@@ -5574,6 +5574,313 @@ const distToSeg = (px, pz, ax, az, bx, bz) => {
 }
 
 /* ================================================================== */
+/* v1.2 · P03：濁靈演出 —— onRubricHits 契約 ＋ 剝殼／清燈／光屑 ＋ SFX      */
+/* ================================================================== */
+{
+  const { evaluate: evalRubric } = await import('../src/challenges/rubric.js');
+  const murks = murkFile.entries;
+  const kitOfTest = () => Props.kitFor('#8aa0b4');
+
+  /* --- ① 音效表：三條合成列、cue 有合成 fallback、murkStir 有節流 --- */
+  {
+    for (const k of ['murkStir', 'murkHit', 'murkCalm']) {
+      const spec = SFX[k];
+      ok(Boolean(spec), `音效 ${k} 有合成定義（P03）`);
+      ok(spec && Array.isArray(spec.seq) && spec.seq.length > 0, `音效 ${k} 至少一個音`);
+      ok(spec && spec.gain > 0 && spec.gain < 0.3, `音效 ${k} 音量不刺耳`, spec && String(spec.gain));
+      ok(!(k in SFX_FILES), `音效 ${k} 沒有加進 SFX_FILES（先合成、不加 m4a）`);
+    }
+    ok(SFX.murkStir.base < 200, 'murkStir 是低頻雜訊（根音 < 200 Hz）', String(SFX.murkStir.base));
+    ok(SFX.murkStir.seq.every((r) => r[2] <= 0.4), 'murkStir 短促（每個音 ≤ 0.4s）');
+    ok(Number.isFinite(SFX.murkStir.throttle) && SFX.murkStir.throttle >= 0.5, 'murkStir 在 cue 層有節流（≥ 0.5s，避免兩隻同時吼）', String(SFX.murkStir.throttle));
+    ok(Array.isArray(SFX.murkHit.layers) && SFX.murkHit.layers.length === 3, 'murkHit 有三層音高（依累積 hits 1 / 2 / 3+）');
+    ok(SFX.murkHit.layers[0] < SFX.murkHit.layers[1] && SFX.murkHit.layers[1] < SFX.murkHit.layers[2], 'murkHit 三層由低到高');
+    ok(SFX.murkCalm.seq.length >= 3, 'murkCalm 是和弦（≥ 3 個音）');
+    ok(SFX.murkCalm.seq.some((r) => r[2] >= 0.8), 'murkCalm 溫暖有尾巴（有 ≥ 0.8s 的音）');
+    const a = createAudio({ volume: 0.5, muted: false });
+    eq(a.cue('murkStir'), true, '未啟動時 cue(murkStir) 不丟例外、有合成 fallback');
+    eq(a.cue('murkHit', { layer: 2 }), true, 'cue(murkHit, {layer}) 不丟例外');
+    eq(a.cue('murkCalm'), true, 'cue(murkCalm) 不丟例外');
+    ok(a.debug().cues.includes('murkHit') && a.debug().cues.includes('murkCalm'), 'audio.debug().cues 記到 murkHit / murkCalm（e2e 用同一支診斷把手）');
+    a.dispose();
+    const audioSrc = readFileSync(resolve(root, 'src/audio/audio.js'), 'utf8');
+    ok(/spec && spec\.throttle/.test(audioSrc) || /spec\?\.throttle/.test(audioSrc), 'cue() 對合成列也吃 throttle（不只音檔列）');
+    ok(/spec\.layers/.test(audioSrc), 'cue() 依 opts.layer 從 spec.layers 選音高');
+  }
+
+  /* --- ② 世界端：strike / restore / settled / visibleShellCount / 粒子池 --- */
+  {
+    const field = Murks.createMurkField({ entries: murks, kitOf: kitOfTest, terrainHeight: World.terrainHeight });
+    ok(typeof field.strike === 'function' && typeof field.restore === 'function', 'field 有 strike / restore');
+    ok(field.particles && field.particles.isPoints, 'field 有一組共用的粒子池（THREE.Points）');
+    ok(field.particleCapacity <= 12 && field.particleCapacity >= 8, '粒子池 ≤ 12 顆（預算）', String(field.particleCapacity));
+    eq(field.particles.geometry.attributes.position.count, field.particleCapacity, '粒子 buffer 一次配好');
+    let lights = 0;
+    field.group.traverse((o) => { if (o.isLight) lights += 1; });
+    eq(lights, 0, 'P03 之後仍是 0 光源');
+    const m = field.byId('murk-vague-ask');
+    ok(typeof m.visibleShellCount === 'function', '每隻有 visibleShellCount()');
+    eq(m.visibleShellCount(), 3, '一開始 3 層殼都在');
+    eq(m.state, 'idle', '一開始 idle');
+    const shellMatBefore = m.shells[0].material;
+    const shared = field.byId('murk-only-donts').shells[0].material;
+    eq(shellMatBefore, shared, '（前提）同色盤同一層的殼共用材質');
+    // strike：newly [0,2] → 殼 0/2 剝落，殼 1 不動；材質 clone 成 per-instance
+    const spawnedBefore = field.particlesSpawned;
+    field.strike('murk-vague-ask', { newlyPassedIndices: [0, 2], hits: [0, 2], score: 3, total: 4, calmed: false, newlyCalmed: false });
+    eq(m.shellState(0), 'peeling', 'strike 後殼 0 進入剝落');
+    eq(m.shellState(2), 'peeling', 'strike 後殼 2 進入剝落');
+    eq(m.shellState(1), 'intact', '殼 1 不動');
+    ok(m.shells[0].material !== shared && m.shells[0].material !== shellMatBefore, '剝落的殼先 clone 材質（不動共用快取）');
+    eq(field.byId('murk-only-donts').shells[0].material, shared, '別隻的殼仍用共用材質');
+    eq(shared.opacity, 0.2, '共用材質的 opacity 沒被動到');
+    ok(field.particlesSpawned - spawnedBefore >= 8 && field.particlesSpawned - spawnedBefore <= 12, 'strike 噴 8–12 顆粒子', String(field.particlesSpawned - spawnedBefore));
+    ok(field.activeParticles() > 0, 'strike 後粒子池有活粒子');
+    ok(m.flash > 0, 'strike 後身體閃白（core flash 計時器）');
+    eq(m.visibleShellCount(), 1, 'visibleShellCount 只數還在的殼（剝落中的不算）');
+    // 動畫走完（用 dt 累積 —— 計時器不是幀數）
+    for (let i = 0; i < 40; i += 1) field.update(0.05, i * 0.05, m.x + 3, m.z);
+    eq(m.shellState(0), 'hidden', '0.6s 後殼 0 隱藏');
+    eq(m.shellState(2), 'hidden', '0.6s 後殼 2 隱藏');
+    eq(m.shells[0].visible, false, '隱藏的殼 visible=false');
+    eq(m.shells[1].visible, true, '殼 1 仍可見');
+    eq(m.state === 'settled', false, '沒安撫 → 不是 settled');
+    eq(field.activeParticles(), 0, '2 秒後粒子都熄了');
+    // 再 strike 同一條（重複命中）→ 沒事、不重播
+    const spawned2 = field.particlesSpawned;
+    field.strike('murk-vague-ask', { newlyPassedIndices: [], hits: [0, 2], score: 3, total: 4, calmed: false, newlyCalmed: false });
+    eq(field.particlesSpawned, spawned2, 'newly 為空 → 不噴粒子、不重播');
+    // 安撫：newly [1] + calmed/newlyCalmed → 光屑繞玩家一圈（≤3s）→ settled
+    field.strike('murk-vague-ask', { newlyPassedIndices: [1], hits: [0, 1, 2], score: 4, total: 4, calmed: true, newlyCalmed: true });
+    ok(m.state === 'calming' || m.state === 'settled', 'newlyCalmed → 進入 calming／settled', m.state);
+    ok(field.activeParticles() > 0, '安撫時光屑從濁靈飛出（粒子池）');
+    const posBefore = m.group.position.clone();
+    for (let i = 0; i < 80; i += 1) field.update(0.05, i * 0.05, m.x + 3, m.z);
+    eq(m.state, 'settled', '≤ 3s 後 settled（清燈）');
+    ok(m.group.position.equals(posBefore), '清燈在原位（沒有任何實體跟隨玩家）');
+    eq(field.activeParticles(), 0, '光屑回到清燈位後熄滅');
+    ok(m.head.scale.x < 0.6, '頭縮成清燈（≤ 0.55 附近）', m.head.scale.x.toFixed(2));
+    ok(m.coreMat.emissive.r > 0.9 && m.coreMat.emissive.g > 0.85, '眼光轉暖白', m.coreMat.emissive.getHexString());
+    eq(m.visibleShellCount(), 0, '全剝 → 沒有殼');
+    // settled 的濁靈不再 aware 轉頭
+    const facing0 = m.head.rotation.y;
+    for (let i = 0; i < 40; i += 1) field.update(0.05, 10 + i * 0.05, m.x + 0.5, m.z + 3);
+    eq(m.state, 'settled', 'settled 不會回到 aware');
+    ok(Math.abs(m.head.rotation.y - facing0) < 0.02, '清燈不轉頭看人', String(m.head.rotation.y - facing0));
+    ok(m.glow.material.opacity > 0.05, '清燈的光暈仍在（暖色微弱呼吸）', String(m.glow.material.opacity));
+
+    // 餘殼：安撫時剩下的殼半透明、停轉
+    const r = field.byId('murk-only-donts');
+    field.strike('murk-only-donts', { newlyPassedIndices: [0], hits: [0], score: 2, total: 4, calmed: true, newlyCalmed: true });
+    for (let i = 0; i < 80; i += 1) field.update(0.05, i * 0.05, r.x + 3, r.z);
+    eq(r.state, 'settled', '部分命中也可安撫（attempt-pass）→ settled');
+    eq(r.shellState(1), 'residual', '剩下的殼變成餘殼');
+    eq(r.shellState(2), 'residual', '剩下的殼變成餘殼（2）');
+    ok(r.shells[1].material !== shared && Math.abs(r.shells[1].material.opacity - (0.2 - 0.04) * 0.35) < 1e-6, '餘殼 opacity ×0.35（per-instance 材質）', String(r.shells[1].material.opacity));
+    const rotY = r.shells[1].rotation.y;
+    for (let i = 0; i < 20; i += 1) field.update(0.05, 20 + i * 0.05, r.x + 3, r.z);
+    eq(r.shells[1].rotation.y, rotY, '餘殼停止旋轉');
+    eq(r.visibleShellCount(), 2, '餘殼算「還在」的殼');
+    // 安撫過的再補一殼：剝殼照播、不重播安撫
+    const spawned3 = field.particlesSpawned;
+    field.strike('murk-only-donts', { newlyPassedIndices: [1], hits: [0, 1], score: 3, total: 4, calmed: true, newlyCalmed: false });
+    eq(r.shellState(1), 'peeling', '安撫過的濁靈補命中 → 餘殼照樣剝落');
+    ok(field.particlesSpawned > spawned3, '補殼也有粒子');
+    eq(r.state, 'settled', '仍是 settled（不重播安撫）');
+
+    // restore：開機還原 —— 不播動畫
+    const f2 = Murks.createMurkField({ entries: murks, kitOf: kitOfTest, terrainHeight: World.terrainHeight });
+    const s2 = f2.particlesSpawned;
+    f2.restore('murk-vague-ask', { hits: [1], calmed: false });
+    const q = f2.byId('murk-vague-ask');
+    eq(q.shellState(1), 'hidden', 'restore({hits:[1]}) 立即隱藏殼 1');
+    eq(q.shells[1].visible, false, 'restore 的殼 visible=false');
+    eq(q.shellState(0), 'intact', 'restore 不動其他殼');
+    eq(q.visibleShellCount(), 2, 'restore 後 visibleShellCount 2');
+    eq(q.state, 'idle', 'restore 沒安撫 → idle');
+    eq(f2.particlesSpawned, s2, 'restore 不噴粒子');
+    eq(q.flash, 0, 'restore 不閃白');
+    f2.restore('murk-only-donts', { hits: [0, 1, 2], calmed: true });
+    const q2 = f2.byId('murk-only-donts');
+    eq(q2.state, 'settled', 'restore({calmed:true}) → 直接 settled');
+    ok(q2.head.scale.x < 0.6, 'restore settled：頭已縮成清燈');
+    eq(f2.activeParticles(), 0, 'restore settled 不放光屑');
+    // stateOf：建構時還原
+    const f3 = Murks.createMurkField({
+      entries: murks,
+      kitOf: kitOfTest,
+      terrainHeight: World.terrainHeight,
+      stateOf: (id) => (id === 'murk-trust-me' ? { hits: [0], grade: 'A' } : id === 'murk-leap-answer' ? { hits: [2], grade: null } : null),
+    });
+    eq(f3.byId('murk-trust-me').state, 'settled', 'stateOf 有 grade → 建構時就 settled');
+    eq(f3.byId('murk-trust-me').shellState(0), 'hidden', 'stateOf 的 hits 建構時就隱藏');
+    eq(f3.byId('murk-trust-me').shellState(1), 'residual', 'settled 剩下的殼是餘殼');
+    eq(f3.byId('murk-leap-answer').visibleShellCount(), 2, 'stateOf 只有 hits → 殼數 2、不 settled');
+    eq(f3.byId('murk-leap-answer').state, 'idle', '沒 grade → idle');
+    eq(f3.byId('murk-vague-ask').visibleShellCount(), 3, 'stateOf 回 null → 原樣');
+    // reducedMotion：跳過動畫、直接終態
+    const f4 = Murks.createMurkField({ entries: murks, kitOf: kitOfTest, terrainHeight: World.terrainHeight, reducedMotion: true });
+    const s4 = f4.particlesSpawned;
+    f4.strike('murk-vague-ask', { newlyPassedIndices: [0, 1, 2], hits: [0, 1, 2], score: 4, total: 4, calmed: true, newlyCalmed: true });
+    const q4 = f4.byId('murk-vague-ask');
+    eq(q4.state, 'settled', 'reducedMotion：strike 直接 settled');
+    eq(q4.shellState(0), 'hidden', 'reducedMotion：殼直接隱藏（不剝落）');
+    eq(f4.particlesSpawned, s4, 'reducedMotion：不噴粒子、不放光屑');
+    ok(q4.head.scale.x < 0.6, 'reducedMotion：頭直接縮成清燈');
+    // isBusy 時 strike 照播（玩家正看著結果面）
+    const f5 = Murks.createMurkField({ entries: murks, kitOf: kitOfTest, terrainHeight: World.terrainHeight, isBusy: () => true });
+    f5.strike('murk-vague-ask', { newlyPassedIndices: [0], hits: [0], score: 2, total: 4, calmed: false, newlyCalmed: false });
+    eq(f5.byId('murk-vague-ask').shellState(0), 'peeling', 'isBusy 時 strike 照播');
+    for (let i = 0; i < 20; i += 1) f5.update(0.05, i * 0.05, f5.byId('murk-vague-ask').x + 3, f5.byId('murk-vague-ask').z);
+    eq(f5.byId('murk-vague-ask').shellState(0), 'hidden', 'isBusy 時剝落動畫照樣走完');
+    // 未知 id / 壞參數不丟例外
+    eq(field.strike('nope', { newlyPassedIndices: [0] }), false, 'strike 未知 id 回 false');
+    eq(field.restore('nope', { hits: [0] }), false, 'restore 未知 id 回 false');
+    eq(field.strike('murk-vague-ask', null), false, 'strike 壞參數回 false');
+    // stir：走近 8m 內第一次 aware → onStir 一次；4 秒內不重複；走遠再回來 4 秒後才再叫
+    const stirs = [];
+    const f6 = Murks.createMurkField({ entries: murks.slice(0, 1), kitOf: kitOfTest, terrainHeight: World.terrainHeight, onStir: (mm) => stirs.push(mm.id) });
+    const s6 = f6.murks[0];
+    for (let i = 0; i < 20; i += 1) f6.update(0.05, i * 0.05, s6.x + 3, s6.z);
+    eq(stirs.length, 1, '走近第一次 aware → murkStir 一次');
+    for (let i = 0; i < 20; i += 1) f6.update(0.05, 1 + i * 0.05, s6.x + 20, s6.z);
+    for (let i = 0; i < 20; i += 1) f6.update(0.05, 2 + i * 0.05, s6.x + 3, s6.z);
+    eq(stirs.length, 1, '4 秒內走遠再回來不重複吼');
+    for (let i = 0; i < 20; i += 1) f6.update(0.05, 6 + i * 0.05, s6.x + 20, s6.z);
+    for (let i = 0; i < 20; i += 1) f6.update(0.05, 7 + i * 0.05, s6.x + 3, s6.z);
+    eq(stirs.length, 2, '≥ 4 秒後再走近才再吼一次');
+    f6.strike(s6.id, { newlyPassedIndices: [0, 1, 2], hits: [0, 1, 2], score: 4, total: 4, calmed: true, newlyCalmed: true });
+    for (let i = 0; i < 80; i += 1) f6.update(0.05, 20 + i * 0.05, s6.x + 20, s6.z);
+    for (let i = 0; i < 20; i += 1) f6.update(0.05, 30 + i * 0.05, s6.x + 3, s6.z);
+    eq(stirs.length, 2, '清燈不吼（settled 不 aware）');
+
+    // 審查後修訂：開關面板不算「重新走近」——站在 3m 處把面板開著 5 秒再關，不會再吼
+    const stirs7 = [];
+    let busy7 = false;
+    const f7 = Murks.createMurkField({ entries: murks.slice(0, 1), kitOf: kitOfTest, terrainHeight: World.terrainHeight, isBusy: () => busy7, onStir: (mm) => stirs7.push(mm.id) });
+    const s7 = f7.murks[0];
+    for (let i = 0; i < 20; i += 1) f7.update(0.05, i * 0.05, s7.x + 3, s7.z);
+    eq(stirs7.length, 1, '（面板）走近第一次吼一次');
+    busy7 = true;
+    for (let i = 0; i < 100; i += 1) f7.update(0.05, 1 + i * 0.05, s7.x + 3, s7.z);
+    busy7 = false;
+    for (let i = 0; i < 20; i += 1) f7.update(0.05, 6 + i * 0.05, s7.x + 3, s7.z);
+    eq(stirs7.length, 1, '開著面板 5 秒再關、人沒離開 → 不再吼（wasAware 看距離不看 busy）');
+
+    // 審查後修訂：reset() 把世界端拉回一隻都沒碰過（殼長回來、清燈變回濁靈、粒子收掉）
+    const f8 = Murks.createMurkField({ entries: murks.slice(0, 2), kitOf: kitOfTest, terrainHeight: World.terrainHeight });
+    const r8a = f8.murks[0];
+    const r8b = f8.murks[1];
+    f8.strike(r8a.id, { newlyPassedIndices: [0, 1, 2], hits: [0, 1, 2], score: 4, total: 4, calmed: true, newlyCalmed: true });
+    f8.strike(r8b.id, { newlyPassedIndices: [1], hits: [1], score: 1, total: 4, calmed: false, newlyCalmed: false });
+    for (let i = 0; i < 10; i += 1) f8.update(0.05, i * 0.05, r8a.x + 3, r8a.z);
+    ok(r8a.settled && f8.activeParticles() > 0, '（前提）一隻安撫中、池裡有粒子');
+    eq(f8.reset(), true, 'reset() 回 true');
+    eq(r8a.settled, false, 'reset 後清燈變回濁靈（settled=false）');
+    eq(r8a.state, 'idle', 'reset 後 state idle');
+    eq(r8a.visibleShellCount(), 3, 'reset 後殼全部長回來');
+    eq(r8b.visibleShellCount(), 3, 'reset 後另一隻的殼也長回來');
+    eq(r8a.shellState(0), 'intact', 'reset 後殼不是餘殼');
+    eq(f8.activeParticles(), 0, 'reset 後池裡沒有粒子');
+    ok(Math.abs(r8a.head.scale.x - 1) < 1e-6, 'reset 後頭恢復原大小');
+    // reset 之後再 strike 一次要能重新演出（不是 no-op）
+    f8.strike(r8a.id, { newlyPassedIndices: [0], hits: [0], score: 2, total: 4, calmed: false, newlyCalmed: false });
+    eq(r8a.shellState(0), 'peeling', 'reset 之後 strike 仍會剝殼');
+
+    // 審查後修訂：剝落從「當時的 opacity」淡出（安撫同一擊時不會先跳成餘殼再淡）
+    const f9 = Murks.createMurkField({ entries: murks.slice(0, 1), kitOf: kitOfTest, terrainHeight: World.terrainHeight });
+    const r9 = f9.murks[0];
+    const base9 = r9.shells[1].userData.baseOpacity;
+    f9.strike(r9.id, { newlyPassedIndices: [1], hits: [1], score: 1, total: 4, calmed: true, newlyCalmed: true });
+    f9.update(0.016, 0.016, r9.x + 3, r9.z);
+    ok(r9.shells[1].material.opacity > base9 * 0.8, '剝落第一格 opacity 仍接近原值（不跳到 35%）', String(r9.shells[1].material.opacity));
+    // dt 夾：一幀 2 秒也不會讓 0.6s 的剝落一格跑完
+    const f10 = Murks.createMurkField({ entries: murks.slice(0, 1), kitOf: kitOfTest, terrainHeight: World.terrainHeight });
+    const r10 = f10.murks[0];
+    f10.strike(r10.id, { newlyPassedIndices: [0], hits: [0], score: 2, total: 4, calmed: false, newlyCalmed: false });
+    f10.update(2.0, 2.0, r10.x + 3, r10.z);
+    eq(r10.shellState(0), 'peeling', '一幀 2 秒：剝落計時器被夾在 0.1s，殼還在剝');
+  }
+
+  /* --- ③ 靜態掃描：零每幀配置（update / strike 內無 new THREE.／.map(／.filter(）；0 光源 --- */
+  {
+    const murkSrc = readFileSync(resolve(root, 'src/world/murks.js'), 'utf8');
+    const bodyOf = (name) => {
+      const at = murkSrc.indexOf(`    ${name}(`);
+      ok(at > 0, `找得到 field.${name}() 本體`);
+      if (at < 0) return '';
+      const open = murkSrc.indexOf('{', at);
+      let depth = 0;
+      for (let i = open; i < murkSrc.length; i += 1) {
+        if (murkSrc[i] === '{') depth += 1;
+        else if (murkSrc[i] === '}') { depth -= 1; if (depth === 0) return murkSrc.slice(open, i + 1); }
+      }
+      return murkSrc.slice(open);
+    };
+    for (const fn of ['update', 'strike', 'restore']) {
+      const body = bodyOf(fn);
+      ok(body.length > 50, `field.${fn}() 本體不是空的`);
+      ok(!/new THREE\./.test(body), `${fn}() 裡沒有 new THREE.`);
+      ok(!/\.map\(/.test(body), `${fn}() 裡沒有 .map(`);
+      ok(!/\.filter\(/.test(body), `${fn}() 裡沒有 .filter(`);
+      ok(!/\bnew\s+[A-Z]/.test(body), `${fn}() 裡沒有 new 任何物件`);
+    }
+    ok(!/new THREE\.(Point|Spot|Directional|Hemisphere|Ambient|RectArea)Light/.test(murkSrc), 'P03 的 murks.js 仍沒有任何光源');
+    ok((murkSrc.match(/new THREE\.Points\(/g) || []).length === 1, '只有一組共用的 Points 粒子池');
+    ok(/frustumCulled = false/.test(murkSrc), '粒子池關掉 frustum culling（粒子會飛離初始包圍球）');
+    const worldSrc = readFileSync(resolve(root, 'src/world/world.js'), 'utf8');
+    ok(/murkStateOf/.test(worldSrc), 'world.js 接 murkStateOf 傳給 createMurkField（開機還原殼數）');
+    ok(/stateOf/.test(worldSrc), 'createMurkField 拿到 stateOf');
+    const mainSrc = readFileSync(resolve(root, 'src/main.js'), 'utf8');
+    ok(/onRubricHits/.test(mainSrc), 'main.js 接 onRubricHits');
+    ok(/world\.murks\.strike\(/.test(mainSrc), 'main.js 對濁靈呼叫 world.murks.strike');
+    ok(/engine\.pulse\(0\.28\)/.test(mainSrc.slice(mainSrc.indexOf('onRubricHits'), mainSrc.indexOf('onRubricHits') + 2500)), 'strike 時 engine.pulse(0.28)（world 不碰 engine）');
+    ok(/audio\.cue\('murkHit'/.test(mainSrc), 'main.js 每剝一殼 cue murkHit');
+    ok(/audio\.cue\('murkCalm'\)/.test(mainSrc), 'newlyCalmed 時 cue murkCalm');
+    ok(/murkStateOf: \(id\) => progression\.murkState\(id\)/.test(mainSrc), 'createWorld 傳 murkStateOf');
+    const consoleSrc = readFileSync(resolve(root, 'src/prompt/console.js'), 'utf8');
+    ok(/onRubricHits/.test(consoleSrc), '主控台有 onRubricHits 回呼');
+    const rr = consoleSrc.slice(consoleSrc.indexOf('function renderResult'), consoleSrc.indexOf('onResult?.({ challenge, evaluation, outcome })'));
+    const hitsAt = rr.indexOf('onRubricHits(rubricHitsFor(');
+    const recorderAt = rr.indexOf('progression.recordMurk(challenge, evaluation, meta)');
+    const drawAt = rr.indexOf('resultEl.innerHTML');
+    ok(hitsAt > 0 && recorderAt > 0 && drawAt > 0, '（前提）renderResult 裡找得到回呼／recorder／畫結果三個點');
+    ok(recorderAt < hitsAt && hitsAt < drawAt, 'onRubricHits 在 recorder 回傳後、畫結果之前觸發');
+    ok(/sessionHits\.clear\(\)/.test(consoleSrc.slice(consoleSrc.indexOf('open(challenge) {'), consoleSrc.indexOf('open(challenge) {') + 1500)), 'open() 時清空 session 命中集合（非 murk 差量的基準）');
+  }
+
+  /* --- ④ onRubricHits 非 murk 的差量：純函式（同一 session 兩次送出 → 第二次只回新增；清空後歸零） --- */
+  {
+    const { rubricHitsFor } = await import('../src/prompt/console.js');
+    ok(typeof rubricHitsFor === 'function', 'console.js 匯出 rubricHitsFor(challenge, evaluation, outcome, sessionHits)');
+    const ch = challenges.find((c) => c.id === 'gate-of-clarity-01');
+    const seen = new Set();
+    const e1 = evalRubric(ch, '請把這段話改寫。');
+    const h1 = rubricHitsFor(ch, e1, {}, seen);
+    eq(JSON.stringify(Object.keys(h1).sort()), JSON.stringify(['challenge', 'newlyPassedIndices', 'passedIndices', 'total']), '契約四鍵：challenge / passedIndices / newlyPassedIndices / total');
+    eq(h1.total, ch.rubric.length, 'total ＝ rubric 條數');
+    eq(JSON.stringify(h1.passedIndices), JSON.stringify(e1.results.map((r, i) => (r.passed ? i : -1)).filter((i) => i >= 0)), 'passedIndices ＝ 這一次 passed===true 的 index');
+    eq(JSON.stringify(h1.newlyPassedIndices), JSON.stringify(h1.passedIndices), '第一次：newly ＝ passed（session 內沒命中過）');
+    const e2 = evalRubric(ch, ch.sample);
+    const h2 = rubricHitsFor(ch, e2, {}, seen);
+    ok(h2.passedIndices.length > h1.passedIndices.length, '（前提）範例解命中更多列');
+    eq(JSON.stringify(h2.newlyPassedIndices), JSON.stringify(h2.passedIndices.filter((i) => !h1.passedIndices.includes(i))), '第二次：newly 只回相對於 session 的新增');
+    const h3 = rubricHitsFor(ch, e2, {}, seen);
+    eq(JSON.stringify(h3.newlyPassedIndices), '[]', '第三次同一句：newly 為空');
+    seen.clear();
+    const h4 = rubricHitsFor(ch, e2, {}, seen);
+    eq(JSON.stringify(h4.newlyPassedIndices), JSON.stringify(h4.passedIndices), 'open() 清空後（Set.clear）差量歸零、全部又算新');
+    // murk：直接用 outcome.murk
+    const mk = { ...murks[0], kind: 'murk' };
+    const hm = rubricHitsFor(mk, evalRubric(mk, mk.sample), { murk: { newlyPassedIndices: [2], hits: [0, 1, 2], score: 4, total: 4, calmed: true, newlyCalmed: true } }, new Set());
+    eq(JSON.stringify(hm.newlyPassedIndices), '[2]', 'murk：newly 直接用 outcome.murk.newlyPassedIndices（存檔累積差量，不是 session）');
+    eq(JSON.stringify(hm.passedIndices), '[0,1,2]', 'murk：passedIndices ＝ outcome.murk.hits');
+    eq(hm.total, 3, 'murk：total ＝ rubric 條數（殼數）');
+    eq(hm.challenge, mk, 'challenge 原樣帶回');
+  }
+}
+
+/* ================================================================== */
 /* Phase 7：序章「喚醒神諭」引導課程                                     */
 /*                                                                    */
 /*   · 教學內容必須逐字取自 curriculum（護欄 2：不得杜撰技巧或來源）      */

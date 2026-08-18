@@ -816,9 +816,9 @@ Exit criteria：
 - [x] rubric 84,367／playtest 2,429／build ✓／e2e 3,448 全綠、console error 0；fonts 已跑。
 - [x] outcome 契約寫進 progress.md／CHANGELOG／roadmap P02–P03（給 P03）。
 
-### P03 — 濁靈演出：`onRubricHits` 契約＋剝殼＋清燈＋SFX（2026-08-18 開工）
+### P03 — 濁靈演出：`onRubricHits` 契約＋剝殼＋清燈＋SFX（2026-08-18 開工 · 同日完成）
 
-狀態：`in progress`（Codex 額度用盡至 8/20 → consult 由 orchestrator 自審；review 用 `/code-review high`）
+狀態：`done`（Codex 額度用盡至 8/20 → consult 由 orchestrator 自審；`/code-review high` 因 session 上限只跑完 1/5 角度，該角度 6 條全修）
 
 **現狀（P02 之後）**：`recordMurk()` 原子回傳 `outcome.murk = { newlyPassedIndices, hits, score, total, calmed, newlyCalmed }`；`console.js renderResult()` 先算 outcome、畫結果、最後 `onResult?.({challenge, evaluation, outcome})`（`console.js:~1902`）；`main.js` onResult murk 分支處理音效／慶祝／升等／解鎖後 return；`src/world/murks.js` 每隻有 `shells[]`（殼數＝rubric 條數；材質依 kit＋index **共用快取**）、`core/coreMat`、`glow`、`state: 'idle'|'aware'`、`awareAmt`、`setNear`，`update()` 做呼吸／轉頭；開機時**尚未**依存檔還原殼數；`audio.js` `SFX` 合成表（如 `scurry`）＋ `cue()` 檔案缺席自動退回合成；`engine.pulse(amount)`；粒子樣板 `reactive.js:366–408`（`THREE.Points` 逐點位置＋`needsUpdate`）；`reducedMotion` 已傳進 murk field。
 
@@ -837,6 +837,8 @@ Exit criteria：
 4. **接線** `main.js`：`createPromptConsole({ ..., onRubricHits })` → murk 時 `world.murks.strike(challenge.id, outcome.murk)`＋`engine.pulse(0.28)`＋`audio.cue('murkHit')`（每條一次，最多 3 次、間隔 90ms 用 setTimeout；不是每幀）；`onResult` murk 分支：newlyCalmed → `audio.cue('murkCalm')`、`hud.celebrate`（既有）、`player.celebrate`（既有）。`createWorld({..., murkStateOf: (id) => progression.murkState(id) })`。
 5. **e2e 把手**：`window.__promptasy.world.murks.byId(id)` 已有；加 `m.visibleShellCount()`、`m.state`。
 
+**審查後修訂（2026-08-18；`/code-review high` 只跑完 Angle A、6 條）**：① 剝落從殼「當時的 opacity」淡出（`peelFrom[]`），同一擊安撫時不會先跳成餘殼再淡；② `murkStir` 的「第一次走近」看**距離**不看 aware（`wasAware = inRange`），開關面板不再重吼；③ `field.reset()`：進度重置不重載時把殼長回來、清燈變回濁靈、粒子池清空，`main.js onReset` 呼叫；④ `onRubricHits` 濁靈路徑多帶 `murk:{…calmed,newlyCalmed…}` 第五鍵（非 murk 仍四鍵），世界端不再用 `!settled` 猜「這一次才安撫」；⑤ 同一擊安撫時碎光最多 `N − SCRAP_COUNT` 顆，留位給光屑；⑥ 演出計時器用 `min(dt, 0.1)`，慢渲染／分頁切回不會一格跑完。
+
 **非目標**：石座演出（P09）、文案／WORLD.md（P04）、hitstop／震動／慢動作、任何實體跟隨玩家、新光源。
 
 **受影響檔案**：`src/prompt/console.js`、`src/world/murks.js`、`src/world/world.js`（傳 `murkStateOf`、暴露 strike/restore）、`src/main.js`、`src/audio/audio.js`、`scripts/test-rubric.mjs`（SFX 表新增三條的合成 fallback／throttle 斷言、`strike/restore` 純函式行為、零每幀配置靜態掃描）、`scripts/headless-check.mjs`（輪詢式）、fonts（若有新字串）。
@@ -851,9 +853,9 @@ Exit criteria：
 **禁區**：同 P01／P02；另不動 `SFX_FILES`、不加 m4a。
 
 Exit criteria：
-- [ ] 剝殼／餘殼／清燈／光屑／SFX 全部可見可聽；重開不重播；開機依存檔還原。
-- [ ] rubric／playtest／build／e2e 全綠、console error 0。
-- [ ] 數字與 `onRubricHits` 契約寫進 progress.md／CHANGELOG（給 P09）。
+- [x] 剝殼／餘殼／清燈／光屑／SFX 全部可見可聽；重開不重播；開機依存檔還原；reset 世界同步。
+- [x] rubric 84,527／playtest 2,429／build ✓／e2e 3,525 全綠、console error 0。
+- [x] 數字與 `onRubricHits` 契約寫進 progress.md／CHANGELOG／findings（給 P09）。
 
 ## v1.2 錯誤紀錄
 

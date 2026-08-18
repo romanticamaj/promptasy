@@ -2618,6 +2618,11 @@ export function createWorld({
   handles = [],
   /** v1.2 · P01：濁靈（murks.json 的 entries）。沒給就不蓋，世界照樣成立。 */
   murks = [],
+  /**
+   * v1.2 · P03：開機依存檔還原濁靈的殼數／清燈（`(id) => progression.murkState(id)`）。
+   * 沒給就退回 `progression.murkState`（測試世界的 stub 沒有這個方法 → 全部原樣）。
+   */
+  murkStateOf = null,
   /** Phase 22：走近會有反應的東西要不要放聲音（面板打開時整組停手）。 */
   onReact = null,
   onSecret = null,
@@ -2761,6 +2766,15 @@ export function createWorld({
     terrainHeight,
     isBusy,
     reducedMotion,
+    // P03：建構時依存檔還原（hits → 殼直接隱藏；grade → 直接清燈；不播動畫）
+    stateOf:
+      typeof murkStateOf === 'function'
+        ? murkStateOf
+        : progression && typeof progression.murkState === 'function'
+          ? (id) => progression.murkState(id)
+          : null,
+    // P03：走近 8 公尺內第一次 aware → 短促雜訊（每隻 ≥ 4s；面板開著不吼）。走 onReact 同一條聲音管線。
+    onStir: onReact ? () => onReact({ sound: 'murkStir' }) : null,
   });
   root.add(murkField.group);
 

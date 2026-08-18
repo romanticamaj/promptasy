@@ -138,6 +138,8 @@ function boot() {
     handles: handleFile.entries || [],
     // v1.2 · P01：濁靈（留在原地的東西；走近會轉頭，按 E 開主控台安撫）
     murks: murkFile.entries || [],
+    // v1.2 · P03：開機依存檔還原殼數／清燈（不播動畫）
+    murkStateOf: (id) => progression.murkState(id),
     reducedMotion,
     onReact: (evt) => audio.cue(evt.sound, { baseScale: evt.baseScale }),
     onSecret: (id) => findSecret(id),
@@ -253,6 +255,8 @@ function boot() {
     return hard ? 'hardGate' : 'unlock';
   }
 
+  /** v1.2 · P03：最近一次 `onRubricHits` 的資料（測試／除錯用）。 */
+  let lastRubricHits = null;
   const promptConsole = createPromptConsole({
     content,
     progression,
@@ -277,6 +281,38 @@ function boot() {
     // 刻印牌被按下去的那一下（節流在音訊那邊）
     onTap: () => audio.cue('click'),
     onShare: (opts) => openShare(opts),
+    /*
+     * v1.2 · P03：命中的檢查看得見 —— recorder 回傳後、畫結果之前，主控台回呼一次。
+     * 濁靈：每一條新命中剝一層殼（世界端演出）＋ 一下輕脈衝 ＋ 每殼一聲 murkHit
+     * （最多 3 聲、隔 90ms 用 setTimeout 排開；音高層依累積命中數 1/2/3+）。
+     * 關卡（kind 缺省）：P03 只回呼、不演出（P09 接石座）。
+     */
+    onRubricHits: (hits) => {
+      lastRubricHits = hits;
+      const ch = hits && hits.challenge;
+      if (!ch || ch.kind !== 'murk') return;
+      const newly = Array.isArray(hits.newlyPassedIndices) ? hits.newlyPassedIndices : [];
+      const cumulative = Array.isArray(hits.passedIndices) ? hits.passedIndices.length : newly.length;
+      // recorder 已經落盤：calmed／newlyCalmed 直接用它回傳的（hits.murk），不讓世界端猜
+      const st = progression.murkState(ch.id);
+      const mk = hits.murk || {};
+      world.murks.strike(ch.id, {
+        newlyPassedIndices: newly,
+        hits: hits.passedIndices,
+        total: hits.total,
+        calmed: typeof mk.calmed === 'boolean' ? mk.calmed : Boolean(st && st.grade),
+        newlyCalmed: typeof mk.newlyCalmed === 'boolean' ? mk.newlyCalmed : undefined,
+      });
+      if (!newly.length) return;
+      engine.pulse(0.28);
+      const n = Math.min(3, newly.length);
+      for (let k = 0; k < n; k += 1) {
+        // 第 k 殼的累積命中數 ＝（累積 − 這一次新增）＋ k ＋ 1 → 三層音高 0/1/2
+        const layer = Math.min(2, Math.max(0, cumulative - newly.length + k));
+        if (k === 0) audio.cue('murkHit', { layer });
+        else setTimeout(() => audio.cue('murkHit', { layer }), 90 * k);
+      }
+    },
     onResult: ({ challenge, evaluation, outcome }) => {
       hud.refresh();
       /** 升等的共同收尾（關卡與濁靈都走這裡）：toast ＋ 一下脈衝。 */
@@ -306,7 +342,13 @@ function boot() {
        */
       if (challenge && challenge.kind === 'murk') {
         const mk = outcome.murk || {};
-        if (evaluation.passed) audio.cue('pass', { grade: evaluation.grade });
+        /*
+         * P03：這一次才安撫 → 只播 murkCalm（暖和弦），不再播 pass；
+         * 沒安撫時照 P02：這一次過了播 pass、沒過播 fail。
+         * （「這一次沒過、但聯集湊到安撫」→ 只有 murkCalm —— 牠聽懂了就是好消息，不疊 fail。）
+         */
+        if (mk.newlyCalmed) audio.cue('murkCalm');
+        else if (evaluation.passed) audio.cue('pass', { grade: evaluation.grade });
         else audio.cue('fail');
         if (mk.newlyCalmed) {
           player.celebrate?.();
@@ -374,6 +416,8 @@ function boot() {
     onClose: () => closePanel(),
     onReset: () => {
       hud.refresh();
+      // v1.2 · P03：世界端的濁靈跟著存檔一起歸零（不重載也不會演出失聯）
+      world.murks?.reset?.();
       hud.toast('進度已重置 —— 重新整理頁面即可從頭開始', 'warn');
     },
     onReplayPrologue: () => {
@@ -1204,6 +1248,8 @@ function boot() {
       const m = world.murks.byId(id);
       return m ? murkChallenge(m) : null;
     },
+    /** v1.2 · P03：最近一次 onRubricHits 回呼的資料（測試用：契約四鍵、murk／非 murk 差量）。 */
+    rubricHits: () => lastRubricHits,
     /** v1.2 · P02：目前稱號 id（測試用：驗濁靈不動稱號）。 */
     rankNow: () => rankFor(rankStats(progression, catalog), ranksFile.ranks).rank.id,
     /** v1.2 · P02：安撫過的濁靈數 —— 只數 murks.json 裡真的有的那幾隻（圖鑑第四列用的同一個數）。 */

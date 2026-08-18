@@ -7089,9 +7089,23 @@ async function main() {
       state: JSON.stringify(g.progression.state),
       save: localStorage.getItem('promptasy.v1.save'),
       xp: g.progression.state.xp,
+      // v1.2 · P03：殼數／狀態／粒子池的起點
+      shells: typeof m.visibleShellCount === 'function' ? m.visibleShellCount() : -1,
+      shellStates: [0, 1, 2].map((i) => (m.shellState ? m.shellState(i) : null)),
+      murkState: m.state,
+      spawned: g.world.murks.particlesSpawned,
+      capacity: g.world.murks.particleCapacity,
+      hasStrike: typeof g.world.murks.strike === 'function' && typeof g.world.murks.restore === 'function',
+      cuesBefore: g.audio.debug().cues.length,
     };
   `);
   eq(murkPre.hintFar, true, '離得遠的時候沒有濁靈的提示');
+  /* --- v1.2 · P03：演出的起點 --- */
+  eq(murkPre.hasStrike, true, 'world.murks 有 strike / restore（P03）');
+  eq(murkPre.shells, 3, '還沒安撫：3 層殼都在（visibleShellCount）');
+  eq(JSON.stringify(murkPre.shellStates), JSON.stringify(['intact', 'intact', 'intact']), '三層殼都是 intact');
+  ok(murkPre.capacity >= 8 && murkPre.capacity <= 12, '粒子池 ≤ 12 顆', String(murkPre.capacity));
+  eq(murkPre.spawned, 0, '還沒 strike → 粒子池沒噴過');
   const murkHint = await waitFor(async () => {
     const r = await evaluate(`
       const h = document.querySelector('[data-interact]');
@@ -7159,11 +7173,17 @@ async function main() {
     await new Promise((r) => setTimeout(r, 200));
     const ta = document.querySelector('.prompt-input');
     const out = { guideLinks, guidanceSeen: g.progression.state.guidanceSeen.slice() };
+    out.hitsPayloads = [];
+    out.spawnedAfter = [];
     for (let i = 0; i < 2; i += 1) {
       ta.value = ${JSON.stringify(murkPre.taint)};
       document.querySelector('#prompt-console [data-submit]').click();
+      // v1.2 · P03：onRubricHits 的資料 ＋ 粒子池是不是真的噴了（回呼是同步的，這裡直接讀）
+      out.hitsPayloads.push(JSON.stringify(g.rubricHits()));
+      out.spawnedAfter.push(g.world.murks.particlesSpawned);
       await new Promise((r) => setTimeout(r, 450));
     }
+    out.cuesAfter = g.audio.debug().cues.slice();
     out.gradeMark = document.querySelector('#prompt-console .grade__mark')?.textContent.trim();
     out.fail = !!document.querySelector('#prompt-console .result__top.is-fail');
     out.resultHidden = document.querySelector('#prompt-console .result')?.hidden;
@@ -7215,9 +7235,40 @@ async function main() {
   ok(murkSubmit.saveMurks && typeof murkSubmit.saveMurks === 'object' && 'murk-vague-ask' in murkSubmit.saveMurks, '存檔有 murks 欄、而且記著這一隻（命中永不清零）', JSON.stringify(murkSubmit.saveMurks));
   eq(JSON.stringify(murkSubmit.saveMurks['murk-vague-ask']), JSON.stringify(murkSubmit.murkState), '存檔裡的 murks[id] 與 murkState 一致');
 
+  /* --- v1.2 · P03：onRubricHits 契約（濁靈：差量看存檔）＋ 剝殼演出（輪詢式） --- */
+  {
+    const h1 = JSON.parse(murkSubmit.hitsPayloads[0]);
+    const h2 = JSON.parse(murkSubmit.hitsPayloads[1]);
+    eq(JSON.stringify(Object.keys(h1).sort()), JSON.stringify(['challenge', 'murk', 'newlyPassedIndices', 'passedIndices', 'total']), 'onRubricHits 契約：四鍵 ＋ 濁靈多帶 murk 子物件');
+    ok(h1.murk && typeof h1.murk.calmed === 'boolean' && typeof h1.murk.newlyCalmed === 'boolean', 'murk 子物件帶 calmed／newlyCalmed（世界端不用猜）');
+    eq(h1.challenge && h1.challenge.id, 'murk-vague-ask', 'challenge 是這一隻');
+    eq(h1.total, 3, 'total ＝ rubric 條數 ＝ 殼數');
+    eq(JSON.stringify(h1.passedIndices), JSON.stringify(murkSubmit.murkState.hits), '濁靈：passedIndices ＝ 存檔累積 hits');
+    ok(h1.newlyPassedIndices.length >= 1, '第一次送濁言：有新命中（濁言原文本身命中「派任務」那一列）', JSON.stringify(h1));
+    eq(JSON.stringify(h1.newlyPassedIndices), JSON.stringify(h1.passedIndices), '第一次：newly ＝ 全部命中');
+    eq(JSON.stringify(h2.newlyPassedIndices), '[]', '第二次送同一句：newly 為空（相對於存檔沒有新增 → 不重播）');
+    eq(JSON.stringify(h2.passedIndices), JSON.stringify(h1.passedIndices), '第二次：passedIndices 不變');
+    ok(murkSubmit.spawnedAfter[0] >= 8 && murkSubmit.spawnedAfter[0] <= 12, '第一次 strike：粒子池噴了 8–12 顆', String(murkSubmit.spawnedAfter[0]));
+    eq(murkSubmit.spawnedAfter[1], murkSubmit.spawnedAfter[0], '第二次沒有新命中 → 不再噴粒子（不重播）');
+    ok(murkSubmit.cuesAfter.includes('murkHit'), '音效診斷有 murkHit（每剝一殼一聲）', JSON.stringify(murkSubmit.cuesAfter));
+    ok(!murkSubmit.cuesAfter.includes('murkCalm'), '沒安撫 → 沒有 murkCalm', JSON.stringify(murkSubmit.cuesAfter));
+  }
+  const murkPeeled = await waitFor(async () => {
+    const r = await evaluate(`
+      const m = window.__promptasy.world.murks.byId('murk-vague-ask');
+      return { shells: m.visibleShellCount(), states: [0, 1, 2].map((i) => m.shellState(i)), state: m.state, active: window.__promptasy.world.murks.activeParticles(), hidden1: m.shells[1].visible === false };
+    `);
+    return r.shells === 2 && r.states[1] === 'hidden' && r.active === 0 ? r : null;
+  }, { timeout: 8000, label: '殼 1 剝落完成' });
+  eq(murkPeeled.shells, 2, '命中一條 → 殼數 3 → 2（剝落走完）');
+  eq(JSON.stringify(murkPeeled.states), JSON.stringify(['intact', 'hidden', 'intact']), '殼 index ＝ rubric index：只有殼 1 隱藏');
+  eq(murkPeeled.hidden1, true, '隱藏的殼 visible=false');
+  ok(murkPeeled.state !== 'settled' && murkPeeled.state !== 'calming', '沒安撫 → 不是 settled', murkPeeled.state);
+  eq(murkPeeled.active, 0, '碎光熄了（粒子池歸零）');
+
   await key('Escape', 'Escape', { vk: 27 });
   await sleep(300);
-  /* --- 關掉重開：狀態一致（沒有殼動畫可驗，只驗 state 與主控台標頭） --- */
+  /* --- 關掉重開：狀態一致（殼數仍 2、不重播） --- */
   const murkReopen = await evaluate(`
     const g = window.__promptasy;
     const closed = { open: g.promptConsole.isOpen, state: JSON.stringify(g.progression.murkState('murk-vague-ask')) };
@@ -7230,10 +7281,14 @@ async function main() {
       subtitle: head.querySelector('.panel__sub')?.textContent.replace(/\\s+/g, ' ').trim() || '',
       state: JSON.stringify(g.progression.murkState('murk-vague-ask')),
       save: JSON.stringify(JSON.parse(localStorage.getItem('promptasy.v1.save')).murks['murk-vague-ask']),
+      shells: g.world.murks.byId('murk-vague-ask').visibleShellCount(),
+      spawned: g.world.murks.particlesSpawned,
     };
     return out;
   `);
   eq(murkReopen.closed.open, false, 'Escape 收起主控台');
+  eq(murkReopen.shells, 2, '關掉重開：殼數仍 2（不重播）');
+  eq(murkReopen.spawned, murkSubmit.spawnedAfter[1], '關掉重開：粒子池沒再噴');
   eq(murkReopen.openAgain, true, '重開主控台');
   eq(murkReopen.state, murkReopen.closed.state, '關掉重開 murkState 一致');
   eq(murkReopen.save, murkReopen.state, '存檔與 state 一致');
@@ -7256,13 +7311,22 @@ async function main() {
       rank: g.rankNow(),
     };
     const ta = document.querySelector('.prompt-input');
+    const cuesLen0 = g.audio.debug().cues.length;
     ta.value = c.challenge.sample;
     document.querySelector('#prompt-console [data-submit]').click();
+    const hitsPayload = JSON.stringify(g.rubricHits());
+    const mm = g.world.murks.byId('murk-vague-ask');
+    const stateRightAfter = mm.state;
+    const activeRightAfter = g.world.murks.activeParticles();
     await new Promise((r) => setTimeout(r, 600));
     const st = g.progression.state;
     const ms = g.progression.murkState('murk-vague-ask');
     const out = {
       before,
+      hitsPayload,
+      stateRightAfter,
+      activeRightAfter,
+      cuesCalm: g.audio.debug().cues.slice(),
       gradeMark: document.querySelector('#prompt-console .grade__mark')?.textContent.trim(),
       pass: !!document.querySelector('#prompt-console .result__top.is-pass'),
       gainText: document.querySelector('#prompt-console .result .gain')?.textContent.replace(/\\s+/g, ' ').trim() || '',
@@ -7294,6 +7358,39 @@ async function main() {
     return out;
   `);
   eq(murkCalm.pass, true, '範例解這一次過了（印章看這一次：is-pass）');
+  /* --- v1.2 · P03：安撫演出 —— murkCalm 取代 pass、光屑（粒子）、清燈（輪詢式） --- */
+  {
+    const h = JSON.parse(murkCalm.hitsPayload);
+    eq(JSON.stringify(h.passedIndices), '[0,1,2]', '範例解：passedIndices ＝ 全部三列（累積）');
+    eq(JSON.stringify(h.newlyPassedIndices), '[0,2]', '範例解：newly 只回相對於存檔的新增 [0,2]（殼 1 早剝了）');
+    ok(murkCalm.stateRightAfter === 'calming' || murkCalm.stateRightAfter === 'settled', 'strike 當下進入 calming（光屑）或 settled', murkCalm.stateRightAfter);
+    ok(murkCalm.activeRightAfter > 0, '安撫當下粒子池有活粒子（碎光＋光屑）', String(murkCalm.activeRightAfter));
+    const recent = murkCalm.cuesCalm;
+    ok(recent.includes('murkCalm'), '這一次才安撫 → 音效 murkCalm', JSON.stringify(recent));
+    ok(recent.lastIndexOf('pass') < recent.lastIndexOf('murkCalm'), '安撫時 murkCalm 取代 pass（murkCalm 之後沒有 pass）', JSON.stringify(recent));
+  }
+  const murkSettled = await waitFor(async () => {
+    const r = await evaluate(`
+      const g = window.__promptasy;
+      const m = g.world.murks.byId('murk-vague-ask');
+      return {
+        state: m.state, shells: m.visibleShellCount(), states: [0, 1, 2].map((i) => m.shellState(i)),
+        active: g.world.murks.activeParticles(), headScale: m.head.scale.x,
+        glow: m.glow.material.color.getHexString(), emissive: m.coreMat.emissive.getHexString(),
+        pos: [m.group.position.x, m.group.position.y, m.group.position.z],
+        near: m.near,
+      };
+    `);
+    return r.state === 'settled' && r.active === 0 && r.headScale < 0.6 ? r : null;
+  }, { timeout: 20000, label: '濁靈落成清燈（settled）' });
+  eq(murkSettled.state, 'settled', '≤ 3 秒後 state === settled（光屑回到清燈位）');
+  eq(murkSettled.active, 0, '光屑熄了、粒子池歸零（沒有任何東西跟著玩家）');
+  eq(murkSettled.shells, 0, '全剝 → 沒有殼');
+  ok(murkSettled.states.every((x) => x === 'hidden' || x === 'residual'), '殼全為隱藏或餘殼', JSON.stringify(murkSettled.states));
+  ok(murkSettled.headScale < 0.6, '頭縮成清燈（≈0.55）', String(murkSettled.headScale));
+  ok(/^ff/.test(murkSettled.glow) && parseInt(murkSettled.glow.slice(2, 4), 16) >= 0xe0, '光暈轉暖白（#fff2d6 附近）', murkSettled.glow);
+  ok(parseInt(murkSettled.emissive.slice(0, 2), 16) >= 0xf0 && parseInt(murkSettled.emissive.slice(2, 4), 16) >= 0xe0, '眼光轉暖白', murkSettled.emissive);
+  eq(JSON.stringify(murkSettled.pos), JSON.stringify(murkPre.posBefore), '清燈在原位（濁靈一寸都沒動）');
   ok(['S', 'A'].includes(murkCalm.gradeMark), '印章 ＝ 這一次的評價 ≥ A', murkCalm.gradeMark);
   ok(/牠聽懂了。這一句話，你替牠說完了。/.test(murkCalm.newlyLine), '累積那一行：「牠聽懂了。這一句話，你替牠說完了。」', murkCalm.newlyLine);
   ok(/\+\d+/.test(murkCalm.newlyLine) && /XP/.test(murkCalm.newlyLine), '那一行帶 +N XP', murkCalm.newlyLine);
@@ -7379,10 +7476,134 @@ async function main() {
     eq(murkBook.otherLinks, 0, '沒安撫的不露出範例／出處');
   }
 
+  /* --- v1.2 · P03：onRubricHits 非 murk 的差量（給 P09）：只回呼、不演出；同一 session 兩次送出 → 第二次只回新增；重開歸零 --- */
+  const murkHitsPlain = await evaluate(`
+    const g = window.__promptasy;
+    const c = g.promptConsole;
+    const ch = g.content.challenges.find((x) => x.id === 'gate-of-clarity-01');
+    const spawned0 = g.world.murks.particlesSpawned;
+    const setting0 = g.progression.state.settings.promptMode;
+    c.open(ch);
+    await new Promise((r) => setTimeout(r, 250));
+    if (c.mode !== 'free') c.setMode('free');
+    c.goAct(3, { force: true });
+    await new Promise((r) => setTimeout(r, 150));
+    const ta = document.querySelector('.prompt-input');
+    const send = async (text) => {
+      ta.value = text;
+      document.querySelector('#prompt-console [data-submit]').click();
+      const h = g.rubricHits();
+      await new Promise((r) => setTimeout(r, 300));
+      return { keys: Object.keys(h).sort(), id: h.challenge && h.challenge.id, kind: h.challenge && h.challenge.kind, passed: h.passedIndices, newly: h.newlyPassedIndices, total: h.total, ok: !!document.querySelector('#prompt-console .result__top.is-pass') };
+    };
+    // 「派任務」那一列命中、沒有可量化限制 → 沒過（不寫 bestGrades）
+    const a = await send('請把這張告示改寫成清楚好懂的公告。');
+    const b = await send('請把這張告示改寫成清楚好懂的公告。');
+    const cc = await send('。');
+    c.close();
+    await new Promise((r) => setTimeout(r, 250));
+    c.open(ch);
+    await new Promise((r) => setTimeout(r, 250));
+    if (c.mode !== 'free') c.setMode('free');
+    c.goAct(3, { force: true });
+    await new Promise((r) => setTimeout(r, 150));
+    const d = await send('請把這張告示改寫成清楚好懂的公告。');
+    c.close();
+    await new Promise((r) => setTimeout(r, 250));
+    if (g.progression.state.settings.promptMode !== setting0) g.progression.updateSettings({ promptMode: setting0 });
+    return { a, b, cc, d, spawnedDelta: g.world.murks.particlesSpawned - spawned0, best: g.progression.bestGrade('gate-of-clarity-01'), rubricLen: ch.rubric.length };
+  `);
+  eq(JSON.stringify(murkHitsPlain.a.keys), JSON.stringify(['challenge', 'newlyPassedIndices', 'passedIndices', 'total']), '關卡的 onRubricHits 也是同一份四鍵契約');
+  eq(murkHitsPlain.a.id, 'gate-of-clarity-01', '關卡：challenge 是那一關');
+  ok(murkHitsPlain.a.kind !== 'murk', '關卡：kind 缺省（不是 murk）');
+  eq(murkHitsPlain.a.total, murkHitsPlain.rubricLen, '關卡：total ＝ rubric 條數');
+  eq(murkHitsPlain.a.ok, false, '（前提）這一句沒過（不會寫進 bestGrades）');
+  eq(JSON.stringify(murkHitsPlain.a.passed), '[0]', '關卡：passedIndices ＝ 這一次 passed===true 的 index（派任務那一列）');
+  eq(JSON.stringify(murkHitsPlain.a.newly), '[0]', '關卡第一次：newly ＝ passed（session 內沒命中過）');
+  eq(JSON.stringify(murkHitsPlain.b.newly), '[]', '關卡第二次同一句：newly 為空（session 差量）');
+  eq(JSON.stringify(murkHitsPlain.b.passed), '[0]', '關卡第二次：passedIndices 照舊');
+  eq(JSON.stringify(murkHitsPlain.cc.passed), '[]', '關卡送空話：passedIndices 空');
+  eq(JSON.stringify(murkHitsPlain.d.newly), '[0]', '關掉重開再送：session 歸零 → 又是新命中');
+  eq(murkHitsPlain.spawnedDelta, 0, '關卡的回呼不演出（濁靈粒子池沒動）— P09 才接石座');
+
+  /* --- v1.2 · P03：reduced-motion 下走同一路徑直接到終態；重新整理後開機還原（清燈一開機就在、不重播） --- */
+  await cdp.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] }, sessionId);
+  await reloadPage('P03 重新載入（reduced-motion）');
+  // 重整後標題卡會在：跟其他重整段一樣按 Enter 收掉，世界才接得到互動
+  await key('Enter', 'Enter', { vk: 13 });
+  await sleep(500);
+  const murkRM = await evaluate(`
+    const g = window.__promptasy;
+    const boot = (() => {
+      const m = g.world.murks.byId('murk-vague-ask');
+      return { state: m.state, shells: m.visibleShellCount(), states: [0, 1, 2].map((i) => m.shellState(i)), headScale: m.head.scale.x, glow: m.glow.material.color.getHexString(), spawned: g.world.murks.particlesSpawned, active: g.world.murks.activeParticles(), reduced: matchMedia('(prefers-reduced-motion: reduce)').matches };
+    })();
+    // 第二隻（同區）：reduced-motion 下送範例解 → 殼直接隱藏、直接 settled、不噴粒子
+    const e = g.murks.entries.find((x) => x.id === 'murk-only-donts');
+    const m2 = g.world.murks.byId(e.id);
+    const before2 = { state: m2.state, shells: m2.visibleShellCount() };
+    g.player.teleport(e.at[0] + 2.5, e.at[1] + 2.5);
+    await new Promise((r) => setTimeout(r, 300));
+    g.promptConsole.open(g.murkChallenge(e.id));
+    await new Promise((r) => setTimeout(r, 250));
+    g.promptConsole.goAct(3, { force: true });
+    await new Promise((r) => setTimeout(r, 150));
+    const ta = document.querySelector('.prompt-input');
+    ta.value = e.sample;
+    const spawned0 = g.world.murks.particlesSpawned;
+    document.querySelector('#prompt-console [data-submit]').click();
+    // 回呼同步 → 這一刻就該是終態
+    const right = { state: m2.state, shells: m2.visibleShellCount(), states: [0, 1, 2].map((i) => m2.shellState(i)), headScale: m2.head.scale.x, spawned: g.world.murks.particlesSpawned - spawned0, active: g.world.murks.activeParticles(), flash: m2.flash };
+    await new Promise((r) => setTimeout(r, 400));
+    const cues = g.audio.debug().cues.slice();
+    g.promptConsole.close();
+    await new Promise((r) => setTimeout(r, 250));
+    return { boot, before2, right, cues, murkCount: g.murkCount(), pos: [m2.group.position.x, m2.group.position.y, m2.group.position.z], at: e.at, titleOpen: g.title.isOpen };
+  `);
+  eq(murkRM.titleOpen, false, '（前提）重整後標題卡已收掉');
+  eq(murkRM.boot.reduced, true, '（前提）reduced-motion 模擬有生效');
+  eq(murkRM.boot.state, 'settled', '重新整理後：安撫過的那一隻一開機就是清燈（restore）');
+  eq(murkRM.boot.shells, 0, '重新整理後：殼數依存檔（全剝 → 0）');
+  ok(murkRM.boot.states.every((x) => x === 'hidden' || x === 'residual'), '重新整理後：殼是隱藏／餘殼', JSON.stringify(murkRM.boot.states));
+  ok(murkRM.boot.headScale < 0.6, '重新整理後：頭已是清燈大小', String(murkRM.boot.headScale));
+  eq(murkRM.boot.spawned, 0, '重新整理後：restore 沒噴粒子（不重播）');
+  eq(murkRM.boot.active, 0, '重新整理後：粒子池空');
+  eq(murkRM.before2.shells, 3, '（前提）第二隻還沒碰過：3 層殼');
+  eq(murkRM.right.state, 'settled', 'reduced-motion：送範例解當下直接 settled（跳過光屑）');
+  eq(murkRM.right.shells, 0, 'reduced-motion：殼直接隱藏（不剝落）');
+  eq(JSON.stringify(murkRM.right.states), JSON.stringify(['hidden', 'hidden', 'hidden']), 'reduced-motion：三層殼都直接 hidden');
+  ok(murkRM.right.headScale < 0.6, 'reduced-motion：頭直接縮成清燈', String(murkRM.right.headScale));
+  eq(murkRM.right.spawned, 0, 'reduced-motion：不噴粒子');
+  eq(murkRM.right.active, 0, 'reduced-motion：粒子池空');
+  ok(murkRM.right.flash > 0, 'reduced-motion：眼光仍會閃（關掉的是「動」，不是「回應」）', String(murkRM.right.flash));
+  ok(murkRM.cues.includes('murkHit') && murkRM.cues.includes('murkCalm'), 'reduced-motion：聲音照響（murkHit ＋ murkCalm）', JSON.stringify(murkRM.cues));
+  eq(murkRM.murkCount, 2, '兩隻都安撫了（murkCount 2）');
+  eq(JSON.stringify([murkRM.pos[0], murkRM.pos[2]]), JSON.stringify(murkRM.at), '清燈在原位');
+  await cdp.send('Emulation.setEmulatedMedia', { features: [] }, sessionId);
+  await reloadPage('P03 重新載入（回到一般動態）');
+  await key('Enter', 'Enter', { vk: 13 });
+  await sleep(500);
+  const murkBoot2 = await evaluate(`
+    const g = window.__promptasy;
+    const a = g.world.murks.byId('murk-vague-ask');
+    const b = g.world.murks.byId('murk-only-donts');
+    const c = g.world.murks.byId('murk-no-example');
+    return { titleOpen: g.title.isOpen, panelOpen: g.promptConsole.isOpen, reduced: matchMedia('(prefers-reduced-motion: reduce)').matches, a: [a.state, a.visibleShellCount()], b: [b.state, b.visibleShellCount()], c: [c.state, c.visibleShellCount()], spawned: g.world.murks.particlesSpawned };
+  `);
+  eq(murkBoot2.titleOpen, false, '（前提）重整後標題卡已收掉（後面的互動測試才接得到 E）');
+  eq(murkBoot2.panelOpen, false, '（前提）沒有面板開著');
+  eq(murkBoot2.reduced, false, '（前提）reduced-motion 模擬已關');
+  eq(JSON.stringify(murkBoot2.a), JSON.stringify(['settled', 0]), '一般模式重開機：第一隻仍是清燈');
+  eq(JSON.stringify(murkBoot2.b), JSON.stringify(['settled', 0]), '一般模式重開機：第二隻仍是清燈');
+  eq(JSON.stringify(murkBoot2.c), JSON.stringify(['idle', 3]), '沒碰過的那隻原樣（3 層殼、idle）');
+  eq(murkBoot2.spawned, 0, '開機還原不噴粒子');
+
   /* --- 仲裁：石座 > 濁靈 > 石碑 ---
    * 濁靈的座標規則要求離石座 ≥ 12（兩個互動圈不重疊），唯一的例外是流程與代理區那一隻
    * （≥ 10，石座飽和）。就用那一對：站在石座 5.5 公尺、也在濁靈 5.5 內的點，按到的必須是石座。 */
-  const murkArb = await evaluate(`
+  // 先把可能還開著的東西關掉（前一段剛重開機、按過 Enter），再走過去；HUD 提示用輪詢等，不對齊牆鐘
+  await key('Escape', 'Escape', { vk: 27 });
+  const murkArbPair = await evaluate(`
     const g = window.__promptasy;
     let best = null;
     for (const e of g.murks.entries) {
@@ -7396,10 +7617,21 @@ async function main() {
     const dx = e.at[0] - m.position.x, dz = e.at[1] - m.position.z;
     const px = m.position.x + (dx / d) * 5.5, pz = m.position.z + (dz / d) * 5.5;
     g.player.teleport(px, pz);
-    await new Promise((r) => setTimeout(r, 400));
-    const h = document.querySelector('[data-interact]');
-    return { murk: e.id, marker: m.id, title: m.challenge.title, text: h.textContent.replace(/\\s+/g, ' ').trim(), dMurk: Math.hypot(px - e.at[0], pz - e.at[1]), dPair: d };
+    return { murk: e.id, marker: m.id, title: m.challenge.title, dMurk: Math.hypot(px - e.at[0], pz - e.at[1]), dPair: d, panelOpen: g.promptConsole.isOpen };
   `);
+  const murkArbText = murkArbPair.none
+    ? ''
+    : await waitFor(
+        async () => {
+          const r = await evaluate(`
+            const h = document.querySelector('[data-interact]');
+            return h && !h.hidden ? h.textContent.replace(/\\s+/g, ' ').trim() : '';
+          `);
+          return r && /安撫|E/.test(r) ? r : null;
+        },
+        { timeout: 8000, label: '仲裁點的互動提示' }
+      ).catch(() => '');
+  const murkArb = { ...murkArbPair, text: murkArbText };
   ok(!murkArb.none, '（前提）世界裡有一對石座／濁靈互動圈相疊（淨空例外那一隻）', JSON.stringify(murkArb));
   ok(murkArb.dMurk < 5.5, '（前提）這個點也在濁靈的 5.5 內', `${murkArb.murk}↔${murkArb.marker} d=${murkArb.dMurk && murkArb.dMurk.toFixed(2)}`);
   ok(new RegExp(murkArb.title || '§').test(murkArb.text) && !/濁靈/.test(murkArb.text), '石座與濁靈同時在範圍內 → 石座優先', murkArb.text);

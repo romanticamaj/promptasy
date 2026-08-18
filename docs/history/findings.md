@@ -1812,3 +1812,11 @@ rubric 原本有一條「那一排石籤有自己的樣式」正是靠這幾塊�
 - 審查 P2 留待後續：`gainLine` 已抽共用；`STATS142` e2e 快照字串已統一；`murkCount(ids)` 只數 murks.json 裡存在的 id（改名／刪除不會讓圖鑑數字超過 8）。
 - 給 P03 的契約：`recordMurk(challenge, evaluation, meta)` → 13 個 recordResult 同形鍵（grade 在 `bestGrade`）＋ `murk:{ newlyPassedIndices, hits, score, total, calmed, newlyCalmed }`；`hits` 是**已完全命中**的列（部分得分不算殼剝落，但可經 attempt-pass 安撫）→ P03 剝殼只看 `newlyPassedIndices`，安撫時剩下的殼一律轉「餘殼」。
 
+## v1.2 · P03 的發現（2026-08-18）
+
+- 演出的計時器要**夾 dt**：這台機器的 e2e 是軟體渲染（一幀 0.2–0.4s），不夾的話 0.6s 的剝落只剩 2–3 幀、閃白根本看不到；分頁切走再回來也會一口氣跳到終態。定案 `min(dt, 0.1)` 只給演出計時器，移動／碰撞照舊。
+- 「第一次走近」的偵測不能綁 `aware`（aware 含 `!busy`）——否則開關面板＝重新走近，濁靈會在每次沒過之後又吼一次。看距離。
+- 進度重置（設定頁）不會重載頁面，世界端所有「單向」的視覺狀態（隱藏的殼、清燈）都要有 reset 路徑，否則存檔空了、世界還是舊的、下一次 strike 變 no-op。這條對之後任何「世界會記住玩家做過什麼」的東西都適用（P05 時辰、P08 星圖、P15 秘密…）→ 記進 WORLD.md 檢查表（P04）。
+- `onRubricHits` 契約：**四鍵**（challenge／passedIndices／newlyPassedIndices／total）為底；`kind==='murk'` 多帶 `murk` 子物件（recorder 的回傳）；P09 接石座時只用四鍵。
+- 審查工具的可用性成了瓶頸（Codex 額度、Claude session 上限各中斷一次）：`/code-review` 五個角度只跑完一個。已把跑完的那個角度全部處理；其餘角度（移除行為稽核、跨檔追蹤、慣例）等 P04 開工前若額度恢復再補一次針對 P01–P03 的總審。
+

@@ -306,6 +306,32 @@ export const SFX = Object.freeze({
   scurry: { type: 'triangle', base: 880.0, gain: 0.016, seq: [[0, 0, 0.06, 1], [5, 0.04, 0.07, 0.7], [9, 0.08, 0.06, 0.4]] },
   // 螢火散開：氣音一樣的高音，幾乎聽不見
   flutter: { type: 'sine', base: 1567.98, gain: 0.012, seq: [[0, 0, 0.14, 1], [4, 0.05, 0.2, 0.35]] },
+  /* --- v1.2 · P03：濁靈（全部先合成；`SFX_FILES` 不加檔案，缺檔退回合成本來就是規則） --- */
+  // 濁靈注意到你：短促的低頻雜訊（鋸齒波往下滑一小段）。`throttle` 是 cue 層的保險
+  // （兩隻同時吼會疊成一團）；「每隻 ≥ 4 秒」的節流在 murks.js 的 field 內計時器。
+  murkStir: {
+    type: 'sawtooth',
+    base: 62.0,
+    gain: 0.02,
+    throttle: 0.6,
+    seq: [[0, 0, 0.16, 1], [-3, 0.05, 0.2, 0.7], [-7, 0.11, 0.24, 0.4]],
+  },
+  // 剝一層殼：一顆短促的敲擊 ＋ 一點碎光。`layers` 是三層音高（依累積命中數 1 / 2 / 3+ 選），
+  // 每多剝一層就高一點 —— 聽得出「快說清楚了」。
+  murkHit: {
+    type: 'triangle',
+    base: 440.0,
+    gain: 0.03,
+    layers: [1, 1.1892, 1.4983],
+    seq: [[0, 0, 0.12, 1], [12, 0.02, 0.09, 0.45], [7, 0.06, 0.16, 0.5]],
+  },
+  // 安撫：一個暖和弦（大三和弦帶九音），有尾巴、比頌缽輕 —— 牠聽懂了，不是你贏了
+  murkCalm: {
+    type: 'sine',
+    base: 261.63,
+    gain: 0.05,
+    seq: [[0, 0, 1.2, 0.8], [4, 0.1, 1.3, 0.75], [7, 0.2, 1.4, 0.7], [14, 0.34, 1.6, 0.45], [12, 0.5, 1.8, 0.35]],
+  },
   // 光菇亮起：一組向上的柔和三音
   bloom: { type: 'sine', base: 523.25, gain: 0.018, seq: [[0, 0, 0.5, 0.8], [4, 0.08, 0.55, 0.7], [7, 0.16, 0.7, 0.5]] },
   // 找到一個藏起來的地方
@@ -1737,9 +1763,11 @@ export function createAudio({ volume = 0.5, muted = false, region = 'foundations
 
       // 連按的 UI 音要節流（刻印牌可以按很快，但聲音不能疊成一片）。
       // 逐 cue 各自算 —— 敲一下鍛打不該讓刻印牌的按鍵音變啞。
-      if (fileSpec && fileSpec.throttle && ctx) {
+      // v1.2 · P03：合成列也可以寫 `throttle`（濁靈的 murkStir）；音檔列的值優先。
+      const throttle = (fileSpec && fileSpec.throttle) || (spec && spec.throttle) || 0;
+      if (throttle && ctx) {
         const t = ctx.currentTime;
-        if (t - (lastCueAt.get(kind) || -1e9) < fileSpec.throttle) return true;
+        if (t - (lastCueAt.get(kind) || -1e9) < throttle) return true;
         lastCueAt.set(kind, t);
       }
 
@@ -1753,7 +1781,16 @@ export function createAudio({ volume = 0.5, muted = false, region = 'foundations
         return true;
       }
       if (playFileCue(kind, gainScale)) return true;
-      if (spec) playSeq(spec, { gainScale, baseScale: opts.baseScale ?? 1 });
+      /*
+       * v1.2 · P03：分層音高 —— `cue('murkHit', { layer: 2 })` 從 spec.layers 挑倍率
+       * （0 起算、超出夾到最後一層），再乘上呼叫端給的 baseScale。
+       */
+      let baseScale = opts.baseScale ?? 1;
+      if (spec && Array.isArray(spec.layers) && spec.layers.length && Number.isFinite(opts.layer)) {
+        const li = Math.max(0, Math.min(spec.layers.length - 1, Math.floor(opts.layer)));
+        baseScale *= spec.layers[li];
+      }
+      if (spec) playSeq(spec, { gainScale, baseScale });
       return true;
     },
 

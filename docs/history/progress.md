@@ -2972,3 +2972,12 @@ e2e 一輪（同時破壞三處：Instagram 那顆回來、divergence 變回硬�
 - 數字：rubric 84,234 → **84,367**、playtest 2,429、e2e 3,409 → **3,448**（零 console error、第一輪即綠）、fonts 重切；場景預算不變。
 - 下一步：P03（`onRubricHits` 回呼＋剝殼＋清燈＋SFX）。
 
+## 2026-08-18 · v1.2 P03 濁靈演出：`onRubricHits`＋剝殼＋清燈＋SFX · `done`
+
+- `console.js` 新回呼 `onRubricHits({challenge, passedIndices, newlyPassedIndices, total[, murk]})`（recorder 後、畫結果前；非 murk＝本次 session 差量，`open()` 歸零）；`murks.js` 重寫成狀態機 idle→aware→(strike)→calming→settled：`strike()` 只對 `newlyPassedIndices` 剝殼（0.6s、per-instance clone 材質、`peelFrom` 從當時 opacity 淡出）、眼光閃白、12 顆共用 `Points` 池碎光（安撫時留 6 顆給光屑）、安撫→餘殼＋暖眼光＋頭縮成清燈＋光屑繞玩家一圈 ≤2.6s（純粒子）、`restore()` 開機依存檔還原、`reset()` 給進度重置、`murkStir` 依距離第一次走近（≥4s／隻、面板開著不吼）、演出計時器夾 `min(dt,0.1)`、`reducedMotion` 直接終態；`audio.js` 合成 `murkStir/murkHit(三層音高)/murkCalm`（無檔案、自動 fallback）；`main.js` 接線（`strike`＋`pulse(0.28)`＋最多 3 聲 murkHit 隔 90ms；newlyCalmed 播 murkCalm 取代 pass；`murkStateOf` 進 createWorld；onReset → `murks.reset()`）。
+- 先紅後綠：SFX 三列／strike／restore／session 差量／靜態掃描先全紅（`SFX.murkStir` undefined）→ 綠；審查後修訂再加 6 條先紅（面板不重吼、reset、peelFrom、dt 夾）→ 綠。
+- 審查（`/code-review high`，只跑完 1/5 角度）6 條全修：餘殼 opacity 跳變、stir 因面板重觸、reset 不重載世界不同步、`newlyCalmed` 沒傳、粒子池搶位、dt 未夾。
+- e2e 第一輪掛在仲裁斷言（重開機後 `sleep 400` 讀 HUD）→ 改輪詢式，第二輪全綠。
+- 數字：rubric 84,367 → **84,527**、playtest 2,429、e2e 3,448 → **3,525**（零 console error）；三角／光源不變、+1 Points（12 顆）。
+- 下一步：P04（文案層＋WORLD.md 修訂）。
+
