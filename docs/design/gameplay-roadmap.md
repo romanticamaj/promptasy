@@ -52,7 +52,7 @@ CLAUDE.md 的五個方向與七條護欄仍是最高準則。本 roadmap 只回�
   - 依賴：無（可與 A 段任一交錯）。方案：M3。
   - DoD：光源 37；e2e 固定時辰 0 跑舊斷言零改動；四態截圖存 `docs/design/shots/`；WORLD.md §2.2 加「時辰」規則（明寫沒有黎明）。
 
-- [ ] **P06 · 區域色彩腳本 ＋ 軟門檻三態 ＋ 節奏稽核腳本**（M）— 每區 3–5 色 color script（天空上下色、霧、主光 emissive、rim、粒子色）取代單一 accent，經 P05 入口套用；閘門與石座三態自發光（未知＝暗／可去但建議先別＝琥珀／建議去＝主色）；`scripts/pacing-audit.mjs`（沿路網每 5m 取樣，各區 POI 節奏直方圖與 >45m 死區，進 `test:rubric` 當軟警告）。
+- [~] **P06 · 區域色彩腳本 ＋ 軟門檻三態 ＋ 節奏稽核腳本**（M）— 每區 3–5 色 color script（天空上下色、霧、主光 emissive、rim、粒子色）取代單一 accent，經 P05 入口套用；閘門與石座三態自發光（未知＝暗／可去但建議先別＝琥珀／建議去＝主色）；`scripts/pacing-audit.mjs`（沿路網每 5m 取樣，各區 POI 節奏直方圖與 >45m 死區，進 `test:rubric` 當軟警告）。
   - 依賴：P05。方案：4-A、M12、M9。
   - DoD：12 區色卡表寫進 WORLD.md §2.2；三態由 `regions-v2` gate 規格與進度算出（gate 未啟用時只兩態）；pacing-audit 輸出納入 changelog。
 

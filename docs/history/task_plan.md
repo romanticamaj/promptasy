@@ -908,6 +908,38 @@ Exit criteria：
 - [x] rubric 85,242／playtest 2,429／build ✓／e2e 3,599 全綠、console error 0；光源不變。
 - [x] WORLD.md §2.2 時辰規則；數字寫進 progress／CHANGELOG。
 
+### P06 — 區域色彩腳本 ＋ 軟門檻三態 ＋ 節奏稽核腳本（2026-08-18 開工）
+
+狀態：`in progress`（Codex 仍不可用 → consult 由 orchestrator 自審；review 用 `/code-review high`）。**里程碑 A 最後一格：做完停下寫閘門 A 摘要。**
+
+**現狀**：天空是一顆 `makeSkyDome()`（4×512 CanvasTexture 漸層 `SKY_STOPS`，全域一份、不隨區換）＋ `scene.background = fog×0.55`；區域氣氛 `REGION_ATMOSPHERE`（fog/tint/hemi/fogNear/fogFar/exposure/motes）經 P05 的 `composeMood(atmo, hourFactor)` → `engine.setMood`；每區一盞 `PointLight fill`（`world.js:1938`，顏色＝區主色 `colorOf`）與 `kitFor(colorOf)` 四階色（accent/light/mid/dark）給道具／螢火（`motes` 顏色＝kit.light）；閘門 `buildGate()` 材質 color 0.45×／emissive 0.25× 區色，`refreshGates()` 只改文字；`progression.gateStatus(id)` 回 `{unlocked, levelOk, requiresOk, skipped, text, hard…}`，`REGION_GATES` 有 `requires.region`；石座 marker 有 `ring/beacon/halo/glow`，`setCleared`／`setRegionMastered` 會染暖金；路網 `buildPathNetwork()`＋`pathInfluence()` 只在地形頂點色用；e2e 對天空只驗光源數與時辰校準。
+
+**目標**：走進新區「顏色變了」＝進度感；從高原遠看就讀得出哪些門「可以去／建議先別／還不知道」；有一支腳本量 POI 節奏，之後鋪中景（P11–P16）先量再放。
+
+**範圍**
+1. **色彩腳本** `src/world/color-script.js`：`REGION_COLOR_SCRIPT[regionId] = { skyTop, skyLow, fog, tint, key, rim, particle }`（12 區各一組；`fog/tint` **就是** `REGION_ATMOSPHERE` 現值——不動它、只引用；`key`＝fill 光顏色（預設區主色）；`rim`＝道具自發光補色（預設 kit.light）；`particle`＝螢火色（預設 kit.light）；`skyTop/skyLow` 每區各自微偏（相對全域 `PALETTE.sky/skyLow` 的色相±≤12°、亮度 ±≤8%，仍是夜色）。表要**寫在資料檔** `src/data/color-script.json`（`authored:"game"`，純視覺、無 source）由 `color-script.js` 讀＋驗；WORLD.md §2.2 加 12 區色卡表（由腳本從 json 產生 markdown 貼上，不手抄）。
+2. **接入單一入口**：`main.js applyMood()` 第一參數改為 `colorScriptFor(regionId)`（同形：fog/tint/hemi/fogNear/fogFar/exposure ＋ 新鍵 `sky:{top,low}`）；`mood.js`／`engine.applySky()` 加 `sky.top/low`（**不重畫 canvas**：dome 材質改用兩色 uniform 的 ShaderMaterial 漸層，或給 dome 材質 `color` 乘上一個 lerp 色——選最省且與現貌相容者；hour 0 ＋ foundations 的 dome 必須逐值等於現在的 `SKY_STOPS` 結果，e2e 校準）。`particle`／`rim`／`key` 在 `createWorld` 建構時就套（不需平滑）：motes 顏色、fill light 顏色、`kitFor` 的 light 分量可被 `rim` 覆寫。**時辰因子仍只乘不換色**（P05 規則）。
+3. **三態**：`world.refreshGates()`／新 `world.refreshMarkerStates()` 依 `progression.gateStatus()` 與區域解鎖狀態設三態——閘門：`unlocked` → **主色亮**（emissive 0.6×、標籤照舊）；未解鎖但 `requires.region` 已解鎖（也就是「可以先行前往」的軟門）→ **琥珀**（`PALETTE.warm` 偏暗 emissive 0.35×）；連前一區都沒解鎖 → **暗**（emissive 0.12×）；硬門（divergence）未解鎖一律暗。石座：所在區未解鎖 → 暗（beacon/halo 底亮度 ×0.4）；區是 `skippedGates` 先行前往 → 琥珀色 halo；正常解鎖 → 現狀。`refresh*` 在解鎖／跳門／進區時呼叫；三態變化平滑（沿用 marker.update 的 lerp）。文字說明不變。
+4. **節奏稽核** `scripts/pacing-audit.mjs`：在 node 蓋世界（同 test-rubric 的 shim），沿路網（`buildPathNetwork` 的線段）每 5m 取樣，對每個樣點算「距最近微觸（反應物／器物）」「距最近中景（小景／石碑／刻文／濁靈）」「距最近石座」「距最近地標」；輸出每區的直方圖（0–15／15–30／30–45／>45m）與 **>45m 死區清單**（連續樣點）；`export function pacingAudit()` 回結構化結果，CLI 印表；`test:rubric` 接進來當**軟警告**（印每區死區數，不 fail；但 `pacingAudit()` 必須能跑、回 12 區）。
+5. **e2e**：進 reasoning 後 dome 顏色與 foundations 不同、hour 0 foundations 逐值等於舊值；三態：新存檔 → reasoning 門琥珀（foundations 已解鎖）、grounding 門暗；`skipGate('reasoning')` 後 reasoning 石座 halo 琥珀；正常解鎖後主色；光源數不變。
+
+**非目標**：中景／母題／材質（P11–P12）、外交式導向（P19）、Toon／描邊、regions-v2 gate 規格啟用（仍由 `REGION_GATES`）。
+
+**受影響檔案**：新 `src/data/color-script.json`、`src/world/color-script.js`、`scripts/pacing-audit.mjs`；改 `src/engine/mood.js`、`src/engine/engine.js`（dome）、`src/world/world.js`（motes／fill／gate／marker 三態、refresh）、`src/main.js`（applyMood 第一參數、refresh 呼叫點）、`WORLD.md` §2.2 色卡表、`scripts/test-rubric.mjs`、`scripts/headless-check.mjs`、fonts。
+
+**預算**：光源 37 不變（fill 只換色）、mesh 不變（dome 換材質不換 mesh）、零每幀配置。
+
+**Acceptance tests（先紅後綠）**
+- rubric：`color-script.json` 12 區齊、`authored:"game"`、每色 `#rrggbb`、`fog/tint` 逐值等於 `REGION_ATMOSPHERE`、sky 偏移在容差內、全部亮度低於白天門檻（HSL L ≤ 0.35）；`colorScriptFor()` 對未知區退回 foundations；三態純函式 `gateVisualState(status, prevUnlocked, hard)` → 'lit'|'amber'|'dark' 表；`pacingAudit()` 回 12 區＋直方圖鍵；靜態掃描每幀迴圈。
+- e2e：見上；舊斷言零改動；console error 0。
+
+**禁區**：同前；`REGION_ATMOSPHERE` 值不動；`REGION_GATES` 不動；`regions-v2.json` 不動。
+
+Exit criteria：
+- [ ] 12 區色卡在 WORLD.md；進區換色可見；閘門／石座三態可見；`pacing-audit` 可跑並進 rubric 軟警告。
+- [ ] rubric／playtest／build／e2e 全綠、console error 0；光源 37。
+- [ ] 閘門 A 摘要寫進 progress.md（建議實玩路線 ≤10 分鐘、砍案條件）；停止。
+
 ## v1.2 錯誤紀錄
 
 （沿用 §8 規則：任何錯誤記在此；同一錯誤不原樣重試；連續三種方法仍無法前進才報阻塞。）
