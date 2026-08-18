@@ -816,6 +816,45 @@ Exit criteria：
 - [x] rubric 84,367／playtest 2,429／build ✓／e2e 3,448 全綠、console error 0；fonts 已跑。
 - [x] outcome 契約寫進 progress.md／CHANGELOG／roadmap P02–P03（給 P03）。
 
+### P03 — 濁靈演出：`onRubricHits` 契約＋剝殼＋清燈＋SFX（2026-08-18 開工）
+
+狀態：`in progress`（Codex 額度用盡至 8/20 → consult 由 orchestrator 自審；review 用 `/code-review high`）
+
+**現狀（P02 之後）**：`recordMurk()` 原子回傳 `outcome.murk = { newlyPassedIndices, hits, score, total, calmed, newlyCalmed }`；`console.js renderResult()` 先算 outcome、畫結果、最後 `onResult?.({challenge, evaluation, outcome})`（`console.js:~1902`）；`main.js` onResult murk 分支處理音效／慶祝／升等／解鎖後 return；`src/world/murks.js` 每隻有 `shells[]`（殼數＝rubric 條數；材質依 kit＋index **共用快取**）、`core/coreMat`、`glow`、`state: 'idle'|'aware'`、`awareAmt`、`setNear`，`update()` 做呼吸／轉頭；開機時**尚未**依存檔還原殼數；`audio.js` `SFX` 合成表（如 `scurry`）＋ `cue()` 檔案缺席自動退回合成；`engine.pulse(amount)`；粒子樣板 `reactive.js:366–408`（`THREE.Points` 逐點位置＋`needsUpdate`）；`reducedMotion` 已傳進 murk field。
+
+**目標**：命中的檢查看得見——每命中一條剝一層殼；安撫→清燈；有聲音；重開不重播；不打擾閱讀。
+
+**範圍**
+1. **回呼契約** `console.js`：新增 `onRubricHits?.({ challenge, passedIndices, newlyPassedIndices, total })`，在 recorder 回傳後、**畫結果之前**觸發一次。murk：直接用 `outcome.murk`（`newlyPassedIndices/hits/total`）；非 murk（給 P09）：`passedIndices` = 本次 `results[i].passed===true` 的 index，`newlyPassedIndices` = 相對於「本次開啟主控台 session 內已命中集合」的新增（記憶體 `Set`，`open()` 時清空），`total` = rubric 條數。P03 只在 murk 路徑接世界；非 murk 路徑只回呼、不演出。
+2. **世界演出** `src/world/murks.js`：
+   - `field.strike(id, { newlyPassedIndices, hits, total, calmed, newlyCalmed })`：對 `newlyPassedIndices` 的殼做「剝落」（0.6s：縮小＋淡出→隱藏；材質先 `clone()` 一次成 per-instance 再動 opacity，避免動到共用快取）；身體閃白 2 幀（core emissive 短暫 2.4）；8–12 顆加法粒子（一組共用 `THREE.Points` 池，零每幀配置：預先配好 12 顆的 buffer，只改位置/生命值）；`engine.pulse(0.28)` 由 main.js 呼叫（world 不碰 engine）。
+   - `calmed && newlyCalmed`：剩下的殼轉「餘殼」（opacity ×0.35、停止旋轉）→ 眼光轉暖白（core color/emissive lerp 到 `#fff2d6`）→ 濁靈縮成清燈（head 縮到 0.55、body 不動）；**過關演出**＝光屑（同一顆 Points 池的 6 顆）從濁靈飛出、繞玩家一圈 ≤3s、回到清燈位；狀態 `settled`。`reducedMotion`：跳過光屑與剝落動畫，直接套終態。
+   - 已 `settled` 的濁靈：`update()` 不再 aware 轉頭（清燈是安靜的），glow 暖色微弱呼吸。
+   - `field.restore(id, { hits, calmed })`（開機／存檔載入時由 world 呼叫一次）：依 `hits` 直接把殼設隱藏、`calmed` 直接 settled——**不播動畫**。`createMurkField` 接 `stateOf(id)`（回 `progression.murkState(id)`）在建構時還原。
+   - 殼與 `hits` 的對應：殼 index = rubric index。
+   - 面板開著（`isBusy()`）時演出**照播**（玩家正看著結果面；世界在背景），但 aware 轉頭停。
+3. **音訊** `audio.js` `SFX` 合成列：`murkStir`（走近 8m 內第一次 aware：短促低頻雜訊，`throttle` ≥ 4s／隻，用既有節流機制或 field 內計時器）、`murkHit`（每剝一殼：三層音高依累積 hits 數 1/2/3+ 選 seq）、`murkCalm`（安撫：暖和弦，與既有 `pass` cue 不重疊——main.js 在 newlyCalmed 時**只播 `murkCalm`**，不再播 `pass`；attempt 的 pass/fail cue 照 P02 邏輯保留但 newlyCalmed 時讓位給 murkCalm）。全部先合成、`SFX_FILES` 不加檔案（缺檔自動退回合成本來就是規則）。
+4. **接線** `main.js`：`createPromptConsole({ ..., onRubricHits })` → murk 時 `world.murks.strike(challenge.id, outcome.murk)`＋`engine.pulse(0.28)`＋`audio.cue('murkHit')`（每條一次，最多 3 次、間隔 90ms 用 setTimeout；不是每幀）；`onResult` murk 分支：newlyCalmed → `audio.cue('murkCalm')`、`hud.celebrate`（既有）、`player.celebrate`（既有）。`createWorld({..., murkStateOf: (id) => progression.murkState(id) })`。
+5. **e2e 把手**：`window.__promptasy.world.murks.byId(id)` 已有；加 `m.visibleShellCount()`、`m.state`。
+
+**非目標**：石座演出（P09）、文案／WORLD.md（P04）、hitstop／震動／慢動作、任何實體跟隨玩家、新光源。
+
+**受影響檔案**：`src/prompt/console.js`、`src/world/murks.js`、`src/world/world.js`（傳 `murkStateOf`、暴露 strike/restore）、`src/main.js`、`src/audio/audio.js`、`scripts/test-rubric.mjs`（SFX 表新增三條的合成 fallback／throttle 斷言、`strike/restore` 純函式行為、零每幀配置靜態掃描）、`scripts/headless-check.mjs`（輪詢式）、fonts（若有新字串）。
+
+**預算**：粒子池 +1 Points（≤12 顆）；三角不變；0 光源；零每幀配置（剝落動畫用 field 內的計時器陣列，不在 tick 內 new）。
+
+**Acceptance tests（先紅後綠）**
+- rubric：`SFX.murkStir/murkHit/murkCalm` 存在且 `cue()` 有合成 fallback；`murkStir` 有節流；`strike()` 對 `newlyPassedIndices=[0,2]` 使殼 0/2 進入剝落、其餘不動；`restore({hits:[1], calmed:false})` 立即隱藏殼 1、不播動畫；`restore({calmed:true})` → settled；`onRubricHits` 非 murk 的 session 差量（同一 session 兩次送出 → 第二次只回新增；`open()` 後歸零）；靜態掃描 `murks.js` update/strike 內無 `new THREE.`／`.map(`／`.filter(`。
+- e2e（**輪詢式**，不用固定 sleep 對齊）：teleport 到 `murk-vague-ask` → 殼數 3 → 送一段只命中 1 條的 prompt → 輪詢直到殼數 2、`state` 仍非 settled、粒子池有活粒子過 → 關掉重開 → 殼數仍 2（不重播）→ 送 sample → 輪詢直到 `state==='settled'`、殼全為餘殼或隱藏、glow 暖色；`reducedMotion` 模式（用既有 e2e 的 reduced-motion 開關）走同一路徑直接到終態；重新整理頁面後 `restore` 讓那隻一開機就是 settled；console error 0；舊斷言零改動。
+- 音效：e2e 檢查 `audio` 診斷輸出含 `murkHit`（既有 `cue` 診斷把手）。
+
+**禁區**：同 P01／P02；另不動 `SFX_FILES`、不加 m4a。
+
+Exit criteria：
+- [ ] 剝殼／餘殼／清燈／光屑／SFX 全部可見可聽；重開不重播；開機依存檔還原。
+- [ ] rubric／playtest／build／e2e 全綠、console error 0。
+- [ ] 數字與 `onRubricHits` 契約寫進 progress.md／CHANGELOG（給 P09）。
+
 ## v1.2 錯誤紀錄
 
 （沿用 §8 規則：任何錯誤記在此；同一錯誤不原樣重試；連續三種方法仍無法前進才報阻塞。）
