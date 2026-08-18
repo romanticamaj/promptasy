@@ -872,6 +872,40 @@ Exit criteria：
 - [x] WORLD.md §1.6／§3.2／§3.5／§4.8／§8 到位；文案用語一致。
 - [x] rubric／build／e2e 全綠、console error 0。
 
+### P05 — `setMood` 單一入口 ＋ 一夜的時辰（2026-08-18 開工）
+
+狀態：`in progress`（Codex 仍不可用 → consult 由 orchestrator 自審；review 用 `/code-review high`）
+
+**現狀**：`src/engine/engine.js` `createEngine()`：`setMood({fog,tint,hemi,fogNear,fogFar,exposure})` 寫 `moodTarget`，每幀 lerp 到 `moodNow` 套霧色／色偏／半球光／曝光（`engine.js:415–475, 522–530`）；天空元素：`makeStars()`（ShaderMaterial，uniforms `uTime/uMap/uOpacity/uScale`，high 950 顆／low 420 顆）、`makeMoon(dir)`（`disc`＋`halo` 兩個 Sprite，掛在固定 `moonDir (-40,60,30)`；另有 DirectionalLight `moon` 打光＋陰影）、`makeAurora()`（若干 band，`rotation.y += drift`）；`PALETTE.moon/aurora`。區域氣氛 `REGION_ATMOSPHERE`（`world.js:253`）由 `main.js:166/986` 在進區時 `engine.setMood(atmosphereFor(id))`。進程：`progression.masteredRegions()`、`state.skillsV2.length`（130 滿）、`murkCount(ids)`（8 滿）、`createProgression({onChange})` 有變更回呼。WORLD.md §2.2「一律夜景。沒有白天、沒有日出」。
+
+**目標**：天空成為進度的外顯——一夜之中的時辰隨進度推進（入夜→深夜→月落→星最亮之夜），永遠是夜；所有氣氛參數走**同一個** `setMood` 入口（區域色盤 × 時辰因子），P06 的色彩腳本才有地方接。
+
+**範圍**
+1. `engine.js`：`setMood()` 擴成 `{ fog, tint, hemi, fogNear, fogFar, exposure, moon:{ alt:0..1, phase:0..1 }, stars:{ density:0..1 }, aurora:{ intensity:0..1, hue:-1..1 } }`（全部可選、都進 `moodTarget/moodNow` 平滑）。套用：`moon.alt` → 月亮 Sprite 群與 `DirectionalLight` 方向沿同一條弧從高（alt 1 ≈ 現在的 60°）降到近地平線（alt 0 ≈ 8°，光仍在地平線上、陰影相機照顧到）；`moon.phase` → 最便宜可信的做法（disc 疊一片與天空底色同色的暗 sprite 做「咬掉」，或 disc/halo 的 opacity＋scale 交叉，任選一種、寫清楚為什麼）；`stars.density` → `uOpacity`（0.55→1.0）＋ `uScale`（0.85→1.1）；`aurora.intensity/hue` → 各 band 材質 opacity 乘數與顏色 lerp（`PALETTE.aurora` ↔ 偏綠／偏紫）。**0 新光源**、不新增網格（月相的暗 sprite 算 1 個 Sprite，不是 mesh）。
+2. **時辰**（`src/engine/hours.js` 或 `src/world/hours.js`，純函式）：`hourOf({ mastered, masteredTotal:12, skills, skillsTotal:130, murks, murksTotal:8 })` → `{ index:0|1|2|3, p:0..1 }`：`p = 0.5·mastered/12 + 0.3·skills/130 + 0.2·murks/8`；index：p<0.25→0 入夜、<0.5→1 深夜、<1→2 月落、p≥1（全部收齊）→3 **星最亮之夜**（終態；沒有黎明）。`hourFactor(index)` → `{ fogMul, hemiAdd, exposureMul, moon:{alt,phase}, stars:{density}, aurora:{intensity,hue} }`：入夜 `fogMul 1.0 / hemiAdd 0 / moon alt .75 phase .3 / stars .7 / aurora .5`；深夜 `0.95 / −0.03 / .5 .5 / .8 / .7`；月落 `0.9 / −0.06 / .2 .75 / .9 / .85`；星最亮 `1.05 / +0.02 / .05 1.0 / 1.0 / 1.0 hue +.4`。**時辰只乘因子、不換區域色系。**
+3. **單一入口** `main.js`：`applyMood()` ＝ `engine.setMood(composeMood(atmosphereFor(regionId), hourFactor(hour)))`（`composeMood` 純函式：fog 乘亮度、hemi 加、exposure 乘、moon/stars/aurora 直接帶）；進區時與 `progression.onChange`（murk 安撫／技能／精通變化）時都走它；`engine.forceHour(n|null)` 覆寫（測試／截圖），`window.__promptasy.engine.forceHour`、`window.__promptasy.hour()` 回目前 `{index,p,forced}`。
+4. **截圖**：`scripts/shots-hours.mjs`（用 headless-check 同一套 CDP 啟動方式、自己的 port）對 foundations 中心四個時辰各截一張 PNG 到 `docs/design/shots/hour-{0..3}.png`（1280×720、high quality）；不進 e2e 常態流程（手動指令），但要能跑。
+5. WORLD.md §2.2：加「時辰」規則（永遠是夜、四態、只乘因子、終態星最亮之夜、明寫沒有黎明、`setMood` 是唯一入口、色彩腳本走同一入口）。
+6. 效能：時辰改變是低頻事件（進區／進程變化），不在每幀算；`moodNow` 的 lerp 已存在。
+
+**非目標**：區域色彩腳本本身（P06）、閘門三態（P06）、任何白天／日出、天氣。
+
+**受影響檔案**：`src/engine/engine.js`、新 `src/engine/hours.js`、`src/main.js`、`WORLD.md`（§2.2）、`scripts/test-rubric.mjs`、`scripts/headless-check.mjs`、新 `scripts/shots-hours.mjs`、`docs/design/shots/`。
+
+**預算**：光源 37 不變、mesh 不變（+≤1 Sprite）、零每幀配置（uniform 與 sprite 位置在 lerp 迴圈裡直接寫）。
+
+**Acceptance tests（先紅後綠）**
+- rubric：`hourOf` 邊界（0／0.25／0.5／0.999／1 → 0/1/2/2/3；全部收齊才 3）、`hourFactor` 表、`composeMood` 純函式（區域色系不變：fog 色相不變只乘亮度）；`setMood` 接受新鍵並平滑（`moodTarget` 讀回）；靜態掃描 engine 每幀迴圈無新配置。
+- e2e：預設存檔 → `hour().index===0`；`forceHour(3)` → 輪詢直到月亮群 y 明顯低於 hour 0、星 `uOpacity` ≥ 0.95、極光 opacity 乘數 ≈1、hemi 變化在 ±0.08 內、fog 色相不變；`forceHour(null)` 回 0；光源仍 37；舊斷言零改動（預設時辰 0 ＝ 現在的樣子：入夜的因子必須讓 hour 0 的畫面與 P04 之前**逐值相同**——`fogMul 1、hemiAdd 0、exposureMul 1`、月亮位置＝現在的 `moonDir`、`uOpacity 0.9`、`uScale 900` → 把 stars.density 的映射校準成 density .7 ↔ 現值）。
+- 截圖腳本能跑出 4 張檔案（大小 >20KB）。
+
+**禁區**：同前；`REGION_ATMOSPHERE` 的既有數值不動（P06 才動）；`vite.config.js`；dev server 5175。
+
+Exit criteria：
+- [ ] 四態可用 `forceHour` 切換、截圖存檔；預設時辰的畫面逐值等於 P04 之前。
+- [ ] rubric／build／e2e 全綠、console error 0；光源 37。
+- [ ] WORLD.md §2.2 時辰規則；數字寫進 progress／CHANGELOG。
+
 ## v1.2 錯誤紀錄
 
 （沿用 §8 規則：任何錯誤記在此；同一錯誤不原樣重試；連續三種方法仍無法前進才報阻塞。）
