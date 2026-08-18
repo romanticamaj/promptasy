@@ -29,6 +29,7 @@ import glossaryFile from './data/glossary.json';
 import './styles.css';
 
 import { createEngine } from './engine/engine.js';
+import { hourOf, hourFactor, composeMood, createMoodMemo } from './engine/hours.js';
 import { createWorld, atmosphereFor } from './world/world.js';
 import { createPlayer } from './player/player.js';
 import { createContent } from './challenges/content.js';
@@ -62,6 +63,9 @@ import { glossary } from './ui/glossary.js';
 import { createAchievement } from './ui/achievement.js';
 import { createAudio, REGION_CARVE_CUES, REGION_SEAL_CUES } from './audio/audio.js';
 import { isApplicationTrial } from './challenges/trial.js';
+
+/** murks.json 裡真的有的那幾隻濁靈的 id（時辰進度、清燈計數、第一盞回聲共用同一份）。 */
+const MURK_IDS = Object.freeze((murkFile.entries || []).map((m) => m.id));
 
 function boot() {
   const app = document.getElementById('app');
@@ -108,7 +112,18 @@ function boot() {
   );
   // 序章的教學內容：只引用 curriculum 既有的技巧與弱→強對照（逐字，附官方出處）
   const prologueContent = createPrologueContent(prologueFile, curriculum, curriculumZh, sourceAnchorFile);
-  const progression = createProgression({ catalog, challenges: content.challenges });
+  /*
+   * v1.2 · P05：進程一變（過關／收技能／精通／安撫濁靈／重置）就重組一次氛圍 ——
+   * 一夜的時辰是進度的外顯。applyMood 要等引擎建好才存在，所以先掛一個會查的殼。
+   */
+  let applyMood = null;
+  const progression = createProgression({
+    catalog,
+    challenges: content.challenges,
+    onChange: () => {
+      if (applyMood) applyMood();
+    },
+  });
   const quality = progression.state.settings.quality === 'low' ? 'low' : 'high';
 
   /* --- 3D 場景 --- */
@@ -162,8 +177,34 @@ function boot() {
     onStep: () => audio.step(performance.now() / 1000),
   });
 
+  /* --- 氛圍的單一入口（v1.2 · P05）：區域色盤 × 一夜的時辰 → 引擎的 setMood ---
+   * 進區、進程變化、forceHour 都走這一個函式；引擎那邊只有一份 target 在管霧色／月亮／星星／極光。
+   * 時辰只乘因子、不換區域色系；永遠是夜（終態＝星最亮之夜，沒有黎明）。 */
+  let moodRegion = 'foundations';
+  const hourNow = () => {
+    const h = hourOf({
+      mastered: progression.masteredRegions().length,
+      masteredTotal: catalog.counts.implementedRegions,
+      skills: progression.state.skillsV2.length,
+      skillsTotal: catalog.counts.skills,
+      murks: progression.murkCount(MURK_IDS),
+      murksTotal: MURK_IDS.length,
+    });
+    const forced = engine.forcedHour;
+    return { index: forced == null ? h.index : forced, p: h.p, forced };
+  };
+  // 上一次真的送進 setMood 的 {region, hour}；同一對就不重送（進程一變就會叫一次，多半時辰沒動）
+  const moodApplied = createMoodMemo();
+  applyMood = (regionId = moodRegion, { force = false } = {}) => {
+    moodRegion = regionId;
+    const hourIndex = hourNow().index;
+    if (!moodApplied.changed(moodRegion, hourIndex, force)) return false;
+    engine.setMood(composeMood(atmosphereFor(moodRegion), hourFactor(hourIndex)));
+    return true;
+  };
+  engine.onHourForced(() => applyMood(moodRegion, { force: true }));
   // 開場先把氣氛設成起始區的樣子（不用等第一次跨區）
-  engine.setMood(atmosphereFor('foundations'));
+  applyMood('foundations', { force: true });
 
   /* --- UI --- */
   const ui = document.createElement('div');
@@ -354,7 +395,7 @@ function boot() {
           player.celebrate?.();
           hud.celebrate(`${challenge.title} · 牠聽懂了`, 's');
           // v1.2 · P04：第一盞清燈亮起時，回聲說一句（≤31 字、不解釋規則）
-          if (progression.murkCount(murkFile.entries.map((m) => m.id)) === 1) {
+          if (progression.murkCount(MURK_IDS) === 1) {
             hud.toast('回聲：沒說清楚的話，也能被說完。你替牠說了。', 'info');
           }
         }
@@ -983,7 +1024,7 @@ function boot() {
     if (here) {
       const entered = hud.setRegion(here.id, here.onBridge);
       if (entered) {
-        engine.setMood(atmosphereFor(here.id));
+        applyMood(here.id);
         audio.setRegion(here.id);
         if (!here.onBridge) {
           engine.pulse(0.55);
@@ -1257,11 +1298,15 @@ function boot() {
     /** v1.2 · P02：目前稱號 id（測試用：驗濁靈不動稱號）。 */
     rankNow: () => rankFor(rankStats(progression, catalog), ranksFile.ranks).rank.id,
     /** v1.2 · P02：安撫過的濁靈數 —— 只數 murks.json 裡真的有的那幾隻（圖鑑第四列用的同一個數）。 */
-    murkCount: () => progression.murkCount((murkFile.entries || []).map((m) => m.id)),
+    murkCount: () => progression.murkCount(MURK_IDS),
     /** 目前坐在哪一張長凳上（測試用）。 */
     seatedOn: () => (seatedOn ? seatedOn.id : null),
     /** 課程 v2 的 runtime catalog（測試用：所有「x / y」都該從這裡推導）。 */
     catalog,
+    /** v1.2 · P05：目前的時辰 `{ index, p, forced }`（forced ＝ engine.forceHour 的覆寫值或 null）。 */
+    hour: () => hourNow(),
+    /** v1.2 · P05：重組一次氛圍（區域色盤 × 時辰；`{force:true}` 跳過同值略過）—— 測試用。 */
+    applyMood: (opts) => applyMood(moodRegion, opts),
   };
   /**
    * 改名前的舊名字（PromptArcade）。留成別名 —— 外面若有人寫了書籤小工具

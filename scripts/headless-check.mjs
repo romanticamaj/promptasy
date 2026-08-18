@@ -581,6 +581,46 @@ async function main() {
     `cover=${boot.cover.coverIdx} canvas=${boot.cover.canvasIdx}`
   );
   ok(boot.sceneNames.includes('sky'), '天空 dome 存在');
+  /* v1.2 · P05：預設存檔 → 入夜（hour 0），而且天空的值逐值等於沒有時辰之前 */
+  const hour0 = await evaluate(`
+    const g = window.__promptasy;
+    const m = g.engine.mood();
+    const moonG = g.engine.moonGroup;
+    return {
+      hour: g.hour(),
+      forced: g.engine.forcedHour,
+      target: m.target, now: m.now,
+      uOpacity: g.engine.stars.material.uniforms.uOpacity.value,
+      uScale: g.engine.stars.material.uniforms.uScale.value,
+      moonPos: [moonG.position.x, moonG.position.y, moonG.position.z],
+      lightPos: [g.engine.lights.moon.position.x, g.engine.lights.moon.position.y, g.engine.lights.moon.position.z],
+      disc: (() => { const d = moonG.getObjectByName('moonDisc'); return [d.scale.x, d.material.opacity]; })(),
+      halo: (() => { const d = moonG.getObjectByName('moonHalo'); return [d.scale.x, d.material.opacity]; })(),
+      aurora: g.engine.aurora.children.map((b) => [b.material.opacity, b.material.color.getHex()]),
+      fog: g.engine.scene.fog.color.getHex(),
+      hemiTarget: m.target.hemi,
+      exposureTarget: m.target.exposure,
+    };
+  `);
+  eq(hour0.hour.index, 0, 'P05：預設存檔 → 入夜（hour 0）');
+  eq(hour0.hour.p, 0, 'P05：預設存檔 p ＝ 0');
+  ok(hour0.hour.p < 0.25, 'P05：預設存檔 p < 0.25（與 index 0 一致）');
+  eq(hour0.hour.forced, null, 'P05：沒有時辰覆寫');
+  eq(hour0.forced, null, 'P05：engine.forcedHour null');
+  eq(JSON.stringify(hour0.target.moon), JSON.stringify({ alt: 0.75, phase: 0.3 }), 'P05：hour 0 target moon {alt .75, phase .3}');
+  eq(hour0.target.stars.density, 0.7, 'P05：hour 0 target stars.density .7');
+  eq(JSON.stringify(hour0.target.aurora), JSON.stringify({ intensity: 0.5, hue: 0 }), 'P05：hour 0 target aurora {intensity .5, hue 0}');
+  eq(hour0.uOpacity, 0.9, 'P05：hour 0 星 uOpacity 0.9（＝沒有時辰之前）');
+  eq(hour0.uScale, 900, 'P05：hour 0 星 uScale 900（＝沒有時辰之前）');
+  const moonRef = (() => { const l = Math.hypot(-40, 60, 30); return [-40 / l * 520, 60 / l * 520, 30 / l * 520]; })();
+  ok(hour0.moonPos.every((v, i) => Math.abs(v - moonRef[i]) < 1e-6), 'P05：hour 0 月亮位置 ＝ 現在的 (-40,60,30) 方向 × 520', hour0.moonPos.map((v) => v.toFixed(3)).join(','));
+  ok(hour0.lightPos.every((v, i) => Math.abs(v - [-40, 60, 30][i]) < 1e-6), 'P05：hour 0 月光位置 ＝ (-40,60,30)', hour0.lightPos.join(','));
+  eq(JSON.stringify(hour0.disc), JSON.stringify([34, 1]), 'P05：hour 0 月盤 scale 34／opacity 1（＝現在）');
+  eq(JSON.stringify(hour0.halo), JSON.stringify([170, 0.5]), 'P05：hour 0 月暈 scale 170／opacity 0.5（＝現在）');
+  eq(JSON.stringify(hour0.aurora), JSON.stringify([[0.2, 0xffffff], [0.13, 0xffffff]]), 'P05：hour 0 極光兩帶 opacity 0.2／0.13、色白（＝現在）');
+  eq(hour0.fog, 0x1e2c40, 'P05：hour 0 霧色 ＝ foundations 的 0x1e2c40');
+  eq(hour0.hemiTarget, 0.52, 'P05：hour 0 hemi target 0.52（hemiAdd 0）');
+  eq(hour0.exposureTarget, 1.02, 'P05：hour 0 exposure target 1.02（exposureMul 1）');
   ok(boot.sceneNames.includes('stars'), '星空存在（M4）');
   ok(boot.sceneNames.includes('aurora'), '極光存在（M4）');
   eq(boot.hasBeacon, true, '每座石座都有光柱與走近光環（M4）');
@@ -7635,6 +7675,196 @@ async function main() {
   ok(!murkArb.none, '（前提）世界裡有一對石座／濁靈互動圈相疊（淨空例外那一隻）', JSON.stringify(murkArb));
   ok(murkArb.dMurk < 5.5, '（前提）這個點也在濁靈的 5.5 內', `${murkArb.murk}↔${murkArb.marker} d=${murkArb.dMurk && murkArb.dMurk.toFixed(2)}`);
   ok(new RegExp(murkArb.title || '§').test(murkArb.text) && !/濁靈/.test(murkArb.text), '石座與濁靈同時在範圍內 → 石座優先', murkArb.text);
+
+  /* ================================================================ */
+  /*
+   * v1.2 · P05：setMood 單一入口 ＋ 一夜的時辰
+   *
+   * forceHour(3) → 月亮沿弧落到近地平線、星更密更亮、極光更強偏紫、hemi 只動一點點、
+   * 霧色相不變；forceHour(null) 回到照進度算；光源仍是 37；預設時辰＝現在的樣子。
+   * 全部輪詢式（moodNow 是 lerp 過去的，不對齊牆鐘）。
+   */
+  console.log('\n▸ 一夜的時辰（v1.2 · P05）');
+  const hourBase = await evaluate(`
+    const g = window.__promptasy;
+    const m = g.engine.mood();
+    let lights = 0;
+    g.engine.scene.traverse((o) => { if (o.isLight) lights += 1; });
+    let sprites = 0;
+    g.engine.moonGroup.traverse((o) => { if (o.isSprite) sprites += 1; });
+    return {
+      hour: g.hour(),
+      lights, sprites,
+      moonY: g.engine.moonGroup.position.y,
+      lightY: g.engine.lights.moon.position.y,
+      shadowBias: g.engine.lights.moon.shadow.bias,
+      uOpacity: g.engine.stars.material.uniforms.uOpacity.value,
+      auroraOpacity: g.engine.aurora.children.map((b) => b.material.opacity),
+      hemi: m.target.hemi,
+      fog: m.target.fog,
+      tint: m.target.tint,
+      region: g.hud.region,
+      hasForce: typeof g.engine.forceHour === 'function',
+    };
+  `);
+  ok(hourBase.hasForce, 'engine.forceHour 存在（window.__promptasy.engine.forceHour）');
+  // 不假設前面的測試留下什麼進度：用輪詢到的 p 依門檻算出應有的 index，只驗一致
+  const HOUR_THRESHOLDS = [0.25, 0.5, 1];
+  const expectHourIndex = (p) => (p >= 1 - 1e-9 ? 3 : p < HOUR_THRESHOLDS[0] ? 0 : p < HOUR_THRESHOLDS[1] ? 1 : 2);
+  ok(Number.isFinite(hourBase.hour.p) && hourBase.hour.p >= 0 && hourBase.hour.p <= 1, 'hour().p 是 0..1 的數', String(hourBase.hour.p));
+  eq(hourBase.hour.index, expectHourIndex(hourBase.hour.p), 'hour().index 與 p 依門檻一致（.25／.5／1）', JSON.stringify(hourBase.hour));
+  const hourBaseIndex = hourBase.hour.index;
+  eq(hourBase.hour.forced, null, '沒有覆寫');
+  eq(hourBase.sprites, 2, '月亮仍是 disc ＋ halo 兩個 Sprite（月相沒加遮罩）');
+  const hourAtmoBefore = hourBase;
+
+  await evaluate(`window.__promptasy.engine.forceHour(3); return 1;`);
+  const hour3Immediate = await evaluate(`
+    const g = window.__promptasy;
+    const m = g.engine.mood();
+    return { hour: g.hour(), forced: g.engine.forcedHour, target: m.target };
+  `);
+  eq(hour3Immediate.forced, 3, 'forceHour(3) → engine.forcedHour 3');
+  eq(hour3Immediate.hour.index, 3, 'hour().index 立刻是 3');
+  eq(hour3Immediate.hour.forced, 3, 'hour().forced 3');
+  eq(hour3Immediate.hour.p, hourBase.hour.p, 'hour().p 仍是真實進度（覆寫不改 p）', String(hour3Immediate.hour.p));
+  eq(JSON.stringify(hour3Immediate.target.moon), JSON.stringify({ alt: 0.05, phase: 1 }), 'target moon {alt .05, phase 1}（星最亮之夜）');
+  eq(hour3Immediate.target.stars.density, 1, 'target stars.density 1');
+  eq(JSON.stringify(hour3Immediate.target.aurora), JSON.stringify({ intensity: 1, hue: 0.4 }), 'target aurora {intensity 1, hue .4}');
+  ok(Math.abs(hour3Immediate.target.hemi - hourBase.hemi - 0.02) < 1e-9, 'target hemi ＝ 區域 hemi ＋ 0.02', `${hourBase.hemi} → ${hour3Immediate.target.hemi}`);
+  eq(hour3Immediate.target.tint, hourBase.tint, 'tint 不變（時辰不換色系）');
+
+  const hour3 = await waitFor(
+    async () => {
+      const r = await evaluate(`
+        const g = window.__promptasy;
+        const m = g.engine.mood();
+        return {
+          moonY: g.engine.moonGroup.position.y,
+          lightY: g.engine.lights.moon.position.y,
+          lightLen: g.engine.lights.moon.position.length(),
+          shadowBias: g.engine.lights.moon.shadow.bias,
+          uOpacity: g.engine.stars.material.uniforms.uOpacity.value,
+          uScale: g.engine.stars.material.uniforms.uScale.value,
+          auroraOpacity: g.engine.aurora.children.map((b) => b.material.opacity),
+          auroraBase: g.engine.aurora.children.map((b) => b.userData.baseOpacity),
+          auroraColor: g.engine.aurora.children.map((b) => b.material.color.getHex()),
+          disc: (() => { const d = g.engine.moonGroup.getObjectByName('moonDisc'); return [d.scale.x, d.material.opacity]; })(),
+          halo: (() => { const d = g.engine.moonGroup.getObjectByName('moonHalo'); return [d.scale.x, d.material.opacity]; })(),
+          nowAlt: m.now.moon.alt, nowIntensity: m.now.aurora.intensity, nowHue: m.now.aurora.hue, nowDensity: m.now.stars.density,
+          hemiNow: m.now.hemi, fogNow: m.now.fog, fogTarget: m.target.fog,
+          fogSceneHex: g.engine.scene.fog.color.getHex(),
+        };
+      `);
+      return r.nowAlt < 0.06 && r.nowIntensity > 0.99 && r.nowHue > 0.39 && r.nowDensity > 0.99 && r.fogNow === r.fogTarget ? r : null;
+    },
+    { timeout: 30000, every: 300, label: 'hour 3 的氛圍平滑到位' }
+  );
+  ok(hour3.moonY < hourBase.moonY * 0.4, '月亮群 y 明顯低於 hour 0（沿弧落到近地平線）', `${hourBase.moonY.toFixed(0)} → ${hour3.moonY.toFixed(0)}`);
+  ok(hour3.moonY > 40, '月亮仍在地平線上（≈8°，沒有落下去）', String(hour3.moonY.toFixed(0)));
+  {
+    // 月光（投影）：跟著弧降、但仰角有 22° 下限（sprite 群比它低）；bias 隨仰角溫和放大、≤ 3×
+    const floorY = Math.sin((22 * Math.PI) / 180) * hour3.lightLen;
+    ok(hour3.lightY <= hourBase.lightY + 1e-6, '月光 DirectionalLight 不高於覆寫前', `${hourBase.lightY} → ${hour3.lightY.toFixed(2)}`);
+    if (hourBaseIndex === 0) ok(hour3.lightY < hourBase.lightY * 0.6, '（覆寫前是入夜）月光比 hour 0 明顯低', `${hourBase.lightY} → ${hour3.lightY.toFixed(2)}`);
+    ok(hour3.lightY >= floorY - 1e-6, '月光仰角不低於 22° 下限', `y=${hour3.lightY.toFixed(3)} floorY=${floorY.toFixed(3)}`);
+    ok(Math.abs(hour3.lightY - floorY) < 1e-6, 'hour 3（alt .05 → 月亮 ≈ 10°）月光被夾在 22°', `y=${hour3.lightY.toFixed(3)}`);
+    ok(hour3.moonY / 520 < Math.sin((22 * Math.PI) / 180), '月亮 sprite 群的仰角低於月光的下限（群一路跟著 alt 落）', String((Math.asin(hour3.moonY / 520) * 180 / Math.PI).toFixed(1)));
+    if (hourBase.shadowBias !== 0) {
+      const mul = hour3.shadowBias / hourBase.shadowBias;
+      ok(mul >= 1 && mul <= 3, 'shadow.bias 隨低仰角放大、夾在 3× 內', `${hourBase.shadowBias} → ${hour3.shadowBias} (×${mul.toFixed(2)})`);
+      if (hourBaseIndex === 0) ok(mul > 1.5, '（覆寫前是入夜）hour 3 的 bias ≈ ×2（sin 50.2°／sin 22°）', `×${mul.toFixed(2)}`);
+    } else {
+      eq(hour3.shadowBias, 0, '低畫質沒有投影：bias 仍 0');
+    }
+  }
+  ok(hour3.uOpacity >= 0.95, '星 uOpacity ≥ 0.95', String(hour3.uOpacity));
+  ok(hour3.uScale > 950, '星 uScale 放大（> 950）', String(hour3.uScale));
+  ok(hour3.auroraOpacity.every((o, i) => Math.abs(o / hour3.auroraBase[i] - 1.5) < 0.05), '極光 opacity 乘數 ≈ 1.5（intensity 1）', JSON.stringify(hour3.auroraOpacity));
+  ok(hour3.auroraOpacity.every((o, i) => o > hourAtmoBefore.auroraOpacity[i]), '極光比 hour 0 更亮');
+  ok(hour3.auroraColor.every((c) => c !== 0xffffff), '極光材質色偏離白（hue +.4 → 偏紫）', hour3.auroraColor.map((c) => c.toString(16)).join(','));
+  ok(hour3.auroraColor.every((c) => ((c >> 16) & 0xff) < 0xff && (c & 0xff) === 0xff && ((c >> 8) & 0xff) < ((c >> 16) & 0xff)), '偏紫：藍 255、紅 > 綠', hour3.auroraColor.map((c) => c.toString(16)).join(','));
+  ok(hour3.disc[0] > 34 && hour3.halo[0] > 170 && hour3.halo[1] > 0.5, '月相 1：月盤更大、月暈更大更亮', JSON.stringify([hour3.disc, hour3.halo]));
+  ok(Math.abs(hour3.hemiNow - hourBase.hemi) <= 0.08, 'hemi 變化在 ±0.08 內', `${hourBase.hemi} → ${hour3.hemiNow.toFixed(3)}`);
+  {
+    const hsl = (hex) => { const r = ((hex >> 16) & 255) / 255, g = ((hex >> 8) & 255) / 255, b = (hex & 255) / 255; const mx = Math.max(r, g, b), mn = Math.min(r, g, b); let h = 0; if (mx !== mn) { const d = mx - mn; if (mx === r) h = ((g - b) / d + (g < b ? 6 : 0)) / 6; else if (mx === g) h = ((b - r) / d + 2) / 6; else h = ((r - g) / d + 4) / 6; } return { h, l: (mx + mn) / 2 }; };
+    const a = hsl(hourBase.fog), b = hsl(hour3.fogNow);
+    const dh = Math.min(Math.abs(a.h - b.h), 1 - Math.abs(a.h - b.h));
+    ok(dh < 0.03, 'fog 色相不變（只乘亮度）', `Δh=${dh.toFixed(4)} ${hourBase.fog.toString(16)}→${hour3.fogNow.toString(16)}`);
+    ok(b.l > a.l && b.l < a.l * 1.12, 'fog 亮度略升（×1.05 以內，仍是夜）', `${a.l.toFixed(3)}→${b.l.toFixed(3)}`);
+    ok(b.l < 0.25, '星最亮之夜的霧仍是深色（沒有黎明）', String(b.l.toFixed(3)));
+  }
+  eq(hour3.fogSceneHex, hour3.fogNow, 'scene.fog 的顏色就是 moodNow.fog（同一份狀態）');
+
+  // 覆寫期間進區／進程變化仍走同一入口：applyMood 重組後 target 仍是 hour 3
+  const hour3Reapply = await evaluate(`
+    const g = window.__promptasy;
+    g.applyMood();
+    const m = g.engine.mood();
+    return { alt: m.target.moon.alt, hue: m.target.aurora.hue, index: g.hour().index };
+  `);
+  eq(hour3Reapply.alt, 0.05, 'applyMood 重組後仍是 hour 3 的 target（覆寫優先）');
+  eq(hour3Reapply.index, 3, 'hour().index 仍 3');
+
+  await evaluate(`window.__promptasy.engine.forceHour(null); return 1;`);
+  const hourBack = await waitFor(
+    async () => {
+      const r = await evaluate(`
+        const g = window.__promptasy;
+        const m = g.engine.mood();
+        return { hour: g.hour(), forced: g.engine.forcedHour, target: m.target, nowAlt: m.now.moon.alt, moonY: g.engine.moonGroup.position.y, uOpacity: g.engine.stars.material.uniforms.uOpacity.value, auroraColor: g.engine.aurora.children.map((b) => b.material.color.getHex()), fogNow: m.now.fog };
+      `);
+      // moodNow 靠近 1e-5 內就貼上 target（mood.step）—— 等它真的貼上，不用容忍值
+      return r.nowAlt === 0.75 && r.fogNow === r.target.fog ? r : null;
+    },
+    { timeout: 30000, every: 300, label: 'forceHour(null) 平滑回入夜' }
+  );
+  eq(hourBack.forced, null, 'forceHour(null) → 覆寫清掉');
+  eq(hourBack.hour.index, hourBaseIndex, 'hour().index 回到照進度算的那一格');
+  eq(hourBack.hour.index, expectHourIndex(hourBack.hour.p), 'hour().index 與 p 依門檻一致');
+  eq(hourBack.hour.forced, null, 'hour().forced null');
+  eq(JSON.stringify(hourBack.target.moon), JSON.stringify({ alt: 0.75, phase: 0.3 }), 'target 回入夜的月');
+  ok(Math.abs(hourBack.moonY - hourBase.moonY) < 0.5, '月亮群回到 hour 0 的高度', `${hourBack.moonY.toFixed(2)} vs ${hourBase.moonY.toFixed(2)}`);
+  ok(Math.abs(hourBack.uOpacity - 0.9) < 0.005, '星 uOpacity 回 0.9', String(hourBack.uOpacity));
+  ok(hourBack.auroraColor.every((c) => c === 0xffffff), '極光材質色回白');
+  eq(hourBack.fogNow, hourBase.fog, '霧色回到區域色盤');
+
+  const hourLights = await evaluate(`
+    const g = window.__promptasy;
+    let lights = 0; g.engine.scene.traverse((o) => { if (o.isLight) lights += 1; });
+    let meshes = 0; g.engine.scene.traverse((o) => { if (o.isMesh) meshes += 1; });
+    return { lights, meshes };
+  `);
+  eq(hourLights.lights, hourBase.lights, '光源數在 forceHour 前後不變（P05 零新光源）');
+  // forceHour 只收 null／整數 0..3（數字字串 '2' 也算）；其他一律忽略：不改狀態、不通知
+  {
+    const bad = await evaluate(`
+      const g = window.__promptasy;
+      let notified = 0;
+      const off = g.engine.onHourForced(() => { notified += 1; });
+      g.engine.forceHour(2);
+      const okNotified = notified;
+      const rets = [];
+      for (const v of [9, -2, 2.5, '', false, NaN, '3px', {}, true, [], '  ', Infinity]) rets.push(g.engine.forceHour(v));
+      const after = g.engine.forcedHour;
+      const badNotified = notified - okNotified;
+      const str = g.engine.forceHour('3');
+      const strForced = g.engine.forcedHour;
+      const cleared = g.engine.forceHour(null);
+      off();
+      return { okNotified, rets, after, badNotified, str, strForced, cleared, forcedAfterClear: g.engine.forcedHour, hourAfter: g.hour() };
+    `);
+    eq(bad.okNotified, 1, 'forceHour(2) 通知一次');
+    eq(bad.after, 2, '9／-2／2.5／\'\'／false／NaN／\'3px\'／{}／true／[]／\'  \'／Infinity 全部忽略：forcedHour 仍 2');
+    ok(bad.rets.every((r) => r === 2), '被忽略的呼叫回傳目前的覆寫值 2', JSON.stringify(bad.rets));
+    eq(bad.badNotified, 0, '被忽略的呼叫不通知');
+    eq(bad.str, 3, "forceHour('3') → 3（數字字串）");
+    eq(bad.strForced, 3, "forcedHour 3");
+    eq(bad.cleared, null, 'forceHour(null) 回 null');
+    eq(bad.forcedAfterClear, null, '清掉覆寫');
+    eq(bad.hourAfter.forced, null, 'hour().forced null');
+  }
+  await sleep(300);
 
   /* ================================================================ */
   /*

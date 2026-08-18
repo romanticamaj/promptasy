@@ -1820,3 +1820,11 @@ rubric 原本有一條「那一排石籤有自己的樣式」正是靠這幾塊�
 - `onRubricHits` 契約：**四鍵**（challenge／passedIndices／newlyPassedIndices／total）為底；`kind==='murk'` 多帶 `murk` 子物件（recorder 的回傳）；P09 接石座時只用四鍵。
 - 審查工具的可用性成了瓶頸（Codex 額度、Claude session 上限各中斷一次）：`/code-review` 五個角度只跑完一個。已把跑完的那個角度全部處理；其餘角度（移除行為稽核、跨檔追蹤、慣例）等 P04 開工前若額度恢復再補一次針對 P01–P03 的總審。
 
+## v1.2 · P05 的發現（2026-08-18）
+
+- **時辰的 hour 0 必須逐值等於舊畫面**——這是「不倒退」在視覺上的實作方式：所有映射（星 uOpacity／uScale、月亮方向、月相 disc/halo、極光乘數）都以 hour 0 為錨點做分段線性，e2e 開機時逐值比對；之後任何動天空的 phase 都照這個做法。
+- 月相不能用「咬掉」：disc／halo 是加法混合的 sprite，暗色 sprite 減不掉、天空色的遮罩會在 halo 上切出硬邊 → 改用 disc／halo 的 scale＋opacity 交叉（「越滿越亮、暈越寬」），零新 sprite。
+- 月亮降到地平線時**陰影光源不能跟著降**（掠射角→acne／拉長條紋）：sprite 走 alt、DirectionalLight 仰角地板 22°、bias 隨 sin 比放大。
+- `composeMood` 只接 number／`#rrggbb`，其他顏色型別要透傳、缺鍵要省略——否則 P06 色彩腳本丟 `THREE.Color` 進來會變全黑。
+- 測試不要 pin 原始碼逐字（`n = null`、縮排、箭頭函式換行）與絕對光源數；驗行為與「前後不變」。
+

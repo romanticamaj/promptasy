@@ -29,6 +29,8 @@
     "src/challenges/source-anchor.js",
     "src/challenges/trial.js",
     "src/engine/engine.js",
+    "src/engine/hours.js",
+    "src/engine/mood.js",
     "src/main.js",
     "src/player/character.js",
     "src/player/player.js",
@@ -77,7 +79,7 @@
     "src/world/reactive.js",
     "src/world/world.js"
   ],
-  "corpusHash": "4ba9375794cd96a5",
+  "corpusHash": "6df0ff55d28d5de9",
   "coverage": {
     "latin": [
       32,
@@ -252,6 +254,7 @@
       353,
       381,
       382,
+      949,
       960,
       8211,
       8212,
@@ -1695,6 +1698,7 @@
       32883,
       32893,
       32920,
+      32922,
       32937,
       32943,
       32972,
@@ -2178,6 +2182,7 @@
       40635,
       40636,
       40643,
+      40654,
       40655,
       40657,
       40664,
@@ -2346,6 +2351,7 @@
       12539
     ],
     "newsreader": [
+      949,
       960,
       8213,
       8231,
@@ -2486,7 +2492,7 @@
       "id": "inter",
       "family": "Inter UI",
       "file": "inter-ui.woff2",
-      "bytes": 85444,
+      "bytes": 86132,
       "role": "latin",
       "variable": true,
       "weight": null,
@@ -2502,7 +2508,7 @@
           "default": 14
         }
       },
-      "requested": 257,
+      "requested": 258,
       "missing": 25,
       "source": "Inter.ttf",
       "author": "Rasmus Andersson",
@@ -2530,8 +2536,8 @@
           "default": 16
         }
       },
-      "requested": 257,
-      "missing": 63,
+      "requested": 258,
+      "missing": 64,
       "source": "Newsreader.ttf",
       "author": "Production Type (Jean-Baptiste Morizot, Lucas Descroix)",
       "license": "SIL Open Font License 1.1",
@@ -2542,7 +2548,7 @@
       "id": "mono",
       "family": "Arcade Mono",
       "file": "arcade-mono.woff2",
-      "bytes": 29260,
+      "bytes": 29516,
       "role": "latin",
       "variable": true,
       "weight": null,
@@ -2553,7 +2559,7 @@
           "default": 400
         }
       },
-      "requested": 257,
+      "requested": 258,
       "missing": 36,
       "source": "JetBrainsMono.ttf",
       "author": "JetBrains (Philipp Nurullin, Konstantin Bulenkov)",
@@ -2565,7 +2571,7 @@
       "id": "serif-tc",
       "family": "Arcade Serif TC",
       "file": "arcade-serif-tc.woff2",
-      "bytes": 675792,
+      "bytes": 676804,
       "role": "cjk",
       "variable": true,
       "weight": null,
@@ -2576,7 +2582,7 @@
           "default": 400
         }
       },
-      "requested": 1867,
+      "requested": 1869,
       "missing": 0,
       "source": "NotoSerifTC.ttf",
       "author": "Google (Noto Project)",
@@ -2588,7 +2594,7 @@
       "id": "sans-tc",
       "family": "Arcade Sans TC",
       "file": "arcade-sans-tc.woff2",
-      "bytes": 515004,
+      "bytes": 515500,
       "role": "cjk",
       "variable": true,
       "weight": null,
@@ -2599,7 +2605,7 @@
           "default": 400
         }
       },
-      "requested": 1867,
+      "requested": 1869,
       "missing": 0,
       "source": "NotoSansTC.ttf",
       "author": "Google (Noto Project)",
@@ -2608,5 +2614,5 @@
       "url": "https://github.com/google/fonts/tree/main/ofl/notosanstc"
     }
   ],
-  "totalBytes": 1514032
+  "totalBytes": 1516484
 }

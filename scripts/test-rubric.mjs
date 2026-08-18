@@ -5881,6 +5881,352 @@ const distToSeg = (px, pz, ax, az, bx, bz) => {
 }
 
 /* ================================================================== */
+/* v1.2 · P05：setMood 單一入口 ＋ 一夜的時辰                             */
+/*   · hourOf 邊界／hourFactor 表／composeMood 純函式（色相不變）        */
+/*   · mood 狀態：新鍵進 target 並平滑；hour 0 的校準點逐值等於舊畫面    */
+/*   · 靜態掃描：engine 每幀迴圈零新配置；main.js 只有一個 setMood 呼叫點 */
+/* ================================================================== */
+console.log('▸ 一夜的時辰（v1.2 · P05）');
+{
+  const Hours = await import('../src/engine/hours.js');
+  const Mood = await import('../src/engine/mood.js');
+  const { hourOf, hourFactor, composeMood, scaleColor } = Hours;
+
+  /* --- ① hourOf：權重與邊界 --- */
+  {
+    const H = (mastered, skills, murks) => hourOf({ mastered, masteredTotal: 12, skills, skillsTotal: 130, murks, murksTotal: 8 });
+    eq(H(0, 0, 0).index, 0, '空存檔 → 入夜（0）');
+    eq(H(0, 0, 0).p, 0, '空存檔 p ＝ 0');
+    // p = 0.5·m/12 + 0.3·s/130 + 0.2·k/8
+    eq(hourOf({ mastered: 6, masteredTotal: 12 }).p, 0.25, '精通 6/12 → p 0.25（其他預設總數）');
+    eq(hourOf({ mastered: 6, masteredTotal: 12 }).index, 1, 'p 剛好 0.25 → 深夜（1）（< 0.25 才是入夜）');
+    eq(hourOf({ mastered: 5.999, masteredTotal: 12 }).index, 0, 'p 0.2499… → 入夜');
+    eq(hourOf({ mastered: 12, masteredTotal: 12 }).index, 2, 'p 0.5（只有精通全滿）→ 月落（2）');
+    eq(hourOf({ mastered: 12, masteredTotal: 12 }).p, 0.5, '精通全滿 p ＝ 0.5');
+    eq(H(12, 130, 7).index, 2, '精通滿＋技能滿＋濁靈 7/8 → p 0.975 → 仍是月落（全部收齊才是終態）');
+    ok(Math.abs(H(12, 130, 7).p - 0.975) < 1e-12, 'p 0.975', String(H(12, 130, 7).p));
+    eq(H(11, 130, 8).index, 2, '精通 11/12 → 仍是月落');
+    eq(H(12, 129, 8).index, 2, '技能 129/130 → 仍是月落');
+    eq(H(12, 130, 8).index, 3, '全部收齊 → 星最亮之夜（3）');
+    eq(H(12, 130, 8).p, 1, '全部收齊 p ＝ 1（浮點誤差被收掉）');
+    eq(H(0, 65, 0).index, 0, '技能 65/130（p 0.15）→ 入夜');
+    eq(H(0, 130, 8).index, 2, '技能滿＋濁靈滿、沒精通（p 0.5）→ 月落');
+    eq(H(0, 0, 8).index, 0, '只安撫 8 隻（p 0.2）→ 入夜');
+    eq(H(0, 0, 8).p, 0.2, '濁靈全滿 p 0.2');
+    eq(hourOf().index, 0, '沒參數 → 入夜');
+    eq(hourOf({ mastered: 99, masteredTotal: 12 }).index, 2, '比值夾在 1（超過總數不會變 3）');
+    eq(hourOf({ mastered: NaN, skills: -3, murks: 'x' }).index, 0, '垃圾輸入 → 入夜、不 NaN');
+    eq(JSON.stringify(hourOf(null)), JSON.stringify({ index: 0, p: 0 }), 'hourOf(null) 安全（當全零）');
+    eq(JSON.stringify(hourOf(undefined)), JSON.stringify({ index: 0, p: 0 }), 'hourOf(undefined) 安全');
+    eq(JSON.stringify(hourOf('x')), JSON.stringify({ index: 0, p: 0 }), 'hourOf 非物件 → 全零');
+    // 總數 0 的那一項跳過、權重重新正規化：星最亮之夜仍到得了
+    eq(hourOf({ mastered: 12, masteredTotal: 12, skills: 130, skillsTotal: 130, murks: 0, murksTotal: 0 }).index, 3, 'murksTotal 0 → 跳過該項、精通＋技能全滿仍是星最亮之夜');
+    eq(hourOf({ mastered: 12, masteredTotal: 12, skills: 130, skillsTotal: 130, murks: 0, murksTotal: 0 }).p, 1, 'murksTotal 0 → p 1（權重正規化）');
+    ok(Math.abs(hourOf({ mastered: 6, masteredTotal: 12, skills: 0, skillsTotal: 130, murks: 0, murksTotal: 0 }).p - 0.5 * 0.5 / 0.8) < 1e-12, 'murksTotal 0 → 精通權重 0.5/0.8', String(hourOf({ mastered: 6, masteredTotal: 12, skills: 0, skillsTotal: 130, murks: 0, murksTotal: 0 }).p));
+    eq(hourOf({ masteredTotal: 0, skillsTotal: 0, murksTotal: 0 }).p, 0, '三項總數全 0 → p 0（不 NaN）');
+    eq(hourOf({ masteredTotal: 0, skillsTotal: 0, murksTotal: 0 }).index, 0, '三項總數全 0 → 入夜');
+    eq(hourOf({ mastered: 3, masteredTotal: 0, murks: 8, murksTotal: 8, skills: 130, skillsTotal: 130 }).index, 3, 'masteredTotal 0 → 只看技能＋濁靈，全滿 → 星最亮之夜');
+    ok(Number.isFinite(Hours.normalizeForcedHour(2)) && Hours.normalizeForcedHour(2) === 2, 'normalizeForcedHour(2) → 2');
+    eq(Hours.normalizeForcedHour('2'), 2, "normalizeForcedHour('2') → 2（數字字串）");
+    eq(Hours.normalizeForcedHour(0), 0, 'normalizeForcedHour(0) → 0');
+    eq(Hours.normalizeForcedHour(3), 3, 'normalizeForcedHour(3) → 3');
+    eq(Hours.normalizeForcedHour(null), null, 'normalizeForcedHour(null) → null（清掉）');
+    eq(Hours.normalizeForcedHour(undefined), null, 'normalizeForcedHour(undefined) → null');
+    for (const [bad, label] of [['', "''"], [false, 'false'], [NaN, 'NaN'], ['3px', "'3px'"], [{}, '{}'], [9, '9'], [-2, '-2'], [2.5, '2.5'], [true, 'true'], [[], '[]'], ['  ', "'  '"], [Infinity, 'Infinity']]) {
+      eq(Hours.normalizeForcedHour(bad), undefined, `normalizeForcedHour(${label}) → 忽略（undefined）`);
+    }
+    eq(JSON.stringify(Hours.HOUR_IDS), JSON.stringify(['dusk', 'midnight', 'moonset', 'starlit']), '四個時辰 id：入夜／深夜／月落／星最亮之夜（沒有 dawn）');
+    ok(!/dawn|sunrise|day\b/i.test(JSON.stringify(Hours.HOUR_IDS)), '時辰 id 裡沒有 dawn / sunrise / day（鐵則 3）');
+  }
+
+  /* --- ② hourFactor 表 --- */
+  {
+    const rows = [
+      [0, 1.0, 0, 1.0, 0.75, 0.3, 0.7, 0.5, 0],
+      [1, 0.95, -0.03, 0.98, 0.5, 0.5, 0.8, 0.7, 0],
+      [2, 0.9, -0.06, 0.96, 0.2, 0.75, 0.9, 0.85, 0],
+      [3, 1.05, 0.02, 1.03, 0.05, 1.0, 1.0, 1.0, 0.4],
+    ];
+    for (const [i, fogMul, hemiAdd, expMul, alt, phase, density, intensity, hue] of rows) {
+      const f = hourFactor(i);
+      eq(f.fogMul, fogMul, `hour ${i} fogMul ${fogMul}`);
+      eq(f.hemiAdd, hemiAdd, `hour ${i} hemiAdd ${hemiAdd}`);
+      eq(f.exposureMul, expMul, `hour ${i} exposureMul ${expMul}`);
+      eq(f.moon.alt, alt, `hour ${i} moon.alt ${alt}`);
+      eq(f.moon.phase, phase, `hour ${i} moon.phase ${phase}`);
+      eq(f.stars.density, density, `hour ${i} stars.density ${density}`);
+      eq(f.aurora.intensity, intensity, `hour ${i} aurora.intensity ${intensity}`);
+      eq(f.aurora.hue, hue, `hour ${i} aurora.hue ${hue}`);
+      ok(Object.isFrozen(f), `hour ${i} 因子表是唯讀的`);
+    }
+    // 單調：越晚月越低、星越密、極光越強
+    for (let i = 1; i < 4; i += 1) {
+      ok(hourFactor(i).moon.alt < hourFactor(i - 1).moon.alt, `hour ${i} 月亮比 hour ${i - 1} 低`);
+      ok(hourFactor(i).stars.density > hourFactor(i - 1).stars.density, `hour ${i} 星比 hour ${i - 1} 密`);
+      ok(hourFactor(i).aurora.intensity > hourFactor(i - 1).aurora.intensity, `hour ${i} 極光比 hour ${i - 1} 強`);
+      ok(hourFactor(i).moon.phase > hourFactor(i - 1).moon.phase, `hour ${i} 月相比 hour ${i - 1} 滿`);
+    }
+    // 因子只在 ±10% 霧亮度／±0.08 hemi 內：永遠是夜
+    for (let i = 0; i < 4; i += 1) {
+      ok(hourFactor(i).fogMul >= 0.9 && hourFactor(i).fogMul <= 1.1, `hour ${i} fogMul 在 ±10% 內`);
+      ok(Math.abs(hourFactor(i).hemiAdd) <= 0.08, `hour ${i} hemiAdd 在 ±0.08 內`);
+      ok(hourFactor(i).exposureMul >= 0.9 && hourFactor(i).exposureMul <= 1.1, `hour ${i} exposureMul 在 ±10% 內`);
+    }
+    eq(hourFactor(7), hourFactor(3), '超出範圍夾到 3');
+    eq(hourFactor(-1), hourFactor(0), '負數夾到 0');
+    eq(hourFactor(NaN), hourFactor(0), 'NaN → 0');
+  }
+
+  /* --- ③ composeMood：純函式、色相不變、hour 0 逐值等於區域色盤 --- */
+  {
+    const atmoAll = World.REGION_ATMOSPHERE;
+    const hsl = (hex) => new THREE.Color(hex).getHSL({ h: 0, s: 0, l: 0 });
+    for (const [rid, atmo] of Object.entries(atmoAll)) {
+      const m0 = composeMood(atmo, hourFactor(0));
+      eq(m0.fog, atmo.fog, `${rid} hour 0：fog 逐值等於區域色盤`);
+      eq(m0.tint, atmo.tint, `${rid} hour 0：tint 原樣`);
+      eq(m0.hemi, atmo.hemi, `${rid} hour 0：hemi 原樣`);
+      eq(m0.fogNear, atmo.fogNear, `${rid} hour 0：fogNear 原樣`);
+      eq(m0.fogFar, atmo.fogFar, `${rid} hour 0：fogFar 原樣`);
+      eq(m0.exposure, atmo.exposure, `${rid} hour 0：exposure 原樣`);
+      for (let i = 1; i < 4; i += 1) {
+        const f = hourFactor(i);
+        const m = composeMood(atmo, f);
+        const h0 = hsl(atmo.fog);
+        const h1 = hsl(m.fog);
+        const dh = Math.min(Math.abs(h0.h - h1.h), 1 - Math.abs(h0.h - h1.h));
+        ok(dh < 0.02, `${rid} hour ${i}：霧色相不變（Δh ${dh.toFixed(4)}）`);
+        ok(Math.abs(h1.l - h0.l * f.fogMul) < 0.02, `${rid} hour ${i}：霧亮度 ≈ ×${f.fogMul}`, `${h0.l.toFixed(3)}→${h1.l.toFixed(3)}`);
+        eq(m.tint, atmo.tint, `${rid} hour ${i}：tint 不換色系`);
+        ok(Math.abs(m.hemi - (atmo.hemi + f.hemiAdd)) < 1e-12, `${rid} hour ${i}：hemi 加 ${f.hemiAdd}`);
+        ok(Math.abs(m.exposure - atmo.exposure * f.exposureMul) < 1e-12, `${rid} hour ${i}：exposure 乘 ${f.exposureMul}`);
+        eq(m.fogNear, atmo.fogNear, `${rid} hour ${i}：fogNear 原樣`);
+        eq(m.fogFar, atmo.fogFar, `${rid} hour ${i}：fogFar 原樣`);
+        eq(JSON.stringify(m.moon), JSON.stringify(f.moon), `${rid} hour ${i}：moon 直接帶`);
+        eq(JSON.stringify(m.stars), JSON.stringify(f.stars), `${rid} hour ${i}：stars 直接帶`);
+        eq(JSON.stringify(m.aurora), JSON.stringify(f.aurora), `${rid} hour ${i}：aurora 直接帶`);
+      }
+      // 純函式：輸入不被改
+      ok(Object.isFrozen(atmo), `${rid} 的區域色盤仍是唯讀`);
+    }
+    eq(scaleColor(0x1e2c40, 1), 0x1e2c40, 'scaleColor ×1 逐位元原值');
+    eq(scaleColor('#1e2c40', 1), 0x1e2c40, 'scaleColor 吃 #rrggbb');
+    eq(scaleColor(0xffffff, 1.05), 0xffffff, 'scaleColor 夾在 255');
+    eq(scaleColor(0x000000, 0.9), 0x000000, 'scaleColor 0 還是 0');
+    eq(scaleColor(0x102030, 0.5), 0x081018, 'scaleColor ×0.5 每通道等比');
+    const same = composeMood(atmoAll.foundations, hourFactor(0));
+    const again = composeMood(atmoAll.foundations, hourFactor(0));
+    eq(JSON.stringify(same), JSON.stringify(again), 'composeMood 是純函式（同輸入同輸出）');
+    ok(composeMood(null, null).moon.alt === 0.75, 'composeMood 沒給參數也不炸（退回 hour 0 因子）');
+    // 顏色絕不變黑：沒給就不帶鍵、認不得的原樣帶過去
+    {
+      const onlyTint = composeMood({ tint: 0xbcd6e6 }, hourFactor(0));
+      ok(!('fog' in onlyTint), 'composeMood({tint}) 沒有 fog 鍵（不會補一個黑色）');
+      eq(onlyTint.tint, 0xbcd6e6, 'composeMood({tint}) tint 原樣');
+      ok(!('hemi' in onlyTint) && !('exposure' in onlyTint) && !('fogNear' in onlyTint), '沒給的數字鍵也不帶（不會補 undefined／NaN）');
+      const onlyTint3 = composeMood({ tint: 0xbcd6e6 }, hourFactor(3));
+      ok(!('fog' in onlyTint3), 'hour 3 也一樣：沒 fog 就沒 fog 鍵');
+      const nothing = composeMood(null, null);
+      ok(!('fog' in nothing) && !('tint' in nothing), 'composeMood(null,null) 沒有 fog／tint 鍵');
+      ok(!Object.values(nothing).some((v) => v === 0 || v === '#000000' || v === 'black'), 'composeMood(null,null) 沒有任何黑色');
+      const c = new THREE.Color(0x1e2c40);
+      for (let i = 0; i < 4; i += 1) {
+        const m = composeMood({ fog: c, tint: c }, hourFactor(i));
+        ok(m.fog === c, `hour ${i}：THREE.Color 的 fog 原樣帶過去（同一個物件）`);
+        eq(c.getHex(), 0x1e2c40, `hour ${i}：THREE.Color 沒被改`);
+        const r = composeMood({ fog: 'rgb(30, 44, 64)' }, hourFactor(i));
+        eq(r.fog, 'rgb(30, 44, 64)', `hour ${i}：'rgb(...)' 的 fog 原樣帶過去`);
+      }
+      eq(composeMood({ fog: '#1e2c40' }, hourFactor(0)).fog, 0x1e2c40, "'#rrggbb' hour 0 → 整數原值");
+      eq(composeMood({ fog: '#1e2c40' }, hourFactor(2)).fog, scaleColor(0x1e2c40, 0.9), "'#rrggbb' hour 2 → 乘亮度");
+      eq(composeMood({ fog: '#123' }, hourFactor(0)).fog, 0x112233, "'#rgb' 也認得");
+      eq(scaleColor(undefined, 0.9), undefined, 'scaleColor(undefined) → undefined（不是黑）');
+      eq(scaleColor('nope', 0.9), 'nope', 'scaleColor 認不得的字串原樣回');
+      eq(scaleColor(c, 0.9), c, 'scaleColor(THREE.Color) 原樣回');
+      ok(Number.isNaN(scaleColor(NaN, 0.9)), 'scaleColor(NaN) 原樣回（不是黑）');
+    }
+    // 月光的仰角下限 22°／bias 溫和放大（hour 0 逐位元不變）
+    {
+      const v = new THREE.Vector3();
+      const floor = (22 * Math.PI) / 180;
+      ok(Math.abs(Mood.MOON_LIGHT_ELEV_FLOOR - floor) < 1e-12, 'MOON_LIGHT_ELEV_FLOOR ＝ 22°');
+      const l0 = Mood.moonLightDirection(0.75, new THREE.Vector3()).toArray();
+      const d0 = Mood.moonDirection(0.75, new THREE.Vector3()).toArray();
+      eq(JSON.stringify(l0), JSON.stringify(d0), 'alt .75（hour 0）：月光方向 ＝ 月亮方向（逐位元，不動）');
+      eq(Mood.moonLightElevation(0.75), Mood.MOON_ELEV_HOUR0, 'alt .75 月光仰角 ＝ 校準點 50.2°');
+      for (const alt of [0, 0.05, 0.2]) {
+        const y = Mood.moonLightDirection(alt, v).y;
+        ok(Math.abs(y - Math.sin(floor)) < 1e-12, `alt ${alt}：月光仰角貼在 22° 下限（y ${y.toFixed(4)}）`);
+        ok(Mood.moonDirection(alt, v).y < Math.sin(floor), `alt ${alt}：月亮 sprite 群仍在下限之下（一路落到近地平線）`);
+      }
+      ok(Mood.moonLightDirection(0.5, v).y > Math.sin(floor), 'alt .5：高於下限 → 不夾');
+      eq(Mood.moonLightDirection(0.5, v).y, Mood.moonDirection(0.5, new THREE.Vector3()).y, 'alt .5：月光方向 ＝ 月亮方向');
+      eq(Mood.moonShadowBias(-0.0012, Mood.MOON_ELEV_HOUR0), -0.0012, 'bias 在校準仰角逐位元 ＝ base');
+      const bFloor = Mood.moonShadowBias(-0.0012, floor);
+      const expectMul = Math.sin(Mood.MOON_ELEV_HOUR0) / Math.sin(floor);
+      ok(Math.abs(bFloor / -0.0012 - expectMul) < 1e-12 && expectMul > 1.5 && expectMul < 3, `bias 在 22° ＝ base × sin(50.2°)/sin(22°) ≈ ×${expectMul.toFixed(2)}`, String(bFloor));
+      ok(Math.abs(Mood.moonShadowBias(-0.0012, 0.01)) <= 0.0012 * 3 + 1e-15, 'bias 乘數夾在 3 倍以內');
+      eq(Mood.moonShadowBias(0, floor), 0, '低畫質 base 0 → 仍是 0');
+      ok(bFloor < -0.0012, '低仰角 bias 更負（絕對值更大）');
+    }
+    // 備忘：同一對 {region, hour} 不重送
+    {
+      const memo = Hours.createMoodMemo();
+      eq(memo.changed('foundations', 0), true, '第一次 → 有變');
+      eq(memo.changed('foundations', 0), false, '同一對 → 略過');
+      eq(memo.changed('foundations', 0, true), true, 'force → 一律有變');
+      eq(memo.changed('foundations', 1), true, '時辰變 → 有變');
+      eq(memo.changed('reasoning', 1), true, '區變 → 有變');
+      eq(memo.changed('reasoning', 1), false, '再同一對 → 略過');
+      eq(JSON.stringify(memo.last()), JSON.stringify({ region: 'reasoning', hour: 1 }), 'last() 是上一次記下的那一對');
+    }
+  }
+
+  /* --- ④ mood 狀態：新鍵進 target 並平滑；校準點逐值等於舊畫面 --- */
+  {
+    const st = Mood.createMoodState({ fog: 0x1e2c40, tint: 0xbcd6e6, hemi: 0.52, fogNear: 62, fogFar: 285, exposure: 1.02 });
+    const s0 = st.snapshot();
+    eq(s0.target.moon.alt, 0.75, '預設 target moon.alt 0.75（＝入夜）');
+    eq(s0.target.moon.phase, 0.3, '預設 target moon.phase 0.3');
+    eq(s0.target.stars.density, 0.7, '預設 target stars.density 0.7');
+    eq(s0.target.aurora.intensity, 0.5, '預設 target aurora.intensity 0.5');
+    eq(s0.target.aurora.hue, 0, '預設 target aurora.hue 0');
+    eq(JSON.stringify(s0.now), JSON.stringify(s0.target), '開機 now ＝ target（沒有第一幀跳動）');
+    eq(st.step(0.5), false, '沒動過 target：step 回 false（天空不重寫）');
+    // 舊鍵照舊
+    st.set({ fog: 0x232a48, hemi: 0.6, exposure: 1.08 });
+    eq(st.snapshot().target.fog, 0x232a48, 'setMood 舊鍵 fog 進 target');
+    eq(st.snapshot().target.hemi, 0.6, 'setMood 舊鍵 hemi 進 target');
+    eq(st.snapshot().now.hemi, 0.52, 'now 還沒動（要 step 才動）');
+    // 新鍵
+    st.set({ moon: { alt: 0.05, phase: 1 }, stars: { density: 1 }, aurora: { intensity: 1, hue: 0.4 } });
+    const s1 = st.snapshot();
+    eq(s1.target.moon.alt, 0.05, 'setMood 接受 moon.alt');
+    eq(s1.target.moon.phase, 1, 'setMood 接受 moon.phase');
+    eq(s1.target.stars.density, 1, 'setMood 接受 stars.density');
+    eq(s1.target.aurora.intensity, 1, 'setMood 接受 aurora.intensity');
+    eq(s1.target.aurora.hue, 0.4, 'setMood 接受 aurora.hue');
+    eq(s1.now.moon.alt, 0.75, 'now.moon.alt 還在 0.75（平滑，不硬切）');
+    eq(st.step(0.5), true, '有差 → step 回 true');
+    const s2 = st.snapshot();
+    ok(Math.abs(s2.now.moon.alt - 0.4) < 1e-12, 'step(0.5) 後 now.moon.alt 走到一半（0.4）', String(s2.now.moon.alt));
+    ok(Math.abs(s2.now.stars.density - 0.85) < 1e-12, 'now.stars.density 0.85', String(s2.now.stars.density));
+    ok(Math.abs(s2.now.aurora.hue - 0.2) < 1e-12, 'now.aurora.hue 0.2', String(s2.now.aurora.hue));
+    ok(Math.abs(s2.now.hemi - 0.56) < 1e-12, 'now.hemi 0.56（舊鍵同一條 lerp）', String(s2.now.hemi));
+    for (let i = 0; i < 200; i += 1) st.step(0.3);
+    const s3 = st.snapshot();
+    eq(s3.now.moon.alt, 0.05, '夠多幀後 now 貼上 target（不會永遠差 1e-17）');
+    eq(s3.now.aurora.hue, 0.4, 'hue 也貼上');
+    eq(st.step(0.3), false, '貼上之後 step 又回 false（靜止時零重寫）');
+    // 夾值與垃圾
+    st.set({ moon: { alt: 7, phase: -2 }, stars: { density: 'x' }, aurora: { intensity: NaN, hue: 5 } });
+    const s4 = st.snapshot();
+    eq(s4.target.moon.alt, 1, 'moon.alt 夾在 1');
+    eq(s4.target.moon.phase, 0, 'moon.phase 夾在 0');
+    eq(s4.target.stars.density, 1, 'stars.density 非數字 → 不動');
+    eq(s4.target.aurora.intensity, 1, 'aurora.intensity NaN → 不動');
+    eq(s4.target.aurora.hue, 1, 'aurora.hue 夾在 1');
+    st.set({});
+    eq(JSON.stringify(st.snapshot().target), JSON.stringify(s4.target), 'setMood({}) 什麼都不動');
+    st.set();
+    eq(JSON.stringify(st.snapshot().target), JSON.stringify(s4.target), 'setMood() 什麼都不動');
+
+    // 校準：hour 0 的映射逐值等於舊畫面
+    eq(Mood.starOpacity(0.7), 0.9, 'stars.density 0.7 → uOpacity 0.9（現值）');
+    eq(Mood.starScale(0.7), 900, 'stars.density 0.7 → uScale 900（現值）');
+    ok(Mood.starOpacity(1) >= 0.95 && Mood.starOpacity(1) <= 1.0, 'density 1 → uOpacity ≥ 0.95');
+    ok(Mood.starOpacity(0) >= 0.5 && Mood.starOpacity(0) < 0.9, 'density 0 → uOpacity 明顯更淡');
+    ok(Mood.starScale(1) > 900 && Mood.starScale(0) < 900, 'uScale 隨 density 單調');
+    const dir0 = Mood.moonDirection(0.75, new THREE.Vector3());
+    const ref = new THREE.Vector3(-40, 60, 30).normalize();
+    ok(dir0.distanceTo(ref) < 1e-9, 'moon.alt 0.75 → 方向 ＝ 現在的 (-40,60,30)', dir0.toArray().join(','));
+    const dirLow = Mood.moonDirection(0, new THREE.Vector3());
+    ok(dirLow.y > 0.1 && dirLow.y < ref.y, 'alt 0 → 近地平線但仍在地平線上（≈8°）', String(dirLow.y));
+    ok(Math.abs(Math.asin(dirLow.y) * 180 / Math.PI - 8) < 0.01, 'alt 0 仰角 8°');
+    const dirHigh = Mood.moonDirection(1, new THREE.Vector3());
+    ok(Math.abs(Math.asin(dirHigh.y) * 180 / Math.PI - 60) < 0.01, 'alt 1 仰角 60°');
+    // 方位不變（同一條弧）
+    const az = (v) => Math.atan2(v.z, v.x);
+    ok(Math.abs(az(dirLow) - az(ref)) < 1e-9 && Math.abs(az(dirHigh) - az(ref)) < 1e-9, '弧的方位角固定');
+    const look = Mood.moonPhaseLook(0.3, {});
+    eq(JSON.stringify(look), JSON.stringify({ discScale: 34, discOpacity: 1, haloScale: 170, haloOpacity: 0.5 }), 'moon.phase 0.3 → disc 34／1.0、halo 170／0.5（現值）');
+    const full = Mood.moonPhaseLook(1, {});
+    ok(full.discScale > 34 && full.haloOpacity > 0.5 && full.haloScale > 170, 'phase 1 → 更滿更亮');
+    const thin = Mood.moonPhaseLook(0, {});
+    ok(thin.discScale < 34 && thin.discOpacity < 1 && thin.haloOpacity < 0.5, 'phase 0 → 更細更淡');
+    eq(Mood.auroraOpacityMul(0.5), 1, 'aurora.intensity 0.5 → 乘數 1（現值）');
+    ok(Mood.auroraOpacityMul(1) > 1.3 && Mood.auroraOpacityMul(0) < 0.5, '極光乘數隨 intensity 單調');
+    eq(Mood.knotLerp(0.7, 0.7, 1, 2, 3), 2, 'knotLerp 落在 knot 逐位元回 mid');
+    eq(Mood.knotLerp(0, 0.7, 1, 2, 3), 1, 'knotLerp 0 → lo');
+    eq(Mood.knotLerp(1, 0.7, 1, 2, 3), 3, 'knotLerp 1 → hi');
+    eq(Mood.knotLerp(NaN, 0.7, 1, 2, 3), 2, 'knotLerp NaN → mid');
+    eq(JSON.stringify(Mood.MOON_DIR_HOUR0), JSON.stringify([-40, 60, 30]), '月亮起點方向常數 (-40,60,30)');
+  }
+
+  /* --- ⑤ 靜態掃描：engine 每幀迴圈零新配置；main.js 只有一個 setMood 呼叫點；WORLD.md 有時辰規則 --- */
+  {
+    const engineSrc = readFileSync(resolve(root, 'src/engine/engine.js'), 'utf8');
+    const bodyOf = (src, head) => {
+      const m = new RegExp(`\\b${head}\\s*\\([^)]*\\)\\s*\\{`).exec(src);
+      const at = m ? m.index : -1;
+      ok(at > 0, `找得到 ${head}`);
+      if (at < 0) return '';
+      const open = src.indexOf('{', at);
+      let depth = 0;
+      for (let i = open; i < src.length; i += 1) {
+        if (src[i] === '{') depth += 1;
+        else if (src[i] === '}') { depth -= 1; if (depth === 0) return src.slice(open, i + 1); }
+      }
+      return src.slice(open);
+    };
+    for (const head of ['function applySky', 'function applyMood', 'function frame']) {
+      const body = bodyOf(engineSrc, head);
+      ok(body.length > 40, `${head} 本體不是空的`);
+      ok(!/new THREE\./.test(body), `${head} 裡沒有 new THREE.`);
+      ok(!/\bnew\s+[A-Z]/.test(body), `${head} 裡沒有 new 任何物件`);
+      ok(!/\.map\(|\.filter\(|\.forEach\(/.test(body), `${head} 裡沒有 map/filter/forEach`);
+      ok(!/=>/.test(body), `${head} 裡沒有建閉包`);
+      ok(!/\.clone\(\)|\.toArray\(|\.getHex\(/.test(body), `${head} 裡沒有 clone/toArray/getHex（會配置）`);
+    }
+    const stepBody = bodyOf(readFileSync(resolve(root, 'src/engine/mood.js'), 'utf8'), 'step');
+    ok(!/new |\.map\(|\.filter\(|=>/.test(stepBody), 'mood.step() 零配置、無閉包');
+    ok(/skyMoving/.test(engineSrc) && /applySky\(\)/.test(engineSrc), '天空只在值有動時重寫（靜止時零成本）');
+    ok(/forceHour\(/.test(engineSrc), 'engine.forceHour 存在');
+    ok(/normalizeForcedHour\(/.test(engineSrc), 'engine.forceHour 走 normalizeForcedHour（只收 null／整數 0..3）');
+    ok(/onHourForced\(/.test(engineSrc), 'engine.onHourForced 存在（main.js 接 applyMood）');
+    ok(/forcedHour/.test(engineSrc), 'engine.forcedHour 可讀');
+    ok(/moonLightDirection\(/.test(engineSrc) && /moonShadowBias\(/.test(engineSrc), '月光方向有 22° 下限、bias 隨仰角放大（applySky 用 mood.js 的映射）');
+    // 陰影 bias 的 base 只在開機讀一次
+    ok(/moonShadowBiasBase/.test(engineSrc), 'shadow.bias 的 base 值開機記一次');
+    ok(!/new THREE\.(Point|Spot|Directional|Hemisphere|Ambient|RectArea)Light/.test(engineSrc.slice(engineSrc.indexOf('function applySky'))), 'P05 沒有在迴圈之後新增任何光源');
+    eq((engineSrc.match(/new THREE\.DirectionalLight/g) || []).length, 2, '引擎仍只有 moon ＋ rim 兩盞 DirectionalLight');
+    eq((engineSrc.match(/new THREE\.Sprite\(/g) || []).length, 2, '月亮仍只有 disc ＋ halo 兩個 Sprite（月相走 opacity／scale 交叉，沒加遮罩）');
+    ok(!/dawn|sunrise|魚肚白|黎明|日出/.test(engineSrc), 'engine.js 沒有黎明／日出（鐵則 3）');
+    const hoursSrc = readFileSync(resolve(root, 'src/engine/hours.js'), 'utf8');
+    ok(!/from ['"]three['"]/.test(hoursSrc), 'hours.js 純函式、不 import three');
+    ok(!/document\.|window\./.test(hoursSrc), 'hours.js 不碰 DOM');
+    const mainSrc = readFileSync(resolve(root, 'src/main.js'), 'utf8');
+    eq((mainSrc.match(/engine\.setMood\(/g) || []).length, 1, 'main.js 只有一個 engine.setMood 呼叫點（applyMood）');
+    ok(/engine\.setMood\(composeMood\(atmosphereFor\(/.test(mainSrc) && /hourFactor\(/.test(mainSrc), 'applyMood ＝ setMood(composeMood(atmosphereFor(region), hourFactor(hour)))');
+    ok(/onChange:[\s\S]{0,120}?applyMood\(/.test(mainSrc), 'progression.onChange 走 applyMood');
+    ok(/engine\.onHourForced\([\s\S]{0,120}?applyMood\(/.test(mainSrc), 'forceHour 走 applyMood');
+    ok(/applyMood\(here\.id\)/.test(mainSrc), '進區走 applyMood');
+    ok(/\bhour:\s*\(\)\s*=>/.test(mainSrc), 'window.__promptasy.hour() 存在');
+    ok(!/atmosphereFor\(here\.id\)\)/.test(mainSrc), '舊的 engine.setMood(atmosphereFor(here.id)) 呼叫點已拆掉');
+    ok(/createMoodMemo\(/.test(mainSrc), 'applyMood 有 {region, hour} 備忘（同一對不重送）');
+    eq((mainSrc.match(/^const MURK_IDS = /gm) || []).length, 1, 'main.js 的 MURK_IDS 只定義一次（模組層）');
+    eq((mainSrc.match(/murkFile\.entries[^\n]*\.map\(\(m\) => m\.id\)/g) || []).length, 1, 'murks 的 id 只從 murkFile 算一次（其他地方用 MURK_IDS）');
+    ok((mainSrc.match(/\bMURK_IDS\b/g) || []).length >= 4, 'MURK_IDS 在三個以上的地方重複使用', String((mainSrc.match(/\bMURK_IDS\b/g) || []).length));
+    const worldMd = readFileSync(resolve(root, 'WORLD.md'), 'utf8');
+    const s22 = worldMd.slice(worldMd.indexOf('### 2.2'), worldMd.indexOf('### 2.3'));
+    ok(/時辰/.test(s22) && /星最亮/.test(s22), 'WORLD.md §2.2 有「時辰」規則（終態星最亮之夜）');
+    ok(/沒有黎明|不出現黎明/.test(s22), 'WORLD.md §2.2 明寫沒有黎明');
+    ok(/setMood/.test(s22), 'WORLD.md §2.2 寫明 setMood 是唯一入口');
+    ok(existsSync(resolve(root, 'scripts/shots-hours.mjs')), 'scripts/shots-hours.mjs 存在');
+  }
+}
+
+/* ================================================================== */
 /* Phase 7：序章「喚醒神諭」引導課程                                     */
 /*                                                                    */
 /*   · 教學內容必須逐字取自 curriculum（護欄 2：不得杜撰技巧或來源）      */

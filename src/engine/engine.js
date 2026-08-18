@@ -14,6 +14,21 @@ import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
+import {
+  createMoodState,
+  starOpacity,
+  starScale,
+  moonDirection,
+  moonLightDirection,
+  moonLightElevation,
+  moonShadowBias,
+  moonPhaseLook,
+  auroraOpacityMul,
+  AURORA_TINT_PLUS,
+  AURORA_TINT_MINUS,
+  MOON_DIR_HOUR0,
+} from './mood.js';
+import { normalizeForcedHour } from './hours.js';
 
 /** 全域配色（世界與 UI 共用同一套色，畫面才像同一個作品）。 */
 export const PALETTE = Object.freeze({
@@ -175,6 +190,7 @@ function makeMoon(direction) {
     })
   );
   disc.scale.set(34, 34, 1);
+  disc.name = 'moonDisc';
 
   const halo = new THREE.Sprite(
     new THREE.SpriteMaterial({
@@ -188,6 +204,7 @@ function makeMoon(direction) {
     })
   );
   halo.scale.set(170, 170, 1);
+  halo.name = 'moonHalo';
 
   group.add(halo);
   group.add(disc);
@@ -245,6 +262,8 @@ function makeAurora() {
     mesh.rotation.y = cfg.rot;
     mesh.renderOrder = -7;
     mesh.userData.drift = 0.004 + i * 0.0026;
+    // P05：時辰的極光強度是「基礎 opacity × 乘數」，基礎值留在這裡
+    mesh.userData.baseOpacity = cfg.opacity;
     group.add(mesh);
   }
   return group;
@@ -356,7 +375,9 @@ export function createEngine({ container, quality = 'high' }) {
   const hemi = new THREE.HemisphereLight(0x8fb4d6, 0x1a2430, 0.52);
   scene.add(hemi);
 
-  const moonDir = new THREE.Vector3(-40, 60, 30);
+  // 月亮的起點方向（時辰 0 ＝ 入夜）；P05 起沿同一條弧升降，方位不變（見 mood.js）
+  const moonDir = new THREE.Vector3(...MOON_DIR_HOUR0);
+  const moonLightDist = moonDir.length();
   const moon = new THREE.DirectionalLight(PALETTE.moon, 0.88);
   moon.position.copy(moonDir);
   if (highStart) {
@@ -371,8 +392,12 @@ export function createEngine({ container, quality = 'high' }) {
     moon.shadow.camera.bottom = -d;
     moon.shadow.bias = -0.0012;
   }
+  const moonShadowBiasBase = moon.shadow.bias;
   scene.add(moon);
-  scene.add(makeMoon(moonDir));
+  const moonGroup = makeMoon(moonDir);
+  scene.add(moonGroup);
+  const moonDisc = moonGroup.getObjectByName('moonDisc');
+  const moonHalo = moonGroup.getObjectByName('moonHalo');
 
   // rim：從背面打過來的暖光，把剪影邊緣勾出來 —— 感知質感的關鍵一盞
   const rim = new THREE.DirectionalLight(PALETTE.warm, 0.42);
@@ -411,23 +436,25 @@ export function createEngine({ container, quality = 'high' }) {
   }
   window.addEventListener('resize', resize);
 
-  /* --- 氛圍狀態：跨區時霧色 / 色偏 / 光強會平滑漂移 --- */
-  const moodTarget = {
-    fog: new THREE.Color(PALETTE.fog),
-    tint: new THREE.Color(0xbcd6e6),
+  /* --- 氛圍狀態：跨區／時辰／色彩腳本全部寫進同一份 target，每幀 lerp 到 now（P05：單一入口） --- */
+  const moodState = createMoodState({
+    fog: PALETTE.fog,
+    tint: 0xbcd6e6,
     hemi: 0.52,
     fogNear: 62,
     fogFar: 285,
     exposure: 1.02,
-  };
-  const moodNow = {
-    fog: moodTarget.fog.clone(),
-    tint: moodTarget.tint.clone(),
-    hemi: moodTarget.hemi,
-    fogNear: moodTarget.fogNear,
-    fogFar: moodTarget.fogFar,
-    exposure: moodTarget.exposure,
-  };
+  });
+  const moodNow = moodState.now;
+  /* 天空套用用的暫存（模組層重複使用，每幀零配置） */
+  const _moonDir = new THREE.Vector3();
+  const _phaseLook = { discScale: 34, discOpacity: 1, haloScale: 170, haloOpacity: 0.5 };
+  const _auroraPlus = new THREE.Color(AURORA_TINT_PLUS);
+  const _auroraMinus = new THREE.Color(AURORA_TINT_MINUS);
+  const _white = new THREE.Color(0xffffff);
+  /* 時辰覆寫（測試／截圖）：null ＝ 照進度算；設了就由 main.js 的 applyMood 用它 */
+  let forcedHour = null;
+  const hourListeners = [];
   let swell = 0;
 
   const clock = new THREE.Clock();
@@ -451,14 +478,37 @@ export function createEngine({ container, quality = 'high' }) {
     };
   }
 
+  /** 把 moodNow 的天空值寫進 uniform／sprite／燈的方向。只在值有動時呼叫；不配置。 */
+  function applySky() {
+    // 星：density → uOpacity / uScale
+    stars.material.uniforms.uOpacity.value = starOpacity(moodNow.starDensity);
+    stars.material.uniforms.uScale.value = starScale(moodNow.starDensity);
+    // 月：alt → sprite 群沿同一條弧一路降到近地平線（8°）
+    moonDirection(moodNow.moonAlt, _moonDir);
+    moonGroup.position.copy(_moonDir).multiplyScalar(520);
+    // 月光（投影的 DirectionalLight）走同一條弧，但仰角下限 22°（見 mood.js）；bias 隨仰角溫和放大
+    moonLightDirection(moodNow.moonAlt, _moonDir);
+    moon.position.copy(_moonDir).multiplyScalar(moonLightDist);
+    moon.shadow.bias = moonShadowBias(moonShadowBiasBase, moonLightElevation(moodNow.moonAlt));
+    // 月相：disc / halo 的 scale 與 opacity 交叉（加色混合下「咬掉」做不出來，見 mood.js）
+    moonPhaseLook(moodNow.moonPhase, _phaseLook);
+    moonDisc.scale.set(_phaseLook.discScale, _phaseLook.discScale, 1);
+    moonDisc.material.opacity = _phaseLook.discOpacity;
+    moonHalo.scale.set(_phaseLook.haloScale, _phaseLook.haloScale, 1);
+    moonHalo.material.opacity = _phaseLook.haloOpacity;
+    // 極光：intensity → 各 band 基礎 opacity 的乘數；hue → 材質色白 ↔ 紫／綠
+    const mul = auroraOpacityMul(moodNow.auroraIntensity);
+    const hue = moodNow.auroraHue;
+    for (let i = 0; i < aurora.children.length; i += 1) {
+      const band = aurora.children[i];
+      band.material.opacity = band.userData.baseOpacity * mul;
+      band.material.color.copy(_white).lerp(hue >= 0 ? _auroraPlus : _auroraMinus, Math.abs(hue));
+    }
+  }
+
   function applyMood(dt) {
     const k = Math.min(1, dt * 1.6);
-    moodNow.fog.lerp(moodTarget.fog, k);
-    moodNow.tint.lerp(moodTarget.tint, k);
-    moodNow.hemi += (moodTarget.hemi - moodNow.hemi) * k;
-    moodNow.fogNear += (moodTarget.fogNear - moodNow.fogNear) * k;
-    moodNow.fogFar += (moodTarget.fogFar - moodNow.fogFar) * k;
-    moodNow.exposure += (moodTarget.exposure - moodNow.exposure) * k;
+    const skyMoving = moodState.step(k);
 
     if (scene.fog) {
       scene.fog.color.copy(moodNow.fog);
@@ -472,6 +522,7 @@ export function createEngine({ container, quality = 'high' }) {
       gradePass.uniforms.uTint.value.copy(moodNow.tint);
       gradePass.uniforms.uSwell.value = swell;
     }
+    if (skyMoving) applySky();
   }
 
   function frame() {
@@ -500,6 +551,8 @@ export function createEngine({ container, quality = 'high' }) {
     lights: { hemi, moon, rim },
     stars,
     aurora,
+    /** 月亮的 sprite 群（disc ＋ halo；P05 起會沿弧升降） */
+    moonGroup,
 
     onUpdate(fn) {
       return hook(updaters, fn);
@@ -516,16 +569,38 @@ export function createEngine({ container, quality = 'high' }) {
     },
 
     /**
-     * 設定當下的氛圍（跨區時呼叫；會平滑漂移過去，不會硬切）。
-     * @param {{fog?:*, tint?:*, hemi?:number, fogNear?:number, fogFar?:number, exposure?:number}} mood
+     * 設定當下的氛圍 —— **唯一入口**（跨區、時辰、P06 色彩腳本都走這裡；會平滑漂移過去，不會硬切）。
+     * @param {{fog?:*, tint?:*, hemi?:number, fogNear?:number, fogFar?:number, exposure?:number,
+     *   moon?:{alt?:number, phase?:number}, stars?:{density?:number}, aurora?:{intensity?:number, hue?:number}}} mood
      */
-    setMood(mood = {}) {
-      if (mood.fog != null) moodTarget.fog.set(mood.fog);
-      if (mood.tint != null) moodTarget.tint.set(mood.tint);
-      if (Number.isFinite(mood.hemi)) moodTarget.hemi = mood.hemi;
-      if (Number.isFinite(mood.fogNear)) moodTarget.fogNear = mood.fogNear;
-      if (Number.isFinite(mood.fogFar)) moodTarget.fogFar = mood.fogFar;
-      if (Number.isFinite(mood.exposure)) moodTarget.exposure = mood.exposure;
+    setMood(next = {}) {
+      moodState.set(next);
+    },
+
+    /** 氛圍的純讀快照 `{ target, now }`（測試／除錯用；會配置，別每幀呼叫）。 */
+    mood() {
+      return moodState.snapshot();
+    },
+
+    /**
+     * v1.2 · P05：時辰覆寫（測試／截圖用）。`n` 0..3 或 null（回到照進度算）。
+     * 引擎自己不算時辰 —— 只記著覆寫值並通知 main.js 的 `applyMood()` 重組一次。
+     */
+    forceHour(n) {
+      // 只收 null／undefined（清掉）或整數 0..3（數字字串 '2' 也算）；其他一律忽略：不改狀態、不通知
+      const next = normalizeForcedHour(n);
+      if (next === undefined) return forcedHour;
+      forcedHour = next;
+      for (const fn of hourListeners) fn(forcedHour);
+      return forcedHour;
+    },
+    /** 目前的時辰覆寫值（null ＝ 沒覆寫）。 */
+    get forcedHour() {
+      return forcedHour;
+    },
+    /** 訂閱 forceHour（main.js 用它接 applyMood）；回傳解除函式。 */
+    onHourForced(fn) {
+      return hook(hourListeners, fn);
     },
 
     /** 一瞬間的光湧（跨區、解鎖、精通時用）。 */

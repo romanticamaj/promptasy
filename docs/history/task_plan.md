@@ -872,9 +872,9 @@ Exit criteria：
 - [x] WORLD.md §1.6／§3.2／§3.5／§4.8／§8 到位；文案用語一致。
 - [x] rubric／build／e2e 全綠、console error 0。
 
-### P05 — `setMood` 單一入口 ＋ 一夜的時辰（2026-08-18 開工）
+### P05 — `setMood` 單一入口 ＋ 一夜的時辰（2026-08-18 開工 · 同日完成）
 
-狀態：`in progress`（Codex 仍不可用 → consult 由 orchestrator 自審；review 用 `/code-review high`）
+狀態：`done`（Codex 仍不可用；`/code-review high` 10 條 → 9 條修、1 條＝CHANGELOG 由 orchestrator 收尾）
 
 **現狀**：`src/engine/engine.js` `createEngine()`：`setMood({fog,tint,hemi,fogNear,fogFar,exposure})` 寫 `moodTarget`，每幀 lerp 到 `moodNow` 套霧色／色偏／半球光／曝光（`engine.js:415–475, 522–530`）；天空元素：`makeStars()`（ShaderMaterial，uniforms `uTime/uMap/uOpacity/uScale`，high 950 顆／low 420 顆）、`makeMoon(dir)`（`disc`＋`halo` 兩個 Sprite，掛在固定 `moonDir (-40,60,30)`；另有 DirectionalLight `moon` 打光＋陰影）、`makeAurora()`（若干 band，`rotation.y += drift`）；`PALETTE.moon/aurora`。區域氣氛 `REGION_ATMOSPHERE`（`world.js:253`）由 `main.js:166/986` 在進區時 `engine.setMood(atmosphereFor(id))`。進程：`progression.masteredRegions()`、`state.skillsV2.length`（130 滿）、`murkCount(ids)`（8 滿）、`createProgression({onChange})` 有變更回呼。WORLD.md §2.2「一律夜景。沒有白天、沒有日出」。
 
@@ -901,10 +901,12 @@ Exit criteria：
 
 **禁區**：同前；`REGION_ATMOSPHERE` 的既有數值不動（P06 才動）；`vite.config.js`；dev server 5175。
 
+**審查後修訂（2026-08-18）**：`composeMood` 非 hex 顏色直接透傳（不再變黑）、`hourOf(null)` 安全＋零總數項重新正規化；月亮 sprite 跟 alt 一路下去但**陰影光源仰角地板 22°**＋bias 隨仰角放大（≤3×）；`forceHour` 只收 null／整數 0–3（其餘忽略、不觸發）；`MURK_IDS` 提升一次、`applyMood` 同 (region,hour) 不重送；e2e 時辰斷言改成從 `p` 推導（不綁測試順序）、光源只驗「forceHour 前後不變」；rubric 靜態掃描去掉逐字 pin；截圖腳本轉向容差 ±0.2 rad＋埠所有權檢查。
+
 Exit criteria：
-- [ ] 四態可用 `forceHour` 切換、截圖存檔；預設時辰的畫面逐值等於 P04 之前。
-- [ ] rubric／build／e2e 全綠、console error 0；光源 37。
-- [ ] WORLD.md §2.2 時辰規則；數字寫進 progress／CHANGELOG。
+- [x] 四態可用 `forceHour` 切換、`docs/design/shots/hour-0..3.png` 存檔；預設時辰的畫面逐值等於 P04 之前（e2e 開機校準）。
+- [x] rubric 85,242／playtest 2,429／build ✓／e2e 3,599 全綠、console error 0；光源不變。
+- [x] WORLD.md §2.2 時辰規則；數字寫進 progress／CHANGELOG。
 
 ## v1.2 錯誤紀錄
 

@@ -2988,3 +2988,11 @@ e2e 一輪（同時破壞三處：Instagram 那顆回來、divergence 變回硬�
 - 驗證：rubric 84,527／build ✓／e2e 3,525 零 console error（第一輪即綠）。
 - 里程碑 A 剩 P05（時辰）、P06（色彩腳本＋三態＋節奏稽核）。
 
+## 2026-08-18 · v1.2 P05 `setMood` 單一入口＋一夜的時辰 · `done`
+
+- `engine.setMood` 擴成 `{fog,tint,hemi,fogNear,fogFar,exposure,moon:{alt,phase},stars:{density},aurora:{intensity,hue}}`（`src/engine/mood.js` 狀態＋校準映射、`applySky()` 只在天空值移動時跑）；`src/engine/hours.js` 純函式 `hourOf/hourFactor/composeMood`（p = .5·精通/12 + .3·技能/130 + .2·清燈/8；入夜／深夜／月落／星最亮之夜；只乘因子不換色系；hour 0 逐值等於舊畫面）；`main.js` 單一入口 `applyMood()`（進區／進程變化／forceHour；同 (region,hour) 不重送）、`engine.forceHour(n|null)`、`__promptasy.hour()`；`scripts/shots-hours.mjs`＋`npm run shots:hours` → `docs/design/shots/hour-0..3.png`；WORLD.md §2.2「一夜的時辰」規則。
+- 先紅後綠：rubric 8 紅（含 `main.js` 兩個 setMood 呼叫點的真 bug）→ 綠；審查修訂 8 條純函式案例對舊 hours.js 全紅 → 綠。
+- 審查（`/code-review high`）10 條：9 條修（非 hex 變黑、陰影 bias、forceHour 壞輸入、onChange 重算、e2e 綁順序、絕對光源數、逐字 pin、截圖腳本埠與容差、hourOf null）。
+- 數字：rubric 84,527 → **85,242**、playtest 2,429、e2e 3,525 → **3,599**（零 console error）；光源不變、mesh 不變、sprite 不變。
+- 下一步：P06（區域色彩腳本＋閘門三態＋節奏稽核腳本）→ 里程碑 A 閘門。
+

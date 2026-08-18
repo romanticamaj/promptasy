@@ -48,7 +48,7 @@ CLAUDE.md 的五個方向與七條護欄仍是最高準則。本 roadmap 只回�
   - 依賴：P03。方案：W-5（文案部分）。
   - DoD：`zh-scan` 通過；文案量 ≤ 30 句；e2e 舊斷言零改動。
 
-- [~] **P05 · `setMood` 單一入口 ＋ 一夜的時辰**（M）— 把 `engine.setMood()` 擴成 `{ fog, tint, hemi, fogNear, fogFar, exposure, moon:{alt, phase}, stars:{density}, aurora:{intensity, hue} }`（月亮 sprite 遮罩、星點 shader uniform、極光 uniform 都收進來）；時辰 = f(清燈數／精通區數／技能數) 四態：入夜／深夜／月落／星最亮之夜；時辰只乘「因子」不換色系（霧亮度 ±10%、hemi ±0.08）；`window.__promptasy.engine.forceHour(n)` 供 e2e 與截圖。
+- [x] **P05 · `setMood` 單一入口 ＋ 一夜的時辰**（M）— 把 `engine.setMood()` 擴成 `{ fog, tint, hemi, fogNear, fogFar, exposure, moon:{alt, phase}, stars:{density}, aurora:{intensity, hue} }`（月亮 sprite 遮罩、星點 shader uniform、極光 uniform 都收進來）；時辰 = f(清燈數／精通區數／技能數) 四態：入夜／深夜／月落／星最亮之夜；時辰只乘「因子」不換色系（霧亮度 ±10%、hemi ±0.08）；`window.__promptasy.engine.forceHour(n)` 供 e2e 與截圖。
   - 依賴：無（可與 A 段任一交錯）。方案：M3。
   - DoD：光源 37；e2e 固定時辰 0 跑舊斷言零改動；四態截圖存 `docs/design/shots/`；WORLD.md §2.2 加「時辰」規則（明寫沒有黎明）。
 

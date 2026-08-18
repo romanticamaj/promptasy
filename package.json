@@ -23,7 +23,8 @@
     "test:playtest": "node scripts/playtest-verify.mjs",
     "test": "node scripts/test-rubric.mjs",
     "test:e2e": "node scripts/headless-check.mjs",
-    "fonts": "node scripts/subset-fonts.mjs"
+    "fonts": "node scripts/subset-fonts.mjs",
+    "shots:hours": "node scripts/shots-hours.mjs"
   },
   "dependencies": {
     "howler": "^2.2.4",
