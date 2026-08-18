@@ -353,6 +353,10 @@ function boot() {
         if (mk.newlyCalmed) {
           player.celebrate?.();
           hud.celebrate(`${challenge.title} · 牠聽懂了`, 's');
+          // v1.2 · P04：第一盞清燈亮起時，回聲說一句（≤31 字、不解釋規則）
+          if (progression.murkCount(murkFile.entries.map((m) => m.id)) === 1) {
+            hud.toast('回聲：沒說清楚的話，也能被說完。你替牠說了。', 'info');
+          }
         }
         celebrateLevelUp(outcome);
         announceUnlocks(outcome);
