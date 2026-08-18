@@ -279,14 +279,45 @@ function boot() {
     onShare: (opts) => openShare(opts),
     onResult: ({ challenge, evaluation, outcome }) => {
       hud.refresh();
+      /** 升等的共同收尾（關卡與濁靈都走這裡）：toast ＋ 一下脈衝。 */
+      const celebrateLevelUp = (o) => {
+        if (!o.leveledUp) return;
+        hud.toast(`升級了！Lv.${o.levelAfter}`, 'good');
+        engine.pulse(0.7);
+      };
+      /** 新解鎖區域的共同收尾：開閘門、toast、上方公告、音效、脈衝。 */
+      const announceUnlocks = (o) => {
+        for (const regionId of o.newlyUnlocked || []) {
+          const g = content.group(regionId);
+          world.openGate(regionId, true);
+          hud.toast(`新區域解鎖：${g ? g.name : regionId} —— 橋上的閘門開了`, 'good');
+          // 解鎖當下立刻在畫面上方說一次「○○ 已開啟，往前走吧」（不受冷卻限制）
+          nudge.announceUnlock(regionId);
+          audio.cue(unlockCue(regionId));
+          engine.pulse(1.0);
+        }
+      };
       /*
-       * v1.2 · P01：濁靈的安撫走的是同一座主控台，但**不是關卡**——
-       * 沒有石座可以點亮、沒有解鎖可以慶祝、這一個 phase 也還不落盤（P02／P03）。
-       * 只給一聲回饋就收手，其餘的關卡收尾一律不跑。
+       * v1.2 · P02：濁靈的安撫走的是同一座主控台，但**不是關卡**——
+       * 沒有石座可以點亮、不找 marker。音效跟結果面一樣看**這一次**（evaluation.passed）；
+       * 「這一次才安撫」（outcome.murk.newlyCalmed，可能是累積聯集湊到的）→ 慶祝；
+       * 升等／解鎖照其他 XP 寫入者的收尾（recordMurk 已跑 refreshUnlocks，閘門要跟著開）。
+       * 剝殼／清燈演出留給 P03。
        */
       if (challenge && challenge.kind === 'murk') {
+        const mk = outcome.murk || {};
         if (evaluation.passed) audio.cue('pass', { grade: evaluation.grade });
         else audio.cue('fail');
+        if (mk.newlyCalmed) {
+          player.celebrate?.();
+          hud.celebrate(`${challenge.title} · 牠聽懂了`, 's');
+        }
+        celebrateLevelUp(outcome);
+        announceUnlocks(outcome);
+        if ((outcome.newlyUnlocked || []).length) {
+          world.refreshGates();
+          compass.refresh();
+        }
         return;
       }
       if (evaluation.passed) {
@@ -305,19 +336,8 @@ function boot() {
         const marker = world.markers.find((m) => m.id === challenge.id);
         if (marker) marker.setCleared(progression.bestGrade(challenge.id));
         if (evaluation.grade === 'S') hud.celebrate('S · 完美', 's');
-        if (outcome.leveledUp) {
-          hud.toast(`升級了！Lv.${outcome.levelAfter}`, 'good');
-          engine.pulse(0.7);
-        }
-        for (const regionId of outcome.newlyUnlocked) {
-          const g = content.group(regionId);
-          world.openGate(regionId, true);
-          hud.toast(`新區域解鎖：${g ? g.name : regionId} —— 橋上的閘門開了`, 'good');
-          // 解鎖當下立刻在畫面上方說一次「○○ 已開啟，往前走吧」（不受冷卻限制）
-          nudge.announceUnlock(regionId);
-          audio.cue(unlockCue(regionId));
-          engine.pulse(1.0);
-        }
+        celebrateLevelUp(outcome);
+        announceUnlocks(outcome);
         world.refreshGates();
         compass.refresh();
         checkPayoffs();
@@ -341,6 +361,9 @@ function boot() {
     inscriptionTotal: (inscriptionFile.entries || []).length,
     secretTotal: (secretFile.entries || []).length,
     handleTotal: (handleFile.entries || []).length,
+    // v1.2 · P02：圖鑑第四列「濁言與正言 n/8」＋ 可展開的條目
+    murkTotal: (murkFile.entries || []).length,
+    murks: murkFile.entries || [],
   });
   ui.appendChild(codex.root);
 
@@ -1181,6 +1204,10 @@ function boot() {
       const m = world.murks.byId(id);
       return m ? murkChallenge(m) : null;
     },
+    /** v1.2 · P02：目前稱號 id（測試用：驗濁靈不動稱號）。 */
+    rankNow: () => rankFor(rankStats(progression, catalog), ranksFile.ranks).rank.id,
+    /** v1.2 · P02：安撫過的濁靈數 —— 只數 murks.json 裡真的有的那幾隻（圖鑑第四列用的同一個數）。 */
+    murkCount: () => progression.murkCount((murkFile.entries || []).map((m) => m.id)),
     /** 目前坐在哪一張長凳上（測試用）。 */
     seatedOn: () => (seatedOn ? seatedOn.id : null),
     /** 課程 v2 的 runtime catalog（測試用：所有「x / y」都該從這裡推導）。 */

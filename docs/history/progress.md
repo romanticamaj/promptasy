@@ -2964,3 +2964,11 @@ e2e 一輪（同時破壞三處：Instagram 那顆回來、divergence 變回硬�
 - 數字：rubric 80,453 → **84,234**、playtest 2,372 → **2,429**、e2e 3,357 → **3,409**（零 console error）、fonts 1474.1 KB；三角 195,530／光 37／碰撞 969／穿模 0。
 - 下一步：P02（progression 持久化 `murks` 存檔欄、圖鑑第四列）。
 
+## 2026-08-18 · v1.2 P02 濁靈進程與存檔＋圖鑑第四列 · `done`
+
+- `save.js` 新欄 `murks:{[id]:{hits:[int…],grade}}`（normalize 嚴格、grade 只在 hits 非空時保留、reset 清空）；`progression.recordMurk(challenge, evaluation, meta)` 真正落盤（累積聯集永不清零、安撫＝這次 passed 或累積≥pass、grade 只升不降、XP 只補差額、`refreshUnlocks()`）＋ `murkState/murkHits/murkCount(ids)`；主控台結果卡看這一次、濁靈累積狀態一行；`main.js` `celebrateLevelUp`／`announceUnlocks` 共用 helper、murk 分支 newlyCalmed → 慶祝；圖鑑「濁言與正言 n/8」＋展開條目（濁言→最佳評價→範例→技能→出處；未安撫「還沒聽懂」）。
+- 先紅後綠：新 rubric 案例對修正前程式 17 紅（引擎判過→安撫、newlyCalmed、XP、murkCount(ids)、refreshUnlocks、hits 空→grade null…）→ 綠。
+- 審查（`/code-review high`）10 條：3 條語意問題（安撫 vs 部分得分、印章 vs 累積、refreshUnlocks）＋ 2 條小項當場修；其餘記 findings。
+- 數字：rubric 84,234 → **84,367**、playtest 2,429、e2e 3,409 → **3,448**（零 console error、第一輪即綠）、fonts 重切；場景預算不變。
+- 下一步：P03（`onRubricHits` 回呼＋剝殼＋清燈＋SFX）。
+

@@ -7024,7 +7024,7 @@ async function main() {
    * 既有主控台自由書寫、第一幕是牠的濁言 → 送濁言原文 → 沒過、XP 不變 →
    * **完整 state 深比較 ＋ 序列化存檔逐字相同**（P01 一個位元組都不落盤）→ Esc。
    */
-  console.log('\n▸ 濁靈（v1.2 · P01）');
+  console.log('\n▸ 濁靈（v1.2 · P01／P02）');
   const murkWorld = await evaluate(`
     const g = window.__promptasy;
     const names = [];
@@ -7062,6 +7062,14 @@ async function main() {
   eq(murkWorld.solids, 8, '8 個底座都在碰撞登記表裡（r 0.9、keepSolid）');
   eq(JSON.stringify(murkWorld.shells), JSON.stringify(murkWorld.rubricLens), '殼數 ＝ rubric 條數');
   eq(murkWorld.hasNearest, true, 'world.nearestMurk 存在');
+
+  /*
+   * 142 關的統計欄位（與 test-rubric 的 stats142 同一組）：四個快照都用這一份，
+   * 濁靈前後 deep-equal 才不會因為欄位清單漂移而空過。
+   */
+  const STATS142 = ['bestGrades', 'collected', 'skillsV2', 'guidanceSeen', 'samplesSeen', 'seals', 'penlessSeals', 'scribeSeals', 'badges', 'unlockedRegions'];
+  /** 在瀏覽器裡對某個 state 變數取 STATS142 快照的程式碼片段。 */
+  const stats142Js = (v) => `JSON.stringify(Object.fromEntries(${JSON.stringify(STATS142)}.map((k) => [k, ${v}[k]])))`;
 
   /* --- 走近 → 提示 → E → 主控台（自由書寫、第一幕是濁言） --- */
   const murkPre = await evaluate(`
@@ -7139,7 +7147,8 @@ async function main() {
   eq(murkOpen.act1Nav, '委託', '全域 ACTS 的幕名沒有被改');
   ok(/濁靈/.test(murkOpen.title), '標頭上是「濁靈」', murkOpen.title);
 
-  /* --- 走到第二幕、送濁言原文兩次、翻開範例：什麼都不落盤 --- */
+  /* --- 走到第二幕、送濁言原文兩次、翻開範例：v1.2 · P02 —— 命中會被記住（murks 欄），
+   *     但 142 關的統計（bestGrades／collected／skillsV2／guidanceSeen／samplesSeen）一格不動 --- */
   const murkSubmit = await evaluate(`
     const g = window.__promptasy;
     const c = g.promptConsole;
@@ -7160,6 +7169,7 @@ async function main() {
     out.resultHidden = document.querySelector('#prompt-console .result')?.hidden;
     out.hints = document.querySelectorAll('#prompt-console .row--miss .row__hint, #prompt-console .row--part .row__hint').length;
     out.sourceLinks = document.querySelectorAll('#prompt-console .result a.src[href^="https://"]').length;
+    out.gainText = document.querySelector('#prompt-console .result .gain')?.textContent.replace(/\\s+/g, ' ').trim() || '';
     out.fails = c.fails;
     // 兩次沒過 → 範例解鎖 → 翻開它（samplesSeen 不准多一筆）
     const sampleBtn = document.querySelector('#prompt-console [data-sample]') || [...document.querySelectorAll('#prompt-console button')].find((b) => /範例/.test(b.textContent));
@@ -7170,44 +7180,204 @@ async function main() {
     out.taAfterSample = ta.value;
     out.sample = c.challenge.sample;
     out.xp = g.progression.state.xp;
-    out.state = JSON.stringify(g.progression.state);
-    out.save = localStorage.getItem('promptasy.v1.save');
+    const st = g.progression.state;
+    out.stats142 = ${stats142Js('st')};
+    out.murkState = g.progression.murkState('murk-vague-ask');
+    out.murkCount = g.murkCount();
+    out.newlyLine = document.querySelector('#prompt-console .result [data-murk-newly]')?.textContent.replace(/\\s+/g, ' ').trim() || '';
+    out.saveRaw = localStorage.getItem('promptasy.v1.save');
+    out.saveMurks = JSON.parse(out.saveRaw).murks;
     out.best = g.progression.bestGrade('murk-vague-ask');
     out.markerCleared = g.world.markers.some((m) => m.id === 'murk-vague-ask');
     return out;
   `);
+  const murkPreState = JSON.parse(murkPre.state);
+  const murkPreStats142 = JSON.stringify(Object.fromEntries(STATS142.map((k) => [k, murkPreState[k]])));
   ok(murkSubmit.guideLinks >= 1, '第二幕仍有官方出處連結（護欄 2）', String(murkSubmit.guideLinks));
   eq(murkSubmit.guidanceSeen.includes('murk-vague-ask'), false, '進第二幕不記 guidanceSeen（濁靈不是關卡）');
   eq(murkSubmit.resultHidden, false, '送出濁言原文有結果');
-  eq(murkSubmit.fail, true, '濁言原文沒過');
-  eq(murkSubmit.gradeMark, '—', '沒過 → 沒有評價');
+  eq(murkSubmit.fail, true, '濁言原文這一次沒過（印章看這一次）');
+  eq(murkSubmit.gradeMark, '—', '這一次沒過 → 印章沒有評價');
+  ok(/再修一次/.test(murkSubmit.gainText), '沒過時仍是「再修一次」', murkSubmit.gainText);
+  ok(!/牠聽懂了|牠早就聽懂了/.test(murkSubmit.newlyLine), '沒安撫 → 累積那一行沒有「聽懂了」', murkSubmit.newlyLine);
   ok(murkSubmit.hints >= 1, '沒過時逐條指出缺什麼', String(murkSubmit.hints));
   ok(murkSubmit.sourceLinks >= 1, '結果上有官方出處連結（護欄 2）', String(murkSubmit.sourceLinks));
   eq(murkSubmit.fails, 2, '送了兩次都沒過');
   eq(murkSubmit.sampleBtnFound, true, '範例解的入口存在');
   eq(murkSubmit.sampleDisabled, false, '兩次沒過之後範例解鎖（SAMPLE_AFTER_FAILS 沿用）');
   eq(murkSubmit.taAfterSample, murkSubmit.sample, '翻開範例會填進書寫檯');
-  eq(murkSubmit.xp, murkPre.xp, 'XP 一分都沒變');
+  eq(murkSubmit.xp, murkPre.xp, '沒安撫 → XP 一分都沒變');
   eq(murkSubmit.best, null, '濁靈 id 沒有進 bestGrades');
   eq(murkSubmit.markerCleared, false, '沒有石座被當成通關');
-  eq(murkSubmit.state, murkPre.state, '送出前後 progression.state 深比較完全相同（含 guidanceSeen / samplesSeen）');
-  eq(murkSubmit.save, murkPre.save, '序列化存檔逐字相同（P01 一個位元組都不落盤）');
-  ok(!(murkSubmit.save || '').includes('murk-'), '存檔裡沒有任何 murk id');
+  eq(murkSubmit.stats142, murkPreStats142, '142 關的統計（STATS142：bestGrades／collected／skillsV2／guidanceSeen／samplesSeen／印記／無筆／默寫／徽章／解鎖）前後 deep-equal');
+  ok(murkSubmit.murkState && Array.isArray(murkSubmit.murkState.hits) && murkSubmit.murkState.grade === null, 'progression.murkState 有這一隻（hits 陣列、grade null）', JSON.stringify(murkSubmit.murkState));
+  eq(murkSubmit.murkCount, 0, '沒安撫不算 murkCount');
+  ok(murkSubmit.saveMurks && typeof murkSubmit.saveMurks === 'object' && 'murk-vague-ask' in murkSubmit.saveMurks, '存檔有 murks 欄、而且記著這一隻（命中永不清零）', JSON.stringify(murkSubmit.saveMurks));
+  eq(JSON.stringify(murkSubmit.saveMurks['murk-vague-ask']), JSON.stringify(murkSubmit.murkState), '存檔裡的 murks[id] 與 murkState 一致');
 
   await key('Escape', 'Escape', { vk: 27 });
   await sleep(300);
-  const murkClosed = await evaluate(`
+  /* --- 關掉重開：狀態一致（沒有殼動畫可驗，只驗 state 與主控台標頭） --- */
+  const murkReopen = await evaluate(`
     const g = window.__promptasy;
-    return {
-      open: g.promptConsole.isOpen,
-      state: JSON.stringify(g.progression.state),
-      save: localStorage.getItem('promptasy.v1.save'),
-      hint: document.querySelector('[data-interact]')?.textContent || '',
+    const closed = { open: g.promptConsole.isOpen, state: JSON.stringify(g.progression.murkState('murk-vague-ask')) };
+    g.promptConsole.open(g.murkChallenge('murk-vague-ask'));
+    await new Promise((r) => setTimeout(r, 300));
+    const head = document.querySelector('#prompt-console');
+    const out = {
+      closed,
+      openAgain: g.promptConsole.isOpen,
+      subtitle: head.querySelector('.panel__sub')?.textContent.replace(/\\s+/g, ' ').trim() || '',
+      state: JSON.stringify(g.progression.murkState('murk-vague-ask')),
+      save: JSON.stringify(JSON.parse(localStorage.getItem('promptasy.v1.save')).murks['murk-vague-ask']),
     };
+    return out;
   `);
-  eq(murkClosed.open, false, 'Escape 收起主控台');
-  eq(murkClosed.state, murkPre.state, '關掉之後 state 仍與開之前完全相同');
-  eq(murkClosed.save, murkPre.save, '關掉之後存檔仍逐字相同');
+  eq(murkReopen.closed.open, false, 'Escape 收起主控台');
+  eq(murkReopen.openAgain, true, '重開主控台');
+  eq(murkReopen.state, murkReopen.closed.state, '關掉重開 murkState 一致');
+  eq(murkReopen.save, murkReopen.state, '存檔與 state 一致');
+  ok(!/最佳評價/.test(murkReopen.subtitle), '還沒安撫 → 標頭沒有「最佳評價」', murkReopen.subtitle);
+
+  /* --- 送範例解：安撫、評價、XP 差額、圖鑑第四列 --- */
+  const murkCalm = await evaluate(`
+    const g = window.__promptasy;
+    const c = g.promptConsole;
+    const { xpForGrade } = await import('/src/challenges/rubric.js');
+    c.goAct(3, { force: true });
+    await new Promise((r) => setTimeout(r, 200));
+    const st0 = g.progression.state;
+    const before = {
+      xp: st0.xp,
+      level: g.progression.levelInfo().level,
+      stats142: ${stats142Js('st0')},
+      unlocked: st0.unlockedRegions.slice(),
+      cleared: Object.keys(st0.bestGrades).length,
+      rank: g.rankNow(),
+    };
+    const ta = document.querySelector('.prompt-input');
+    ta.value = c.challenge.sample;
+    document.querySelector('#prompt-console [data-submit]').click();
+    await new Promise((r) => setTimeout(r, 600));
+    const st = g.progression.state;
+    const ms = g.progression.murkState('murk-vague-ask');
+    const out = {
+      before,
+      gradeMark: document.querySelector('#prompt-console .grade__mark')?.textContent.trim(),
+      pass: !!document.querySelector('#prompt-console .result__top.is-pass'),
+      gainText: document.querySelector('#prompt-console .result .gain')?.textContent.replace(/\\s+/g, ' ').trim() || '',
+      newlyLine: document.querySelector('#prompt-console .result [data-murk-newly]')?.textContent.replace(/\\s+/g, ' ').trim() || '',
+      shareBtn: !!document.querySelector('#prompt-console [data-share]'),
+      xp: st.xp,
+      level: g.progression.levelInfo().level,
+      murkState: ms,
+      murkCount: g.murkCount(),
+      xpForGrade: ms && ms.grade ? xpForGrade(ms.grade, g.murks.xp) : null,
+      stats142: ${stats142Js('st')},
+      unlocked: st.unlockedRegions.slice(),
+      cleared: Object.keys(st.bestGrades).length,
+      rank: g.rankNow(),
+      best: g.progression.bestGrade('murk-vague-ask'),
+      saveMurk: JSON.parse(localStorage.getItem('promptasy.v1.save')).murks['murk-vague-ask'],
+      hudTitle: document.querySelector('.hud__banner')?.textContent || '',
+    };
+    // 再送一次同一句範例：早就安撫 → 那一行換成「牠早就聽懂了 · 累積 · 最佳評價」、XP 不再加
+    ta.value = c.challenge.sample;
+    document.querySelector('#prompt-console [data-submit]').click();
+    await new Promise((r) => setTimeout(r, 600));
+    out.again = {
+      pass: !!document.querySelector('#prompt-console .result__top.is-pass'),
+      newlyLine: document.querySelector('#prompt-console .result [data-murk-newly]')?.textContent.replace(/\\s+/g, ' ').trim() || '',
+      xp: g.progression.state.xp,
+      murkCount: g.murkCount(),
+    };
+    return out;
+  `);
+  eq(murkCalm.pass, true, '範例解這一次過了（印章看這一次：is-pass）');
+  ok(['S', 'A'].includes(murkCalm.gradeMark), '印章 ＝ 這一次的評價 ≥ A', murkCalm.gradeMark);
+  ok(/牠聽懂了。這一句話，你替牠說完了。/.test(murkCalm.newlyLine), '累積那一行：「牠聽懂了。這一句話，你替牠說完了。」', murkCalm.newlyLine);
+  ok(/\+\d+/.test(murkCalm.newlyLine) && /XP/.test(murkCalm.newlyLine), '那一行帶 +N XP', murkCalm.newlyLine);
+  ok(/評價 [SA]/.test(murkCalm.newlyLine), '那一行帶評價', murkCalm.newlyLine);
+  ok(!/說清楚了 \d+ 處/.test(murkCalm.newlyLine), '這一次才安撫 → 不再顯示「說清楚了 N 處」那一句', murkCalm.newlyLine);
+  eq(murkCalm.shareBtn, false, '濁靈的結果面沒有分享鍵');
+  eq(murkCalm.again.pass, true, '再送範例：這一次仍過（印章）');
+  ok(/牠早就聽懂了 · 累積 [\d.]+ \/ [\d.]+ · 最佳評價 [SA]/.test(murkCalm.again.newlyLine), '再送範例：那一行是「牠早就聽懂了 · 累積 s / t · 最佳評價 G」', murkCalm.again.newlyLine);
+  eq(murkCalm.again.xp, murkCalm.xp, '再送範例：XP 不再加');
+  eq(murkCalm.again.murkCount, 1, '再送範例：murkCount 仍 1');
+  ok(murkCalm.murkState && ['S', 'A'].includes(murkCalm.murkState.grade), 'murks[id].grade 有值（≥A）', JSON.stringify(murkCalm.murkState));
+  eq(murkCalm.murkCount, 1, 'murkCount 1');
+  eq(murkCalm.xp - murkCalm.before.xp, murkCalm.xpForGrade, 'XP 增加 ＝ xpForGrade(grade, murks.json.xp)');
+  ok(murkCalm.xp > murkCalm.before.xp, '安撫真的有 XP', `${murkCalm.before.xp} → ${murkCalm.xp}`);
+  if (murkCalm.level === murkCalm.before.level || JSON.stringify(murkCalm.unlocked) === JSON.stringify(murkCalm.before.unlocked)) {
+    eq(murkCalm.stats142, murkCalm.before.stats142, '安撫後 142 關統計仍 deep-equal（STATS142）');
+  } else {
+    // 濁靈升等跨過閘門 → unlockedRegions 會多（refreshUnlocks 有跑，這是對的）；其餘欄位仍要一格不動
+    const a = JSON.parse(murkCalm.before.stats142);
+    const b = JSON.parse(murkCalm.stats142);
+    delete a.unlockedRegions;
+    delete b.unlockedRegions;
+    eq(JSON.stringify(b), JSON.stringify(a), '安撫後 142 關統計仍 deep-equal（STATS142，除了升等跨門檻多開的區域）');
+    ok(murkCalm.unlocked.length > murkCalm.before.unlocked.length, '濁靈升等跨門檻 → unlockedRegions 只多不少', JSON.stringify([murkCalm.before.unlocked, murkCalm.unlocked]));
+  }
+  eq(murkCalm.cleared, murkCalm.before.cleared, '已通關數不變');
+  eq(murkCalm.best, null, '濁靈 id 仍不在 bestGrades');
+  eq(JSON.stringify(murkCalm.saveMurk), JSON.stringify(murkCalm.murkState), '存檔的 murks[id] 與 state 一致');
+  if (murkCalm.level === murkCalm.before.level) eq(murkCalm.rank, murkCalm.before.rank, '稱號不變（等級沒動時）');
+  else ok(true, `（等級 ${murkCalm.before.level} → ${murkCalm.level}，稱號可能因等級變動 —— 已通關數／收集數已另驗不變）`);
+
+  await key('Escape', 'Escape', { vk: 27 });
+  await sleep(300);
+  /* --- 重開：標頭有「最佳評價」；圖鑑第四列 1/8、條目含濁言／範例／出處 --- */
+  const murkBook = await evaluate(`
+    const g = window.__promptasy;
+    g.promptConsole.open(g.murkChallenge('murk-vague-ask'));
+    await new Promise((r) => setTimeout(r, 250));
+    const sub = document.querySelector('#prompt-console .panel__sub')?.textContent || '';
+    g.promptConsole.close();
+    await new Promise((r) => setTimeout(r, 250));
+    g.codex.open();
+    await new Promise((r) => setTimeout(r, 400));
+    const rows = [...document.querySelectorAll('#codex .finds__list li')].map((li) => ({
+      label: li.querySelector('b').textContent.trim(),
+      n: li.querySelector('span').textContent.trim(),
+    }));
+    const book = document.querySelector('#codex .murkbook');
+    const items = book ? [...book.querySelectorAll('[data-murk]')] : [];
+    const e = g.murks.entries.find((x) => x.id === 'murk-vague-ask');
+    const mine = items.find((li) => li.getAttribute('data-murk') === 'murk-vague-ask');
+    const other = items.find((li) => li.getAttribute('data-murk') !== 'murk-vague-ask');
+    const out = {
+      sub,
+      rows,
+      hasBook: !!book,
+      items: items.length,
+      mineText: mine ? mine.textContent.replace(/\\s+/g, ' ').trim() : '',
+      mineHasTaint: mine ? mine.textContent.includes(e.taint) : false,
+      mineHasSample: mine ? mine.textContent.includes(e.sample) : false,
+      mineSrc: mine ? [...mine.querySelectorAll('a[href^="https://"]')].map((a) => a.href) : [],
+      mineSource: e.source,
+      otherText: other ? other.textContent.replace(/\\s+/g, ' ').trim() : '',
+      otherLinks: other ? other.querySelectorAll('a').length : -1,
+      total: g.murks.entries.length,
+    };
+    g.codex.close();
+    await new Promise((r) => setTimeout(r, 260));
+    return out;
+  `);
+  ok(/最佳評價 [SA]/.test(murkBook.sub), '重開主控台：標頭顯示最佳評價', murkBook.sub);
+  {
+    const row = murkBook.rows.find((r) => r.label.includes('濁言'));
+    ok(Boolean(row), '圖鑑第四列「濁言與正言」', JSON.stringify(murkBook.rows));
+    eq(row && row.n, `1 / ${murkBook.total}`, '計數是 1 / 8');
+    eq(murkBook.hasBook, true, '第四列下面有可展開的清單');
+    eq(murkBook.items, murkBook.total, '清單 8 隻都列出來');
+    eq(murkBook.mineHasTaint, true, '安撫過的條目有濁言（弱）');
+    eq(murkBook.mineHasSample, true, '安撫過的條目有範例（強）');
+    ok(/最佳評價|評價/.test(murkBook.mineText) && /[SA]/.test(murkBook.mineText), '安撫過的條目有你的最佳評價', murkBook.mineText.slice(0, 120));
+    ok(murkBook.mineSrc.some((h) => h.startsWith(murkBook.mineSource.split('#')[0])), '安撫過的條目有官方出處連結（護欄 2）', JSON.stringify(murkBook.mineSrc));
+    ok(/還沒聽懂/.test(murkBook.otherText), '沒安撫的只顯示「還沒聽懂」', murkBook.otherText);
+    eq(murkBook.otherLinks, 0, '沒安撫的不露出範例／出處');
+  }
 
   /* --- 仲裁：石座 > 濁靈 > 石碑 ---
    * 濁靈的座標規則要求離石座 ≥ 12（兩個互動圈不重疊），唯一的例外是流程與代理區那一隻
@@ -12991,10 +13161,14 @@ async function main() {
       xp: g.progression.state.xp,
       collected: g.progression.state.collected.length,
       cleared: Object.keys(g.progression.state.bestGrades).length,
+      murks: JSON.stringify(g.progression.state.murks),
+      murkCount: g.murkCount(),
       storage: localStorage.getItem('promptasy.v1.save'),
     };
   `);
   eq(reset.xp, 0, '重置後 XP 歸零');
+  eq(reset.murks, '{}', '重置後 murks 是 {}（v1.2 · P02）');
+  eq(reset.murkCount, 0, '重置後 murkCount 0');
   eq(reset.collected, 0, '重置後圖鑑清空');
   eq(reset.cleared, 0, '重置後通關紀錄清空');
   eq(reset.storage, null, '重置後 localStorage 已清除');

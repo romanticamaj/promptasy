@@ -3,7 +3,7 @@
  *
  * 這一層不碰 DOM、不 import JSON，資料由外部注入 → 可在 node 測試腳本直接跑。
  */
-import { betterGrade, xpForGrade } from '../challenges/rubric.js';
+import { betterGrade, gradeForRatio, xpForGrade } from '../challenges/rubric.js';
 import { createCatalog } from '../challenges/catalog.js';
 import * as SaveIO from '../save/save.js';
 
@@ -161,7 +161,13 @@ export const REGION_GATES = Object.freeze({
  * @param {object} [opts.io]        存檔 IO（測試時可注入假的）
  * @param {Function} [opts.onChange] 狀態變動回呼
  */
-export function createProgression({ catalog = null, curriculum = null, challenges, io = SaveIO, onChange = null }) {
+export function createProgression({
+  catalog = null,
+  curriculum = null,
+  challenges,
+  io = SaveIO,
+  onChange = null,
+}) {
   /*
    * 課程 v2 · Phase B：技巧與區域的列舉統一從 catalog 來。
    * 只傳 curriculum 的舊呼叫端（測試腳本）行為完全不變 —— catalog 會就地
@@ -672,37 +678,127 @@ export function createProgression({ catalog = null, curriculum = null, challenge
       return outcome;
     },
 
+    /* ---------------------------------------------------------------- *
+     * v1.2 · P02：濁靈（murks.json）—— 安撫會被記住
+     *
+     * 濁靈走同一座主控台，但**不是關卡**：不進 `bestGrades`（142 關的分子）、
+     * 不收技巧（`collected` / `skillsV2` 仍只由神廟給）、不寫印記／徽章。
+     * 它有自己的一欄 `state.murks[id] = { hits, grade }`：
+     *   · hits   命中（`results[i].passed === true`）的 rubric 列 index，跨次**累積聯集、永不清零**
+     *            （威脅不懲罰、進度只累積）
+     *   · 安撫   **這一次**評分引擎判過（`evaluation.passed`，部分分數也算）**或**累積命中的權重和 ≥ pass
+     *            —— 單次沒過、累積過了也算
+     *   · grade  gradeForRatio(max(這一次的 ratio（過了才算）, 累積 score / total))，只升不降；全剝 ＝ S。
+     *            **存了 grade ＝ 安撫過**（`murkCount()` 就數它）
+     *   · XP     只補差額（xpForGrade(新, base) − xpForGrade(舊, base)），升等照 levelFromXp，
+     *            升等後照其他 XP 寫入者一樣跑 `refreshUnlocks()`（閘門不能因濁靈升等而過期）
+     * ---------------------------------------------------------------- */
+
+    /** 這一隻濁靈的存檔狀態（沒碰過 → null）。 */
+    murkState(id) {
+      const m = state.murks && typeof state.murks === 'object' ? state.murks[id] : null;
+      if (!m || !Array.isArray(m.hits)) return null;
+      return { hits: m.hits.slice(), grade: m.grade || null };
+    },
+    /** 這一隻濁靈已命中的 rubric 列 index（沒碰過 → []）。 */
+    murkHits(id) {
+      const m = state.murks && typeof state.murks === 'object' ? state.murks[id] : null;
+      return m && Array.isArray(m.hits) ? m.hits.slice() : [];
+    },
     /**
-     * v1.2 · P01：濁靈的 recorder（**最小版**）。
-     *
-     * 濁靈走同一座主控台，但不是關卡 —— 不能進 `bestGrades`（那是 142 關的分子）、
-     * 不給 XP、不收技巧、不碰 `refreshUnlocks()`。這一個 phase **一個位元組都不落盤**：
-     * 回傳與 `recordResult` 同形狀的 outcome（`xpGain 0、leveledUp false、newly* 空陣列…`），
-     * 讓主控台 `renderResult()` 的每一個解參照都安全；持久化（`murks` 存檔欄）留給 P02。
-     *
-     * @param {string} id          murk id
-     * @param {object} evaluation  評分引擎的結果（這一版只讀不寫）
-     * @param {object} [context]   主控台的作答脈絡（同 recordResult；這一版不用）
+     * 安撫過（有評價）的濁靈數。
+     * @param {string[]|null} [ids] 已知的濁靈 id（murks.json）；給了就只數這些，存檔裡的孤兒 id 不算
      */
-    recordMurk(id, evaluation, context = null) {
-      void id;
-      void evaluation;
+    murkCount(ids = null) {
+      const store = state.murks && typeof state.murks === 'object' && !Array.isArray(state.murks) ? state.murks : {};
+      const keys = Array.isArray(ids) ? ids : Object.keys(store);
+      return keys.filter((id) => {
+        const m = store[id];
+        return m && typeof m.grade === 'string' && m.grade;
+      }).length;
+    },
+
+    /**
+     * 記錄一次對濁靈的呈遞。**原子**：先寫聯集、算安撫與評價、補 XP 差額，
+     * 再一次回傳「這一次多了什麼」——P03 的剝殼回呼吃的就是這個回傳值。
+     *
+     * @param {object} challenge   challenge 形物件（main.js `murkChallenge()`）：至少 { id, rubric, pass, xp?, kind:'murk' }
+     * @param {object} evaluation  評分引擎的結果（讀 `results[i].passed`）
+     * @param {object} [context]   主控台的作答脈絡（同 recordResult；濁靈目前不用）
+     * @returns {{
+     *   xpGain:number, levelBefore:number, levelAfter:number, leveledUp:boolean,
+     *   newlyCollected:string[], newlySkills:string[], newlyUnlocked:string[],
+     *   previousGrade:(string|null), bestGrade:(string|null), improved:boolean,
+     *   newSeal:null, newPenless:false, newScribe:false,
+     *   murk:{ newlyPassedIndices:number[], hits:number[], score:number, total:number, calmed:boolean, newlyCalmed:boolean }
+     * }}
+     */
+    recordMurk(challenge, evaluation, context = null) {
       void context;
-      const level = levelFromXp(state.xp).level;
+      if (!challenge || typeof challenge !== 'object' || !Array.isArray(challenge.rubric) || !challenge.id) {
+        throw new Error('recordMurk(): 需要 challenge 形物件（{ id, rubric, pass }）');
+      }
+      const id = challenge.id;
+      const rubric = challenge.rubric;
+      const results = evaluation && Array.isArray(evaluation.results) ? evaluation.results : [];
+      const weightOf = (i) => (rubric[i] && Number.isFinite(rubric[i].weight) ? rubric[i].weight : 1);
+      const total = rubric.reduce((n, _r, i) => n + weightOf(i), 0);
+      const passMark = Number.isFinite(challenge.pass) ? challenge.pass : Math.ceil(total * 0.5);
+      // XP 來源與 recordResult 同一條：challenge.xp（main.js murkChallenge 帶 murks.json.xp）→ evaluation.baseXp
+      const baseXp = Number.isFinite(challenge.xp) ? challenge.xp : evaluation && Number.isFinite(evaluation.baseXp) ? evaluation.baseXp : 0;
+
+      if (!state.murks || typeof state.murks !== 'object' || Array.isArray(state.murks)) state.murks = {};
+      const prev = state.murks[id];
+      const oldHits = prev && Array.isArray(prev.hits) ? prev.hits.filter((n) => Number.isInteger(n) && n >= 0 && n < rubric.length) : [];
+      const previousGrade = prev && typeof prev.grade === 'string' && prev.grade ? prev.grade : null;
+      // 存了 grade ＝ 安撫過（grade 是安撫旗標本身）
+      const wasCalmed = previousGrade !== null;
+
+      const passedNow = [];
+      results.forEach((r, i) => {
+        if (r && r.passed === true && i < rubric.length) passedNow.push(i);
+      });
+      const oldSet = new Set(oldHits);
+      const newlyPassedIndices = passedNow.filter((i) => !oldSet.has(i));
+      const hits = [...new Set([...oldHits, ...passedNow])].sort((a, b) => a - b);
+      const score = hits.reduce((n, i) => n + weightOf(i), 0);
+      const attemptPassed = Boolean(evaluation && evaluation.passed === true);
+      // 安撫：這一次評分引擎判過（部分分數也算）**或**累積聯集 ≥ pass
+      const calmed = attemptPassed || score >= passMark;
+      const newlyCalmed = calmed && !wasCalmed;
+
+      const levelBefore = levelFromXp(state.xp).level;
+      const attemptRatio =
+        attemptPassed && evaluation && Number.isFinite(evaluation.total) && evaluation.total > 0 && Number.isFinite(evaluation.earned)
+          ? evaluation.earned / evaluation.total
+          : 0;
+      const cumulativeRatio = total > 0 ? score / total : 0;
+      const grade = calmed ? betterGrade(previousGrade, gradeForRatio(Math.max(attemptRatio, cumulativeRatio))) : previousGrade;
+      const xpGain = Math.max(0, xpForGrade(grade, baseXp) - xpForGrade(previousGrade, baseXp));
+
+      state.murks[id] = { hits, grade };
+      state.xp += xpGain;
+      const lv = levelFromXp(state.xp);
+      state.level = lv.level;
+      // 與其他 XP 寫入者一致：等級動了，閘門就要重算（否則濁靈升等後的門會過期）
+      const newlyUnlocked = refreshUnlocks();
+      persist();
+
       return {
-        xpGain: 0,
-        levelBefore: level,
-        levelAfter: level,
-        leveledUp: false,
+        xpGain,
+        levelBefore,
+        levelAfter: lv.level,
+        leveledUp: lv.level > levelBefore,
         newlyCollected: [],
         newlySkills: [],
-        newlyUnlocked: [],
-        previousGrade: null,
-        bestGrade: null,
-        improved: false,
+        newlyUnlocked,
+        previousGrade,
+        bestGrade: grade,
+        improved: grade !== previousGrade,
         newSeal: null,
         newPenless: false,
         newScribe: false,
+        murk: { newlyPassedIndices, hits: hits.slice(), score, total, calmed, newlyCalmed },
       };
     },
 

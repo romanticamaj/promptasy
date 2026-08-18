@@ -775,9 +775,9 @@ Exit criteria：
 - [x] rubric 84,234／playtest 2,429／build ✓／e2e 3,409 全綠、console error 0；`npm run fonts` 已跑（1474.1 KB）。
 - [x] 預算實測：三角 192,170 → 195,530（+3.4k）、光源 37、碰撞體 962 → 969、collision-audit 未涵蓋 0。
 
-### P02 — 濁靈進程與存檔＋圖鑑第四列（2026-08-18 開工）
+### P02 — 濁靈進程與存檔＋圖鑑第四列（2026-08-18 開工 · 同日完成）
 
-狀態：`in progress`（Codex 額度用盡至 8/20 → consult 改由 orchestrator 對照程式碼自審；review 用 `/code-review high`）
+狀態：`done`（Codex 額度用盡至 8/20 → consult 由 orchestrator 對照程式碼自審；review 用 `/code-review high`，10 條 → 5 條當場修、餘記 findings）
 
 **現狀（P01 之後）**：`progression.recordMurk(id, evaluation, meta)` 是唯讀 stub（回傳 recordResult 同形 outcome、不寫 state）；主控台 `renderResult()` 已依 `kind==='murk'` 分流；`main.js` `onResult` murk 分支只給音效就 return；存檔 `save.js` 無 `murks` 欄；圖鑑 `worldFinds()`（`src/ui/codex.js:76`）有三列（刻文／祕密／器物）。評分：`evaluate()` 回 `results[i].passed`（布林）與 `weight`；`gradeForRatio(ratio)`、`xpForGrade(grade, baseXp)`、`betterGrade` 在 `src/challenges/rubric.js`。
 
@@ -804,10 +804,17 @@ Exit criteria：
 
 **禁區**：同 P01（另：不動 `expected-counts` 既有值）。
 
+**審查後修訂（2026-08-18）**（`/code-review` 兩輪：語意、解鎖、XP 來源、存檔計數）
+- **A · 這一次 vs 累積**：`hits` 仍＝ `results[i].passed === true` 的列的聯集；**`calmed = evaluation.passed === true || 累積 score ≥ pass`**（引擎的單次判定是第一級的安撫方式，靠部分分數過的也算）；安撫時 `grade = betterGrade(舊, gradeForRatio(max(這一次 ratio（過了才算）, 累積 score/total)))`；`wasCalmed = 舊 grade !== null`（**存了 grade 就是安撫旗標**）；`newlyCalmed = calmed && !wasCalmed`；XP 差額不變。結果面**印章／分數條／逐列／提示球／fails／範例解鎖／音效全部看這一次**（跟關卡一模一樣）；濁靈的累積狀態只佔分數條下面**一行** `[data-murk-newly]`：這一次才安撫 →「牠聽懂了。這一句話，你替牠說完了。」＋ 共用的 `gainLine(outcome)`（+N XP · 升等 · 評價）；早就安撫 →「牠早就聽懂了 · 累積 s / t · 最佳評價 G」；只有新命中 →「這一次替牠說清楚了 N 處 · 累積 s / t」；否則沒有那一行。允許「這一次沒過、但聯集湊到 pass」：印章沒過、那一行宣告牠聽懂了＋XP；`main.js` 播這一次的 fail 音、但仍 `hud.celebrate`（誠實而一致）。`main.js` 抽 `celebrateLevelUp(outcome)`／`announceUnlocks(outcome)` 給關卡與濁靈兩支共用。
+- **B · 解鎖**：`recordMurk` 在 XP 寫進 `state.xp/level` 後**呼叫 `refreshUnlocks()`**（與其他 XP 寫入者一致——審查證明濁靈升等後閘門會過期；不倒退優先於原 spec「不碰 refreshUnlocks」的字句），`outcome.newlyUnlocked` 帶回；仍不動 `bestGrades`／`collected`／`skillsV2`／印記／徽章。
+- **C · XP 來源**：拿掉 `createProgression({ murksXp })` 選項與其管線；`baseXp = Number.isFinite(challenge.xp) ? challenge.xp : (evaluation.baseXp ?? 0)`，與 `recordResult` 同一條。
+- **D · 存檔與計數**：`normalize()` 只在 `hits.length > 0` 時保留 `grade`，否則 `grade: null`；`murkCount(ids = null)` 給 `ids`（murks.json 的 id）時只數這些（存檔孤兒不算）——codex.js 與 main.js（`__promptasy.murkCount`）都傳 `murks.map(m => m.id)`；`murkState()`／`murkHits()` 不變。
+- 測試：test-rubric 恢復**動態**同形斷言（keys(recordMurk) ＝ keys(活的 recordResult) ＋ `murk`）、加真引擎「部分分數過」（murk-trust-me）、「這一次沒過但聯集安撫」（murk-vague-ask 兩句、XP 只給一次）、`refreshUnlocks` 效果（Lv.2 → Lv.3 開 reasoning）、`murkCount(ids)`、normalize 丟沒 hits 的 grade；headless-check 四個快照共用一份 `STATS142`（含 penlessSeals／scribeSeals）、濁靈 e2e 換成新文案（印章＝這一次；`[data-murk-newly]` 三種句子）。
+
 Exit criteria：
-- [ ] 安撫被記住、跨次累積、有評價與 XP、進圖鑑；142 關統計不變。
-- [ ] rubric／playtest／build／e2e 全綠、console error 0；fonts 已跑。
-- [ ] 數字與 outcome 契約寫進 progress.md 與 CHANGELOG（給 P03）。
+- [x] 安撫被記住、跨次累積、有評價與 XP、進圖鑑第四列；142 關統計（bestGrades／collected／skillsV2／seals／badges／已通關數／稱號）前後 deep-equal。
+- [x] rubric 84,367／playtest 2,429／build ✓／e2e 3,448 全綠、console error 0；fonts 已跑。
+- [x] outcome 契約寫進 progress.md／CHANGELOG／roadmap P02–P03（給 P03）。
 
 ## v1.2 錯誤紀錄
 

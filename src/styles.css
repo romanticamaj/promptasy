@@ -3629,6 +3629,91 @@ select option:disabled {
   color: var(--paper-4);
 }
 
+/* v1.2 · P02 · 濁言與正言：圖鑑第四列下面可展開的清單。
+   安撫過的：濁言（弱、灰、斜體）→ 最佳評價 → 範例（強、金邊）→ 技法 → 官方出處；
+   還沒安撫的：只留名字＋「還沒聽懂」。跟上面「走出來的收集」同一個字級，一樣安靜。 */
+.murkbook {
+  margin: var(--s3) 0 0;
+}
+.murkbook__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: var(--s2);
+}
+.murkbook__item {
+  font-size: var(--t-micro);
+  border-bottom: 1px dashed var(--rule);
+  padding-bottom: var(--s2);
+}
+.murkbook__item--quiet {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--s3);
+  color: var(--paper-4);
+}
+.murkbook__item summary {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--s3);
+  cursor: pointer;
+  list-style: none;
+}
+.murkbook__item summary::-webkit-details-marker {
+  display: none;
+}
+.murkbook__title {
+  color: var(--paper-2);
+  letter-spacing: var(--tr-cjk);
+}
+.murkbook__state {
+  color: var(--paper-4);
+  font-style: italic;
+}
+.murkbook__grade {
+  font-family: var(--font-ui);
+  color: var(--gold);
+  white-space: nowrap;
+}
+.murkbook__body {
+  padding: var(--s3) 0 var(--s2);
+  display: grid;
+  gap: var(--s2);
+}
+.murkbook__label {
+  margin: 0;
+  color: var(--paper-4);
+  letter-spacing: var(--tr-cjk);
+}
+.murkbook__taint,
+.murkbook__sample {
+  margin: 0;
+  padding: var(--s2) var(--s3) var(--s2) var(--s4);
+  border-radius: 0 var(--radius) var(--radius) 0;
+  line-height: 1.7;
+  white-space: pre-wrap;
+}
+.murkbook__taint {
+  border-left: 2px solid rgba(160, 172, 190, 0.45);
+  background: rgba(8, 10, 16, 0.55);
+  color: #b9c6d4;
+  font-style: italic;
+}
+.murkbook__sample {
+  border-left: 2px solid var(--gold);
+  background: linear-gradient(90deg, rgba(198, 160, 92, 0.09), rgba(198, 160, 92, 0));
+  color: var(--paper-2);
+}
+.murkbook__skill {
+  margin: 0;
+  color: var(--paper-3);
+}
+.murkbook__skill b {
+  color: var(--paper-2);
+}
+
 /* ================================================================ 刻文小語
    Phase 22：介於「世界觀石碑」與「關卡」之間的第三層 ——
    兩句世界的話，一段真的教學（含可點的官方出處），然後就收起來。

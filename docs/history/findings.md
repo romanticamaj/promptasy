@@ -1805,3 +1805,10 @@ rubric 原本有一條「那一排石籤有自己的樣式」正是靠這幾塊�
 - **濁靈座標規則升級（獨立審查＋e2e 抓到）**：原本「離石座 ≥8m、離其他互動物 ≥4m」會讓濁靈的 5.5m 互動圈蓋住石碑（4.6）／刻文（3.8）／器物（3.2）的可讀範圍（濁靈搶 E 排在它們前面），也讓舊 e2e「石座前 8m 不該有提示」失敗。定案：**互動圈不重疊**——離石座 ≥12（6.5＋5.5）、離石碑 ≥10.1、刻文 ≥9.3、器物 ≥8.7、其他不搶 E 的東西 ≥4；**唯一例外** `murk-while-at-it` ≥10（orchestration 13 座石座飽和、全區無 ≥12 的點；石座在仲裁裡本來就贏，玩家端零倒退），例外表寫在 `test-rubric.mjs` 且上限 1 條。因此 6 隻搬家：vague-ask (6,-27)→(21,-32)、only-donts (16,39)→(27,39)、no-example (-100,-106)→(-105,-106)、trust-me (91,-106)→(86,-103)、all-at-once (-108.5,71.5)→(-94,85)、while-at-it (-71,100.5)→(-85.5,99)。
 - 獨立審查其餘 P2（`nearest()` 與 handles.js 重複、near 光暈在面板開著時不重置、`murkChallenge` 手抄 15 欄、`recordMurk` 手抄 outcome 形狀）**留給 P02／P03 吸收**（P03 會重寫濁靈狀態機，P02 會動 recorder），不在 P01 擴 scope。已修：結果面「+0 XP（本關已拿過更高評價）」假文案 → 濁靈專用一句、分享鍵對濁靈隱藏、HUD 副標改用牠自己的名字、材質快取（WORLD E16）＋殼只畫正面、`keepSolid` 註解改實話。
 
+## v1.2 · P02 的發現（2026-08-18）
+
+- **「安撫」的判定要跟評分引擎一致**：引擎有部分得分（一列 0.75），若「安撫」只算整條全過的列，會出現「量表過線、印章寫沒過」。定案：`calmed = 這一次 evaluation.passed || 累積命中權重和 ≥ pass`；結果卡的印章／量表／教練／fails 一律看**這一次**，濁靈的累積狀態放在**一行**（`[data-murk-newly]`）——誠實、不打架。「存了 grade ＝ 安撫過」是唯一的安撫旗標。
+- **濁靈 XP 也要 `refreshUnlocks()`**：原 spec 寫「不觸發」是為了不讓濁靈污染關卡分母，但等級升了閘門不重算會卡玩家（HUD 說 Lv.3、閘門仍鎖）。定案：與其他 XP 寫入者一致，升等即重算並宣告解鎖；`bestGrades`／`collected`／`skillsV2` 仍不碰。roadmap／task_plan 契約文字已同步。
+- 審查 P2 留待後續：`gainLine` 已抽共用；`STATS142` e2e 快照字串已統一；`murkCount(ids)` 只數 murks.json 裡存在的 id（改名／刪除不會讓圖鑑數字超過 8）。
+- 給 P03 的契約：`recordMurk(challenge, evaluation, meta)` → 13 個 recordResult 同形鍵（grade 在 `bestGrade`）＋ `murk:{ newlyPassedIndices, hits, score, total, calmed, newlyCalmed }`；`hits` 是**已完全命中**的列（部分得分不算殼剝落，但可經 attempt-pass 安撫）→ P03 剝殼只看 `newlyPassedIndices`，安撫時剩下的殼一律轉「餘殼」。
+

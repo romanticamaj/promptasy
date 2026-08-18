@@ -78,6 +78,17 @@ export function defaultSave() {
     penlessSeals: [],
     scribeSeals: [],
     samplesSeen: [],
+    /**
+     * v1.2 · P02：濁靈（murks.json）的安撫進度 —— **單一物件欄** `{ [murkId]: { hits, grade } }`。
+     *
+     *   hits   已命中的 rubric 列 index（整數、去重、排序）—— 跨次**累積聯集，永不清零**
+     *   grade  安撫後的最佳評價（'S'|'A'|'B'|'C'）；還沒安撫＝ null
+     *
+     * 為什麼不用 `bestGrades`：那是 142 關的分子（已通關數／稱號／區域解鎖／統計全靠它），
+     * 濁靈不是關卡。這一欄純加法：不影響 `refreshUnlocks()`、圖鑑技巧數、徽章、印記；
+     * `normalize()` 給 `{}`、逐鍵驗形；`reset()` 自然清空。
+     */
+    murks: {},
     badges: { openai: 0, anthropic: 0, google: 0, xai: 0 },
     settings: {
       music: 'ambient-01',
@@ -133,6 +144,22 @@ export function normalize(raw) {
   if (d.bestGrades && typeof d.bestGrades === 'object') {
     for (const [k, v] of Object.entries(d.bestGrades)) {
       if (typeof v === 'string' && ['S', 'A', 'B', 'C'].includes(v)) bestGrades[k] = v;
+    }
+  }
+
+  /*
+   * v1.2 · P02：濁靈進度。逐鍵驗形：`hits` 必須是陣列（不是就整筆丟）、裡面只留
+   * 非負整數並去重排序；`grade` 只認 S/A/B/C，其餘（含 undefined）一律 null；
+   * 存了 grade ＝ 安撫過，而安撫一定至少命中一列 —— 沒有 hits 的 grade 是壞值，落成 null。
+   */
+  const murks = {};
+  if (d.murks && typeof d.murks === 'object' && !Array.isArray(d.murks)) {
+    for (const [k, v] of Object.entries(d.murks)) {
+      if (typeof k !== 'string' || !k || k.length > 64) continue;
+      if (!v || typeof v !== 'object' || !Array.isArray(v.hits)) continue;
+      const hits = [...new Set(v.hits.filter((n) => Number.isInteger(n) && n >= 0))].sort((a, b) => a - b);
+      const grade = hits.length && typeof v.grade === 'string' && ['S', 'A', 'B', 'C'].includes(v.grade) ? v.grade : null;
+      murks[k] = { hits, grade };
     }
   }
 
@@ -201,6 +228,8 @@ export function normalize(raw) {
     penlessSeals: [...new Set(strArr(d.penlessSeals) || [])],
     scribeSeals: [...new Set(strArr(d.scribeSeals) || [])],
     samplesSeen: [...new Set(strArr(d.samplesSeen) || [])],
+    // v1.2 · P02：舊存檔沒有 murks → 空物件（純加法，不影響任何既有欄位）
+    murks,
     bestGrades,
     badges,
     settings,

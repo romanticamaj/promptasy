@@ -1723,18 +1723,26 @@ export function createPromptConsole({
       sampleShown,
     };
     /*
-     * v1.2 · P01：濁靈走**另一個** recorder。`recordResult` 會進 bestGrades、給 XP、
+     * v1.2 · P01／P02：濁靈走**另一個** recorder。`recordResult` 會進 bestGrades、給 XP、
      * 收技巧、refreshUnlocks —— 那是 142 關的分子，濁靈不能污染它。
-     * `recordMurk` 回傳同形狀的 outcome，所以下面的解參照一個都不用改。
+     * `recordMurk(challenge, evaluation, meta)` 落盤到 `state.murks`（命中累積聯集、安撫、評價、XP 差額），
+     * 回傳與 recordResult 同形的 13 鍵 ＋ `murk` 子物件，所以下面的解參照一個都不用改。
      */
     const outcome = isMurk(challenge)
-      ? progression.recordMurk(challenge.id, evaluation, meta)
+      ? progression.recordMurk(challenge, evaluation, meta)
       : progression.recordResult(evaluation, meta);
     lastEvaluation = evaluation;
     /** 試煉不教新技巧 —— 畫面上不放官方連結（curriculum-v2 §5.2）。 */
     const trial = isApplicationTrial(challenge);
-    /* v1.2 · P01：濁靈的結果面 —— 沒有 XP、沒有「本關」、沒有分享（牠不是關卡；P02 才記帳）。 */
+    /*
+     * v1.2 · P02：濁靈的結果面 —— 沒有「本關」、沒有分享（牠不是關卡）。
+     * 印章、分數條、逐列、提示球、範例解鎖：全部看**這一次**（evaluation），跟關卡一模一樣；
+     * 濁靈自己的**累積**狀態（`outcome.murk`：聯集、安撫、最佳評價）只佔分數條下面**一行**
+     * （`[data-murk-newly]`）—— 上次命中的列記在存檔裡、永不清零，這一次補上剩下的也算聽懂了，
+     * 所以會有「這一次沒過、但牠聽懂了」的誠實組合：印章是這一次的，那一行才是牠的。
+     */
     const murkResult = isMurk(challenge);
+    const murkInfo = murkResult && outcome.murk ? outcome.murk : null;
 
     const rows = evaluation.results
       .map((r, i) => {
@@ -1769,6 +1777,32 @@ export function createPromptConsole({
       .join('');
 
     const next = nextGradeTarget(evaluation);
+    /** 過關那一行的收穫（+N XP · 升等 · 評價進步）—— 關卡與濁靈共用同一段標記。 */
+    const gainLine = (o) =>
+      `<span class="xp-tick" data-xptick data-to="${o.xpGain}">+${o.xpGain}</span> XP${
+        o.leveledUp ? ` · 升到 Lv.${o.levelAfter}！` : ''
+      }${o.improved && o.previousGrade ? ` · 評價 ${o.previousGrade} → ${o.bestGrade}` : ''}${
+        o.xpGain === 0 ? '（本關已拿過更高評價）' : ''
+      }`;
+    /** 濁靈的累積那一行：這一次才安撫 ＞ 早就安撫 ＞ 這一次有新命中 ＞ 沒有。 */
+    const murkLine = (() => {
+      if (!murkInfo) return '';
+      const cum = `累積 ${formatScore(murkInfo.score)} / ${formatScore(murkInfo.total)}`;
+      if (murkInfo.newlyCalmed) {
+        return `<p class="gain murk-newly" data-murk-newly>牠聽懂了。這一句話，你替牠說完了。${
+          outcome.xpGain > 0 ? ` ${gainLine(outcome)}` : ''
+        }${outcome.bestGrade && !outcome.previousGrade ? ` · 評價 ${outcome.bestGrade}` : ''}</p>`;
+      }
+      if (murkInfo.calmed) {
+        return `<p class="muted murk-newly" data-murk-newly>牠早就聽懂了 · ${cum}${
+          outcome.bestGrade ? ` · 最佳評價 ${outcome.bestGrade}` : ''
+        }${outcome.xpGain > 0 ? ` · ${gainLine(outcome)}` : ''}</p>`;
+      }
+      if (murkInfo.newlyPassedIndices.length) {
+        return `<p class="muted murk-newly" data-murk-newly>這一次替牠說清楚了 ${murkInfo.newlyPassedIndices.length} 處 · ${cum}</p>`;
+      }
+      return '';
+    })();
     const collected = outcome.newlyCollected
       .map((id) => content.technique(id))
       .filter(Boolean)
@@ -1795,18 +1829,13 @@ export function createPromptConsole({
           <div class="meter"><i style="width:${Math.round((evaluation.earned / evaluation.total) * 100)}%"></i>
             <u style="left:${Math.round((evaluation.pass / evaluation.total) * 100)}%"></u></div>
           ${
-            evaluation.passed && murkResult
-              ? `<p class="gain">牠聽懂了。這一句話，你替牠說完了。</p>`
-              : evaluation.passed
-              ? `<p class="gain"><span class="xp-tick" data-xptick data-to="${outcome.xpGain}">+${outcome.xpGain}</span> XP${
-                  outcome.leveledUp ? ` · 升到 Lv.${outcome.levelAfter}！` : ''
-                }${
-                  outcome.improved && outcome.previousGrade
-                    ? ` · 評價 ${outcome.previousGrade} → ${outcome.bestGrade}`
-                    : ''
-                }${outcome.xpGain === 0 ? '（本關已拿過更高評價）' : ''}</p>`
+            evaluation.passed
+              ? murkResult
+                ? '' // 濁靈：這一次的收穫寫在下面牠那一行（XP 屬於安撫，不屬於單次過關）
+                : `<p class="gain">${gainLine(outcome)}</p>`
               : `<p class="gain gain--none">再修一次就好——下面列出你缺了什麼。</p>`
           }
+          ${murkLine}
           ${next ? `<p class="muted">距離 ${next.grade} 還差 ${formatScore(next.need)} 分。</p>` : ''}
         </div>
       </div>
@@ -2033,7 +2062,8 @@ export function createPromptConsole({
       usedCoach = false;
       rejects = 0;
       const murk = isMurk(challenge);
-      const best = murk ? null : progression.bestGrade(challenge.id);
+      // v1.2 · P02：濁靈的最佳評價住在 `state.murks`（不是 bestGrades）
+      const best = murk ? (progression.murkState?.(challenge.id) || {}).grade || null : progression.bestGrade(challenge.id);
       const group = content.group(challenge.region);
       if (murk) {
         /*

@@ -5022,7 +5022,7 @@ memory.clear();
 /* ================================================================== */
 /* v1.2 · P01：濁靈（Murk）—— 資料層 ＋ 世界實體 ＋ 互動仲裁 ＋ 不落盤   */
 /* ================================================================== */
-console.log('▸ 濁靈（v1.2 · P01）');
+console.log('▸ 濁靈（v1.2 · P01／P02）');
 const Murks = await import('../src/world/murks.js');
 const distToSeg = (px, pz, ax, az, bx, bz) => {
   const dx = bx - ax;
@@ -5269,51 +5269,290 @@ const distToSeg = (px, pz, ax, az, bx, bz) => {
     empty.update(0.016, 0, 0, 0);
   }
 
-  /* --- ⑥ recordMurk：同形狀 outcome、零 state 寫入 --- */
+  /* --- ⑥ recordMurk（v1.2 · P02）：真正落盤 —— 累積聯集、安撫規則、只升不降、XP 差額；
+   *     142 關的統計（bestGrades／collected／skillsV2／已通關數／稱號）一格都不動 --- */
   memory.clear();
   {
+    const { rankStats: rankStatsM, rankFor: rankForM } = await import('../src/progression/ranks.js');
+    const ranksM = readJson('src/data/ranks.json').ranks;
     const p = createProgression({ catalog, challenges });
     ok(typeof p.recordMurk === 'function', 'progression 有 recordMurk');
-    // 先讓存檔有點內容，再比較（空存檔的 deep-equal 太容易過）
-    p.recordResult(evaluate(challengeByIdM.get('gate-of-clarity-01'), challengeByIdM.get('gate-of-clarity-01').sample));
-    const snapshot = JSON.stringify(p.state);
-    const savedBefore = memory.get(SaveIO.SAVE_KEY);
-    const refOutcome = p.recordResult(evaluate(challengeByIdM.get('gate-of-clarity-01'), '幫我弄一下'));
-    const snapshot2 = JSON.stringify(p.state);
-    eq(snapshot2, snapshot, '（對照組）沒過關的 recordResult 也不改 state');
+    ok(typeof p.murkCount === 'function' && typeof p.murkState === 'function' && typeof p.murkHits === 'function', 'progression 有 murkCount / murkState / murkHits');
+    eq(p.murkCount(), 0, '一開始 murkCount 0');
+    eq(p.murkState('murk-vague-ask'), null, '沒碰過的濁靈 murkState 是 null');
+    eq(JSON.stringify(p.murkHits('murk-vague-ask')), '[]', '沒碰過的濁靈 murkHits 是空陣列');
+    ok(p.state.murks && typeof p.state.murks === 'object' && Object.keys(p.state.murks).length === 0, '新存檔 murks 是 {}');
+    // 先讓存檔有點內容（一關通關），再比較 142 關的統計前後；同時留一份**活的** recordResult outcome 當形狀對照
+    const refOutcome = p.recordResult(evaluate(challengeByIdM.get('gate-of-clarity-01'), challengeByIdM.get('gate-of-clarity-01').sample));
+    const stats142 = () =>
+      JSON.stringify({
+        bestGrades: p.state.bestGrades,
+        collected: p.state.collected,
+        skillsV2: p.state.skillsV2,
+        seals: p.state.seals,
+        penless: p.state.penlessSeals,
+        scribe: p.state.scribeSeals,
+        badges: p.state.badges,
+        unlocked: p.state.unlockedRegions,
+        guidanceSeen: p.state.guidanceSeen,
+        samplesSeen: p.state.samplesSeen,
+        cleared: Object.keys(p.state.bestGrades).length,
+        clearedFoundations: p.clearedCount('foundations'),
+        rankMaterial: (() => { const st = rankStatsM(p, catalog); return [st.collected, st.mastered, st.cleared]; })(),
+      });
+    const before142 = stats142();
+    const rankBefore = rankForM(rankStatsM(p, catalog), ranksM).rank.id;
     const m = murks[0];
-    for (const text of [m.taint, m.sample]) {
-      const ev = evaluate(m, text);
-      const out = p.recordMurk(m.id, ev, { mode: 'free', attempt: 1 });
-      eq(JSON.stringify(Object.keys(out).sort()), JSON.stringify(Object.keys(refOutcome).sort()), `recordMurk 回傳與 recordResult 同一組欄位（${ev.passed ? '過' : '沒過'}）`);
-      eq(out.xpGain, 0, 'recordMurk：xpGain 0');
-      eq(out.leveledUp, false, 'recordMurk：leveledUp false');
-      eq(out.levelAfter, p.levelInfo().level, 'recordMurk：levelAfter 是現值');
-      eq(out.levelBefore, out.levelAfter, 'recordMurk：levelBefore ＝ levelAfter');
-      ok(Array.isArray(out.newlyCollected) && out.newlyCollected.length === 0, 'recordMurk：newlyCollected 空');
-      ok(Array.isArray(out.newlySkills) && out.newlySkills.length === 0, 'recordMurk：newlySkills 空');
-      ok(Array.isArray(out.newlyUnlocked) && out.newlyUnlocked.length === 0, 'recordMurk：newlyUnlocked 空');
-      eq(out.previousGrade, null, 'recordMurk：previousGrade null');
-      eq(out.bestGrade, null, 'recordMurk：bestGrade null');
-      eq(out.improved, false, 'recordMurk：improved false');
-      eq(out.newSeal, null, 'recordMurk：newSeal null');
-      eq(out.newPenless, false, 'recordMurk：newPenless false');
-      eq(out.newScribe, false, 'recordMurk：newScribe false');
-      eq(JSON.stringify(p.state), snapshot, `recordMurk（${ev.passed ? '過' : '沒過'}）之後 state 深比較相同（零寫入）`);
-      eq(memory.get(SaveIO.SAVE_KEY), savedBefore, `recordMurk（${ev.passed ? '過' : '沒過'}）之後 localStorage 一個位元組都沒動`);
+    const ch = { ...m, kind: 'murk', xp: murkFile.xp };
+    const total = ch.rubric.reduce((n, r) => n + r.weight, 0);
+    const fake = (flags) => ({ challengeId: ch.id, results: ch.rubric.map((r, i) => ({ check: r.check, weight: r.weight, passed: Boolean(flags[i]) })), passed: false, grade: null, tooShort: false });
+    // 第一次：只命中 index 1（weight 1）→ 沒安撫、hits [1]、xp 0
+    const xp0 = p.state.xp;
+    const o1 = p.recordMurk(ch, fake([0, 1, 0]), { mode: 'free', attempt: 1 });
+    ok(o1.murk && typeof o1.murk === 'object', 'outcome 帶 murk 子物件');
+    eq(JSON.stringify(Object.keys(o1.murk).sort()), JSON.stringify(['calmed', 'hits', 'newlyCalmed', 'newlyPassedIndices', 'score', 'total']), 'outcome.murk 六鍵：newlyPassedIndices / hits / score / total / calmed / newlyCalmed');
+    eq(JSON.stringify(o1.murk.newlyPassedIndices), '[1]', '第一次：新命中 [1]');
+    eq(JSON.stringify(o1.murk.hits), '[1]', '第一次：hits [1]');
+    eq(o1.murk.score, 1, '第一次：score 1');
+    eq(o1.murk.total, total, 'total ＝ rubric 權重和');
+    eq(o1.murk.calmed, false, '第一次：score 1 < pass 3 → 沒安撫');
+    eq(o1.murk.newlyCalmed, false, '第一次：newlyCalmed false');
+    eq(o1.xpGain, 0, '沒安撫 → xpGain 0');
+    eq(o1.bestGrade, null, '沒安撫 → bestGrade null');
+    eq(o1.previousGrade, null, '第一次 previousGrade null');
+    eq(o1.improved, false, '沒安撫 → improved false');
+    eq(p.state.xp, xp0, '沒安撫 → XP 不動');
+    eq(JSON.stringify(p.murkHits(ch.id)), '[1]', 'murkHits 讀得到 [1]');
+    eq(JSON.stringify(p.murkState(ch.id)), JSON.stringify({ hits: [1], grade: null }), 'murkState ＝ { hits:[1], grade:null }');
+    eq(p.murkCount(), 0, '沒安撫不算 murkCount');
+    ok(JSON.parse(memory.get(SaveIO.SAVE_KEY)).murks[ch.id], '沒安撫也落盤（hits 永不清零）');
+    // 第二次：只命中 index 0（weight 2）—— 這一次單看不過，但聯集 [0,1] score 3 ≥ pass → 安撫（newlyCalmed）
+    const o2 = p.recordMurk(ch, fake([1, 0, 0]), { mode: 'free', attempt: 2 });
+    eq(JSON.stringify(o2.murk.newlyPassedIndices), '[0]', '第二次：新命中 [0]（index 1 已在，不重複）');
+    eq(JSON.stringify(o2.murk.hits), '[0,1]', '第二次：hits 是聯集 [0,1]');
+    eq(o2.murk.score, 3, '第二次：累積 score 3');
+    eq(o2.murk.calmed, true, '累積 3 ≥ pass 3 → 安撫（單次沒過也算）');
+    eq(o2.murk.newlyCalmed, true, '這一次才安撫 → newlyCalmed true');
+    eq(o2.bestGrade, gradeForRatio(3 / total), 'grade ＝ gradeForRatio(累積 score / total)（這一次沒過 → 只看累積）');
+    eq(o2.previousGrade, null, 'previousGrade 仍 null');
+    eq(o2.improved, true, '第一次拿到評價 → improved');
+    eq(o2.xpGain, xpForGrade(o2.bestGrade, murkFile.xp), 'XP ＝ xpForGrade(grade, murks.json.xp)');
+    ok(o2.xpGain > 0, '安撫有 XP', String(o2.xpGain));
+    eq(p.state.xp, xp0 + o2.xpGain, 'XP 真的寫進 state');
+    eq(p.state.level, levelFromXp(p.state.xp).level, 'level 與 levelFromXp 一致');
+    eq(o2.levelAfter, levelFromXp(p.state.xp).level, 'levelAfter 是現值');
+    eq(p.murkCount(), 1, '安撫一隻 → murkCount 1');
+    eq(p.murkState(ch.id).grade, o2.bestGrade, 'murkState.grade 有值');
+    // 第三次：什麼都沒命中 → 聯集不變、grade 不降、XP 不動、newly 空
+    const xp2 = p.state.xp;
+    const o3 = p.recordMurk(ch, fake([0, 0, 0]), { mode: 'free', attempt: 3 });
+    eq(JSON.stringify(o3.murk.newlyPassedIndices), '[]', '第三次：沒有新命中');
+    eq(JSON.stringify(o3.murk.hits), '[0,1]', 'hits 永不清零');
+    eq(o3.murk.calmed, true, '安撫過就一直是安撫');
+    eq(o3.murk.newlyCalmed, false, '不是這一次才安撫');
+    eq(o3.bestGrade, o2.bestGrade, 'grade 只升不降');
+    eq(o3.previousGrade, o2.bestGrade, 'previousGrade 是上一次的 grade');
+    eq(o3.improved, false, '沒進步');
+    eq(o3.xpGain, 0, 'XP 只補差額 → 0');
+    eq(p.state.xp, xp2, 'XP 不動');
+    // 第四次：全命中 → S、只補差額
+    const o4 = p.recordMurk(ch, fake([1, 1, 1]), { mode: 'free', attempt: 4 });
+    eq(JSON.stringify(o4.murk.hits), '[0,1,2]', '全命中 → hits [0,1,2]');
+    eq(o4.murk.score, total, 'score ＝ total');
+    eq(o4.bestGrade, 'S', '全剝 ＝ S');
+    eq(o4.xpGain, xpForGrade('S', murkFile.xp) - xpForGrade(o2.bestGrade, murkFile.xp), 'XP 只補 S 與舊評價的差額');
+    eq(p.state.xp, xp2 + o4.xpGain, '差額寫進 state');
+    // 第五次：再全命中 → 0 XP、newly 空（不能刷分）
+    const o5 = p.recordMurk(ch, fake([1, 1, 1]), { mode: 'free', attempt: 5 });
+    eq(o5.xpGain, 0, '重複安撫不刷分');
+    eq(JSON.stringify(o5.murk.newlyPassedIndices), '[]', '重複命中不算新');
+    eq(o5.improved, false, 'S 之後不再 improved');
+    // 與 recordResult 同形：鍵集合 ⊇ 活的 recordResult outcome 的鍵集合 ＋ murk（動態對照，不寫死清單）
+    const refKeys = Object.keys(refOutcome).sort();
+    eq(refKeys.length, 13, '（對照組）recordResult 目前回 13 鍵');
+    for (const o of [o1, o2, o3, o4, o5]) {
+      const keys = Object.keys(o);
+      ok(refKeys.every((k) => keys.includes(k)), 'recordMurk 回傳的鍵 ⊇ 活的 recordResult outcome 的鍵', JSON.stringify(refKeys.filter((k) => !keys.includes(k))));
+      ok(keys.includes('murk'), 'recordMurk 回傳多一個 murk 子物件');
+      eq(JSON.stringify(keys.sort()), JSON.stringify([...refKeys, 'murk'].sort()), 'recordMurk 回傳 ＝ recordResult 的鍵 ＋ murk（沒有多餘的鍵）');
+      ok(Array.isArray(o.newlyCollected) && o.newlyCollected.length === 0, 'newlyCollected 保持空（技巧只由神廟給）');
+      ok(o.newlySkills.length === 0 && o.newlyUnlocked.length === 0, 'newlySkills / newlyUnlocked 空（沒跨門檻）');
+      eq(o.newSeal, null, 'newSeal null');
+      eq(o.newPenless === false && o.newScribe === false, true, 'newPenless / newScribe false');
     }
-    eq(p.bestGrade(m.id), null, '濁靈 id 沒有進 bestGrades');
-    eq(p.isCleared(m.id), false, '濁靈不算通關');
-    const saved = JSON.parse(memory.get(SaveIO.SAVE_KEY));
-    ok(!('murks' in saved), 'P01 的存檔沒有 murks 欄（持久化留給 P02）');
-    ok(!JSON.stringify(saved).includes('murk-'), '存檔裡沒有任何 murk id');
+    // 142 關的統計一格都沒動
+    eq(stats142(), before142, 'bestGrades／collected／skillsV2／印記／徽章／解鎖／已通關數／稱號材料 前後 deep-equal');
+    eq(rankForM(rankStatsM(p, catalog), ranksM).rank.id, rankBefore, '稱號不變');
+    eq(p.bestGrade(ch.id), null, '濁靈 id 沒有進 bestGrades');
+    eq(p.isCleared(ch.id), false, '濁靈不算通關');
+    // 用真的評分引擎跑 sample：≥A、XP 對得上
+    const m2 = murks[1];
+    const ch2 = { ...m2, kind: 'murk', xp: murkFile.xp };
+    const evS = evaluate(ch2, ch2.sample);
+    const oS = p.recordMurk(ch2, evS, { mode: 'free', attempt: 1 });
+    eq(oS.murk.calmed, true, '範例解安撫得了第二隻');
+    ok(['A', 'S'].includes(oS.bestGrade), '範例解 ≥ A', oS.bestGrade);
+    eq(oS.murk.hits.length, evS.results.filter((r) => r.passed).length, 'hits ＝ 這一次 passed 的列');
+    eq(p.murkCount(), 2, 'murkCount 2');
+    /* --- 審查後修訂：這一次評分引擎判過（部分分數湊到 pass）＝ 安撫，即使 passed===true 的列不夠 pass --- */
+    {
+      const mT = murks.find((x) => x.id === 'murk-trust-me');
+      const chT = { ...mT, kind: 'murk', xp: murkFile.xp };
+      const evT = evaluate(chT, '請根據下面的資料回答，並註明來源，若沒有就說不知道');
+      eq(evT.passed, true, '（前提）這一句引擎判過');
+      const fullRows = evT.results.filter((r) => r.passed === true).length;
+      const fullScore = evT.results.filter((r) => r.passed === true).reduce((n, r) => n + r.weight, 0);
+      ok(fullRows >= 1 && fullScore < chT.pass, '（前提）但完全命中的列權重和 < pass（靠部分分數過的）', `${fullScore} < ${chT.pass}`);
+      const xpT0 = p.state.xp;
+      const oT = p.recordMurk(chT, evT, { mode: 'free', attempt: 1 });
+      eq(oT.murk.calmed, true, '引擎判過 → 安撫（部分分數也算）');
+      eq(oT.murk.newlyCalmed, true, '第一次 → newlyCalmed');
+      eq(oT.bestGrade, evT.grade, 'grade ＝ 這一次的評價（attempt ratio > 累積 ratio）');
+      ok(oT.murk.score < chT.pass, '累積聯集本身還沒到 pass（hits 只記完全命中的列）', String(oT.murk.score));
+      eq(oT.xpGain, xpForGrade(evT.grade, murkFile.xp), 'XP ＝ xpForGrade(這一次的評價)');
+      eq(p.state.xp, xpT0 + oT.xpGain, 'XP 寫進 state');
+      eq(p.murkState(chT.id).grade, evT.grade, 'murkState.grade 有值（存了 grade ＝ 安撫過）');
+      eq(p.murkCount(), 3, 'murkCount 3');
+      // 再送一次同一句：早就安撫、不刷分
+      const oT2 = p.recordMurk(chT, evT, { mode: 'free', attempt: 2 });
+      eq(oT2.murk.newlyCalmed, false, '再送：不是這一次才安撫');
+      eq(oT2.xpGain, 0, '再送：不刷分');
+    }
+    // 重新載入：存檔裡的 murks 讀得回來、形狀正確
+    const reload = createProgression({ catalog, challenges });
+    eq(JSON.stringify(reload.murkState(ch.id)), JSON.stringify({ hits: [0, 1, 2], grade: 'S' }), '重新載入後 murkState 一致');
+    eq(reload.murkCount(), 3, '重新載入後 murkCount 一致');
+    // murkCount(ids)：只數給定的 id（存檔孤兒不算）
+    reload.state.murks['murk-ghost-not-in-json'] = { hits: [0], grade: 'S' };
+    eq(reload.murkCount(), 4, 'murkCount() 不給 ids 會把孤兒也數進去');
+    eq(reload.murkCount(murks.map((m) => m.id)), 3, 'murkCount(ids) 只數 murks.json 裡的 8 隻（孤兒不算）');
+    eq(reload.murkCount([]), 0, 'murkCount([]) ＝ 0');
+    // XP 來源與 recordResult 同一條：challenge.xp → evaluation.baseXp（沒有 murksXp 選項）
+    const bare = createProgression({ catalog, challenges });
+    const oB = bare.recordMurk({ ...murks[2], kind: 'murk', xp: murkFile.xp }, fake([1, 1, 1]), null);
+    eq(oB.xpGain, xpForGrade('S', murkFile.xp), 'challenge.xp（murks.json.xp）是 XP 基數');
+    const oB2 = bare.recordMurk({ ...murks[3], kind: 'murk' }, { ...fake([1, 1, 1]), baseXp: 10 }, null);
+    eq(oB2.xpGain, xpForGrade('S', 10), '沒有 challenge.xp → 退回 evaluation.baseXp（與 recordResult 同一條）');
+    const oB3 = bare.recordMurk({ ...murks[4], kind: 'murk' }, fake([1, 1, 1]), null);
+    eq(oB3.xpGain, 0, '兩者都沒有 → 0（不會爆）');
+    /* --- 審查後修訂：這一次沒過、但聯集湊到 pass ＝ 安撫（真引擎、兩句各命中不同列） --- */
+    {
+      const mV = murks.find((x) => x.id === 'murk-vague-ask');
+      const chV = { ...mV, kind: 'murk', xp: murkFile.xp, id: 'murk-vague-ask' };
+      memory.clear(); // 各自乾淨的存檔（不吃上面 p 的 murks）
+      const q = createProgression({ catalog, challenges });
+      const evA = evaluate(chV, '限制在 200 字以內，不要超過');
+      const evB = evaluate(chV, '請把這一段文字翻譯成英文給我，我要拿去給外國同事看的');
+      eq(evA.passed, false, '（前提）第一句單看沒過');
+      eq(evB.passed, false, '（前提）第二句單看沒過');
+      const idxA = evA.results.map((r, i) => (r.passed === true ? i : -1)).filter((i) => i >= 0);
+      const idxB = evB.results.map((r, i) => (r.passed === true ? i : -1)).filter((i) => i >= 0);
+      ok(idxA.length && idxB.length && !idxA.some((i) => idxB.includes(i)), '（前提）兩句各命中不同的列', `${idxA} / ${idxB}`);
+      const oA = q.recordMurk(chV, evA, { mode: 'free', attempt: 1 });
+      eq(oA.murk.calmed, false, '第一句：沒安撫');
+      eq(oA.xpGain, 0, '第一句：0 XP');
+      const xpA = q.state.xp;
+      const oB0 = q.recordMurk(chV, evB, { mode: 'free', attempt: 2 });
+      eq(oB0.murk.calmed, true, '第二句：這一次沒過，但聯集 ≥ pass → 安撫');
+      eq(oB0.murk.newlyCalmed, true, '第二句：newlyCalmed');
+      eq(JSON.stringify(oB0.murk.hits), JSON.stringify([...new Set([...idxA, ...idxB])].sort((a, b) => a - b)), '聯集 hits');
+      eq(oB0.bestGrade, gradeForRatio(oB0.murk.score / oB0.murk.total), 'grade 看累積（這一次沒過，attempt ratio 不算）');
+      eq(oB0.xpGain, xpForGrade(oB0.bestGrade, murkFile.xp), 'XP 給了一次');
+      eq(q.state.xp, xpA + oB0.xpGain, 'XP 寫進 state');
+      const oB1 = q.recordMurk(chV, evA, { mode: 'free', attempt: 3 });
+      eq(oB1.xpGain, 0, '再送第一句：XP 只給一次');
+      eq(oB1.murk.newlyCalmed, false, '再送：不是這一次才安撫');
+      eq(q.murkCount(), 1, 'murkCount 1');
+    }
+    /* --- 審查後修訂：濁靈升等要跑 refreshUnlocks（閘門不因濁靈升等而過期） --- */
+    {
+      memory.clear(); // 各自乾淨的存檔（不吃上面 p 的 murks）
+      const q = createProgression({ catalog, challenges });
+      const foundationsIds = challenges.filter((c) => c.region === 'foundations').slice(0, 4).map((c) => c.id);
+      eq(foundationsIds.length, 4, '（前提）基本功區有 4 關可當已通關');
+      for (const cid of foundationsIds) q.state.bestGrades[cid] = 'C';
+      q.state.xp = 259; // Lv.2（260 = Lv.3）
+      q.state.level = levelFromXp(259).level;
+      eq(q.state.level, 2, '（前提）Lv.2');
+      eq(q.isRegionUnlocked('reasoning'), false, '（前提）示範與推理區還沒開（等級差 1）');
+      const gateBefore = q.gateStatus('reasoning');
+      eq(gateBefore.unlocked, false, '（前提）閘門顯示未開');
+      const oU = q.recordMurk({ ...murks[2], kind: 'murk', xp: murkFile.xp }, fake([1, 1, 1]), null);
+      eq(oU.leveledUp, true, '濁靈 XP 讓等級跨到 Lv.3');
+      eq(oU.levelAfter, 3, 'levelAfter 3');
+      ok(oU.newlyUnlocked.includes('reasoning'), 'outcome.newlyUnlocked 有 reasoning（refreshUnlocks 有跑）', JSON.stringify(oU.newlyUnlocked));
+      eq(q.isRegionUnlocked('reasoning'), true, 'state.unlockedRegions 已重算');
+      eq(q.gateStatus('reasoning').unlocked, true, '閘門狀態跟著開（不過期）');
+      eq(JSON.parse(memory.get(SaveIO.SAVE_KEY)).unlockedRegions.includes('reasoning'), true, '解鎖落盤');
+    }
+    // 反面：challenge 缺 rubric → 拋錯（不會默默寫壞存檔）
+    let threw = false;
+    try { p.recordMurk('murk-vague-ask', fake([1, 1, 1]), null); } catch { threw = true; }
+    eq(threw, true, 'recordMurk 只收 challenge 形物件（傳字串 id 會拋錯）');
+    // 重置清空
+    p.resetAll();
+    eq(JSON.stringify(p.state.murks), '{}', 'resetAll 後 murks 是 {}');
+    eq(p.murkCount(), 0, 'resetAll 後 murkCount 0');
+  }
+  memory.clear();
+
+  /* --- ⑥b save.normalize：murks 欄的形狀 --- */
+  {
+    const fresh = SaveIO.defaultSave();
+    ok(fresh.murks && typeof fresh.murks === 'object' && !Array.isArray(fresh.murks) && Object.keys(fresh.murks).length === 0, 'defaultSave().murks 是 {}');
+    const old = SaveIO.normalize({ version: 1, xp: 30 });
+    eq(JSON.stringify(old.murks), '{}', '舊存檔沒有 murks → 補 {}');
+    const bad = SaveIO.normalize({
+      version: 1,
+      murks: {
+        good: { hits: [2, 0, 0, 1.5, -1, '1', 2], grade: 'A' },
+        badGrade: { hits: [0], grade: 'Z' },
+        noHits: { grade: 'S' },
+        emptyHits: { hits: [], grade: 'A' },
+        junkHits: { hits: [-1, 'x', 1.5], grade: 'A' },
+        hitsNotArray: { hits: 'abc', grade: 'S' },
+        nullish: null,
+        str: 'x',
+      },
+    });
+    eq(JSON.stringify(bad.murks.good), JSON.stringify({ hits: [0, 2], grade: 'A' }), 'hits 去重、排序、丟非整數／負數／字串');
+    eq(JSON.stringify(bad.murks.badGrade), JSON.stringify({ hits: [0], grade: null }), '非法 grade → null');
+    eq('noHits' in bad.murks, false, '沒有 hits 陣列的整筆丟掉');
+    eq(JSON.stringify(bad.murks.emptyHits), JSON.stringify({ hits: [], grade: null }), 'hits 空 → grade 落成 null（沒命中不可能安撫）');
+    eq(JSON.stringify(bad.murks.junkHits), JSON.stringify({ hits: [], grade: null }), 'hits 全是壞值 → 清空後 grade 也落成 null');
+    eq('hitsNotArray' in bad.murks, false, 'hits 不是陣列的整筆丟掉');
+    eq('nullish' in bad.murks && 'str' in bad.murks, false, '不是物件的值整筆丟掉');
+    eq(JSON.stringify(SaveIO.normalize({ version: 1, murks: [1, 2] }).murks), '{}', 'murks 是陣列 → 當成沒有');
+    eq(JSON.stringify(SaveIO.normalize({ version: 1, murks: 'x' }).murks), '{}', 'murks 是字串 → 當成沒有');
+    eq(JSON.stringify(SaveIO.reset().murks), '{}', 'reset() 之後 murks 是 {}');
+    // 存檔欄位是純加法：其他欄位一個都沒少
+    const keysNew = Object.keys(SaveIO.defaultSave()).sort();
+    ok(keysNew.includes('murks') && keysNew.includes('bestGrades') && keysNew.includes('samplesSeen'), '新欄位是加上去的，舊欄位都還在');
+    // refreshUnlocks 沒讀 murks（不影響解鎖）
+    const progSrc = readFileSync(resolve(root, 'src/progression/progression.js'), 'utf8');
+    const refreshBody = progSrc.slice(progSrc.indexOf('function refreshUnlocks'), progSrc.indexOf('function refreshUnlocks') + 4000);
+    ok(!/murks/.test(refreshBody), 'refreshUnlocks() 沒有讀 murks（濁靈不影響解鎖）');
+    const recordStart = progSrc.indexOf('recordMurk(challenge, evaluation, context = null) {');
+    ok(recordStart > 0, '找得到 recordMurk 方法本體');
+    const recordBody = progSrc.slice(recordStart, recordStart + 6000).split('/* ----')[0];
+    ok(/newlyUnlocked = refreshUnlocks\(\)/.test(recordBody), 'recordMurk 與其他 XP 寫入者一樣呼叫 refreshUnlocks()（審查後修訂）');
+    ok(!/murksXp/.test(progSrc), 'progression 沒有 murksXp 選項（XP 基數走 challenge.xp → evaluation.baseXp）');
+    ok(!/state\.bestGrades\[/.test(recordBody), 'recordMurk 不寫 bestGrades');
+    ok(!/state\.collected\.push|state\.skillsV2\.push|state\.seals|state\.badges|recomputeBadges/.test(recordBody), 'recordMurk 不寫 collected / skillsV2 / 印記 / 徽章');
   }
   memory.clear();
 
   /* --- ⑦ 靜態掃描：主控台與 main.js 的分流真的在 --- */
   {
     const consoleSrc = readFileSync(resolve(root, 'src/prompt/console.js'), 'utf8');
-    ok(/progression\.recordMurk\(/.test(consoleSrc), 'renderResult 依 kind 分流到 progression.recordMurk');
+    ok(/progression\.recordMurk\(challenge, evaluation, meta\)/.test(consoleSrc), 'renderResult 依 kind 分流到 progression.recordMurk(challenge, evaluation, meta)');
+    ok(/murkState\?\.\(/.test(consoleSrc), '主控台 open() 對濁靈讀 murkState 顯示最佳評價');
+    ok(/牠聽懂了/.test(consoleSrc) && /替牠說清楚了/.test(consoleSrc) && /牠早就聽懂了/.test(consoleSrc), '結果面有安撫文案、「早就聽懂」與「本次新命中 N 處」一行');
+    ok(/data-murk-newly/.test(consoleSrc), '濁靈的累積那一行掛 [data-murk-newly]');
+    ok(/const gainLine = /.test(consoleSrc) && (consoleSrc.match(/gainLine\(/g) || []).length >= 3, '過關收穫那一行抽成 gainLine() 共用（關卡與濁靈不重複標記）');
+    const codexSrc = readFileSync(resolve(root, 'src/ui/codex.js'), 'utf8');
+    ok(/濁言與正言/.test(codexSrc), '圖鑑第四列「濁言與正言」');
+    ok(/還沒聽懂/.test(codexSrc), '未安撫的濁靈只顯示 title＋「還沒聽懂」');
     ok(/!isMurk\(current\)\) progression\.markGuidanceSeen/.test(consoleSrc), '濁靈不記 guidanceSeen');
     ok(/!isMurk\(current\)\) progression\.markSampleSeen/.test(consoleSrc), '濁靈不記 samplesSeen');
     ok(/濁言/.test(consoleSrc), '濁靈的第一幕有專用 eyebrow「濁言」');
@@ -5322,7 +5561,7 @@ const distToSeg = (px, pz, ax, az, bx, bz) => {
     ok(/world\.nearestMurk\(/.test(mainSrc), 'main.js 有第 ⑥ 層互動 nearestMurk');
     ok(/濁靈<\/b><span>\$\{esc\(nearMurk\.entry\.title\)\}<\/span><kbd>E<\/kbd> 安撫/.test(mainSrc), 'HUD 提示：濁靈 · <牠自己的名字> E 安撫（副標不寫死）');
     ok(/kind: 'murk'/.test(mainSrc), 'main.js 組出的 challenge 形物件帶 kind: murk');
-    ok(/challenge\.kind === 'murk'\)[\s\S]{0,400}return;/.test(mainSrc), 'onResult 的 murk 分支置頂並 return');
+    ok(/challenge\.kind === 'murk'\)[\s\S]{0,1200}return;/.test(mainSrc), 'onResult 的 murk 分支置頂並 return');
     ok(/nearMurk = !hitMarker && hitMurk/.test(mainSrc), '石座優先於濁靈');
     ok(/nearTablet = !hitMarker && !hitMurk && hitTablet/.test(mainSrc), '濁靈優先於石碑');
     const worldSrc = readFileSync(resolve(root, 'src/world/world.js'), 'utf8');

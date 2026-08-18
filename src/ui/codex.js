@@ -32,6 +32,9 @@ export function createCodex({
   secretTotal = 0,
   /** Phase 25：動得了的器物有幾件。 */
   handleTotal = 0,
+  /** v1.2 · P02：濁靈（murks.json entries）—— 第四列「濁言與正言」與可展開的條目。 */
+  murkTotal = 0,
+  murks = [],
 }) {
   const overlay = createOverlay({
     id: 'codex',
@@ -74,10 +77,12 @@ export function createCodex({
    * 刻意放在徽章下面、字級很小 —— 它是「順手撿到的」，不是主線進度。
    */
   function worldFinds() {
-    if (!inscriptionTotal && !secretTotal && !handleTotal) return '';
+    if (!inscriptionTotal && !secretTotal && !handleTotal && !murkTotal) return '';
     const ins = progression.inscriptionCount ? progression.inscriptionCount() : 0;
     const sec = progression.secretCount ? progression.secretCount() : 0;
     const hnd = progression.handleCount ? progression.handleCount() : 0;
+    // 只數 murks.json 裡真的有的那幾隻（存檔裡的孤兒 id 不算）
+    const mrk = progression.murkCount ? progression.murkCount(murks.map((m) => m.id)) : 0;
     const blessed = Boolean(progression.state.flags && progression.state.flags.echoBlessing);
     const rows = [];
     if (inscriptionTotal) {
@@ -99,10 +104,62 @@ export function createCodex({
         }</i></li>`
       );
     }
+    if (murkTotal) {
+      rows.push(
+        `<li><b>濁言與正言</b><span>${mrk} / ${murkTotal}</span><i>${
+          mrk >= murkTotal ? '每一句寫壞的話都被你說清楚了' : '留在原地的濁靈，走近按 E 替牠把話說清楚'
+        }</i></li>`
+      );
+    }
     return `<div class="finds">
       <div class="meta-rule"><h4><span class="zh">走出來的收集</span></h4></div>
       <ul class="finds__list">${rows.join('')}</ul>
+      ${murkBook()}
       ${blessed ? '<p class="badges__hidden">✦ 回聲的祝福 —— 你找到了那座小祠。</p>' : ''}
+    </div>`;
+  }
+
+  /**
+   * v1.2 · P02：濁言與正言 —— 第四列下面可展開的清單。
+   * 安撫過的：濁言（弱）→ 你的最佳評價 → 範例（強）→ 教的技法 → 官方出處（護欄 2）。
+   * 還沒安撫的：只留名字＋「還沒聽懂」（不露範例、不露出處 —— 那是自己走過去寫出來的）。
+   */
+  function murkBook() {
+    if (!murkTotal || !Array.isArray(murks) || !murks.length) return '';
+    const items = murks
+      .map((m) => {
+        const st = progression.murkState ? progression.murkState(m.id) : null;
+        const grade = st && st.grade ? st.grade : null;
+        if (!grade) {
+          return `<li class="murkbook__item murkbook__item--quiet" data-murk="${esc(m.id)}">
+            <span class="murkbook__title">${esc(m.title)}</span>
+            <span class="murkbook__state">還沒聽懂</span>
+          </li>`;
+        }
+        const skill = m.primarySkillId && content.skill ? content.skill(m.primarySkillId) : null;
+        const tech = !skill && m.primaryTechniqueId && content.technique ? content.technique(m.primaryTechniqueId) : null;
+        const skillName = skill ? skill.nameZh : tech ? tech.title : '';
+        const srcName = content.sourceName ? content.sourceName(m.source) : m.source;
+        return `<li class="murkbook__item" data-murk="${esc(m.id)}">
+          <details>
+            <summary>
+              <span class="murkbook__title">${esc(m.title)}</span>
+              <span class="murkbook__grade grade--${esc(grade).toLowerCase()}">最佳評價 ${esc(grade)}</span>
+            </summary>
+            <div class="murkbook__body">
+              <p class="murkbook__label">濁言</p>
+              <blockquote class="murkbook__taint">${esc(m.taint)}</blockquote>
+              <p class="murkbook__label">正言 · 範例</p>
+              <blockquote class="murkbook__sample">${esc(m.sample)}</blockquote>
+              ${skillName ? `<p class="murkbook__skill">這一句話背後的技法：<b>${esc(skillName)}</b></p>` : ''}
+              <a class="src" href="${esc(m.source)}" target="_blank" rel="noopener">${esc(srcName)} · 官方出處 ↗</a>
+            </div>
+          </details>
+        </li>`;
+      })
+      .join('');
+    return `<div class="murkbook">
+      <ul class="murkbook__list">${items}</ul>
     </div>`;
   }
 
