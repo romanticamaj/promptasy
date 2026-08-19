@@ -7250,6 +7250,13 @@ select option:disabled {
 .reveal.d4 {
   --i: 4;
 }
+/* v1.2 · P07 審查後補：殘頁的「收進圖鑑」與 Esc 提示排在內文之後（沒有這一條就會搶在前面亮） */
+.reveal.d5 {
+  --i: 5;
+}
+.reveal.d6 {
+  --i: 6;
+}
 
 @media (max-width: 720px) {
   .acts__item {

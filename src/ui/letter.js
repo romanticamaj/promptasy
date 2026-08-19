@@ -74,7 +74,7 @@ export function createLetter({ content, sourceIntro = '', onClose }) {
         : '<p class="letter__note letter__note--seen reveal d5">這一頁你收過了。</p>';
 
       article.innerHTML = `<div class="letter__mark" aria-hidden="true"></div>${lines}${teach}${note}
-        <p class="letter__hint reveal d5"><kbd>Esc</kbd> 收起，繼續走</p>`;
+        <p class="letter__hint reveal d6"><kbd>Esc</kbd> 收起，繼續走</p>`;
       overlay.open();
     },
     close() {

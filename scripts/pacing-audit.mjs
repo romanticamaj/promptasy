@@ -65,6 +65,8 @@ export async function pacingAudit({ step = SAMPLE_STEP } = {}) {
   const handles = readJson('src/data/handles.json').entries || [];
   const inscriptions = readJson('src/data/inscriptions.json').entries || [];
   const murks = readJson('src/data/murks.json').entries || [];
+  // v1.2 · P07：殘頁也是「路上讀得到的東西」，擺位規則要求離路網 ≤12m → 算進中景那一層
+  const letters = readJson('src/data/letters.json').entries || [];
 
   const pois = {
     micro: [
@@ -76,6 +78,7 @@ export async function pacingAudit({ step = SAMPLE_STEP } = {}) {
       ...Props.LORE_TABLETS.map((t) => ({ id: t.id, x: t.at[0], z: t.at[1] })),
       ...inscriptions.map((i) => ({ id: i.id, x: i.at[0], z: i.at[1] })),
       ...murks.map((m) => ({ id: m.id, x: m.at[0], z: m.at[1] })),
+      ...letters.map((l) => ({ id: l.id, x: l.at[0], z: l.at[1] })),
     ],
     marker: challenges.filter((c) => c.position).map((c) => ({ id: c.id, x: c.position[0], z: c.position[1] })),
     landmark: Props.LANDMARKS.map((l) => ({ id: l.id, x: l.at[0], z: l.at[1] })),

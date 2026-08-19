@@ -7316,8 +7316,20 @@ async function main() {
     const g = window.__promptasy;
     const spec = g.letterData.entries.find((e) => e.techniqueId);
     const before = { xp: g.progression.state.xp, n: g.progression.letterCount() };
+    // 走過去之後**輪詢**等提示換成這一頁（軟體渲染一幀 0.2s，固定 sleep 會讀到上一個位置的提示）
+    const waitFor = async (want, ms = 6000) => {
+      const t0 = Date.now();
+      let last = '';
+      while (Date.now() - t0 < ms) {
+        const el = document.querySelector('[data-interact]');
+        last = el && !el.hidden ? el.textContent.replace(/\\s+/g, ' ').trim() : '';
+        if (last.includes(want)) return last;
+        await new Promise((r) => setTimeout(r, 60));
+      }
+      return last;
+    };
     g.player.teleport(spec.at[0] + 2.2, spec.at[1] + 2.2);
-    await new Promise((r) => setTimeout(r, 460));
+    await waitFor(spec.title);
     const hint = document.querySelector('[data-interact]');
     const out = {
       specId: spec.id,
@@ -7399,8 +7411,20 @@ async function main() {
   const flavourLetter = await evaluate(`
     const g = window.__promptasy;
     const spec = g.letterData.entries.find((e) => !e.techniqueId);
+    // 走過去之後**輪詢**等提示換成這一頁（軟體渲染一幀 0.2s，固定 sleep 會讀到上一個位置的提示）
+    const waitFor = async (want, ms = 6000) => {
+      const t0 = Date.now();
+      let last = '';
+      while (Date.now() - t0 < ms) {
+        const el = document.querySelector('[data-interact]');
+        last = el && !el.hidden ? el.textContent.replace(/\\s+/g, ' ').trim() : '';
+        if (last.includes(want)) return last;
+        await new Promise((r) => setTimeout(r, 60));
+      }
+      return last;
+    };
     g.player.teleport(spec.at[0] + 2.2, spec.at[1] + 2.2);
-    await new Promise((r) => setTimeout(r, 460));
+    await waitFor(spec.title);
     window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyE', bubbles: true }));
     await new Promise((r) => setTimeout(r, 500));
     const panel = document.querySelector('#letter');
