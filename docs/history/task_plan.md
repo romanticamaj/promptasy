@@ -1068,6 +1068,38 @@ Exit criteria：
 - [x] rubric 98,503／playtest 2,533／build ✓／e2e 3,841 全綠、console error 0；三角 217,892（<240k）、光源 37 不變、碰撞體 950、collision-audit 0。
 - [x] 三件組＋changelog＋roadmap 打勾。
 
+### P08 — 四宿星圖 ＋ 反應式回聲 ＋ 12 區傳說鉤（2026-08-20 開工）
+
+狀態：`in progress`
+
+**現狀**：圖鑑的廠家徽章是 `codex.js` 的 `badgeStrip()`（`curriculum.json` 的 `vendors`：openai／anthropic／google／xai，各有 `name`／`color`；每廠集滿 5 個技巧標記＝隱藏成就）。回聲的通道是 `src/ui/nudge.js`（`show(kind,{eyebrow:'回聲', line, sub})`、`announceUnlock(regionId)`、`noteActivity()`、有冷卻），目前只在序章／導航／解鎖時說話。12 區的守護／聲音／傳說鉤在研究 W §4 有整表，P07 的殘頁用掉了一部分，石碑（`LORE_TABLETS`）也各有一塊。
+
+**目標**：四廠在世界裡是「**四部原典／四宿**」——星圖取代徽章條，出處與名稱一字不改、世界層文字零公司名、成就頁有免責句；回聲會依「你剛做了什麼」換一句話；每片土地的傳說鉤補齊。
+
+**範圍**
+1. **四宿星圖**（`src/ui/codex.js` ＋ `src/styles.css`）：`badgeStrip()` 換成程序化星圖——四個星群（宿），每一宿的**星點數 ＝ 該廠已收集的技巧標記數**，集滿 5 顆時該宿整組亮起並連線；四宿全亮＝既有的隱藏成就（判定不變）。**畫法**：純 SVG／DOM 的小圓點＋連線，**不畫任何標誌、不用任何品牌顏色以外的暗示**；星群位置固定（四角），旁邊只標「第一宿…第四宿」之類的世界說法。**出處列與廠名一字不改**：星圖下方保留一行小字，列出四家的名稱與「原典＝這四家公開的官方文件」，並加**免責句**：「本遊戲與這四家沒有隸屬或背書關係。」
+2. **世界層零公司名**（rubric 硬斷言）：世界裡的文案（`murks.json`／`letters.json`／`inscriptions.json`／`secrets.json`／`handles.json`／`LORE_TABLETS`／`STORY_VIGNETTES`／HUD／回聲）**不准出現** `OpenAI`／`Anthropic`／`Google`／`xAI`／`GPT`／`Claude`／`Gemini`／`Grok`；只有圖鑑的出處列、星圖下方那一行、成就頁可以出現。
+3. **反應式回聲**（`src/ui/nudge.js` ＋ `src/main.js`）：`nudge.echo(kind, ctx)` 依「上一件做的事」挑一句（**≥12 條分支**、每句 ≤31 字、最多兩句、不解釋規則、不用系統術語）：安撫一隻濁靈／撿到一頁殘頁／讀了一塊碑／找到一處祕密／動了一件器物／過了一關拿 S／升等／解鎖新區／第一次走進某一區／全區精通／收滿一種收集／久沒動作。沿用既有冷卻與 `isBusy` 規則，**不新增 UI**。
+4. **12 區傳說鉤**：研究 W §4 的表，每區確認**至少一處**說得出該區的守護與傳說（碑或殘頁）；缺的補進既有資料檔（不新增資料層）。
+5. 文案 → `npm run fonts`；禁字表與 `zh-scan`。
+
+**非目標**：傳聞連線頁（P20a）、AI 小知識（P20b）、終局（P22）、改 `curriculum.json` 的 vendors 資料（一個位元組都不動）。
+
+**受影響檔案**：`src/ui/codex.js`、`src/styles.css`、`src/ui/nudge.js`、`src/main.js`、`src/data/letters.json`／`inscriptions.json` 或 `props.js`（補傳說鉤）、`scripts/test-rubric.mjs`、`scripts/headless-check.mjs`、fonts。
+
+**預算**：世界層零改動（星圖是 DOM）；三角／光源／碰撞體不變。
+
+**Acceptance tests（先紅後綠）**
+- rubric：四宿星圖的純函式（每宿星點數＝badges、集滿判定與既有隱藏成就一致）；**世界層零公司名 grep**（把所有世界文案來源掃一遍，白名單只有圖鑑出處／星圖說明／成就頁）；免責句存在；`nudge.echo` 分支 ≥12 且每句 ≤31 字、不含系統術語；12 區各有傳說鉤（碑或殘頁裡點得到該區的守護）。
+- e2e：開圖鑑 → 星圖在（四宿、星點數對得上 badges）、免責句可見、出處列仍是真名；安撫一隻濁靈後回聲說了對應的一句；舊斷言零改動。
+
+**禁區**：`curriculum.json`、`challenges.json`、`flows.json`、`color-script.json`、`vite.config.js`、`CLAUDE.md`、`CHANGELOG.md`、`gameplay-roadmap.md`、dev server 5173/5174/5175。
+
+Exit criteria：
+- [ ] 星圖上線、免責句在、世界層零公司名（測試守著）；回聲 ≥12 條分支會依情境換；12 區傳說鉤齊。
+- [ ] rubric／playtest／build／e2e 全綠、console error 0。
+- [ ] 三件組＋changelog＋roadmap 打勾。
+
 ## v1.2 錯誤紀錄
 
 （沿用 §8 規則：任何錯誤記在此；同一錯誤不原樣重試；連續三種方法仍無法前進才報阻塞。）
