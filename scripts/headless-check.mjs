@@ -1291,6 +1291,19 @@ async function main() {
   );
   eq(verdict.hasNext, true, '過關後可以繼續');
 
+  // --- v1.2 · P07：序章寫下的第一句真的被記住了（只存在這台裝置上） ---
+  const firstSaid = await evaluate(`
+    const g = window.__promptasy;
+    return {
+      inState: g.progression.firstPrompt(),
+      saved: (JSON.parse(localStorage.getItem('promptasy.v1.save')) || {}).firstPrompt,
+      assembled: g.prologueContent.step('prologue-clarity').assembled,
+    };
+  `);
+  eq(firstSaid.inState, firstSaid.assembled, '序章第一次呈遞 → 存檔記住玩家送出的那一段原文');
+  eq(firstSaid.saved, firstSaid.inState, '第一句寫進 localStorage（只留在這台裝置上）');
+  ok(firstSaid.inState.length > 0 && firstSaid.inState.length <= 280, '第一句在長度上限之內', String(firstSaid.inState.length));
+
   // 出處連結真的是 curriculum 裡那一條（不是隨便湊的）
   const citationCheck = await evaluate(`
     const g = window.__promptasy;
@@ -1395,6 +1408,20 @@ async function main() {
     ok(lesson.collected > 0, `第 ${idx} 堂課持續累積圖鑑`, `collected=${lesson.collected}`);
     ok(lesson.bridged.length >= 1, `第 ${idx} 堂課的過場有台詞`, lesson.bridged.join(' / '));
   }
+
+  // --- v1.2 · P07：第二、三堂課都送出過了，第一句仍然是第一句 ---
+  const firstStill = await evaluate(`
+    const g = window.__promptasy;
+    return {
+      inState: g.progression.firstPrompt(),
+      lesson1: g.prologueContent.step('prologue-clarity').assembled,
+      lesson3: g.prologueContent.step('prologue-structure').assembled,
+      steps: g.progression.state.prologueSteps.length,
+    };
+  `);
+  eq(firstStill.steps, 3, '三堂課都送出過了');
+  eq(firstStill.inState, firstStill.lesson1, '第一句沒有被後面兩堂課覆寫（第一句就是第一句）');
+  ok(firstStill.inState !== firstStill.lesson3, '存的不是最後一次送出的那一段', firstStill.inState);
 
   // --- 畢業：指路第一座石座、寫下旗標、交還操作權 ---
   const graduation = await evaluate(`
@@ -7223,6 +7250,356 @@ async function main() {
 
   /* ================================================================ */
   /*
+   * 抄寫人的殘頁（v1.2 · P07）
+   *
+   * 世界的第七層互動：掉在路邊的一頁紙。走近 → 提示 → 按 E → 小窗 →
+   * 進存檔與圖鑑第五列 → 重整還在。一半的殘頁有教學（附得出官方出處），
+   * 一半純風味（一個連結都沒有）。順便驗回信碑的三種筆跡。
+   */
+  console.log('\n▸ 抄寫人的殘頁 ＋ 回信碑（v1.2 · P07）');
+
+  const letterWorld = await evaluate(`
+    const g = window.__promptasy;
+    const names = [];
+    g.world.root.traverse((o) => { if (o.name && o.name.startsWith('letter:')) names.push(o.name); });
+    let letterLights = 0, letterTris = 0;
+    for (const lt of g.world.letters) {
+      lt.group.traverse((o) => {
+        if (o.isLight) letterLights += 1;
+        if (o.isMesh && o.geometry) {
+          const idx = o.geometry.index;
+          letterTris += idx ? idx.count / 3 : o.geometry.attributes.position.count / 3;
+        }
+      });
+    }
+    // 每一頁都要走得到（不然「掉在路邊」等於掉進草叢裡）
+    const blocked = [];
+    for (const spec of g.letterData.entries) {
+      let free = 0;
+      for (let a = 0; a < 16; a += 1) {
+        const ang = (a / 16) * Math.PI * 2;
+        if (!g.world.solidAt(spec.at[0] + Math.cos(ang) * 2.4, spec.at[1] + Math.sin(ang) * 2.4)) free += 1;
+      }
+      if (free < 14) blocked.push(spec.id + ':' + free);
+    }
+    const regions = {};
+    for (const e of g.letterData.entries) regions[e.region] = (regions[e.region] || 0) + 1;
+    let lights = 0;
+    g.engine.scene.traverse((o) => { if (o.isLight) lights += 1; });
+    return {
+      built: names.length,
+      unique: new Set(names).size,
+      total: g.letterData.entries.length,
+      letterLights, letterTris, blocked, regions, lights,
+      teaching: g.letterData.entries.filter((e) => e.techniqueId).length,
+      hasNearest: typeof g.world.nearestLetter === 'function',
+    };
+  `);
+  eq(letterWorld.total, 24, '資料層有 24 頁殘頁');
+  eq(letterWorld.built, letterWorld.total, '每一頁殘頁都蓋在世界裡（letter:<id>）');
+  eq(letterWorld.unique, letterWorld.total, '場景圖節點名沒有重複');
+  eq(Object.keys(letterWorld.regions).length, 12, '12 片土地都有殘頁');
+  ok(
+    Object.values(letterWorld.regions).every((n) => n === 2),
+    '每片土地各 2 頁',
+    JSON.stringify(letterWorld.regions)
+  );
+  eq(letterWorld.teaching, 12, '一半的殘頁有教學句（另一半純風味）');
+  eq(letterWorld.letterLights, 0, '殘頁一盞燈都沒加（只用自發光材質）');
+  ok(letterWorld.letterTris < 8000, '24 頁殘頁的三角形總量 < 8k', `tris=${Math.round(letterWorld.letterTris)}`);
+  eq(letterWorld.blocked.length, 0, '每一頁殘頁四周都走得到', letterWorld.blocked.join(','));
+  ok(letterWorld.lights <= 56, '加了一層新內容之後燈光仍在預算內', `lights=${letterWorld.lights}`);
+  eq(letterWorld.hasNearest, true, '世界提供 nearestLetter（第七層的仲裁靠它）');
+
+  /* --- ① 有教學的那一頁：走近 → E → 小窗 → 出處 → XP → 存檔 --- */
+  const letterFlow = await evaluate(`
+    const g = window.__promptasy;
+    const spec = g.letterData.entries.find((e) => e.techniqueId);
+    const before = { xp: g.progression.state.xp, n: g.progression.letterCount() };
+    g.player.teleport(spec.at[0] + 2.2, spec.at[1] + 2.2);
+    await new Promise((r) => setTimeout(r, 460));
+    const hint = document.querySelector('[data-interact]');
+    const out = {
+      specId: spec.id,
+      techniqueId: spec.techniqueId,
+      hintHidden: hint.hidden,
+      hintText: hint.textContent.replace(/\\s+/g, ' ').trim(),
+    };
+    window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyE', bubbles: true }));
+    await new Promise((r) => setTimeout(r, 520));
+    const panel = document.querySelector('#letter');
+    out.open = g.letterPanel.isOpen;
+    out.small = !panel.classList.contains('overlay--wide');
+    out.lines = [...panel.querySelectorAll('.letter__line')].map((p) => p.textContent.trim());
+    out.tech = panel.querySelector('.letter__tech')?.textContent.trim() || '';
+    out.tip = panel.querySelector('.letter__tip')?.textContent.trim() || '';
+    out.how = panel.querySelector('.letter__how')?.textContent.trim() || '';
+    const src = panel.querySelector('a.bookicon');
+    out.srcText = src ? src.getAttribute('aria-label') || '' : '';
+    out.srcUrl = src ? src.getAttribute('href') : '';
+    out.srcVisible = src
+      ? (() => {
+          const r = src.getBoundingClientRect();
+          return getComputedStyle(src).visibility === 'visible' && r.width > 0 && r.height > 0;
+        })()
+      : false;
+    out.note = panel.querySelector('.letter__note')?.textContent.trim() || '';
+    out.hasActs = !!panel.querySelector('.acts, .stele, textarea');
+    out.xpAfter = g.progression.state.xp;
+    out.nAfter = g.progression.letterCount();
+    out.collected = g.progression.isCollected(spec.techniqueId);
+    out.saved = JSON.parse(localStorage.getItem('promptasy.v1.save')).lettersFound;
+    const tech = g.content.technique(spec.techniqueId);
+    out.realTitle = tech.title;
+    out.dataSource = spec.source;
+    out.curriculumSource = tech.sources[0].url;
+    out.before = before;
+    return out;
+  `);
+  eq(letterFlow.hintHidden, false, '走近殘頁 → 出現互動提示');
+  ok(/E/.test(letterFlow.hintText) && /撿起來/.test(letterFlow.hintText), '提示寫著按 E 撿起來', letterFlow.hintText);
+  eq(letterFlow.open, true, '按 E 打開殘頁的小窗');
+  eq(letterFlow.small, true, '是小窗（不是寬面板）');
+  eq(letterFlow.hasActs, false, '殘頁沒有四幕、沒有石碑、沒有輸入框');
+  ok(letterFlow.lines.length >= 2 && letterFlow.lines.length <= 4, '2–4 句抄寫人的話', String(letterFlow.lines.length));
+  eq(letterFlow.tech, letterFlow.realTitle, '顯示的技巧名稱＝curriculum 裡真正的那一條');
+  ok(letterFlow.tip.length > 8, '顯示了既有的中文說法', letterFlow.tip);
+  ok(letterFlow.how.length > 4, '顯示了一句可以照著做的白話', letterFlow.how);
+  eq(letterFlow.dataSource, letterFlow.curriculumSource, '資料裡的 source 與 curriculum 的官方網址逐字相同');
+  ok(/^https:\/\//.test(letterFlow.srcUrl), '面板上的出處是 https 連結', letterFlow.srcUrl);
+  eq(letterFlow.srcVisible, true, '那枚典籍一直看得見、量得到（不收進任何摺頁）');
+  ok(letterFlow.srcText.includes('神諭原典'), '出處標成「神諭原典」（換皮）', letterFlow.srcText);
+  ok(/\+\s*\d+\s*XP/.test(letterFlow.note), '第一次撿有 XP 提示', letterFlow.note);
+  ok(letterFlow.xpAfter > letterFlow.before.xp, '第一次撿真的給了 XP');
+  eq(letterFlow.nAfter, letterFlow.before.n + 1, '殘頁計數 +1');
+  eq(letterFlow.collected, true, '有教學的殘頁把那條技巧寫進圖鑑');
+  ok(letterFlow.saved.includes(letterFlow.specId), '寫進 localStorage', letterFlow.saved.join(','));
+
+  // 重撿不再給 XP
+  const letterAgain = await evaluate(`
+    const g = window.__promptasy;
+    g.letterPanel.close();
+    await new Promise((r) => setTimeout(r, 260));
+    const xp = g.progression.state.xp;
+    const spec = g.letterData.entries.find((e) => e.techniqueId);
+    g.player.teleport(spec.at[0] + 2.2, spec.at[1] + 2.2);
+    await new Promise((r) => setTimeout(r, 400));
+    window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyE', bubbles: true }));
+    await new Promise((r) => setTimeout(r, 420));
+    const note = document.querySelector('#letter .letter__note')?.textContent.trim() || '';
+    const after = g.progression.state.xp;
+    g.letterPanel.close();
+    await new Promise((r) => setTimeout(r, 240));
+    return { xp, after, note };
+  `);
+  eq(letterAgain.after, letterAgain.xp, '重撿同一頁不再給 XP（不能刷分）');
+  ok(/收過/.test(letterAgain.note), '重撿時說「這一頁你收過了」', letterAgain.note);
+
+  /* --- ② 純風味的那一頁：一個連結都沒有（護欄 2） --- */
+  const flavourLetter = await evaluate(`
+    const g = window.__promptasy;
+    const spec = g.letterData.entries.find((e) => !e.techniqueId);
+    g.player.teleport(spec.at[0] + 2.2, spec.at[1] + 2.2);
+    await new Promise((r) => setTimeout(r, 460));
+    window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyE', bubbles: true }));
+    await new Promise((r) => setTimeout(r, 500));
+    const panel = document.querySelector('#letter');
+    const out = {
+      id: spec.id,
+      open: g.letterPanel.isOpen,
+      lines: [...panel.querySelectorAll('.letter__line')].length,
+      links: panel.querySelectorAll('a').length,
+      teach: panel.querySelectorAll('.letter__glyph').length,
+      collectedBefore: g.progression.state.collected.length,
+    };
+    g.letterPanel.close();
+    await new Promise((r) => setTimeout(r, 260));
+    out.collectedAfter = g.progression.state.collected.length;
+    out.n = g.progression.letterCount();
+    return out;
+  `);
+  eq(flavourLetter.open, true, '純風味的殘頁一樣撿得起來');
+  ok(flavourLetter.lines >= 2, '它也有幾行字', String(flavourLetter.lines));
+  eq(flavourLetter.links, 0, '純風味的殘頁一個連結都沒有（護欄 2）');
+  eq(flavourLetter.teach, 0, '也沒有教學那一段');
+  eq(flavourLetter.collectedAfter, flavourLetter.collectedBefore, '純風味的殘頁一條技巧都不收');
+  ok(flavourLetter.n >= 2, '兩頁都算進殘頁計數', String(flavourLetter.n));
+
+  /* --- ③ 圖鑑第五列 ＋ 沒撿到的不劇透 --- */
+  const letterFinds = await evaluate(`
+    const g = window.__promptasy;
+    g.codex.open();
+    await new Promise((r) => setTimeout(r, 420));
+    const rows = [...document.querySelectorAll('#codex .finds__list li')].map((li) => ({
+      label: li.querySelector('b').textContent.trim(),
+      n: li.querySelector('span').textContent.trim(),
+    }));
+    const items = [...document.querySelectorAll('#codex .letterbook__item')];
+    const quiet = items.filter((li) => li.classList.contains('letterbook__item--quiet'));
+    const titles = items.map((li) => li.querySelector('.letterbook__title').textContent.trim());
+    const bodies = [...document.querySelectorAll('#codex .letterbook__body')].map((b) => b.textContent.trim());
+    const out = {
+      rows,
+      items: items.length,
+      quiet: quiet.length,
+      titles,
+      bodies,
+      found: g.progression.letterCount(),
+      total: g.letterData.entries.length,
+      foundIds: g.progression.state.lettersFound.slice(),
+      allTitles: g.letterData.entries.map((e) => e.title),
+    };
+    g.codex.close();
+    await new Promise((r) => setTimeout(r, 240));
+    return out;
+  `);
+  {
+    const row = letterFinds.rows.find((r) => r.label.includes('殘頁'));
+    ok(Boolean(row), '圖鑑有「抄寫人的殘頁」那一列', JSON.stringify(letterFinds.rows));
+    eq(row && row.n, `${letterFinds.found} / ${letterFinds.total}`, '殘頁計數是「撿到 / 總數」');
+  }
+  eq(letterFinds.items, letterFinds.total, '清單有 24 條');
+  eq(letterFinds.quiet, letterFinds.total - letterFinds.found, '還沒撿到的都只留一行「還沒找到」');
+  {
+    // 沒撿到的一頁：連標題都不能出現在圖鑑上（不劇透）
+    const shown = new Set(letterFinds.titles);
+    const leaked = letterFinds.allTitles.filter((t) => shown.has(t)).length;
+    eq(leaked, letterFinds.found, '只有撿到的那幾頁露出標題（其餘連名字都不給）');
+    eq(letterFinds.bodies.length, letterFinds.found, '只有撿到的那幾頁展開得出內容');
+  }
+
+  /* --- ④ 重整之後：撿過的還在（存檔），沒撿的照樣撿得到 --- */
+  await reloadPage('殘頁：重整');
+  const letterAfterReload = await evaluate(`
+    const g = window.__promptasy;
+    const spec = g.letterData.entries.find((e) => e.techniqueId);
+    return {
+      n: g.progression.letterCount(),
+      has: g.progression.hasFoundLetter(spec.id),
+      worldFound: g.world.letters.find((l) => l.id === spec.id).found,
+      firstPrompt: g.progression.firstPrompt(),
+    };
+  `);
+  ok(letterAfterReload.n >= 2, '重整之後撿到的殘頁還在', String(letterAfterReload.n));
+  eq(letterAfterReload.has, true, '那一頁仍然標記為撿過');
+  eq(letterAfterReload.worldFound, true, '世界端也記得（紙邊的光轉成安靜的暖金）');
+  ok(letterAfterReload.firstPrompt.length > 0, '重整之後序章的第一句還在', letterAfterReload.firstPrompt);
+
+  /* --- ⑤ 搶 E 的順序：殘頁讓刻文小語先（同半徑，靠仲裁） --- */
+  // 上一步重整過 → 標題卡又擋在前面（它擋著時角色不接操控，走近也不會有提示）
+  await key('Enter', 'Enter', { vk: 13 });
+  await waitFor(() => evaluate('return !window.__promptasy.title.isOpen;'), { label: '殘頁：重整後標題卡收起' });
+  await evaluate(`
+    const g = window.__promptasy;
+    if (g.prologue.isActive) g.prologue.skip();
+    const startBtn = document.querySelector('.intro [data-start]');
+    if (g.intro.isOpen && startBtn) startBtn.click();
+    for (const k of ['keyhelp','shareCard','promptConsole','codex','settings','finale','tabletPanel','inscriptionPanel','letterPanel','handlePanel','practice']) {
+      try { if (g[k] && g[k].isOpen) g[k].close(); } catch {}
+    }
+    g.player.setInputEnabled(true);
+    return 1;
+  `);
+  await waitFor(
+    () => evaluate('return window.__promptasy.player.inputEnabled && !window.__promptasy.title.isOpen;'),
+    { label: '殘頁：場面清乾淨' }
+  );
+  const letterArbitration = await evaluate(`
+    const g = window.__promptasy;
+    /*
+     * 提示是每幀更新的，而這台機器一幀可能好幾百毫秒 —— 固定 sleep 會量到「上一個位置」的提示。
+     * 所以走過去之後**輪詢到提示換成那一件為止**（逾時就把當下的提示原樣回傳，讓斷言照樣紅）。
+     */
+    const hintNow = () => {
+      const el = document.querySelector('[data-interact]');
+      return el && !el.hidden ? el.textContent.replace(/\\s+/g, ' ').trim() : '';
+    };
+    const waitHint = async (want, ms = 6000) => {
+      const t0 = Date.now();
+      let last = '';
+      while (Date.now() - t0 < ms) {
+        last = hintNow();
+        if (last.includes(want)) return last;
+        await new Promise((r) => setTimeout(r, 60));
+      }
+      return last;
+    };
+    // 站在殘頁旁邊：提示是殘頁
+    const spec = g.letterData.entries.find((e) => !e.techniqueId);
+    g.player.teleport(spec.at[0] + 2.0, spec.at[1] + 2.0);
+    const nearLetter = await waitHint(spec.title);
+    // 站在刻文小語旁邊：提示是刻文（殘頁那一層不搶）
+    const ins = g.inscriptionData.entries[0];
+    g.player.teleport(ins.at[0] + 2.0, ins.at[1] + 2.0);
+    const nearIns = await waitHint(ins.title);
+    return { nearLetter, nearIns, title: spec.title, insTitle: ins.title };
+  `);
+  ok(letterArbitration.nearLetter.includes(letterArbitration.title), '站在殘頁旁邊，提示講的是那一頁', letterArbitration.nearLetter);
+  ok(letterArbitration.nearIns.includes(letterArbitration.insTitle), '站在刻文小語旁邊，殘頁不搶 E', letterArbitration.nearIns);
+
+  /* --- ⑥ 回信碑：一塊碑上三種筆跡都在（原句／後人補寫／被劃掉的） --- */
+  const threadedTablet = await evaluate(`
+    const g = window.__promptasy;
+    const tab = g.world.tablets.find((t) => (t.tablet.lines || []).some((l) => typeof l !== 'string'));
+    g.tabletPanel.open(tab.tablet, { firstRead: false, xpGain: 0 });
+    await new Promise((r) => setTimeout(r, 420));
+    const rows = [...document.querySelectorAll('#lore-tablet .lore__line')].map((p) => {
+      const cs = getComputedStyle(p);
+      const box = p.getBoundingClientRect();
+      return {
+        hand: p.getAttribute('data-hand'),
+        text: p.textContent.trim(),
+        fontSize: Math.round(parseFloat(cs.fontSize) * 10) / 10,
+        strike: cs.textDecorationLine,
+        w: Math.round(box.width),
+        h: Math.round(box.height),
+      };
+    });
+    const out = { id: tab.id, rows };
+    g.tabletPanel.close();
+    await new Promise((r) => setTimeout(r, 260));
+    // 舊格式（純字串）的碑照樣渲染
+    const plain = g.world.tablets.find((t) => (t.tablet.lines || []).every((l) => typeof l === 'string'));
+    g.tabletPanel.open(plain.tablet, { firstRead: false, xpGain: 0 });
+    await new Promise((r) => setTimeout(r, 380));
+    out.plain = {
+      id: plain.id,
+      lines: [...document.querySelectorAll('#lore-tablet .lore__line')].map((p) => ({
+        hand: p.getAttribute('data-hand'),
+        text: p.textContent.trim(),
+      })),
+    };
+    g.tabletPanel.close();
+    await new Promise((r) => setTimeout(r, 260));
+    return out;
+  `);
+  {
+    const rows = threadedTablet.rows;
+    eq(rows.length, 3, `回信碑（${threadedTablet.id}）有三行`);
+    ok(
+      rows.every((r) => r.w > 0 && r.h > 0),
+      '三行都真的量得到（不是量到 0×0 的空過）',
+      rows.map((r) => `${r.w}x${r.h}`).join(' ')
+    );
+    eq(rows.map((r) => r.hand).join(','), 'first,later,struck', '三種筆跡依序在 DOM 裡');
+    const sizes = rows.map((r) => r.fontSize);
+    eq(new Set(sizes).size, 3, '三種筆跡三種字級', sizes.join(' / '));
+    ok(sizes[0] > sizes[1] && sizes[1] > sizes[2], '原句最大、補寫次之、被劃掉的最小', sizes.join(' > '));
+    ok(/line-through/.test(rows[2].strike), '被劃掉的那一句真的有刪除線', rows[2].strike);
+    ok(rows[2].text.length > 0, '被劃掉的字仍然讀得到（劃掉不是刪掉）', rows[2].text);
+  }
+  {
+    const plain = threadedTablet.plain;
+    ok(plain.lines.length >= 1, `舊格式的碑（${plain.id}）照樣渲染`, String(plain.lines.length));
+    ok(
+      plain.lines.every((l) => l.hand === 'first'),
+      '舊格式（純字串）一律當成原句',
+      plain.lines.map((l) => l.hand).join(',')
+    );
+  }
+
+  /* ================================================================ */
+  /*
    * 濁靈（v1.2 · P01）
    *
    * 世界的第六層互動：一段寫壞的請求具象化的小生物。走近 → 提示 → 按 E →
@@ -8328,9 +8705,17 @@ async function main() {
     const farHint = document.querySelector('[data-interact]');
     const hintFar = farHint.hidden || !farHint.textContent.includes(spec.title);
     const lidFar = obj.lidPivot.rotation.x;
-    // 走過去
+    // 走過去（輪詢到提示真的換成這一件為止 —— 軟體渲染一幀可能好幾百毫秒，
+    // 固定 sleep 會量到「上一個位置」那一件的提示，然後把 E 按在別的東西上）
     g.player.teleport(spec.at[0] + 1.8, spec.at[1] + 1.8);
-    await new Promise((r) => setTimeout(r, 420));
+    {
+      const t0 = Date.now();
+      while (Date.now() - t0 < 6000) {
+        const el = document.querySelector('[data-interact]');
+        if (el && !el.hidden && el.textContent.includes(spec.title)) break;
+        await new Promise((r) => setTimeout(r, 60));
+      }
+    }
     const hint = document.querySelector('[data-interact]');
     const out = {
       id: spec.id, title: spec.title, lines: spec.lines,
@@ -8502,7 +8887,15 @@ async function main() {
     const spec = g.handleData.entries.find((e) => e.kind === 'gong');
     const obj = g.world.handles.object(spec.id);
     g.player.teleport(spec.at[0] + 2.0, spec.at[1] + 2.0);
-    await new Promise((r) => setTimeout(r, 420));
+    // 輪詢到提示換成響石為止（同上：固定 sleep 會把 E 按在上一個位置那一件上）
+    {
+      const t0 = Date.now();
+      while (Date.now() - t0 < 6000) {
+        const el = document.querySelector('[data-interact]');
+        if (el && !el.hidden && el.textContent.includes(spec.title)) break;
+        await new Promise((r) => setTimeout(r, 60));
+      }
+    }
     const out = { hint: document.querySelector('[data-interact]').textContent.replace(/\\s+/g, ' ').trim() };
     out.hitBefore = obj.hit;
     out.swingBefore = obj.swingPivot.rotation.x;
@@ -8771,7 +9164,7 @@ async function main() {
       if (g.prologue.isActive) g.prologue.skip();
       const startBtn = document.querySelector('.intro [data-start]');
       if (g.intro.isOpen && startBtn) startBtn.click();
-      for (const k of ['keyhelp','shareCard','promptConsole','codex','settings','finale','tabletPanel','inscriptionPanel','handlePanel','practice']) {
+      for (const k of ['keyhelp','shareCard','promptConsole','codex','settings','finale','tabletPanel','inscriptionPanel','letterPanel','handlePanel','practice']) {
         try { if (g[k] && g[k].isOpen) g[k].close(); } catch {}
       }
       g.player.setInputEnabled(true);
