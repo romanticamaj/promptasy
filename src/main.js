@@ -798,6 +798,8 @@ function boot() {
       primaryTechniqueId: e.primaryTechniqueId ?? null,
       rubric: e.rubric,
       pass: e.pass,
+      // v1.2 · P06b：濁靈自己帶著石碑刻印的流程（預設設定下用「選的」安撫）
+      flow: e.flow,
       sample: e.sample,
       source: e.source,
       xp: murkFile.xp,

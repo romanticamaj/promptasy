@@ -7252,6 +7252,8 @@ async function main() {
   /* --- 走近 → 提示 → E → 主控台（自由書寫、第一幕是濁言） --- */
   const murkPre = await evaluate(`
     const g = window.__promptasy;
+    // v1.2 · P06b：前面的段落把答題方式切來切去 —— 這一段要驗的是**預設**（引導式＝用選的）
+    g.progression.updateSettings({ promptMode: 'guided' });
     const e = g.murks.entries.find((x) => x.id === 'murk-vague-ask');
     // 先站遠一點：這一隻的提示不該出現
     g.player.teleport(e.at[0] + 14, e.at[1] + 14);
@@ -7331,7 +7333,7 @@ async function main() {
   eq(murkOpen.open, true, '按 E 打開既有的主控台');
   eq(murkOpen.kind, 'murk', '主控台拿到的是濁靈的 challenge 形物件（kind: murk）');
   eq(murkOpen.id, 'murk-vague-ask', '就是這一隻');
-  eq(murkOpen.mode, 'free', '沒有流程資料 → 自動走自由書寫');
+  eq(murkOpen.mode, 'guided', '預設設定下濁靈也是石碑刻印（v1.2 · P06b：用選的，不用打字）');
   ok(/濁言/.test(murkOpen.eyebrow), '專用 eyebrow「濁言」', murkOpen.eyebrow);
   ok(!/第 \d+ 關/.test(murkOpen.eyebrow) && !/共 \d+ 關/.test(murkOpen.eyebrow), 'eyebrow 沒有「第 N 關／共 M 關」（濁靈不是關卡）', murkOpen.eyebrow);
   eq(murkOpen.scenario, murkPre.taint, '第一幕的情境就是牠的濁言（原文）');
@@ -7349,8 +7351,25 @@ async function main() {
     const guideLinks = document.querySelectorAll('#prompt-console .act--guide a[href^="https://"]').length;
     c.goAct(3, { force: true });
     await new Promise((r) => setTimeout(r, 200));
-    const ta = document.querySelector('.prompt-input');
     const out = { guideLinks, guidanceSeen: g.progression.state.guidanceSeen.slice() };
+    /*
+     * v1.2 · P06b：預設設定下第三幕是石碑刻印 —— 有選項、書寫檯讓位。
+     * 下面那一整段驗的是 P01–P03 的自由書寫路徑（打字送出），所以這裡自己切過去；
+     * 「玩家切得動」本身就是不倒退的證據，最後再切回預設。
+     */
+    out.guided = {
+      mode: c.mode,
+      options: [...document.querySelectorAll('#prompt-console .opt')].filter((o) => o.offsetParent !== null).length,
+      steleHidden: document.querySelector('#prompt-console .stele-stage').hidden,
+      ask: document.querySelector('#prompt-console [data-ask]')?.textContent.trim() || '',
+      slots: (c.challenge.flow && c.challenge.flow.slots.length) || 0,
+      rubricLen: c.challenge.rubric.length,
+    };
+    c.setMode('free');
+    await new Promise((r) => setTimeout(r, 200));
+    out.guided.modeAfter = c.mode;
+    out.guided.steleHiddenAfter = document.querySelector('#prompt-console .stele-stage').hidden;
+    const ta = document.querySelector('.prompt-input');
     out.hitsPayloads = [];
     out.spawnedAfter = [];
     for (let i = 0; i < 2; i += 1) {
@@ -7391,6 +7410,14 @@ async function main() {
   `);
   const murkPreState = JSON.parse(murkPre.state);
   const murkPreStats142 = JSON.stringify(Object.fromEntries(STATS142.map((k) => [k, murkPreState[k]])));
+  /* --- v1.2 · P06b：預設設定下的第三幕＝石碑刻印（選項），切到自由書寫仍寫得動 --- */
+  eq(murkSubmit.guided.mode, 'guided', '預設設定下濁靈的第三幕是石碑刻印');
+  ok(murkSubmit.guided.options >= 2, '刻印台上看得到選項（用選的）', JSON.stringify(murkSubmit.guided));
+  eq(murkSubmit.guided.steleHidden, false, '石碑真的在台上');
+  ok(murkSubmit.guided.ask.length > 4, '第一段有一句問題', murkSubmit.guided.ask);
+  eq(murkSubmit.guided.slots, murkSubmit.guided.rubricLen, '段數 ＝ rubric 條數 ＝ 殼數（一段對一層殼）');
+  eq(murkSubmit.guided.modeAfter, 'free', '玩家自己切得到自由書寫（不倒退）');
+  eq(murkSubmit.guided.steleHiddenAfter, true, '切到自由書寫後石碑收起來');
   ok(murkSubmit.guideLinks >= 1, '第二幕仍有官方出處連結（護欄 2）', String(murkSubmit.guideLinks));
   eq(murkSubmit.guidanceSeen.includes('murk-vague-ask'), false, '進第二幕不記 guidanceSeen（濁靈不是關卡）');
   eq(murkSubmit.resultHidden, false, '送出濁言原文有結果');
@@ -7477,6 +7504,7 @@ async function main() {
     const g = window.__promptasy;
     const c = g.promptConsole;
     const { xpForGrade } = await import('/src/challenges/rubric.js');
+    if (c.mode !== 'free') c.setMode('free');
     c.goAct(3, { force: true });
     await new Promise((r) => setTimeout(r, 200));
     const st0 = g.progression.state;
@@ -7724,6 +7752,7 @@ async function main() {
     await new Promise((r) => setTimeout(r, 300));
     g.promptConsole.open(g.murkChallenge(e.id));
     await new Promise((r) => setTimeout(r, 250));
+    if (g.promptConsole.mode !== 'free') g.promptConsole.setMode('free');
     g.promptConsole.goAct(3, { force: true });
     await new Promise((r) => setTimeout(r, 150));
     const ta = document.querySelector('.prompt-input');
@@ -7813,6 +7842,204 @@ async function main() {
   ok(!murkArb.none, '（前提）世界裡有一對石座／濁靈互動圈相疊（淨空例外那一隻）', JSON.stringify(murkArb));
   ok(murkArb.dMurk < 5.5, '（前提）這個點也在濁靈的 5.5 內', `${murkArb.murk}↔${murkArb.marker} d=${murkArb.dMurk && murkArb.dMurk.toFixed(2)}`);
   ok(new RegExp(murkArb.title || '§').test(murkArb.text) && !/濁靈/.test(murkArb.text), '石座與濁靈同時在範圍內 → 石座優先', murkArb.text);
+
+  /* ================================================================ */
+  /*
+   * v1.2 · P06b：預設設定下「用選的」安撫一隻濁靈（純鍵盤走完）
+   *
+   * 站長裁決：「濁靈的遊戲內容，也是讓使用者用選的，不要打字。」
+   * 這一段完全不碰書寫檯：走過去 → E → Enter 推幕 → 數字鍵一段一段刻 →
+   * 按住 Enter 手掌印 → 剝殼（輪詢）→ 清燈。最後把同一隻切成自由書寫，
+   * 確認打字那條路仍然在（不倒退）。
+   */
+  console.log('\n▸ 濁靈的選擇式作答（v1.2 · P06b）');
+  const chooseId = 'murk-no-example';
+  const chooseSetup = await evaluate(`
+    const g = window.__promptasy;
+    for (const k of ['keyhelp','shareCard','promptConsole','codex','settings','tabletPanel','inscriptionPanel','practice']) {
+      try { if (g[k] && g[k].isOpen) g[k].close(); } catch {}
+    }
+    // 預設設定：引導式（前面的段落為了驗打字路徑切成過自由書寫）
+    g.progression.updateSettings({ promptMode: 'guided' });
+    const e = g.murks.entries.find((x) => x.id === '${chooseId}');
+    const m = g.world.murks.byId(e.id);
+    g.player.setInputEnabled(true);
+    g.player.teleport(e.at[0] + 2.5, e.at[1] + 2.5);
+    await new Promise((r) => setTimeout(r, 400));
+    return {
+      setting: g.progression.state.settings.promptMode,
+      shells: m.visibleShellCount(), state: m.state,
+      slots: e.flow.slots.length, rubricLen: e.rubric.length,
+      correctIdx: e.flow.slots.map((s) => s.options.findIndex((o) => o.correct)),
+      murkCount: g.murkCount(), xp: g.progression.state.xp,
+      grade: JSON.stringify(g.progression.murkState(e.id)),
+    };
+  `);
+  eq(chooseSetup.setting, 'guided', '（前提）答題方式是預設的引導式');
+  eq(chooseSetup.shells, 3, '（前提）這一隻還沒碰過：3 層殼');
+  ok(chooseSetup.state !== 'settled' && chooseSetup.state !== 'calming', '（前提）還是濁靈（不是清燈；走近了所以會是 idle／aware）', chooseSetup.state);
+  eq(chooseSetup.grade, 'null', '（前提）存檔裡還沒有這一隻');
+  eq(chooseSetup.slots, chooseSetup.rubricLen, '段數 ＝ rubric 條數 ＝ 殼數');
+  ok(chooseSetup.correctIdx.every((i) => i >= 0), '每一段都找得到正解', JSON.stringify(chooseSetup.correctIdx));
+
+  await waitFor(async () => {
+    const r = await evaluate(`
+      const h = document.querySelector('[data-interact]');
+      return h && !h.hidden ? h.textContent.replace(/\\s+/g, ' ').trim() : '';
+    `);
+    return r && /濁靈/.test(r) ? r : null;
+  }, { timeout: 8000, label: 'P06b：走近提示' });
+  await key('KeyE', 'e', { vk: 69 });
+  await sleep(500);
+  const chooseOpen = await evaluate(`
+    const g = window.__promptasy;
+    return { open: g.promptConsole.isOpen, id: g.promptConsole.challenge?.id, act: g.promptConsole.act, mode: g.promptConsole.mode, kindOf: g.promptConsole.flowKindOf(g.promptConsole.challenge?.flow) };
+  `);
+  eq(chooseOpen.open, true, 'E 打開主控台');
+  eq(chooseOpen.id, chooseId, '打開的就是走過去那一隻');
+  eq(chooseOpen.act, 1, '第一幕是委託（濁言）');
+  eq(chooseOpen.mode, 'guided', '預設設定 → 石碑刻印（用選的）');
+  eq(chooseOpen.kindOf, 'choice', '題型是 choice（石碑刻印）');
+
+  // Enter 推到第二幕 → 焦點移開線索 → Enter 推到第三幕
+  await key('Enter', 'Enter', { vk: 13 });
+  await sleep(420);
+  eq(await evaluate(`return window.__promptasy.promptConsole.act;`), 2, 'Enter 推到第二幕（指引）');
+  await evaluate(`document.querySelector('#prompt-console .act--guide').focus(); return 1;`);
+  await key('Enter', 'Enter', { vk: 13 });
+  await sleep(420);
+  const chooseAct3 = await evaluate(`
+    const g = window.__promptasy;
+    return {
+      act: g.promptConsole.act,
+      focusedOnOption: document.activeElement?.classList.contains('opt'),
+      options: [...document.querySelectorAll('#prompt-console .opt')].filter((o) => o.offsetParent !== null).length,
+      steleHidden: document.querySelector('#prompt-console .stele-stage').hidden,
+      freeHidden: !!document.querySelector('#prompt-console .prompt-input')?.closest('[hidden]'),
+      ask: document.querySelector('#prompt-console [data-ask]')?.textContent.trim() || '',
+    };
+  `);
+  eq(chooseAct3.act, 3, 'Enter 推到第三幕（刻印）');
+  eq(chooseAct3.steleHidden, false, '台上是石碑，不是書寫檯');
+  eq(chooseAct3.focusedOnOption, true, '焦點自己落在第一個選項上（純鍵盤）', JSON.stringify(chooseAct3));
+  ok(chooseAct3.options >= 2, '選項看得見', JSON.stringify(chooseAct3));
+  ok(chooseAct3.ask.length > 4, '第一段有一句世界的問話', chooseAct3.ask);
+
+  // 一段一段用數字鍵刻（先故意選錯一次：石碑不收、不前進、就地長出教學）
+  const chooseWrong = await evaluate(`
+    const g = window.__promptasy;
+    const e = g.murks.entries.find((x) => x.id === '${chooseId}');
+    const wrong = e.flow.slots[0].options.findIndex((o) => !o.correct);
+    return { wrong, carved: g.promptConsole.stele.progress.carved };
+  `);
+  await key(`Digit${chooseWrong.wrong + 1}`, String(chooseWrong.wrong + 1), { vk: 48 + chooseWrong.wrong + 1 });
+  await sleep(420);
+  const chooseReject = await evaluate(`
+    const g = window.__promptasy;
+    const fb = [...document.querySelectorAll('#prompt-console [data-opt-fb]')].filter((el) => !el.hidden);
+    return { carved: g.promptConsole.stele.progress.carved, fb: fb.length, text: fb[0]?.textContent.trim() || '', shells: g.world.murks.byId('${chooseId}').visibleShellCount() };
+  `);
+  eq(chooseReject.carved, 0, '選錯 → 石碑不收，一段都沒刻上去（不會失敗、也不前進）');
+  ok(chooseReject.fb >= 1, '選錯 → 就地長出一句白話教學', chooseReject.text);
+  ok(chooseReject.text.length >= 12, '那句教學講得出「為什麼這樣不行」', chooseReject.text);
+  eq(chooseReject.shells, 3, '選錯不會剝殼（殼只跟送出去的那段話有關）');
+
+  const chooseCarve = [];
+  for (let i = 0; i < chooseSetup.slots; i += 1) {
+    const n = chooseSetup.correctIdx[i] + 1;
+    await key(`Digit${n}`, String(n), { vk: 48 + n });
+    await sleep(420);
+    chooseCarve.push(
+      await evaluate(`
+        const g = window.__promptasy;
+        return { carved: g.promptConsole.stele.progress.carved, lit: document.querySelectorAll('#prompt-console .checklist li.is-pass').length };
+      `)
+    );
+  }
+  eq(chooseCarve[0].carved, 1, '選對第一段就刻上去了');
+  eq(chooseCarve[chooseCarve.length - 1].carved, chooseSetup.slots, '三段全部用數字鍵刻滿');
+  ok(chooseCarve[chooseCarve.length - 1].lit >= chooseCarve[0].lit, '刻痕對照跟著一盞一盞亮', `${chooseCarve[0].lit} → ${chooseCarve[chooseCarve.length - 1].lit}`);
+
+  const choosePalm = await evaluate(`
+    const g = window.__promptasy;
+    return { act: g.promptConsole.act, palmFocused: document.activeElement === document.querySelector('#prompt-console [data-palm]'), text: g.promptConsole.stele.text, sample: g.promptConsole.challenge.sample };
+  `);
+  eq(choosePalm.act, 4, '刻滿之後切到手掌印那一幕');
+  eq(choosePalm.palmFocused, true, '焦點自己落在手掌印上');
+  eq(choosePalm.text, choosePalm.sample, '刻出來的那段字 ＝ 這一隻的正言（sample）');
+
+  await holdPalm(null, 'P06b：手掌印按滿');
+  await waitFor(() => evaluate(`return !document.querySelector('#prompt-console [data-result]').hidden;`), { label: 'P06b：結果面板', every: 150 });
+  const chooseResult = await evaluate(`
+    const g = window.__promptasy;
+    return {
+      pass: !!document.querySelector('#prompt-console .result__top.is-pass'),
+      grade: document.querySelector('#prompt-console .grade__mark')?.textContent.trim(),
+      newlyLine: document.querySelector('#prompt-console .result [data-murk-newly]')?.textContent.replace(/\\s+/g, ' ').trim() || '',
+      murkState: g.progression.murkState('${chooseId}'),
+      murkCount: g.murkCount(),
+      xp: g.progression.state.xp,
+      cleared: g.progression.isCleared('${chooseId}'),
+      best: g.progression.bestGrade('${chooseId}'),
+    };
+  `);
+  eq(chooseResult.pass, true, '全部選對 → 這一次就過了');
+  ok(['S', 'A'].includes(chooseResult.grade), '全部選對拿到 ≥A 的評價', String(chooseResult.grade));
+  ok(/牠聽懂了/.test(chooseResult.newlyLine), '牠聽懂了（這一次才安撫）', chooseResult.newlyLine);
+  eq(JSON.stringify(chooseResult.murkState.hits), '[0,1,2]', '三條檢查全命中 → 三層殼都該剝');
+  eq(chooseResult.murkCount, chooseSetup.murkCount + 1, 'murkCount 多一隻');
+  ok(chooseResult.xp > chooseSetup.xp, '用選的也拿得到 XP', `${chooseSetup.xp} → ${chooseResult.xp}`);
+  eq(chooseResult.cleared, false, '濁靈仍然不算 142 關的通關');
+  eq(chooseResult.best, null, '濁靈 id 仍不進 bestGrades');
+  const chooseSettled = await waitFor(async () => {
+    const r = await evaluate(`
+      const g = window.__promptasy;
+      const m = g.world.murks.byId('${chooseId}');
+      return { state: m.state, shells: m.visibleShellCount(), active: g.world.murks.activeParticles(), headScale: m.head.scale.x };
+    `);
+    return r.state === 'settled' && r.active === 0 ? r : null;
+  }, { timeout: 20000, label: 'P06b：剝殼走完、落成清燈' });
+  eq(chooseSettled.shells, 0, '三段選對 → 三層殼都剝掉了（一段對一層殼）');
+  ok(chooseSettled.headScale < 0.6, '牠變成清燈', String(chooseSettled.headScale));
+
+  await key('Escape', 'Escape', { vk: 27 });
+  await sleep(300);
+  /* --- 同一隻切成自由書寫：打字那條路仍然在（不倒退） --- */
+  const chooseFree = await evaluate(`
+    const g = window.__promptasy;
+    const c = g.promptConsole;
+    c.open(g.murkChallenge('${chooseId}'));
+    await new Promise((r) => setTimeout(r, 250));
+    c.setMode('free');
+    c.goAct(3, { force: true });
+    await new Promise((r) => setTimeout(r, 250));
+    const ta = document.querySelector('.prompt-input');
+    const visible = !!ta && ta.offsetParent !== null;
+    ta.value = c.challenge.sample;
+    document.querySelector('#prompt-console [data-submit]').click();
+    await new Promise((r) => setTimeout(r, 500));
+    const out = {
+      mode: c.mode,
+      setting: g.progression.state.settings.promptMode,
+      visible,
+      steleHidden: document.querySelector('#prompt-console .stele-stage').hidden,
+      pass: !!document.querySelector('#prompt-console .result__top.is-pass'),
+      newlyLine: document.querySelector('#prompt-console .result [data-murk-newly]')?.textContent.replace(/\\s+/g, ' ').trim() || '',
+      murkCount: g.murkCount(),
+    };
+    c.close();
+    await new Promise((r) => setTimeout(r, 250));
+    // 收尾：把答題方式放回預設，後面的段落照舊
+    g.progression.updateSettings({ promptMode: 'guided' });
+    return out;
+  `);
+  eq(chooseFree.mode, 'free', '切得到自由書寫');
+  eq(chooseFree.setting, 'free', '設定跟著換（玩家自己選的答題方式被記住）');
+  eq(chooseFree.visible, true, '自由書寫時書寫檯回到台上');
+  eq(chooseFree.steleHidden, true, '自由書寫時石碑收起來');
+  eq(chooseFree.pass, true, '同一隻用打字的照樣過（不倒退）');
+  ok(/牠早就聽懂了/.test(chooseFree.newlyLine), '牠早就聽懂了（累積狀態沒被打字路徑覆蓋）', chooseFree.newlyLine);
+  eq(chooseFree.murkCount, chooseResult.murkCount, '再送一次不會多算一隻');
 
   /* ================================================================ */
   /*

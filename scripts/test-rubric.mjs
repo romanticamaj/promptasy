@@ -5106,6 +5106,90 @@ const distToSeg = (px, pz, ax, az, bx, bz) => {
     ok(!t.passed && !t.tooShort, `${tag} 濁言原文本身不過（而且不是因為太短）`, `earned=${t.earned}`);
   }
 
+  /* --- ②b 選擇式作答（v1.2 · P06b）：一段對一層殼 --- */
+  /*
+   * 站長實玩裁決：「濁靈的遊戲內容，也是讓使用者用選的，不要打字。」
+   * 濁靈補上石碑刻印（choice）的流程，而且**段數 ＝ rubric 條數 ＝ 殼數**：
+   * 第 i 段的正解就是讓第 i 條檢查亮起來的那一句 —— 這樣「選對一段 → 剝一層殼」
+   * 才是誠實的。下面每一條都用真的離線引擎驗，不用眼睛看。
+   */
+  {
+    const { flowKind: murkFlowKind } = await import('../src/prompt/console.js');
+    const { isSlotList: murkIsSlotList } = await import('../src/prompt/slots.js');
+    const rightOf = (slot) => slot.options.find((o) => o.correct);
+    const assembleMurk = (flow) => flow.slots.map((s) => rightOf(s).text).join('\n');
+    let murkSlotTotal = 0;
+    let murkSlotVaried = 0;
+    for (const m of murks) {
+      const tag = `[${m.id}]`;
+      const flow = m.flow;
+      ok(Boolean(flow) && Array.isArray(flow.slots), `${tag} 有選擇式作答的流程（flow.slots）`);
+      if (!flow || !Array.isArray(flow.slots)) continue;
+      eq(murkFlowKind(flow), 'choice', `${tag} 題型是石碑刻印（choice）`);
+      ok(murkIsSlotList(flow.slots), `${tag} slots 通過石碑刻印的資料契約`);
+      eq(flow.slots.length, m.rubric.length, `${tag} 段數 ＝ rubric 條數 ＝ 殼數`);
+      flow.slots.forEach((slot, i) => {
+        const at = `${tag} 第 ${i + 1} 段`;
+        murkSlotTotal += 1;
+        if (!slot.options[0].correct) murkSlotVaried += 1;
+        ok(typeof slot.ask === 'string' && slot.ask.length >= 6, `${at} 有一句話的問題`, slot.ask);
+        ok(slot.ask.length <= 44, `${at} 問題夠短（一眼讀完）`, `${slot.ask.length} 字`);
+        ok(CJK.test(slot.ask), `${at} 問題是中文`, slot.ask);
+        ok(!ENGLISH(slot.ask), `${at} 問題沒有英文句子`, ENGLISH(slot.ask) || '');
+        for (const b of BANNED) ok(!slot.ask.includes(b), `${at} 問題不出現系統術語「${b}」`);
+        ok(
+          Array.isArray(slot.options) && slot.options.length >= 2 && slot.options.length <= 3,
+          `${at} 有 2–3 個選項`,
+          `n=${slot.options ? slot.options.length : 0}`
+        );
+        const rights = slot.options.filter((o) => o.correct);
+        eq(rights.length, 1, `${at} 剛好一個正確選項`);
+        for (const [j, o] of slot.options.entries()) {
+          ok(typeof o.text === 'string' && o.text.trim().length > 0, `${at} 選項 ${j + 1} 有內容`);
+          ok(CJK.test(o.text), `${at} 選項 ${j + 1} 是中文`, o.text.slice(0, 24));
+          ok(!ENGLISH(o.text), `${at} 選項 ${j + 1} 沒有英文句子`, ENGLISH(o.text) || '');
+          ok(!/https?:\/\//.test(o.text), `${at} 選項 ${j + 1} 不自帶連結（出處只在刻文與圖鑑）`);
+          for (const b of BANNED) ok(!o.text.includes(b), `${at} 選項 ${j + 1} 不出現系統術語「${b}」`);
+          if (o.correct) continue;
+          const fb = String(o.feedback || '');
+          ok(fb.trim().length >= 12, `${at} 錯的選項 ${j + 1} 有教學回饋`, fb);
+          ok(CJK.test(fb), `${at} 錯的選項 ${j + 1} 的回饋是中文`, fb);
+          ok(!ENGLISH(fb), `${at} 錯的選項 ${j + 1} 的回饋沒有英文句子`, ENGLISH(fb) || '');
+          ok(!/https?:\/\//.test(fb), `${at} 錯的選項 ${j + 1} 的回饋不自帶連結`);
+          for (const b of BANNED) ok(!fb.includes(b), `${at} 錯的選項 ${j + 1} 的回饋不出現系統術語「${b}」`);
+          ok(o.text.trim() !== rights[0].text.trim(), `${at} 錯的選項 ${j + 1} 不是正確答案的複製`, o.text.slice(0, 30));
+        }
+      });
+      /* 全部選對 ＝ 牠的正言（逐值），而且三條檢查全亮、評價 ≥ A */
+      const assembled = assembleMurk(flow);
+      eq(assembled, m.sample, `${tag} 全部選對組出來的就是 sample（逐值相同）`);
+      const ev = evaluate(m, assembled);
+      ok(ev.passed && ['A', 'S'].includes(ev.grade), `${tag} 全部選對至少 A`, `grade=${ev.grade} ${ev.earned}/${ev.total}`);
+      ok(!ev.tooShort, `${tag} 刻出來的 prompt 不會太短`, `${assembled.length} 字`);
+      ev.results.forEach((r, i) => {
+        ok(r.passed, `${tag} 全部選對 → 第 ${i + 1} 條檢查（${r.check}）亮著`, r.evidence);
+      });
+      /* 一段對一層殼：第 i 段選錯 → 第 i 條檢查暗著（其餘段照正解） */
+      flow.slots.forEach((slot, i) => {
+        for (const [j, wrong] of slot.options.entries()) {
+          if (wrong.correct) continue;
+          const text = flow.slots.map((s, k) => (k === i ? wrong.text : rightOf(s).text)).join('\n');
+          const e2 = evaluate(m, text);
+          ok(
+            !e2.results[i].passed,
+            `${tag} 第 ${i + 1} 段選 ${j + 1} 號（錯的）→ 第 ${i + 1} 條檢查（${m.rubric[i].check}）不亮`,
+            `score=${e2.results[i].score} ${e2.results[i].evidence}`
+          );
+        }
+      });
+    }
+    eq(murkSlotTotal, murks.length * 3, `濁靈一共 ${murks.length * 3} 段刻印`);
+    ok(
+      murkSlotVaried / murkSlotTotal > 0.4,
+      `濁靈的正解位置有打散（不是永遠第一個：${murkSlotVaried} / ${murkSlotTotal} 段不在第一個）`
+    );
+  }
+
   /* --- ③ 座標規則（WORLD.md §6.4 淨空；對 baseline 世界驗） --- */
   /*
    * 濁靈的互動圈（5.5）比石碑（4.6）／刻文（3.8）／器物（3.2）大、而且搶 E 時排在它們前面 ——
@@ -5306,13 +5390,21 @@ const distToSeg = (px, pz, ax, az, bx, bz) => {
     const ch = { ...m, kind: 'murk', xp: murkFile.xp };
     const total = ch.rubric.reduce((n, r) => n + r.weight, 0);
     const fake = (flags) => ({ challengeId: ch.id, results: ch.rubric.map((r, i) => ({ check: r.check, weight: r.weight, passed: Boolean(flags[i]) })), passed: false, grade: null, tooShort: false });
-    // 第一次：只命中 index 1（weight 1）→ 沒安撫、hits [1]、xp 0
+    /*
+     * 索引不寫死：挑一條 weight 1 的（`LIGHT`）與那條 weight 2 的主列（`HEAVY`），
+     * 這樣 rubric 的排列順序（P06b 把「說清楚要做什麼」移到第一段）改了也不用改測試。
+     */
+    const LIGHT = ch.rubric.findIndex((r) => r.weight === 1);
+    const HEAVY = ch.rubric.findIndex((r) => r.weight === 2);
+    const only = (i) => ch.rubric.map((_r, k) => (k === i ? 1 : 0));
+    const pair = [LIGHT, HEAVY].sort((a, b) => a - b);
+    // 第一次：只命中那條 weight 1 → 沒安撫、hits [LIGHT]、xp 0
     const xp0 = p.state.xp;
-    const o1 = p.recordMurk(ch, fake([0, 1, 0]), { mode: 'free', attempt: 1 });
+    const o1 = p.recordMurk(ch, fake(only(LIGHT)), { mode: 'free', attempt: 1 });
     ok(o1.murk && typeof o1.murk === 'object', 'outcome 帶 murk 子物件');
     eq(JSON.stringify(Object.keys(o1.murk).sort()), JSON.stringify(['calmed', 'hits', 'newlyCalmed', 'newlyPassedIndices', 'score', 'total']), 'outcome.murk 六鍵：newlyPassedIndices / hits / score / total / calmed / newlyCalmed');
-    eq(JSON.stringify(o1.murk.newlyPassedIndices), '[1]', '第一次：新命中 [1]');
-    eq(JSON.stringify(o1.murk.hits), '[1]', '第一次：hits [1]');
+    eq(JSON.stringify(o1.murk.newlyPassedIndices), JSON.stringify([LIGHT]), '第一次：新命中那條 weight 1');
+    eq(JSON.stringify(o1.murk.hits), JSON.stringify([LIGHT]), '第一次：hits ＝ 那一條');
     eq(o1.murk.score, 1, '第一次：score 1');
     eq(o1.murk.total, total, 'total ＝ rubric 權重和');
     eq(o1.murk.calmed, false, '第一次：score 1 < pass 3 → 沒安撫');
@@ -5322,14 +5414,14 @@ const distToSeg = (px, pz, ax, az, bx, bz) => {
     eq(o1.previousGrade, null, '第一次 previousGrade null');
     eq(o1.improved, false, '沒安撫 → improved false');
     eq(p.state.xp, xp0, '沒安撫 → XP 不動');
-    eq(JSON.stringify(p.murkHits(ch.id)), '[1]', 'murkHits 讀得到 [1]');
-    eq(JSON.stringify(p.murkState(ch.id)), JSON.stringify({ hits: [1], grade: null }), 'murkState ＝ { hits:[1], grade:null }');
+    eq(JSON.stringify(p.murkHits(ch.id)), JSON.stringify([LIGHT]), 'murkHits 讀得到那一條');
+    eq(JSON.stringify(p.murkState(ch.id)), JSON.stringify({ hits: [LIGHT], grade: null }), 'murkState ＝ { hits:[那一條], grade:null }');
     eq(p.murkCount(), 0, '沒安撫不算 murkCount');
     ok(JSON.parse(memory.get(SaveIO.SAVE_KEY)).murks[ch.id], '沒安撫也落盤（hits 永不清零）');
-    // 第二次：只命中 index 0（weight 2）—— 這一次單看不過，但聯集 [0,1] score 3 ≥ pass → 安撫（newlyCalmed）
-    const o2 = p.recordMurk(ch, fake([1, 0, 0]), { mode: 'free', attempt: 2 });
-    eq(JSON.stringify(o2.murk.newlyPassedIndices), '[0]', '第二次：新命中 [0]（index 1 已在，不重複）');
-    eq(JSON.stringify(o2.murk.hits), '[0,1]', '第二次：hits 是聯集 [0,1]');
+    // 第二次：只命中那條 weight 2 的主列 —— 這一次單看不過，但聯集 score 3 ≥ pass → 安撫（newlyCalmed）
+    const o2 = p.recordMurk(ch, fake(only(HEAVY)), { mode: 'free', attempt: 2 });
+    eq(JSON.stringify(o2.murk.newlyPassedIndices), JSON.stringify([HEAVY]), '第二次：新命中主列（上一條已在，不重複）');
+    eq(JSON.stringify(o2.murk.hits), JSON.stringify(pair), '第二次：hits 是聯集');
     eq(o2.murk.score, 3, '第二次：累積 score 3');
     eq(o2.murk.calmed, true, '累積 3 ≥ pass 3 → 安撫（單次沒過也算）');
     eq(o2.murk.newlyCalmed, true, '這一次才安撫 → newlyCalmed true');

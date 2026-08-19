@@ -973,6 +973,46 @@ Exit criteria：
 - [ ] rubric／playtest／build／e2e 全綠、console error 0；fonts 已跑。
 - [ ] 停回閘門 A，等站長再玩一次。
 
+### P06c — 把 7 個空區的路填滿（閘門 A 回饋 ②）（2026-08-19 開工）
+
+狀態：`pending`（等 P06b 收尾後開工）
+
+**現狀（實測）**：反應物與器物**各 22 件，全部集中在原本的 5 區**——foundations 6+6、reasoning／grounding／orchestration／config 各 4+4；**forms／toolcraft／wards／refinery／frugality／sight／divergence 各 0+0**。P06 節奏稽核（`npm run audit:pacing`，880 唯一樣點）：micro 死區 **12 段**，最長 sight 75m／forms 72m／toolcraft 67m／refinery 54m；encounter 死區 0 段、mid 死區 1 段（divergence 10m）。可重用的種類共 14 種：反應 `chime`（風鈴架）／`glowcap`（光菇圈）／`songstone`（音石）／`ripple`（水紋池）／`spirit`（守望的小獸）／`moths`（螢火）；器物 `urn`／`brazier`／`gong`／`watchstone`／`moonpool`／`signpost`／`capstan`／`bench`。資料入口：`src/world/reactive.js` 的 `REACTIVE_SPOTS`（`{id, kind, region, at:[x,z], opts?}`）與 `src/data/handles.json` 的 `entries`（`{id, kind, region, at:[x,z], rot, title, line}`）。
+
+**目標**：走在那 7 區的路上，每 20–30 公尺會遇到一件會回應的東西；區域色（`key`／`rim`／`particle`）終於有東西可以顯色。
+
+**範圍**
+1. **各區配額**（依死區嚴重度與該區調性；**frugality「最空、最平、螢火最少」是設計，刻意最稀**）：
+   | 區 | 反應 | 器物 | 調性線索（WORLD §1.4） | 建議種類 |
+   |---|---|---|---|---|
+   | forms 量器坊 | 4 | 4 | 熄了火、冷錫色、最安靜、刻度之柱 | songstone／chime／glowcap；bench／gong／urn／signpost |
+   | toolcraft 契約鍛冶場 | 4 | 4 | 爐子還溫著、火星最多 | chime（工具吊著叮噹）／glowcap／moths；brazier／urn／capstan／bench |
+   | sight 觀象臺 | 4 | 4 | 不只讀字、朝天的鏡 | ripple／glowcap／moths；moonpool／watchstone／bench／signpost |
+   | refinery 校驗場 | 3 | 3 | 銀灰、光被折過一次、會回頭照自己的鏡 | ripple／songstone；moonpool／gong／bench |
+   | divergence 分歧之廳 | 3 | 3 | 兩面刻著相反神諭的柱 | songstone／chime；signpost／watchstone／bench |
+   | wards 護欄崗 | 2 | 2 | 最冷、看得最遠、螢火最少 | chime／spirit；watchstone／signpost |
+   | frugality 減法之庭 | 2 | 2 | 最空最平、霧最淡、螢火最少、空的基座 | glowcap／songstone；bench／urn |
+   合計 **+22 反應、+22 器物**（兩層各從 22 → 44）。
+2. **擺位（先量再放）**：每放一批就跑 `npm run audit:pacing`；目標 micro 死區 **12 段 → ≤4 段**、最長 <45m；frugality 可留一段並在稽核輸出登記理由。擺法照 WORLD §4.4：成組、靠近路與小景、每 20–30m 一次、**兩個反應物之間 ≥11m**（太近會同時響、聲音糊掉）；器物照 §4.6。座標一律先在 node 蓋世界驗：`regionAt` 在該區、`coverage>0.9`、`isClear`、離石座／濁靈／石碑／刻文／既有器物的**互動圈不重疊**（沿用 P01 的距離規則：石座 ≥12、濁靈 ≥8.7、石碑 ≥10.1、刻文 ≥9.3、器物間 ≥8.7）、離橋主動線 ≥4、離頸口／閘門 ≥8。
+3. **文案**：每件器物要 `title`＋`line`（世界的說法、禁字表、`zh-scan`）；反應物不需文案。→ `npm run fonts`。
+4. **音**：反應物的 `onEnter` 音效沿用既有 cue（不新增 SFX）；注意 `SOUND_COOLDOWN`／`TRIGGER_COOLDOWN` 已有節流。
+5. **顯色複核**：補完後在 forms／toolcraft／sight 各站一處截圖（沿用 `scripts/shots-hours.mjs` 的啟動方式，或手動），確認 `key`／`rim`／`particle` 讓那三區「看起來不一樣」——這是本 phase 對閘門 A 第一個問題的答覆。
+
+**非目標**：新種類（14 種夠用）、新光源、中景遮擋帶／母題（P11）、地面材質（P12）、天空偏移放大（等這一輪玩過再評）。
+
+**受影響檔案**：`src/world/reactive.js`（`REACTIVE_SPOTS`）、`src/data/handles.json`、`scripts/test-rubric.mjs`（數量契約、擺位規則、預算）、`scripts/expected-counts.json`（**新增**器物／反應物數的契約值——這是既有契約的更新，要在 changelog 說明）、`scripts/headless-check.mjs`、fonts。
+
+**預算**：三角 195,530 → **<240k**；光源**不變**（器物層 lights===0 已有斷言）；碰撞體 969 → **<1,100**；collision-audit 0；每幀迴圈照既有距離分帶（反應物已是扁平陣列）。
+
+**Acceptance tests（先紅後綠）**
+- rubric：各區數量＝配額表；擺位規則逐條（含互動圈不重疊、反應物間距 ≥11m）；`expected-counts` 更新後一致；預算實測；`pacing-audit` micro 死區 ≤4 段（硬斷言，這一次不只是軟警告）。
+- e2e：7 區各挑一件器物走完「走近→提示→E→動了→存檔→重整還在」；反應物進出範圍會響（輪詢式）；舊斷言零改動。
+
+Exit criteria：
+- [ ] 7 區都有東西可遇；micro 死區 ≤4 段、最長 <45m。
+- [ ] rubric／playtest／build／e2e 全綠、console error 0；預算在框內。
+- [ ] 停回閘門 A，請站長再玩一次（重點看：那三區現在「看起來不一樣」了嗎）。
+
 ## v1.2 錯誤紀錄
 
 （沿用 §8 規則：任何錯誤記在此；同一錯誤不原樣重試；連續三種方法仍無法前進才報阻塞。）

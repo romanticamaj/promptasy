@@ -2115,7 +2115,11 @@ export function createPromptConsole({
        * （見 src/challenges/trial.js）。其餘關卡原樣傳進來，零行為變化。
        */
       current = effectiveChallenge(challenge, (id) => progression.knowsSkill?.(id) ?? true);
-      currentFlow = content.flow ? content.flow(challenge.id) : null;
+      /*
+       * v1.2 · P06b：委託自己帶著流程的優先（濁靈的 `flow` 住在 murks.json）；
+       * 142 座神廟仍然照 `flows.json` 查 —— 兩條路組出來的都是同一種 `choice` 資料。
+       */
+      currentFlow = challenge.flow || (content.flow ? content.flow(challenge.id) : null);
       lastEvaluation = null;
       fails = 0;
       sampleShown = false;

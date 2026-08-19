@@ -25,19 +25,19 @@
       "primarySkillId": "clear-specific",
       "rubric": [
         {
+          "check": "assignsTask",
+          "weight": 1,
+          "foundation": true,
+          "techniqueId": "clarity-02",
+          "hint": "動詞開頭直接說要做什麼：「請把下面這張告示改寫成…」。"
+        },
+        {
           "check": "hasConstraint",
           "weight": 2,
           "primary": true,
           "techniqueId": "clarity-03",
           "skillId": "clear-specific",
           "hint": "把「不要太長」換成數字：「3 個重點」「每點不超過 20 個字」。"
-        },
-        {
-          "check": "assignsTask",
-          "weight": 1,
-          "foundation": true,
-          "techniqueId": "clarity-02",
-          "hint": "動詞開頭直接說要做什麼：「請把下面這張告示改寫成…」。"
         },
         {
           "check": "specifiesFormat",
@@ -47,7 +47,62 @@
         }
       ],
       "pass": 3,
-      "sample": "請把下面這張告示改寫成清楚好懂的公告。\n輸出成 3 個條列重點，每點不超過 20 個字。",
+      "flow": {
+        "slots": [
+          {
+            "ask": "牠只會說「弄好一點」。第一句先把那件事講出來：你要牠動手做什麼？",
+            "options": [
+              {
+                "text": "這張告示就交給你了。",
+                "feedback": "東西丟給牠，卻沒說要牠做哪一件事。用一個動作講出來：把告示改寫成公告。"
+              },
+              {
+                "text": "請把下面這張告示改寫成清楚好懂的公告。",
+                "correct": true
+              },
+              {
+                "text": "反正你懂我的意思。",
+                "feedback": "牠不會猜心意——牠自己就是被猜壞的那句話。要牠做的動作，得你親口說。"
+              }
+            ]
+          },
+          {
+            "ask": "接著給牠一把看得見的尺：這張公告要多少、每一則多長？",
+            "options": [
+              {
+                "text": "長度：3 個重點，每點 20 個字以內。",
+                "correct": true
+              },
+              {
+                "text": "不要太長也不要太短。",
+                "feedback": "「太長」「太短」是你心裡的尺，牠量不出來。換成數得出來的數字，牠才知道停在哪裡。"
+              },
+              {
+                "text": "盡量簡短一點就好。",
+                "feedback": "「盡量」沒有邊界，牠只能繼續猜。給一個數字，這一層濁氣才散得掉。"
+              }
+            ]
+          },
+          {
+            "ask": "最後一句：答案該長成什麼樣子？",
+            "options": [
+              {
+                "text": "排版弄好看一點。",
+                "feedback": "「好看」不是形狀。說出答案的樣子：條列、表格，還是一段短文。"
+              },
+              {
+                "text": "輸出格式：條列的重點，不是整段文章。",
+                "correct": true
+              },
+              {
+                "text": "你看著辦，順順的就好。",
+                "feedback": "把形狀交給牠，牠只會照原樣再說一次含糊的話。"
+              }
+            ]
+          }
+        ]
+      },
+      "sample": "請把下面這張告示改寫成清楚好懂的公告。\n長度：3 個重點，每點 20 個字以內。\n輸出格式：條列的重點，不是整段文章。",
       "source": "https://learn.microsoft.com/en-us/azure/ai-foundry/openai/concepts/prompt-engineering#best-practices"
     },
     {
@@ -70,19 +125,19 @@
       "primarySkillId": "clear-positive",
       "rubric": [
         {
+          "check": "assignsTask",
+          "weight": 1,
+          "foundation": true,
+          "techniqueId": "clarity-02",
+          "hint": "先說要它做的那件事：「請把下面這封通知改寫成…」。"
+        },
+        {
           "check": "positiveFraming",
           "weight": 2,
           "primary": true,
           "techniqueId": "positive-01",
           "skillId": "clear-positive",
           "hint": "用「請做 Y」取代「不要做 X」：「請用日常聊天的語氣」而不是「不要太正式」。"
-        },
-        {
-          "check": "assignsTask",
-          "weight": 1,
-          "foundation": true,
-          "techniqueId": "clarity-02",
-          "hint": "先說要它做的那件事：「請把下面這封通知改寫成…」。"
         },
         {
           "check": "hasConstraint",
@@ -92,7 +147,62 @@
         }
       ],
       "pass": 3,
-      "sample": "請把下面這封通知改寫成給鄰居看的口語短信。\n請用日常聊天的語氣，只用常見的字。\n全文控制在 80 個字以內。",
+      "flow": {
+        "slots": [
+          {
+            "ask": "牠只會說「不要」。第一句先講清楚：這封通知要變成什麼？",
+            "options": [
+              {
+                "text": "這封通知你看著改。",
+                "feedback": "「看著改」沒有落點。把動作與結果一起講：改寫成給鄰居看的口語短信。"
+              },
+              {
+                "text": "請把下面這封通知改寫成給鄰居看的口語短信。",
+                "correct": true
+              },
+              {
+                "text": "幫我弄一下這封通知。",
+                "feedback": "「弄一下」是含糊的老毛病。要牠做的動作寫出來，這一層才散得掉。"
+              }
+            ]
+          },
+          {
+            "ask": "接著把那一串「不要」翻成牠做得到的事：要用什麼樣的語氣？",
+            "options": [
+              {
+                "text": "語氣：像跟鄰居說話那樣的口語，字都挑大家都懂的。",
+                "correct": true
+              },
+              {
+                "text": "不要太正式，也不要用難字。",
+                "feedback": "這還是兩句「不要」。牠只做得到你說出口的動作——把它翻成「請用哪一種語氣」。"
+              },
+              {
+                "text": "別跟上次一樣。",
+                "feedback": "牠不記得上次，也猜不出你嫌的是哪裡。說出這一次要的口氣，牠才走得動。"
+              }
+            ]
+          },
+          {
+            "ask": "最後給牠一把尺：這封信可以有多長？",
+            "options": [
+              {
+                "text": "不要寫太長。",
+                "feedback": "又一句「不要」，而且沒有數字。直接給上限：全文 80 個字以內。"
+              },
+              {
+                "text": "長度隨便你。",
+                "feedback": "沒有邊界，牠會一路寫下去。給一個數字，牠才停得下來。"
+              },
+              {
+                "text": "全文控制在 80 個字以內。",
+                "correct": true
+              }
+            ]
+          }
+        ]
+      },
+      "sample": "請把下面這封通知改寫成給鄰居看的口語短信。\n語氣：像跟鄰居說話那樣的口語，字都挑大家都懂的。\n全文控制在 80 個字以內。",
       "source": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#control-the-format-of-responses"
     },
     {
@@ -116,19 +226,19 @@
       "primarySkillId": "fewshot-basics",
       "rubric": [
         {
+          "check": "assignsTask",
+          "weight": 1,
+          "foundation": true,
+          "techniqueId": "clarity-02",
+          "hint": "先說要做什麼：「請照著範例，替每一張留言標上心情」。"
+        },
+        {
           "check": "hasFewShot",
           "weight": 2,
           "primary": true,
           "techniqueId": "fewshot-01",
           "skillId": "fewshot-basics",
           "hint": "至少示範一組成對的「輸入：…／輸出：…」；放兩三組最穩。"
-        },
-        {
-          "check": "assignsTask",
-          "weight": 1,
-          "foundation": true,
-          "techniqueId": "clarity-02",
-          "hint": "先說要做什麼：「請照著範例，替每一張留言標上心情」。"
         },
         {
           "check": "specifiesFormat",
@@ -138,7 +248,62 @@
         }
       ],
       "pass": 3,
-      "sample": "請照著下面的範例，替每一張留言標上心情，請用條列回答，每張留言一行。\n輸入：橋斷了，但有個陌生人划船載我過河。\n輸出：帶著希望\n輸入：連下三天雨，燈油也用完了。\n輸出：灰暗",
+      "flow": {
+        "slots": [
+          {
+            "ask": "牠只會形容「那種感覺」。第一句先說出這一趟要牠動手做什麼。",
+            "options": [
+              {
+                "text": "請照上面的範例，替每一張留言標上心情。",
+                "correct": true
+              },
+              {
+                "text": "這些留言你看一看。",
+                "feedback": "「看一看」不是一件做得完的事。說出動作：替每一張留言標上心情。"
+              },
+              {
+                "text": "心情很重要，你自己拿捏。",
+                "feedback": "沒有動作，牠只會繼續形容。把要牠做的事一句話講完。"
+              }
+            ]
+          },
+          {
+            "ask": "接著給牠看得見的東西：照著做的樣子長什麼樣？",
+            "options": [
+              {
+                "text": "輸入：橋斷了，但有個陌生人划船載我過河。\n輸出：帶著希望\n輸入：連下三天雨，燈油也用完了。\n輸出：灰暗",
+                "correct": true
+              },
+              {
+                "text": "就是那種感覺，你看了就知道。",
+                "feedback": "牠看不到你腦裡的那種感覺。給牠兩組「輸入→輸出」，牠照著抄就會了。"
+              },
+              {
+                "text": "心情大致分成好、普通、不好三種。",
+                "feedback": "用講的分類，界線還是你自己心裡的。示範兩張真的留言與你要的答案，牠學得最快。"
+              }
+            ]
+          },
+          {
+            "ask": "最後一句：這些答案要怎麼排？",
+            "options": [
+              {
+                "text": "全部寫在一起就好。",
+                "feedback": "擠成一段，你就看不出哪一句對到哪一張留言。說清楚一張一行。"
+              },
+              {
+                "text": "照你覺得順的方式排。",
+                "feedback": "把形狀交回給牠，牠只能猜。指名一種樣子：條列，一張留言一行。"
+              },
+              {
+                "text": "輸出格式：條列，每張留言各佔一行。",
+                "correct": true
+              }
+            ]
+          }
+        ]
+      },
+      "sample": "請照上面的範例，替每一張留言標上心情。\n輸入：橋斷了，但有個陌生人划船載我過河。\n輸出：帶著希望\n輸入：連下三天雨，燈油也用完了。\n輸出：灰暗\n輸出格式：條列，每張留言各佔一行。",
       "source": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#use-examples-effectively"
     },
     {
@@ -158,19 +323,19 @@
       "primarySkillId": "cot-explicit",
       "rubric": [
         {
+          "check": "assignsTask",
+          "weight": 1,
+          "foundation": true,
+          "techniqueId": "clarity-02",
+          "hint": "把要算的東西講出來：「請算出這批貨最後還剩幾袋」。"
+        },
+        {
           "check": "hasStepByStep",
           "weight": 2,
           "primary": true,
           "techniqueId": "cot-01",
           "skillId": "cot-explicit",
           "hint": "要它先想再答：「回答前請先一步一步列出每一段的耗損，再寫結論」。"
-        },
-        {
-          "check": "assignsTask",
-          "weight": 1,
-          "foundation": true,
-          "techniqueId": "clarity-02",
-          "hint": "把要算的東西講出來：「請算出這批貨最後還剩幾袋」。"
         },
         {
           "check": "hasConstraint",
@@ -180,7 +345,62 @@
         }
       ],
       "pass": 3,
-      "sample": "請算出這批貨過了北坡、渡河與山口之後還剩幾袋。\n回答前請先一步一步列出每一段路的耗損，再寫結論。\n每一步寫成一行，結論用一句話。",
+      "flow": {
+        "slots": [
+          {
+            "ask": "牠急著給答案。第一句先把要算的那件事說出來。",
+            "options": [
+              {
+                "text": "請算出這批貨過了北坡、渡河與山口之後還剩幾袋。",
+                "correct": true
+              },
+              {
+                "text": "這批貨的事你處理一下。",
+                "feedback": "「處理一下」沒有指到要算的東西。把問題講成一件做得完的事。"
+              },
+              {
+                "text": "剩幾袋？",
+                "feedback": "光一個問題，牠不知道要從哪一批貨、走過哪幾段路算起。把整件事講完。"
+              }
+            ]
+          },
+          {
+            "ask": "接著攔住牠一步跳到答案：回答之前要先做什麼？",
+            "options": [
+              {
+                "text": "直接給我答案，不用解釋。",
+                "feedback": "這正是牠跳過整段路的原因。要牠先把每一段走過一遍，答案才站得住。"
+              },
+              {
+                "text": "順序：一步一步的推算過程在前，結論在後。",
+                "correct": true
+              },
+              {
+                "text": "你憑經驗抓一個數字就好。",
+                "feedback": "憑經驗抓的數字沒有路可以回頭查。讓牠一階一階踩過去。"
+              }
+            ]
+          },
+          {
+            "ask": "最後一句：那一段路與結論各要多長？",
+            "options": [
+              {
+                "text": "想寫多長都可以。",
+                "feedback": "沒有尺，牠會把每一段都寫成一篇。給一個數字，答案才收得住。"
+              },
+              {
+                "text": "長度：每一段耗損一行，結論一句話。",
+                "correct": true
+              },
+              {
+                "text": "簡單扼要就好。",
+                "feedback": "「簡單扼要」是感覺不是規格。換成數得出來的：一段一行、結論一句。"
+              }
+            ]
+          }
+        ]
+      },
+      "sample": "請算出這批貨過了北坡、渡河與山口之後還剩幾袋。\n順序：一步一步的推算過程在前，結論在後。\n長度：每一段耗損一行，結論一句話。",
       "source": "https://developers.openai.com/cookbook/examples/gpt4-1_prompting_guide#3-chain-of-thought"
     },
     {
@@ -203,19 +423,19 @@
       "primarySkillId": "ground-quote-first",
       "rubric": [
         {
+          "check": "assignsTask",
+          "weight": 1,
+          "foundation": true,
+          "techniqueId": "clarity-02",
+          "hint": "把問題講成一件要做的事：「請只根據這份帳回答下面的問題」。"
+        },
+        {
           "check": "asksToCiteSources",
           "weight": 2,
           "primary": true,
           "techniqueId": "grounding-04",
           "skillId": "ground-quote-first",
           "hint": "要它先把證據抄出來：「回答前，先引用資料裡支持答案的原文段落，再作答」。"
-        },
-        {
-          "check": "assignsTask",
-          "weight": 1,
-          "foundation": true,
-          "techniqueId": "clarity-02",
-          "hint": "把問題講成一件要做的事：「請只根據這份帳回答下面的問題」。"
         },
         {
           "check": "groundsInContext",
@@ -225,7 +445,62 @@
         }
       ],
       "pass": 3,
-      "sample": "請只根據下面這份收成帳回答問題。\n回答前，請先引用資料中支持答案的原文段落，再根據引文作答。\n資料：第三季：入庫 42 袋，雨損 9 袋，換鹽 4 袋。\n問題：這一季有多少袋離開了倉庫？",
+      "flow": {
+        "slots": [
+          {
+            "ask": "牠憑印象就要開口。第一句先把要問的事講成一件事。",
+            "options": [
+              {
+                "text": "這一季的帳你看一下。",
+                "feedback": "「看一下」不是一件做得完的事。說出要牠算的東西：這一季有多少袋離開倉庫。"
+              },
+              {
+                "text": "請算出這一季有多少袋離開了倉庫。",
+                "correct": true
+              },
+              {
+                "text": "少了幾袋你應該知道吧。",
+                "feedback": "牠不知道，也不該猜。把問題講清楚，牠才算得出來。"
+              }
+            ]
+          },
+          {
+            "ask": "接著要牠拿出憑據：回答之前要先做什麼？",
+            "options": [
+              {
+                "text": "你記得的就好。",
+                "feedback": "記得的東西沒有出處，錯了也查不回去。要牠先把帳上那一句抄出來。"
+              },
+              {
+                "text": "先引用帳上支持答案的原文段落，再下結論。",
+                "correct": true
+              },
+              {
+                "text": "大概的數字就可以了。",
+                "feedback": "「大概」正是牠身上這層濁氣。有原文在手，數字才有依據。"
+              }
+            ]
+          },
+          {
+            "ask": "最後一句：牠可以拿哪些東西當依據？",
+            "options": [
+              {
+                "text": "你手邊有什麼就用什麼。",
+                "feedback": "沒有框住依據，牠就會把道聽塗說一起算進去。把帳貼上，並說只能用它。"
+              },
+              {
+                "text": "只能用下面這份收成帳裡寫到的東西：\n第三季：入庫 42 袋，雨損 9 袋，換鹽 4 袋。",
+                "correct": true
+              },
+              {
+                "text": "帳本就在倉庫，你自己去翻。",
+                "feedback": "牠讀不到這句話以外的東西。要牠依據的那份帳，得整份放進來。"
+              }
+            ]
+          }
+        ]
+      },
+      "sample": "請算出這一季有多少袋離開了倉庫。\n先引用帳上支持答案的原文段落，再下結論。\n只能用下面這份收成帳裡寫到的東西：\n第三季：入庫 42 袋，雨損 9 袋，換鹽 4 袋。",
       "source": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#long-context-prompting"
     },
     {
@@ -248,19 +523,19 @@
       "primarySkillId": "ground-out",
       "rubric": [
         {
+          "check": "assignsTask",
+          "weight": 1,
+          "foundation": true,
+          "techniqueId": "clarity-02",
+          "hint": "把問題講成一件事：「請只根據這份告示回答旅人的問題」。"
+        },
+        {
           "check": "givesOutForUncertainty",
           "weight": 2,
           "primary": true,
           "techniqueId": "grounding-02",
           "skillId": "ground-out",
           "hint": "給它一條退路：「如果告示上沒有提到，就回答『告示上沒有提到』」。"
-        },
-        {
-          "check": "assignsTask",
-          "weight": 1,
-          "foundation": true,
-          "techniqueId": "clarity-02",
-          "hint": "把問題講成一件事：「請只根據這份告示回答旅人的問題」。"
         },
         {
           "check": "groundsInContext",
@@ -270,7 +545,62 @@
         }
       ],
       "pass": 3,
-      "sample": "請只根據下面這份告示內容回答旅人的問題，所有內容都要出自這份告示。\n告示：渡口每日辰時開、酉時關。\n旅人問：今晚最後一班是幾點？\n如果告示上沒有提到，就回答「告示上沒有提到」，並反問旅人需要哪一項資訊。",
+      "flow": {
+        "slots": [
+          {
+            "ask": "牠被逼著非答不可。第一句先把旅人要問的事講出來。",
+            "options": [
+              {
+                "text": "渡船的事你回一下。",
+                "feedback": "「回一下」沒有指到要回答哪一件事。把旅人的問題原樣講出來。"
+              },
+              {
+                "text": "你知道渡船的時間吧。",
+                "feedback": "這不是一個要牠做的事。說出動作：告訴旅人最後一班幾點。"
+              },
+              {
+                "text": "請告訴旅人今晚最後一班渡船是幾點。",
+                "correct": true
+              }
+            ]
+          },
+          {
+            "ask": "接著給牠一條退路：查不到的時候可以怎麼說？",
+            "options": [
+              {
+                "text": "告示上沒有提到的，答案就是「告示上沒有提到」，再反問旅人缺哪一項。",
+                "correct": true
+              },
+              {
+                "text": "不知道也要猜一個時間。",
+                "feedback": "逼牠猜，牠就會編一個看起來很像的時刻。留一條說「沒有提到」的路，牠才不必掰。"
+              },
+              {
+                "text": "一定要給一個答案。",
+                "feedback": "「一定要」把牠逼到牆角。允許牠說沒有，這一層濁氣才散得掉。"
+              }
+            ]
+          },
+          {
+            "ask": "最後一句：牠能拿什麼當依據？",
+            "options": [
+              {
+                "text": "只能用下面這份告示上寫的內容：\n告示：渡口每日辰時開、酉時關。",
+                "correct": true
+              },
+              {
+                "text": "你聽過的說法也算數。",
+                "feedback": "聽過的說法沒有出處，牠會把傳聞當成公告。把告示貼上，並說只能用它。"
+              },
+              {
+                "text": "告示就貼在渡口，你自己看。",
+                "feedback": "牠讀不到這句話以外的東西。要牠依據的那份告示，得整份放進來。"
+              }
+            ]
+          }
+        ]
+      },
+      "sample": "請告訴旅人今晚最後一班渡船是幾點。\n告示上沒有提到的，答案就是「告示上沒有提到」，再反問旅人缺哪一項。\n只能用下面這份告示上寫的內容：\n告示：渡口每日辰時開、酉時關。",
       "source": "https://claude.com/blog/best-practices-for-prompt-engineering#customer-stories"
     },
     {
@@ -284,7 +614,7 @@
       "sourceChallengeId": "subtask-workbench-31",
       "taint": "把整座水道整修好，全部一次弄完，我不管你怎麼做。",
       "mission": "把這件大事拆成幾張做得完的工單，一件一件交出去，而且照先後排。",
-      "clue": "「請拆成子任務，一件一件完成」再列 1. 2. 3.，並說清楚總共拆成幾件。",
+      "clue": "一句「拆成子任務，一件一件做完」，把那幾件事說出來，再講明總共幾件。",
       "teaches": [
         "decompose-01",
         "decompose-02",
@@ -294,19 +624,19 @@
       "primarySkillId": "chain-serial",
       "rubric": [
         {
+          "check": "assignsTask",
+          "weight": 1,
+          "foundation": true,
+          "techniqueId": "clarity-02",
+          "hint": "先說要它做的事：「請把下面這張整修委託拆解成子任務」。"
+        },
+        {
           "check": "decomposesTask",
           "weight": 2,
           "primary": true,
           "techniqueId": "decompose-01",
           "skillId": "chain-serial",
           "hint": "把工作列成 1. 2. 3.，或直接說「請拆成子任務，一件一件完成」。"
-        },
-        {
-          "check": "assignsTask",
-          "weight": 1,
-          "foundation": true,
-          "techniqueId": "clarity-02",
-          "hint": "先說要它做的事：「請把下面這張整修委託拆解成子任務」。"
         },
         {
           "check": "hasConstraint",
@@ -316,7 +646,62 @@
         }
       ],
       "pass": 3,
-      "sample": "請把下面這張整修委託拆解成子任務，一件一件完成，總共拆成 3 件。\n1. 列出工坊裡所有壞掉的零件。\n2. 替每個零件寫一行修法。\n3. 把上一步寫好的修法合併成一張工單。",
+      "flow": {
+        "slots": [
+          {
+            "ask": "牠想一次弄完整座水道。第一句先把整件委託交代出去。",
+            "options": [
+              {
+                "text": "請把下面這張整修委託照這個做法完成。",
+                "correct": true
+              },
+              {
+                "text": "水道那邊你去看看。",
+                "feedback": "「去看看」不是一件做得完的事。說出要牠完成的東西：這張整修委託。"
+              },
+              {
+                "text": "我不管你怎麼做。",
+                "feedback": "不管，就等於什麼都沒交代。把要牠完成的那件事講出來。"
+              }
+            ]
+          },
+          {
+            "ask": "接著把這件大事切開：要牠怎麼做完？",
+            "options": [
+              {
+                "text": "全部一次弄完。",
+                "feedback": "一次全弄，牠就會哪一件都做半套。把它切成幾件做得完的事，一件一件交。"
+              },
+              {
+                "text": "做法：拆成幾件子任務，一件一件做完 —— 先清點壞掉的零件，再寫每個零件的修法，最後把修法合成一張工單。",
+                "correct": true
+              },
+              {
+                "text": "你自己排一下先後。",
+                "feedback": "把切分交回給牠，牠只會又抓成一大團。先後由你寫，牠照著走。"
+              }
+            ]
+          },
+          {
+            "ask": "最後一句：一共幾件、每件多長？",
+            "options": [
+              {
+                "text": "能拆幾件就拆幾件。",
+                "feedback": "沒有數字，牠會拆到自己也數不清。講明總共幾件。"
+              },
+              {
+                "text": "總共 3 件，每件一行，每行 20 個字以內。",
+                "correct": true
+              },
+              {
+                "text": "愈細愈好。",
+                "feedback": "「愈細愈好」沒有底。給一個數字，牠才知道拆到哪裡停。"
+              }
+            ]
+          }
+        ]
+      },
+      "sample": "請把下面這張整修委託照這個做法完成。\n做法：拆成幾件子任務，一件一件做完 —— 先清點壞掉的零件，再寫每個零件的修法，最後把修法合成一張工單。\n總共 3 件，每件一行，每行 20 個字以內。",
       "source": "https://ai.google.dev/gemini-api/docs/prompting-strategies#prompt-components"
     },
     {
@@ -336,18 +721,18 @@
       "primarySkillId": "agent-scope-drift",
       "rubric": [
         {
-          "check": "limitsScope",
-          "weight": 2,
-          "primary": true,
-          "skillId": "agent-scope-drift",
-          "hint": "寫一句「只動＿＿，不要順便做別的」；真的需要動到範圍外，就先問一句再動。"
-        },
-        {
           "check": "assignsTask",
           "weight": 1,
           "foundation": true,
           "techniqueId": "clarity-02",
           "hint": "先說要它做的那一件事：「請把北面那扇窗修好」。"
+        },
+        {
+          "check": "limitsScope",
+          "weight": 2,
+          "primary": true,
+          "skillId": "agent-scope-drift",
+          "hint": "寫一句「只動＿＿，不要順便做別的」；真的需要動到範圍外，就先問一句再動。"
         },
         {
           "check": "hasStopRule",
@@ -356,7 +741,62 @@
         }
       ],
       "pass": 3,
-      "sample": "請把北面那扇窗修好。\n只動北面那扇窗這一塊，不要順便修別的地方。\n如果真的必須動到承重柱這類範圍外的東西，請先問我一句再動。\n那扇窗做好就停下來回報，不要再往下做。",
+      "flow": {
+        "slots": [
+          {
+            "ask": "牠總想順便多做一點。第一句先把那一件事講出來。",
+            "options": [
+              {
+                "text": "北面那扇窗你處理一下。",
+                "feedback": "「處理一下」沒說要動到哪裡。把動作與對象講明：破掉的木片換成新的。"
+              },
+              {
+                "text": "請把北面那扇窗破掉的木片換成新的。",
+                "correct": true
+              },
+              {
+                "text": "窗戶壞了很久了。",
+                "feedback": "這只是在描述，沒有要牠做的動作。說出你要牠動手的那一件事。"
+              }
+            ]
+          },
+          {
+            "ask": "接著把界線劃出來：牠可以動到哪裡為止？",
+            "options": [
+              {
+                "text": "順便看看別的窗要不要一起弄。",
+                "feedback": "「順便」就是牠身上這層濁氣。把界線劃出來：只動北面那扇窗。"
+              },
+              {
+                "text": "只動北面那扇窗這一塊，不要順便修別的地方；真的必須動到承重柱這類範圍外的東西，請先問我一句。",
+                "correct": true
+              },
+              {
+                "text": "反正都來了，能修的都修。",
+                "feedback": "沒有界線，牠會一路修到你沒交代的地方。先說清楚只動哪一塊。"
+              }
+            ]
+          },
+          {
+            "ask": "最後一句：牠什麼時候可以停？",
+            "options": [
+              {
+                "text": "做到你覺得可以為止。",
+                "feedback": "「覺得可以」在牠那裡沒有終點。給一個收工的時機，牠才停得下來。"
+              },
+              {
+                "text": "那扇窗做好就停下來，先別再往下做。",
+                "correct": true
+              },
+              {
+                "text": "有空就繼續往下弄。",
+                "feedback": "這等於請牠一直做下去。說清楚做完那一扇就停。"
+              }
+            ]
+          }
+        ]
+      },
+      "sample": "請把北面那扇窗破掉的木片換成新的。\n只動北面那扇窗這一塊，不要順便修別的地方；真的必須動到承重柱這類範圍外的東西，請先問我一句。\n那扇窗做好就停下來，先別再往下做。",
       "source": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#overeagerness"
     }
   ]
