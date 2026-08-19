@@ -56,6 +56,10 @@ CLAUDE.md 的五個方向與七條護欄仍是最高準則。本 roadmap 只回�
   - 依賴：P05。方案：4-A、M12、M9。
   - DoD：12 區色卡表寫進 WORLD.md §2.2；三態由 `regions-v2` gate 規格與進度算出（gate 未啟用時只兩態）；pacing-audit 輸出納入 changelog。
 
+- [~] **P06b · 濁靈的選擇式作答（閘門 A 回饋）**（M）— 站長實玩裁決：濁靈也要**用選的、不要打字**。8 隻濁靈各補一份 `choice` flow（**slot 數 ＝ rubric 條數 ＝ 殼數**，一段對一層殼；正解串起來 ＝ 該隻既有的 `sample`，錯選項給教學回饋），flow 放在 `murks.json` 自己的 entry 裡（不動 `flows.json`）；`console.js` 的 `currentFlow` 允許 challenge 自帶 flow；照既有 `promptMode` 設定走（預設 guided ＝ 選；玩家切 free 仍可自由書寫）。
+  - 依賴：P01–P03。方案：1-A 修訂。
+  - DoD：8 隻在預設設定下**不用打字**就能安撫；正解組出的 prompt ≥A（playtest）、每個錯選項有 ≥12 字教學回饋；剝殼演出不變（`onRubricHits` 契約不動）；free 模式仍可用；e2e 走完一隻的選擇路徑；舊斷言零改動。
+
 **▶ 閘門 A（站長實玩）**：安撫 8 隻濁靈是否比石座更好玩？時辰／色彩是否讀得出進度？砍案條件：若濁靈體感 < 石座，里程碑 B 的 P10 改為「濁靈演出精修」而非鋪石座。
 
 ### 里程碑 B：世界觀投遞 I ＋「寫 prompt」的可見後果（世界觀 × 互動 × 重玩）

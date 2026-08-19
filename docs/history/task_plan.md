@@ -942,6 +942,37 @@ Exit criteria：
 - [x] rubric 86,051／playtest 2,429／build ✓／e2e 全綠、console error 0；0 新光源。
 - [x] 閘門 A 摘要寫進 progress.md；停止等站長實玩。
 
+### P06b — 濁靈的選擇式作答（閘門 A 回饋）（2026-08-19 開工）
+
+狀態：`in progress`（站長實玩裁決，見 `findings.md`「里程碑 A 閘門 · 站長回覆」）
+
+**現狀**：`main.js murkChallenge()` 組出的 challenge 形物件**沒有 flow**；`console.js:2118` `currentFlow = content.flow(challenge.id)`，濁靈 id 不在 `flows.json` → `null` → `console.js` 的「沒有 flow 就強制 free」把濁靈變成自由書寫（`mode = 'free'`）。石座的十一種題型裡最短、最成熟的是 `choice`（石碑刻印：一段一段從 2–3 個選項裡挑，資料只需要 `{ slots: [{ ask, options: [{text, correct?, feedback?}] }] }`），15 關在用。濁靈每隻 rubric 3 條、殼 3 層。
+
+**目標**：預設設定下**不用打字**就能安撫濁靈；一段選擇對一層殼；演出與存檔契約完全不動。
+
+**範圍**
+1. `src/data/murks.json`：每一筆 entry 新增 `flow: { slots: [...] }`（**`slots.length` ＝ `rubric.length` ＝ 3**）。**正解的組法**：把該隻既有的 `sample`（已驗 ≥A）切成 3 段，一段對應一條 rubric（第 i 段要能讓第 i 條 check 亮）；每個 slot 2–3 個選項，**恰好 1 個 `correct: true`**，其餘給 `feedback`（≥12 字、指出「為什麼這樣不行」並用世界的說法，不出現系統術語）。錯選項的素材直接取自該隻的**濁言**（牠原本的毛病：含糊、只說不要、只會形容、跳過步驟、憑印象、不准說不知道、一口氣做完、順便多做）。
+2. `src/prompt/console.js`：`currentFlow = challenge.flow || (content.flow ? content.flow(challenge.id) : null)`（一行；challenge 自帶 flow 優先）。其餘四幕／手掌印／`flowKind` 判定全部沿用。
+3. `src/main.js` `murkChallenge()`：把 `e.flow` 帶進 challenge 形物件。
+4. **模式**：照既有 `promptMode` 設定走——預設 `guided` ＝ 選；玩家自己切 `free` 仍可自由書寫（不倒退）。**不**為濁靈另開設定。
+5. 文案：`ask` 用世界的說法（「這一句要先跟牠說什麼？」之類），禁字表逐句過；新中文字串 → `npm run fonts`。
+
+**非目標**：不動 `flows.json`／142 關；不動 `onRubricHits`／`recordMurk`／存檔契約；不加新題型（`fix`／`spot` 留給 P17 大濁靈）；不改剝殼演出。
+
+**受影響檔案**：`src/data/murks.json`、`src/prompt/console.js`（一行）、`src/main.js`（一行）、`scripts/test-rubric.mjs`、`scripts/playtest-verify.mjs`、`scripts/headless-check.mjs`、fonts。
+
+**Acceptance tests（先紅後綠）**
+- rubric：8 筆都有 `flow.slots`、`slots.length === rubric.length`、每個 slot **恰好一個** `correct`、每個非正解有 `feedback` ≥12 字、`ask` 非空、全部字串過禁字表與 `zh-scan`；正解串起來（照 slot 順序）**逐值等於**該隻的 `sample`（或至少：組出的 prompt 跑 `evaluate()` ≥A 且三條 check 全亮）；`flowKind(murk.flow) === 'choice'`。
+- playtest：8 隻的「全選正解」路徑 ≥A；任一 slot 選錯 → 該條 check 不亮（逐條驗，證明「一段對一層殼」）。
+- e2e：預設設定下 teleport 到濁靈 → `E` → **主控台是 guided（有選項、`textarea` 不是主角）** → 用鍵盤選完三段 → 手掌印 → 剝殼演出照常（輪詢式）→ 清燈；切到 free 設定後同一隻仍可自由書寫（不倒退）；舊斷言零改動。
+
+**禁區**：`curriculum.json`、`challenges.json`、`flows.json`、`vite.config.js`、`CLAUDE.md`、`CHANGELOG.md`、`gameplay-roadmap.md`、`expected-counts` 既有值、dev server 5173/5174/5175。
+
+Exit criteria：
+- [ ] 預設設定下 8 隻都能「用選的」安撫；free 模式仍可用。
+- [ ] rubric／playtest／build／e2e 全綠、console error 0；fonts 已跑。
+- [ ] 停回閘門 A，等站長再玩一次。
+
 ## v1.2 錯誤紀錄
 
 （沿用 §8 規則：任何錯誤記在此；同一錯誤不原樣重試；連續三種方法仍無法前進才報阻塞。）
