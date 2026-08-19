@@ -7458,16 +7458,22 @@ async function main() {
     ok(murkSubmit.cuesAfter.includes('murkHit'), '音效診斷有 murkHit（每剝一殼一聲）', JSON.stringify(murkSubmit.cuesAfter));
     ok(!murkSubmit.cuesAfter.includes('murkCalm'), '沒安撫 → 沒有 murkCalm', JSON.stringify(murkSubmit.cuesAfter));
   }
+  /*
+   * 濁言原文會命中「派任務」那一列 —— 它在 rubric 裡的位置由資料決定（P06b 把它移到第一段），
+   * 所以這裡**從實際命中推導**要看哪一層殼，不寫死 index。
+   */
+  const peeledIdx = JSON.parse(murkSubmit.hitsPayloads[0]).passedIndices[0];
+  const wantStates = [0, 1, 2].map((i) => (i === peeledIdx ? 'hidden' : 'intact'));
   const murkPeeled = await waitFor(async () => {
     const r = await evaluate(`
       const m = window.__promptasy.world.murks.byId('murk-vague-ask');
-      return { shells: m.visibleShellCount(), states: [0, 1, 2].map((i) => m.shellState(i)), state: m.state, active: window.__promptasy.world.murks.activeParticles(), hidden1: m.shells[1].visible === false };
+      return { shells: m.visibleShellCount(), states: [0, 1, 2].map((i) => m.shellState(i)), state: m.state, active: window.__promptasy.world.murks.activeParticles(), hiddenOne: m.shells[${peeledIdx}].visible === false };
     `);
-    return r.shells === 2 && r.states[1] === 'hidden' && r.active === 0 ? r : null;
-  }, { timeout: 8000, label: '殼 1 剝落完成' });
+    return r.shells === 2 && r.states[peeledIdx] === 'hidden' && r.active === 0 ? r : null;
+  }, { timeout: 8000, label: `殼 ${peeledIdx} 剝落完成` });
   eq(murkPeeled.shells, 2, '命中一條 → 殼數 3 → 2（剝落走完）');
-  eq(JSON.stringify(murkPeeled.states), JSON.stringify(['intact', 'hidden', 'intact']), '殼 index ＝ rubric index：只有殼 1 隱藏');
-  eq(murkPeeled.hidden1, true, '隱藏的殼 visible=false');
+  eq(JSON.stringify(murkPeeled.states), JSON.stringify(wantStates), `殼 index ＝ rubric index：只有殼 ${peeledIdx} 隱藏`);
+  eq(murkPeeled.hiddenOne, true, '隱藏的殼 visible=false');
   ok(murkPeeled.state !== 'settled' && murkPeeled.state !== 'calming', '沒安撫 → 不是 settled', murkPeeled.state);
   eq(murkPeeled.active, 0, '碎光熄了（粒子池歸零）');
 
@@ -7568,7 +7574,11 @@ async function main() {
   {
     const h = JSON.parse(murkCalm.hitsPayload);
     eq(JSON.stringify(h.passedIndices), '[0,1,2]', '範例解：passedIndices ＝ 全部三列（累積）');
-    eq(JSON.stringify(h.newlyPassedIndices), '[0,2]', '範例解：newly 只回相對於存檔的新增 [0,2]（殼 1 早剝了）');
+    eq(
+      JSON.stringify(h.newlyPassedIndices),
+      JSON.stringify([0, 1, 2].filter((i) => i !== peeledIdx)),
+      `範例解：newly 只回相對於存檔的新增（殼 ${peeledIdx} 早剝了）`
+    );
     ok(murkCalm.stateRightAfter === 'calming' || murkCalm.stateRightAfter === 'settled', 'strike 當下進入 calming（光屑）或 settled', murkCalm.stateRightAfter);
     ok(murkCalm.activeRightAfter > 0, '安撫當下粒子池有活粒子（碎光＋光屑）', String(murkCalm.activeRightAfter));
     const recent = murkCalm.cuesCalm;

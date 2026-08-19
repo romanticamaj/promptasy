@@ -942,9 +942,11 @@ Exit criteria：
 - [x] rubric 86,051／playtest 2,429／build ✓／e2e 全綠、console error 0；0 新光源。
 - [x] 閘門 A 摘要寫進 progress.md；停止等站長實玩。
 
-### P06b — 濁靈的選擇式作答（閘門 A 回饋）（2026-08-19 開工）
+### P06b — 濁靈的選擇式作答（閘門 A 回饋）（2026-08-19 開工 · 同日完成）
 
-狀態：`in progress`（站長實玩裁決，見 `findings.md`「里程碑 A 閘門 · 站長回覆」）
+狀態：`done`（站長實玩裁決，見 `findings.md`「里程碑 A 閘門 · 站長回覆」）
+
+**收尾時的修訂（orchestrator）**：subagent 交出來時 slot 順序＝rubric 順序，而每隻 rubric 的第一條是**主技巧**不是任務 → 組出來的「正言」把「請把這張告示改寫成…」夾在中間，等於在教「規格寫在任務前面」，與 142 關的家規（任務先講）相反、違反護欄 1。修法：把每隻 rubric 裡 `assignsTask` 那一條連同它的 slot **一起移到第一位**（配對不變、殼＝rubric index 的契約不變），`sample` 依新順序重組，三段 `ask` 的措辭跟著換（第一句／接著／最後一句）。順帶把 rubric 與 e2e 裡**寫死索引**的斷言改成從資料推導（`LIGHT`／`HEAVY`／`peeledIdx`），以後再調順序不必改測試。舊存檔的 `hits` 是 rubric index → 重排後語意會位移（開發期唯一影響：站長本機存檔裡已剝的殼可能對到別條；重置或重玩即可）。
 
 **現狀**：`main.js murkChallenge()` 組出的 challenge 形物件**沒有 flow**；`console.js:2118` `currentFlow = content.flow(challenge.id)`，濁靈 id 不在 `flows.json` → `null` → `console.js` 的「沒有 flow 就強制 free」把濁靈變成自由書寫（`mode = 'free'`）。石座的十一種題型裡最短、最成熟的是 `choice`（石碑刻印：一段一段從 2–3 個選項裡挑，資料只需要 `{ slots: [{ ask, options: [{text, correct?, feedback?}] }] }`），15 關在用。濁靈每隻 rubric 3 條、殼 3 層。
 
@@ -969,9 +971,9 @@ Exit criteria：
 **禁區**：`curriculum.json`、`challenges.json`、`flows.json`、`vite.config.js`、`CLAUDE.md`、`CHANGELOG.md`、`gameplay-roadmap.md`、`expected-counts` 既有值、dev server 5173/5174/5175。
 
 Exit criteria：
-- [ ] 預設設定下 8 隻都能「用選的」安撫；free 模式仍可用。
-- [ ] rubric／playtest／build／e2e 全綠、console error 0；fonts 已跑。
-- [ ] 停回閘門 A，等站長再玩一次。
+- [x] 預設設定下 8 隻都能「用選的」安撫（三段刻印、選錯就地教學）；free 模式仍可用（e2e 兩條路都走）。
+- [x] rubric 88,397／playtest 2,533／build ✓／e2e 3,695 全綠、console error 0；fonts 已跑。
+- [x] 停回閘門 A（連同 P06c 一起，等站長再玩一次）。
 
 ### P06c — 把 7 個空區的路填滿（閘門 A 回饋 ②）（2026-08-19 開工）
 
