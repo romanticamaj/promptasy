@@ -977,7 +977,7 @@ Exit criteria：
 
 ### P06c — 把 7 個空區的路填滿（閘門 A 回饋 ②）（2026-08-19 開工）
 
-狀態：`pending`（等 P06b 收尾後開工）
+狀態：`in progress`
 
 **現狀（實測）**：反應物與器物**各 22 件，全部集中在原本的 5 區**——foundations 6+6、reasoning／grounding／orchestration／config 各 4+4；**forms／toolcraft／wards／refinery／frugality／sight／divergence 各 0+0**。P06 節奏稽核（`npm run audit:pacing`，880 唯一樣點）：micro 死區 **12 段**，最長 sight 75m／forms 72m／toolcraft 67m／refinery 54m；encounter 死區 0 段、mid 死區 1 段（divergence 10m）。可重用的種類共 14 種：反應 `chime`（風鈴架）／`glowcap`（光菇圈）／`songstone`（音石）／`ripple`（水紋池）／`spirit`（守望的小獸）／`moths`（螢火）；器物 `urn`／`brazier`／`gong`／`watchstone`／`moonpool`／`signpost`／`capstan`／`bench`。資料入口：`src/world/reactive.js` 的 `REACTIVE_SPOTS`（`{id, kind, region, at:[x,z], opts?}`）與 `src/data/handles.json` 的 `entries`（`{id, kind, region, at:[x,z], rot, title, line}`）。
 
