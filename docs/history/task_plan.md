@@ -1033,6 +1033,39 @@ Exit criteria：
 - [ ] 停回閘門 A，請站長再玩一次（重點看：那三區現在「看起來不一樣」了嗎）。
       顏色複核圖：`docs/design/shots/region-forms.png`／`region-toolcraft.png`／`region-sight.png`。
 
+### P07 — 殘頁 ＋ 回信碑 ＋ `firstPrompt` 擷取（2026-08-19 開工）
+
+狀態：`in progress`（里程碑 B 第一格；閘門改為不停下，見 findings）
+
+**現狀**：世界的「風味層」已有三種資料檔，形狀一致、都可當樣板——`inscriptions.json`（刻文小語 13 則：`{id, region, at, prop, title, lines[], techniqueId, hint}`，**有教學＋出處**，走 `E`、記 `inscriptionsFound`）、`secrets.json`（祕密 4 處：`{id, region, prop, at, radius, title, lines[]}`，純風味無出處、走進去就算找到、記 `secretsFound`）、`props.js` 的 `LORE_TABLETS`（12 塊世界觀石碑：`{id, region, at, title, lines[]}`，記 `loreRead`）。圖鑑 `worldFinds()` 現在四列（刻文／祕密／器物／濁言）。主控台自由書寫的原文目前不落盤。
+
+**目標**：抄寫人留下的**殘頁**散在路上（Tunic 手冊頁式），撿到就進圖鑑；世界觀石碑支援**多筆跡**（原句／後人補寫／被劃掉的）；存檔開始記住玩家**序章寫的第一句 prompt**（終局 P22 要用）。
+
+**範圍**
+1. `src/data/letters.json`（`authored:"game"`）：**24 頁**（12 區各 2），entry ＝ `{ id, region, at:[x,z], prop, title, lines[], techniqueId?, hint?, source? }`。規則同 `secrets.json`／`inscriptions.json` 的既有測試：**有教學句就必須附真實官方出處**（`source` 在 `source-anchors.json` 裡）、**純風味的不准放連結也不准有 `techniqueId`**。內容取自研究 W §6「抄寫人殘頁」與 §4 的 12 區傳說鉤——每頁是一張工單／一封信／一頁筆記，寫那片土地的抄寫人在做什麼、失敗在哪。
+2. 世界層：殘頁用**既有的 prop 種類**（`plaque` 之類，跟刻文小語同一套擺法），互動半徑沿用刻文的 3.8、走 `E`；`E` 搶鍵優先序插在刻文小語**之後**（石座 > 濁靈 > 石碑 > 刻文 > **殘頁** > 器物 > 閘門）。擺位照 P06c 的規則（互動圈不重疊、離路網近、有 tell）。存檔新欄 `lettersFound: []`（純加法、normalize、reset 清空）。
+3. 圖鑑：`worldFinds()` 第五列「抄寫人的殘頁 n/24」＋可展開清單（撿到的顯示 title＋lines＋出處；沒撿到的顯示「還沒找到」不劇透）。
+4. **回信碑**：`LORE_TABLETS` 的 `lines` 支援 `{ text, hand }`（`hand: 'first'|'later'|'struck'` → 原句／後人補寫／被劃掉），石碑面板依 `hand` 給不同字級樣式（`struck` 加刪除線）。12 塊碑挑 4 塊改成多筆跡（研究 W §6「回信碑」：原句、後人補一句、再後面的人劃掉一句）。舊格式（純字串）必須照常運作。
+5. **`firstPrompt` 擷取**：存檔新欄 `firstPrompt`（純加法、normalize 給 `''`）；在**序章第一次自由書寫送出時**擷取原文（`≤280` 字、去掉前後空白、**只存本機**）。之後不再覆寫（第一句就是第一句）。P22 終局用它。
+6. 文案量大 → `npm run fonts`；禁字表與 `zh-scan` 逐句過。
+
+**非目標**：四宿星圖（P08）、傳聞連線頁（P20a）、終局場景（P22）、AI 小知識（P20b）。
+
+**受影響檔案**：新 `src/data/letters.json`；`src/world/inscriptions.js` 或新 `src/world/letters.js`（沿用刻文那一層的建法最省）、`src/world/world.js`（接線＋`nearestLetter`）、`src/main.js`（互動仲裁第 ⑦ 層、圖鑑參數）、`src/ui/codex.js`（第五列）、`src/ui/tablet.js`（多筆跡樣式）、`src/world/props.js`（`LORE_TABLETS` 4 塊改多筆跡）、`src/save/save.js`（`lettersFound`、`firstPrompt`）、`src/progression/progression.js`（`markLetterFound`／`letterCount`／`captureFirstPrompt`）、`src/prompt/console.js`（序章第一次自由書寫時擷取）、`src/styles.css`（筆跡樣式、殘頁列）、`scripts/test-rubric.mjs`、`scripts/headless-check.mjs`、`scripts/expected-counts.json`（新增 `letters: 24`）、fonts。
+
+**預算**：+24 殘頁的 prop（沿用刻文的小型 prop，三角 <8k）；**0 新光源**；碰撞體 +0（刻文那一層不登記碰撞體——照 `inscriptions` 的既有做法）；collision-audit 0。
+
+**Acceptance tests（先紅後綠）**
+- rubric：`letters.json` 24 筆、每區 2、`authored:"game"`；**有 `techniqueId`／教學 `hint` 就必須有合法 `source`（在 anchors）、沒有就不准有連結**；擺位規則（同 P06c 的互動圈不重疊表，殘頁半徑 3.8）；`lettersFound`／`firstPrompt` 的 normalize／reset；`firstPrompt` 長度上限與只寫一次；多筆跡 `lines` 新舊格式都能渲染（純函式層級）；`expected-counts.letters === 24`。
+- e2e：走到一頁殘頁 → 提示 → `E` → 面板有內容 → 進存檔 → 圖鑑第五列 1/24 → 重整還在；多筆跡石碑三種字級都在 DOM；序章第一次自由書寫後 `save.firstPrompt` 有值且第二次不覆寫；舊斷言零改動。
+
+**禁區**：`curriculum.json`、`challenges.json`、`flows.json`、`murks.json`、`color-script.json`、`vite.config.js`、`CLAUDE.md`、`CHANGELOG.md`、`gameplay-roadmap.md`、dev server 5173/5174/5175。
+
+Exit criteria：
+- [ ] 24 頁殘頁可撿、進圖鑑第五列；4 塊碑有多筆跡；`firstPrompt` 記得住。
+- [ ] rubric／playtest／build／e2e 全綠、console error 0；預算在框內。
+- [ ] 三件組＋changelog＋roadmap 打勾。
+
 ## v1.2 錯誤紀錄
 
 （沿用 §8 規則：任何錯誤記在此；同一錯誤不原樣重試；連續三種方法仍無法前進才報阻塞。）
