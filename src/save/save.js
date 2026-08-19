@@ -42,6 +42,8 @@ export function defaultSave() {
     secretsFound: [],
     // Phase 25：已經動過的器物 id（陶罐 / 火盆 / 響石…；純風味，不進圖鑑、不算徽章）
     handlesUsed: [],
+    // v1.2 · P07：撿到的抄寫人殘頁 id（一半教一件小事、一半純風味；不佔關卡評價）
+    lettersFound: [],
     // Phase 29：玩家選擇「先行前往」而提前開啟的閘門（區域 id）。
     // 純記帳用 —— 它只說明「這道門是被問開的，不是被考過的」，
     // 不影響 XP、圖鑑、徽章，也不會把任何一關算成已通關。
@@ -89,6 +91,14 @@ export function defaultSave() {
      * `normalize()` 給 `{}`、逐鍵驗形；`reset()` 自然清空。
      */
     murks: {},
+    /**
+     * v1.2 · P07：玩家在**序章**送出的第一段 prompt（原文，去頭尾空白、≤ 280 字）。
+     *
+     * 「第一句就是第一句」—— 寫進去之後永不覆寫（`captureFirstPrompt()` 只寫一次）。
+     * 只存在這台裝置上，不上傳、不進分享卡；終局（P22）會把它還給玩家。
+     * 舊存檔沒有這一欄 → `normalize()` 給空字串，終局改用「你最好的一句」。
+     */
+    firstPrompt: '',
     badges: { openai: 0, anthropic: 0, google: 0, xai: 0 },
     settings: {
       music: 'ambient-01',
@@ -119,6 +129,19 @@ function storage() {
 }
 
 const num = (v, fallback) => (Number.isFinite(v) ? v : fallback);
+/** v1.2 · P07：`firstPrompt` 的上限（字元）。超過就截斷 —— 它是一句話，不是一篇文章。 */
+export const FIRST_PROMPT_MAX = 280;
+/**
+ * v1.2 · P07：把任意值正規化成可以存的 `firstPrompt`。
+ * 純文字：去頭尾空白、把控制字元換成空白（跨行照樣留著換行）、截到 280 字。
+ * 顯示的一方永遠要自己跳脫（HTML escape）—— 這裡不動玩家寫的字。
+ */
+export function firstPrompt(v) {
+  if (typeof v !== 'string') return '';
+  // eslint-disable-next-line no-control-regex
+  const clean = v.replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, ' ').trim();
+  return clean.length > FIRST_PROMPT_MAX ? clean.slice(0, FIRST_PROMPT_MAX) : clean;
+}
 const strArr = (v) => (Array.isArray(v) ? v.filter((x) => typeof x === 'string') : null);
 
 /** 版本遷移。目前只有 v1；未來新增版本時在此往上補。 */
@@ -219,6 +242,8 @@ export function normalize(raw) {
     secretsFound: [...new Set(strArr(d.secretsFound) || [])],
     // Phase 25：舊存檔沒有 handlesUsed → 空陣列（純加法，不影響任何既有欄位）
     handlesUsed: [...new Set(strArr(d.handlesUsed) || [])],
+    // v1.2 · P07：舊存檔沒有 lettersFound → 空陣列（純加法）
+    lettersFound: [...new Set(strArr(d.lettersFound) || [])],
     // Phase 29：舊存檔沒有 skippedGates → 空陣列（純加法）
     skippedGates: [...new Set(strArr(d.skippedGates) || [])],
     // 課程 v2 Phase B：舊存檔沒有 skillsV2 → 空陣列（純加法，不影響任何既有欄位）
@@ -230,6 +255,8 @@ export function normalize(raw) {
     samplesSeen: [...new Set(strArr(d.samplesSeen) || [])],
     // v1.2 · P02：舊存檔沒有 murks → 空物件（純加法，不影響任何既有欄位）
     murks,
+    // v1.2 · P07：舊存檔沒有 firstPrompt → 空字串（純加法）。壞值一律落成空字串。
+    firstPrompt: firstPrompt(d.firstPrompt),
     bestGrades,
     badges,
     settings,
@@ -302,4 +329,15 @@ export function reset() {
   return defaultSave();
 }
 
-export default { SAVE_KEY, LEGACY_SAVE_KEYS, SAVE_VERSION, defaultSave, normalize, load, save, reset };
+export default {
+  SAVE_KEY,
+  LEGACY_SAVE_KEYS,
+  SAVE_VERSION,
+  FIRST_PROMPT_MAX,
+  firstPrompt,
+  defaultSave,
+  normalize,
+  load,
+  save,
+  reset,
+};

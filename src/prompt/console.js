@@ -1972,7 +1972,14 @@ export function createPromptConsole({
     if (!current) return;
     attempts += 1;
     onSubmit?.(current);
-    const evaluation = evaluate(current, typeof textOverride === 'string' ? textOverride : currentText());
+    const text = typeof textOverride === 'string' ? textOverride : currentText();
+    /*
+     * v1.2 · P07：第一句就是第一句。序章（練習台）一送出就會寫進存檔；
+     * 跳過序章、或舊存檔還沒有那一欄的人，第一次**自由書寫**送出時補記一次。
+     * `captureFirstPrompt()` 只寫一次，所以這裡永遠不會蓋掉序章那一句。
+     */
+    if (mode === 'free') progression.captureFirstPrompt?.(text);
+    const evaluation = evaluate(current, text);
     if (!evaluation.passed) {
       fails += 1;
       // 一次沒過就讓提示球發光：這時候玩家最需要「有人告訴我下一步」

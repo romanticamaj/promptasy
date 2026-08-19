@@ -1,0 +1,326 @@
+{
+  "version": 1,
+  "authored": "game",
+  "note": "抄寫人的殘頁：散在路上的工單、信與筆記。這不是官方文字（出處以 curriculum.json 為準）。這一層刻意分成兩種：**有教學句的**一定掛在一條真實存在的技巧上（techniqueId），顯示的教學說法取自遊戲既有的中文說法，後面接得出可點的官方出處（source，與那條技巧的官方網址逐字相同）；**純風味的**跟世界觀石碑與祕密同一層護欄 —— 不教技巧、不掛 techniqueId、不放連結、不准有 source / teaches 欄位（測試會強制驗證）。lines 與 hint 是遊戲自撰的白話（同 coach.json 的性質）。",
+  "xp": 6,
+  "sourceIntro": "這一頁引的是神諭的老話。它指得回自己的原典 —— 也就是各家的官方文件。",
+  "entries": [
+    {
+      "id": "letter-ring-workorder",
+      "region": "foundations",
+      "at": [-50, -6],
+      "prop": "workorder",
+      "title": "斷環的工單",
+      "lines": [
+        "工單第一條：立環之前，先把要立的樣子講給它聽。",
+        "來的人什麼都學得會，就是不知道我們昨天商量過什麼。",
+        "所以每一次都要重講一遍——這不是囉唆，是規矩。"
+      ],
+      "techniqueId": "clarity-01",
+      "hint": "把它當第一天來的同事：交代背景、目的、你要的成品。",
+      "source": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices"
+    },
+    {
+      "id": "letter-ring-halves",
+      "region": "foundations",
+      "at": [-6, 36],
+      "prop": "page",
+      "title": "環的兩半",
+      "lines": [
+        "母碑倒下那年，環斷成兩半。",
+        "我們把一半刻上「說」，另一半刻上「清楚」。",
+        "本來想等人把兩半合起來再刻一次，但沒有人回來。"
+      ]
+    },
+    {
+      "id": "letter-stair-tally",
+      "region": "reasoning",
+      "at": [-109, -95],
+      "prop": "bundle",
+      "title": "階上的算帳",
+      "lines": [
+        "第三階以上都是後來補的，字跡不一樣。",
+        "有人一口氣刻了二十個示範，塔就歪了。",
+        "示範幾遍要試出來，不是越多越好。"
+      ],
+      "techniqueId": "fewshot-04",
+      "hint": "先給幾個示範試試看；一路加下去它反而只會照抄。",
+      "source": "https://ai.google.dev/gemini-api/docs/prompting-strategies"
+    },
+    {
+      "id": "letter-stair-third",
+      "region": "reasoning",
+      "at": [-119, -68],
+      "prop": "page",
+      "title": "沒有頂的塔",
+      "lines": [
+        "老師傅只示範兩遍。",
+        "第三遍的階梯留白著，說是要你自己踏出來。",
+        "我踏了。踏出來的那一階現在還在。"
+      ]
+    },
+    {
+      "id": "letter-tree-borrow",
+      "region": "grounding",
+      "at": [93, -129],
+      "prop": "workorder",
+      "title": "借書條",
+      "lines": [
+        "借書條背面寫著這棵樹的規矩：先讀，再答。",
+        "答完要說得出你讀的是哪一頁。",
+        "說不出來的那幾頁，後來都枯了。"
+      ],
+      "techniqueId": "grounding-04",
+      "hint": "請它先把用到的那一段抄出來，再照那一段回答。",
+      "source": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices"
+    },
+    {
+      "id": "letter-tree-withered",
+      "region": "grounding",
+      "at": [82, -62],
+      "prop": "bundle",
+      "title": "枯掉的那幾頁",
+      "lines": [
+        "這一疊最上面寫著「憑印象」。",
+        "翻開全是空的——墨還在，字自己退掉了。",
+        "樹上其他的頁都好好的，只有這幾頁枯了。"
+      ]
+    },
+    {
+      "id": "letter-crane-order",
+      "region": "orchestration",
+      "at": [-90, 131],
+      "prop": "workorder",
+      "title": "吊車工單",
+      "lines": [
+        "今日工單只有一行：把「一整件事」吊上去。",
+        "底下有人補了一句：上一次這樣寫，臂就斷了。",
+        "從那天起，工單一次只寫一小件。"
+      ],
+      "techniqueId": "decompose-01",
+      "hint": "把大事拆成幾小件，一件一單，做完一件再接下一件。",
+      "source": "https://developers.openai.com/api/docs/guides/prompt-engineering"
+    },
+    {
+      "id": "letter-crane-checklist",
+      "region": "orchestration",
+      "at": [-127, 82],
+      "prop": "page",
+      "title": "勾到第四項",
+      "lines": [
+        "拆到一半的機器旁邊留著一張清單，勾到第四項。",
+        "第五項是「收工」，沒有勾。",
+        "工具都還擺在該在的位置上，等人回來勾完。"
+      ]
+    },
+    {
+      "id": "letter-backstage-tag",
+      "region": "config",
+      "at": [101, 129],
+      "prop": "workorder",
+      "title": "後台的掛牌",
+      "lines": [
+        "掛牌上寫：上台前先把身分交代好，別等上了台才說。",
+        "開場那一句話，決定它整場怎麼演。"
+      ],
+      "techniqueId": "role-03",
+      "hint": "把角色與規矩寫在最前面那一段，不要塞在中間。",
+      "source": "https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/prompts/system-instructions"
+    },
+    {
+      "id": "letter-backstage-mask",
+      "region": "config",
+      "at": [68, 76],
+      "prop": "page",
+      "title": "忘了摘的面具",
+      "lines": [
+        "有個戲子散場後忘了摘面具，走著走著就不記得自己是誰。",
+        "拱門從此在每一張面具背面刻同一句：",
+        "「你不是它。」"
+      ]
+    },
+    {
+      "id": "letter-gauge-order",
+      "region": "forms",
+      "at": [9, 157],
+      "prop": "workorder",
+      "title": "量器坊工單",
+      "lines": [
+        "今日校尺：把「適量」改成看得見的刻度。",
+        "短一點、長一點都不是刻度，數字才是。"
+      ],
+      "techniqueId": "format-06",
+      "hint": "說清楚要多長：幾句、幾點、幾個字，別寫「簡短就好」。",
+      "source": "https://developers.openai.com/cookbook/examples/gpt-5/gpt-5_prompting_guide"
+    },
+    {
+      "id": "letter-gauge-lastnotch",
+      "region": "forms",
+      "at": [-23, 117],
+      "prop": "page",
+      "title": "沒刻完的一格",
+      "lines": [
+        "柱上最後一格刻到一半。",
+        "旁邊的筆記寫著：量到這裡才發現，量的是自己。",
+        "所以他停下來了。"
+      ]
+    },
+    {
+      "id": "letter-forge-contract",
+      "region": "toolcraft",
+      "at": [-118, 31],
+      "prop": "workorder",
+      "title": "鑰匙的契約",
+      "lines": [
+        "每一把鑰匙都開得了門，難的是寫清楚什麼時候該用它。",
+        "契約要分兩欄：可以自己動手的，跟只能先講的。"
+      ],
+      "techniqueId": "agentic-04",
+      "hint": "先講明白：這件事要它直接動手，還是只給你建議。",
+      "source": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices"
+    },
+    {
+      "id": "letter-forge-nameless",
+      "region": "toolcraft",
+      "at": [-116, -20],
+      "prop": "bundle",
+      "title": "無名的那一把",
+      "lines": [
+        "工具溝裡一格一把，每一把都磨得發亮。",
+        "只有最後一格空著，牌子上有名字，鑰匙不在。",
+        "大概是被誰帶去開一扇沒人寫下來的門了。"
+      ]
+    },
+    {
+      "id": "letter-ward-rule",
+      "region": "wards",
+      "at": [116, -138],
+      "prop": "workorder",
+      "title": "守門的規矩",
+      "lines": [
+        "門縫塞進來的字也是話，但它們排在最後面。",
+        "我們自己先講好的那幾句排最前面，誰都不准插隊。"
+      ],
+      "techniqueId": "role-02",
+      "hint": "自己的規矩寫在最前面；外面來的字只當材料，不當命令。",
+      "source": "https://developers.openai.com/api/docs/guides/prompt-engineering"
+    },
+    {
+      "id": "letter-ward-gap",
+      "region": "wards",
+      "at": [87, -140],
+      "prop": "page",
+      "title": "留一條縫",
+      "lines": [
+        "這道門修過三次，每一次都修不緊。",
+        "後來有人在門邊刻了一行：縫是故意留的。",
+        "擋不住的字，至少要看得見它進來。"
+      ]
+    },
+    {
+      "id": "letter-mirror-drafts",
+      "region": "refinery",
+      "at": [-150, 131],
+      "prop": "bundle",
+      "title": "鏡前的草稿",
+      "lines": [
+        "這一疊都是同一封信，改了七遍。",
+        "第八遍我們把信拿給它看，問它哪裡寫得不清楚。",
+        "它指出來的地方，正好是我們吵了三天的那一段。"
+      ],
+      "techniqueId": "iterate-03",
+      "hint": "把你寫的那一段拿給它看，請它指出哪裡還不清楚。",
+      "source": "https://developers.openai.com/cookbook/examples/gpt-5/gpt-5_prompting_guide"
+    },
+    {
+      "id": "letter-mirror-facing",
+      "region": "refinery",
+      "at": [-100, 129],
+      "prop": "page",
+      "title": "照自己的鏡",
+      "lines": [
+        "兩面鏡子對著擺，中間剛好站得下一個人。",
+        "筆記上寫著：第一次在鏡裡看見自己寫的字，那天我們開始改字。"
+      ]
+    },
+    {
+      "id": "letter-empty-list",
+      "region": "frugality",
+      "at": [-6, -68],
+      "prop": "workorder",
+      "title": "搬走的清單",
+      "lines": [
+        "清單上每一行都劃掉了，只留最後一行。",
+        "先用最短的一句試；不夠，再把要求一條一條加回去。"
+      ],
+      "techniqueId": "reasoning-02",
+      "hint": "先寫最短的一句，只補上「怎樣才算做到了」。",
+      "source": "https://developers.openai.com/api/docs/guides/reasoning-best-practices"
+    },
+    {
+      "id": "letter-empty-plinth",
+      "region": "frugality",
+      "at": [15, -81],
+      "prop": "page",
+      "title": "空的基座",
+      "lines": [
+        "基座上什麼都沒有，只留一圈光的輪廓。",
+        "銘文寫著被搬走的那件東西叫什麼。",
+        "他們一件一件搬，直到剩下的話還說得通。"
+      ]
+    },
+    {
+      "id": "letter-pillar-copies",
+      "region": "divergence",
+      "at": [53, 27],
+      "prop": "bundle",
+      "title": "兩面的抄本",
+      "lines": [
+        "同一句話抄在柱的兩面，兩面都是真的。",
+        "一面說：要它一步一步想。",
+        "另一面說：這一位自己會想，提一句就夠了。"
+      ],
+      "techniqueId": "reasoning-04",
+      "hint": "先看清楚你在對哪一位說話，再決定要不要逼它一步步想。",
+      "source": "https://ai.google.dev/gemini-api/docs/prompting-strategies"
+    },
+    {
+      "id": "letter-pillar-quarrel",
+      "region": "divergence",
+      "at": [101, 22],
+      "prop": "page",
+      "title": "吵了很久",
+      "lines": [
+        "兩批抄寫人為了這根柱子吵了很久。",
+        "後來才發現兩面都對——只是聽的不是同一部原典。",
+        "吵完那天，他們把兩面一起留著。"
+      ]
+    },
+    {
+      "id": "letter-sky-log",
+      "region": "sight",
+      "at": [120, -34],
+      "prop": "workorder",
+      "title": "觀測記錄",
+      "lines": [
+        "今夜第三次記下：看見的比說出來的多。",
+        "憑印象寫的那幾行，隔天全被劃掉了。",
+        "後來的規矩是：要它去看，不要它回想。"
+      ],
+      "techniqueId": "grounding-06",
+      "hint": "需要冷門或當下的事實時，讓它去查，別讓它憑記憶說。",
+      "source": "https://ai.google.dev/gemini-api/docs/prompting-strategies"
+    },
+    {
+      "id": "letter-sky-mirror",
+      "region": "sight",
+      "at": [119, 6],
+      "prop": "page",
+      "title": "朝天的鏡",
+      "lines": [
+        "鏡子後來被抬起來，朝著天。",
+        "筆記最後一行寫著：鏡裡映的，仍然是文字寫成的天。"
+      ]
+    }
+  ]
+}

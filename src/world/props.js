@@ -1986,6 +1986,28 @@ const LANDMARK_BUILDERS = {
  */
 export const LORE_XP = 8;
 
+/**
+ * v1.2 · P07 · 回信碑：一塊碑上不只一種筆跡。
+ *
+ *   first   原句      —— 最早刻上去的那一手
+ *   later   後人補寫  —— 走到這裡的下一個人在旁邊補的一句
+ *   struck  被劃掉的  —— 再後面的人劃掉的一句（字還讀得到，這就是重點）
+ *
+ * `lines` 可以是純字串（＝ `first`，舊格式，永遠有效），也可以是 `{ text, hand }`。
+ */
+export const TABLET_HANDS = Object.freeze(['first', 'later', 'struck']);
+
+/** 把一塊碑的 `lines` 正規化成 `{ text, hand }[]`（新舊格式都吃）。 */
+export function tabletLines(tablet) {
+  const raw = (tablet && tablet.lines) || [];
+  return raw.map((l) => {
+    if (typeof l === 'string') return { text: l, hand: 'first' };
+    const text = l && typeof l.text === 'string' ? l.text : '';
+    const hand = l && TABLET_HANDS.includes(l.hand) ? l.hand : 'first';
+    return { text, hand };
+  });
+}
+
 export const LORE_TABLETS = Object.freeze([
   {
     id: 'hearth',
@@ -1999,14 +2021,23 @@ export const LORE_TABLETS = Object.freeze([
     region: 'foundations',
     at: [-7, -13],
     title: '門前的舊牌',
-    lines: ['門口曾經立過一塊牌：「說得清楚的人請進。」', '後來牌子被搬走了——走到這裡的人都已經懂了。'],
+    // v1.2 · P07：回信碑（原句／後人補寫／被劃掉的）
+    lines: [
+      { text: '門口曾經立過一塊牌：「說得清楚的人請進。」', hand: 'first' },
+      { text: '後來牌子被搬走了——走到這裡的人都已經懂了。', hand: 'later' },
+      { text: '說不清楚的，就別進來了。', hand: 'struck' },
+    ],
   },
   {
     id: 'stone-circle',
     region: 'foundations',
     at: [-42, -22],
     title: '立石環',
-    lines: ['這圈石頭是最早的人立的。', '他們還不會發問，只把想到的全刻上去——所以你看，字又長又亂。'],
+    lines: [
+      { text: '這圈石頭是最早的人立的。', hand: 'first' },
+      { text: '他們還不會發問，只把想到的全刻上去——所以你看，字又長又亂。', hand: 'later' },
+      { text: '刻得越多，神諭懂得越多。', hand: 'struck' },
+    ],
   },
   {
     id: 'mother-stele',
@@ -2058,7 +2089,11 @@ export const LORE_TABLETS = Object.freeze([
     region: 'grounding',
     at: [95, -108],
     title: '檔案庫門碑',
-    lines: ['這裡的規矩：先讀，再答。', '答完，要說得出你讀的是哪一頁。'],
+    lines: [
+      { text: '這裡的規矩：先讀，再答。', hand: 'first' },
+      { text: '答完，要說得出你讀的是哪一頁。', hand: 'later' },
+      { text: '讀不完就先猜一頁，反正沒人會去對。', hand: 'struck' },
+    ],
   },
   {
     id: 'workshop-yard',
@@ -2072,7 +2107,11 @@ export const LORE_TABLETS = Object.freeze([
     region: 'config',
     at: [95, 108],
     title: '後台碑',
-    lines: ['旋鈕轉緊一點，戲每晚都一樣。', '轉鬆一點，偶爾會冒出連編劇都沒想過的台詞。'],
+    lines: [
+      { text: '旋鈕轉緊一點，戲每晚都一樣。', hand: 'first' },
+      { text: '轉鬆一點，偶爾會冒出連編劇都沒想過的台詞。', hand: 'later' },
+      { text: '全部轉到底最好，反正戲總會演完。', hand: 'struck' },
+    ],
   },
 ]);
 
@@ -2298,6 +2337,8 @@ export function buildLandmark(regionId, kit, terrainHeight, quality) {
 
 export default {
   LORE_TABLETS,
+  TABLET_HANDS,
+  tabletLines,
   LORE_XP,
   STORY_VIGNETTES,
   LANDMARKS,

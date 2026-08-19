@@ -25,6 +25,7 @@ import {
   pathInfluence,
 } from './props.js';
 import { buildInscription, INSCRIPTION_RADIUS } from './inscriptions.js';
+import { buildLetter, LETTER_RADIUS } from './letters.js';
 import { createReactiveField, REACTIVE_SPOTS } from './reactive.js';
 import { createHandleField, HANDLE_RADIUS } from './handles.js';
 import { createMurkField, MURK_RADIUS } from './murks.js';
@@ -2844,6 +2845,8 @@ export function createWorld({
   shrine = null,
   /** Phase 22：刻文小語（inscriptions.json 的 entries）。沒給就不蓋，世界照樣成立。 */
   inscriptions = [],
+  /** v1.2 · P07：抄寫人的殘頁（letters.json 的 entries）。沒給就不蓋，世界照樣成立。 */
+  letters = [],
   /** Phase 22：藏起來的地方（secrets.json 的 entries）。 */
   secrets = [],
   /** Phase 25：動得了的器物（handles.json 的 entries）。沒給就不蓋，世界照樣成立。 */
@@ -2904,6 +2907,8 @@ export function createWorld({
     // Phase 22：刻文小語 / 會回應的東西 / 藏起來的地方 —— 旁邊也要留白，
     // 不然被隨機碎石與草叢埋掉，「刻在角落的字」就變成「找不到的字」。
     ...inscriptions.map((i) => [i.at[0], i.at[1], 5]),
+    // v1.2 · P07：殘頁 —— 掉在路邊的一頁紙，被草叢埋掉就等於沒放
+    ...letters.map((l) => [l.at[0], l.at[1], 5]),
     ...REACTIVE_SPOTS.map((s) => [s.at[0], s.at[1], 6]),
     ...secrets.map((s) => [s.at[0], s.at[1], 9]),
     // Phase 25：動得了的器物 —— 走近才看得到細節，旁邊被草叢埋掉就等於沒放
@@ -2980,6 +2985,15 @@ export function createWorld({
     return ins;
   });
   const inscriptionById = new Map(inscriptionObjs.map((i) => [i.id, i]));
+
+  /* --- v1.2 · P07：抄寫人的殘頁（走近按 E → 撿起來讀） --- */
+  const letterObjs = letters.map((spec) => {
+    const lt = buildLetter(spec, kits.get(spec.region) || kits.get('foundations'), terrainHeight);
+    root.add(lt.group);
+    if (progression.hasFoundLetter && progression.hasFoundLetter(spec.id)) lt.setFound(true);
+    return lt;
+  });
+  const letterById = new Map(letterObjs.map((l) => [l.id, l]));
 
   /* --- Phase 22：會回應的東西 ＋ 藏起來的地方 --- */
   const reactive = createReactiveField({
@@ -3266,6 +3280,7 @@ export function createWorld({
     for (const g of gates) g.update(dt, t);
     for (const tab of tablets) tab.update(dt, t);
     for (const ins of inscriptionObjs) ins.update(dt, t);
+    for (const lt of letterObjs) lt.update(dt, t);
     if (shrineObj) shrineObj.update(dt, t);
 
     // 故事小景裡「還在動的東西」：燈火搖曳、懸浮的階梯、刻度盤的指針、吊車的載重
@@ -3332,6 +3347,8 @@ export function createWorld({
     tablets,
     /** Phase 22：刻文小語（走近按 E）。 */
     inscriptions: inscriptionObjs,
+    /** v1.2 · P07：抄寫人的殘頁（走近按 E）。 */
+    letters: letterObjs,
     /** Phase 22：反應場（會回應的東西 ＋ 藏起來的地方）。 */
     reactive,
     /** Phase 25：動得了的器物。 */
@@ -3515,6 +3532,31 @@ export function createWorld({
       }
       for (const ins of inscriptionObjs) ins.setNear(ins === best);
       return best ? { inscription: best, distance: bestDist } : null;
+    },
+
+    /**
+     * 走近的殘頁（v1.2 · P07）。半徑與刻文小語相同（3.8）——
+     * 搶 `E` 的順序由 main.js 仲裁：石座 > 濁靈 > 石碑 > 刻文小語 > **殘頁** > 器物 > 閘門。
+     */
+    nearestLetter(position, maxDistance = LETTER_RADIUS) {
+      let best = null;
+      let bestDist = maxDistance;
+      for (const lt of letterObjs) {
+        const d = lt.position.distanceTo(position);
+        if (d < bestDist) {
+          bestDist = d;
+          best = lt;
+        }
+      }
+      for (const lt of letterObjs) lt.setNear(lt === best);
+      return best ? { letter: best, distance: bestDist } : null;
+    },
+
+    /** 標記某頁殘頁已撿（世界端的視覺變化）。 */
+    markLetterFound(id) {
+      const lt = letterById.get(id);
+      if (lt) lt.setFound(true);
+      return Boolean(lt);
     },
 
     /** 標記某則刻文小語已讀（世界端的視覺變化）。 */

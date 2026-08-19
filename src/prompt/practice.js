@@ -444,6 +444,11 @@ export function createPractice({
     attempts += 1;
     onSubmit?.(step);
     const text = typeof textOverride === 'string' ? textOverride : stele.text;
+    /*
+     * v1.2 · P07：序章寫下的第一句 —— 回聲說過牠記得每個人的第一句話，
+     * 從這一期開始存檔真的記住它（只寫一次、只存在這台裝置上；終局 P22 會還給玩家）。
+     */
+    progression.captureFirstPrompt?.(text);
     const evaluation = evaluate(step, text);
     lastEvaluation = evaluation;
     goAct(4, { force: true, focus: false });

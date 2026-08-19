@@ -3518,6 +3518,23 @@ select option:disabled {
 .lore__line:last-of-type {
   margin-bottom: var(--s6);
 }
+/* v1.2 · P07 · 回信碑：一塊碑上不只一種筆跡。
+   first  原句 —— 最早刻上去的那一手（＝ .lore__line 的預設字級）
+   later  後人補寫 —— 小一號、偏暖，像擠在旁邊補上去的
+   struck 被劃掉的 —— 更小、更暗、加一道刪除線（字還讀得到，這是重點） */
+.lore__line--later {
+  font-size: 1.42rem;
+  color: #d8c9a8;
+  padding-left: var(--s4);
+  border-left: 2px solid rgba(198, 160, 92, 0.35);
+}
+.lore__line--struck {
+  font-size: 1.24rem;
+  color: rgba(190, 200, 212, 0.62);
+  text-decoration: line-through;
+  text-decoration-color: rgba(198, 160, 92, 0.7);
+  text-decoration-thickness: 1px;
+}
 .lore__note {
   margin: 0 0 var(--s1);
   font-family: var(--font-ui);
@@ -3779,6 +3796,144 @@ select option:disabled {
   margin: var(--s5) 0 0;
   font-size: var(--t-meta);
   color: var(--paper-4);
+}
+
+/* ============================================================ 抄寫人的殘頁
+   v1.2 · P07：掉在路邊的一頁紙（工單／信／筆記）。
+   跟刻文小語同一個尺度，但紙比石頭軟：字級小半號、左邊一道紙緣的淡線。
+   一半的殘頁有教學（技巧名＋既有中文說法＋可點的官方出處），一半純風味。
+   ============================================================ */
+.overlay--letter .overlay__panel {
+  max-width: 46rem;
+}
+.letter {
+  position: relative;
+  padding: var(--s2) 0;
+}
+.letter__mark {
+  width: 2.4rem;
+  height: 1px;
+  margin: 0 0 var(--s4);
+  background: linear-gradient(90deg, var(--gold), rgba(198, 160, 92, 0));
+}
+.letter__line {
+  margin: 0 0 var(--s4);
+  font-family: var(--font-prose);
+  font-size: 1.36rem;
+  line-height: var(--lh-prose);
+  letter-spacing: 0.04em;
+  color: #e7ece2;
+  text-wrap: pretty;
+}
+.letter__glyph {
+  margin: var(--s6) 0 var(--s5);
+  padding: var(--s5) var(--s5) var(--s4);
+  border: 1px solid var(--rule);
+  border-left: 3px solid var(--gold);
+  background: rgba(255, 255, 255, 0.02);
+}
+.letter__tech {
+  margin: var(--s2) 0 var(--s3);
+  font-family: var(--font-display);
+  font-size: var(--t-h3);
+  color: var(--paper);
+}
+.letter__tip {
+  margin: 0 0 var(--s3);
+  font-family: var(--font-prose);
+  font-size: var(--t-body);
+  line-height: var(--lh-prose);
+  color: var(--paper-2);
+}
+.letter__how {
+  margin: 0 0 var(--s4);
+  font-size: var(--t-small);
+  line-height: var(--lh-body);
+  color: var(--gold);
+}
+.letter__note {
+  margin: 0 0 var(--s1);
+  font-family: var(--font-ui);
+  font-size: var(--t-micro);
+  letter-spacing: var(--tr-cjk);
+  color: var(--gold);
+}
+.letter__note--seen {
+  color: var(--paper-4);
+}
+.letter__got {
+  margin-left: var(--s3);
+  color: var(--star);
+}
+.letter__hint {
+  margin: var(--s5) 0 0;
+  font-size: var(--t-meta);
+  color: var(--paper-4);
+}
+
+/* v1.2 · P07 · 圖鑑第五列下面可展開的清單：撿到的看得到內容，沒撿到的只留「還沒找到」。 */
+.letterbook {
+  margin: var(--s3) 0 0;
+}
+.letterbook__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: var(--s2);
+}
+.letterbook__item {
+  font-size: var(--t-micro);
+  border-bottom: 1px dashed var(--rule);
+  padding-bottom: var(--s2);
+}
+.letterbook__item--quiet {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--s3);
+  color: var(--paper-4);
+}
+.letterbook__item summary {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--s3);
+  cursor: pointer;
+  list-style: none;
+}
+.letterbook__item summary::-webkit-details-marker {
+  display: none;
+}
+.letterbook__title {
+  color: var(--paper-2);
+  letter-spacing: var(--tr-cjk);
+}
+.letterbook__state,
+.letterbook__kind {
+  color: var(--paper-4);
+  font-style: italic;
+  white-space: nowrap;
+}
+.letterbook__body {
+  padding: var(--s3) 0 var(--s2);
+  display: grid;
+  gap: var(--s2);
+}
+.letterbook__line {
+  margin: 0;
+  line-height: 1.7;
+  color: var(--paper-3);
+}
+.letterbook__skill {
+  margin: 0;
+  color: var(--paper-3);
+}
+.letterbook__skill b {
+  color: var(--paper-2);
+}
+.letterbook__how {
+  margin: 0;
+  color: var(--gold);
 }
 
 /* --- Phase 25：指路石的四個方向（一塊牌子一行，方位在左、內容在右） --- */

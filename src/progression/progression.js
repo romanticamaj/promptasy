@@ -997,6 +997,96 @@ export function createProgression({
       };
     },
 
+    /* ---------------------------------------------------------------- *
+     * v1.2 · P07：抄寫人的殘頁
+     *
+     * 跟刻文小語同一層：不佔關卡評價、不算區域解鎖的通關數。
+     * 差別是這一層**一半有教學、一半純風味** —— 有掛 `techniqueId` 的那幾頁
+     * 會把那條技巧收進圖鑑（學到了就是學到了），純風味的什麼都不收。
+     * ---------------------------------------------------------------- */
+
+    /** 這一頁殘頁撿過了嗎。 */
+    hasFoundLetter(id) {
+      return Array.isArray(state.lettersFound) && state.lettersFound.includes(id);
+    },
+
+    /** 撿到幾頁殘頁。 */
+    letterCount() {
+      return Array.isArray(state.lettersFound) ? state.lettersFound.length : 0;
+    },
+
+    /**
+     * 撿起一頁殘頁。第一次給少量 XP；有教學的那幾頁順便把技巧收進圖鑑（重讀不再給）。
+     * @param {string} id
+     * @param {string|null} techniqueId 這一頁教的技巧（純風味的殘頁傳 null）
+     * @param {number} [xp]
+     */
+    readLetter(id, techniqueId = null, xp = 6) {
+      if (!Array.isArray(state.lettersFound)) state.lettersFound = [];
+      const levelBefore = levelFromXp(state.xp).level;
+      if (!id || state.lettersFound.includes(id)) {
+        return {
+          alreadyFound: true,
+          xpGain: 0,
+          newlyCollected: [],
+          levelBefore,
+          levelAfter: levelBefore,
+          leveledUp: false,
+          newlyUnlocked: [],
+        };
+      }
+      state.lettersFound.push(id);
+      const newlyCollected = [];
+      if (techniqueId && techniqueById.has(techniqueId) && !state.collected.includes(techniqueId)) {
+        state.collected.push(techniqueId);
+        newlyCollected.push(techniqueId);
+        recomputeBadges();
+      }
+      const gain = Math.max(0, Math.round(xp));
+      state.xp += gain;
+      const lv = levelFromXp(state.xp);
+      state.level = lv.level;
+      const newlyUnlocked = refreshUnlocks();
+      persist();
+      return {
+        alreadyFound: false,
+        xpGain: gain,
+        newlyCollected,
+        levelBefore,
+        levelAfter: lv.level,
+        leveledUp: lv.level > levelBefore,
+        newlyUnlocked,
+      };
+    },
+
+    /* ---------------------------------------------------------------- *
+     * v1.2 · P07：序章寫下的第一句
+     *
+     * 回聲說過「牠記得每個人的第一句話」。存檔從這一期開始真的記住它 ——
+     * **只寫一次**（第一句就是第一句），純文字、去頭尾空白、≤ 280 字，
+     * 只留在這台裝置上。終局（P22）會把它還給玩家；沒有的人用「你最好的一句」。
+     * ---------------------------------------------------------------- */
+
+    /** 序章的第一句（沒有就是空字串）。 */
+    firstPrompt() {
+      return typeof state.firstPrompt === 'string' ? state.firstPrompt : '';
+    },
+
+    /**
+     * 記住序章寫下的第一句。已經有了就什麼都不做（永不覆寫）。
+     * @param {string} text 玩家真的送出去的那一段原文
+     * @returns {{captured:boolean, text:string}}
+     */
+    captureFirstPrompt(text) {
+      const already = typeof state.firstPrompt === 'string' ? state.firstPrompt : '';
+      if (already) return { captured: false, text: already };
+      const clean = SaveIO.firstPrompt(text);
+      if (!clean) return { captured: false, text: '' };
+      state.firstPrompt = clean;
+      persist();
+      return { captured: true, text: clean };
+    },
+
     /** 這個祕密找到了嗎。 */
     hasFoundSecret(id) {
       return Array.isArray(state.secretsFound) && state.secretsFound.includes(id);

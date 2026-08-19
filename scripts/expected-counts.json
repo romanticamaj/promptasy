@@ -1,8 +1,14 @@
 {
   "note": "測試用的「這是契約，不是快照」清單。凡是能從 runtime catalog 或資料檔算出來的數字（技巧數、區域數、技能數、flow 數…），測試一律現算，不寫在這裡；只有『這個數字本身就是當期的驗收目標』才登記在這裡，改動它＝有意識地改變契約。每一格都寫得出為什麼。",
   "updatedAt": "2026-08-19",
-  "updatedBy": "v1.2 · P06c：把 7 個空區的路填滿（反應物與器物各 22 → 44；這是有意識的契約更新）",
+  "updatedBy": "v1.2 · P07：抄寫人的殘頁 24 頁（新增 letters 契約；既有契約值一格都沒動）",
   "contract": {
+    "letters": {
+      "value": 24,
+      "perRegion": 2,
+      "teaching": 12,
+      "why": "v1.2 · P07：抄寫人的殘頁（letters.json）—— 12 片土地各 2 頁，共 24 頁。一半（12 頁）有教學句：掛在一條真實技巧上、附得出可點的官方出處（source 與 curriculum.json 的網址逐字相同，且在 source-anchors.json 裡有深連結）；另一半純風味：不准有 techniqueId / hint / source / 連結（同 secrets.json 的護欄）。它們不是關卡：不進 142 關、不進 bestGrades、不影響解鎖。"
+    },
     "challenges": {
       "value": 142,
       "why": "現行關卡數＝130 座教學神廟 ＋ 12 座應用關（每片土地的地標腳下一座試煉，curriculum-v2 §5.2）。Phase J2 由 132 → 142：沿用既有的議會信使與檔案庫封印，另外新蓋 10 座。"

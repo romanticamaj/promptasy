@@ -13,6 +13,7 @@
     "src/data/glossary.json",
     "src/data/handles.json",
     "src/data/inscriptions.json",
+    "src/data/letters.json",
     "src/data/murks.json",
     "src/data/prologue.json",
     "src/data/ranks.json",
@@ -66,6 +67,7 @@
     "src/ui/inscription.js",
     "src/ui/intro.js",
     "src/ui/keyhelp.js",
+    "src/ui/letter.js",
     "src/ui/nudge.js",
     "src/ui/perfmon.js",
     "src/ui/prologue.js",
@@ -76,12 +78,13 @@
     "src/world/color-script.js",
     "src/world/handles.js",
     "src/world/inscriptions.js",
+    "src/world/letters.js",
     "src/world/murks.js",
     "src/world/props.js",
     "src/world/reactive.js",
     "src/world/world.js"
   ],
-  "corpusHash": "efdaa1663c659545",
+  "corpusHash": "e28bfc1c33722ade",
   "coverage": {
     "latin": [
       32,
@@ -406,6 +409,7 @@
       20196,
       20197,
       20208,
+      20210,
       20214,
       20219,
       20221,
@@ -1205,6 +1209,7 @@
       26522,
       26524,
       26525,
+      26543,
       26550,
       26564,
       26576,
@@ -2585,7 +2590,7 @@
       "id": "serif-tc",
       "family": "Arcade Serif TC",
       "file": "arcade-serif-tc.woff2",
-      "bytes": 680720,
+      "bytes": 681228,
       "role": "cjk",
       "variable": true,
       "weight": null,
@@ -2596,7 +2601,7 @@
           "default": 400
         }
       },
-      "requested": 1881,
+      "requested": 1883,
       "missing": 0,
       "source": "NotoSerifTC.ttf",
       "author": "Google (Noto Project)",
@@ -2608,7 +2613,7 @@
       "id": "sans-tc",
       "family": "Arcade Sans TC",
       "file": "arcade-sans-tc.woff2",
-      "bytes": 518492,
+      "bytes": 518788,
       "role": "cjk",
       "variable": true,
       "weight": null,
@@ -2619,7 +2624,7 @@
           "default": 400
         }
       },
-      "requested": 1881,
+      "requested": 1883,
       "missing": 0,
       "source": "NotoSansTC.ttf",
       "author": "Google (Noto Project)",
@@ -2628,5 +2633,5 @@
       "url": "https://github.com/google/fonts/tree/main/ofl/notosanstc"
     }
   ],
-  "totalBytes": 1523392
+  "totalBytes": 1524196
 }

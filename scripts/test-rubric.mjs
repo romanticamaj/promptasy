@@ -2941,6 +2941,8 @@ const secretFile = readJson('src/data/secrets.json');
 const handleFile = readJson('src/data/handles.json');
 // v1.2 · P01：濁靈也要蓋進測試世界（碰撞體 +8、穿模稽核要含牠們）
 const murkFile = readJson('src/data/murks.json');
+// v1.2 · P07：抄寫人的殘頁也要蓋進測試世界（它進 keepClear，會影響程序化道具的落點）
+const letterFile = readJson('src/data/letters.json');
 const stubProgression = {
   bestGrade: () => null,
   gateStatus: () => ({ unlocked: false, text: '' }),
@@ -2949,6 +2951,7 @@ const stubProgression = {
   hasFoundInscription: () => false,
   hasFoundSecret: () => false,
   hasUsedHandle: () => false,
+  hasFoundLetter: () => false,
 };
 const worldOpts = {
   curriculum,
@@ -2958,6 +2961,7 @@ const worldOpts = {
   progression: stubProgression,
   shrine: prologueForWorld.shrine,
   inscriptions: inscriptionFile.entries,
+  letters: letterFile.entries,
   secrets: secretFile.entries,
   handles: handleFile.entries,
   murks: murkFile.entries,
@@ -4163,10 +4167,15 @@ for (const t of LORE_TABLETS) {
   ok(regionIdSet.has(t.region), `[lore:${t.id}] region 是真實區域`, t.region);
   ok(typeof t.title === 'string' && t.title.length > 0 && t.title.length <= 12, `[lore:${t.id}] 有簡短標題`, t.title);
   ok(Array.isArray(t.lines) && t.lines.length >= 1 && t.lines.length <= 3, `[lore:${t.id}] 1–3 句`, String(t.lines && t.lines.length));
-  for (const line of t.lines || []) {
-    ok(typeof line === 'string' && line.length > 0 && line.length <= 60, `[lore:${t.id}] 每句長度合理`, line);
+  /*
+   * v1.2 · P07（回信碑）：`lines` 從此可以是純字串（＝原句，舊格式）
+   * 或 `{ text, hand }`（原句／後人補寫／被劃掉的）。這一段的規則一條都沒放寬 ——
+   * 只是改成對「攤平之後的那一行字」驗（`tabletLines()` 是唯一的攤平入口）。
+   */
+  for (const line of Props.tabletLines(t)) {
+    ok(typeof line.text === 'string' && line.text.length > 0 && line.text.length <= 60, `[lore:${t.id}] 每句長度合理`, line.text);
     // 護欄 2：石碑是風味內容，不得帶連結、不得冒充課程出處
-    ok(!/https?:\/\//.test(line), `[lore:${t.id}] 不放連結（教學與出處只在圖鑑/關卡）`, line);
+    ok(!/https?:\/\//.test(line.text), `[lore:${t.id}] 不放連結（教學與出處只在圖鑑/關卡）`, line.text);
   }
   ok(!('source' in t) && !('sources' in t) && !('teaches' in t), `[lore:${t.id}] 沒有 source / teaches 欄位（不是課程）`);
 
@@ -4928,6 +4937,369 @@ for (const kindMeta of Object.values(handleFile.kinds || {})) {
       ok(d >= min, `${a.layer}:${a.id} / ${b.layer}:${b.id} 的互動圈不重疊（≥ ${min}m）`, d.toFixed(2));
     }
   }
+}
+
+/* ================================================================== */
+/* v1.2 · P07：抄寫人的殘頁（letters.json）                             */
+/*                                                                    */
+/*   一半有教學（掛真實技巧＋可點的官方出處），一半純風味（不准有連結）。  */
+/*   擺位沿用 P06c 的那一套（互動圈不重疊、靠路、有得走），半徑 3.8。     */
+/* ================================================================== */
+console.log('\n▸ 抄寫人的殘頁（v1.2 · P07）');
+
+const Letters = await import('../src/world/letters.js');
+const letters = letterFile.entries;
+/** 12 片土地（curriculum.groups 只有既有五區 —— 殘頁鋪滿 12 區，所以用世界的區域表）。 */
+const regionIdSetP07 = new Set(World.REGION_SITES.map((s) => s.id));
+const anchorFileP07 = readJson('src/data/source-anchors.json');
+const anchorUrlSet = new Set((anchorFileP07.entries || []).map((e) => e.url));
+const LETTER_BANNED = ['送出評分', '按鈕', '面板', 'localStorage', 'bloom', '後製', 'Web Audio', 'API key', 'rubric', 'debug'];
+const CJK_P07 = /[一-鿿]/;
+
+/* --- ① 檔頭與數量（契約在 expected-counts） --- */
+eq(letterFile.version, 1, 'letters.json 有版本欄');
+eq(letterFile.authored, 'game', 'letters.json 檔頭明講是遊戲自撰的層');
+ok(
+  nonEmptyStr(letterFile.note) && /出處|官方/.test(letterFile.note),
+  'letters.json 檔頭說明「出處以官方文件為準」'
+);
+ok(letterFile.xp > 0 && letterFile.xp <= 10, '撿一頁殘頁的 XP 是「很少量」', `xp=${letterFile.xp}`);
+eq(letters.length, EXPECT.letters.value, `殘頁數＝契約（${EXPECT.letters.value} 頁）`);
+eq(new Set(letters.map((l) => l.id)).size, letters.length, '殘頁 id 沒有重複');
+for (const site of World.REGION_SITES) {
+  eq(
+    letters.filter((l) => l.region === site.id).length,
+    EXPECT.letters.perRegion,
+    `[${site.id}] 這片土地上有 ${EXPECT.letters.perRegion} 頁殘頁`
+  );
+}
+{
+  const teaching = letters.filter((l) => 'techniqueId' in l);
+  eq(teaching.length, EXPECT.letters.teaching, '有教學句的殘頁數＝契約（另一半是純風味）');
+}
+
+/* --- ② 每一頁的結構、教學正典、出處（護欄 2） --- */
+for (const l of letters) {
+  const tag = `[letter:${l.id}]`;
+  ok(/^letter-[a-z0-9-]+$/.test(l.id), `${tag} id 是 kebab-case 且帶 letter- 前綴`);
+  ok(regionIdSetP07.has(l.region), `${tag} region 是真實區域`, l.region);
+  ok(Letters.LETTER_PROPS.includes(l.prop), `${tag} 載體是已實作的種類`, l.prop);
+  ok(Array.isArray(l.at) && l.at.length === 2 && l.at.every(Number.isFinite), `${tag} at 是 [x, z]`);
+  ok(typeof l.title === 'string' && l.title.length >= 2 && l.title.length <= 14, `${tag} 有簡短標題`, l.title);
+  ok(Array.isArray(l.lines) && l.lines.length >= 2 && l.lines.length <= 4, `${tag} 2–4 句`, String(l.lines?.length));
+  for (const line of l.lines || []) {
+    ok(typeof line === 'string' && line.length > 0 && line.length <= 60, `${tag} 每句長度合理`, line);
+    ok(!/https?:\/\//.test(line), `${tag} 世界的話裡不放連結`, line);
+    ok(CJK_P07.test(line), `${tag} 世界的話是中文`, line);
+    ok(!ENGLISH(line), `${tag} 世界的話沒有整句英文`, ENGLISH(line) || '');
+    for (const b of LETTER_BANNED) ok(!line.includes(b), `${tag} 不出現系統術語「${b}」`);
+  }
+
+  const teaches = 'techniqueId' in l;
+  if (teaches) {
+    /*
+     * 有教學句的那一半：跟刻文小語同一個誠實模式 ——
+     * 掛得回一條真實技巧、顯示的說法取自既有中文層、後面接得出可點的官方出處。
+     */
+    const tech = insContent.technique(l.techniqueId);
+    ok(Boolean(tech), `${tag} techniqueId 是 curriculum 裡真實存在的技巧`, l.techniqueId);
+    const view = insContent.displayTechnique(l.techniqueId);
+    ok(Boolean(view && view.tip && view.tip.length > 8), `${tag} 有既有的中文說法可以顯示`);
+    ok(!('tip' in l) && !('what' in l), `${tag} 資料層不自帶教學句子（一律取自 curriculum）`);
+    ok(typeof l.source === 'string' && /^https:\/\//.test(l.source), `${tag} 教學句一定附得出 https 出處`, l.source);
+    eq(l.source, tech && tech.sources[0].url, `${tag} source 與那條技巧的官方網址逐字相同`);
+    ok(anchorUrlSet.has(l.source), `${tag} 這份官方文件在 source-anchors.json 裡（點過去會落在被引用的那一節）`, l.source);
+    ok(
+      typeof l.hint === 'string' && l.hint.length >= 8 && l.hint.length <= 46,
+      `${tag} 有一句可以照著做的白話提示`,
+      l.hint
+    );
+    ok(!/https?:\/\//.test(l.hint), `${tag} 提示裡不放連結`, l.hint);
+    ok(!ENGLISH(l.hint), `${tag} 提示是中文`, ENGLISH(l.hint) || '');
+    ok(l.hint !== (view && view.tip), `${tag} 提示不是直接複製官方說法`);
+    for (const b of LETTER_BANNED) ok(!l.hint.includes(b), `${tag} 提示不出現系統術語「${b}」`);
+  } else {
+    // 純風味的那一半：跟祕密與世界觀石碑同一層護欄（不教技巧、不放連結）
+    ok(
+      !('source' in l) && !('sources' in l) && !('teaches' in l) && !('hint' in l) && !('skillId' in l),
+      `${tag} 純風味：沒有 source / teaches / hint 欄位（不是課程）`
+    );
+  }
+}
+
+/* --- ③ 擺位：互動圈不重疊、靠著路、四周走得到（P06c 那一套的殘頁版） --- */
+{
+  /*
+   * 石座淨空的例外表（同 P01／P06c 的規矩：登記在測試裡、每一條寫理由、上限 3 條）。
+   * 殘頁的互動半徑 3.8 ＋ 石座 6.5 ＝ 10.3 是預設值；下面三片土地上
+   * **沒有任何一點**同時滿足 10.3 與其餘每一條規則（0.5 公尺格點全區掃過）。
+   */
+  const P07_MARKER_EXCEPTIONS = Object.freeze({
+    wards: { min: 9.5, why: '護欄崗半徑 27 站了 6 座石座＋地標＋祕密，全區無 ≥10.3 的落點' },
+    divergence: { min: 8.5, why: '分歧之廳半徑 29 站了 10 座石座，全區無 ≥10.3 的落點' },
+    sight: { min: 9.5, why: '觀象臺的路網貼著橋頭與坡緣，≥10.3 時兩頁只擠得進同一個小口袋' },
+  });
+  ok(Object.keys(P07_MARKER_EXCEPTIONS).length <= 3, '殘頁的石座淨空例外表最多 3 條（P07）');
+  for (const e of Object.values(P07_MARKER_EXCEPTIONS)) ok((e.why || '').length >= 10, '每一條例外都寫了理由', e.why);
+
+  const segDistP07 = (px, pz, ax, az, bx, bz) => {
+    const dx = bx - ax;
+    const dz = bz - az;
+    const l2 = dx * dx + dz * dz;
+    const t = l2 ? Math.max(0, Math.min(1, ((px - ax) * dx + (pz - az) * dz) / l2)) : 0;
+    return Math.hypot(px - (ax + dx * t), pz - (az + dz * t));
+  };
+  const laneDistP07 = (x, z) => Math.min(...World.BRIDGE_LANES.map((l) => segDistP07(x, z, l.ax, l.az, l.bx, l.bz)));
+  // 路網：與 world.js 蓋地面時同一個呼叫（殘頁要「掉在路邊」，不是掉在荒野）
+  const pathSegsP07 = buildPathNetwork(World.REGION_SITES, [...World.CORRIDORS, ...World.ANNEX_LINKS], challenges);
+  const pathDistP07 = (x, z) => Math.min(...pathSegsP07.map(([ax, az, bx, bz]) => segDistP07(x, z, ax, az, bx, bz)));
+  const nearestOf = (list, x, z) => Math.min(...list.map((p) => Math.hypot(x - p[0], z - p[1])));
+
+  for (const l of letters) {
+    const tag = `[letter:${l.id}]`;
+    const [x, z] = l.at;
+    const here = World.regionAt(x, z);
+    ok(here && here.id === l.region && !here.onBridge, `${tag} regionAt 說它在 ${l.region}（而且不在橋上）`, JSON.stringify(here));
+    ok(World.coverage(x, z) > 0.9, `${tag} 站得住（coverage > 0.9）`, World.coverage(x, z).toFixed(2));
+    ok(!testWorld.solidAt(x, z), `${tag} 這一點沒有別的東西擋著（殘頁自己不登記碰撞體）`);
+    let free = 0;
+    for (let a = 0; a < 16; a += 1) {
+      const ang = (a / 16) * Math.PI * 2;
+      if (!testWorld.solidAt(x + Math.cos(ang) * 2.4, z + Math.sin(ang) * 2.4)) free += 1;
+    }
+    ok(free >= 14, `${tag} 四周走得到（互動半徑 ${Letters.LETTER_RADIUS}）`, `${free}/16`);
+    // tell：它要在路邊被看見，不是藏在荒野（祕密才藏，殘頁是撿的）
+    ok(pathDistP07(x, z) <= 12, `${tag} 掉在路邊（離路網 ≤ 12m）`, pathDistP07(x, z).toFixed(1));
+    ok(laneDistP07(x, z) >= World.LANE_HALF + 4, `${tag} 離橋的主動線 ≥ 4m`, laneDistP07(x, z).toFixed(1));
+    const markerMin = (P07_MARKER_EXCEPTIONS[l.region] || {}).min || 10.3;
+    const toMarker = nearestOf(
+      challenges.map((c) => c.position),
+      x,
+      z
+    );
+    ok(toMarker >= markerMin, `${tag} 離石座 ≥ ${markerMin}m`, toMarker.toFixed(2));
+    const toMurkP07 = nearestOf(
+      murkFile.entries.map((m) => m.at),
+      x,
+      z
+    );
+    ok(toMurkP07 >= 9.3, `${tag} 離濁靈 ≥ 9.3m`, toMurkP07.toFixed(1));
+    const toTabletP07 = nearestOf(
+      LORE_TABLETS.map((t) => t.at),
+      x,
+      z
+    );
+    ok(toTabletP07 >= 8.4, `${tag} 離世界觀石碑 ≥ 8.4m`, toTabletP07.toFixed(1));
+    const toInsP07 = nearestOf(
+      inscriptions.map((i) => i.at),
+      x,
+      z
+    );
+    ok(toInsP07 >= 7.6, `${tag} 離刻文小語 ≥ 7.6m（兩層半徑相加）`, toInsP07.toFixed(1));
+    const toHandleP07 = nearestOf(
+      handles.map((h) => h.at),
+      x,
+      z
+    );
+    ok(toHandleP07 >= 7, `${tag} 離器物 ≥ 7m`, toHandleP07.toFixed(1));
+    const toReactP07 = nearestOf(
+      Reactive.REACTIVE_SPOTS.map((s) => s.at),
+      x,
+      z
+    );
+    ok(toReactP07 >= 8.2, `${tag} 離會回應的東西 ≥ 8.2m`, toReactP07.toFixed(1));
+    const toSecretP07 = nearestOf(
+      secrets.map((s) => s.at),
+      x,
+      z
+    );
+    ok(toSecretP07 >= 9.3, `${tag} 離藏起來的地方 ≥ 9.3m`, toSecretP07.toFixed(1));
+    const toLandmarkP07 = nearestOf(
+      LANDMARKS.map((m) => m.at),
+      x,
+      z
+    );
+    ok(toLandmarkP07 >= 14, `${tag} 沒有站進地標的留白圈`, toLandmarkP07.toFixed(1));
+    for (const a of World.ANNEX_LINKS) ok(Math.hypot(x - a.gate.x, z - a.gate.z) >= 8, `${tag} 離 ${a.region} 頸口 ≥ 8m`);
+    for (const c of World.CORRIDORS) ok(Math.hypot(x - c.gate.x, z - c.gate.z) >= 8, `${tag} 離 ${c.region} 閘門 ≥ 8m`);
+    ok(Math.hypot(x, z - 6) >= World.SPAWN_CLEAR + 2, `${tag} 不壓在出生點上`);
+    ok(
+      Math.hypot(x - prologueForWorld.shrine.at[0], z - prologueForWorld.shrine.at[1]) >= 9,
+      `${tag} 離起始祭壇 ≥ 9m`
+    );
+  }
+  for (let i = 0; i < letters.length; i += 1) {
+    for (let j = i + 1; j < letters.length; j += 1) {
+      const a = letters[i].at;
+      const b = letters[j].at;
+      ok(
+        Math.hypot(a[0] - b[0], a[1] - b[1]) >= 7.6,
+        `殘頁 ${letters[i].id} / ${letters[j].id} 的互動圈不重疊（≥ 7.6m）`
+      );
+    }
+  }
+}
+
+/* --- ④ 蓋出來的東西：0 光源、跨得過去、每一頁很小 --- */
+{
+  const kitP07 = kitFor('#8aa0b4');
+  let lights = 0;
+  let tris = 0;
+  let maxTop = 0;
+  let tallest = '';
+  const bb = new THREE.Box3();
+  for (const spec of letters) {
+    const built = Letters.buildLetter(spec, kitP07, World.terrainHeight);
+    eq(built.group.name, `letter:${spec.id}`, `[${spec.id}] 場景圖節點名是 letter:<id>`);
+    built.group.updateMatrixWorld(true);
+    let one = 0;
+    built.group.traverse((o) => {
+      if (o.isLight) lights += 1;
+      if (o.isMesh && o.geometry) {
+        const g = o.geometry;
+        const n = g.index ? g.index.count / 3 : (g.attributes.position ? g.attributes.position.count / 3 : 0);
+        one += n;
+      }
+    });
+    tris += one;
+    ok(one <= 400, `[${spec.id}] 一頁殘頁 ≤ 400 三角形`, String(Math.round(one)));
+    bb.setFromObject(built.group);
+    const top = bb.max.y - World.terrainHeight(spec.at[0], spec.at[1]);
+    if (top > maxTop) {
+      maxTop = top;
+      tallest = spec.id;
+    }
+  }
+  eq(lights, 0, '殘頁一盞燈都沒加（只用自發光材質）');
+  ok(tris < 8000, '24 頁殘頁的三角形總量 < 8k', `tris=${Math.round(tris)}`);
+  // 碰撞的第 2 條（露出地面 ≥ 0.9 公尺）不成立 → 稽核判定「跨得過去」，不需要碰撞體
+  ok(maxTop < 0.9, '每一頁都低於 0.9 公尺（跨得過去，不必登記碰撞體）', `max=${maxTop.toFixed(2)} (${tallest})`);
+  ok(Letters.LETTER_RADIUS === Inscriptions.INSCRIPTION_RADIUS, '殘頁的互動半徑與刻文小語同一階（3.8）');
+  ok(Letters.LETTER_RADIUS > Handles.HANDLE_RADIUS, '殘頁的互動半徑比器物大（搶 E 的順序在器物之上）');
+}
+
+/* --- ⑤ 世界接線：nearestLetter / markLetterFound ＋ main.js 的仲裁順序 --- */
+{
+  const near = testWorld.nearestLetter(new THREE.Vector3(letters[0].at[0] + 1, 0, letters[0].at[1] + 1));
+  ok(Boolean(near && near.letter.id === letters[0].id), '走到旁邊就找得到那一頁殘頁');
+  const far = testWorld.nearestLetter(new THREE.Vector3(letters[0].at[0] + 40, 0, letters[0].at[1] + 40));
+  eq(far, null, '離得遠就找不到（半徑之外不搶 E）');
+  eq(testWorld.markLetterFound(letters[0].id), true, 'markLetterFound 找得到那一頁');
+  eq(testWorld.markLetterFound('letter-does-not-exist'), false, 'markLetterFound 對不存在的 id 回 false');
+  eq(testWorld.letters.length, letters.length, '每一頁殘頁都蓋在世界裡');
+
+  const mainSrcP07 = readFileSync(resolve(root, 'src/main.js'), 'utf8');
+  const iIns = mainSrcP07.indexOf('nearInscription = !hitMarker');
+  const iLetter = mainSrcP07.indexOf('nearLetter =\n      !hitMarker');
+  const iHandle = mainSrcP07.indexOf('nearHandle = !blocked');
+  ok(iIns > 0 && iLetter > iIns && iHandle > iLetter, 'E 的仲裁順序：刻文小語 → 殘頁 → 器物');
+  ok(
+    /nearLetter =\s*\n?\s*!hitMarker && !hitMurk && !hitTablet && !hitInscription && hitLetter/.test(mainSrcP07),
+    '殘頁讓石座／濁靈／石碑／刻文小語先搶 E'
+  );
+  ok(/hitMarker \|\| hitMurk \|\| hitTablet \|\| hitInscription \|\| hitLetter/.test(mainSrcP07), '殘頁在範圍內時，閘門不再問');
+}
+
+/* --- ⑥ 存檔與進程：純加法、XP 只給一次、教學那一半才收技巧 --- */
+{
+  const base = SaveIO.defaultSave();
+  ok(Array.isArray(base.lettersFound) && base.lettersFound.length === 0, '新存檔有空的 lettersFound');
+  eq(SaveIO.normalize({}).lettersFound.length, 0, '舊存檔沒有 lettersFound → 補空陣列');
+  eq(SaveIO.normalize({ lettersFound: ['a', 'a', 7] }).lettersFound.join(','), 'a', 'lettersFound 去重、只留字串');
+
+  memory.clear();
+  const prog = createProgression({ catalog, challenges });
+  const teachingLetter = letters.find((l) => l.techniqueId);
+  const flavourLetter = letters.find((l) => !l.techniqueId);
+  eq(prog.letterCount(), 0, '一開始一頁都沒撿');
+  eq(prog.hasFoundLetter(teachingLetter.id), false, '還沒撿過');
+  const r1 = prog.readLetter(teachingLetter.id, teachingLetter.techniqueId, letterFile.xp);
+  eq(r1.alreadyFound, false, '第一次撿：alreadyFound = false');
+  eq(r1.xpGain, letterFile.xp, '第一次撿給 letters.json 的 XP');
+  eq(r1.newlyCollected.includes(teachingLetter.techniqueId), true, '有教學的殘頁把技巧寫進圖鑑');
+  const r2 = prog.readLetter(teachingLetter.id, teachingLetter.techniqueId, letterFile.xp);
+  eq(r2.alreadyFound, true, '再撿一次不算新的');
+  eq(r2.xpGain, 0, '再撿一次不給 XP（不能刷分）');
+  const r3 = prog.readLetter(flavourLetter.id, null, letterFile.xp);
+  eq(r3.newlyCollected.length, 0, '純風味的殘頁一條技巧都不收');
+  eq(prog.letterCount(), 2, '撿到的頁數會累加');
+  const gradesBefore = Object.keys(prog.state.bestGrades).length;
+  eq(gradesBefore, 0, '撿殘頁不寫 bestGrades（不佔 142 關的分子）');
+  const reload = createProgression({ catalog, challenges });
+  eq(reload.letterCount(), 2, '撿到的殘頁寫進存檔並讀得回來');
+  reload.resetAll();
+  eq(reload.letterCount(), 0, 'reset 之後殘頁清空');
+  memory.clear();
+}
+
+/* --- ⑦ firstPrompt：只寫一次、≤280 字、原文不被竄改 --- */
+{
+  eq(SaveIO.defaultSave().firstPrompt, '', '新存檔的 firstPrompt 是空字串');
+  eq(SaveIO.normalize({}).firstPrompt, '', '舊存檔沒有 firstPrompt → 補空字串');
+  eq(SaveIO.normalize({ firstPrompt: 42 }).firstPrompt, '', '壞值（非字串）落成空字串');
+  eq(SaveIO.normalize({ firstPrompt: '  說清楚一點  ' }).firstPrompt, '說清楚一點', '去頭尾空白');
+  eq(SaveIO.normalize({ firstPrompt: 'x'.repeat(400) }).firstPrompt.length, SaveIO.FIRST_PROMPT_MAX, '超過上限就截斷');
+  ok(SaveIO.FIRST_PROMPT_MAX === 280, 'firstPrompt 上限是 280 字', String(SaveIO.FIRST_PROMPT_MAX));
+
+  memory.clear();
+  const prog = createProgression({ catalog, challenges });
+  eq(prog.firstPrompt(), '', '一開始沒有第一句');
+  eq(prog.captureFirstPrompt('   ').captured, false, '空白不算一句話');
+  const first = prog.captureFirstPrompt('請把這張告示改寫成三點條列。');
+  eq(first.captured, true, '第一次送出就記下來了');
+  eq(prog.firstPrompt(), '請把這張告示改寫成三點條列。', '記的是玩家寫的原文');
+  const second = prog.captureFirstPrompt('這是第二句，不該蓋掉第一句。');
+  eq(second.captured, false, '第二次不再擷取（第一句就是第一句）');
+  eq(prog.firstPrompt(), '請把這張告示改寫成三點條列。', '第一句沒有被覆寫');
+  // 玩家寫的字一個位元組都不改（顯示的一方自己跳脫；P22 會用到）
+  const reload = createProgression({ catalog, challenges });
+  eq(reload.firstPrompt(), '請把這張告示改寫成三點條列。', '第一句寫進存檔並讀得回來');
+  reload.resetAll();
+  eq(reload.firstPrompt(), '', 'reset 之後第一句清空');
+  // 玩家寫的字一個位元組都不改（顯示的一方自己跳脫；P22 會用到）
+  memory.clear();
+  const raw = createProgression({ catalog, challenges });
+  raw.captureFirstPrompt('<b>不要</b>幫我猜');
+  eq(raw.firstPrompt(), '<b>不要</b>幫我猜', 'firstPrompt 原樣保留（不在存檔層改玩家的字）');
+  memory.clear();
+
+  // 擷取點：序章的練習台一定寫、主控台只有自由書寫才補寫
+  const practiceSrc = readFileSync(resolve(root, 'src/prompt/practice.js'), 'utf8');
+  ok(/progression\.captureFirstPrompt\?\.\(text\)/.test(practiceSrc), '序章練習台送出時擷取第一句');
+  const consoleSrcP07 = readFileSync(resolve(root, 'src/prompt/console.js'), 'utf8');
+  ok(
+    /if \(mode === 'free'\) progression\.captureFirstPrompt\?\.\(text\)/.test(consoleSrcP07),
+    '主控台只在自由書寫時補記第一句（石碑刻印不算「你寫的第一句」）'
+  );
+}
+
+/* --- ⑧ 回信碑：一塊碑上不只一種筆跡（新舊格式都要能渲染） --- */
+{
+  eq(Props.tabletLines({ lines: ['一句話'] })[0].hand, 'first', '舊格式（純字串）＝原句');
+  eq(Props.tabletLines({ lines: ['一句話'] })[0].text, '一句話', '舊格式的文字原樣保留');
+  eq(Props.tabletLines({ lines: [{ text: '補一句', hand: 'later' }] })[0].hand, 'later', '新格式讀得出筆跡');
+  eq(Props.tabletLines({ lines: [{ text: '壞筆跡', hand: 'nope' }] })[0].hand, 'first', '不認得的筆跡退回原句');
+  eq(Props.tabletLines({}).length, 0, '沒有 lines 也不會爆');
+
+  const threaded = LORE_TABLETS.filter((t) => (t.lines || []).some((l) => typeof l !== 'string'));
+  eq(threaded.length, 4, '12 塊碑裡有 4 塊是回信碑（多筆跡）');
+  for (const t of threaded) {
+    const hands = new Set(Props.tabletLines(t).map((l) => l.hand));
+    eq(hands.size, 3, `[lore:${t.id}] 三種筆跡都在（原句／後人補寫／被劃掉的）`, [...hands].join(','));
+  }
+  for (const t of LORE_TABLETS) {
+    for (const l of Props.tabletLines(t)) {
+      ok(Props.TABLET_HANDS.includes(l.hand), `[lore:${t.id}] 筆跡是已實作的三種之一`, l.hand);
+      ok(l.text.length > 0 && l.text.length <= 60, `[lore:${t.id}] 每句長度合理`, l.text);
+      ok(!/https?:\/\//.test(l.text), `[lore:${t.id}] 不放連結`, l.text);
+    }
+  }
+  const tabletUiSrc = readFileSync(resolve(root, 'src/ui/tablet.js'), 'utf8');
+  ok(/tabletLines\(tablet\)/.test(tabletUiSrc), '石碑面板走 tabletLines()（新舊格式同一條路）');
+  ok(/lore__line--\$\{esc\(l\.hand\)\}/.test(tabletUiSrc), '每一行標上自己的筆跡 class');
+  const cssSrcP07 = readFileSync(resolve(root, 'src/styles.css'), 'utf8');
+  ok(/\.lore__line--later\s*\{/.test(cssSrcP07), 'CSS 有「後人補寫」的字級');
+  ok(/\.lore__line--struck\s*\{[^}]*line-through/.test(cssSrcP07), '「被劃掉的」真的有刪除線');
 }
 
 /* --- 互動文法：只有 E、半徑排在刻文小語底下 -------------------------- */

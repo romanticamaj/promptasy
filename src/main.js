@@ -21,6 +21,7 @@ import ranksFile from './data/ranks.json';
 import inscriptionFile from './data/inscriptions.json';
 import secretFile from './data/secrets.json';
 import handleFile from './data/handles.json';
+import letterFile from './data/letters.json';
 import murkFile from './data/murks.json';
 import datedFile from './data/dated-notes.json';
 import sourceAnchorFile from './data/source-anchors.json';
@@ -52,6 +53,7 @@ import { createSettings } from './ui/settings.js';
 import { createIntro } from './ui/intro.js';
 import { createTablet } from './ui/tablet.js';
 import { createInscription } from './ui/inscription.js';
+import { createLetter } from './ui/letter.js';
 import { createGateAsk } from './ui/gate.js';
 import { createHandlePanel } from './ui/handle.js';
 import { HANDLE_VERBS, HANDLE_VERBS_USED, HANDLE_KINDS, CAPSTAN_TURNS } from './world/handles.js';
@@ -156,6 +158,8 @@ function boot() {
     quality,
     shrine: prologueContent.shrine,
     inscriptions: inscriptionFile.entries || [],
+    // v1.2 · P07：抄寫人的殘頁（走近按 E 撿起來讀）
+    letters: letterFile.entries || [],
     secrets: secretFile.entries || [],
     handles: handleFile.entries || [],
     // v1.2 · P01：濁靈（留在原地的東西；走近會轉頭，按 E 開主控台安撫）
@@ -458,6 +462,9 @@ function boot() {
     inscriptionTotal: (inscriptionFile.entries || []).length,
     secretTotal: (secretFile.entries || []).length,
     handleTotal: (handleFile.entries || []).length,
+    // v1.2 · P07：圖鑑第五列「抄寫人的殘頁 n/24」＋可展開的清單
+    letterTotal: (letterFile.entries || []).length,
+    letters: letterFile.entries || [],
     // v1.2 · P02：圖鑑第四列「濁言與正言 n/8」＋ 可展開的條目
     murkTotal: (murkFile.entries || []).length,
     murks: murkFile.entries || [],
@@ -556,6 +563,17 @@ function boot() {
     },
   });
   ui.appendChild(inscriptionPanel.root);
+
+  /* --- v1.2 · P07：抄寫人的殘頁（撿起來讀的小窗） --- */
+  const letterPanel = createLetter({
+    content,
+    sourceIntro: letterFile.sourceIntro || '',
+    onClose: () => {
+      audio.cue('close');
+      closePanel();
+    },
+  });
+  ui.appendChild(letterPanel.root);
 
   /* --- Phase 29：橋上的門會問你一句（條件沒到也能先行前往） --- */
   const gateAsk = createGateAsk({
@@ -725,7 +743,12 @@ function boot() {
     if (panel === codex) audio.cue('codex');
     // 器物的小窗與刻文小語自己會放那件東西的聲音（掀蓋 / 敲木牌 / 祭壇），
     // 不要再疊一聲通用的翻頁音
-    else if (panel !== promptConsole && panel !== handlePanel && panel !== inscriptionPanel) {
+    else if (
+      panel !== promptConsole &&
+      panel !== handlePanel &&
+      panel !== inscriptionPanel &&
+      panel !== letterPanel
+    ) {
       audio.cue('open');
     }
     panel.open(...args);
@@ -772,6 +795,7 @@ function boot() {
     finale.isOpen ||
     tabletPanel.isOpen ||
     inscriptionPanel.isOpen ||
+    letterPanel.isOpen ||
     gateAsk.isOpen ||
     handlePanel.isOpen ||
     practice.isOpen ||
@@ -812,6 +836,7 @@ function boot() {
   let nearGate = null;
   let nearTablet = null;
   let nearInscription = null;
+  let nearLetter = null;
   /** Phase 25：走近的器物（陶罐 / 火盆 / 響石 / 守望石 / 撈月池 / 指路石 / 絞盤 / 長凳）。 */
   let nearHandle = null;
   /** v1.2 · P01：走近的濁靈（第 ⑥ 層：石座 > 濁靈 > 石碑 > 刻文 > 器物 > 閘門）。 */
@@ -892,6 +917,32 @@ function boot() {
       checkPayoffs();
     }
     openPanel(inscriptionPanel, spec, {
+      firstRead: !outcome.alreadyFound,
+      xpGain: outcome.xpGain,
+      newlyCollected: outcome.newlyCollected,
+    });
+  }
+
+  /**
+   * 撿起一頁殘頁（v1.2 · P07）。
+   *
+   * 第一次撿給少量 XP；有教學的那幾頁順便把技巧寫進圖鑑（純風味的什麼都不收）。
+   */
+  function readLetter(lt) {
+    const spec = lt.spec;
+    const outcome = progression.readLetter(spec.id, spec.techniqueId || null, letterFile.xp ?? 6);
+    if (!outcome.alreadyFound) {
+      world.markLetterFound(spec.id);
+      applyWorldGain(outcome);
+      checkPayoffs();
+      const total = (letterFile.entries || []).length;
+      const found = progression.letterCount();
+      if (found >= total) {
+        hud.toast(`✦ 抄寫人留下的每一頁，你都收齊了（${found} / ${total}）`, 'good');
+        progression.setFlag('allLettersFound', true);
+      }
+    }
+    openPanel(letterPanel, spec, {
       firstRead: !outcome.alreadyFound,
       xpGain: outcome.xpGain,
       newlyCollected: outcome.newlyCollected,
@@ -1066,6 +1117,7 @@ function boot() {
       nearMarker = null;
       nearTablet = null;
       nearInscription = null;
+      nearLetter = null;
       nearHandle = null;
       nearMurk = null;
       nearGate = null;
@@ -1075,6 +1127,8 @@ function boot() {
     // 石碑與刻文一定要問（它們自己會維護「走近發光」的狀態），但石座優先搶 E 鍵
     const hitTablet = world.nearestTablet(player.position);
     const hitInscription = world.nearestInscription(player.position);
+    // v1.2 · P07：殘頁（半徑 3.8）—— 排在刻文小語之後、器物之前
+    const hitLetter = world.nearestLetter(player.position);
     /*
      * 器物擺得比其他層密，兩件同時進入 3.2 公尺是會發生的事。
      * 純比距離的話，「站在中間」就由零點幾公尺的差距決定按到哪一個 ——
@@ -1085,12 +1139,14 @@ function boot() {
     const hitHandle = world.nearestHandle(player.position, undefined, camForward);
     // v1.2 · P01：濁靈（半徑 5.5）—— 石座讓它、它讓石碑以下的每一層
     const hitMurk = world.nearestMurk(player.position, undefined, camForward);
-    const blocked = Boolean(hitMarker || hitMurk || hitTablet || hitInscription);
+    const blocked = Boolean(hitMarker || hitMurk || hitTablet || hitInscription || hitLetter);
     const hitGate = blocked || hitHandle ? null : world.nearestGate(player.position);
     nearMarker = hitMarker ? hitMarker.marker : null;
     nearMurk = !hitMarker && hitMurk ? hitMurk.murk : null;
     nearTablet = !hitMarker && !hitMurk && hitTablet ? hitTablet.tablet : null;
     nearInscription = !hitMarker && !hitMurk && !hitTablet && hitInscription ? hitInscription.inscription : null;
+    nearLetter =
+      !hitMarker && !hitMurk && !hitTablet && !hitInscription && hitLetter ? hitLetter.letter : null;
     nearHandle = !blocked && hitHandle ? hitHandle.handle : null;
     nearGate = hitGate ? hitGate.gate : null;
 
@@ -1135,6 +1191,13 @@ function boot() {
           seen ? '讀過的刻文' : '有人在這裡刻了一句話'
         }</span><kbd>E</kbd> 看一眼`
       );
+    } else if (nearLetter) {
+      const seen = progression.hasFoundLetter(nearLetter.id);
+      hud.setInteract(
+        `<b>${esc(nearLetter.spec.title)}</b><span>${
+          seen ? '收過的殘頁' : '抄寫人留下的一頁'
+        }</span><kbd>E</kbd> 撿起來`
+      );
     } else if (nearHandle) {
       const kindMeta = (handleFile.kinds || {})[nearHandle.kind] || {};
       const done = progression.hasUsedHandle(nearHandle.spec.id);
@@ -1178,6 +1241,7 @@ function boot() {
       else if (finale.isOpen) finale.close();
       else if (tabletPanel.isOpen) tabletPanel.close();
       else if (inscriptionPanel.isOpen) inscriptionPanel.close();
+      else if (letterPanel.isOpen) letterPanel.close();
       else if (gateAsk.isOpen) gateAsk.close();
       else if (handlePanel.isOpen) handlePanel.close();
       return;
@@ -1219,6 +1283,11 @@ function boot() {
       // 刻文小語用祭壇的那一聲（和起始祭壇同一個聲音世界），不是翻頁
       audio.cue('shrine');
       readInscription(nearInscription);
+    } else if (e.code === 'KeyE' && nearLetter) {
+      e.preventDefault();
+      // 撿起一頁紙：翻頁的那一聲（和刻文小語的祭壇聲分得開）
+      audio.cue('open');
+      readLetter(nearLetter);
     } else if (e.code === 'KeyE' && nearHandle) {
       e.preventDefault();
       useHandle(nearHandle);
@@ -1297,6 +1366,9 @@ function boot() {
     tabletPanel,
     inscriptionPanel,
     inscriptionData: inscriptionFile,
+    /** v1.2 · P07：殘頁的小窗與資料（測試 / 除錯用）。 */
+    letterPanel,
+    letterData: letterFile,
     gateAsk,
     /** Phase 29：走到門前問一次（測試 / 除錯用）。 */
     askGate: (regionId) => askGate(world.gates.find((g) => g.id === regionId)),

@@ -35,6 +35,9 @@ export function createCodex({
   /** v1.2 · P02：濁靈（murks.json entries）—— 第四列「濁言與正言」與可展開的條目。 */
   murkTotal = 0,
   murks = [],
+  /** v1.2 · P07：抄寫人的殘頁（letters.json entries）—— 第五列與可展開的條目。 */
+  letterTotal = 0,
+  letters = [],
 }) {
   const overlay = createOverlay({
     id: 'codex',
@@ -77,12 +80,13 @@ export function createCodex({
    * 刻意放在徽章下面、字級很小 —— 它是「順手撿到的」，不是主線進度。
    */
   function worldFinds() {
-    if (!inscriptionTotal && !secretTotal && !handleTotal && !murkTotal) return '';
+    if (!inscriptionTotal && !secretTotal && !handleTotal && !murkTotal && !letterTotal) return '';
     const ins = progression.inscriptionCount ? progression.inscriptionCount() : 0;
     const sec = progression.secretCount ? progression.secretCount() : 0;
     const hnd = progression.handleCount ? progression.handleCount() : 0;
     // 只數 murks.json 裡真的有的那幾隻（存檔裡的孤兒 id 不算）
     const mrk = progression.murkCount ? progression.murkCount(murks.map((m) => m.id)) : 0;
+    const ltr = progression.letterCount ? progression.letterCount() : 0;
     const blessed = Boolean(progression.state.flags && progression.state.flags.echoBlessing);
     const rows = [];
     if (inscriptionTotal) {
@@ -111,10 +115,18 @@ export function createCodex({
         }</i></li>`
       );
     }
+    if (letterTotal) {
+      rows.push(
+        `<li><b>抄寫人的殘頁</b><span>${ltr} / ${letterTotal}</span><i>${
+          ltr >= letterTotal ? '他們留下的每一頁你都收齊了' : '掉在路邊的工單、信與筆記，走近按 E'
+        }</i></li>`
+      );
+    }
     return `<div class="finds">
       <div class="meta-rule"><h4><span class="zh">走出來的收集</span></h4></div>
       <ul class="finds__list">${rows.join('')}</ul>
       ${murkBook()}
+      ${letterBook()}
       ${blessed ? '<p class="badges__hidden">✦ 回聲的祝福 —— 你找到了那座小祠。</p>' : ''}
     </div>`;
   }
@@ -160,6 +172,55 @@ export function createCodex({
       .join('');
     return `<div class="murkbook">
       <ul class="murkbook__list">${items}</ul>
+    </div>`;
+  }
+
+  /**
+   * v1.2 · P07：抄寫人的殘頁 —— 第五列下面可展開的清單。
+   * 撿到的：那幾行字（＋有教學的那幾頁附技巧名與官方出處，護欄 2）。
+   * 還沒撿到的：只留一行「還沒找到」—— 不劇透（連標題都不給）。
+   */
+  function letterBook() {
+    if (!letterTotal || !Array.isArray(letters) || !letters.length) return '';
+    const items = letters
+      .map((l, i) => {
+        const found = progression.hasFoundLetter ? progression.hasFoundLetter(l.id) : false;
+        if (!found) {
+          return `<li class="letterbook__item letterbook__item--quiet" data-letter="${esc(l.id)}">
+            <span class="letterbook__title">殘頁 ${i + 1}</span>
+            <span class="letterbook__state">還沒找到</span>
+          </li>`;
+        }
+        const view = l.techniqueId && content.displayTechnique ? content.displayTechnique(l.techniqueId) : null;
+        const src = l.techniqueId && content.sourceFor ? content.sourceFor(l.techniqueId) : null;
+        return `<li class="letterbook__item" data-letter="${esc(l.id)}">
+          <details>
+            <summary>
+              <span class="letterbook__title">${esc(l.title)}</span>
+              <span class="letterbook__kind">${view ? '有一句教你的話' : '只是一頁字'}</span>
+            </summary>
+            <div class="letterbook__body">
+              ${(l.lines || []).map((line) => `<p class="letterbook__line">${esc(line)}</p>`).join('')}
+              ${
+                view
+                  ? `<p class="letterbook__skill">這一頁引的是：<b>${esc(view.title)}</b></p>${
+                      l.hint ? `<p class="letterbook__how">${esc(l.hint)}</p>` : ''
+                    }${
+                      src
+                        ? `<a class="src" href="${esc(src.url)}" target="_blank" rel="noopener">${esc(
+                            src.name
+                          )} · ${SOURCE_LABEL} ↗</a>`
+                        : ''
+                    }`
+                  : ''
+              }
+            </div>
+          </details>
+        </li>`;
+      })
+      .join('');
+    return `<div class="letterbook">
+      <ul class="letterbook__list">${items}</ul>
     </div>`;
   }
 
