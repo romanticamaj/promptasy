@@ -30,7 +30,9 @@ import './styles.css';
 
 import { createEngine } from './engine/engine.js';
 import { hourOf, hourFactor, composeMood, createMoodMemo } from './engine/hours.js';
-import { createWorld, atmosphereFor } from './world/world.js';
+import { createWorld } from './world/world.js';
+import { loadColorScript, colorScriptFor } from './world/color-script.js';
+import colorScriptFile from './data/color-script.json';
 import { createPlayer } from './player/player.js';
 import { createContent } from './challenges/content.js';
 import { createCatalog } from './challenges/catalog.js';
@@ -133,6 +135,11 @@ function boot() {
 
   const engine = createEngine({ container: stage, quality });
   /*
+   * v1.2 · P06：區域色彩腳本（純視覺資料層）。開機讀一次、驗一次；驗不過的區退回 foundations，遊戲照跑。
+   * 建構世界前就要載好 —— 補光顏色／道具補色／螢火色是建構時就套的（不平滑）。
+   */
+  loadColorScript(colorScriptFile);
+  /*
    * Phase 22：世界會回應你走過去（風鈴 / 音石 / 光菇 / 水紋 / 小獸 / 螢火）。
    * 節流與 hysteresis 都在 reactive.js 裡；這裡只負責「要放什麼聲音」。
    * reduce-motion 時關掉的是「動」，不是「回應」——光與聲音照舊。
@@ -155,6 +162,8 @@ function boot() {
     murks: murkFile.entries || [],
     // v1.2 · P03：開機依存檔還原殼數／清燈（不播動畫）
     murkStateOf: (id) => progression.murkState(id),
+    // v1.2 · P06：色彩腳本（key／rim／particle 建構時套；sky 走 applyMood 的單一入口）
+    colorScript: colorScriptFor,
     reducedMotion,
     onReact: (evt) => audio.cue(evt.sound, { baseScale: evt.baseScale }),
     onSecret: (id) => findSecret(id),
@@ -179,7 +188,8 @@ function boot() {
 
   /* --- 氛圍的單一入口（v1.2 · P05）：區域色盤 × 一夜的時辰 → 引擎的 setMood ---
    * 進區、進程變化、forceHour 都走這一個函式；引擎那邊只有一份 target 在管霧色／月亮／星星／極光。
-   * 時辰只乘因子、不換區域色系；永遠是夜（終態＝星最亮之夜，沒有黎明）。 */
+   * 時辰只乘因子、不換區域色系；永遠是夜（終態＝星最亮之夜，沒有黎明）。
+   * v1.2 · P06：第一個參數是色彩腳本 `colorScriptFor(region)`（＝ atmosphereFor 同形 ＋ sky:{top,low}）。 */
   let moodRegion = 'foundations';
   const hourNow = () => {
     const h = hourOf({
@@ -199,7 +209,7 @@ function boot() {
     moodRegion = regionId;
     const hourIndex = hourNow().index;
     if (!moodApplied.changed(moodRegion, hourIndex, force)) return false;
-    engine.setMood(composeMood(atmosphereFor(moodRegion), hourFactor(hourIndex)));
+    engine.setMood(composeMood(colorScriptFor(moodRegion), hourFactor(hourIndex)));
     return true;
   };
   engine.onHourForced(() => applyMood(moodRegion, { force: true }));
@@ -463,6 +473,9 @@ function boot() {
       hud.refresh();
       // v1.2 · P03：世界端的濁靈跟著存檔一起歸零（不重載也不會演出失聯）
       world.murks?.reset?.();
+      // v1.2 · P06：閘門標籤／三態與石座三態也跟著歸零（先行前往過的門回到琥珀、它的石座回到暗）
+      world.refreshGates?.();
+      world.refreshMarkerStates?.();
       hud.toast('進度已重置 —— 重新整理頁面即可從頭開始', 'warn');
     },
     onReplayPrologue: () => {
@@ -1026,6 +1039,8 @@ function boot() {
       if (entered) {
         applyMood(here.id);
         audio.setRegion(here.id);
+        // v1.2 · P06：進區時刷新閘門／石座三態（低頻事件；只刷三態、不重做標籤）
+        world.refreshVisualStates();
         if (!here.onBridge) {
           engine.pulse(0.55);
           const g = content.group(here.id);
@@ -1307,6 +1322,8 @@ function boot() {
     hour: () => hourNow(),
     /** v1.2 · P05：重組一次氛圍（區域色盤 × 時辰；`{force:true}` 跳過同值略過）—— 測試用。 */
     applyMood: (opts) => applyMood(moodRegion, opts),
+    /** v1.2 · P06：區域色彩腳本（測試用：sky/key/rim/particle 與 atmosphere 同形）。 */
+    colorScriptFor,
   };
   /**
    * 改名前的舊名字（PromptArcade）。留成別名 —— 外面若有人寫了書籤小工具

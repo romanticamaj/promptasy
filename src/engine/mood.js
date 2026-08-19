@@ -21,6 +21,22 @@ export const SKY_HOUR0 = Object.freeze({
   auroraHue: 0,
 });
 
+/**
+ * v1.2 · P06：天空穹頂的全域基準色（＝ engine.js 的 PALETTE.sky／skyLow）。
+ * 色彩腳本給的 `sky.top/low` 是**目標色**；穹頂 shader 用「目標 ÷ 基準」當乘數套在原本的
+ * SKY_STOPS 漸層貼圖上 —— foundations（top/low ＝ 基準）乘數逐位元 ＝ 1，畫面與 P06 之前完全相同。
+ */
+export const SKY_BASE_TOP = 0x101a28;
+export const SKY_BASE_LOW = 0x33465c;
+
+/** 目標色 ÷ 基準色 → 每通道乘數，寫進 out（不配置）。基準為 0 的通道乘數 1。 */
+export function skyMultiplier(target, base, out) {
+  out.r = base.r > 0 ? target.r / base.r : 1;
+  out.g = base.g > 0 ? target.g / base.g : 1;
+  out.b = base.b > 0 ? target.b / base.b : 1;
+  return out;
+}
+
 /** 兩段線性：[0,knot]→[lo,mid]、[knot,1]→[mid,hi]；t 落在 knot 時**逐位元**回 mid。 */
 export function knotLerp(t, knot, lo, mid, hi) {
   const x = Number.isFinite(t) ? Math.min(1, Math.max(0, t)) : knot;
@@ -105,10 +121,12 @@ export const AURORA_TINT_PLUS = 0xd2b8ff; // 偏紫（星最亮之夜）
 export const AURORA_TINT_MINUS = 0xb8ffc8; // 偏綠
 
 /** 建立一份氛圍狀態（target / now ＋ set / step）。 */
-export function createMoodState({ fog, tint, hemi, fogNear, fogFar, exposure } = {}) {
+export function createMoodState({ fog, tint, hemi, fogNear, fogFar, exposure, skyTop, skyLow } = {}) {
   const target = {
     fog: new THREE.Color(fog ?? 0x1e2c40),
     tint: new THREE.Color(tint ?? 0xbcd6e6),
+    skyTop: new THREE.Color(skyTop ?? SKY_BASE_TOP),
+    skyLow: new THREE.Color(skyLow ?? SKY_BASE_LOW),
     hemi: hemi ?? 0.52,
     fogNear: fogNear ?? 62,
     fogFar: fogFar ?? 285,
@@ -122,6 +140,8 @@ export function createMoodState({ fog, tint, hemi, fogNear, fogFar, exposure } =
   const now = {
     fog: target.fog.clone(),
     tint: target.tint.clone(),
+    skyTop: target.skyTop.clone(),
+    skyLow: target.skyLow.clone(),
     hemi: target.hemi,
     fogNear: target.fogNear,
     fogFar: target.fogFar,
@@ -133,6 +153,7 @@ export function createMoodState({ fog, tint, hemi, fogNear, fogFar, exposure } =
     auroraHue: target.auroraHue,
   };
   const SKY_KEYS = ['moonAlt', 'moonPhase', 'starDensity', 'auroraIntensity', 'auroraHue'];
+  const SKY_COLOR_KEYS = ['skyTop', 'skyLow'];
   const num = (v) => (Number.isFinite(v) ? v : null);
   const unit = (v) => (Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : null);
 
@@ -141,11 +162,16 @@ export function createMoodState({ fog, tint, hemi, fogNear, fogFar, exposure } =
     now,
     /**
      * @param {{fog?:*, tint?:*, hemi?:number, fogNear?:number, fogFar?:number, exposure?:number,
-     *   moon?:{alt?:number, phase?:number}, stars?:{density?:number}, aurora?:{intensity?:number, hue?:number}}} mood
+     *   moon?:{alt?:number, phase?:number}, stars?:{density?:number}, aurora?:{intensity?:number, hue?:number},
+     *   sky?:{top?:*, low?:*}}} mood
      */
     set(mood = {}) {
       if (mood.fog != null) target.fog.set(mood.fog);
       if (mood.tint != null) target.tint.set(mood.tint);
+      if (mood.sky) {
+        if (mood.sky.top != null) target.skyTop.set(mood.sky.top);
+        if (mood.sky.low != null) target.skyLow.set(mood.sky.low);
+      }
       if (num(mood.hemi) != null) target.hemi = mood.hemi;
       if (num(mood.fogNear) != null) target.fogNear = mood.fogNear;
       if (num(mood.fogFar) != null) target.fogFar = mood.fogFar;
@@ -178,6 +204,17 @@ export function createMoodState({ fog, tint, hemi, fogNear, fogFar, exposure } =
       now.fogFar += (target.fogFar - now.fogFar) * k;
       now.exposure += (target.exposure - now.exposure) * k;
       let skyMoving = false;
+      // 穹頂兩色（P06）：不相等就 lerp；靠得夠近就貼上去（避免永遠差 1e-17 而每幀重寫 uniform）
+      for (let i = 0; i < SKY_COLOR_KEYS.length; i += 1) {
+        const key = SKY_COLOR_KEYS[i];
+        const a = now[key];
+        const b = target[key];
+        if (a.r !== b.r || a.g !== b.g || a.b !== b.b) {
+          skyMoving = true;
+          if (Math.abs(a.r - b.r) < 1e-4 && Math.abs(a.g - b.g) < 1e-4 && Math.abs(a.b - b.b) < 1e-4) a.copy(b);
+          else a.lerp(b, k);
+        }
+      }
       for (let i = 0; i < SKY_KEYS.length; i += 1) {
         const key = SKY_KEYS[i];
         const d = target[key] - now[key];
@@ -202,6 +239,7 @@ export function createMoodState({ fog, tint, hemi, fogNear, fogFar, exposure } =
           moon: { alt: target.moonAlt, phase: target.moonPhase },
           stars: { density: target.starDensity },
           aurora: { intensity: target.auroraIntensity, hue: target.auroraHue },
+          sky: { top: target.skyTop.getHex(), low: target.skyLow.getHex() },
         },
         now: {
           fog: now.fog.getHex(),
@@ -213,6 +251,7 @@ export function createMoodState({ fog, tint, hemi, fogNear, fogFar, exposure } =
           moon: { alt: now.moonAlt, phase: now.moonPhase },
           stars: { density: now.starDensity },
           aurora: { intensity: now.auroraIntensity, hue: now.auroraHue },
+          sky: { top: now.skyTop.getHex(), low: now.skyLow.getHex() },
         },
       };
     },

@@ -112,6 +112,7 @@ export function scaleColor(color, mul) {
  *   exposure 乘
  *   fogNear / fogFar 原樣
  *   moon / stars / aurora 直接帶（因子表的值）
+ *   sky:{top,low} 原樣帶（P06 色彩腳本；沒給就沒這個鍵）
  *
  * @param {{fog:*, tint:*, hemi:number, fogNear:number, fogFar:number, exposure:number}} atmo `atmosphereFor(regionId)`（P06 的色彩腳本會從這裡進來）
  * @param {ReturnType<typeof hourFactor>} factor
@@ -131,6 +132,12 @@ export function composeMood(atmo, factor) {
   if (Number.isFinite(a.fogNear)) out.fogNear = a.fogNear;
   if (Number.isFinite(a.fogFar)) out.fogFar = a.fogFar;
   if (Number.isFinite(a.exposure)) out.exposure = a.exposure * f.exposureMul;
+  // v1.2 · P06：色彩腳本的穹頂兩色原樣帶（時辰不換色；亮度的時辰感由霧／hemi／曝光與星月表現）
+  if (a.sky && (a.sky.top != null || a.sky.low != null)) {
+    out.sky = {};
+    if (a.sky.top != null) out.sky.top = a.sky.top;
+    if (a.sky.low != null) out.sky.low = a.sky.low;
+  }
   return out;
 }
 

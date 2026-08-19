@@ -1,0 +1,125 @@
+{
+  "version": 1,
+  "authored": "game",
+  "note": "v1.2 · P06 區域色彩腳本（純視覺、無教學內容、無出處）。每區一組：skyTop／skyLow 是天空穹頂上緣／地平線的目標色（相對全域 PALETTE.sky #101a28／skyLow #33465c 只做色相 ±≤12°、亮度 ±≤0.08 的微偏，永遠是夜）；fog／tint **逐值等於** world.js 的 REGION_ATMOSPHERE（那裡才是真身，這裡只是可讀的複本，rubric 逐值比對）；key ＝ 每區那一盞主色補光的顏色（預設區主色）；rim ＝ 道具自發光補色（預設 kitFor().light）；particle ＝ 螢火色（預設區主色往 #dff0fb 靠 0.45）。時辰因子只乘不換色（P05）。改這裡不必改程式；由 src/world/color-script.js 讀＋驗，WORLD.md §2.2 的色卡表用 scripts/color-script-table.mjs 產生。",
+  "base": {
+    "skyTop": "#101a28",
+    "skyLow": "#33465c",
+    "tolerance": {
+      "hueDeg": 12,
+      "lightness": 0.08,
+      "saturation": 0.2,
+      "maxLightness": 0.35
+    }
+  },
+  "regions": {
+    "foundations": {
+      "skyTop": "#101a28",
+      "skyLow": "#33465c",
+      "fog": "#1e2c40",
+      "tint": "#bcd6e6",
+      "key": "#a9c9d8",
+      "rim": "#b6c3ca",
+      "particle": "#c4dce9"
+    },
+    "reasoning": {
+      "skyTop": "#11172c",
+      "skyLow": "#334061",
+      "fog": "#232a48",
+      "tint": "#c6c2ee",
+      "key": "#b7b0d8",
+      "rim": "#bcb9ca",
+      "particle": "#cad0e9"
+    },
+    "grounding": {
+      "skyTop": "#10141e",
+      "skyLow": "#373f4d",
+      "fog": "#2a2b33",
+      "tint": "#e4d3b8",
+      "key": "#9eccbe",
+      "rim": "#b2c4be",
+      "particle": "#bfdddc"
+    },
+    "orchestration": {
+      "skyTop": "#0f1b24",
+      "skyLow": "#314a59",
+      "fog": "#1a2b2e",
+      "tint": "#a7d2cd",
+      "key": "#dcc79c",
+      "rim": "#ccc2b1",
+      "particle": "#dddbce"
+    },
+    "config": {
+      "skyTop": "#141c33",
+      "skyLow": "#384566",
+      "fog": "#33253a",
+      "tint": "#f0c8c0",
+      "key": "#adb6c6",
+      "rim": "#b8bbc2",
+      "particle": "#c6d3e0"
+    },
+    "forms": {
+      "skyTop": "#151e29",
+      "skyLow": "#3c4b58",
+      "fog": "#263139",
+      "tint": "#d6dcc4",
+      "key": "#c2c79f",
+      "rim": "#c0c2b2",
+      "particle": "#d0dbcf"
+    },
+    "toolcraft": {
+      "skyTop": "#151b2d",
+      "skyLow": "#3b465e",
+      "fog": "#35262a",
+      "tint": "#e8c3ac",
+      "key": "#c8977c",
+      "rim": "#c3b0a7",
+      "particle": "#d3c6c3"
+    },
+    "refinery": {
+      "skyTop": "#17202b",
+      "skyLow": "#404d59",
+      "fog": "#24303a",
+      "tint": "#cdd8dc",
+      "key": "#9fb8c4",
+      "rim": "#b2bcc1",
+      "particle": "#bfd4df"
+    },
+    "frugality": {
+      "skyTop": "#16212d",
+      "skyLow": "#3d4f5c",
+      "fog": "#1d2a33",
+      "tint": "#c9d4d2",
+      "key": "#c3ccc7",
+      "rim": "#c1c4c2",
+      "particle": "#d0dde0"
+    },
+    "sight": {
+      "skyTop": "#0c1527",
+      "skyLow": "#2a3e60",
+      "fog": "#1c2440",
+      "tint": "#c0cdf2",
+      "key": "#b0c0e6",
+      "rim": "#b9bfd0",
+      "particle": "#c7d7f0"
+    },
+    "divergence": {
+      "skyTop": "#19212e",
+      "skyLow": "#444d5b",
+      "fog": "#2b2f3c",
+      "tint": "#d8d2e4",
+      "key": "#d8b8c6",
+      "rim": "#cabcc2",
+      "particle": "#dbd4e0"
+    },
+    "wards": {
+      "skyTop": "#0d1821",
+      "skyLow": "#2f4655",
+      "fog": "#1b2733",
+      "tint": "#b4c6dc",
+      "key": "#8f9fb8",
+      "rim": "#adb2bc",
+      "particle": "#b9c9da"
+    }
+  }
+}

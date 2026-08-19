@@ -6207,7 +6207,8 @@ console.log('▸ 一夜的時辰（v1.2 · P05）');
     ok(!/document\.|window\./.test(hoursSrc), 'hours.js 不碰 DOM');
     const mainSrc = readFileSync(resolve(root, 'src/main.js'), 'utf8');
     eq((mainSrc.match(/engine\.setMood\(/g) || []).length, 1, 'main.js 只有一個 engine.setMood 呼叫點（applyMood）');
-    ok(/engine\.setMood\(composeMood\(atmosphereFor\(/.test(mainSrc) && /hourFactor\(/.test(mainSrc), 'applyMood ＝ setMood(composeMood(atmosphereFor(region), hourFactor(hour)))');
+    // P06：第一個參數換成色彩腳本 colorScriptFor(region)（同形 ＋ sky）—— 入口不變
+    ok(/engine\.setMood\(composeMood\(colorScriptFor\(/.test(mainSrc) && /hourFactor\(/.test(mainSrc), 'applyMood ＝ setMood(composeMood(colorScriptFor(region), hourFactor(hour)))（P06 起）');
     ok(/onChange:[\s\S]{0,120}?applyMood\(/.test(mainSrc), 'progression.onChange 走 applyMood');
     ok(/engine\.onHourForced\([\s\S]{0,120}?applyMood\(/.test(mainSrc), 'forceHour 走 applyMood');
     ok(/applyMood\(here\.id\)/.test(mainSrc), '進區走 applyMood');
@@ -6223,6 +6224,734 @@ console.log('▸ 一夜的時辰（v1.2 · P05）');
     ok(/沒有黎明|不出現黎明/.test(s22), 'WORLD.md §2.2 明寫沒有黎明');
     ok(/setMood/.test(s22), 'WORLD.md §2.2 寫明 setMood 是唯一入口');
     ok(existsSync(resolve(root, 'scripts/shots-hours.mjs')), 'scripts/shots-hours.mjs 存在');
+  }
+}
+
+/* ================================================================== */
+/* v1.2 · P06：區域色彩腳本 ＋ 軟門檻三態 ＋ 節奏稽核                     */
+/*   · color-script.json：12 區齊、authored game、#rrggbb、fog/tint 逐值＝REGION_ATMOSPHERE、天空偏移在容差內、全是夜 */
+/*   · colorScriptFor：同形 ＋ sky；氣氛永遠是自己那一區、腳本鍵逐鍵退回；composeMood 帶 sky；mood 狀態接受 sky 並平滑 */
+/*   · 三態純函式表；世界建構套 key/rim/particle；refreshGates 三態；0 新光源；靜態掃描每幀迴圈 */
+/*   · pacing-audit：可跑、回 12 區＋直方圖鍵；印每區死區數當軟警告                */
+/* ================================================================== */
+console.log('\n▸ 區域色彩腳本 ＋ 三態 ＋ 節奏稽核（v1.2 · P06）');
+{
+  const CS = await import('../src/world/color-script.js');
+  const Mood = await import('../src/engine/mood.js');
+  const Hours = await import('../src/engine/hours.js');
+  const Engine = await import('../src/engine/engine.js');
+  const csJson = readJson('src/data/color-script.json');
+  const { hex6, hueDelta, bodyOf } = CS;
+  eq(typeof hex6, 'function', 'color-script.js 匯出 hex6');
+  eq(typeof hueDelta, 'function', 'color-script.js 匯出 hueDelta（有號色相偏移）');
+  eq(typeof bodyOf, 'function', 'color-script.js 匯出 bodyOf（靜態掃描共用）');
+  eq(hex6(0x0a0b0c), '#0a0b0c', 'hex6 補零');
+  eq(hueDelta('#101a28', '#101a28'), 0, 'hueDelta 同色 0');
+  ok(Math.abs(hueDelta('#11172c', '#101a28') - 12) < 0.5, 'hueDelta reasoning skyTop 相對基準 ≈ +12°', String(hueDelta('#11172c', '#101a28')));
+  ok(hueDelta('#0f1b24', '#101a28') < 0, 'hueDelta 帶號（orchestration 往負偏）');
+  eq(bodyOf('x foo(a, b) { if (a) { b(); } } y', 'foo'), '{ if (a) { b(); } }', 'bodyOf 切出整對大括號');
+  eq(bodyOf('nothing here', 'foo'), '', 'bodyOf 找不到 → 空字串');
+
+  /* --- ① 資料檔 --- */
+  eq(csJson.authored, 'game', 'color-script.json authored:"game"（純視覺、無教學內容）');
+  ok(!('source' in csJson) && !Object.values(csJson.regions).some((r) => 'source' in r), 'color-script.json 沒有 source 欄（不是教學內容）');
+  const regionIds = Object.keys(World.REGION_ATMOSPHERE);
+  eq(Object.keys(csJson.regions).length, 12, 'color-script.json 12 區');
+  eq(Object.keys(csJson.regions).sort().join(','), regionIds.slice().sort().join(','), 'color-script.json 的區 ＝ REGION_ATMOSPHERE 的區');
+  for (const id of regionIds) {
+    const row = csJson.regions[id];
+    for (const k of CS.COLOR_KEYS) ok(CS.HEX_RE.test(String(row[k])), `[${id}] ${k} 是 #rrggbb`, String(row[k]));
+    eq(row.fog, hex6(World.REGION_ATMOSPHERE[id].fog), `[${id}] fog 逐值 ＝ REGION_ATMOSPHERE.fog`);
+    eq(row.tint, hex6(World.REGION_ATMOSPHERE[id].tint), `[${id}] tint 逐值 ＝ REGION_ATMOSPHERE.tint`);
+    for (const k of ['skyTop', 'skyLow', 'fog']) {
+      const l = CS.hexToHsl(row[k]).l;
+      ok(l <= 0.35, `[${id}] ${k} HSL 亮度 ${l.toFixed(3)} ≤ 0.35（仍是夜）`);
+    }
+    const bt = CS.hexToHsl(CS.SKY_BASE.top);
+    const bl = CS.hexToHsl(CS.SKY_BASE.low);
+    const ct = CS.hexToHsl(row.skyTop);
+    const cl = CS.hexToHsl(row.skyLow);
+    ok(CS.hueDeltaDeg(ct.h, bt.h) <= 12 && CS.hueDeltaDeg(cl.h, bl.h) <= 12, `[${id}] 天空色相偏移 ≤ 12°`, `${CS.hueDeltaDeg(ct.h, bt.h).toFixed(1)}/${CS.hueDeltaDeg(cl.h, bl.h).toFixed(1)}`);
+    ok(Math.abs(ct.l - bt.l) <= 0.08 && Math.abs(cl.l - bl.l) <= 0.08, `[${id}] 天空亮度偏移 ≤ 0.08`);
+  }
+  eq(csJson.regions.foundations.skyTop, CS.SKY_BASE.top, 'foundations skyTop ＝ 全域基準（乘數 1）');
+  eq(csJson.regions.foundations.skyLow, CS.SKY_BASE.low, 'foundations skyLow ＝ 全域基準（乘數 1）');
+  eq(hex6(Engine.PALETTE.sky), CS.SKY_BASE.top, 'PALETTE.sky ＝ color-script SKY_BASE.top');
+  eq(hex6(Engine.PALETTE.skyLow), CS.SKY_BASE.low, 'PALETTE.skyLow ＝ color-script SKY_BASE.low');
+  eq(Mood.SKY_BASE_TOP, Engine.PALETTE.sky, 'mood.js SKY_BASE_TOP ＝ PALETTE.sky');
+  eq(Mood.SKY_BASE_LOW, Engine.PALETTE.skyLow, 'mood.js SKY_BASE_LOW ＝ PALETTE.skyLow');
+  ok(new Set(regionIds.map((id) => csJson.regions[id].skyTop)).size >= 10, '至少 10 區的 skyTop 彼此不同（進區換色看得到）');
+  // 預設值的來歷：key ＝ 區主色、rim ＝ kitFor().light、particle ＝ 舊螢火算法（P06 不改變任何既有顏色）
+  {
+    const Props = await import('../src/world/props.js');
+    const groups = new Map(curriculum.groups.map((g) => [g.id, g]));
+    for (const r of catalog.implementedRegions()) if (!groups.has(r.id)) groups.set(r.id, r);
+    for (const id of regionIds) {
+      const color = groups.get(id).color;
+      const kit = Props.kitFor(color);
+      const row = csJson.regions[id];
+      eq(row.key, color.toLowerCase(), `[${id}] key ＝ 區主色（補光顏色不變）`);
+      eq(row.rim, hex6(kit.light), `[${id}] rim ＝ kitFor().light（道具補色不變）`);
+      const c = new THREE.Color(color).lerp(new THREE.Color(0xdff0fb), 0.45);
+      eq(row.particle, `#${c.getHexString()}`, `[${id}] particle ＝ 舊螢火算法（螢火色不變）`);
+    }
+  }
+
+  /* --- ② validate / load / colorScriptFor --- */
+  eq(CS.validateColorScript(csJson).length, 0, 'validateColorScript(json) 零問題', CS.validateColorScript(csJson).join(' | '));
+  ok(CS.validateColorScript(null).length > 0, 'validateColorScript(null) 有問題');
+  ok(CS.validateColorScript({ authored: 'human', regions: csJson.regions }).some((p) => /authored/.test(p)), 'authored 不是 game → 問題');
+  {
+    const bad = JSON.parse(JSON.stringify(csJson));
+    bad.regions.reasoning.fog = '#000000';
+    ok(CS.validateColorScript(bad).some((p) => /reasoning\.fog/.test(p)), 'fog 與 REGION_ATMOSPHERE 不同 → 問題');
+    const bad2 = JSON.parse(JSON.stringify(csJson));
+    bad2.regions.reasoning.skyTop = '#8090ff';
+    ok(CS.validateColorScript(bad2).some((p) => /reasoning\.skyTop/.test(p)), '天空太亮／偏太多 → 問題');
+    const bad3 = JSON.parse(JSON.stringify(csJson));
+    bad3.regions.reasoning.key = 'red';
+    ok(CS.validateColorScript(bad3).some((p) => /reasoning\.key/.test(p)), '非 #rrggbb → 問題');
+    const bad4 = JSON.parse(JSON.stringify(csJson));
+    delete bad4.regions.wards;
+    ok(CS.validateColorScript(bad4).some((p) => /wards/.test(p)), '少一區 → 問題');
+    // json 的 base 區塊只是說明：竄改它不能放寬驗證（基準與容差用模組常數），只多一條 base.* 警告
+    {
+      const tampered = JSON.parse(JSON.stringify(bad2));
+      tampered.base = { skyTop: '#8090ff', skyLow: '#8090ff', tolerance: { hueDeg: 360, lightness: 1, saturation: 1, maxLightness: 1 } };
+      const pT = CS.validateColorScript(tampered);
+      ok(pT.some((p) => /reasoning\.skyTop/.test(p)), 'json.base 放寬容差 → reasoning.skyTop 仍驗不過（驗證用模組常數）', pT.join(' | '));
+      ok(pT.some((p) => /^base\./.test(p)), 'json.base 與常數不一致 → base.* 警告', pT.filter((p) => /^base\./.test(p)).join(' | '));
+      const noBase = JSON.parse(JSON.stringify(csJson));
+      delete noBase.base;
+      eq(CS.validateColorScript(noBase).length, 0, '沒有 base 區塊也驗得過（base 不是輸入）');
+      const okBase = JSON.parse(JSON.stringify(csJson));
+      okBase.base.tolerance.hueDeg = 3;
+      const pOk = CS.validateColorScript(okBase);
+      ok(pOk.every((p) => /^base\./.test(p)), 'json.base 收緊容差 → 各區照樣過（只多 base 警告）', pOk.join(' | '));
+      eq(pOk.length, 1, '…而且正好一條 base.tolerance.hueDeg 警告');
+    }
+    // 沒載入表：氣氛七鍵仍是自己那一區的（不是 foundations），sky 基準、key/rim/particle null
+    {
+      const w0 = console.warn;
+      console.warn = () => {};
+      CS.loadColorScript(null);
+      console.warn = w0;
+      eq(CS.hasColorScript('reasoning'), false, '沒載入表：hasColorScript false');
+      eq(CS.colorScriptRow('reasoning'), null, '沒載入表：colorScriptRow null');
+      const m = CS.colorScriptFor('reasoning');
+      eq(m.fog, World.REGION_ATMOSPHERE.reasoning.fog, '沒載入表：reasoning 的霧仍是 REGION_ATMOSPHERE.reasoning.fog（不換成 foundations）');
+      eq(m.tint, World.REGION_ATMOSPHERE.reasoning.tint, '沒載入表：tint 也是自己的');
+      eq(m.motes, World.REGION_ATMOSPHERE.reasoning.motes, '沒載入表：motes 也是自己的');
+      eq(m.sky.top, CS.SKY_BASE.top, '沒載入表：sky.top ＝ 全域基準');
+      eq(m.sky.low, CS.SKY_BASE.low, '沒載入表：sky.low ＝ 全域基準');
+      eq(m.key, null, '沒載入表：key null（world.js 用區主色）');
+      eq(m.rim, null, '沒載入表：rim null（world.js 用 kit.light）');
+      eq(m.particle, null, '沒載入表：particle null（world.js 用舊算法）');
+      eq(Object.keys(CS.colorScriptTable()).length, 0, '沒載入表：colorScriptTable() 空');
+    }
+    // 載入壞表：壞的那一區只有壞的那一鍵退回，氣氛與天空仍是自己的
+    {
+      const badP = JSON.parse(JSON.stringify(csJson));
+      badP.regions.reasoning.particle = 'red';
+      const w0 = console.warn;
+      console.warn = () => {};
+      CS.loadColorScript(badP);
+      console.warn = w0;
+      eq(CS.hasColorScript('reasoning'), false, 'particle 壞掉的區 hasColorScript false');
+      eq(CS.hasColorScript('grounding'), true, '其他區照舊');
+      const m = CS.colorScriptFor('reasoning');
+      eq(m.fog, World.REGION_ATMOSPHERE.reasoning.fog, 'particle 壞掉：reasoning 的霧仍是自己的（不是 foundations）');
+      eq(m.tint, World.REGION_ATMOSPHERE.reasoning.tint, 'particle 壞掉：tint 仍是自己的');
+      // 逐鍵退回：天空／key／rim 仍是 reasoning 自己的，只有壞掉的 particle → null
+      eq(m.sky.top, csJson.regions.reasoning.skyTop, 'particle 壞掉：sky.top 仍是 reasoning 自己的');
+      eq(m.sky.low, csJson.regions.reasoning.skyLow, 'particle 壞掉：sky.low 仍是 reasoning 自己的');
+      eq(m.key, csJson.regions.reasoning.key, 'particle 壞掉：key 仍是 reasoning 自己的');
+      eq(m.rim, csJson.regions.reasoning.rim, 'particle 壞掉：rim 仍是 reasoning 自己的');
+      eq(m.particle, null, 'particle 壞掉：particle null（world.js 用舊算法）');
+      eq(JSON.stringify(CS.colorScriptRow('reasoning')), JSON.stringify(csJson.regions.foundations), 'colorScriptRow（色卡表用）退回 foundations 那一列（那一列驗得過）');
+    }
+    // foundations 自己壞了：colorScriptRow 絕不回壞列 → null；colorScriptFor 逐鍵預設；其他區照舊
+    {
+      const badF = JSON.parse(JSON.stringify(csJson));
+      badF.regions.foundations.skyTop = '#8090ff';
+      const w0 = console.warn;
+      console.warn = () => {};
+      CS.loadColorScript(badF);
+      console.warn = w0;
+      eq(CS.hasColorScript('foundations'), false, 'foundations 壞掉 hasColorScript false');
+      eq(CS.colorScriptRow('foundations'), null, 'foundations 壞掉：colorScriptRow(foundations) null（不回壞列）');
+      eq(CS.colorScriptRow('nope'), null, 'foundations 壞掉：未知區也拿不到列（不回壞列）');
+      const m = CS.colorScriptFor('foundations');
+      eq(m.sky.top, CS.SKY_BASE.top, 'foundations 壞掉：sky.top ＝ 基準（不是壞值 #8090ff）');
+      eq(m.sky.low, csJson.regions.foundations.skyLow, 'foundations 壞掉：skyLow 那一鍵沒壞 → 仍用自己的');
+      eq(m.key, csJson.regions.foundations.key, 'foundations 壞掉：key 那一鍵沒壞 → 仍用自己的');
+      eq(m.fog, World.REGION_ATMOSPHERE.foundations.fog, 'foundations 壞掉：霧仍是原值');
+      // 整列拿掉：全部預設
+      const gone = JSON.parse(JSON.stringify(csJson));
+      delete gone.regions.foundations;
+      console.warn = () => {};
+      CS.loadColorScript(gone);
+      console.warn = w0;
+      const g = CS.colorScriptFor('foundations');
+      eq(g.sky.top, CS.SKY_BASE.top, 'foundations 列不見：sky.top ＝ 基準');
+      eq(g.sky.low, CS.SKY_BASE.low, 'foundations 列不見：sky.low ＝ 基準');
+      eq(g.key, null, 'foundations 列不見：key null');
+      eq(g.rim, null, 'foundations 列不見：rim null');
+      eq(g.particle, null, 'foundations 列不見：particle null');
+      eq(g.fog, World.REGION_ATMOSPHERE.foundations.fog, 'foundations 列不見：霧仍是原值');
+      eq(CS.colorScriptRow('foundations'), null, 'foundations 列不見：colorScriptRow null');
+      eq(CS.colorScriptRow('nope'), null, 'foundations 列不見：未知區 colorScriptRow null');
+      console.warn = () => {};
+      CS.loadColorScript(badF);
+      console.warn = w0;
+      const n = CS.colorScriptFor('nope');
+      eq(n.sky.top, CS.SKY_BASE.top, 'foundations 壞掉：未知區 sky ＝ 基準');
+      eq(n.key, null, 'foundations 壞掉：未知區 key null');
+      eq(n.fog, World.REGION_ATMOSPHERE.foundations.fog, '未知區的霧仍走 atmosphereFor 的退路（foundations）');
+      eq(CS.colorScriptFor('reasoning').sky.top, csJson.regions.reasoning.skyTop, 'foundations 壞掉：reasoning 照舊用自己的列');
+      eq(Object.keys(CS.colorScriptTable()).length, 12, 'colorScriptTable() 仍 12 鍵（壞列是空物件）');
+      eq(Object.keys(CS.colorScriptTable().foundations).length, 0, 'colorScriptTable().foundations 空物件（不是壞列）');
+    }
+  }
+  eq(CS.loadColorScript(csJson).length, 0, 'loadColorScript(json) 零問題');
+  eq(CS.colorScriptProblems().length, 0, 'colorScriptProblems() 空');
+  for (const id of regionIds) {
+    const m = CS.colorScriptFor(id);
+    const a = World.REGION_ATMOSPHERE[id];
+    eq(m.fog, a.fog, `[${id}] colorScriptFor.fog ＝ REGION_ATMOSPHERE 數字原值`);
+    eq(m.tint, a.tint, `[${id}] colorScriptFor.tint ＝ 原值`);
+    eq(m.hemi, a.hemi, `[${id}] colorScriptFor.hemi ＝ 原值`);
+    eq(m.fogNear, a.fogNear, `[${id}] fogNear 原值`);
+    eq(m.fogFar, a.fogFar, `[${id}] fogFar 原值`);
+    eq(m.exposure, a.exposure, `[${id}] exposure 原值`);
+    eq(m.motes, a.motes, `[${id}] motes 原值`);
+    eq(m.sky.top, csJson.regions[id].skyTop, `[${id}] sky.top ＝ json`);
+    eq(m.sky.low, csJson.regions[id].skyLow, `[${id}] sky.low ＝ json`);
+    eq(m.key, csJson.regions[id].key, `[${id}] key ＝ json`);
+    eq(m.rim, csJson.regions[id].rim, `[${id}] rim ＝ json`);
+    eq(m.particle, csJson.regions[id].particle, `[${id}] particle ＝ json`);
+  }
+  {
+    // 未知區：氣氛走 atmosphereFor 的退路（foundations）、腳本鍵逐鍵預設（不借 foundations 的列）
+    const n = CS.colorScriptFor('nope');
+    const f = World.atmosphereFor('foundations');
+    eq(n.fog, f.fog, 'colorScriptFor 未知區：霧 ＝ foundations（atmosphereFor 的退路）');
+    eq(n.sky.top, CS.SKY_BASE.top, 'colorScriptFor 未知區：sky.top ＝ 基準');
+    eq(n.sky.low, CS.SKY_BASE.low, 'colorScriptFor 未知區：sky.low ＝ 基準');
+    eq(n.key, null, 'colorScriptFor 未知區：key null');
+    eq(n.rim, null, 'colorScriptFor 未知區：rim null');
+    eq(n.particle, null, 'colorScriptFor 未知區：particle null');
+    eq(JSON.stringify(CS.colorScriptFor(undefined)), JSON.stringify(n), 'colorScriptFor(undefined) ＝ 未知區');
+  }
+  {
+    const keys = ['fog', 'tint', 'hemi', 'fogNear', 'fogFar', 'exposure', 'motes'];
+    const atmoKeys = Object.keys(World.atmosphereFor('foundations')).sort().join(',');
+    eq(keys.slice().sort().join(','), atmoKeys, 'colorScriptFor 與 atmosphereFor 同形（七個鍵）＋ 額外 sky/key/rim/particle');
+    ok(Object.keys(CS.colorScriptFor('foundations')).sort().join(',') === [...keys, 'sky', 'key', 'rim', 'particle'].sort().join(','), 'colorScriptFor 的鍵集合固定');
+  }
+  eq(Object.keys(CS.colorScriptTable()).length, 12, 'colorScriptTable() 12 區');
+
+  /* --- ③ composeMood 帶 sky；時辰不換天空色 --- */
+  for (let h = 0; h < 4; h += 1) {
+    const m = Hours.composeMood(CS.colorScriptFor('reasoning'), Hours.hourFactor(h));
+    eq(m.sky.top, csJson.regions.reasoning.skyTop, `hour ${h}：composeMood 帶 sky.top 原樣（時辰不換色）`);
+    eq(m.sky.low, csJson.regions.reasoning.skyLow, `hour ${h}：composeMood 帶 sky.low 原樣`);
+  }
+  ok(!('sky' in Hours.composeMood(World.atmosphereFor('reasoning'), Hours.hourFactor(0))), '沒給 sky 就沒 sky 鍵（舊呼叫端相容）');
+  {
+    const m0 = Hours.composeMood(CS.colorScriptFor('foundations'), Hours.hourFactor(0));
+    const old = Hours.composeMood(World.atmosphereFor('foundations'), Hours.hourFactor(0));
+    const { sky, ...rest } = m0;
+    eq(JSON.stringify(rest), JSON.stringify(old), 'foundations hour 0：除了 sky，其餘逐值等於 atmosphereFor 版本');
+    eq(sky.top, CS.SKY_BASE.top, 'foundations hour 0：sky.top ＝ 基準');
+  }
+
+  /* --- ④ mood 狀態：sky 進 target、平滑、乘數 --- */
+  {
+    const st = Mood.createMoodState({ skyTop: Engine.PALETTE.sky, skyLow: Engine.PALETTE.skyLow });
+    const s0 = st.snapshot();
+    eq(s0.target.sky.top, Engine.PALETTE.sky, '預設 target sky.top ＝ PALETTE.sky');
+    eq(s0.target.sky.low, Engine.PALETTE.skyLow, '預設 target sky.low ＝ PALETTE.skyLow');
+    eq(JSON.stringify(s0.now.sky), JSON.stringify(s0.target.sky), '開機 now.sky ＝ target.sky');
+    eq(st.step(0.5), false, '沒動 sky：step false');
+    const mulTop = Mood.skyMultiplier(st.now.skyTop, new THREE.Color(Mood.SKY_BASE_TOP), new THREE.Color());
+    eq([mulTop.r, mulTop.g, mulTop.b].join(','), '1,1,1', 'foundations 的穹頂乘數逐位元 ＝ 1（畫面與舊版完全相同）');
+    st.set({ sky: { top: csJson.regions.reasoning.skyTop, low: csJson.regions.reasoning.skyLow } });
+    eq(st.snapshot().target.sky.top, parseInt(csJson.regions.reasoning.skyTop.slice(1), 16), 'setMood 接受 sky.top（#rrggbb 字串）');
+    eq(st.snapshot().now.sky.top, Engine.PALETTE.sky, 'now.sky.top 還沒動（平滑）');
+    eq(st.step(0.5), true, '有差 → step true（天空要重寫）');
+    ok(st.snapshot().now.sky.top !== Engine.PALETTE.sky && st.snapshot().now.sky.top !== st.snapshot().target.sky.top, 'step 後 now.sky.top 在半路');
+    for (let i = 0; i < 200; i += 1) st.step(0.3);
+    eq(st.snapshot().now.sky.top, st.snapshot().target.sky.top, '夠多幀後貼上 target');
+    eq(st.step(0.3), false, '貼上之後 step 又回 false');
+    const mulR = Mood.skyMultiplier(st.now.skyTop, new THREE.Color(Mood.SKY_BASE_TOP), new THREE.Color());
+    ok(mulR.r !== 1 || mulR.g !== 1 || mulR.b !== 1, 'reasoning 的穹頂乘數 ≠ 1（進區換色）');
+    ok(mulR.r > 0.5 && mulR.r < 2 && mulR.g > 0.5 && mulR.g < 2 && mulR.b > 0.5 && mulR.b < 2, '乘數在 0.5–2 之間（微偏，不是換色系）', [mulR.r, mulR.g, mulR.b].map((v) => v.toFixed(3)).join(','));
+    {
+      // 認不得的字串／空物件／null：不炸、目標不變（three 會印一句 warn，壓掉）
+      const t0 = st.snapshot().target.sky;
+      const w0 = console.warn;
+      console.warn = () => {};
+      let threw = null;
+      try {
+        st.set({ sky: { top: 'nope' } });
+        st.set({ sky: {} });
+        st.set({ sky: null });
+      } catch (e) {
+        threw = e;
+      }
+      console.warn = w0;
+      eq(threw, null, 'setMood sky 認不得的字串／空物件／null 不炸');
+      const t1 = st.snapshot().target.sky;
+      eq(t1.low, t0.low, '…sky.low 目標不變');
+      ok(typeof t1.top === 'number' && Number.isFinite(t1.top), '…sky.top 目標仍是有效顏色數字', String(t1.top));
+    }
+    const zero = Mood.skyMultiplier(new THREE.Color(0), new THREE.Color(0), new THREE.Color());
+    eq([zero.r, zero.g, zero.b].join(','), '1,1,1', '基準為 0 的通道乘數 1（不除以 0）');
+  }
+
+  /* --- ⑤ 三態純函式 --- */
+  {
+    const G = World.gateVisualState;
+    const rows = [
+      [{ unlocked: true }, false, false, 'lit'],
+      [{ unlocked: true }, true, false, 'lit'],
+      [{ unlocked: true, hard: true }, false, true, 'lit'],
+      [{ unlocked: false }, true, false, 'amber'],
+      [{ unlocked: false }, false, false, 'dark'],
+      [{ unlocked: false, hard: true }, true, true, 'dark'],
+      [{ unlocked: false, hard: true }, true, undefined, 'dark'],
+      [{ unlocked: false }, true, undefined, 'amber'],
+      [null, true, false, 'amber'],
+      [null, false, false, 'dark'],
+      [undefined, true, undefined, 'amber'],
+    ];
+    for (const [status, prev, hard, want] of rows) {
+      eq(G(status, prev, hard), want, `gateVisualState(${JSON.stringify(status)}, prev ${prev}, hard ${hard}) → ${want}`);
+    }
+    // 這道門的條件指向哪些區
+    eq(World.gatePrevRegions({ requires: { region: 'reasoning' } }, null).join(','), 'reasoning', 'gatePrevRegions：requires.region 優先');
+    eq(World.gatePrevRegions({ requires: null }, { host: 'grounding' }).join(','), 'grounding', 'gatePrevRegions：加建院落 → host');
+    eq(World.gatePrevRegions({ requires: null }, { region: 'forms' }).join(','), 'foundations', 'gatePrevRegions：橋上的門 → foundations');
+    eq(World.gatePrevRegions(null, null).join(','), 'foundations', 'gatePrevRegions(null) → foundations');
+    eq(
+      World.gatePrevRegions({ requires: null, knowledgeGaps: [{ kind: 'skill', skillId: 'x', regionId: 'orchestration' }, { kind: 'regionSkills', regionId: 'orchestration', need: 3, have: 0 }] }, null).join(','),
+      'orchestration',
+      'gatePrevRegions：知識式門 → gaps 指到的區（去重）'
+    );
+    eq(
+      World.gatePrevRegions({ requires: null, knowledgeGaps: [{ kind: 'regionSkills', regionId: 'grounding' }, { kind: 'regionSkills', regionId: 'toolcraft' }] }, { host: 'grounding' }).join(','),
+      'grounding,toolcraft',
+      'gatePrevRegions：wards → grounding＋toolcraft'
+    );
+    eq(World.gatePrevRegions({ requires: null, knowledgeGaps: [{ kind: 'masteredAny', need: 2, have: 0 }] }, null).join(','), 'foundations', 'gatePrevRegions：只有 masteredAny → 沒指名 → 橋 → foundations');
+    // 前路已開？（三態的第二個參數）—— 鏈式門／知識式門／硬門的表
+    const U = (...ids) => (id) => ids.includes(id);
+    const P = World.gatePrevUnlocked;
+    const chain = { requires: { region: 'reasoning', cleared: 4 } };
+    eq(P(chain, null, U('foundations')), false, '鏈式門：reasoning 未解鎖 → 前路未開（grounding 門暗）');
+    eq(P(chain, null, U('foundations', 'reasoning')), true, '鏈式門：reasoning 已解鎖 → 前路已開（grounding 門琥珀）');
+    const toolcraft = { requires: null, knowledgeGaps: [{ kind: 'skill', skillId: 'agent-approval-bounds', regionId: 'orchestration' }, { kind: 'regionSkills', regionId: 'orchestration', need: 3, have: 0 }] };
+    eq(P(toolcraft, { host: 'orchestration' }, U('foundations')), false, '知識式門 toolcraft：orchestration 未解鎖 → 暗（新存檔）');
+    eq(P(toolcraft, { host: 'orchestration' }, U('foundations', 'orchestration')), true, '知識式門 toolcraft：orchestration 解鎖 → 琥珀');
+    const wards = { requires: null, knowledgeGaps: [{ kind: 'regionSkills', regionId: 'grounding', need: 3, have: 0 }, { kind: 'regionSkills', regionId: 'toolcraft', need: 1, have: 0 }] };
+    eq(P(wards, { host: 'grounding' }, U('foundations')), false, '知識式門 wards：grounding／toolcraft 都沒解鎖 → 暗');
+    eq(P(wards, { host: 'grounding' }, U('foundations', 'grounding')), true, '知識式門 wards：任一指到的區解鎖 → 琥珀');
+    const forms = { requires: null, knowledgeGaps: [{ kind: 'skill', skillId: 'clear-specific', regionId: 'foundations' }, { kind: 'regionSkills', regionId: 'config', need: 1, have: 0 }] };
+    eq(P(forms, null, U('foundations')), true, '知識式門 forms：條件指到 foundations（已解鎖）→ 琥珀');
+    const formsPartial = { requires: null, knowledgeGaps: [{ kind: 'regionSkills', regionId: 'config', need: 1, have: 0 }] };
+    eq(P(formsPartial, null, U('foundations')), false, '知識式門 forms：只剩 config 那一條沒滿足、config 未解鎖 → 暗');
+    const frugality = { requires: null, knowledgeGaps: [{ kind: 'masteredAny', need: 1, have: 0 }] };
+    eq(P(frugality, null, U('foundations')), true, '知識式門 frugality（任 1 片精通）：已解鎖 1 片 → 琥珀');
+    const divergence = { requires: null, knowledgeGaps: [{ kind: 'masteredAny', need: 2, have: 0 }] };
+    eq(P(divergence, null, U('foundations')), false, '知識式門 divergence（任 2 片精通）：只解鎖 1 片 → 暗（新存檔）');
+    eq(P(divergence, null, U('foundations', 'reasoning')), true, '知識式門 divergence：解鎖 2 片 → 琥珀');
+    const refinery = { requires: null, knowledgeGaps: [{ kind: 'regionSkills', regionId: 'orchestration', need: 2, have: 0 }, { kind: 'masteredAny', need: 1, have: 0 }] };
+    eq(P(refinery, null, U('foundations')), true, '知識式門 refinery：orchestration 未解鎖、但 masteredAny 1 片（已解鎖 1 片）→ 有一條條件指向已解鎖的區 → 琥珀');
+    const refineryHard = { requires: null, knowledgeGaps: [{ kind: 'regionSkills', regionId: 'orchestration', need: 2, have: 0 }, { kind: 'masteredAny', need: 2, have: 0 }] };
+    eq(P(refineryHard, null, U('foundations')), false, '（假想）指名的區沒開、masteredAny 2 片也不夠 → 暗');
+    eq(P(refineryHard, null, U('foundations', 'orchestration')), true, '（假想）指名的 orchestration 開了 → 琥珀');
+    const sight = { requires: null, knowledgeGaps: [{ kind: 'mastered', regionId: 'foundations' }] };
+    eq(P(sight, null, U('foundations')), true, '知識式門 sight（foundations 精通）：foundations 已解鎖 → 琥珀');
+    eq(P({ requires: null, knowledgeGaps: [] }, { host: 'grounding' }, U('foundations')), false, '沒有缺口的加建門：看母土地 grounding → 未解鎖 → 暗');
+    eq(P({ requires: null, knowledgeGaps: [] }, null, U('foundations')), true, '沒有缺口的橋上門：看 foundations → 已解鎖 → 琥珀');
+    eq(P(null, null, U('foundations')), true, 'gatePrevUnlocked(null) → foundations');
+    // 三態全表（鏈式／知識式／硬門 × 前路開／沒開）
+    const hardLocked = { unlocked: false, hard: true, requires: null, knowledgeGaps: [{ kind: 'masteredAny', need: 2 }] };
+    eq(G(hardLocked, P(hardLocked, null, U('foundations', 'reasoning', 'grounding'))), 'dark', '硬門未解鎖：就算前路已開也一律暗');
+    eq(G({ ...hardLocked, unlocked: true }, true), 'lit', '硬門解鎖 → lit');
+    eq(G({ unlocked: false, ...toolcraft }, P(toolcraft, null, U('foundations'))), 'dark', '表：知識式門 toolcraft 新存檔 → dark');
+    eq(G({ unlocked: false, ...toolcraft }, P(toolcraft, null, U('foundations', 'orchestration'))), 'amber', '表：知識式門 toolcraft orchestration 開了 → amber');
+    eq(G({ unlocked: false, ...chain }, P(chain, null, U('foundations'))), 'dark', '表：鏈式門 grounding 新存檔 → dark');
+    eq(G({ unlocked: false, ...chain }, P(chain, null, U('foundations', 'reasoning'))), 'amber', '表：鏈式門 grounding reasoning 開了 → amber');
+    // 真的 progression（新存檔）：knowledgeGaps 的 skill 缺口帶 regionId
+    {
+      const { createProgression } = await import('../src/progression/progression.js');
+      const SaveMod = await import('../src/save/save.js');
+      const prog = createProgression({ catalog, challenges, io: { load: () => SaveMod.defaultSave(), save: () => {}, reset: () => SaveMod.defaultSave() } });
+      const st = prog.gateStatus('toolcraft');
+      const skillGap = st.knowledgeGaps.find((g) => g.kind === 'skill');
+      ok(skillGap, '新存檔 toolcraft 有 skill 缺口');
+      eq(skillGap && skillGap.regionId, 'orchestration', 'skill 缺口帶所在區 regionId（agent-approval-bounds → orchestration）');
+      eq(World.gatePrevRegions(st, { host: 'orchestration' }).join(','), 'orchestration', '真 gateStatus：toolcraft 條件指向 orchestration');
+      eq(P(st, { host: 'orchestration' }, (id) => prog.isRegionUnlocked(id)), false, '真 gateStatus：新存檔 toolcraft 前路未開 → 暗');
+      eq(P(prog.gateStatus('divergence'), null, (id) => prog.isRegionUnlocked(id)), false, '真 gateStatus：新存檔 divergence（任 2 片）前路未開 → 暗');
+      eq(P(prog.gateStatus('reasoning'), null, (id) => prog.isRegionUnlocked(id)), true, '真 gateStatus：新存檔 reasoning 前路已開 → 琥珀');
+      eq(P(prog.gateStatus('forms'), null, (id) => prog.isRegionUnlocked(id)), true, '真 gateStatus：新存檔 forms（clear-specific 在 foundations）→ 琥珀');
+    }
+    const M = World.markerVisualState;
+    eq(M({ unlocked: false }), 'dark', 'markerVisualState 未解鎖 → dark');
+    eq(M({ unlocked: true, skipped: true }), 'amber', 'markerVisualState 先行前往 → amber');
+    eq(M({ unlocked: true, skipped: false }), 'lit', 'markerVisualState 正常解鎖 → lit');
+    eq(M(null), 'dark', 'markerVisualState(null) → dark');
+    eq(World.GATE_STATE_LOOK.lit.pillar, 0.6, 'lit：柱 emissive 0.6×');
+    eq(World.GATE_STATE_LOOK.amber.pillar, 0.35, 'amber：0.35×（琥珀）');
+    eq(World.GATE_STATE_LOOK.amber.invite, true, 'amber 用 PALETTE.invite（邀請琥珀）');
+    eq(World.GATE_STATE_LOOK.lit.invite, false, 'lit 用區主色');
+    eq(World.GATE_STATE_LOOK.dark.invite, false, 'dark 用區主色');
+    ok(!('warm' in World.GATE_STATE_LOOK.amber), 'GATE_STATE_LOOK 不再有 warm 鍵（暖金只留給成就熱點）');
+    // 邀請琥珀：跟成就暖金明顯不同（更暗、更灰）、仍是暖色、夜裡不刺眼
+    {
+      const inv = CS.hexToHsl(hex6(Engine.PALETTE.invite));
+      const wm = CS.hexToHsl(hex6(Engine.PALETTE.warm));
+      eq(hex6(Engine.PALETTE.invite), '#a8865c', 'PALETTE.invite ＝ #a8865c');
+      ok(Engine.PALETTE.invite !== Engine.PALETTE.warm, 'PALETTE.invite ≠ PALETTE.warm');
+      ok(inv.l < wm.l - 0.2, '邀請琥珀比暖金暗 ≥ 0.2（HSL）', `${inv.l.toFixed(2)} vs ${wm.l.toFixed(2)}`);
+      ok(inv.s < wm.s, '邀請琥珀比暖金灰', `${inv.s.toFixed(2)} vs ${wm.s.toFixed(2)}`);
+      ok(inv.h * 360 > 20 && inv.h * 360 < 50, '邀請琥珀色相仍在琥珀帶（20–50°）', (inv.h * 360).toFixed(1));
+      ok(inv.l <= 0.55, '邀請琥珀亮度 ≤ 0.55（夜裡不刺眼）', inv.l.toFixed(2));
+    }
+    eq(World.GATE_STATE_LOOK.dark.pillar, 0.12, 'dark：0.12×');
+    ok(World.GATE_STATE_LOOK.lit.pillar > World.GATE_STATE_LOOK.amber.pillar && World.GATE_STATE_LOOK.amber.pillar > World.GATE_STATE_LOOK.dark.pillar, '三態亮度單調：lit > amber > dark');
+  }
+
+  /* --- ⑥ 世界：建構時套 key/rim/particle；三態；0 新光源 --- */
+  {
+    const realDoc = globalThis.document;
+    globalThis.document = { createElement: () => ({ width: 1, height: 1, style: {}, getContext: () => anyStub() }) };
+    const countLights = (scene) => {
+      let n = 0;
+      scene.traverse((o) => {
+        if (o.isLight) n += 1;
+      });
+      return n;
+    };
+    // 可控的 progression stub：新存檔（只有 foundations）＋ 可跳門
+    const mkProg = () => {
+      const unlocked = new Set(['foundations']);
+      const skipped = new Set();
+      const REQ = { reasoning: 'foundations', grounding: 'reasoning', orchestration: 'grounding', config: 'orchestration' };
+      return {
+        unlocked,
+        skipped,
+        bestGrade: () => null,
+        isRegionUnlocked: (id) => unlocked.has(id),
+        gateStatus: (id) => ({ unlocked: unlocked.has(id), skipped: skipped.has(id), hard: false, requires: REQ[id] ? { region: REQ[id], cleared: 4 } : null, text: unlocked.has(id) ? '已開啟' : '需要…' }),
+        hasReadLore: () => false,
+        hasFoundInscription: () => false,
+        hasFoundSecret: () => false,
+        hasUsedHandle: () => false,
+      };
+    };
+    const prog = mkProg();
+    const sceneA = new THREE.Scene();
+    const worldA = World.createWorld({ engine: { scene: sceneA, camera: {}, onUpdate() {} }, quality: 'high', ...worldOpts, progression: prog, colorScript: CS.colorScriptFor });
+    const sceneB = new THREE.Scene();
+    const worldB = World.createWorld({ engine: { scene: sceneB, camera: {}, onUpdate() {} }, quality: 'high', ...worldOpts, progression: mkProg() });
+    eq(countLights(sceneA), countLights(sceneB), '色彩腳本不加光源（有腳本／沒腳本燈數相同）', `${countLights(sceneA)} vs ${countLights(sceneB)}`);
+    // key：每區那一盞 fill 的顏色 ＝ 腳本 key
+    let fills = 0;
+    sceneA.traverse((o) => {
+      if (o.isPointLight && o.parent && /^props:/.test(o.parent.name) && o.parent.userData.fill === o) {
+        fills += 1;
+        const id = o.parent.name.slice(6);
+        eq(`#${o.color.getHexString()}`, csJson.regions[id].key, `[${id}] fill 光顏色 ＝ 腳本 key`);
+      }
+    });
+    eq(fills, 11, '11 盞主色補光（foundations 沒有）');
+    // particle：每一區第一顆螢火的顏色 ∝ 腳本 particle（顏色帶 0.82–1.12 的隨機亮度抖動 → normalize 後比色相）
+    const moteStart = (regionId) => {
+      // buildMotes 的排法：REGION_SITES 順序、每區 round(120 × motes) 顆（quality high）
+      let at = 0;
+      for (const site of World.REGION_SITES) {
+        if (site.id === regionId) return at;
+        at += Math.round(120 * World.atmosphereFor(site.id).motes);
+      }
+      return -1;
+    };
+    const sameHue = (col, i, want) => {
+      const r = col.getX(i), g = col.getY(i), b = col.getZ(i);
+      const k = want.r / r;
+      return Math.abs(g * k - want.g) < 0.01 && Math.abs(b * k - want.b) < 0.01;
+    };
+    {
+      const col = worldA.motes.geometry.attributes.color;
+      for (const id of regionIds) {
+        const i = moteStart(id);
+        ok(i >= 0 && i < col.count, `[${id}] 螢火起始索引在範圍內`, `${i}/${col.count}`);
+        ok(sameHue(col, i, new THREE.Color(csJson.regions[id].particle)), `[${id}] 有腳本：螢火色 ∝ 腳本 particle`);
+      }
+      // 沒腳本（worldB／testWorld）：走 P06 之前的算法（區主色往 #dff0fb 靠 0.45）
+      const groupsB = new Map(curriculum.groups.map((g) => [g.id, g]));
+      for (const r of catalog.implementedRegions()) if (!groupsB.has(r.id)) groupsB.set(r.id, r);
+      const oldFormula = (id) => new THREE.Color(groupsB.get(id).color).lerp(new THREE.Color(0xdff0fb), 0.45);
+      const colB = worldB.motes.geometry.attributes.color;
+      const colT = testWorld.motes.geometry.attributes.color;
+      for (const id of regionIds) {
+        const i = moteStart(id);
+        ok(sameHue(colB, i, oldFormula(id)), `[${id}] 沒腳本：螢火色 ∝ 舊算法（區主色→#dff0fb 0.45）`);
+        ok(sameHue(colT, i, oldFormula(id)), `[${id}] testWorld（沒腳本）：螢火色 ∝ 舊算法`);
+      }
+      // 自訂腳本：particle 給別的顏色 → 螢火真的換色；給 null → 舊算法（逐鍵）
+      const custom = (regionId) => (regionId === 'reasoning' ? { key: '#2040ff', rim: '#10ff20', particle: '#ff2010' } : { key: null, rim: null, particle: null });
+      const sceneC = new THREE.Scene();
+      const worldC = World.createWorld({ engine: { scene: sceneC, camera: {}, onUpdate() {} }, quality: 'high', ...worldOpts, progression: mkProg(), colorScript: custom });
+      const colC = worldC.motes.geometry.attributes.color;
+      ok(sameHue(colC, moteStart('reasoning'), new THREE.Color('#ff2010')), '自訂腳本：reasoning 螢火 ∝ #ff2010（particle 真的接進去）');
+      ok(!sameHue(colC, moteStart('reasoning'), oldFormula('reasoning')), '自訂腳本：reasoning 螢火不再是舊算法');
+      ok(sameHue(colC, moteStart('grounding'), oldFormula('grounding')), '自訂腳本：particle null 的區走舊算法（逐鍵退回）');
+      // rim：kit.light 被 rim 覆寫；null 就是 kitFor 算的
+      const Props2 = await import('../src/world/props.js');
+      const kitPlain = (id) => Props2.kitFor(groupsB.get(id).color);
+      eq(typeof worldC.kitOf, 'function', 'world.kitOf 可讀（rim 覆寫可觀測）');
+      eq(worldC.kitOf('reasoning').light, 0x10ff20, '自訂腳本：reasoning kit.light ＝ rim #10ff20');
+      eq(worldC.kitOf('grounding').light, kitPlain('grounding').light, '自訂腳本：rim null 的區 kit.light ＝ kitFor 算的');
+      eq(worldB.kitOf('reasoning').light, kitPlain('reasoning').light, '沒腳本：kit.light ＝ kitFor 算的');
+      eq(worldA.kitOf('reasoning').light, parseInt(csJson.regions.reasoning.rim.slice(1), 16), 'json 腳本：kit.light ＝ json rim');
+      for (const id of regionIds) {
+        eq(worldA.kitOf(id).accent, kitPlain(id).accent, `[${id}] rim 只覆寫 light，accent 不動`);
+        eq(worldA.kitOf(id).mid, kitPlain(id).mid, `[${id}] mid 不動`);
+        eq(worldA.kitOf(id).dark, kitPlain(id).dark, `[${id}] dark 不動`);
+      }
+      // key：自訂腳本的 fill 顏色；null → 區主色
+      sceneC.traverse((o) => {
+        if (o.isPointLight && o.parent && o.parent.name === 'props:reasoning' && o.parent.userData.fill === o) eq(`#${o.color.getHexString()}`, '#2040ff', '自訂腳本：reasoning fill ＝ key #2040ff');
+        if (o.isPointLight && o.parent && o.parent.name === 'props:grounding' && o.parent.userData.fill === o) eq(`#${o.color.getHexString()}`, groupsB.get('grounding').color.toLowerCase(), '自訂腳本：key null 的區 fill ＝ 區主色');
+      });
+      eq(countLights(sceneC), countLights(sceneB), '自訂腳本也不加光源');
+    }
+    // 三態：新存檔 → reasoning amber（foundations 已解鎖）、grounding dark；石座 foundations lit、reasoning dark
+    const gA = (id) => worldA.gates.find((g) => g.id === id);
+    eq(gA('reasoning').visualState, 'amber', '新存檔：reasoning 門琥珀（前一區已解鎖，可以先行前往）');
+    eq(gA('grounding').visualState, 'dark', '新存檔：grounding 門暗（前一區 reasoning 未解鎖）');
+    eq(gA('forms').visualState, 'amber', '新存檔（stub：沒有 knowledgeGaps）：forms 橋自 foundations → 琥珀');
+    eq(gA('wards').visualState, 'dark', '新存檔（stub）：wards 加建自 grounding、grounding 未解鎖 → 暗');
+    const mk = (region) => worldA.markers.find((m) => m.region === region);
+    eq(mk('foundations').regionState, 'lit', '新存檔：foundations 石座 lit');
+    eq(mk('reasoning').regionState, 'dark', '新存檔：reasoning 石座 dark');
+    eq(mk('reasoning').dimTarget, 0.4, 'dark 石座底亮度目標 ×0.4');
+    // 知識式門（stub 帶 knowledgeGaps）：toolcraft 指向 orchestration → 暗；orchestration 解鎖 → 琥珀
+    {
+      const progK = mkProg();
+      const base = progK.gateStatus;
+      const GAPS = {
+        toolcraft: [{ kind: 'skill', skillId: 'agent-approval-bounds', regionId: 'orchestration' }, { kind: 'regionSkills', regionId: 'orchestration', need: 3, have: 0 }],
+        divergence: [{ kind: 'masteredAny', need: 2, have: 0 }],
+        frugality: [{ kind: 'masteredAny', need: 1, have: 0 }],
+        sight: [{ kind: 'mastered', regionId: 'foundations' }],
+      };
+      progK.gateStatus = (id) => ({ ...base(id), knowledgeGaps: GAPS[id] || [] });
+      const sceneK = new THREE.Scene();
+      const worldK = World.createWorld({ engine: { scene: sceneK, camera: {}, onUpdate() {} }, quality: 'high', ...worldOpts, progression: progK, colorScript: CS.colorScriptFor });
+      const gK = (id) => worldK.gates.find((g) => g.id === id);
+      eq(gK('toolcraft').visualState, 'dark', '知識式門 toolcraft：新存檔 orchestration 未解鎖 → 暗');
+      eq(gK('divergence').visualState, 'dark', '知識式門 divergence（任 2 片）：只解鎖 1 片 → 暗');
+      eq(gK('frugality').visualState, 'amber', '知識式門 frugality（任 1 片）：已解鎖 1 片 → 琥珀');
+      eq(gK('sight').visualState, 'amber', '知識式門 sight（foundations 精通）：foundations 已解鎖 → 琥珀');
+      progK.unlocked.add('orchestration');
+      worldK.refreshVisualStates();
+      eq(gK('toolcraft').visualState, 'amber', '知識式門 toolcraft：orchestration 解鎖 → 琥珀');
+      eq(gK('divergence').visualState, 'amber', '知識式門 divergence：解鎖 2 片 → 琥珀');
+      progK.unlocked.delete('orchestration');
+      worldK.refreshVisualStates();
+      eq(gK('toolcraft').visualState, 'dark', '知識式門 toolcraft：orchestration 又鎖回去 → 暗（refreshVisualStates 可逆）');
+    }
+    // 跳門
+    prog.unlocked.add('reasoning');
+    prog.skipped.add('reasoning');
+    worldA.refreshGates();
+    eq(gA('reasoning').visualState, 'lit', 'skipGate 後 reasoning 門 lit（開了就是主色亮）');
+    eq(gA('reasoning').isOpen, true, 'refreshGates 開門');
+    eq(gA('grounding').visualState, 'amber', 'reasoning 開了 → grounding 門轉琥珀');
+    eq(mk('reasoning').regionState, 'amber', 'skipGate 後 reasoning 石座 amber');
+    eq(mk('reasoning').dimTarget, 1, 'amber 石座底亮度目標 1');
+    // 石座 halo 目標色：跑幾幀 update 後 halo 顏色 lerp 到邀請琥珀、然後到位（visualSettled）、到位後不再動
+    {
+      const m = mk('reasoning');
+      const before = m.halo.material.color.getHex();
+      eq(m.visualSettled, false, 'setRegionState 換色後 visualSettled false');
+      for (let i = 0; i < 120; i += 1) m.update(0.05, i * 0.05, null);
+      const after = m.halo.material.color.getHex();
+      eq(after, Engine.PALETTE.invite, 'amber 石座的 halo 顏色 lerp 到 PALETTE.invite（邀請琥珀，不是暖金）', `${before.toString(16)} → ${after.toString(16)}`);
+      ok(after !== Engine.PALETTE.warm, 'amber 石座 halo ≠ PALETTE.warm');
+      const inv = new THREE.Color(Engine.PALETTE.invite);
+      eq([m.halo.material.color.r, m.halo.material.color.g, m.halo.material.color.b].join(','), [inv.r, inv.g, inv.b].join(','), 'halo 逐通道**精確**等於目標（不是只差 1e-6）');
+      eq(m.visualSettled, true, '到位後 visualSettled true');
+      eq(m.dimNow, 1, 'dimNow 精確等於 dimTarget 1');
+      const r0 = m.halo.material.color.r;
+      const dim0 = m.dimNow;
+      m.update(0.05, 999, null);
+      eq(m.halo.material.color.r, r0, '到位後 update 不再動 halo 顏色（零工作）');
+      eq(m.dimNow, dim0, '到位後 update 不再動 dimNow');
+      ok(m.halo.material.opacity > 0.02, 'amber 石座 halo 有微亮（遠處讀得出）', String(m.halo.material.opacity));
+      // dark → dim 也精確貼上 0.4
+      m.setRegionState('dark');
+      eq(m.visualSettled, false, '換 dark 後 visualSettled false');
+      for (let i = 0; i < 200; i += 1) m.update(0.05, i * 0.05, null);
+      eq(m.dimNow, 0.4, 'dark：dimNow 精確 ＝ 0.4');
+      eq(m.visualSettled, true, 'dark 到位 visualSettled true');
+      m.setRegionState('amber');
+    }
+    // 正常解鎖
+    prog.skipped.delete('reasoning');
+    worldA.refreshGates();
+    eq(mk('reasoning').regionState, 'lit', '正常解鎖 → reasoning 石座 lit');
+    // 閘門材質往目標 lerp（不硬切）、到位後精確等於目標、visualSettled、零工作
+    {
+      const g = gA('grounding');
+      const pillar = g.group.children.find((o) => o.isMesh && o.geometry.type === 'CylinderGeometry');
+      const arch = g.group.children.find((o) => o.isMesh && o.geometry.type === 'TorusGeometry');
+      const before = pillar.material.emissive.getHex();
+      eq(g.visualSettled, false, 'amber 門剛設完 visualSettled false');
+      g.update(0.05, 0);
+      ok(pillar.material.emissive.getHex() !== before, '一幀後柱 emissive 已經在動（不硬切）');
+      const wantC = new THREE.Color(Engine.PALETTE.invite).multiplyScalar(0.35);
+      ok(pillar.material.emissive.getHex() !== wantC.getHex(), '一幀後還沒到位（是 lerp）');
+      for (let i = 1; i < 200; i += 1) g.update(0.05, i * 0.05);
+      const after = pillar.material.emissive.getHex();
+      eq(after, wantC.getHex(), 'amber 門的柱 emissive lerp 到 invite×0.35', `${before.toString(16)} → ${after.toString(16)}`);
+      eq([pillar.material.emissive.r, pillar.material.emissive.g, pillar.material.emissive.b].join(','), [wantC.r, wantC.g, wantC.b].join(','), '柱 emissive 逐通道精確 ＝ 目標');
+      eq(arch.material.emissiveIntensity, World.GATE_STATE_LOOK.amber.archIntensity, '拱 emissiveIntensity 精確 ＝ 0.7');
+      eq(g.visualSettled, true, '到位後 gate.visualSettled true');
+      const r0 = pillar.material.emissive.r;
+      g.update(0.05, 999);
+      eq(pillar.material.emissive.r, r0, '到位後 update 不再動柱 emissive（零工作）');
+      // dark 門
+      const d = gA('config');
+      for (let i = 0; i < 200; i += 1) d.update(0.05, i * 0.05);
+      const dp = d.group.children.find((o) => o.isMesh && o.geometry.type === 'CylinderGeometry');
+      const c = new THREE.Color(curriculum.groups.find((x) => x.id === 'config').color);
+      eq(dp.material.emissive.getHex(), c.clone().multiplyScalar(0.12).getHex(), 'dark 門的柱 emissive ＝ 區主色×0.12');
+      eq(d.visualSettled, true, 'dark 門到位 visualSettled true');
+      // 開門 → lit：柱 0.6×、拱 1.3
+      const lit = gA('reasoning');
+      for (let i = 0; i < 200; i += 1) lit.update(0.05, i * 0.05);
+      const lp = lit.group.children.find((o) => o.isMesh && o.geometry.type === 'CylinderGeometry');
+      const lc = new THREE.Color(curriculum.groups.find((x) => x.id === 'reasoning').color);
+      eq(lp.material.emissive.getHex(), lc.clone().multiplyScalar(0.6).getHex(), 'lit 門的柱 emissive ＝ 區主色×0.6');
+      eq(lit.visualSettled, true, 'lit 門到位');
+    }
+    eq(typeof worldA.refreshMarkerStates, 'function', 'world.refreshMarkerStates 存在');
+    // 沒 refresh 前（worldB 剛建好）也已經是三態
+    ok(worldB.gates.every((g) => g.visualState), '建構完每道門都有三態');
+    globalThis.document = realDoc;
+    if (!realDoc) delete globalThis.document;
+  }
+
+  /* --- ⑦ 靜態掃描：每幀迴圈零配置、0 新光源、入口不變 --- */
+  {
+    const worldSrc = readFileSync(resolve(root, 'src/world/world.js'), 'utf8');
+    // buildGate 的 update／buildMarker 的 update：零 new、零 map/filter
+    const gateAt = worldSrc.indexOf('function buildGate(');
+    const gateUpdate = bodyOf(worldSrc, 'update', gateAt);
+    ok(gateUpdate.length > 0, '找得到 buildGate 的 update()');
+    ok(!/new THREE\./.test(gateUpdate) && !/\.map\(|\.filter\(|\.forEach\(/.test(gateUpdate) && !/\.clone\(\)|\.getHex\(/.test(gateUpdate), '閘門 update() 零配置（三態 lerp 用預配置的目標色）');
+    const markerAt = worldSrc.indexOf('function buildMarker(');
+    const markerUpdate = bodyOf(worldSrc, 'update', markerAt);
+    ok(markerUpdate.length > 0, '找得到 buildMarker 的 update()');
+    ok(/visualSettled/.test(gateUpdate) && /visualSettled/.test(markerUpdate), '兩個 update() 都有 visualSettled 短路（到位後零工作）');
+    ok(/lerpColorSettle\(/.test(gateUpdate) && /lerpColorSettle\(/.test(markerUpdate), '兩個 update() 都走 lerpColorSettle（逐通道 < 1e-3 貼上）');
+    eq(World.SETTLE_EPS, 1e-3, 'SETTLE_EPS ＝ 1e-3');
+    // 邀請琥珀 vs 成就暖金：閘門三態／石座三態不碰 PALETTE.warm
+    const gateBody = bodyOf(worldSrc, 'function buildGate');
+    ok(!/PALETTE\.warm/.test(bodyOf(gateBody, 'setVisualState')), 'buildGate.setVisualState 不用 PALETTE.warm');
+    ok(/PALETTE\.invite/.test(gateBody), 'buildGate 用 PALETTE.invite');
+    const markerBody = bodyOf(worldSrc, 'function buildMarker');
+    ok(!/warm/.test(bodyOf(markerBody, 'setRegionState')), 'buildMarker.setRegionState 不用 warm（amber → invite）');
+    ok(/PALETTE\.warm/.test(bodyOf(markerBody, 'setCleared')), 'buildMarker.setCleared 仍是暖金（成就）');
+    ok(!/new THREE\./.test(markerUpdate) && !/\.map\(|\.filter\(|\.forEach\(/.test(markerUpdate) && !/\.clone\(\)|\.getHex\(/.test(markerUpdate), '石座 update() 零配置');
+    ok(/setVisualState\(/.test(worldSrc) && /setRegionState\(/.test(worldSrc), '閘門 setVisualState／石座 setRegionState 存在');
+    ok(/refreshMarkerStates/.test(worldSrc), 'refreshMarkerStates 存在');
+    // 光源：P06 沒有新的 new THREE.*Light（與 P05 之前同數）
+    eq((worldSrc.match(/new THREE\.(Point|Spot|Directional|Hemisphere|Ambient|RectArea)Light/g) || []).length, 3, 'world.js 的 Light 建構呼叫點數不變（3：fill／道具燈／燈池 —— P06 沒加）');
+    const engineSrc = readFileSync(resolve(root, 'src/engine/engine.js'), 'utf8');
+    const applySkyBody = bodyOf(engineSrc, 'function applySky');
+    ok(applySkyBody.length > 0, '找得到 applySky');
+    ok(/skyMultiplier\(/.test(applySkyBody), 'applySky 寫穹頂乘數 uniform');
+    ok(!/new THREE\./.test(applySkyBody) && !/=>/.test(applySkyBody), 'applySky 零配置、無閉包（P06 之後仍是）');
+    ok(/uMulTop/.test(engineSrc) && /uMulLow/.test(engineSrc), '穹頂材質有 uMulTop／uMulLow');
+    ok(/SKY_STOPS/.test(engineSrc) && /createLinearGradient/.test(engineSrc), '穹頂漸層貼圖沒被拿掉（不重畫 canvas）');
+    ok(/#include <tonemapping_fragment>/.test(engineSrc) && /#include <colorspace_fragment>/.test(engineSrc), '穹頂 shader 走同一段 tonemapping／colorspace 收尾（與 MeshBasicMaterial 同貌）');
+    eq((engineSrc.match(/new THREE\.SphereGeometry\(620/g) || []).length, 1, '穹頂仍是同一顆球（換材質不換 mesh）');
+    const mainSrc = readFileSync(resolve(root, 'src/main.js'), 'utf8');
+    ok(/loadColorScript\(/.test(mainSrc), 'main.js 開機 loadColorScript');
+    ok(/colorScript:\s*colorScriptFor/.test(mainSrc), 'createWorld 收 colorScript: colorScriptFor');
+    ok(/world\.refreshVisualStates\(\);/.test(mainSrc.slice(mainSrc.indexOf('const entered = hud.setRegion'), mainSrc.indexOf('const entered = hud.setRegion') + 600)), '進區時 world.refreshVisualStates()（只刷三態、不重做標籤）');
+    ok(/refreshVisualStates/.test(worldSrc), 'world.refreshVisualStates 存在');
+    eq((mainSrc.match(/engine\.setMood\(/g) || []).length, 1, 'main.js 仍只有一個 engine.setMood 呼叫點');
+    {
+      const resetAt = mainSrc.indexOf('onReset: () => {');
+      const resetBody = mainSrc.slice(resetAt, mainSrc.indexOf('onReplayPrologue', resetAt));
+      ok(resetAt >= 0 && /world\.refreshGates\?\.\(\)|world\.refreshGates\(\)/.test(resetBody), 'onReset 呼叫 world.refreshGates()（先行前往過的門回到琥珀）');
+      ok(/world\.refreshMarkerStates/.test(resetBody), 'onReset 呼叫 world.refreshMarkerStates()（石座回到 dark／amber）');
+    }
+    const csSrc = readFileSync(resolve(root, 'src/world/color-script.js'), 'utf8');
+    ok(!/from ['"]three['"]/.test(csSrc), 'color-script.js 不 import three');
+    ok(!/document\.|window\./.test(csSrc), 'color-script.js 不碰 DOM');
+    const worldMd = readFileSync(resolve(root, 'WORLD.md'), 'utf8');
+    const s22 = worldMd.slice(worldMd.indexOf('### 2.2'), worldMd.indexOf('### 2.3'));
+    ok(/色彩腳本/.test(s22) && /color-script\.json/.test(s22), 'WORLD.md §2.2 有色彩腳本規則');
+    for (const id of regionIds) ok(new RegExp('`' + id + '`').test(s22), `WORLD.md §2.2 色卡表有 ${id}`);
+    for (const id of regionIds) ok(s22.includes(csJson.regions[id].skyTop) && s22.includes(csJson.regions[id].particle), `WORLD.md §2.2 色卡表 ${id} 的值與 json 一致`);
+    ok(/三態/.test(s22), 'WORLD.md §2.2 有三態規則');
+    ok(/邀請琥珀/.test(s22) && /PALETTE\.invite/.test(s22) && /#a8865c/.test(s22), 'WORLD.md §2.2 三態規則點名「邀請琥珀」PALETTE.invite #a8865c');
+    ok(/不是成就暖金/.test(s22), 'WORLD.md §2.2 三態規則講明「不是成就暖金」');
+    ok(/暖金只留給成就熱點/.test(s22), 'WORLD.md §2.2 暖金規則仍在');
+    ok(/知識式門/.test(s22) && /masteredAny/.test(s22), 'WORLD.md §2.2 三態規則含知識式門');
+    ok(s22.includes('0° ／ 0.00·0.00'), 'WORLD.md §2.2 色卡表 foundations 偏移印 0° ／ 0.00·0.00（不是 -0）');
+    ok(!/-0°|-0\.00/.test(s22), 'WORLD.md §2.2 色卡表沒有 -0');
+    ok(existsSync(resolve(root, 'scripts/color-script-table.mjs')), 'scripts/color-script-table.mjs 存在（色卡表由腳本產生）');
+  }
+
+  /* --- ⑧ 節奏稽核：可跑、12 區、直方圖鍵；印死區數當軟警告 --- */
+  {
+    const { pacingAudit, KINDS, DEAD_KINDS, BIN_LABELS } = await import('./pacing-audit.mjs');
+    const audit = await pacingAudit();
+    eq(Object.keys(audit.regions).length, 12, 'pacingAudit() 回 12 區');
+    eq(BIN_LABELS.join(','), '0-15,15-30,30-45,>45', '直方圖四格 0–15／15–30／30–45／>45');
+    ok(audit.samples > 500, 'pacingAudit 唯一樣點夠多', String(audit.samples));
+    ok(audit.rawSamples > audit.samples, '去重前樣點 > 唯一樣點（段與段共用端點被去重）', `${audit.rawSamples} > ${audit.samples}`);
+    eq(Object.values(audit.regions).reduce((a, r) => a + r.samples, 0) <= audit.samples, true, '各區樣點總和 ≤ 唯一樣點數（橋／虛空不算區）');
+    for (const kind of DEAD_KINDS) {
+      // 死區沒有兩段共用端點（跨段接縫已合併）
+      const runs = audit.deadZones[kind];
+      const ends = new Set();
+      let dup = 0;
+      for (const z of runs) {
+        const pts = z.samples === 1 ? [z.from] : [z.from, z.to];
+        for (const p of pts) {
+          const k = `${Math.round(p[0] * 2)},${Math.round(p[1] * 2)}`;
+          if (ends.has(k)) dup += 1;
+          ends.add(k);
+        }
+      }
+      eq(dup, 0, `[${kind}] 死區段兩兩不共用端點（接縫已合併）`, String(dup));
+      ok(runs.every((z) => z.samples >= 1 && Number.isFinite(z.length)), `[${kind}] 每段死區有樣點數與長度`);
+    }
+    for (const id of Object.keys(audit.regions)) {
+      const r = audit.regions[id];
+      ok(KINDS.every((k) => Array.isArray(r.hist[k]) && r.hist[k].length === 4), `[${id}] 四類直方圖各四格`);
+      ok(DEAD_KINDS.every((k) => Array.isArray(r.deadZones[k])), `[${id}] 三種口徑的死區清單`);
+      ok(r.samples > 0, `[${id}] 有樣點`, String(r.samples));
+      eq(r.hist.micro.reduce((a, b) => a + b, 0), r.samples, `[${id}] 直方圖總和 ＝ 樣點數`);
+    }
+    ok(Array.isArray(audit.deadZones.encounter) && Array.isArray(audit.deadZones.micro) && Array.isArray(audit.deadZones.mid), '全域死區清單三種口徑');
+    // 軟警告：印，不 fail
+    const line = Object.entries(audit.regions)
+      .map(([id, r]) => `${id}:${r.deadZones.encounter.length}/${r.deadZones.micro.length}/${r.deadZones.mid.length}`)
+      .join('  ');
+    console.log(`  ⚠ 節奏稽核死區段（encounter/micro/mid，>45 m）：${line}`);
+    console.log(`  ⚠ 微觸 >45 m 樣點最多的區：${Object.entries(audit.regions).sort((a, b) => b[1].hist.micro[3] - a[1].hist.micro[3]).slice(0, 4).map(([id, r]) => `${id} ${r.hist.micro[3]}/${r.samples}`).join('、')}（P11 起鋪中景先看這裡）`);
   }
 }
 

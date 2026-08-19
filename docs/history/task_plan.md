@@ -908,9 +908,11 @@ Exit criteria：
 - [x] rubric 85,242／playtest 2,429／build ✓／e2e 3,599 全綠、console error 0；光源不變。
 - [x] WORLD.md §2.2 時辰規則；數字寫進 progress／CHANGELOG。
 
-### P06 — 區域色彩腳本 ＋ 軟門檻三態 ＋ 節奏稽核腳本（2026-08-18 開工）
+### P06 — 區域色彩腳本 ＋ 軟門檻三態 ＋ 節奏稽核腳本（2026-08-18 開工 · 2026-08-19 完成）
 
-狀態：`in progress`（Codex 仍不可用 → consult 由 orchestrator 自審；review 用 `/code-review high`）。**里程碑 A 最後一格：做完停下寫閘門 A 摘要。**
+狀態：`done`（Codex 額度用盡 → consult 由 orchestrator 自審；`/code-review high` 10 條全修）。**里程碑 A 最後一格。**
+
+**審查後修訂（2026-08-19，10 條）**：① `colorScriptFor()` **永遠**回該區自己的 `REGION_ATMOSPHERE`（驗不過只退**該一個鍵**：sky→基準、key/rim/particle→null），不再整組退回 foundations；② 知識式門也能「暗」——`gatePrevUnlocked()` 讀 `knowledgeGaps` 指到的區（技能所在區／`regionSkills`／`masteredAny: N` 算已解鎖區數），`progression.js` 的 gap 順便帶 `regionId`；③ 琥珀改用新的 `PALETTE.invite #a8865c`（**暖金仍只給成就熱點**），WORLD.md 明寫「邀請琥珀，不是成就暖金」；④ 閘門／石座的 lerp 逐通道 <1e-3 就貼上並設 `visualSettled`，到位後每幀零工作；⑤ `main.js onReset` 也 `refreshGates()`／`refreshMarkerStates()`（重置不重載也同步＝WORLD §8 G24b）；⑥ `validateColorScript()` 用模組常數不用 json 自己的 `base`（資料不能當自己的驗證者）；⑦ `pacing-audit` 樣點依 0.5m 網格去重、死區段跨線段合併（68 → 12 段）；⑧ rubric 拿掉空泛斷言（`|| true`／`ok(true,…)`），螢火 fallback 與 rim 覆寫改成真比對；⑨ `color-script-table` 的 `fmt()` 不再印 `-0`、共用 `color-script.js` 匯出的 `hex6/hueDelta/bodyOf`；⑩ 破掉的 foundations 列不再被當退路。
 
 **現狀**：天空是一顆 `makeSkyDome()`（4×512 CanvasTexture 漸層 `SKY_STOPS`，全域一份、不隨區換）＋ `scene.background = fog×0.55`；區域氣氛 `REGION_ATMOSPHERE`（fog/tint/hemi/fogNear/fogFar/exposure/motes）經 P05 的 `composeMood(atmo, hourFactor)` → `engine.setMood`；每區一盞 `PointLight fill`（`world.js:1938`，顏色＝區主色 `colorOf`）與 `kitFor(colorOf)` 四階色（accent/light/mid/dark）給道具／螢火（`motes` 顏色＝kit.light）；閘門 `buildGate()` 材質 color 0.45×／emissive 0.25× 區色，`refreshGates()` 只改文字；`progression.gateStatus(id)` 回 `{unlocked, levelOk, requiresOk, skipped, text, hard…}`，`REGION_GATES` 有 `requires.region`；石座 marker 有 `ring/beacon/halo/glow`，`setCleared`／`setRegionMastered` 會染暖金；路網 `buildPathNetwork()`＋`pathInfluence()` 只在地形頂點色用；e2e 對天空只驗光源數與時辰校準。
 
@@ -936,9 +938,9 @@ Exit criteria：
 **禁區**：同前；`REGION_ATMOSPHERE` 值不動；`REGION_GATES` 不動；`regions-v2.json` 不動。
 
 Exit criteria：
-- [ ] 12 區色卡在 WORLD.md；進區換色可見；閘門／石座三態可見；`pacing-audit` 可跑並進 rubric 軟警告。
-- [ ] rubric／playtest／build／e2e 全綠、console error 0；光源 37。
-- [ ] 閘門 A 摘要寫進 progress.md（建議實玩路線 ≤10 分鐘、砍案條件）；停止。
+- [x] 12 區色卡在 WORLD.md §2.2；進區換色可見（中央高原乘數 ＝1、畫面逐值不變）；閘門／石座三態可見；`npm run audit:pacing` 可跑並進 rubric 軟警告。
+- [x] rubric 86,051／playtest 2,429／build ✓／e2e 全綠、console error 0；0 新光源。
+- [x] 閘門 A 摘要寫進 progress.md；停止等站長實玩。
 
 ## v1.2 錯誤紀錄
 

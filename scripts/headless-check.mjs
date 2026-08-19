@@ -600,8 +600,25 @@ async function main() {
       fog: g.engine.scene.fog.color.getHex(),
       hemiTarget: m.target.hemi,
       exposureTarget: m.target.exposure,
+      // v1.2 · P06：穹頂兩色乘數 uniform（foundations 逐位元 ＝ 1）與 target.sky
+      skyDome: (() => { const d = g.engine.skyDome || g.engine.scene.getObjectByName('sky'); const u = d.material.uniforms; return { name: d.name, type: d.material.type, top: [u.uMulTop.value.r, u.uMulTop.value.g, u.uMulTop.value.b], low: [u.uMulLow.value.r, u.uMulLow.value.g, u.uMulLow.value.b], hasMap: !!u.uMap.value, geo: d.geometry.type, renderOrder: d.renderOrder }; })(),
+      skyTarget: m.target.sky, skyNow: m.now.sky,
+      csFoundations: g.colorScriptFor('foundations'),
     };
   `);
+  /* v1.2 · P06：hour 0 ＋ foundations 的穹頂逐值等於舊的 SKY_STOPS 畫面（乘數 1、同一張貼圖、同一顆球） */
+  eq(hour0.skyDome.name, 'sky', 'P06：穹頂 mesh 還叫 sky');
+  eq(hour0.skyDome.type, 'ShaderMaterial', 'P06：穹頂材質換成 ShaderMaterial（兩色乘數）');
+  eq(hour0.skyDome.hasMap, true, 'P06：穹頂仍貼 SKY_STOPS 漸層貼圖（不重畫）');
+  eq(hour0.skyDome.geo, 'SphereGeometry', 'P06：穹頂仍是同一顆球');
+  eq(hour0.skyDome.renderOrder, -10, 'P06：穹頂 renderOrder −10 不變');
+  eq(JSON.stringify(hour0.skyDome.top), JSON.stringify([1, 1, 1]), 'P06：foundations hour 0 穹頂 top 乘數逐位元 ＝ 1（＝舊畫面）');
+  eq(JSON.stringify(hour0.skyDome.low), JSON.stringify([1, 1, 1]), 'P06：foundations hour 0 穹頂 low 乘數逐位元 ＝ 1');
+  eq(hour0.skyTarget.top, 0x101a28, 'P06：target sky.top ＝ PALETTE.sky #101a28');
+  eq(hour0.skyTarget.low, 0x33465c, 'P06：target sky.low ＝ PALETTE.skyLow #33465c');
+  eq(JSON.stringify(hour0.skyNow), JSON.stringify(hour0.skyTarget), 'P06：開機 now.sky ＝ target.sky（沒有第一幀跳動）');
+  eq(hour0.csFoundations.sky.top, '#101a28', 'P06：colorScriptFor(foundations).sky.top ＝ 基準');
+  eq(hour0.csFoundations.fog, 0x1e2c40, 'P06：colorScriptFor(foundations).fog ＝ REGION_ATMOSPHERE 原值');
   eq(hour0.hour.index, 0, 'P05：預設存檔 → 入夜（hour 0）');
   eq(hour0.hour.p, 0, 'P05：預設存檔 p ＝ 0');
   ok(hour0.hour.p < 0.25, 'P05：預設存檔 p < 0.25（與 index 0 一致）');
@@ -4143,6 +4160,62 @@ async function main() {
     return 1;
   `);
 
+  /* v1.2 · P06：三態 —— 新存檔：reasoning 門琥珀（foundations 已解鎖）、grounding 門暗；石座 foundations lit、reasoning dark */
+  const triBefore = await evaluate(`
+    const g = window.__promptasy;
+    const gate = (id) => g.world.gates.find((x) => x.id === id);
+    const marker = (r) => g.world.markers.find((x) => x.region === r);
+    let lights = 0; g.engine.scene.traverse((o) => { if (o.isLight) lights += 1; });
+    return {
+      unlockedReasoning: g.progression.isRegionUnlocked('reasoning'),
+      unlockedForms: g.progression.isRegionUnlocked('forms'),
+      reasoning: gate('reasoning').visualState,
+      grounding: gate('grounding').visualState,
+      forms: gate('forms').visualState,
+      wards: gate('wards').visualState,
+      toolcraft: gate('toolcraft').visualState,
+      divergence: gate('divergence').visualState,
+      unlockedOrch: g.progression.isRegionUnlocked('orchestration'),
+      unlockedCount: g.progression.state.unlockedRegions.length,
+      states: g.world.gates.map((x) => x.visualState),
+      mFoundations: marker('foundations').regionState,
+      mReasoning: marker('reasoning').regionState,
+      mReasoningDim: marker('reasoning').dimTarget,
+      lights,
+    };
+  `);
+  eq(triBefore.unlockedReasoning, false, 'P06：這時 reasoning 還沒解鎖（新存檔）');
+  eq(triBefore.reasoning, 'amber', 'P06：新存檔 reasoning 門琥珀（前一區 foundations 已解鎖 → 可以先行前往）');
+  eq(triBefore.grounding, 'dark', 'P06：新存檔 grounding 門暗（前一區 reasoning 未解鎖）');
+  // forms 是知識式門（橋自 foundations）：前面幾節可能已經把它的條件湊滿 → 解鎖了就是 lit，否則琥珀
+  eq(triBefore.forms, triBefore.unlockedForms ? 'lit' : 'amber', `P06：forms 門（知識式門、橋自 foundations）${triBefore.unlockedForms ? '已解鎖 → lit' : '未解鎖 → 琥珀'}`);
+  eq(triBefore.wards, 'dark', 'P06：新存檔 wards 門暗（條件指向 grounding／toolcraft，都沒解鎖）');
+  eq(triBefore.unlockedOrch, false, 'P06：這時 orchestration 還沒解鎖');
+  eq(triBefore.toolcraft, 'dark', 'P06：新存檔 toolcraft 門暗（知識式門，條件指向 orchestration，未解鎖）');
+  // divergence（任 2 片精通）：已解鎖的區不到 2 片 → 暗；前面幾節若已把第二片（如 forms）湊開 → 琥珀
+  eq(triBefore.divergence, triBefore.unlockedCount >= 2 ? 'amber' : 'dark', `P06：divergence 門（任 2 片精通）已解鎖 ${triBefore.unlockedCount} 片 → ${triBefore.unlockedCount >= 2 ? '琥珀' : '暗'}`);
+  // 知識式門的前路一開就轉琥珀：暫時把 orchestration 標成已解鎖 → refreshVisualStates（只改目標值、不開門）→ 再還原
+  const triKnow = await evaluate(`
+    const g = window.__promptasy;
+    const gate = (id) => g.world.gates.find((x) => x.id === id);
+    const st = g.progression.state;
+    const had = st.unlockedRegions.includes('orchestration');
+    if (!had) st.unlockedRegions.push('orchestration');
+    g.world.refreshVisualStates();
+    const during = { toolcraft: gate('toolcraft').visualState, orchOpen: gate('orchestration').isOpen };
+    if (!had) st.unlockedRegions.splice(st.unlockedRegions.indexOf('orchestration'), 1);
+    g.world.refreshVisualStates();
+    return { during, after: gate('toolcraft').visualState, orchUnlocked: g.progression.isRegionUnlocked('orchestration') };
+  `);
+  eq(triKnow.during.toolcraft, 'amber', 'P06：orchestration 解鎖 → toolcraft 門轉琥珀（知識式門的前路開了）');
+  eq(triKnow.during.orchOpen, false, 'P06：refreshVisualStates 只改三態、不開門');
+  eq(triKnow.after, 'dark', 'P06：還原後 toolcraft 又回到暗');
+  eq(triKnow.orchUnlocked, false, 'P06：orchestration 的解鎖狀態已還原');
+  ok(triBefore.states.every((s) => s === 'lit' || s === 'amber' || s === 'dark'), 'P06：每道門都有三態之一', triBefore.states.join(','));
+  eq(triBefore.mFoundations, 'lit', 'P06：foundations 石座 lit');
+  eq(triBefore.mReasoning, 'dark', 'P06：reasoning 石座 dark（所在區未解鎖）');
+  eq(triBefore.mReasoningDim, 0.4, 'P06：dark 石座底亮度目標 ×0.4');
+
   // (1) 走進閘門 → 對話框自己出現（不用先學一個鍵）
   const walkIn = await evaluate(`
     const g = window.__promptasy;
@@ -4270,6 +4343,39 @@ async function main() {
   `);
   eq(proceeded.askOpen, false, '按下「直接前往」後對話框收起來');
   eq(proceeded.unlocked, true, '那一區變成走得進去');
+  /* v1.2 · P06：skipGate 後 reasoning 門 lit、石座 amber（halo 輪詢到暖金）、grounding 門轉琥珀、光源不變 */
+  const triAfter = await evaluate(`
+    const g = window.__promptasy;
+    const gate = (id) => g.world.gates.find((x) => x.id === id);
+    const marker = g.world.markers.find((x) => x.region === 'reasoning');
+    const invite = 0xa8865c;
+    const warm = 0xf0c08a;
+    const until = performance.now() + 8000;
+    let halo = marker.halo.material.color.getHex();
+    while (performance.now() < until) {
+      halo = marker.halo.material.color.getHex();
+      if (halo === invite && marker.visualSettled) break;
+      await new Promise((r) => setTimeout(r, 120));
+    }
+    let lights = 0; g.engine.scene.traverse((o) => { if (o.isLight) lights += 1; });
+    return {
+      reasoning: gate('reasoning').visualState,
+      grounding: gate('grounding').visualState,
+      mState: marker.regionState,
+      halo, warm, invite,
+      settled: marker.visualSettled,
+      haloOpacity: marker.halo.material.opacity,
+      lights,
+    };
+  `);
+  eq(triAfter.reasoning, 'lit', 'P06：先行前往後 reasoning 門 lit（開了就是主色亮）');
+  eq(triAfter.grounding, 'amber', 'P06：reasoning 開了 → grounding 門轉琥珀');
+  eq(triAfter.mState, 'amber', 'P06：先行前往的 reasoning 石座 amber');
+  eq(triAfter.halo, triAfter.invite, 'P06：reasoning 石座 halo 顏色輪詢到 PALETTE.invite（邀請琥珀）', triAfter.halo.toString(16));
+  ok(triAfter.halo !== triAfter.warm, 'P06：邀請琥珀不是成就暖金');
+  eq(triAfter.settled, true, 'P06：到位後 marker.visualSettled true');
+  ok(triAfter.haloOpacity > 0.02, 'P06：amber 石座 halo 微亮', String(triAfter.haloOpacity));
+  eq(triAfter.lights, triBefore.lights, 'P06：三態不加光源', `${triBefore.lights} → ${triAfter.lights}`);
   eq(proceeded.gateOpen, true, '橋上的閘門開了');
   eq(proceeded.walkable, true, '原本走不進去的地方現在走得進去');
   ok((proceeded.skipped || []).includes('reasoning'), '存檔記下「這道門是被問開的」', String(proceeded.skipped));
@@ -4390,8 +4496,22 @@ async function main() {
     const g = window.__promptasy;
     const fogBefore = g.engine.scene.fog.color.getHex();
     const audioBefore = g.audio.region;
+    const countLights = () => { let n = 0; g.engine.scene.traverse((o) => { if (o.isLight) n += 1; }); return n; };
+    const lightsBefore = countLights();
+    const dome = g.engine.skyDome;
+    const mulBefore = [dome.material.uniforms.uMulTop.value.r, dome.material.uniforms.uMulTop.value.g, dome.material.uniforms.uMulTop.value.b];
     g.player.teleport(-95, -95);
-    await new Promise((r) => setTimeout(r, 1800));
+    // v1.2 · P06：輪詢直到穹頂乘數離開 1（進區換色是 lerp 過去的，不用固定 sleep 對齊）
+    const until = performance.now() + 6000;
+    let mulNow = mulBefore;
+    while (performance.now() < until) {
+      const u = dome.material.uniforms.uMulTop.value;
+      mulNow = [u.r, u.g, u.b];
+      if (mulNow.some((v) => Math.abs(v - 1) > 0.02) && g.audio.region === 'reasoning') break;
+      await new Promise((r) => setTimeout(r, 120));
+    }
+    await new Promise((r) => setTimeout(r, 400));
+    const m = g.engine.mood();
     return {
       audioBefore,
       audioAfter: g.audio.region,
@@ -4399,8 +4519,26 @@ async function main() {
       fogBefore,
       fogAfter: g.engine.scene.fog.color.getHex(),
       markersHere: g.world.markers.filter((m) => m.region === 'reasoning').length,
+      lightsBefore, lightsAfter: countLights(),
+      mulBefore, mulNow,
+      skyTarget: m.target.sky,
+      csReasoning: g.colorScriptFor('reasoning'),
+      hour: g.hour().index,
+      // 閘門三態：進區時 refreshGates 已叫過；reasoning 已解鎖 → lit
+      gateState: g.world.gates.find((x) => x.id === 'reasoning').visualState,
+      markerState: g.world.markers.find((x) => x.region === 'reasoning').regionState,
     };
   `);
+  /* v1.2 · P06：進 reasoning 後穹頂顏色與 foundations 不同、光源數不變、正常解鎖 → 主色亮 */
+  eq(JSON.stringify(crossing.mulBefore), JSON.stringify([1, 1, 1]), 'P06：跨區前（foundations）穹頂乘數 1');
+  ok(crossing.mulNow.some((v) => Math.abs(v - 1) > 0.02), 'P06：進 reasoning 後穹頂乘數離開 1（天空顏色變了）', crossing.mulNow.map((v) => v.toFixed(3)).join(','));
+  ok(crossing.mulNow.every((v) => v > 0.5 && v < 2), 'P06：穹頂乘數仍在 0.5–2（微偏，仍是夜）', crossing.mulNow.map((v) => v.toFixed(3)).join(','));
+  eq(crossing.skyTarget.top, parseInt(crossing.csReasoning.sky.top.slice(1), 16), 'P06：target sky.top ＝ colorScriptFor(reasoning).sky.top');
+  eq(crossing.skyTarget.low, parseInt(crossing.csReasoning.sky.low.slice(1), 16), 'P06：target sky.low ＝ colorScriptFor(reasoning).sky.low');
+  ok(crossing.skyTarget.top !== 0x101a28, 'P06：reasoning 的 sky.top ≠ foundations');
+  eq(crossing.lightsAfter, crossing.lightsBefore, 'P06：跨區前後光源數不變（色彩腳本 0 新光源）', `${crossing.lightsBefore} → ${crossing.lightsAfter}`);
+  eq(crossing.gateState, 'lit', 'P06：正常解鎖的 reasoning 門 → 主色亮（lit）');
+  eq(crossing.markerState, 'lit', 'P06：正常解鎖的 reasoning 石座 → lit');
   eq(crossing.audioBefore, 'foundations', '跨區前配樂在 foundations');
   eq(crossing.audioAfter, 'reasoning', '跨區後配樂交叉淡到 reasoning（M5）');
   ok(crossing.regionText.includes('示範與推理'), 'HUD 區域名跟著更新', crossing.regionText);

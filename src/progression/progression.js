@@ -275,7 +275,11 @@ export function createProgression({
     if (!k) return [];
     const gaps = [];
     for (const id of k.skills || []) {
-      if (!knowsSkill(id)) gaps.push({ kind: 'skill', skillId: id });
+      if (!knowsSkill(id)) {
+        // v1.2 · P06：順便帶技能的所在區（世界的閘門三態要知道這條件「指向」哪一片土地）
+        const s = cat.skill(id);
+        gaps.push(s && s.regionId ? { kind: 'skill', skillId: id, regionId: s.regionId } : { kind: 'skill', skillId: id });
+      }
     }
     for (const req of k.regionSkills || []) {
       const have = knownInRegion(req.regionId);

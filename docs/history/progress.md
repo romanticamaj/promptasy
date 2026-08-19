@@ -2996,3 +2996,35 @@ e2e 一輪（同時破壞三處：Instagram 那顆回來、divergence 變回硬�
 - 數字：rubric 84,527 → **85,242**、playtest 2,429、e2e 3,525 → **3,599**（零 console error）；光源不變、mesh 不變、sprite 不變。
 - 下一步：P06（區域色彩腳本＋閘門三態＋節奏稽核腳本）→ 里程碑 A 閘門。
 
+## 2026-08-19 · v1.2 P06 區域色彩腳本＋軟門檻三態＋節奏稽核腳本 · `done`
+
+- `src/data/color-script.json`（`authored:"game"`、12 區 × 7 色）＋ `src/world/color-script.js`（讀＋驗＋逐鍵退路）；`main.js applyMood()` 第一參數改 `colorScriptFor(region)`（仍是 `setMood` 那一個入口）；穹頂改 ShaderMaterial 兩色乘數（貼圖不重畫、中央高原乘數 ＝1 逐位元不變）；`key`／`rim`／`particle` 建構時套（補光色／道具自發光補色／螢火色，預設值＝改動前的值）。
+- 三態：`gateVisualState()`／`gatePrevUnlocked()`／`markerVisualState()` 純函式＋`GATE_STATE_LOOK` 表；閘門 lit 主色亮／amber 邀請琥珀 `PALETTE.invite #a8865c`／dark 0.12×，石座 未解鎖暗、先行前往琥珀；lerp 到位即 `visualSettled`、零工作；`refreshGates()`／`refreshMarkerStates()` 在解鎖／跳門／進區／**重置**時呼叫。
+- `scripts/pacing-audit.mjs`＋`npm run audit:pacing`：198 段路、每 5m、**880 唯一樣點**（去重前 1090）；死區 encounter **0 段**、micro 12 段（最長 sight 75m、forms 72m、toolcraft 67m）、mid 1 段（divergence 10m）→ 這是 P11 的基準，只准變少。`scripts/color-script-table.mjs`＋`npm run colors:table` 產 WORLD.md 色卡表。
+- WORLD.md §2.2 加色彩腳本規則＋12 區色卡表＋三態規則；§4.4 加「先量再放」。
+- 審查（`/code-review high`）10 條全修（見 findings）。實作 subagent 兩度撞 session／額度上限，orchestrator 接手驗證收尾。
+- 數字：rubric 85,242 → **86,051**、playtest 2,429、e2e 3,599 → **3,644**（零 console error）；0 新光源。
+
+### ▶ 閘門 A（站長實玩）· 待站長回覆
+
+**里程碑 A 完成**：P01–P06 全部 `[x]`。這是第一次可以「玩到」v1.2 的成果。
+
+**建議實玩路線（約 10 分鐘）**
+1. `npm run dev` → 進遊戲，先在中央高原走一圈：地上有兩隻**濁靈**（含糊的請求 `(21,-32)`、滿口「不要」的請求 `(27,39)`），走近 8m 牠會轉頭盯你、發出低沉雜訊。
+2. 按 `E` 安撫其中一隻：第一幕是牠的「濁言」（那段寫壞的請求）。**先故意送一段只說對一半的**（例如只寫「請改寫成三個條列」），看**剝一層殼**的演出（閃白＋碎光＋音效）與結果卡下面那一行「這一次替牠說清楚了 N 處 · 累積 s / t」。
+3. 關掉主控台再按 `E` 進來一次 → 殼數不會重播（已說清楚的部分記著了）。補完剩下的 → **清燈**：眼光轉暖白、光屑繞你一圈回到燈位；圖鑑（`C`）「走出來的收集」多一列「濁言與正言 1/8」，展開看得到「濁言（弱）→ 你的評價 → 範例（強）→ 技能 → 官方出處」。
+4. 抬頭看天（空白鍵）：這是**入夜**。開設定（`O`）→ 或用主控台 `window.__promptasy.engine.forceHour(3)` 切到「星最亮之夜」對比一下（月亮低、星更密、極光偏紫）。四張對照圖在 `docs/design/shots/hour-0..3.png`。
+5. 走過橋去**階梯迴廊**（reasoning）：天空的藍應該偏紫一點、螢火顏色不同——「顏色變了」＝換了一片土地。
+6. 從高原看四周的**閘門**：reasoning 的門是**邀請琥珀**（可以先行前往）、grounding／toolcraft／wards 的門是**暗**的（條件指向的區還沒解鎖）。
+
+**要回答的兩個問題**
+- 安撫濁靈是不是比走到石座解題**更好玩**？（剝殼的演出有沒有蓋過閱讀回饋？）
+- 時辰／顏色／三態，**讀不讀得出進度**？
+
+**砍案條件（回「砍」時我照這個走）**
+- 若濁靈體感 < 石座 → 里程碑 B 的 P10 改成「濁靈演出精修」，不鋪石座演出。
+- 若演出干擾閱讀 → P09 只保留 4 個 check、演出改成「結果卡關掉後才播」。
+- 若顏色變化太細看不出來 → P06 的 sky 偏移容差從 ±12°／±0.08 放大一級（要重跑色卡表與 e2e 校準）。
+
+回「過」我就接 **P07 · 殘頁＋回信碑＋`firstPrompt` 擷取**（里程碑 B）。
+

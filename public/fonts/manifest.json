@@ -5,6 +5,7 @@
     "src/data/builder-zh.json",
     "src/data/challenges.json",
     "src/data/coach.json",
+    "src/data/color-script.json",
     "src/data/curriculum-zh.json",
     "src/data/curriculum.json",
     "src/data/dated-notes.json",
@@ -72,6 +73,7 @@
     "src/ui/sharecard.js",
     "src/ui/tablet.js",
     "src/ui/title.js",
+    "src/world/color-script.js",
     "src/world/handles.js",
     "src/world/inscriptions.js",
     "src/world/murks.js",
@@ -79,7 +81,7 @@
     "src/world/reactive.js",
     "src/world/world.js"
   ],
-  "corpusHash": "6df0ff55d28d5de9",
+  "corpusHash": "1cafea332ee7ba1b",
   "coverage": {
     "latin": [
       32,
@@ -447,6 +449,7 @@
       20497,
       20498,
       20505,
+      20511,
       20540,
       20551,
       20559,
@@ -1435,12 +1438,14 @@
       29609,
       29618,
       29627,
+      29632,
       29645,
       29664,
       29677,
       29694,
       29699,
       29702,
+      29733,
       29748,
       29781,
       29827,
@@ -1560,6 +1565,7 @@
       31309,
       31337,
       31339,
+      31353,
       31354,
       31359,
       31361,
@@ -1990,6 +1996,7 @@
       36984,
       36986,
       36991,
+      36992,
       36996,
       37002,
       37007,
@@ -2571,7 +2578,7 @@
       "id": "serif-tc",
       "family": "Arcade Serif TC",
       "file": "arcade-serif-tc.woff2",
-      "bytes": 676804,
+      "bytes": 678688,
       "role": "cjk",
       "variable": true,
       "weight": null,
@@ -2582,7 +2589,7 @@
           "default": 400
         }
       },
-      "requested": 1869,
+      "requested": 1874,
       "missing": 0,
       "source": "NotoSerifTC.ttf",
       "author": "Google (Noto Project)",
@@ -2594,7 +2601,7 @@
       "id": "sans-tc",
       "family": "Arcade Sans TC",
       "file": "arcade-sans-tc.woff2",
-      "bytes": 515500,
+      "bytes": 516676,
       "role": "cjk",
       "variable": true,
       "weight": null,
@@ -2605,7 +2612,7 @@
           "default": 400
         }
       },
-      "requested": 1869,
+      "requested": 1874,
       "missing": 0,
       "source": "NotoSansTC.ttf",
       "author": "Google (Noto Project)",
@@ -2614,5 +2621,5 @@
       "url": "https://github.com/google/fonts/tree/main/ofl/notosanstc"
     }
   ],
-  "totalBytes": 1516484
+  "totalBytes": 1519544
 }

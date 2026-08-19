@@ -1249,7 +1249,7 @@ function buildFlora(site, color, quality, keepClear) {
 /* ------------------------------------------------------------------ *
  * 各區的造景（低多邊形 ＋ instancing，維持效能）
  * ------------------------------------------------------------------ */
-function buildRegionProps(site, color, quality, keepClear, pedestals = []) {
+function buildRegionProps(site, color, quality, keepClear, pedestals = [], keyColor = color) {
   const group = new THREE.Group();
   group.name = `props:${site.id}`;
   const rand = makeRandom(site.id.length * 7919 + 1337);
@@ -1934,8 +1934,8 @@ function buildRegionProps(site, color, quality, keepClear, pedestals = []) {
     group.add(slabs);
   }
 
-  // 每區一盞主色補光：便宜又有效的「氣氛」
-  const fill = new THREE.PointLight(color, 5.5, 80, 2);
+  // 每區一盞主色補光：便宜又有效的「氣氛」（v1.2 · P06：顏色可由色彩腳本的 key 指定；預設區主色）
+  const fill = new THREE.PointLight(keyColor, 5.5, 80, 2);
   fill.position.set(site.x, terrainHeight(site.x, site.z) + 24, site.z);
   group.add(fill);
   group.userData.fill = fill;
@@ -1966,7 +1966,7 @@ function makeMoteTexture() {
  * 螢火／飄塵：每區密度與顏色不同（依 REGION_ATMOSPHERE.motes 與該區主色），
  * 走進不同的土地時空氣本身就長得不一樣。
  */
-function buildMotes(quality, colorOf, clusters = []) {
+function buildMotes(quality, colorOf, clusters = [], particleOf = null) {
   const base = quality === 'high' ? 120 : 50;
   const perCluster = quality === 'high' ? 16 : 7;
   const plan = REGION_SITES.map((site) => ({
@@ -1986,7 +1986,10 @@ function buildMotes(quality, colorOf, clusters = []) {
 
   let i = 0;
   for (const { site, n } of plan) {
-    tint.set(colorOf(site.id) || '#cfe8f6').lerp(pale, 0.45);
+    // v1.2 · P06：色彩腳本給了 particle 就用它；沒給 → 舊算法（區主色往 pale 靠 0.45）
+    const particle = particleOf ? particleOf(site.id) : null;
+    if (particle) tint.set(particle);
+    else tint.set(colorOf(site.id) || '#cfe8f6').lerp(pale, 0.45);
     for (let k = 0; k < n; k += 1, i += 1) {
       const a = Math.random() * Math.PI * 2;
       const r = Math.sqrt(Math.random()) * site.radius;
@@ -2366,6 +2369,21 @@ function buildMarker(challenge, quality, accent) {
   label.position.y = 4.4;
   group.add(label);
 
+  /*
+   * v1.2 · P06：三態（所在區的解鎖狀態）——
+   *   'lit'   正常解鎖 → 現狀
+   *   'amber' 先行前往（skippedGates）→ 腳下的圈染**邀請琥珀**（PALETTE.invite，不是成就暖金）、微亮
+   *           （從遠處讀得出「這一區是問開的」）
+   *   'dark'  所在區未解鎖 → 光柱／腳下圈的底亮度 ×0.4
+   * 變化走 update() 的 lerp（跟 near／spotlight 同一條路），不硬切；離目標 < SETTLE_EPS 就貼上、到位後零工作。
+   * halo 的目標色是一個預配置的 Color。過關／精通仍是暖金（成就熱點）。
+   */
+  const haloTarget = color.clone();
+  const warm = new THREE.Color(PALETTE.warm);
+  const invite = new THREE.Color(PALETTE.invite);
+  /** 三態的 lerp（halo 顏色＋底亮度乘數）到位了嗎；到位後 update() 對三態零工作。 */
+  let visualSettled = true;
+
   const fitLabel = (sprite, camera, worldPos) => {
     if (!camera) return;
     const d = camera.position.distanceTo(worldPos);
@@ -2391,6 +2409,17 @@ function buildMarker(challenge, quality, accent) {
     near: false,
     /** 序章畢業時被「指路」的那一座：光柱會加亮、腳下的圈會慢慢呼吸。 */
     spotlight: false,
+    /** v1.2 · P06：所在區的三態 'lit' | 'amber' | 'dark'（refreshMarkerStates 設）。 */
+    regionState: 'lit',
+    /** 三態的底亮度乘數（dark → 0.4）：目標值與當下值（lerp）。 */
+    dimTarget: 1,
+    dimNow: 1,
+    /** 精通後染暖金（setRegionMastered）；之後三態不再動 halo 顏色。 */
+    mastered: false,
+    /** v1.2 · P06：三態的 lerp（halo 顏色／底亮度）已到位（update() 對三態不再做事）。 */
+    get visualSettled() {
+      return visualSettled;
+    },
     /** 玩家是否站在互動範圍內（走近 → 腳下的圈亮起、光柱變亮）。 */
     setNear(v) {
       this.near = Boolean(v);
@@ -2398,10 +2427,28 @@ function buildMarker(challenge, quality, accent) {
     setSpotlight(v) {
       this.spotlight = Boolean(v);
     },
+    /**
+     * v1.2 · P06：所在區的三態。dark → 光柱／腳下圈底亮度 ×0.4；amber → 腳下圈琥珀＋微亮；lit → 現狀。
+     * 已通關／已精通的石座腳下圈本來就是暖金，三態不再改它的顏色（只改亮度乘數）。
+     */
+    setRegionState(state) {
+      const next = state === 'amber' || state === 'dark' ? state : 'lit';
+      this.regionState = next;
+      this.dimTarget = next === 'dark' ? 0.4 : 1;
+      if (!this.cleared && !this.mastered) haloTarget.copy(next === 'amber' ? invite : color);
+      visualSettled = this.dimNow === this.dimTarget && halo.material.color.equals(haloTarget);
+    },
+    /** 精通：腳下圈／光柱／光環染暖金（setRegionMastered 呼叫）。 */
+    setMastered() {
+      this.mastered = true;
+      haloTarget.copy(warm);
+      visualSettled = this.dimNow === this.dimTarget && halo.material.color.equals(haloTarget);
+    },
     setCleared(grade) {
       this.cleared = true;
       this.grade = grade || null;
       const done = new THREE.Color(PALETTE.warm);
+      haloTarget.copy(done);
       shardMat.color.copy(done);
       shardMat.emissive.copy(done);
       shardMat.emissiveIntensity = 1.1;
@@ -2438,7 +2485,24 @@ function buildMarker(challenge, quality, accent) {
         (this.cleared ? 1.1 : 1.6 + Math.sin(t * 1.8 + z * 0.2) * 0.35) + (this.near ? 0.7 : 0);
       glow.intensity = (this.cleared ? 2.6 : 4.2) + (this.near ? 2.6 : 0);
 
-      const beaconBase = this.cleared ? 0.03 : 0.055;
+      // v1.2 · P06：三態的底亮度乘數平滑過去（dark 0.4 ↔ 1）；halo 顏色往目標色 lerp；離目標 < 1e-3 貼上、到位後零工作
+      if (!visualSettled) {
+        const k = Math.min(1, dt * 3);
+        const dd = this.dimTarget - this.dimNow;
+        let dimDone = true;
+        if (dd !== 0) {
+          if (Math.abs(dd) < SETTLE_EPS) this.dimNow = this.dimTarget;
+          else {
+            this.dimNow += dd * k;
+            dimDone = false;
+          }
+        }
+        const colorDone = lerpColorSettle(halo.material.color, haloTarget, k);
+        visualSettled = dimDone && colorDone;
+      }
+      const dim = this.dimNow;
+
+      const beaconBase = (this.cleared ? 0.03 : 0.055) * dim;
       const wanted =
         beaconBase *
         (this.near ? 2.1 : 1) *
@@ -2447,11 +2511,14 @@ function buildMarker(challenge, quality, accent) {
       beacon.material.opacity += (wanted - beacon.material.opacity) * Math.min(1, dt * 4);
       beacon.rotation.y += dt * 0.08;
 
-      const haloWanted = this.near
-        ? 0.16 + Math.sin(t * 3.4) * 0.05
-        : this.spotlight
-          ? 0.09 + Math.sin(t * 1.6) * 0.045
-          : 0;
+      // amber（先行前往）：腳下的圈有一圈很淡的琥珀底光，遠處就讀得出
+      const amberBase = this.regionState === 'amber' && !this.cleared ? 0.06 + Math.sin(t * 1.2 + z * 0.17) * 0.02 : 0;
+      const haloWanted =
+        (this.near
+          ? 0.16 + Math.sin(t * 3.4) * 0.05
+          : this.spotlight
+            ? 0.09 + Math.sin(t * 1.6) * 0.045
+            : amberBase) * dim;
       halo.material.opacity += (haloWanted - halo.material.opacity) * Math.min(1, dt * 6);
       halo.rotation.z += dt * (this.near ? 0.5 : 0.12);
     },
@@ -2461,6 +2528,111 @@ function buildMarker(challenge, quality, accent) {
 /* ------------------------------------------------------------------ *
  * 區域閘門（橋中央）
  * ------------------------------------------------------------------ */
+
+/**
+ * v1.2 · P06：軟門檻三態（純函式）。從高原遠看就讀得出哪些門「可以去／建議先別／還不知道」：
+ *   'lit'   已解鎖 → 主色亮
+ *   'amber' 未解鎖、但這道門的條件**指向的區**已經有一片解鎖了 → 邀請琥珀（可以先行前往）
+ *   'dark'  條件指向的區一片都還沒解鎖 → 暗（還不知道）；硬門（不能先行前往）未解鎖一律暗
+ * 「條件指向的區」由 gatePrevUnlocked() 算（鏈式門看 requires.region；知識式門看 knowledgeGaps 指到的區）。
+ * @param {{unlocked?:boolean, hard?:boolean}} status  progression.gateStatus()
+ * @param {boolean} prevUnlocked
+ * @param {boolean} [hard]  預設看 status.hard
+ * @returns {'lit'|'amber'|'dark'}
+ */
+export function gateVisualState(status, prevUnlocked, hard = Boolean(status && status.hard)) {
+  if (status && status.unlocked) return 'lit';
+  if (hard) return 'dark';
+  return prevUnlocked ? 'amber' : 'dark';
+}
+
+/**
+ * 這道門的條件「指向」哪些區（純函式）：
+ *   · 鏈式門（`requires.region`）→ 那一區
+ *   · 知識式門（沒有 requires）→ `knowledgeGaps` 裡每一條指到的區（skill 的所在區、regionSkills／mastered 的 regionId）；
+ *     `masteredAny` 沒指名，不進這個清單（由 gatePrevUnlocked 用「已解鎖的區夠不夠 N 片」判）
+ *   · 什麼都沒指到（沒 gaps、或 gaps 全是 masteredAny）→ 加建院落的門 → 母土地（host）；橋上的門 → 中央高原
+ * @param {{requires?:{region?:string}|null, knowledgeGaps?:Array<{kind:string, regionId?:string}>}} status
+ * @param {{host?:string}|null} corridor
+ * @returns {string[]}
+ */
+export function gatePrevRegions(status, corridor) {
+  if (status && status.requires && status.requires.region) return [status.requires.region];
+  const gaps = status && Array.isArray(status.knowledgeGaps) ? status.knowledgeGaps : [];
+  const ids = [];
+  for (const g of gaps) if (g && g.regionId && !ids.includes(g.regionId)) ids.push(g.regionId);
+  if (ids.length) return ids;
+  return [corridor && corridor.host ? corridor.host : 'foundations'];
+}
+
+/**
+ * 這道門「前路已開」了嗎（純函式）——三態的第二個參數：
+ *   · 鏈式門：`requires.region` 已解鎖
+ *   · 知識式門：條件指到的區**任一**已解鎖；`masteredAny: N` 沒指名 → 已解鎖的區至少 N 片
+ *     （精通一片得先解鎖一片；一片都不夠就連路都看不到 → 暗）
+ *   · 沒有任何條件指到區 → 母土地（host）／中央高原已解鎖
+ * @param {object} status  progression.gateStatus()
+ * @param {{host?:string}|null} corridor
+ * @param {(regionId:string)=>boolean} isUnlocked
+ * @param {string[]} [allRegions]  用來數「已解鎖幾片」（預設 REGION_SITES）
+ */
+export function gatePrevUnlocked(status, corridor, isUnlocked, allRegions = REGION_SITES.map((s) => s.id)) {
+  const unlocked = (id) => Boolean(id && isUnlocked(id));
+  if (status && status.requires && status.requires.region) return unlocked(status.requires.region);
+  const gaps = status && Array.isArray(status.knowledgeGaps) ? status.knowledgeGaps : [];
+  const named = gatePrevRegions(status, corridor);
+  const hasNamed = gaps.some((g) => g && g.regionId);
+  const anyNeed = gaps.reduce((n, g) => (g && g.kind === 'masteredAny' ? Math.max(n, g.need || 1) : n), 0);
+  if (!hasNamed && !anyNeed) return unlocked(named[0]);
+  if (hasNamed && named.some(unlocked)) return true;
+  if (anyNeed) return allRegions.filter(unlocked).length >= anyNeed;
+  return false;
+}
+
+/** lerp 的「到位」門檻：每一通道離目標小於這個數就直接貼上，不再每幀追。 */
+export const SETTLE_EPS = 1e-3;
+
+/**
+ * 顏色往目標 lerp；逐通道離目標 < SETTLE_EPS 就直接貼上。回傳「已到位」。零配置（改的是傳進來的那顆 Color）。
+ * @param {THREE.Color} now
+ * @param {THREE.Color} target
+ * @param {number} k
+ */
+export function lerpColorSettle(now, target, k) {
+  const dr = target.r - now.r;
+  const dg = target.g - now.g;
+  const db = target.b - now.b;
+  if (Math.abs(dr) < SETTLE_EPS && Math.abs(dg) < SETTLE_EPS && Math.abs(db) < SETTLE_EPS) {
+    now.r = target.r;
+    now.g = target.g;
+    now.b = target.b;
+    return true;
+  }
+  now.r += dr * k;
+  now.g += dg * k;
+  now.b += db * k;
+  return false;
+}
+
+/**
+ * 石座所在區的三態（純函式）：未解鎖 → 'dark'；先行前往開的 → 'amber'；正常解鎖 → 'lit'。
+ * @param {{unlocked?:boolean, skipped?:boolean}} status
+ */
+export function markerVisualState(status) {
+  if (!status || !status.unlocked) return 'dark';
+  return status.skipped ? 'amber' : 'lit';
+}
+
+/**
+ * 三態 → 閘門材質的目標值（純表；乘數是相對區主色 c；amber 用 **PALETTE.invite**（邀請琥珀）——
+ * 不是 PALETTE.warm：暖金只留給成就熱點（WORLD.md §2.2），「可以先行前往」不是成就）。
+ */
+export const GATE_STATE_LOOK = Object.freeze({
+  lit: Object.freeze({ pillar: 0.6, arch: 0.7, archIntensity: 1.3, veil: 1.0, invite: false }),
+  amber: Object.freeze({ pillar: 0.35, arch: 0.35, archIntensity: 0.7, veil: 0.8, invite: true }),
+  dark: Object.freeze({ pillar: 0.12, arch: 0.12, archIntensity: 0.7, veil: 0.55, invite: false }),
+});
+
 function buildGate(corridor, region, color, unlocked, infoText) {
   const group = new THREE.Group();
   group.name = `gate:${region.id}`;
@@ -2542,12 +2714,53 @@ function buildGate(corridor, region, color, unlocked, infoText) {
   let opening = 0;
   let isOpen = unlocked;
 
+  /*
+   * v1.2 · P06：三態的目標值（預配置；update() 每幀往目標 lerp，變化不硬切）。
+   * 開機時的材質值就是 P06 之前的樣子（pillar 0.25c／arch 0.7c×0.7）；第一次 refreshGates()
+   * 才把它拉到三態之一 —— 所以世界建好、還沒 refresh 之前的畫面與舊版逐值相同。
+   */
+  const invite = new THREE.Color(PALETTE.invite);
+  const pillarTarget = pillarMat.emissive.clone();
+  const archTarget = arch.material.emissive.clone();
+  const veilTarget = veil.material.color.clone();
+  let archIntensityTarget = arch.material.emissiveIntensity;
+  let visualState = null;
+  /** 三態的 lerp 到位了嗎（到位＝逐通道貼上目標；之後 update() 對三態零工作）。 */
+  let visualSettled = true;
+
   return {
     id: region.id,
     group,
     position: new THREE.Vector3(gx, gy, gz),
     get isOpen() {
       return isOpen;
+    },
+    /** v1.2 · P06：目前的三態（null ＝ 還沒 refresh 過）。 */
+    get visualState() {
+      return visualState;
+    },
+    /** v1.2 · P06：三態的 lerp 已到位（update() 對三態不再做事）。 */
+    get visualSettled() {
+      return visualSettled;
+    },
+    /**
+     * v1.2 · P06：設三態 'lit' | 'amber' | 'dark'（refreshGates 呼叫；平滑過去）。
+     * 文字說明不動（setLabel 另管）。
+     */
+    setVisualState(state) {
+      const next = GATE_STATE_LOOK[state] ? state : 'dark';
+      visualState = next;
+      const look = GATE_STATE_LOOK[next];
+      const base = look.invite ? invite : c;
+      pillarTarget.copy(base).multiplyScalar(look.pillar);
+      archTarget.copy(base).multiplyScalar(look.arch);
+      veilTarget.copy(base).multiplyScalar(look.veil);
+      archIntensityTarget = look.archIntensity;
+      visualSettled =
+        pillarMat.emissive.equals(pillarTarget) &&
+        arch.material.emissive.equals(archTarget) &&
+        veil.material.color.equals(veilTarget) &&
+        arch.material.emissiveIntensity === archIntensityTarget;
     },
     setLabel(text) {
       group.remove(label);
@@ -2569,10 +2782,29 @@ function buildGate(corridor, region, color, unlocked, infoText) {
       opening = celebrate ? 1 : 0;
       if (!celebrate) veil.visible = false;
       arch.material.emissiveIntensity = 1.3;
+      // 開了就是主色亮（refreshGates 之後也會再確認一次）
+      this.setVisualState('lit');
       this.setLabel('已開啟 · 往前走吧');
     },
     update(dt, t) {
       arch.rotation.z = Math.sin(t * 0.3) * 0.03;
+      // v1.2 · P06：三態平滑（只在還沒到位時 lerp；離目標 < 1e-3 就貼上；到位後零工作）
+      if (visualState && !visualSettled) {
+        const k = Math.min(1, dt * 2.5);
+        const a = lerpColorSettle(pillarMat.emissive, pillarTarget, k);
+        const b = lerpColorSettle(arch.material.emissive, archTarget, k);
+        const d = lerpColorSettle(veil.material.color, veilTarget, k);
+        let e = true;
+        if (arch.material.emissiveIntensity !== archIntensityTarget) {
+          const diff = archIntensityTarget - arch.material.emissiveIntensity;
+          if (Math.abs(diff) < SETTLE_EPS) arch.material.emissiveIntensity = archIntensityTarget;
+          else {
+            arch.material.emissiveIntensity += diff * k;
+            e = false;
+          }
+        }
+        visualSettled = a && b && d && e;
+      }
       if (!isOpen) {
         veil.material.opacity = 0.18 + Math.sin(t * 0.9) * 0.06;
         return;
@@ -2623,6 +2855,12 @@ export function createWorld({
    * 沒給就退回 `progression.murkState`（測試世界的 stub 沒有這個方法 → 全部原樣）。
    */
   murkStateOf = null,
+  /**
+   * v1.2 · P06：區域色彩腳本 `(regionId) => { key, rim, particle }`（`colorScriptFor`）。
+   * key ＝ 那一盞主色補光的顏色、rim ＝ kit.light 的覆寫、particle ＝ 螢火色；建構時就套，不平滑。
+   * 沒給（或某鍵是 null）→ 舊預設：區主色／kitFor().light／舊螢火算法。世界照樣成立。
+   */
+  colorScript = null,
   /** Phase 22：走近會有反應的東西要不要放聲音（面板打開時整組停手）。 */
   onReact = null,
   onSecret = null,
@@ -2641,6 +2879,12 @@ export function createWorld({
   }
   const colorOf = (regionId) => (groups.get(regionId) || {}).color || '#8aa0b4';
   const positions = challenges.map((c) => c.position || [0, 0]);
+  /** v1.2 · P06：色彩腳本的某一鍵（沒腳本／沒那一鍵 → null → 用預設）。 */
+  const scriptColor = (regionId, key) => {
+    if (typeof colorScript !== 'function') return null;
+    const row = colorScript(regionId);
+    return row && row[key] ? row[key] : null;
+  };
 
   // 走出來的路（只染地面顏色，不動高度場）
   const pathSegs = buildPathNetwork(REGION_SITES, [...CORRIDORS, ...ANNEX_LINKS], challenges);
@@ -2679,13 +2923,21 @@ export function createWorld({
   const regionProps = [];
   for (const site of REGION_SITES) {
     if (site.id === 'foundations') continue;
-    const props = buildRegionProps(site, colorOf(site.id), quality, keepClear, positions);
+    const props = buildRegionProps(site, colorOf(site.id), quality, keepClear, positions, scriptColor(site.id, 'key') || colorOf(site.id));
     root.add(props);
     regionProps.push({ id: site.id, group: props });
   }
 
   /* --- Phase 5：植被原型、故事小景、地標、石碑 --- */
-  const kits = new Map(REGION_SITES.map((s) => [s.id, kitFor(colorOf(s.id))]));
+  const kits = new Map(
+    REGION_SITES.map((s) => {
+      const kit = kitFor(colorOf(s.id));
+      // v1.2 · P06：色彩腳本的 rim 覆寫 kit.light（道具自發光補色）；沒給就是 kitFor 算的
+      const rim = scriptColor(s.id, 'rim');
+      if (rim) kit.light = new THREE.Color(rim).getHex();
+      return [s.id, kit];
+    })
+  );
   const propAnimations = [];
   const vignetteAnchors = [];
 
@@ -2778,7 +3030,7 @@ export function createWorld({
   });
   root.add(murkField.group);
 
-  const motes = buildMotes(quality, colorOf, vignetteAnchors);
+  const motes = buildMotes(quality, colorOf, vignetteAnchors, (id) => scriptColor(id, 'particle'));
   root.add(motes);
 
   const mist = buildGroundMist(quality);
@@ -2826,6 +3078,43 @@ export function createWorld({
   const gateById = new Map(gates.map((g) => [g.id, g]));
 
   const isUnlocked = (regionId) => progression.isRegionUnlocked(regionId);
+
+  /* --- v1.2 · P06：軟門檻三態（閘門＋石座）。解鎖／跳門／進區時由 main.js 叫；建構完先套一次 --- */
+  const gateStatusOf = (regionId) =>
+    typeof progression.gateStatus === 'function' ? progression.gateStatus(regionId) || {} : {};
+  function refreshMarkerStates() {
+    const byRegion = new Map();
+    for (const marker of markers) {
+      let state = byRegion.get(marker.region);
+      if (!state) {
+        state = markerVisualState(gateStatusOf(marker.region));
+        byRegion.set(marker.region, state);
+      }
+      marker.setRegionState(state);
+    }
+  }
+  /** 只刷三態（閘門＋石座），不重做標籤 —— 進區時走這一支（便宜；標籤只在解鎖／跳門時重做）。 */
+  function refreshVisualStates() {
+    for (const gate of gates) {
+      const status = gateStatusOf(gate.id);
+      const prevUnlocked = gatePrevUnlocked(status, gate.corridor, isUnlocked);
+      gate.setVisualState(gateVisualState(status, prevUnlocked, status.hard));
+    }
+    refreshMarkerStates();
+  }
+  function refreshGates() {
+    for (const gate of gates) {
+      const status = gateStatusOf(gate.id);
+      if (status.unlocked) {
+        gate.open(false);
+        // Phase 29：先行前往的門照實說 —— 它是被問開的，不是被考過的
+        if (status.skipped) gate.setLabel('已開啟 · 你先行前往');
+      } else gate.setLabel(status.text);
+    }
+    refreshVisualStates();
+  }
+  // 建構完先把三態套上（不重做標籤：標籤在 buildGate 時已照 status.text 做好）
+  refreshVisualStates();
 
   /** 這個點現在走得到嗎（含虛空與尚未開啟的閘門）。 */
   function isWalkable(x, z) {
@@ -3049,6 +3338,8 @@ export function createWorld({
     handles: handleField,
     /** v1.2 · P01：濁靈場。 */
     murks: murkField,
+    /** v1.2 · P06：這一區道具用的四階色（`kitFor()`；色彩腳本的 rim 已覆寫 light）—— 唯讀（測試與稽核用）。 */
+    kitOf: (regionId) => kits.get(regionId) || kits.get('foundations'),
     vignetteAnchors,
     landmarks: LANDMARKS,
     /** 起始祭壇（序章）。世界沒有序章資料時為 null。 */
@@ -3146,17 +3437,16 @@ export function createWorld({
       if (gate) gate.open(celebrate);
     },
 
-    /** 重新整理閘門說明文字（等級／通關數變動時呼叫）。 */
-    refreshGates() {
-      for (const gate of gates) {
-        const status = progression.gateStatus(gate.id);
-        if (status.unlocked) {
-          gate.open(false);
-          // Phase 29：先行前往的門照實說 —— 它是被問開的，不是被考過的
-          if (status.skipped) gate.setLabel('已開啟 · 你先行前往');
-        } else gate.setLabel(status.text);
-      }
-    },
+    /**
+     * 重新整理閘門說明文字＋三態（解鎖／跳門／進區時呼叫）。
+     * v1.2 · P06：三態依 `gateStatus()` 與前一區的解鎖狀態（見 gateVisualState）；石座一併刷新。
+     */
+    refreshGates,
+
+    /** v1.2 · P06：石座三態（所在區未解鎖 → 暗；先行前往 → 琥珀 halo；正常 → 現狀）。 */
+    refreshMarkerStates,
+    /** v1.2 · P06：只刷閘門＋石座的三態、不重做標籤（進區時呼叫）。 */
+    refreshVisualStates,
 
     /** 某區精通了 —— 把該區的石座與補光染成暖金。 */
     setRegionMastered(regionId) {
@@ -3171,6 +3461,7 @@ export function createWorld({
         marker.ring.material.color.set(PALETTE.warm);
         marker.beacon.material.color.set(PALETTE.warm);
         marker.halo.material.color.set(PALETTE.warm);
+        marker.setMastered();
       }
     },
 

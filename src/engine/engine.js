@@ -27,6 +27,9 @@ import {
   AURORA_TINT_PLUS,
   AURORA_TINT_MINUS,
   MOON_DIR_HOUR0,
+  SKY_BASE_TOP,
+  SKY_BASE_LOW,
+  skyMultiplier,
 } from './mood.js';
 import { normalizeForcedHour } from './hours.js';
 
@@ -39,6 +42,11 @@ export const PALETTE = Object.freeze({
   groundHigh: 0x415a69,
   accent: 0xa9c9d8,
   warm: 0xf0c08a,
+  /**
+   * v1.2 · P06：邀請琥珀 —— 軟門檻「可以先行前往」的閘門／石座用它，**不是** warm：
+   * 暖金只留給成就熱點（過關、精通、找到東西）；邀請是「路開著、你可以來」，比金子灰、比夜色暖一點。
+   */
+  invite: 0xa8865c,
   moon: 0xdcecf8,
   aurora: 0x6fd7c4,
   deep: 0x080d14,
@@ -53,7 +61,13 @@ const SKY_STOPS = [
   [1.0, '#5b7186'],
 ];
 
-/** 天空漸層（用 canvas 貼在一顆倒過來的球上，比 shader 好維護也夠便宜）。 */
+/**
+ * 天空漸層：canvas 貼圖（SKY_STOPS）貼在一顆倒過來的球上。
+ * v1.2 · P06：材質換成兩色乘數的 ShaderMaterial —— 貼圖**不重畫**，色彩腳本的 `sky.top/low`
+ * 換算成「目標 ÷ 全域基準（PALETTE.sky／skyLow）」的每通道乘數，天頂用 top、地平線用 low、中間 mix。
+ * foundations 的 top/low 就是基準 → 乘數逐位元 ＝ 1 → 與 MeshBasicMaterial 時代的畫面完全相同
+ * （同一張貼圖、同一個 sRGB 解碼、同一段 tonemapping／colorspace 收尾；e2e 開機校準）。
+ */
 function makeSkyDome() {
   const canvas = document.createElement('canvas');
   canvas.width = 4;
@@ -67,10 +81,39 @@ function makeSkyDome() {
   const tex = new THREE.CanvasTexture(canvas);
   tex.colorSpace = THREE.SRGBColorSpace;
   tex.magFilter = THREE.LinearFilter;
-  const dome = new THREE.Mesh(
-    new THREE.SphereGeometry(620, 32, 20),
-    new THREE.MeshBasicMaterial({ map: tex, side: THREE.BackSide, fog: false, depthWrite: false })
-  );
+  const mat = new THREE.ShaderMaterial({
+    uniforms: {
+      uMap: { value: tex },
+      uMulTop: { value: new THREE.Color(1, 1, 1) },
+      uMulLow: { value: new THREE.Color(1, 1, 1) },
+    },
+    vertexShader: /* glsl */ `
+      varying vec2 vUv;
+      void main() {
+        vUv = uv;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }
+    `,
+    fragmentShader: /* glsl */ `
+      uniform sampler2D uMap;
+      uniform vec3 uMulTop;
+      uniform vec3 uMulLow;
+      varying vec2 vUv;
+      void main() {
+        vec4 texel = texture2D(uMap, vUv);
+        // 地平線（v .5）→ low、天頂（v 1）→ top；地平線以下（看不到）一律 low
+        float t = clamp((vUv.y - 0.5) * 2.0, 0.0, 1.0);
+        vec3 mul = mix(uMulLow, uMulTop, t);
+        gl_FragColor = vec4(texel.rgb * mul, 1.0);
+        #include <tonemapping_fragment>
+        #include <colorspace_fragment>
+      }
+    `,
+    side: THREE.BackSide,
+    fog: false,
+    depthWrite: false,
+  });
+  const dome = new THREE.Mesh(new THREE.SphereGeometry(620, 32, 20), mat);
   dome.name = 'sky';
   dome.renderOrder = -10;
   return dome;
@@ -360,7 +403,8 @@ export function createEngine({ container, quality = 'high' }) {
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(PALETTE.sky);
   scene.fog = new THREE.Fog(PALETTE.fog, 62, 285);
-  scene.add(makeSkyDome());
+  const skyDome = makeSkyDome();
+  scene.add(skyDome);
 
   const stars = makeStars(highStart ? 950 : 420);
   scene.add(stars);
@@ -444,10 +488,19 @@ export function createEngine({ container, quality = 'high' }) {
     fogNear: 62,
     fogFar: 285,
     exposure: 1.02,
+    skyTop: PALETTE.sky,
+    skyLow: PALETTE.skyLow,
   });
   const moodNow = moodState.now;
   /* 天空套用用的暫存（模組層重複使用，每幀零配置） */
   const _moonDir = new THREE.Vector3();
+  /* v1.2 · P06：穹頂兩色的基準（＝ mood.js 的 SKY_BASE_*；兩邊必須同值，乘數才會在 foundations 逐位元 ＝ 1） */
+  if (PALETTE.sky !== SKY_BASE_TOP || PALETTE.skyLow !== SKY_BASE_LOW) {
+    console.warn('[engine] PALETTE.sky/skyLow 與 mood.js SKY_BASE_* 不一致 —— 色彩腳本的天空乘數會偏');
+  }
+  const _skyBaseTop = new THREE.Color(SKY_BASE_TOP);
+  const _skyBaseLow = new THREE.Color(SKY_BASE_LOW);
+  const skyUniforms = skyDome.material.uniforms;
   const _phaseLook = { discScale: 34, discOpacity: 1, haloScale: 170, haloOpacity: 0.5 };
   const _auroraPlus = new THREE.Color(AURORA_TINT_PLUS);
   const _auroraMinus = new THREE.Color(AURORA_TINT_MINUS);
@@ -480,6 +533,9 @@ export function createEngine({ container, quality = 'high' }) {
 
   /** 把 moodNow 的天空值寫進 uniform／sprite／燈的方向。只在值有動時呼叫；不配置。 */
   function applySky() {
+    // 穹頂兩色（P06）：目標 ÷ 基準 → 乘數 uniform（foundations ＝ 1、逐位元）
+    skyMultiplier(moodNow.skyTop, _skyBaseTop, skyUniforms.uMulTop.value);
+    skyMultiplier(moodNow.skyLow, _skyBaseLow, skyUniforms.uMulLow.value);
     // 星：density → uOpacity / uScale
     stars.material.uniforms.uOpacity.value = starOpacity(moodNow.starDensity);
     stars.material.uniforms.uScale.value = starScale(moodNow.starDensity);
@@ -553,6 +609,8 @@ export function createEngine({ container, quality = 'high' }) {
     aurora,
     /** 月亮的 sprite 群（disc ＋ halo；P05 起會沿弧升降） */
     moonGroup,
+    /** 天空穹頂（P06 起材質帶 uMulTop／uMulLow 兩個乘數 uniform） */
+    skyDome,
 
     onUpdate(fn) {
       return hook(updaters, fn);
