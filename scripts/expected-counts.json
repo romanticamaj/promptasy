@@ -1,7 +1,7 @@
 {
   "note": "測試用的「這是契約，不是快照」清單。凡是能從 runtime catalog 或資料檔算出來的數字（技巧數、區域數、技能數、flow 數…），測試一律現算，不寫在這裡；只有『這個數字本身就是當期的驗收目標』才登記在這裡，改動它＝有意識地改變契約。每一格都寫得出為什麼。",
-  "updatedAt": "2026-08-03",
-  "updatedBy": "出處深連結稽核（每一個顯示得到的官方連結都直接跳到被引用的那一節）",
+  "updatedAt": "2026-08-19",
+  "updatedBy": "v1.2 · P06c：把 7 個空區的路填滿（反應物與器物各 22 → 44；這是有意識的契約更新）",
   "contract": {
     "challenges": {
       "value": 142,
@@ -180,6 +180,42 @@
     "applicationTrials": {
       "value": 12,
       "why": "12 片土地各一座試煉（curriculum-v2 §5.2）。它們不教新技巧（第二幕整幕不存在）、不計入 130 座教學神廟、不進 C1／C2 的「一關一技巧」統計，rubric 是開關卡當下依「你已經學會什麼」組出來的。"
+    },
+    "reactiveSpots": {
+      "value": 44,
+      "perRegion": {
+        "foundations": 6,
+        "reasoning": 4,
+        "grounding": 4,
+        "orchestration": 4,
+        "config": 4,
+        "forms": 4,
+        "toolcraft": 4,
+        "sight": 4,
+        "refinery": 3,
+        "divergence": 3,
+        "wards": 2,
+        "frugality": 2
+      },
+      "why": "會回應的東西（WORLD §4.4 的六種）在世界上的件數。v1.2 · P06c 由 22 → 44：課程 v2 之後才蓋起來的七片土地本來一件都沒有（forms／toolcraft／wards／refinery／frugality／sight／divergence 全部 0），走在那裡整段路沒有東西回應你，區域色也沒有東西可以顯（key／rim／particle 都是靠物件才看得見）。配額依死區嚴重度與該片土地的調性訂：量器坊／契約鍛冶場／觀象臺各 4、校驗場／分歧之廳各 3、護欄崗／減法之庭各 2 —— 減法之庭「最空、最平、螢火最少」是設計，所以刻意最稀。不新增種類、不新增光源。"
+    },
+    "handles": {
+      "value": 44,
+      "perRegion": {
+        "foundations": 6,
+        "reasoning": 4,
+        "grounding": 4,
+        "orchestration": 4,
+        "config": 4,
+        "forms": 4,
+        "toolcraft": 4,
+        "sight": 4,
+        "refinery": 3,
+        "divergence": 3,
+        "wards": 2,
+        "frugality": 2
+      },
+      "why": "動得了的器物（WORLD §4.6 的八種）在世界上的件數。v1.2 · P06c 由 22 → 44，配額與理由同 reactiveSpots（兩層一起鋪，走 20–30 公尺一定遇得到一件）。八種都還在、沒有第九種。"
     }
   }
 }

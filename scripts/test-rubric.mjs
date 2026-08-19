@@ -2979,6 +2979,26 @@ const baselineWorld = World.createWorld({
   ...worldOpts,
   murks: [],
 });
+/*
+ * v1.2 · P06c：新加的反應物與器物的擺位規則要驗「這一點清不清得下人」。
+ *
+ * **不能**另外蓋一個「拿掉那 22 件器物」的世界來驗：`handles` 同時餵給 `keepClear`，
+ * 而 `buildRegionProps` 的 `place()` 每被 `keepClear` 退一次就多抽兩次亂數 ——
+ * 少了那幾件，整片土地的程序化擺放亂數流就位移，等於在驗一個永遠不會出貨的佈局
+ * （實測 forms／toolcraft／divergence／refinery／frugality 的 `props:*` 都會不一樣）。
+ * 正解：對**真的會出貨的那個世界**驗，只把「它自己的碰撞體」扣掉。
+ */
+const P06C_REGIONS = Object.freeze(['forms', 'toolcraft', 'wards', 'refinery', 'frugality', 'sight', 'divergence']);
+/**
+ * 這一點除了「它自己」以外還清不清得下人。
+ * 「自己」＝中心離這一點 < 1 公尺的碰撞體 —— 一件器物常常由好幾塊組成
+ * （絞盤就登記了三顆），所以是整組扣掉，不是只扣一顆。
+ */
+const SELF_RADIUS = 1;
+const clearExceptSelf = (world, x, z) => {
+  const others = world.solids.filter((sd) => Math.hypot(sd.x - x, sd.z - z) >= SELF_RADIUS);
+  return World.solidAt(x, z, others) === null;
+};
 // 低畫質是另一組道具數量與另一批位置，穿模稽核兩種都要過
 const lowScene = new THREE.Scene();
 const lowWorld = World.createWorld({
@@ -4431,23 +4451,52 @@ for (const s of secrets) {
 /* --- 會回應的東西：擺法與效能相關的規則 ------------------------------ */
 const spots = Reactive.REACTIVE_SPOTS;
 eq(new Set(spots.map((s) => s.id)).size, spots.length, '反應物件 id 沒有重複');
-ok(spots.length >= 18 && spots.length <= 30, '反應物件數量在合理範圍', `n=${spots.length}`);
+eq(spots.length, EXPECT.reactiveSpots.value, '反應物件數量＝契約值', `n=${spots.length}`);
 {
   const kinds = new Set(spots.map((s) => s.kind));
   ok(kinds.size >= 5, '至少有 5 種不同的反應', `kinds=${[...kinds].join(',')}`);
+  eq(kinds.size, Object.keys(Reactive.REACTION_KINDS).length, '六種反應全部有人用（沒有沒上場的種類）');
   for (const k of kinds) ok(k in Reactive.REACTION_KINDS, `[${k}] 是已實作的反應種類`);
   const regions = new Set(spots.map((s) => s.region));
   for (const g of curriculum.groups) ok(regions.has(g.id), `[${g.id}] 這片土地上有會回應的東西`);
+  // v1.2 · P06c：12 片土地一片都不准空著，而且每一片的件數就是配額表
+  for (const site of World.REGION_SITES) {
+    const here = spots.filter((s) => s.region === site.id);
+    ok(here.length > 0, `[${site.id}] 這片土地上有會回應的東西（P06c：七片空區補齊）`, `n=${here.length}`);
+    eq(here.length, EXPECT.reactiveSpots.perRegion[site.id], `[${site.id}] 反應物件數＝配額表`, `n=${here.length}`);
+  }
+  eq(
+    Object.values(EXPECT.reactiveSpots.perRegion).reduce((a, b) => a + b, 0),
+    EXPECT.reactiveSpots.value,
+    '配額表加起來＝反應物件總數'
+  );
 }
 for (const s of spots) {
   const tag = `[react:${s.id}]`;
   const [x, z] = s.at;
+  ok(/^[a-z0-9-]+$/.test(s.id), `${tag} id 是 kebab-case`);
   const here = World.regionAt(x, z);
   ok(here && here.id === s.region, `${tag} 落在標示的區域裡`, JSON.stringify(here));
   ok(World.coverage(x, z) > 0.85, `${tag} 站得住`);
   ok(nearestPedestal(x, z) >= 7, `${tag} 不在石座的淨空圈裡`, nearestPedestal(x, z).toFixed(1));
   const toIns = Math.min(...inscriptions.map((i) => Math.hypot(x - i.at[0], z - i.at[1])));
   ok(toIns >= 9, `${tag} 不壓在刻文小語上`, toIns.toFixed(1));
+}
+/*
+ * 音石列是一排，不是一個點：每一顆石頭自己就是一個觸發點。
+ * 整列有可能從邊緣掛出去 —— 每一顆都要站得住、走得到（不然那一段旋律玩家永遠聽不到）。
+ */
+for (const s of spots.filter((sp) => sp.kind === 'songstone')) {
+  const n = (s.opts && s.opts.stones) || 5;
+  const gap = (s.opts && s.opts.gap) || 2.3;
+  const dir = Number.isFinite(s.opts && s.opts.dir) ? s.opts.dir : 0;
+  for (let i = 0; i < n; i += 1) {
+    const off = (i - (n - 1) / 2) * gap;
+    const sx = s.at[0] + Math.cos(dir) * off;
+    const sz = s.at[1] + Math.sin(dir) * off;
+    ok(testWorld.isWalkable(sx, sz), `[react:${s.id}] 第 ${i + 1} 顆音石踩得到`, `${sx.toFixed(1)},${sz.toFixed(1)}`);
+    ok(!testWorld.solidAt(sx, sz), `[react:${s.id}] 第 ${i + 1} 顆音石沒有埋在石頭裡`);
+  }
 }
 for (let i = 0; i < spots.length; i += 1) {
   for (let j = i + 1; j < spots.length; j += 1) {
@@ -4657,8 +4706,20 @@ const handles = handleFile.entries;
 eq(handleFile.authored, 'game', 'handles.json 檔頭明講是遊戲自撰的層');
 ok(handleFile.xp > 0 && handleFile.xp <= 8, '動一件器物的 XP 是「很少量」', `xp=${handleFile.xp}`);
 eq(new Set(handles.map((h) => h.id)).size, handles.length, '器物 id 沒有重複');
-ok(handles.length >= 18 && handles.length <= 30, '器物數量在合理範圍', `n=${handles.length}`);
+eq(handles.length, EXPECT.handles.value, '器物數量＝契約值', `n=${handles.length}`);
 {
+  // v1.2 · P06c：12 片土地一片都不准空著，件數就是配額表
+  for (const site of World.REGION_SITES) {
+    const here = handles.filter((h) => h.region === site.id);
+    ok(here.length > 0, `[${site.id}] 這片土地上有動得了的東西（P06c：七片空區補齊）`, `n=${here.length}`);
+    eq(here.length, EXPECT.handles.perRegion[site.id], `[${site.id}] 器物數＝配額表`, `n=${here.length}`);
+    eq(new Set(here.map((h) => h.kind)).size, here.length, `[${site.id}] 同一片土地上不重複同一種器物`);
+  }
+  eq(
+    Object.values(EXPECT.handles.perRegion).reduce((a, b) => a + b, 0),
+    EXPECT.handles.value,
+    '配額表加起來＝器物總數'
+  );
   const kinds = new Set(handles.map((h) => h.kind));
   ok(kinds.size >= 6, '至少有 6 種不同的器物', `kinds=${[...kinds].join(',')}`);
   for (const k of kinds) {
@@ -4759,6 +4820,112 @@ for (const kindMeta of Object.values(handleFile.kinds || {})) {
         Math.hypot(a[0] - b[0], a[1] - b[1]) > 14,
         `器物 ${handles[i].id} / ${handles[j].id} 離得夠開（中間要有安靜）`
       );
+    }
+  }
+}
+
+/* --- v1.2 · P06c：兩層一起看的擺位規則（互動圈不重疊、聲音不糊掉） ---- *
+ *
+ * P01 的濁靈規則講的是「互動圈不重疊 ＝ 兩層半徑相加」。這一節把同一條規矩套到
+ * 反應物與器物上，並且**跨層一起驗**（兩層都是走路上遇到的小東西，不能互相蓋掉）：
+ *
+ *   · 器物 ↔ 器物 ≥ 14（既有規則，密度要有節奏）
+ *   · 反應 ↔ 反應 ≥ 11（WORLD §4.4：離太近會同時響，聲音糊掉）
+ *   · 反應 ↔ 器物 ≥ 8.7（5.5 ＋ 3.2，同 P01 的算法）
+ *   · 石碑 ≥ 10.1、刻文 ≥ 9.3、濁靈 ≥ 8.7、地標 ≥ 14、祕密 ≥ 9
+ *   · 橋主動線 ≥ LANE_HALF + 4、閘門／頸口 ≥ 8、出生點 ≥ SPAWN_CLEAR + 2、起始祭壇 ≥ 9
+ *   · 石座 ≥ 12（6.5 ＋ 5.5 的同一個保守值）—— **例外表在下面，每一條都要寫理由**
+ *
+ * 「清不清得下人」對**真的會出貨的世界**驗，只扣掉「它自己」那一顆碰撞體
+ * （`clearExceptSelf`）——另外蓋一個少了這批器物的世界會讓程序化擺放的亂數流位移，
+ * 那是在驗一個不存在的佈局。反應物那一層本來就不登記碰撞體。
+ */
+{
+  const P06C_SET = new Set(P06C_REGIONS);
+  /*
+   * 石座淨空的例外表（同 P01 的規矩：例外要寫理由、要有上限）。
+   * 分歧之廳半徑 29 站了 10 座石座、護欄崗半徑 27 站了 6 座＋地標，觀象臺的橋頭又壓著主動線 ——
+   * 這三片土地上沒有任何一點同時滿足「離每一座石座 ≥ 12」與其餘每一條規則。
+   * 退到的值仍然大於既有規則（器物 7、反應 7），而且器物那一層都還在
+   * 「石座 6.5 ＋ 器物 3.2 ＝ 9.7」的附近；E 的仲裁裡石座本來就贏，玩家端零倒退。
+   */
+  const P06C_MARKER_EXCEPTIONS = Object.freeze({
+    divergence: { reactive: 8.5, handle: 8.5, why: '分歧之廳半徑 29 站了 10 座石座，全區無 ≥12 的落點' },
+    wards: { reactive: 8, handle: 9, why: '護欄崗半徑 27 站了 6 座石座＋地標，全區無 ≥12 的落點' },
+    sight: { reactive: 10, handle: 10, why: '觀象臺的路網貼著橋頭與坡緣，≥12 與「離主動線 >8」同時成立時無解' },
+  });
+  ok(Object.keys(P06C_MARKER_EXCEPTIONS).length <= 3, '石座淨空例外表最多 3 條（P06c）');
+  for (const e of Object.values(P06C_MARKER_EXCEPTIONS)) ok((e.why || '').length >= 10, '每一條例外都寫了理由', e.why);
+
+  const layered = [
+    ...Reactive.REACTIVE_SPOTS.map((s) => ({ layer: 'reactive', id: s.id, region: s.region, at: s.at })),
+    ...handles.map((h) => ({ layer: 'handle', id: h.id, region: h.region, at: h.at })),
+  ];
+  const fresh = layered.filter((it) => P06C_SET.has(it.region));
+  eq(fresh.filter((it) => it.layer === 'reactive').length, 22, 'P06c 新加的反應物共 22 件');
+  eq(fresh.filter((it) => it.layer === 'handle').length, 22, 'P06c 新加的器物共 22 件');
+
+  const segDist = (px, pz, ax, az, bx, bz) => {
+    const dx = bx - ax;
+    const dz = bz - az;
+    const l2 = dx * dx + dz * dz;
+    const t = l2 ? Math.max(0, Math.min(1, ((px - ax) * dx + (pz - az) * dz) / l2)) : 0;
+    return Math.hypot(px - (ax + dx * t), pz - (az + dz * t));
+  };
+  const laneDistOf = (x, z) => Math.min(...World.BRIDGE_LANES.map((l) => segDist(x, z, l.ax, l.az, l.bx, l.bz)));
+  for (const it of fresh) {
+    const tag = `[p06c:${it.layer}:${it.id}]`;
+    const [x, z] = it.at;
+    const here = World.regionAt(x, z);
+    ok(here && here.id === it.region && !here.onBridge, `${tag} regionAt 說它在 ${it.region}（而且不在橋上）`, JSON.stringify(here));
+    ok(World.coverage(x, z) > 0.9, `${tag} 站得住（coverage > 0.9）`, World.coverage(x, z).toFixed(2));
+    ok(clearExceptSelf(testWorld, x, z), `${tag} 這一點除了它自己以外沒有別的東西擋著`);
+    const exc = P06C_MARKER_EXCEPTIONS[it.region];
+    const markerMin = exc ? exc[it.layer] : 12;
+    const toMarker = Math.min(...challenges.map((c) => Math.hypot(x - c.position[0], z - c.position[1])));
+    ok(toMarker >= markerMin, `${tag} 離石座 ≥ ${markerMin}m`, toMarker.toFixed(2));
+    const toMurk = Math.min(...murkFile.entries.map((m) => Math.hypot(x - m.at[0], z - m.at[1])));
+    ok(toMurk >= 8.7, `${tag} 離濁靈 ≥ 8.7m`, toMurk.toFixed(1));
+    const toTablet2 = Math.min(...LORE_TABLETS.map((t) => Math.hypot(x - t.at[0], z - t.at[1])));
+    ok(toTablet2 >= 10.1, `${tag} 離世界觀石碑 ≥ 10.1m`, toTablet2.toFixed(1));
+    const toIns2 = Math.min(...inscriptions.map((i) => Math.hypot(x - i.at[0], z - i.at[1])));
+    ok(toIns2 >= 9.3, `${tag} 離刻文小語 ≥ 9.3m`, toIns2.toFixed(1));
+    const toSecret2 = Math.min(...secrets.map((sc) => Math.hypot(x - sc.at[0], z - sc.at[1])));
+    ok(toSecret2 >= 9, `${tag} 離藏起來的地方 ≥ 9m`, toSecret2.toFixed(1));
+    const toLandmark2 = Math.min(...LANDMARKS.map((l) => Math.hypot(x - l.at[0], z - l.at[1])));
+    ok(toLandmark2 >= 14, `${tag} 沒有站進地標的留白圈`, toLandmark2.toFixed(1));
+    ok(laneDistOf(x, z) >= World.LANE_HALF + 4, `${tag} 離橋的主動線 ≥ 4m`, laneDistOf(x, z).toFixed(1));
+    for (const a of World.ANNEX_LINKS) ok(Math.hypot(x - a.gate.x, z - a.gate.z) >= 8, `${tag} 離 ${a.region} 頸口 ≥ 8m`);
+    for (const c of World.CORRIDORS) ok(Math.hypot(x - c.gate.x, z - c.gate.z) >= 8, `${tag} 離 ${c.region} 閘門 ≥ 8m`);
+    ok(Math.hypot(x, z - 6) >= World.SPAWN_CLEAR + 2, `${tag} 不壓在出生點上`);
+    ok(
+      Math.hypot(x - prologueForWorld.shrine.at[0], z - prologueForWorld.shrine.at[1]) >= 9,
+      `${tag} 離起始祭壇 ≥ 9m`
+    );
+  }
+  /*
+   * 走得到嗎（e2e 的同一條線，先在 rubric 攔）：
+   * `buildRegionProps()` 的 `place()` 試 8 次都撞到淨空區時會回一個**固定退路座標**，
+   * 那個落點不再檢查 keepClear —— 所以「旁邊留白 5.5 公尺」不是保證，要真的量。
+   *   · 反應物：半徑 2.0 的一圈 16 個方向，至少 13 個沒有碰撞體（＝ e2e 的門檻）
+   *   · 器物：半徑 2.4 的一圈 20 個方向，至少 18 個（＝ e2e 與既有 rubric 的門檻）
+   */
+  for (const s of Reactive.REACTIVE_SPOTS) {
+    let free = 0;
+    for (let a = 0; a < 16; a += 1) {
+      const ang = (a / 16) * Math.PI * 2;
+      if (!testWorld.solidAt(s.at[0] + Math.cos(ang) * 2.0, s.at[1] + Math.sin(ang) * 2.0)) free += 1;
+    }
+    ok(free >= 13, `[react:${s.id}] 四周走得過去（不會被道具圍死）`, `${free}/16`);
+  }
+  // 跨層的互動圈：兩兩都要拉得開（全世界一起驗，不只新加的那一批）
+  for (let i = 0; i < layered.length; i += 1) {
+    for (let j = i + 1; j < layered.length; j += 1) {
+      const a = layered[i];
+      const b = layered[j];
+      const min = a.layer === b.layer ? (a.layer === 'handle' ? 14 : 11) : 8.7;
+      const d = Math.hypot(a.at[0] - b.at[0], a.at[1] - b.at[1]);
+      ok(d >= min, `${a.layer}:${a.id} / ${b.layer}:${b.id} 的互動圈不重疊（≥ ${min}m）`, d.toFixed(2));
     }
   }
 }
@@ -4966,6 +5133,26 @@ ok(Handles.CAPSTAN_TURNS >= 2 && Handles.CAPSTAN_TURNS <= 4, '絞盤要推 2–4
     '加了一整層器物之後碰撞體仍在預算內',
     `n=${testWorld.solids.length}`
   );
+  /* v1.2 · P06c：兩層各補了 22 件之後重量一次預算（WORLD §6.1） */
+  {
+    ok(testWorld.solids.length < 1100, 'P06c：碰撞體 < 1,100', `n=${testWorld.solids.length}`);
+    let tris = 0;
+    let worldLights = 0;
+    testWorld.root.traverse((o) => {
+      if (o.isLight) worldLights += 1;
+      if (o.isMesh && o.geometry) {
+        const idx = o.geometry.index;
+        tris += (idx ? idx.count / 3 : o.geometry.attributes.position.count / 3) * (o.isInstancedMesh ? o.count : 1);
+      }
+    });
+    ok(tris < 240000, 'P06c：世界三角形 < 240k', `tris=${Math.round(tris)}`);
+    eq(worldLights, 37, 'P06c：光源數不變（這兩層一盞燈都不加）', `lights=${worldLights}`);
+    let reactiveLights = 0;
+    testWorld.reactive.group.traverse((o) => {
+      if (o.isLight) reactiveLights += 1;
+    });
+    eq(reactiveLights, 0, 'P06c：會回應的東西一盞燈都沒加');
+  }
   // 低畫質也要蓋（器物不是「畫質選項」，它是玩法）
   let lowBuilt = 0;
   lowWorld.root.traverse((o) => {
@@ -7038,6 +7225,22 @@ console.log('\n▸ 區域色彩腳本 ＋ 三態 ＋ 節奏稽核（v1.2 · P06�
       eq(r.hist.micro.reduce((a, b) => a + b, 0), r.samples, `[${id}] 直方圖總和 ＝ 樣點數`);
     }
     ok(Array.isArray(audit.deadZones.encounter) && Array.isArray(audit.deadZones.micro) && Array.isArray(audit.deadZones.mid), '全域死區清單三種口徑');
+    /*
+     * v1.2 · P06c 起這是**硬斷言**，不再只是軟警告：
+     * 微觸死區（走 45 公尺沒有任何小東西回應你）最多 4 段，而且沒有一段超過 45 公尺。
+     * P06 量到 12 段（sight 75m／forms 72m／toolcraft 67m…），P06c 補完七片空區之後歸零。
+     * 之後任何一次鋪東西「只准變少」—— 這條線就是那個「只准變少」的底。
+     */
+    ok(audit.deadZones.micro.length <= 4, '微觸死區 ≤ 4 段（P06c 硬門檻）', `n=${audit.deadZones.micro.length}`);
+    ok(
+      audit.deadZones.micro.every((z) => z.length < 45),
+      '沒有任何一段微觸死區長過 45 公尺',
+      audit.deadZones.micro.map((z) => `${z.region}:${z.length.toFixed(0)}m`).join(' ')
+    );
+    eq(audit.deadZones.encounter.length, 0, '沒有「微觸與中景都沒有」的死區');
+    for (const site of World.REGION_SITES) {
+      ok(audit.regions[site.id].hist.micro[3] === 0, `[${site.id}] 沒有任何樣點離最近的微觸 > 45 公尺`, String(audit.regions[site.id].hist.micro[3]));
+    }
     // 軟警告：印，不 fail
     const line = Object.entries(audit.regions)
       .map(([id, r]) => `${id}:${r.deadZones.encounter.length}/${r.deadZones.micro.length}/${r.deadZones.mid.length}`)

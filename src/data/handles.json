@@ -382,6 +382,350 @@
       "rot": -2,
       "title": "觀眾席的長凳",
       "line": "坐下來。台上沒有人，可是這個位子被磨得很亮。"
+    },
+    {
+      "id": "frm-bench-halfmould",
+      "kind": "bench",
+      "region": "forms",
+      "at": [
+        -27,
+        107.5
+      ],
+      "rot": 0.9,
+      "title": "半倒的模子旁的長凳",
+      "line": "坐下來。模子倒到一半就停了，坐著看也看不出當初想倒成什麼。"
+    },
+    {
+      "id": "frm-gong-measurebench",
+      "kind": "gong",
+      "region": "forms",
+      "at": [
+        33,
+        114.5
+      ],
+      "rot": -1.2,
+      "title": "量台邊的響石",
+      "line": "一聲響。以前這一聲響完，這一爐就算量完了。"
+    },
+    {
+      "id": "frm-urn-overflow",
+      "kind": "urn",
+      "region": "forms",
+      "at": [
+        -0.5,
+        144.5
+      ],
+      "rot": 0.5,
+      "title": "溢槽邊的陶罐",
+      "lines": [
+        "罐子裡是裂開的模子，每一個都在同一格上裂。",
+        "罐底刻著一行字：先講清楚要幾寸，再倒。"
+      ]
+    },
+    {
+      "id": "frm-signpost-gaugefoot",
+      "kind": "signpost",
+      "region": "forms",
+      "at": [
+        11,
+        135
+      ],
+      "rot": -1.5,
+      "title": "柱腳的指路石",
+      "ways": [
+        {
+          "to": "往西北",
+          "text": "刻度之柱。柱子斷在還沒刻完的那一格，那把尺還停在半空。"
+        },
+        {
+          "to": "往東北",
+          "text": "量台。上面的東西都被量過兩次，怕自己記錯。"
+        },
+        {
+          "to": "往南",
+          "text": "溢出來的那一槽。倒過頭的都流在那裡，沒有人收。"
+        },
+        {
+          "to": "往北",
+          "text": "回橋頭。那道門就在正北，走過去是中央高原。"
+        }
+      ]
+    },
+    {
+      "id": "tlc-brazier-forgeside",
+      "kind": "brazier",
+      "region": "toolcraft",
+      "at": [
+        -106.5,
+        -5.5
+      ],
+      "rot": 0.8,
+      "title": "鍛台邊的火盆",
+      "line": "火又起來了。爐子其實一直溫著，只差有人再吹一口氣。"
+    },
+    {
+      "id": "tlc-urn-toolgroove",
+      "kind": "urn",
+      "region": "toolcraft",
+      "at": [
+        -94.5,
+        17.5
+      ],
+      "rot": -1.1,
+      "title": "工具溝旁的陶罐",
+      "lines": [
+        "罐子裡全是還沒開刃的坯，一把疊著一把。",
+        "罐底寫著：先想清楚它什麼時候該被拿起來。"
+      ]
+    },
+    {
+      "id": "tlc-capstan-bellows",
+      "kind": "capstan",
+      "region": "toolcraft",
+      "at": [
+        -111,
+        14
+      ],
+      "rot": 0.3,
+      "title": "風箱的絞盤",
+      "line": "石蓋滑開。底下是一排掛好的鑰匙，每一把都還沒有刻上名字。"
+    },
+    {
+      "id": "tlc-bench-coolingrack",
+      "kind": "bench",
+      "region": "toolcraft",
+      "at": [
+        -105,
+        -28.5
+      ],
+      "rot": 2.2,
+      "title": "放涼架旁的長凳",
+      "line": "坐下來。等鐵放涼是這裡唯一不能趕的一件事。"
+    },
+    {
+      "id": "sgt-moonpool-lowledge",
+      "kind": "moonpool",
+      "region": "sight",
+      "at": [
+        116.5,
+        -26
+      ],
+      "rot": 1.2,
+      "title": "坡下的仰水盤",
+      "line": "撈起來的那條光在半空散開，散成的形狀跟天上那一片一樣。"
+    },
+    {
+      "id": "sgt-watchstone-southslope",
+      "kind": "watchstone",
+      "region": "sight",
+      "at": [
+        144,
+        -44.5
+      ],
+      "rot": -0.7,
+      "title": "南坡的守望石",
+      "line": "石獸睜開眼，先看了一眼天，才把頭轉過來。"
+    },
+    {
+      "id": "sgt-bench-skyward",
+      "kind": "bench",
+      "region": "sight",
+      "at": [
+        123,
+        -44
+      ],
+      "rot": -2.3,
+      "title": "朝天的長凳",
+      "line": "坐下來。這張凳子被墊高過一邊，坐上去自然就在往上看。"
+    },
+    {
+      "id": "sgt-signpost-eastridge",
+      "kind": "signpost",
+      "region": "sight",
+      "at": [
+        148,
+        6.5
+      ],
+      "rot": 0.9,
+      "title": "東坡的指路石",
+      "ways": [
+        {
+          "to": "往北",
+          "text": "朝天的鏡。整片星空都落在那一面裡，走近了反而看不全。"
+        },
+        {
+          "to": "往西",
+          "text": "一次改五個地方的那張桌子。改完就沒有人記得原本的樣子。"
+        },
+        {
+          "to": "往西北",
+          "text": "沒有指定方向的觀景窗。它對著哪裡，誰也說不上來。"
+        },
+        {
+          "to": "往南",
+          "text": "坡往下。走到底是南邊那排觀測架，環都往同一個方向抬著。"
+        }
+      ]
+    },
+    {
+      "id": "rfn-moonpool-twicelit",
+      "kind": "moonpool",
+      "region": "refinery",
+      "at": [
+        -148.5,
+        123.5
+      ],
+      "rot": -0.4,
+      "title": "照兩次的水盤",
+      "line": "撈起來的光在水面上又照了一次，兩個影子差了一點點。"
+    },
+    {
+      "id": "rfn-gong-secondread",
+      "kind": "gong",
+      "region": "refinery",
+      "at": [
+        -120.5,
+        147.5
+      ],
+      "rot": 1.7,
+      "title": "複讀的響石",
+      "line": "一聲響，谷的另一面隔了半拍才回一聲，兩聲都算數。"
+    },
+    {
+      "id": "rfn-urn-tendrafts",
+      "kind": "urn",
+      "region": "refinery",
+      "at": [
+        -135,
+        161.5
+      ],
+      "rot": 0.6,
+      "title": "十稿的陶罐",
+      "lines": [
+        "罐子裡是同一段話的十個版本，只有第一個沒有被劃掉。",
+        "罐底寫著：改到第十次才發現第一次就對了。"
+      ]
+    },
+    {
+      "id": "dvg-signpost-hallmouth",
+      "kind": "signpost",
+      "region": "divergence",
+      "at": [
+        70,
+        30.5
+      ],
+      "rot": -0.9,
+      "title": "廳口的指路石",
+      "ways": [
+        {
+          "to": "往東",
+          "text": "兩面的柱。一面刻著要，另一面刻著不要，刻得一樣整齊。"
+        },
+        {
+          "to": "往東北",
+          "text": "廳的正中央。站在那裡看，兩邊的字一樣長。"
+        },
+        {
+          "to": "往西北",
+          "text": "回高原的頸口。廳裡沒有暗處，出去反而要適應一下。"
+        },
+        {
+          "to": "往西南",
+          "text": "面具劇場的橋頭。那邊的光是暖的。"
+        }
+      ]
+    },
+    {
+      "id": "dvg-watchstone-bothsides",
+      "kind": "watchstone",
+      "region": "divergence",
+      "at": [
+        81,
+        42
+      ],
+      "rot": 1.4,
+      "title": "兩面之間的守望石",
+      "line": "石獸睜開眼，左看一次右看一次，最後停在中間。"
+    },
+    {
+      "id": "dvg-gong-evenweight",
+      "kind": "gong",
+      "region": "divergence",
+      "at": [
+        60,
+        10.5
+      ],
+      "rot": -1.8,
+      "title": "秤兩邊的響石",
+      "line": "一聲響，兩邊的柱子同時震了一下，震得一樣久。"
+    },
+    {
+      "id": "wrd-watchstone-postgate",
+      "kind": "watchstone",
+      "region": "wards",
+      "at": [
+        109,
+        -137
+      ],
+      "rot": 0.5,
+      "title": "哨所的守望石",
+      "line": "石獸睜開眼。它守的是外面來的字，不是走進來的人。"
+    },
+    {
+      "id": "wrd-signpost-coldpost",
+      "kind": "signpost",
+      "region": "wards",
+      "at": [
+        126,
+        -132
+      ],
+      "rot": 2.4,
+      "title": "哨所前的指路石",
+      "ways": [
+        {
+          "to": "往西",
+          "text": "拆開過的信。看過的都疊回去了，順序沒有變。"
+        },
+        {
+          "to": "往西北",
+          "text": "不會關上的門。它一直開著，關不上也沒有人想關。"
+        },
+        {
+          "to": "往西南",
+          "text": "回沉書檔案庫。過了那道門檻，霧就濃起來了。"
+        },
+        {
+          "to": "往東",
+          "text": "哨所的外緣。從那裡看得最遠，也最冷。"
+        }
+      ]
+    },
+    {
+      "id": "frg-bench-onlyone",
+      "kind": "bench",
+      "region": "frugality",
+      "at": [
+        -13.5,
+        -70.5
+      ],
+      "rot": -1.2,
+      "title": "只剩下的一張長凳",
+      "line": "坐下來。這一片本來擺滿了東西，留下來的就這一張。"
+    },
+    {
+      "id": "frg-urn-lastshard",
+      "kind": "urn",
+      "region": "frugality",
+      "at": [
+        13.5,
+        -103.5
+      ],
+      "rot": 1.9,
+      "title": "最後一個陶罐",
+      "lines": [
+        "罐子裡只剩一片碎刻痕，其餘的都被拿去別的地方了。",
+        "罐底寫著：留一片就夠了，剩下的都能再刻。"
+      ]
     }
   ]
 }

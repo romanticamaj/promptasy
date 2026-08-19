@@ -467,6 +467,49 @@ export const REACTIVE_SPOTS = Object.freeze([
   { id: 'cfg-ripple-mirror', kind: 'ripple', region: 'config', at: [103, 112] },
   { id: 'cfg-spirit-dressing', kind: 'spirit', region: 'config', at: [76, 96] },
   { id: 'cfg-song-east', kind: 'songstone', region: 'config', at: [123, 113], opts: { dir: 1.9 } },
+
+  /*
+   * v1.2 · P06c：課程 v2 之後才蓋起來的七片土地本來一件都沒有 ——
+   * 「區域顏色看不出來」與「路上沒東西」其實是同一件事（區域色是靠物件顯的）。
+   * 這一批的落點全部先用 `scripts/pacing-audit.mjs` 量過（先量再放，WORLD §4.4），
+   * 種類挑的是那一片土地的調性（WORLD §1.4），不新增種類、不新增光源。
+   */
+
+  /* --- forms：量器坊（熄了火、冷錫色、最安靜 —— 只有一列音石與一架風鈴） --- */
+  { id: 'frm-song-westterrace', kind: 'songstone', region: 'forms', at: [-19, 152.5], opts: { dir: 0.4 } },
+  { id: 'frm-chime-measurebench', kind: 'chime', region: 'forms', at: [26.5, 108] },
+  { id: 'frm-caps-northstep', kind: 'glowcap', region: 'forms', at: [-7, 91] },
+  { id: 'frm-spirit-halfmould', kind: 'spirit', region: 'forms', at: [-33, 115] },
+
+  /* --- toolcraft：契約鍛冶場（爐子還溫著、火星最多） --- */
+  { id: 'tlc-chime-westgroove', kind: 'chime', region: 'toolcraft', at: [-142.5, 10.5] },
+  { id: 'tlc-caps-southgroove', kind: 'glowcap', region: 'toolcraft', at: [-127.5, -21.5] },
+  { id: 'tlc-moths-toolditch', kind: 'moths', region: 'toolcraft', at: [-98, -22] },
+  { id: 'tlc-song-anvil', kind: 'songstone', region: 'toolcraft', at: [-106.5, -14.5], opts: { dir: 0.4 } },
+
+  /* --- sight：觀象臺（不只讀字：看與聽 —— 水面、光、翅膀） --- */
+  { id: 'sgt-ripple-eastrim', kind: 'ripple', region: 'sight', at: [148, -13.5] },
+  { id: 'sgt-caps-northridge', kind: 'glowcap', region: 'sight', at: [139.5, 9.5] },
+  { id: 'sgt-moths-upperslope', kind: 'moths', region: 'sight', at: [129.5, -5.5] },
+  { id: 'sgt-chime-bridgehead', kind: 'chime', region: 'sight', at: [106, -22] },
+
+  /* --- refinery：校驗場（光被折過一次 —— 水紋、回音、一朵一朵亮） --- */
+  { id: 'rfn-ripple-northyard', kind: 'ripple', region: 'refinery', at: [-144.5, 158.5] },
+  { id: 'rfn-song-valley', kind: 'songstone', region: 'refinery', at: [-113, 142], opts: { dir: -0.7 } },
+  { id: 'rfn-caps-southrim', kind: 'glowcap', region: 'refinery', at: [-148, 104.5] },
+
+  /* --- divergence：分歧之廳（兩面刻著相反神諭的柱） --- */
+  { id: 'dvg-song-eastpillar', kind: 'songstone', region: 'divergence', at: [96.5, 5.5], opts: { dir: 1.3 } },
+  { id: 'dvg-chime-westmouth', kind: 'chime', region: 'divergence', at: [67, 0.5] },
+  { id: 'dvg-caps-middle', kind: 'glowcap', region: 'divergence', at: [77, 7.5] },
+
+  /* --- wards：護欄崗（最冷、螢火最少 —— 只有一架風鈴與一隻小獸） --- */
+  { id: 'wrd-chime-post', kind: 'chime', region: 'wards', at: [119.5, -148] },
+  { id: 'wrd-spirit-outerrim', kind: 'spirit', region: 'wards', at: [117, -161.5] },
+
+  /* --- frugality：減法之庭（最空最平、螢火最少 —— 全場最稀，這是設計不是遺漏） --- */
+  { id: 'frg-caps-plinth', kind: 'glowcap', region: 'frugality', at: [6, -99] },
+  { id: 'frg-song-eastedge', kind: 'songstone', region: 'frugality', at: [15.5, -71.5], opts: { dir: 2.4 } },
 ]);
 
 /* ------------------------------------------------------------------ *

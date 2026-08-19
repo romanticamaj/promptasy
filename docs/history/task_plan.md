@@ -975,9 +975,9 @@ Exit criteria：
 - [x] rubric 88,397／playtest 2,533／build ✓／e2e 3,695 全綠、console error 0；fonts 已跑。
 - [x] 停回閘門 A（連同 P06c 一起，等站長再玩一次）。
 
-### P06c — 把 7 個空區的路填滿（閘門 A 回饋 ②）（2026-08-19 開工）
+### P06c — 把 7 個空區的路填滿（閘門 A 回饋 ②）（2026-08-19 開工 · 同日完成）
 
-狀態：`in progress`
+狀態：`done`（等站長實玩）
 
 **現狀（實測）**：反應物與器物**各 22 件，全部集中在原本的 5 區**——foundations 6+6、reasoning／grounding／orchestration／config 各 4+4；**forms／toolcraft／wards／refinery／frugality／sight／divergence 各 0+0**。P06 節奏稽核（`npm run audit:pacing`，880 唯一樣點）：micro 死區 **12 段**，最長 sight 75m／forms 72m／toolcraft 67m／refinery 54m；encounter 死區 0 段、mid 死區 1 段（divergence 10m）。可重用的種類共 14 種：反應 `chime`（風鈴架）／`glowcap`（光菇圈）／`songstone`（音石）／`ripple`（水紋池）／`spirit`（守望的小獸）／`moths`（螢火）；器物 `urn`／`brazier`／`gong`／`watchstone`／`moonpool`／`signpost`／`capstan`／`bench`。資料入口：`src/world/reactive.js` 的 `REACTIVE_SPOTS`（`{id, kind, region, at:[x,z], opts?}`）與 `src/data/handles.json` 的 `entries`（`{id, kind, region, at:[x,z], rot, title, line}`）。
 
@@ -1010,10 +1010,28 @@ Exit criteria：
 - rubric：各區數量＝配額表；擺位規則逐條（含互動圈不重疊、反應物間距 ≥11m）；`expected-counts` 更新後一致；預算實測；`pacing-audit` micro 死區 ≤4 段（硬斷言，這一次不只是軟警告）。
 - e2e：7 區各挑一件器物走完「走近→提示→E→動了→存檔→重整還在」；反應物進出範圍會響（輪詢式）；舊斷言零改動。
 
+**實作後的修訂與偏離（2026-08-19）**：
+
+1. **石座淨空的例外表（3 條，寫進 rubric）**：規格寫「離石座 ≥12」（沿用 P01 濁靈的保守值）。
+   量過之後 forms／toolcraft／refinery／frugality 四片土地做得到 ≥12（實測最小 12.0），
+   但 **divergence 8.5、wards 8（反應）/9（器物）、sight 10** —— 分歧之廳半徑 29 站了 10 座石座、
+   護欄崗半徑 27 站了 6 座＋地標、觀象臺的路網貼著橋頭與坡緣，
+   這三片土地上**沒有任何一點**同時滿足 ≥12 與其餘每一條規則（0.5 公尺網格全區掃過）。
+   退到的值仍**大於既有規則**（器物 7、反應 7），而且器物那一層都在「石座 6.5 ＋ 器物 3.2 ＝ 9.7」附近；
+   E 的仲裁裡石座本來就贏，玩家端零倒退。例外表照 P01 的規矩：登記在測試裡、每一條寫理由、上限 3 條。
+2. **既有的規則一條都沒有放寬**：器物 ↔ 器物 ≥14、離主動線 >8、四周 20 個方向至少 18 個走得到、
+   東西 3 公尺是實地 —— 這些既有斷言全部照舊，新落點是先過它們才進資料的。
+3. **frugality 沒有留死區**：規格說「可留一段並登記理由」，實測不需要 —— 減法之庭補完 2+2 之後
+   最遠的樣點離最近的微觸 24 公尺。稀疏是靠**件數**（全場最少）表達，不是靠留一段空白。
+4. **多了一支截圖腳本** `scripts/shots-regions.mjs`（`npm run shots:regions`，自己的埠 5196/9336）。
+
 Exit criteria：
-- [ ] 7 區都有東西可遇；micro 死區 ≤4 段、最長 <45m。
-- [ ] rubric／playtest／build／e2e 全綠、console error 0；預算在框內。
+- [x] 7 區都有東西可遇（各 4+4／4+4／4+4／3+3／3+3／2+2／2+2）；micro 死區 **12 段 → 0 段**（最長 0m），
+      而且 12 片土地都沒有任何一個樣點離最近的微觸 >45 公尺。
+- [x] rubric 96,047／playtest 2,533／build ✓／e2e 3,763 全綠、console error 0；
+      三角 195,530 → 211,156（<240k）、碰撞體 969 → 956（<1,100）、光源 37 不變、collision-audit 0。
 - [ ] 停回閘門 A，請站長再玩一次（重點看：那三區現在「看起來不一樣」了嗎）。
+      顏色複核圖：`docs/design/shots/region-forms.png`／`region-toolcraft.png`／`region-sight.png`。
 
 ## v1.2 錯誤紀錄
 

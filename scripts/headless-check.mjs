@@ -190,6 +190,8 @@ async function waitFor(fn, { timeout = 30000, every = 250, label = '' } = {}) {
   throw new Error(`等待逾時${label ? `：${label}` : ''}${lastErr ? ` (${lastErr.message})` : ''}`);
 }
 
+
+
 async function main() {
   const chrome = findChrome();
   if (!chrome) {
@@ -306,6 +308,30 @@ async function main() {
     }
     return r.result.value;
   }
+  /**
+   * 找一個「離目標夠遠、但仍站得住」的落腳點（v1.2 · P06c 審查後修）。
+   *
+   * 原本寫死 `+26,+26`：實測 7 片土地有 6 片會掉進虛空、甚至掉出 ±170 的地形網格 ——
+   * 斷言是從地圖外通過的（還會誤觸跨區的進區演出）。改成**站到同一片土地上另一件東西旁邊**：
+   * 那些落點都被 `test:rubric` 的擺位規則驗過（站得住、在區內、彼此夠遠），不必再問地形。
+   * 12 公尺已經遠超所有互動半徑（最大是石座的 6.5、器物只有 3.2）。
+   *
+   * @param {{x:number,z:number}} target 要「離開」的那個東西
+   * @param {Array<{x:number,z:number}>} peers 同一片土地上其他驗過的落點
+   */
+  function farPointAmong(target, peers, region, minR = 12) {
+    let best = null;
+    for (const p of peers) {
+      const d = Math.hypot(p.x - target.x, p.z - target.z);
+      if (d < minR) continue;
+      if (!best || d > best.d) best = { x: p.x, z: p.z, d };
+    }
+    ok(Boolean(best), `[${region}] 找得到「夠遠又站得住」的落腳點（同區的另一件東西）`, JSON.stringify(best));
+    return best;
+  }
+
+
+
 
   async function key(code, keyName, extra = {}) {
     const base = { code, key: keyName, windowsVirtualKeyCode: extra.vk || 0, ...extra };
@@ -6918,6 +6944,7 @@ async function main() {
   `);
   eq(phase22.inscriptions, phase22.insTotal, '每一則刻文小語都蓋在世界裡');
   ok(phase22.reactive >= 18, '會回應的東西都蓋在世界裡', `n=${phase22.reactive}`);
+  eq(phase22.reactive, 44, 'P06c：會回應的東西總數 44（七片空區各補齊）', String(phase22.reactive));
   eq(phase22.secrets, phase22.secTotal, '每一個祕密都蓋在世界裡');
   ok(phase22.triggerCount >= phase22.reactive, '反應場登記了觸發點', `n=${phase22.triggerCount}`);
   eq(phase22.reactiveLights, 0, '會回應的東西一盞燈都沒加（只用自發光材質）');
@@ -8277,8 +8304,10 @@ async function main() {
   eq(p25.unique, p25.total, '場景圖節點名沒有重複');
   eq(p25.handleLights, 0, '器物一盞燈都沒加（只用自發光材質）');
   ok(Object.keys(p25.kinds).length >= 6, '世界上至少有 6 種器物', JSON.stringify(p25.kinds));
-  ok(Object.keys(p25.regions).length === 5, '五片土地上都有器物', JSON.stringify(p25.regions));
-  for (const [rid, n] of Object.entries(p25.regions)) ok(n >= 3, `[${rid}] 至少擺了 3 件`, String(n));
+  // v1.2 · P06c：課程 v2 之後蓋起來的七片土地也補齊了 → 12 片土地一片都不空
+  ok(Object.keys(p25.regions).length === 12, '十二片土地上都有器物（P06c）', JSON.stringify(p25.regions));
+  for (const [rid, n] of Object.entries(p25.regions)) ok(n >= 2, `[${rid}] 至少擺了 2 件`, String(n));
+  eq(p25.total, 44, 'P06c：器物總數 44', String(p25.total));
   ok(p25.lights <= 56, '多了一整層器物之後燈光仍在預算內', `lights=${p25.lights}`);
   ok(p25.tris < 420000, '多了一整層器物之後三角形仍在預算內', `tris=${p25.tris}`);
   ok(p25.solids < 1400, '碰撞體仍在預算內', `solids=${p25.solids}`);
@@ -8722,6 +8751,180 @@ async function main() {
   eq(persisted.worldFound, true, '世界端也記得那則刻文讀過了');
   eq(persisted.secretFound, true, '世界端也記得那個祕密找過了');
   eq(persisted.blessing, true, '回聲的祝福跨重整還在');
+
+  /* ================================================================ */
+  /*
+   * v1.2 · P06c —— 課程 v2 之後才蓋起來的七片土地，路上終於有東西
+   *
+   * 這一段對 forms／toolcraft／wards／refinery／frugality／sight／divergence
+   * 每一片各走一件器物的完整流程（走近 → 提示 → E → 真的動了 → 進存檔），
+   * 再各驗一個反應物「走進去才有反應」。
+   * 全部用輪詢（waitFor），不用固定 sleep 對齊牆鐘 —— 這台機器是軟體渲染。
+   */
+  console.log('\n▸ 七片新土地上的器物與反應物（v1.2 · P06c）');
+  {
+    // 上一段做過一次重整 → 標題卡又擋在前面（它擋著時角色不接操控，teleport 也沒有提示）
+    await key('Enter', 'Enter', { vk: 13 });
+    await waitFor(() => evaluate('return !window.__promptasy.title.isOpen;'), { label: 'P06c 前標題卡收起' });
+    await evaluate(`
+      const g = window.__promptasy;
+      if (g.prologue.isActive) g.prologue.skip();
+      const startBtn = document.querySelector('.intro [data-start]');
+      if (g.intro.isOpen && startBtn) startBtn.click();
+      for (const k of ['keyhelp','shareCard','promptConsole','codex','settings','finale','tabletPanel','inscriptionPanel','handlePanel','practice']) {
+        try { if (g[k] && g[k].isOpen) g[k].close(); } catch {}
+      }
+      g.player.setInputEnabled(true);
+      return 1;
+    `);
+    await waitFor(
+      () => evaluate('return window.__promptasy.player.inputEnabled && !window.__promptasy.title.isOpen;'),
+      { label: 'P06c 場面清乾淨' }
+    );
+    const P06C = ['forms', 'toolcraft', 'wards', 'refinery', 'frugality', 'sight', 'divergence'];
+    const inventory = await evaluate(`
+      const g = window.__promptasy;
+      const out = {};
+      for (const r of ${JSON.stringify(P06C)}) {
+        out[r] = {
+          handles: g.handleData.entries.filter((e) => e.region === r).map((e) => ({ id: e.id, kind: e.kind, at: e.at, title: e.title })),
+          spots: g.world.reactive.objects.filter((o) => o.spot && o.spot.region === r).map((o) => ({ id: o.id, kind: o.kind, x: o.x, z: o.z })),
+        };
+      }
+      return out;
+    `);
+    for (const region of P06C) {
+      const inv = inventory[region];
+      ok(inv.handles.length >= 2, `[${region}] 這片土地上有器物`, String(inv.handles.length));
+      ok(inv.spots.length >= 2, `[${region}] 這片土地上有會回應的東西`, String(inv.spots.length));
+
+      /* ① 器物：走近 → 提示 → E → 真的動了 → 進存檔 */
+      // 挑一件「按一次就看得出變了」的（不開窗、不用推三下）
+      const spec = inv.handles.find((h) => ['gong', 'bench', 'brazier', 'moonpool', 'watchstone'].includes(h.kind)) || inv.handles[0];
+      await evaluate(`
+        const g = window.__promptasy;
+        for (const k of ['handlePanel','codex','settings','promptConsole','tabletPanel','inscriptionPanel']) {
+          try { if (g[k] && g[k].isOpen) g[k].close(); } catch {}
+        }
+        return 1;
+      `);
+      const peers = [
+        ...inv.handles.filter((h) => h.id !== spec.id).map((h) => ({ x: h.at[0], z: h.at[1] })),
+        ...inv.spots.map((sp) => ({ x: sp.x, z: sp.z })),
+      ];
+      const farSpot = farPointAmong({ x: spec.at[0], z: spec.at[1] }, peers, region);
+      await evaluate(`window.__promptasy.player.teleport(${farSpot.x}, ${farSpot.z}); return 1;`);
+      const farHint = await waitFor(
+        () => evaluate(`
+          const el = document.querySelector('[data-interact]');
+          return (el.hidden || !el.textContent.includes(${JSON.stringify(spec.title)})) ? 'far' : false;
+        `),
+        { label: `[${region}] 遠處沒有 ${spec.id} 的提示` }
+      );
+      eq(farHint, 'far', `[${region}] 離得遠時沒有「${spec.title}」的提示`);
+
+      await evaluate(`window.__promptasy.player.teleport(${spec.at[0]} + 1.6, ${spec.at[1]} + 1.6); return 1;`);
+      const hint = await waitFor(
+        () => evaluate(`
+          const el = document.querySelector('[data-interact]');
+          if (el.hidden) return false;
+          const t = el.textContent.replace(/\\s+/g, ' ').trim();
+          return t.includes(${JSON.stringify(spec.title)}) ? t : false;
+        `),
+        { label: `[${region}] 走近 ${spec.id} 出現提示` }
+      );
+      ok(/E/.test(hint), `[${region}] 走近「${spec.title}」→ 提示上有名字與 E`, hint);
+
+      const before = await evaluate(`
+        const g = window.__promptasy;
+        return { xp: g.progression.state.xp, n: g.progression.handleCount(), used: g.progression.hasUsedHandle(${JSON.stringify(spec.id)}) };
+      `);
+      await evaluate(`window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyE', bubbles: true })); return 1;`);
+      const used = await waitFor(
+        () => evaluate(`
+          const g = window.__promptasy;
+          const o = g.world.handles.object(${JSON.stringify(spec.id)});
+          if (!g.progression.hasUsedHandle(${JSON.stringify(spec.id)})) return false;
+          const saved = JSON.parse(localStorage.getItem('promptasy.v1.save')).handlesUsed || [];
+          return { worldUsed: Boolean(o.used || o.lit || o.hit > 0 || o.awake), saved: saved.includes(${JSON.stringify(spec.id)}), n: g.progression.handleCount(), xp: g.progression.state.xp };
+        `),
+        { label: `[${region}] ${spec.id} 動得了` }
+      );
+      eq(used.saved, true, `[${region}] 動過「${spec.title}」寫進存檔`);
+      if (!before.used) {
+        eq(used.n, before.n + 1, `[${region}] 器物計數 +1`);
+        ok(used.xp > before.xp, `[${region}] 第一次動它給了 XP`, `${before.xp} → ${used.xp}`);
+      }
+      await evaluate(`
+        const g = window.__promptasy;
+        try { if (g.handlePanel.isOpen) g.handlePanel.close(); } catch {}
+        if (g.seatedOn && g.seatedOn()) g.player.teleport(${spec.at[0]} + 20, ${spec.at[1]} + 20);
+        return 1;
+      `);
+
+      /* ② 反應物：走進半徑才有反應（用輪詢看它的狀態，不是看聲音） */
+      const spot = inv.spots.find((sp) => ['chime', 'glowcap', 'ripple', 'songstone'].includes(sp.kind)) || inv.spots[0];
+      const spotAt = await evaluate(`
+        const g = window.__promptasy;
+        const o = g.world.reactive.objects.find((x) => x.id === ${JSON.stringify(spot.id)});
+        if ('swing' in o) o.swing = 0;
+        if ('hit' in o) o.hit = 0;
+        return { x: o.x, z: o.z };
+      `);
+      // 冷卻基準也要站在**地圖上**（原本的 +30,+30 有 6 個區會掉到虛空甚至出網格）
+      const coldPeers = [
+        ...inv.handles.map((h) => ({ x: h.at[0], z: h.at[1] })),
+        ...inv.spots.filter((sp) => sp.id !== spot.id).map((sp) => ({ x: sp.x, z: sp.z })),
+      ];
+      const coldSpot = farPointAmong(spotAt, coldPeers, region);
+      await evaluate(`window.__promptasy.player.teleport(${coldSpot.x}, ${coldSpot.z}); return 1;`);
+      const heat = (id) => evaluate(`
+        const g = window.__promptasy;
+        const o = g.world.reactive.objects.find((x) => x.id === ${JSON.stringify(id)});
+        if (o.kind === 'chime') return o.swing;
+        if (o.kind === 'glowcap') return o.caps.reduce((a, c) => a + c.mat.emissiveIntensity, 0);
+        if (o.kind === 'ripple') return o.rings.reduce((a, r) => a + r.life, 0);
+        if (o.kind === 'songstone') return o.stones.reduce((a, st) => a + st.ring, 0);
+        return o.scatter || 0;
+      `);
+      const cold = await waitFor(async () => {
+        const v = await heat(spot.id);
+        return Number.isFinite(v) ? { v } : false;
+      }, { label: `[${region}] 讀得到 ${spot.id} 的狀態` });
+      await evaluate(`
+        const g = window.__promptasy;
+        const o = g.world.reactive.objects.find((x) => x.id === ${JSON.stringify(spot.id)});
+        g.player.teleport(o.x, o.z);
+        return 1;
+      `);
+      const hot = await waitFor(async () => {
+        const v = await heat(spot.id);
+        return v > cold.v + 0.05 ? v : false;
+      }, { label: `[${region}] 走進 ${spot.id} 的範圍會回應` });
+      ok(hot > cold.v, `[${region}] 走進「${spot.kind}」的範圍 → 它真的有反應`, `${cold.v} → ${hot}`);
+    }
+
+    /* ③ 重整之後，這七件都還記得 */
+    const usedBefore = await evaluate(`
+      const g = window.__promptasy;
+      return { n: g.progression.handleCount(), ids: (JSON.parse(localStorage.getItem('promptasy.v1.save')).handlesUsed || []) };
+    `);
+    await reloadPage('P06c 重整');
+    const after = await waitFor(
+      () => evaluate(`
+        const g = window.__promptasy;
+        if (!g || !g.world || !g.world.handles) return false;
+        const ids = ${JSON.stringify(P06C)}
+          .flatMap((r) => g.handleData.entries.filter((e) => e.region === r).map((e) => e.id))
+          .filter((id) => g.progression.hasUsedHandle(id));
+        return { n: g.progression.handleCount(), kept: ids.length, built: g.world.handles.objects.length };
+      `),
+      { label: 'P06c 重整之後器物還在' }
+    );
+    eq(after.n, usedBefore.n, 'P06c：重整之後動過的器物數不變');
+    ok(after.kept >= 7, 'P06c：七片新土地上動過的器物跨重整都還在', `n=${after.kept}`);
+    eq(after.built, 44, 'P06c：重整之後 44 件器物全部重新蓋起來');
+  }
 
   /* ================================================================ */
   /*
