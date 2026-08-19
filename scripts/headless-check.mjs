@@ -7984,6 +7984,9 @@ async function main() {
       best: g.progression.bestGrade('murk-vague-ask'),
       saveMurk: JSON.parse(localStorage.getItem('promptasy.v1.save')).murks['murk-vague-ask'],
       hudTitle: document.querySelector('.hud__banner')?.textContent || '',
+      // v1.2 · P08：主控台還開著 → 回聲把要說的那一句先記下來（收起來才說）
+      echoPending: g.nudge.state().pending,
+      echoVisibleWhileOpen: g.nudge.state().visible,
     };
     // 再送一次同一句範例：早就安撫 → 那一行換成「牠早就聽懂了 · 累積 · 最佳評價」、XP 不再加
     ta.value = c.challenge.sample;
@@ -8066,7 +8069,52 @@ async function main() {
   if (murkCalm.level === murkCalm.before.level) eq(murkCalm.rank, murkCalm.before.rank, '稱號不變（等級沒動時）');
   else ok(true, `（等級 ${murkCalm.before.level} → ${murkCalm.level}，稱號可能因等級變動 —— 已通關數／收集數已另驗不變）`);
 
+  /* --- v1.2 · P08：反應式回聲 —— 安撫一隻濁靈之後，回聲說了對應的那一句 --- */
+  {
+    /*
+     * 主控台開著的時候回聲不說話（一次只有一件事擁有畫面），所以它把那一句
+     * 記在 pending 裡。排到哪一句是**算得出來的**：安撫 → 升等 → 解鎖，後面的
+     * 蓋掉前面的（新的消息比較重要）。
+     */
+    const unlockedMore = JSON.stringify(murkCalm.unlocked) !== JSON.stringify(murkCalm.before.unlocked);
+    const leveled = murkCalm.level !== murkCalm.before.level;
+    const wantPending = unlockedMore ? 'regionUnlocked' : leveled ? 'levelUp' : 'firstMurkCalmed';
+    eq(murkCalm.echoVisibleWhileOpen, false, '主控台開著時回聲不搶畫面');
+    eq(murkCalm.echoPending, wantPending, `安撫當下回聲排的是「${wantPending}」`);
+  }
   await key('Escape', 'Escape', { vk: 27 });
+  const echoAfterCalm = await waitFor(async () => {
+    const r = await evaluate(`
+      const g = window.__promptasy;
+      const el = document.querySelector('.nudge');
+      const st = g.nudge.state();
+      return {
+        st,
+        isOn: el.classList.contains('is-on'),
+        eyebrow: el.querySelector('[data-eyebrow]').textContent.trim(),
+        line: el.querySelector('[data-line]').textContent.trim(),
+        sub: el.querySelector('[data-sub]').textContent.trim(),
+        opacity: Number(getComputedStyle(el).opacity),
+      };
+    `);
+    // 輪詢到「真的淡入完成」為止（不用固定 sleep 對牆鐘）
+    return r.st.visible && r.isOn && r.opacity > 0.9 ? r : null;
+  }, { timeout: 10000, label: '安撫之後回聲說了一句' });
+  {
+    const { ECHO_LINES } = await import('../src/ui/nudge.js');
+    const kindNow = echoAfterCalm.st.kind;
+    ok(['firstMurkCalmed', 'murkCalmed', 'levelUp', 'unlock'].includes(kindNow), '收起主控台那一拍，回聲把記著的那一句說出來', kindNow);
+    eq(echoAfterCalm.eyebrow, '回聲', '說話的是回聲（世界觀語言）');
+    ok(echoAfterCalm.opacity > 0.9, '那一句真的看得見', String(echoAfterCalm.opacity));
+    ok(echoAfterCalm.line.length > 0 && echoAfterCalm.line.length <= 31, '每句 ≤ 31 字（WORLD §1.2）', `${echoAfterCalm.line}（${echoAfterCalm.line.length}）`);
+    ok(!echoAfterCalm.sub || echoAfterCalm.sub.length <= 31, '第二句也 ≤ 31 字', echoAfterCalm.sub);
+    if (kindNow !== 'unlock') {
+      const spec = ECHO_LINES[kindNow];
+      eq(echoAfterCalm.line, spec.line, '說的就是分支表裡的那一句（不是臨時編的）');
+      eq(echoAfterCalm.sub, spec.sub || '', '第二句也照分支表');
+    }
+    ok(!/送出評分|按鈕|面板|rubric|XP/.test(`${echoAfterCalm.line}${echoAfterCalm.sub}`), '回聲不用系統術語', echoAfterCalm.line);
+  }
   await sleep(300);
   /* --- 重開：標頭有「最佳評價」；圖鑑第四列 1/8、條目含濁言／範例／出處 --- */
   const murkBook = await evaluate(`
@@ -15591,6 +15639,44 @@ async function main() {
       badgesText: el.querySelector('.badges').textContent.replace(/\s+/g, ' ').trim(),
       trialLine: el.querySelectorAll('.region-card__trial').length,
       overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      star: (() => {
+        const groups = [...el.querySelectorAll('.starmap__mansion')];
+        const sky = el.querySelector('.starmap__sky');
+        const r = sky ? sky.getBoundingClientRect() : { width: 0, height: 0 };
+        const vendors = window.__promptasy.content.curriculum.vendors.map((v) => ({ id: v.id, name: v.name, color: v.color }));
+        /*
+         * 世界層零公司名：星圖那一整塊（含底下的「走出來的收集」）裡，公司名
+         * 只准出現在星圖說明那一行與出處連結上 —— 收集列、宿名、標籤都不准有。
+         * （技巧條目本身是教學內容，出處與時代註記本來就會提到廠商，不在此範圍。）
+         */
+        const ALLOW = '.starmap__note, .infotip, a';
+        const stray = [];
+        const walker = document.createTreeWalker(el.querySelector('.badges'), NodeFilter.SHOW_TEXT);
+        for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+          const t = n.nodeValue || '';
+          if (!/\b(OpenAI|Anthropic|Google|xAI|GPT|Claude|Gemini|Grok)\b/.test(t)) continue;
+          if (n.parentElement && n.parentElement.closest(ALLOW)) continue;
+          stray.push(t.trim().slice(0, 40));
+        }
+        return {
+          mansions: groups.length,
+          ids: groups.map((n) => n.getAttribute('data-mansion')),
+          dots: groups.map((n) => n.querySelectorAll('.starmap__stars circle').length),
+          labels: groups.map((n) => n.querySelector('.starmap__label').textContent.replace(/\s+/g, ' ').trim()),
+          lit: groups.filter((n) => n.classList.contains('is-lit')).length,
+          links: el.querySelectorAll('.starmap__link').length,
+          badges: { ...window.__promptasy.progression.state.badges },
+          vendors,
+          note: (el.querySelector('.starmap__note:not(.starmap__note--legal)') || {}).textContent || '',
+          legal: (el.querySelector('.starmap__note--legal') || {}).textContent || '',
+          imgs: el.querySelectorAll('.starmap img, .starmap image, .starmap use, .starmap path').length,
+          oldBadges: el.querySelectorAll('.badges .badge, .badges .badge__dot').length,
+          skyW: r.width,
+          skyH: r.height,
+          skyHtml: sky ? sky.outerHTML : '',
+          stray,
+        };
+      })(),
     };
   `);
   eq(codexSeals.hasBlock, true, '圖鑑上有「土地印記」那一塊');
@@ -15602,8 +15688,107 @@ async function main() {
   ok(/每廠集滿 5 個/.test(codexSeals.badgesText), '既有 finale 的條件一格都沒變（每廠 5 個標記）');
   ok(!/Qwen|DeepSeek|Mistral/.test(codexSeals.badgesText), '四廠徽章沒有被新廠混進來（護欄 7）');
   eq(codexSeals.overflow, 0, '圖鑑加了印記那一塊之後仍然沒有水平溢位');
+
+  /* --- v1.2 · P08：四宿星圖（星點數對得上 badges、免責句在、世界層零公司名） --- */
+  {
+    const st = codexSeals.star;
+    eq(st.mansions, 4, '圖鑑上有四宿');
+    eq(JSON.stringify(st.ids), JSON.stringify(st.vendors.map((v) => v.id)), '四宿的順序跟著四部原典（vendors）');
+    // 先確認這一塊真的量得出來（防「量到 0×0 而空過」）
+    ok(st.skyW > 120 && st.skyH > 60, '星圖真的畫出來了（量得到寬高）', `${Math.round(st.skyW)}×${Math.round(st.skyH)}`);
+    const wantDots = st.vendors.map((v) => st.badges[v.id] || 0);
+    eq(JSON.stringify(st.dots), JSON.stringify(wantDots), '每一宿的星點數 ＝ 該廠已收集的技巧標記數', JSON.stringify([st.dots, st.badges]));
+    const wantLit = wantDots.filter((n) => n >= 5).length;
+    eq(st.lit, wantLit, '集滿 5 顆的那幾宿亮著');
+    eq(st.links, wantLit, '亮起來的宿才連線');
+    st.labels.forEach((l, i) => {
+      ok(new RegExp(`^第[一二三四]宿 ${wantDots[i]} / 5$`).test(l), `第 ${i + 1} 宿的標籤是世界說法 ＋ 進度`, l);
+    });
+    eq(st.oldBadges, 0, '舊的廠家徽章條已經不在畫面上');
+    eq(st.imgs, 0, '星圖沒有任何圖檔或路徑造形（不畫標誌）');
+    for (const v of st.vendors) {
+      ok(!st.skyHtml.includes(v.color), `星圖沒有用到 ${v.id} 的代表色`, v.color);
+      ok(!st.skyHtml.includes(v.name), `星圖本體沒有印出 ${v.name}`);
+      ok(st.note.includes(v.name), `星圖下方那一行列出 ${v.name}`, st.note);
+    }
+    ok(/原典/.test(st.note) && /官方文件/.test(st.note), '那一行說明原典＝四家公開的官方文件', st.note);
+    eq(st.legal.trim(), '本遊戲與這四家沒有隸屬或背書關係。', '免責句就在星圖底下、看得見');
+    eq(JSON.stringify(st.stray), '[]', '星圖那一整塊的公司名只出現在說明那一行與出處連結上', JSON.stringify(st.stray));
+  }
   await key('Escape', 'Escape', { vk: 27 });
   await sleep(240);
+  /*
+   * 防「空泛通過」：上面那組用的是這個存檔真實的 badges（可能剛好都是 0），
+   * 所以再餵一組寫死的數字重畫一次 —— 星點數、亮起的宿、連線都要跟著變。
+   * （只動記憶體裡的 badges、畫完就還原，不寫存檔。）
+   */
+  const starProbe = await evaluate(`
+    const g = window.__promptasy;
+    const before = { ...g.progression.state.badges };
+    g.progression.state.badges = { openai: 5, anthropic: 3, google: 0, xai: 7 };
+    g.codex.open();
+    await new Promise((r) => setTimeout(r, 420));
+    const el = document.querySelector('#codex');
+    const groups = [...el.querySelectorAll('.starmap__mansion')];
+    const out = {
+      dots: groups.map((n) => n.querySelectorAll('.starmap__stars circle').length),
+      lit: groups.filter((n) => n.classList.contains('is-lit')).length,
+      links: el.querySelectorAll('.starmap__link').length,
+      labels: groups.map((n) => n.querySelector('.starmap__label').textContent.replace(/\s+/g, ' ').trim()),
+      overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    };
+    g.codex.close();
+    await new Promise((r) => setTimeout(r, 260));
+    g.progression.state.badges = before;
+    return out;
+  `);
+  eq(JSON.stringify(starProbe.dots), JSON.stringify([5, 3, 0, 7]), '換一組標記數 → 每一宿的星點數跟著變');
+  eq(starProbe.lit, 2, '只有集滿 5 顆的兩宿亮著');
+  eq(starProbe.links, 2, '只有亮起來的兩宿連線');
+  eq(JSON.stringify(starProbe.labels), JSON.stringify(['第一宿 5 / 5', '第二宿 3 / 5', '第三宿 0 / 5', '第四宿 7 / 5']), '四個標籤各講自己的進度');
+  eq(starProbe.overflow, 0, '星圖不會把圖鑑撐出水平捲軸');
+
+  /* --- v1.2 · P08：成就頁也是同一張星圖，而且帶著免責句 --- */
+  const finaleStar = await evaluate(`
+    const g = window.__promptasy;
+    g.finale.open();
+    await new Promise((r) => setTimeout(r, 420));
+    const el = document.querySelector('#achievement');
+    const sky = el.querySelector('.starmap__sky');
+    const r = sky ? sky.getBoundingClientRect() : { width: 0, height: 0 };
+    const out = {
+      open: !!el && !el.hidden,
+      mansions: el.querySelectorAll('.starmap__mansion').length,
+      dots: [...el.querySelectorAll('.starmap__mansion')].map((n) => n.querySelectorAll('.starmap__stars circle').length),
+      badges: { ...g.progression.state.badges },
+      vendors: g.content.curriculum.vendors.map((v) => ({ id: v.id, name: v.name })),
+      legal: (el.querySelector('.starmap__note--legal') || {}).textContent || '',
+      srcs: [...el.querySelectorAll('.finale__srcs a[href^="https://"]')].length,
+      srcNames: el.querySelector('.finale__srcs') ? el.querySelector('.finale__srcs').textContent.replace(/\s+/g, ' ').trim() : '',
+      oldBadges: el.querySelectorAll('.badge, .badge__dot').length,
+      skyW: r.width,
+      skyH: r.height,
+      overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    };
+    g.finale.close();
+    await new Promise((r) => setTimeout(r, 240));
+    return out;
+  `);
+  eq(finaleStar.open, true, '成就頁打得開');
+  eq(finaleStar.mansions, 4, '成就頁上也是四宿');
+  ok(finaleStar.skyW > 120 && finaleStar.skyH > 60, '成就頁的星圖量得到寬高', `${Math.round(finaleStar.skyW)}×${Math.round(finaleStar.skyH)}`);
+  eq(
+    JSON.stringify(finaleStar.dots),
+    JSON.stringify(finaleStar.vendors.map((v) => finaleStar.badges[v.id] || 0)),
+    '成就頁的星點數也對得上 badges'
+  );
+  eq(finaleStar.legal.trim(), '本遊戲與這四家沒有隸屬或背書關係。', '成就頁有免責句');
+  ok(finaleStar.srcs >= 4, '成就頁仍留著四家官方文件的入口（護欄 2）', String(finaleStar.srcs));
+  for (const v of finaleStar.vendors) {
+    ok(finaleStar.srcNames.includes(v.name), `官方文件那一列仍是真名：${v.name}`);
+  }
+  eq(finaleStar.oldBadges, 0, '成就頁的舊徽章條也拆掉了');
+  eq(finaleStar.overflow, 0, '成就頁沒有水平溢位');
 
   /* ================================================================ */
   /* Phase 35 · 手掌印加寬 ＋ 術語小卡                                  */

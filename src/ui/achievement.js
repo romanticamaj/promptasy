@@ -1,10 +1,11 @@
 /**
- * Promptasy — 隱藏成就：全部技巧收集 ＋ 四廠徽章全達標
+ * Promptasy — 隱藏成就：全部技巧收集 ＋ 四宿全亮
  *
  * 這是整趟旅程的收尾畫面：不給新的東西，只把玩家做到的事情好好講一次，
- * 並留下四廠官方文件的入口（護欄 2：內容可回溯到出處）。
+ * 並留下四部原典的入口（護欄 2：內容可回溯到出處），附上免責句。
  */
 import { createOverlay, esc } from './dom.js';
+import { MANSION_TARGET, STARMAP_DISCLAIMER, starMapSvg, starMansions } from './starmap.js';
 
 export function createAchievement({ content, progression, onClose, onShare = null }) {
   const overlay = createOverlay({
@@ -17,20 +18,24 @@ export function createAchievement({ content, progression, onClose, onShare = nul
   function render() {
     const info = progression.hiddenAchievement();
     overlay.setEyebrow('隱藏成就 · 旅程完成');
-    overlay.setTitle('✦ 隱藏成就達成', `全 ${info.total} 條技巧收集完畢 · 四廠徽章全數點亮`);
+    overlay.setTitle('✦ 隱藏成就達成', `全 ${info.total} 條技巧收集完畢 · 四宿全亮`);
 
-    const vendors = info.vendors
-      .map((v) => {
-        const meta = content.vendor(v.id);
-        return `<li class="badge is-on" style="--c:${esc(meta ? meta.color : '#888')}">
-          <span class="badge__dot"></span>
-          <b>${esc(meta ? meta.name : v.id)}</b>
-          <span class="badge__n">${v.count}</span>
-        </li>`;
+    /*
+     * v1.2 · P08：四宿星圖（和圖鑑同一支純函式、同一套畫法）。
+     * 這裡的星點數直接吃隱藏成就算出來的 count，所以顯示與判定不可能對不上。
+     * 星圖本體不畫標誌、不用品牌色；四家的真名留在底下的官方文件清單裡
+     * （出處性使用），並且和免責句放在一起。
+     */
+    const badges = Object.fromEntries(info.vendors.map((v) => [v.id, v.count]));
+    const starSky = starMapSvg(
+      starMansions({
+        vendors: content.curriculum.vendors || [],
+        badges,
+        target: info.badgeTarget || MANSION_TARGET,
       })
-      .join('');
+    );
 
-    // curriculum.sources 是「廠家 → 官方文件清單」，每廠取前兩條當入口
+    // curriculum.sources 是「廠家 → 官方文件清單」，每廠取前兩條當入口（真名的出處性使用）
     const byVendor = content.curriculum.sources || {};
     const sources = (content.curriculum.vendors || [])
       .flatMap((v) =>
@@ -49,7 +54,7 @@ export function createAchievement({ content, progression, onClose, onShare = nul
           你走完了五片土地，把 ${info.total} 條 prompt 技巧一條一條寫出來、被判定通過、收進圖鑑。
           從「把話講清楚」開始，一路到示範、推理、脈絡、流程與參數 —— 這些都不是背下來的，是你實際寫過的。
         </p>
-        <ul class="badges__list">${vendors}</ul>
+        <div class="starmap">${starSky}</div>
         <p class="finale__note">旅程沒有終點：回頭把每一關重寫成 S 評價，或直接把這些技巧用在你今天要寫的那個 prompt 上。</p>
         ${
           onShare
@@ -58,6 +63,7 @@ export function createAchievement({ content, progression, onClose, onShare = nul
         }
         <div class="meta-rule"><h4><span class="zh">官方文件</span><span class="en">Primary Sources</span></h4></div>
         <ul class="finale__srcs">${sources}</ul>
+        <p class="starmap__note starmap__note--legal">${esc(STARMAP_DISCLAIMER)}</p>
       </div>
     `;
     overlay.body

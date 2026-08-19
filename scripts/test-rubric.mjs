@@ -13425,8 +13425,16 @@ console.log('\n▸ 應用關與印記（課程 v2 · Phase J2）');
     const vendors = (curriculum.vendors || []).map((v) => v.id).sort().join(',');
     eq(vendors, 'anthropic,google,openai,xai', 'finale 仍然只看四廠（新廠只能是支線）');
     const src = readFileSync(resolve(root, 'src/ui/codex.js'), 'utf8');
-    ok(/const TARGET = 5;/.test(src), '隱藏成就的門檻仍然是每廠 5 個標記');
-    ok(/四廠全數集齊/.test(src), '隱藏成就的文案仍然是四廠');
+    /*
+     * v1.2 · P08：徽章條換成四宿星圖，但**條件一格都沒有變** ——
+     * 門檻常數搬到 starmap.js（5 顆＝一宿），圖鑑直接讀它，畫面上那句
+     * 「每廠集滿 5 個」原字保留，達成時的文案換成同一件事的世界說法。
+     */
+    const starSrc = readFileSync(resolve(root, 'src/ui/starmap.js'), 'utf8');
+    ok(/export const MANSION_TARGET = 5;/.test(starSrc), '隱藏成就的門檻仍然是每廠 5 個標記（一宿 5 顆星）');
+    ok(/const TARGET = MANSION_TARGET;/.test(src), '圖鑑用的就是那個門檻（不會和成就判定對不上）');
+    ok(/每廠集滿 \$\{TARGET\} 個解開隱藏成就/.test(src), '圖鑑上仍然寫明「每廠集滿 5 個」的條件');
+    ok(/四宿全亮 —— 隱藏成就達成/.test(src), '隱藏成就的文案仍然是四家全數集齊（世界說法：四宿全亮）');
     const prg = readFileSync(resolve(root, 'src/progression/progression.js'), 'utf8');
     ok(!/seals[^\n]{0,40}unlock/i.test(prg), '印記沒有出現在任何解鎖判定裡');
     ok(!/penlessSeals[^\n]{0,60}(gate|unlock|refreshUnlocks)/i.test(prg), '大師層印記沒有出現在任何解鎖判定裡');
@@ -14020,6 +14028,366 @@ console.log('\n▸ ⓘ 與關卡標頭');
     '「第 N 關 / 共 M 關」由該區真正的關卡數算出來（沒有寫死）'
   );
 }
+
+/* ================================================================== */
+/* v1.2 · P08：四宿星圖 ＋ 世界層零公司名 ＋ 反應式回聲 ＋ 12 區傳說鉤   */
+/* ================================================================== */
+console.log('\n▸ 四宿星圖 ＋ 反應式回聲 ＋ 傳說鉤（v1.2 · P08）');
+
+{
+  const StarMap = await import('../src/ui/starmap.js');
+  const Nudge = await import('../src/ui/nudge.js');
+  const codexSrcP08 = srcOf('src/ui/codex.js');
+  const achieveSrcP08 = srcOf('src/ui/achievement.js');
+  const nudgeSrcP08 = srcOf('src/ui/nudge.js');
+  const mainSrcP08 = srcOf('src/main.js');
+  const cssSrcP08 = srcOf('src/styles.css');
+  const vendorsP08 = curriculum.vendors || [];
+
+  /* --- ① 星圖是純函式：星點數 ＝ badges、集滿判定 ＝ 既有隱藏成就 ---- */
+  eq(StarMap.MANSION_TARGET, 5, '一宿集滿 5 顆（＝既有隱藏成就的每廠門檻）');
+  eq(vendorsP08.length, 4, '四部原典＝四宿（vendors 一格沒動）');
+  eq(StarMap.MANSION_NAMES.length, 4, '四個宿名');
+  eq(StarMap.MANSION_ANCHORS.length, 4, '四個星群釘在四角');
+  for (const name of StarMap.MANSION_NAMES) {
+    ok(/^第[一二三四]宿$/.test(name), `宿名是世界的說法（沒有影射公司的雙關）：${name}`);
+  }
+
+  const badgeCases = [
+    { openai: 0, anthropic: 0, google: 0, xai: 0 },
+    { openai: 5, anthropic: 4, google: 0, xai: 1 },
+    { openai: 5, anthropic: 5, google: 5, xai: 5 },
+    { openai: 33, anthropic: 30, google: 28, xai: 12 },
+  ];
+  for (const badges of badgeCases) {
+    const tag = `[星圖 ${JSON.stringify(badges)}]`;
+    const mansions = StarMap.starMansions({ vendors: vendorsP08, badges });
+    eq(mansions.length, 4, `${tag} 四宿都算得出來`);
+    for (const m of mansions) {
+      eq(m.count, badges[m.id], `${tag} ${m.name} 的星數 ＝ 該廠的技巧標記數`);
+      eq(m.stars.length, badges[m.id], `${tag} ${m.name} 真的畫了那麼多顆星`);
+      eq(m.lit, badges[m.id] >= 5, `${tag} ${m.name} 集滿 5 顆才亮`);
+      eq(m.stars.filter((s) => s.core).length, Math.min(5, badges[m.id]), `${tag} ${m.name} 前五顆是宿本身`);
+      // 星點都落在畫布裡，而且同一宿裡沒有兩顆疊在一起
+      for (const s of m.stars) {
+        ok(
+          s.x > 0 && s.x < StarMap.STARMAP_VIEWBOX.w && s.y > 0 && s.y < StarMap.STARMAP_VIEWBOX.h,
+          `${tag} ${m.name} 的星點落在畫布內`,
+          `${s.x},${s.y}`
+        );
+      }
+      for (let i = 0; i < m.stars.length; i += 1) {
+        for (let j = i + 1; j < m.stars.length; j += 1) {
+          ok(
+            Math.hypot(m.stars[i].x - m.stars[j].x, m.stars[i].y - m.stars[j].y) > 2.4,
+            `${tag} ${m.name} 第 ${i + 1} 與第 ${j + 1} 顆星不會疊在一起`
+          );
+        }
+      }
+    }
+    // 四叢星不會糊成一片（不同宿的星點至少差 12）
+    for (let a = 0; a < mansions.length; a += 1) {
+      for (let b = a + 1; b < mansions.length; b += 1) {
+        let closest = Infinity;
+        for (const p of mansions[a].stars) {
+          for (const q of mansions[b].stars) closest = Math.min(closest, Math.hypot(p.x - q.x, p.y - q.y));
+        }
+        ok(closest > 12, `${tag} ${mansions[a].name} 與 ${mansions[b].name} 分得開`, String(Math.round(closest)));
+      }
+    }
+    // 集滿判定必須和既有隱藏成就一致（同一組 badges → 同一個答案）
+    const probe = createProgression({ catalog, challenges });
+    probe.state.badges = { ...badges };
+    const achieved = probe.hiddenAchievement().vendors.every((v) => v.done);
+    eq(StarMap.allMansionsLit(mansions), achieved, `${tag} 四宿全亮 ＝ 既有隱藏成就的徽章那一半`);
+  }
+  // 同樣的輸入永遠畫在同樣的位置（程序化，不是亂數）
+  eq(
+    JSON.stringify(StarMap.mansionStars(9, 2)),
+    JSON.stringify(StarMap.mansionStars(9, 2)),
+    '星點位置是可重現的（沒有亂數）'
+  );
+
+  /* --- ② 星圖只畫圓點與連線：沒有標誌、沒有品牌色、沒有外部圖檔 ------ */
+  {
+    const svg = StarMap.starMapSvg(StarMap.starMansions({ vendors: vendorsP08, badges: badgeCases[3] }));
+    const tags = [...svg.matchAll(/<([a-zA-Z]+)/g)].map((m) => m[1]);
+    const allowed = new Set(['svg', 'g', 'circle', 'polyline', 'text']);
+    for (const t of new Set(tags)) ok(allowed.has(t), `星圖只用得到 <${t}>（圓點、連線、文字）`);
+    ok(!/<image|<use|<path|xlink:href|url\(|data:/.test(svg), '星圖沒有任何圖檔、外部資源或路徑造形（不畫標誌）');
+    for (const v of vendorsP08) {
+      ok(!svg.includes(v.color), `星圖沒有用到 ${v.id} 的代表色（不用品牌色暗示）`, v.color);
+      ok(!svg.includes(v.name), `星圖本體沒有印出公司名`, v.name);
+    }
+    ok(/aria-label=/.test(svg) && /role="img"/.test(svg), '星圖對讀螢幕的人也講得出四宿各幾顆');
+    eq((svg.match(/class="starmap__link"/g) || []).length, 4, '四宿都集滿時四條連線都畫出來');
+    const dim = StarMap.starMapSvg(StarMap.starMansions({ vendors: vendorsP08, badges: badgeCases[1] }));
+    eq((dim.match(/class="starmap__link"/g) || []).length, 1, '沒集滿的宿不連線（只有集滿的那一宿有）');
+  }
+
+  /* --- ③ 星圖下方那一行：四家真名 ＋「原典是什麼」＋ 免責句 ---------- */
+  {
+    const caption = StarMap.starMapCaption(vendorsP08);
+    for (const v of vendorsP08) ok(caption.includes(v.name), `星圖下方那一行列出 ${v.name}`, caption);
+    ok(caption.includes('原典'), '那一行說明「原典」是什麼', caption);
+    ok(/官方文件/.test(caption), '那一行明講原典＝公開的官方文件', caption);
+    ok(!ENGLISH(caption), '那一行沒有整句英文', ENGLISH(caption) || '');
+    eq(StarMap.STARMAP_DISCLAIMER, '本遊戲與這四家沒有隸屬或背書關係。', '免責句一字不差');
+    const block = StarMap.starMapBlock({ vendors: vendorsP08, badges: badgeCases[1] });
+    ok(block.includes(caption), '星圖那一塊帶著出處說明');
+    ok(block.includes(StarMap.STARMAP_DISCLAIMER), '星圖那一塊帶著免責句');
+    // 名稱一律現算，不手抄（改 curriculum 的 vendors 就會跟著變）
+    ok(
+      !/OpenAI|Anthropic|Google|xAI/.test(stripComments(srcOf('src/ui/starmap.js'))),
+      '星圖模組本身沒有手抄任何公司名（一律讀 curriculum.json 的 vendors）'
+    );
+  }
+
+  /* --- ④ 圖鑑：星圖取代徽章條，既有隱藏成就的條件與出處列一格沒動 ---- */
+  ok(/starMapBlock\(/.test(codexSrcP08), '圖鑑用的是同一支星圖純函式');
+  ok(/四宿星圖/.test(codexSrcP08), '圖鑑上那一塊叫「四宿星圖」');
+  ok(!/class="badge /.test(codexSrcP08) && !/badge__dot/.test(codexSrcP08), '舊的廠家徽章條已經拆掉');
+  ok(/每廠集滿 \$\{TARGET\} 個解開隱藏成就/.test(codexSrcP08), '隱藏成就的條件一格沒變（每廠 5 個標記）');
+  ok(/MANSION_TARGET/.test(codexSrcP08), '門檻讀星圖模組的常數（不會和成就判定對不上）');
+  ok(/allMansionsLit\(/.test(codexSrcP08), '「全亮」也走同一支純函式');
+  // 出處列（護欄 2）：圖鑑的官方連結還在原地，一個字都沒被星圖動到
+  ok(/const SOURCE_LABEL = '神諭原典';/.test(codexSrcP08), '出處的說法沒被改');
+  ok(/class="tech__srcs"/.test(codexSrcP08) && /sourceBook\(s, \{ label: SOURCE_LABEL \}\)/.test(codexSrcP08), '技巧條目的出處列原封不動');
+  ok(/官方出處 ↗/.test(codexSrcP08), '濁言與範例的官方出處連結還在');
+  // 成就頁：一樣的星圖 ＋ 一樣的免責句 ＋ 官方文件入口
+  ok(/starMapSvg\(/.test(achieveSrcP08), '成就頁也是同一張星圖');
+  ok(/STARMAP_DISCLAIMER/.test(achieveSrcP08), '成就頁有免責句');
+  ok(/finale__srcs/.test(achieveSrcP08), '成就頁仍留著四家官方文件的入口（護欄 2）');
+  // CSS：星圖有自己的樣式，而且沒有把品牌色寫進去
+  ok(/\.starmap__sky\s*\{/.test(cssSrcP08), 'CSS 有星圖的畫布');
+  ok(/\.starmap__mansion\.is-lit \.starmap__stars circle\s*\{/.test(cssSrcP08), 'CSS 有「這一宿亮了」的狀態');
+  {
+    const starCss = (cssSrcP08.match(/\.starmap \{[\s\S]*?\.starmap__note--legal \{[\s\S]*?\n\}/) || [''])[0];
+    ok(starCss.length > 200, '星圖那一段 CSS 抓得到（可量測）', String(starCss.length));
+    for (const v of vendorsP08) ok(!starCss.includes(v.color), `星圖的樣式沒有用到 ${v.id} 的代表色`);
+  }
+
+  /* ---------------------------------------------------------------- *
+   * ⑤ 世界層零公司名（護欄 2 ＋ 各家品牌指引）
+   *
+   * 世界裡的「話」一個公司名都不准出現；真名只准在**出處性使用**的三個
+   * 地方露臉：圖鑑的出處列、星圖下方那一行、成就頁。白名單刻意寫死成一
+   * 張很短的表 —— 新的檔案要用真名，就得先在這裡簽名。
+   * ---------------------------------------------------------------- */
+  const VENDOR_NAME_RE = /\b(OpenAI|Anthropic|Google|xAI|GPT|Claude|Gemini|Grok)\b/;
+  const VENDOR_NAME_RE_I = /\b(OpenAI|Anthropic|Google|xAI|GPT|Claude|Gemini|Grok)\b/i;
+  /** 出處連結本來就會帶到各家的網域 —— 掃的是「話」，不是連結。 */
+  const dropUrls = (s) => String(s).replace(/https?:\/\/\S+/g, ' ');
+
+  {
+    // (a) 世界裡的話：資料層
+    const worldCopyFiles = [
+      'src/data/murks.json',
+      'src/data/letters.json',
+      'src/data/inscriptions.json',
+      'src/data/secrets.json',
+      'src/data/handles.json',
+    ];
+    for (const rel of worldCopyFiles) {
+      const data = readJson(rel);
+      const hits = [];
+      let strings = 0;
+      walkStrings(data, '', (path, value) => {
+        if (/(^|\.)source$/.test(path) || /^https?:\/\//.test(value)) return; // 出處連結
+        strings += 1;
+        const m = dropUrls(value).match(VENDOR_NAME_RE_I);
+        if (m) hits.push(`${path}：「${m[0]}」於 ${value.slice(0, 50)}`);
+      });
+      ok(strings > 20, `${rel} 掃得到世界裡的話`, `n=${strings}`);
+      eq(hits.length, 0, `${rel} 的世界文案零公司名`, hits.slice(0, 3).join(' | '));
+    }
+
+    // (b) 世界裡的話：石碑（含回信碑的多筆跡）與故事小景
+    {
+      const worldStrings = [];
+      for (const t of LORE_TABLETS) {
+        worldStrings.push(t.title);
+        for (const l of t.lines) worldStrings.push(typeof l === 'string' ? l : l.text);
+      }
+      for (const v of STORY_VIGNETTES) worldStrings.push(v.name);
+      ok(worldStrings.length >= 40, '石碑與小景的字掃得到', `n=${worldStrings.length}`);
+      for (const s of worldStrings) {
+        ok(!VENDOR_NAME_RE_I.test(s), `石碑／小景的字零公司名：${s.slice(0, 24)}`);
+      }
+    }
+
+    // (c) 世界裡的話：HUD、回聲、主流程（註解不算、出處連結不算）
+    for (const rel of ['src/ui/hud.js', 'src/ui/nudge.js', 'src/main.js', 'src/world/props.js']) {
+      const body = dropUrls(stripComments(srcOf(rel)));
+      const m = body.match(VENDOR_NAME_RE_I);
+      ok(!m, `${rel} 的畫面文字零公司名`, m ? `「${m[0]}」` : '');
+    }
+  }
+
+  {
+    // (d) 白名單：全 src 掃一遍，凡是出現真名的檔案都要在這張表上簽過名
+    const NAME_ALLOWLIST = new Map([
+      ['src/data/curriculum.json', '官方引文本體（護欄 2：一個位元組都不能動）'],
+      ['src/data/curriculum-zh.json', '68 條技巧的中文譯寫，逐條標明是哪一家的文件'],
+      ['src/data/skill-codex-v2.json', '130 條技能的出處表（廠名 ＋ 文件名）'],
+      ['src/data/source-anchors.json', '出處深連結稽核表（文件名）'],
+      ['src/data/challenges.json', '關卡的出處與「哪一家這樣寫」的教學欄位'],
+      ['src/data/dated-notes.json', '時代註記：某一家的某個版本改了什麼'],
+      ['src/data/glossary.json', '術語小卡：名詞出自哪一家的文件'],
+      ['src/data/sim-samples.json', '轉鈕的離線樣本：模擬的是哪一家的哪一台'],
+      ['src/challenges/checks.js', '逐條回饋引用官方文件（出處性使用）'],
+      ['src/prompt/console.js', '「神諭原典 —— 也就是四家的官方文件」那一行'],
+    ]);
+    const { readdirSync, statSync } = await import('node:fs');
+    const scanned = [];
+    const walkSrc = (dir) => {
+      for (const name of readdirSync(resolve(root, dir))) {
+        const rel = `${dir}/${name}`;
+        if (statSync(resolve(root, rel)).isDirectory()) walkSrc(rel);
+        else if (/\.(js|json|css|html)$/.test(name)) scanned.push(rel);
+      }
+    };
+    walkSrc('src');
+    ok(scanned.length >= 40, '公司名白名單掃得到整棵 src', `n=${scanned.length}`);
+    const offenders = [];
+    const usedAllow = new Set();
+    for (const rel of scanned) {
+      const raw = srcOf(rel);
+      const body = dropUrls(rel.endsWith('.json') ? raw : stripComments(raw));
+      const m = body.match(VENDOR_NAME_RE);
+      if (!m) continue;
+      if (NAME_ALLOWLIST.has(rel)) {
+        usedAllow.add(rel);
+        continue;
+      }
+      offenders.push(`${rel}：「${m[0]}」`);
+    }
+    eq(offenders.length, 0, '沒有白名單以外的檔案寫死公司名', offenders.slice(0, 5).join(' | '));
+    for (const rel of NAME_ALLOWLIST.keys()) {
+      ok(usedAllow.has(rel), `白名單沒有過期的項目：${rel} 真的還在用真名`);
+    }
+    ok(NAME_ALLOWLIST.size <= 12, '白名單維持很短（要加就要有人簽名）', String(NAME_ALLOWLIST.size));
+    // 圖鑑／星圖／成就頁刻意不在白名單上 —— 它們的真名是從 curriculum.json 現算的
+    for (const rel of ['src/ui/codex.js', 'src/ui/achievement.js', 'src/ui/starmap.js']) {
+      ok(!NAME_ALLOWLIST.has(rel), `${rel} 不需要寫死公司名（真名由 vendors 現算）`);
+    }
+  }
+
+  /* --- ⑥ 反應式回聲：分支表、字數、口吻、接線 ------------------------ */
+  {
+    const kinds = Nudge.ECHO_KINDS;
+    ok(kinds.length >= 12, '回聲至少 12 條分支', `n=${kinds.length}`);
+    eq(new Set(kinds).size, kinds.length, '分支名沒有重複');
+    const wanted = [
+      'murkCalmed',
+      'letterFound',
+      'tabletRead',
+      'secretFound',
+      'handleUsed',
+      'gradeS',
+      'levelUp',
+      'regionUnlocked',
+      'regionEntered',
+      'regionMastered',
+      'collectionFull',
+      'idleLong',
+    ];
+    for (const k of wanted) ok(kinds.includes(k), `回聲有「${k}」這一條分支`);
+    const ECHO_BANNED = ['送出評分', '按鈕', '面板', 'localStorage', 'bloom', '後製', 'Web Audio', 'API key', 'rubric', 'debug', '解鎖', '經驗值', 'XP'];
+    const seen = new Set();
+    for (const k of kinds) {
+      const spec = Nudge.ECHO_LINES[k];
+      const tag = `[echo:${k}]`;
+      ok(spec && typeof spec.line === 'string', `${tag} 有一句話`);
+      const parts = [spec.line, spec.sub].filter(Boolean);
+      ok(parts.length <= 2, `${tag} 最多兩句`, String(parts.length));
+      for (const line of parts) {
+        // {name} / {what} 是填空位，量字數時換成最長的實際值
+        const filled = line.replace('{name}', '流程與代理').replace('{what}', '抄寫人的殘頁');
+        ok(filled.length <= 31, `${tag}「${filled}」≤ 31 字`, `len=${filled.length}`);
+        ok(filled.length >= 4, `${tag}「${filled}」不是半句話`, `len=${filled.length}`);
+        ok(!ENGLISH(filled), `${tag} 沒有整句英文`, ENGLISH(filled) || '');
+        ok(!VENDOR_NAME_RE_I.test(filled), `${tag} 沒有公司名`);
+        for (const bad of ECHO_BANNED) ok(!filled.includes(bad), `${tag} 沒有用系統術語「${bad}」`);
+        ok(!/[（(].*[)）]/.test(filled), `${tag} 不用括號解釋自己`);
+      }
+      ok(!seen.has(spec.line), `${tag} 這一句沒有和別的分支撞句`, spec.line);
+      seen.add(spec.line);
+    }
+    // 冷卻與 isBusy 的規矩沿用（不新增 UI）
+    ok(Nudge.ECHO_COOLDOWN_SECONDS >= 10 && Nudge.ECHO_COOLDOWN_SECONDS <= 45, '回聲有自己的冷卻（10–45 秒）', String(Nudge.ECHO_COOLDOWN_SECONDS));
+    ok(Nudge.ECHO_COOLDOWN_SECONDS < Nudge.COOLDOWN_SECONDS, '反應句的冷卻比導航提示短（它是回應，不是催促）');
+    ok(/echo\(kind, ctx = \{\}\) \{/.test(nudgeSrcP08), '回聲的入口是 echo(kind, ctx)');
+    ok(/if \(isBusy\(\)\) \{\s*\n\s*pending = \{ kind, ctx \};/.test(nudgeSrcP08), '面板還開著就先記下來，收起來再說');
+    ok(/if \(echoCooldown > 0\) return false;/.test(nudgeSrcP08), '冷卻中不說話');
+    ok(/if \(!enabled\) return false;/.test(nudgeSrcP08), '整組關掉時（序章）不說話');
+    ok(/pending = null;/.test(nudgeSrcP08), '說出口之後就把待講的那一句清掉（不排隊）');
+    ok(
+      /if \(p\.kind === 'regionUnlocked'\) \{\s*\n\s*api\.announceUnlock\(/.test(nudgeSrcP08),
+      '解鎖的消息也等面板收起來才說（原本它會在面板底下說完就被收掉，玩家看不到）'
+    );
+    ok(
+      /announceUnlock\(regionId\) \{[\s\S]*?const tpl = ECHO_LINES\.regionUnlocked\.line;/.test(nudgeSrcP08),
+      '解鎖那一句也讀同一張分支表（兩邊不會各寫一份）'
+    );
+    ok(!/document\.createElement|new .*Overlay|appendChild/.test(nudgeSrcP08.split('createNudge')[1] || ''), '回聲沒有新增任何 UI（走原本那條刻文）');
+    // main.js：每一條分支都要有人叫得動（idleLong 由回聲自己在沒目標時說）
+    for (const k of kinds) {
+      if (k === 'idleLong') {
+        ok(new RegExp(`speakEcho\\('${k}'`).test(nudgeSrcP08), `回聲自己會說「${k}」`);
+        continue;
+      }
+      ok(new RegExp(`nudge\\.echo\\((?:'${k}'|[^)]*'${k}')`).test(mainSrcP08), `main.js 接得上「${k}」`);
+    }
+    ok(!/hud\.toast\('回聲：/.test(mainSrcP08), '回聲的話不再借 toast 冒充（改走自己的通道）');
+  }
+
+  /* --- ⑦ 12 片土地各有一處說得出自己的守護與傳說 -------------------- */
+  {
+    /** 守護的關鍵字：每一個都必須是 regions-v2.json 的 landmark 裡真的有的字。 */
+    const GUARDIAN_KEYS = {
+      foundations: ['斷環', '環'],
+      reasoning: ['階梯', '塔'],
+      grounding: ['藏書之樹', '樹'],
+      orchestration: ['吊車', '臂'],
+      config: ['面具', '拱門'],
+      forms: ['刻度', '柱', '尺'],
+      toolcraft: ['鑰匙', '工具'],
+      wards: ['門', '縫'],
+      refinery: ['鏡'],
+      frugality: ['基座'],
+      divergence: ['柱', '兩面'],
+      sight: ['鏡', '天'],
+    };
+    const regionById = new Map((regionsV2.regions || []).map((r) => [r.id, r]));
+    eq(Object.keys(GUARDIAN_KEYS).length, 12, '12 片土地都列了守護');
+    for (const [id, keys] of Object.entries(GUARDIAN_KEYS)) {
+      const region = regionById.get(id);
+      ok(region, `[${id}] 是真實區域`);
+      for (const k of keys) {
+        ok(String(region.landmark || '').includes(k), `[${id}] 守護關鍵字「${k}」真的出自 landmark`, region.landmark);
+      }
+      // 傳說鉤 ＝ 一頁殘頁或一塊碑，說得出這片土地的守護（而且不只一句話）
+      const items = [];
+      for (const l of letterFile.entries || []) {
+        if (l.region === id) items.push({ what: `殘頁 ${l.id}`, text: `${l.title}${(l.lines || []).join('')}`, lines: (l.lines || []).length });
+      }
+      for (const t of LORE_TABLETS) {
+        if (t.region === id) {
+          items.push({
+            what: `石碑 ${t.id}`,
+            text: `${t.title}${t.lines.map((x) => (typeof x === 'string' ? x : x.text)).join('')}`,
+            lines: t.lines.length,
+          });
+        }
+      }
+      ok(items.length >= 2, `[${id}] 這片土地上有留下來的字`, `n=${items.length}`);
+      const hooks = items.filter((it) => it.lines >= 2 && keys.some((k) => it.text.includes(k)));
+      ok(hooks.length >= 1, `[${id}] 至少一處說得出自己的守護與傳說`, hooks.map((h) => h.what).join(', '));
+    }
+  }
+}
+
 
 /* ------------------------------------------------------------------ */
 console.log('');

@@ -260,6 +260,12 @@ function boot() {
   });
   ui.appendChild(perfmon.root);
 
+  /**
+   * v1.2 · P08：這一趟已經走進過的土地（回聲的「第一次走進某一區」只說一次）。
+   * 刻意不寫進存檔 —— 它不是進度，只是這一夜的記憶。
+   */
+  const regionsWalked = new Set();
+
   /** 已慶祝過的「區域精通」，避免每次刷新都跳一次。 */
   const masteredSeen = new Set(progression.masteredRegions());
   for (const id of masteredSeen) world.setRegionMastered(id);
@@ -274,6 +280,7 @@ function boot() {
       hud.celebrate(`${g ? g.name : regionId} · 精通`, 'mastery');
       engine.pulse(1.0);
       audio.cue('unlock');
+      nudge.echo('regionMastered');
     }
 
     const achievement = progression.hiddenAchievement();
@@ -375,6 +382,8 @@ function boot() {
         if (!o.leveledUp) return;
         hud.toast(`升級了！Lv.${o.levelAfter}`, 'good');
         engine.pulse(0.7);
+        // v1.2 · P08：回聲用世界的說法回應一句（面板還開著 → 它會等到收起來才說）
+        nudge.echo('levelUp');
       };
       /** 新解鎖區域的共同收尾：開閘門、toast、上方公告、音效、脈衝。 */
       const announceUnlocks = (o) => {
@@ -383,7 +392,7 @@ function boot() {
           world.openGate(regionId, true);
           hud.toast(`新區域解鎖：${g ? g.name : regionId} —— 橋上的閘門開了`, 'good');
           // 解鎖當下立刻在畫面上方說一次「○○ 已開啟，往前走吧」（不受冷卻限制）
-          nudge.announceUnlock(regionId);
+          nudge.echo('regionUnlocked', { regionId });
           audio.cue(unlockCue(regionId));
           engine.pulse(1.0);
         }
@@ -408,10 +417,13 @@ function boot() {
         if (mk.newlyCalmed) {
           player.celebrate?.();
           hud.celebrate(`${challenge.title} · 牠聽懂了`, 's');
-          // v1.2 · P04：第一盞清燈亮起時，回聲說一句（≤31 字、不解釋規則）
-          if (progression.murkCount(MURK_IDS) === 1) {
-            hud.toast('回聲：沒說清楚的話，也能被說完。你替牠說了。', 'info');
-          }
+          /*
+           * v1.2 · P04／P08：清燈亮起時回聲說一句 —— 第一盞有它自己的那一句。
+           * （P08 起走回聲自己的通道，不再借 toast 冒充回聲的口吻。）
+           */
+          const calmed = progression.murkCount(MURK_IDS);
+          nudge.echo(calmed === 1 ? 'firstMurkCalmed' : 'murkCalmed');
+          if (calmed >= MURK_IDS.length) nudge.echo('collectionFull', { what: '濁言與正言' });
         }
         celebrateLevelUp(outcome);
         announceUnlocks(outcome);
@@ -436,7 +448,10 @@ function boot() {
         player.celebrate?.(); // 旅人舉手歡呼一下（1.2 秒後自己收回去）
         const marker = world.markers.find((m) => m.id === challenge.id);
         if (marker) marker.setCleared(progression.bestGrade(challenge.id));
-        if (evaluation.grade === 'S') hud.celebrate('S · 完美', 's');
+        if (evaluation.grade === 'S') {
+          hud.celebrate('S · 完美', 's');
+          nudge.echo('gradeS');
+        }
         celebrateLevelUp(outcome);
         announceUnlocks(outcome);
         world.refreshGates();
@@ -860,7 +875,7 @@ function boot() {
       const g = content.group(regionId);
       world.openGate(regionId, true);
       hud.toast(`新區域解鎖：${g ? g.name : regionId} —— 橋上的閘門開了`, 'good');
-      nudge.announceUnlock(regionId);
+      nudge.echo('regionUnlocked', { regionId });
       audio.cue(unlockCue(regionId));
       engine.pulse(1.0);
     }
@@ -868,7 +883,10 @@ function boot() {
       world.refreshGates();
       compass.refresh();
     }
-    if (outcome.leveledUp) hud.toast(`升級了！Lv.${outcome.levelAfter}`, 'good');
+    if (outcome.leveledUp) {
+      hud.toast(`升級了！Lv.${outcome.levelAfter}`, 'good');
+      nudge.echo('levelUp');
+    }
   }
 
   /**
@@ -904,7 +922,7 @@ function boot() {
     engine.pulse(1.0);
     // 刻意不說「解鎖」——你不是解開它，是它讓你先過去
     hud.toast(`${name}：門為你開了。前方的試煉不會因此變簡單。`, 'info');
-    nudge.announceUnlock(regionId);
+    nudge.echo('regionUnlocked', { regionId });
   }
 
   /** 讀一則刻文小語：第一次讀給少量 XP，並把它教的那條技巧寫進圖鑑。 */
@@ -940,6 +958,9 @@ function boot() {
       if (found >= total) {
         hud.toast(`✦ 抄寫人留下的每一頁，你都收齊了（${found} / ${total}）`, 'good');
         progression.setFlag('allLettersFound', true);
+        nudge.echo('collectionFull', { what: '抄寫人的殘頁' });
+      } else {
+        nudge.echo('letterFound');
       }
     }
     openPanel(letterPanel, spec, {
@@ -972,6 +993,9 @@ function boot() {
     if (found >= total) {
       hud.toast(`✦ 四個藏起來的地方，你全都找到了（${found} / ${total}）`, 'good');
       progression.setFlag('allSecretsFound', true);
+      nudge.echo('collectionFull', { what: '藏起來的地方' });
+    } else {
+      nudge.echo('secretFound');
     }
   }
 
@@ -1015,6 +1039,7 @@ function boot() {
       if (!outcome.alreadyUsed) {
         world.markHandleUsed(spec.id);
         applyWorldGain(outcome);
+        nudge.echo('handleUsed');
       }
     }
 
@@ -1065,12 +1090,17 @@ function boot() {
         const g = content.group(regionId);
         world.openGate(regionId, true);
         hud.toast(`新區域解鎖：${g ? g.name : regionId} —— 橋上的閘門開了`, 'good');
-        nudge.announceUnlock(regionId);
+        nudge.echo('regionUnlocked', { regionId });
         audio.cue(unlockCue(regionId));
         engine.pulse(1.0);
       }
       if (outcome.newlyUnlocked.length) world.refreshGates();
-      if (outcome.leveledUp) hud.toast(`升級了！Lv.${outcome.levelAfter}`, 'good');
+      if (outcome.leveledUp) {
+        hud.toast(`升級了！Lv.${outcome.levelAfter}`, 'good');
+        nudge.echo('levelUp');
+      } else {
+        nudge.echo('tabletRead');
+      }
     }
     openPanel(tabletPanel, tablet.tablet, {
       firstRead: !outcome.alreadyRead,
@@ -1098,6 +1128,11 @@ function boot() {
           engine.pulse(0.55);
           const g = content.group(here.id);
           if (g) hud.toast(`進入 ${g.name} · ${g.nameEn}`, 'info');
+          // v1.2 · P08：這一趟第一次走進這片土地 → 回聲說一句（之後再進來就安靜）
+          if (!regionsWalked.has(here.id)) {
+            regionsWalked.add(here.id);
+            nudge.echo('regionEntered');
+          }
         }
       }
     }

@@ -2314,46 +2314,62 @@ a.src:hover {
 .badges h4 {
   margin: 0;
 }
-.badges__list {
-  list-style: none;
+/*
+ * v1.2 · P08：四宿星圖（取代原本的廠家徽章條）。
+ *
+ * 四叢程序化星點釘在四角：未滿是冷星光、集滿 5 顆整宿轉暖金並連成線。
+ * **沒有任何標誌、沒有任何品牌色**（各家品牌指引），畫的東西全部是
+ * <circle> 與 <polyline>，零外部圖檔。
+ */
+.starmap {
   margin: 0;
-  padding: 0;
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--s5);
 }
-.badge {
-  display: flex;
-  align-items: center;
-  gap: var(--s2);
-  padding: 0 0 var(--s2);
-  border-bottom: 1px solid var(--rule);
+.starmap__sky {
+  display: block;
+  width: 100%;
+  max-width: 460px;
+  height: auto;
+  margin: 0 auto;
+}
+.starmap__stars circle {
+  fill: var(--star);
   opacity: 0.4;
-  font-size: var(--t-small);
-  min-width: 128px;
-  transition: opacity var(--d-mid) var(--e-out), border-color var(--d-mid) var(--e-out);
+  transition: opacity var(--d-mid) var(--e-out), fill var(--d-mid) var(--e-out);
 }
-.badge.is-on {
+.starmap__mansion.is-lit .starmap__stars circle {
+  fill: var(--gold);
   opacity: 1;
-  border-bottom-color: color-mix(in srgb, var(--c) 55%, transparent);
 }
-.badge b {
-  font-weight: 500;
-  letter-spacing: 0.02em;
+.starmap__link {
+  fill: none;
+  stroke: var(--rule-gold);
+  stroke-width: 0.8;
+  stroke-linejoin: round;
+  stroke-linecap: round;
 }
-.badge__dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--c);
-  flex: none;
+.starmap__label {
+  fill: var(--paper-4);
+  font-size: 11px;
+  letter-spacing: var(--tr-cjk);
 }
-.badge__n {
-  margin-left: auto;
-  font-family: var(--font-display);
-  font-size: 1.7rem;
-  font-weight: 500;
-  color: var(--paper-2);
+.starmap__mansion.is-lit .starmap__label {
+  fill: var(--gold);
+}
+/* 星圖底下那一行：四家的真名 ＋「原典是什麼」＋ 免責句（唯一准出現公司名的地方之一）。 */
+.starmap__note {
+  margin: var(--s4) 0 0;
+  font-size: var(--t-micro);
+  line-height: 1.75;
+  color: var(--paper-4);
+}
+.starmap__note--legal {
+  margin-top: var(--s2);
+  color: var(--paper-4);
+  opacity: 0.78;
+}
+/* 成就頁的星圖前後要留白（那一頁只有幾段話，星圖是它的插圖）。 */
+.finale .starmap {
+  margin: var(--s5) 0;
 }
 .badges__hidden {
   margin: var(--s4) 0 0;
@@ -4119,9 +4135,6 @@ select option:disabled {
   .result__top {
     flex-wrap: wrap;
     gap: var(--s5);
-  }
-  .badges__list {
-    gap: var(--s4);
   }
   /* Phase 18：積木是一片片的小石籤，窄畫面自己換行就好（不再撐滿整行） */
   .console__blocks {
@@ -8466,8 +8479,7 @@ select option:disabled {
     margin-left: var(--s2);
   }
   /* 圖鑑的兩欄在這個寬度一定要收成一欄 */
-  .codex__grid,
-  .badges__list {
+  .codex__grid {
     grid-template-columns: 1fr;
   }
   /*
@@ -8499,8 +8511,7 @@ select option:disabled {
     min-width: 0;
   }
   .rank,
-  .rankbar,
-  .badge {
+  .rankbar {
     min-width: 0;
     overflow-wrap: anywhere;
   }

@@ -17,6 +17,7 @@ import {
   sourceNoteHtml,
 } from './dom.js';
 import { glossary } from './glossary.js';
+import { MANSION_TARGET, allMansionsLit, starMansions, starMapBlock } from './starmap.js';
 
 /** 官方出處在畫面上的說法（和主控台第二幕同一句話）。 */
 const SOURCE_LABEL = '神諭原典';
@@ -224,26 +225,25 @@ export function createCodex({
     </div>`;
   }
 
+  /**
+   * v1.2 · P08：四宿星圖（取代原本的廠家徽章條）。
+   *
+   * 世界的說法是四部原典各有一宿；星點數 ＝ 該廠已收集的技巧標記數，
+   * 一宿滿 5 顆就亮起並連線，四宿全亮 ＝ 既有的隱藏成就（判定一格沒動）。
+   * 星圖本體不出現任何公司名、標誌或品牌色；真名只在底下那一行做出處性使用，
+   * 並且和免責句放在一起（見 src/ui/starmap.js 的檔頭）。
+   */
   function badgeStrip() {
     const badges = progression.state.badges;
+    const vendors = content.curriculum.vendors || [];
     const total = Object.values(badges).reduce((a, b) => a + b, 0);
-    const all = (content.curriculum.vendors || [])
-      .map((v) => {
-        const n = badges[v.id] || 0;
-        return `<li class="badge ${n > 0 ? 'is-on' : ''}" style="--c:${esc(v.color)}">
-          <span class="badge__dot"></span>
-          <b>${esc(v.name)}</b>
-          <span class="badge__n">${n}</span>
-        </li>`;
-      })
-      .join('');
-    const TARGET = 5; // 每廠各集滿 5 個標記 = 隱藏成就
-    const complete = (content.curriculum.vendors || []).every((v) => (badges[v.id] || 0) >= TARGET);
+    const TARGET = MANSION_TARGET; // 每廠各集滿 5 個標記 = 一宿亮起 = 隱藏成就的那一半
+    const complete = allMansionsLit(starMansions({ vendors, badges, target: TARGET }));
     return `<div class="badges">
-      <div class="meta-rule"><h4><span class="zh">廠家徽章</span><span class="en">Vendor Marks</span></h4></div>
+      <div class="meta-rule"><h4><span class="zh">四宿星圖</span><span class="en">Four Mansions</span></h4></div>
       <p class="muted" style="margin:0 0 var(--s4);font-size:var(--t-micro)">已收集 ${total} 個技巧標記 · 每廠集滿 ${TARGET} 個解開隱藏成就</p>
-      <ul class="badges__list">${all}</ul>
-      ${complete ? '<p class="badges__hidden">✦ 四廠全數集齊 —— 隱藏成就達成。</p>' : ''}
+      ${starMapBlock({ vendors, badges, target: TARGET })}
+      ${complete ? '<p class="badges__hidden">✦ 四宿全亮 —— 隱藏成就達成。</p>' : ''}
       ${worldFinds()}
       <p class="codex__hint">未收集的技巧只留下編號。方向鍵可以在條目之間走，<kbd>Enter</kbd> 展開。${infoTip(
         '在世界裡解開對應的關卡，那一條就會被寫進圖鑑；每一條都附得出可點的官方出處。',

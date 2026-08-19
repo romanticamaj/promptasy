@@ -13,6 +13,12 @@
  *   3. 不在冷卻中（顯示過一次就冷卻 90 秒 —— 它是提示，不是嘮叨）
  * 另外：新區域解鎖時**立刻**說一次「○○ 已開啟，往前走吧」（不受冷卻限制）。
  *
+ * v1.2 · P08 起這條刻文多了第二個用途：**反應式回聲**（`echo(kind, ctx)`）——
+ * 你安撫了一隻濁靈、撿到一頁殘頁、讀了一塊碑、拿到 S、升等、走進新的一片土地…
+ * 回聲就會換一句話回應你（分支表 `ECHO_LINES`，一樣 ≤2 句、每句 ≤31 字、
+ * 不解釋規則、不用系統術語）。事情發生時面板通常還開著，所以它會先記著、
+ * 等面板收起來那一拍再說；20 秒內只講最近的那一件事。**不新增任何 UI。**
+ *
  * 什麼時候消失：
  *   · 玩家真的往那邊靠近了（距離刷新最佳值）→ 立刻收
  *   · 打開目標（或任何面板）→ 立刻收
@@ -36,6 +42,54 @@ export const APPROACH_DELTA = 6;
 export const NEAR_ENOUGH = 14;
 /** 一「步」大約走多遠（和指南針同一個體感基準）。 */
 const STEP = 0.9;
+
+/**
+ * v1.2 · P08：反應式回聲多久才會再說一句。
+ *
+ * 比導航提示的 90 秒短很多 —— 那個是「你好像迷路了」的催促，這個是
+ * 「我看到你做了什麼」的回應；但仍然要有冷卻，不然升等 ＋ 解鎖 ＋ 拿 S
+ * 撞在一起時牠會連珠炮。一次只說最後發生的那一件事。
+ */
+export const ECHO_COOLDOWN_SECONDS = 20;
+
+/**
+ * v1.2 · P08：回聲依「你剛剛做了什麼」換的那一句。
+ *
+ * 規矩（WORLD §1.2）：**每句 ≤ 31 字、最多兩句、不解釋規則、不用系統術語**。
+ * `{name}` / `{what}` 是唯二的填空位，值由呼叫端給（區域中文名、收集的名字）。
+ * 這張表就是分支的唯一來源 —— `announceUnlock()` 也是讀這裡的 `regionUnlocked`。
+ */
+export const ECHO_LINES = Object.freeze({
+  /** 安撫一隻濁靈 */
+  murkCalmed: { line: '牠聽懂自己在問什麼了。', sub: '這裡多了一盞燈。' },
+  /** 第一盞清燈（整趟旅程只會遇到一次） */
+  firstMurkCalmed: { line: '沒說清楚的話，也能被說完。', sub: '你替牠說了。' },
+  /** 撿到一頁殘頁 */
+  letterFound: { line: '他們寫的字，你撿起來了。', sub: '路邊還留著別的。' },
+  /** 讀了一塊碑 */
+  tabletRead: { line: '這塊碑等很久才等到人讀。' },
+  /** 找到一處祕密 */
+  secretFound: { line: '不在路上的地方，你走到了。' },
+  /** 動了一件器物 */
+  handleUsed: { line: '東西動了一下。', sub: '這裡還記得有人在。' },
+  /** 一關拿到 S */
+  gradeS: { line: '這一句，抄寫人也寫不出來。' },
+  /** 升等 */
+  levelUp: { line: '你說話的樣子變了。', sub: '牠比昨天更聽得懂你。' },
+  /** 解鎖新區（由 announceUnlock 渲染：名字會被標成金色重點，副標帶方向） */
+  regionUnlocked: { line: '{name} 已開啟，往前走吧' },
+  /** 第一次走進某一片土地 */
+  regionEntered: { line: '這片土地也是他們留下的。', sub: '慢慢走。' },
+  /** 一片土地精通 */
+  regionMastered: { line: '這一片，你把話都說清楚了。' },
+  /** 收滿一種收集（殘頁 / 祕密 / 濁靈…） */
+  collectionFull: { line: '{what}，一件都不缺了。' },
+  /** 久沒動作，而且這一片已經沒有下一個目標了 */
+  idleLong: { line: '這一片安靜下來了。', sub: '歇一會兒也沒關係。' },
+});
+
+/** 分支名清單（測試與 main.js 的接線都對這份）。 */
+export const ECHO_KINDS = Object.freeze(Object.keys(ECHO_LINES));
 
 const DIRS = ['北', '東北', '東', '東南', '南', '西南', '西', '西北'];
 
@@ -82,6 +136,10 @@ export function createNudge({ world, player, getRegion = () => 'foundations', co
   let lastDirection = '';
   let lastTargetName = '';
   let enabled = true;
+  /** 反應式回聲自己的冷卻（和導航提示的 90 秒分開算）。 */
+  let echoCooldown = 0;
+  /** 事情發生時面板多半還開著 —— 先記著，收起來那一拍再說（只留最新的一件）。 */
+  let pending = null;
 
   /*
    * 顯示 / 收起只切一個 class。
@@ -112,6 +170,30 @@ export function createNudge({ world, player, getRegion = () => 'foundations', co
     shownFor = 0;
   }
 
+  /**
+   * v1.2 · P08：把一條分支填成真的兩句話。
+   * `{name}` / `{what}` 之外不做任何字串處理 —— 表裡寫的就是玩家看到的。
+   */
+  function echoText(kind, ctx = {}) {
+    const spec = ECHO_LINES[kind];
+    if (!spec) return null;
+    const fill = (s) =>
+      String(s || '')
+        .replace('{name}', String(ctx.name ?? ''))
+        .replace('{what}', String(ctx.what ?? ''));
+    return { line: fill(spec.line), sub: spec.sub ? fill(spec.sub) : '' };
+  }
+
+  /** 真的說出口（冷卻與 isBusy 已經在外面判過了）。 */
+  function speakEcho(kind, ctx) {
+    const parts = echoText(kind, ctx);
+    if (!parts) return false;
+    pending = null;
+    echoCooldown = ECHO_COOLDOWN_SECONDS;
+    show(kind, { eyebrow: '回聲', line: esc(parts.line), sub: parts.sub, text: parts.line });
+    return true;
+  }
+
   /** 目標在世界上的位置 → 方位詞與步數。 */
   function aim(target) {
     const dx = target.x - player.position.x;
@@ -130,6 +212,7 @@ export function createNudge({ world, player, getRegion = () => 'foundations', co
     update(dt = 0) {
       if (!enabled) return;
       if (cooldown > 0) cooldown = Math.max(0, cooldown - dt);
+      if (echoCooldown > 0) echoCooldown = Math.max(0, echoCooldown - dt);
 
       // 面板開著／序章進行中／標題卡還在 → 一律收起來，而且計時歸零
       // （「打開任何面板」本來就代表玩家沒有迷路）
@@ -139,10 +222,44 @@ export function createNudge({ world, player, getRegion = () => 'foundations', co
         return;
       }
 
+      /*
+       * v1.2 · P08：面板收起來的那一拍，把剛剛沒說出口的那一句補上。
+       * 冷卻中就直接丟掉 —— 回聲不排隊，它只講最近發生的那一件事。
+       */
+      if (pending) {
+        const p = pending;
+        pending = null;
+        // 解鎖是一則消息（帶方向與步數），不受冷卻限制
+        if (p.kind === 'regionUnlocked') {
+          api.announceUnlock(p.ctx.regionId ?? p.ctx.name ?? '');
+          return;
+        }
+        if (echoCooldown <= 0) {
+          speakEcho(p.kind, p.ctx);
+          return;
+        }
+      }
+
       const target = world.objectiveTarget ? world.objectiveTarget(getRegion()) : null;
       if (!target) {
-        if (visible) hide();
         targetKey = null;
+        /*
+         * 這一片已經沒有下一個目標了。原本這裡就是安靜 —— 現在多一件事：
+         * 站著不動夠久（兩倍的閒置門檻）才會說一句「歇一會兒也沒關係」。
+         */
+        if (visible) {
+          if (lastKind === 'idle') hide();
+          else {
+            shownFor += dt;
+            if (shownFor >= HOLD_SECONDS) hide();
+          }
+          return;
+        }
+        idle += dt;
+        if (idle >= IDLE_SECONDS * 2 && echoCooldown <= 0 && cooldown <= 0) {
+          idle = 0;
+          speakEcho('idleLong', {});
+        }
         return;
       }
 
@@ -203,13 +320,46 @@ export function createNudge({ world, player, getRegion = () => 'foundations', co
         lastDirection = dir;
         lastTargetName = target.name;
       }
+      // 句子本身讀 ECHO_LINES（單一來源），這裡只多做一件事：把區域名標成金色重點
+      const tpl = ECHO_LINES.regionUnlocked.line;
       show('unlock', {
         eyebrow: '回聲',
-        line: `<b>${esc(name)}</b> 已開啟，往前走吧`,
+        line: esc(tpl).replace('{name}', `<b>${esc(name)}</b>`),
         sub,
-        text: `${name} 已開啟，往前走吧`,
+        text: tpl.replace('{name}', name),
       });
+      // 解鎖是一則消息、不受冷卻限制，但它也算「回聲剛講過話」
+      echoCooldown = ECHO_COOLDOWN_SECONDS;
+      pending = null;
       return true;
+    },
+
+    /**
+     * v1.2 · P08：反應式回聲 —— 依「你剛剛做了什麼」挑一句。
+     *
+     * 規矩：分支表在 `ECHO_LINES`（≤2 句、每句 ≤31 字、不用系統術語）；
+     * 面板還開著就先記下來（多半就是剛做完那件事的那個面板），收起來再說；
+     * 冷卻中一律不說，一次只留最新的那一件事。
+     *
+     * @param {string} kind ECHO_KINDS 之一
+     * @param {object} [ctx] `{ name }`（區域名）／`{ what }`（收集的名字）／`{ regionId }`
+     * @returns {boolean} 這一拍真的說出口了嗎
+     */
+    echo(kind, ctx = {}) {
+      if (!enabled) return false;
+      if (!ECHO_LINES[kind]) return false;
+      /*
+       * 面板還開著（多半就是剛做完那件事的那個面板）→ 先記著，收起來那一拍再說。
+       * 解鎖也一樣要等 —— 它原本會在面板底下說完再被收掉，玩家根本看不到。
+       */
+      if (isBusy()) {
+        pending = { kind, ctx };
+        return false;
+      }
+      // 解鎖走它自己那條路（帶方向與步數，而且不受冷卻限制）
+      if (kind === 'regionUnlocked') return api.announceUnlock(ctx.regionId ?? ctx.name ?? '');
+      if (echoCooldown > 0) return false;
+      return speakEcho(kind, ctx);
     },
 
     /** 玩家做了某件事（打開面板 / 通關 / 讀碑）→ 他沒有迷路，計時歸零。 */
@@ -221,7 +371,10 @@ export function createNudge({ world, player, getRegion = () => 'foundations', co
     /** 整組關掉（例如序章期間）。 */
     setEnabled(v) {
       enabled = Boolean(v);
-      if (!enabled && visible) hide();
+      if (!enabled) {
+        pending = null;
+        if (visible) hide();
+      }
     },
 
     get isVisible() {
@@ -238,6 +391,8 @@ export function createNudge({ world, player, getRegion = () => 'foundations', co
         target: lastTargetName,
         idle: Math.round(idle * 100) / 100,
         cooldown: Math.round(cooldown * 100) / 100,
+        echoCooldown: Math.round(echoCooldown * 100) / 100,
+        pending: pending ? pending.kind : null,
         shownFor: Math.round(shownFor * 100) / 100,
         bestDistance: Number.isFinite(bestDistance) ? Math.round(bestDistance * 100) / 100 : null,
       };
