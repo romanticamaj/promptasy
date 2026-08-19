@@ -1033,9 +1033,11 @@ Exit criteria：
 - [ ] 停回閘門 A，請站長再玩一次（重點看：那三區現在「看起來不一樣」了嗎）。
       顏色複核圖：`docs/design/shots/region-forms.png`／`region-toolcraft.png`／`region-sight.png`。
 
-### P07 — 殘頁 ＋ 回信碑 ＋ `firstPrompt` 擷取（2026-08-19 開工）
+### P07 — 殘頁 ＋ 回信碑 ＋ `firstPrompt` 擷取（2026-08-19 開工 · 2026-08-20 完成）
 
-狀態：`in progress`（里程碑 B 第一格；閘門改為不停下，見 findings）
+狀態：`done`（里程碑 B 第一格；閘門改為不停下）
+
+**審查後修訂（2026-08-20，4 條）**：① 殘頁小窗的「收進圖鑑 +XP」與「Esc 收起」用了 `reveal d5`，但 CSS 只定義到 `d4` → 沒有 `--i` 就變成延遲 0，**獎勵搶在內文之前亮**；補 `.reveal.d5/.d6` 並把 Esc 提示排到 `d6`。② `pacing-audit` 沒把 24 頁殘頁算進 POI → 下一個「先量再放」的 phase 會拿到過期數據；補進中景那一層後 **mid 死區 1 段 → 0 段**（divergence 那 10m 正好被殘頁補上）。③ CHANGELOG／三件組由 orchestrator 收尾（本來就是分工）。④ 新加的殘頁 e2e 又用了固定 `sleep(460)` —— 同一個 commit 才剛把兩處改成輪詢，這裡照做。
 
 **現狀**：世界的「風味層」已有三種資料檔，形狀一致、都可當樣板——`inscriptions.json`（刻文小語 13 則：`{id, region, at, prop, title, lines[], techniqueId, hint}`，**有教學＋出處**，走 `E`、記 `inscriptionsFound`）、`secrets.json`（祕密 4 處：`{id, region, prop, at, radius, title, lines[]}`，純風味無出處、走進去就算找到、記 `secretsFound`）、`props.js` 的 `LORE_TABLETS`（12 塊世界觀石碑：`{id, region, at, title, lines[]}`，記 `loreRead`）。圖鑑 `worldFinds()` 現在四列（刻文／祕密／器物／濁言）。主控台自由書寫的原文目前不落盤。
 
@@ -1062,9 +1064,9 @@ Exit criteria：
 **禁區**：`curriculum.json`、`challenges.json`、`flows.json`、`murks.json`、`color-script.json`、`vite.config.js`、`CLAUDE.md`、`CHANGELOG.md`、`gameplay-roadmap.md`、dev server 5173/5174/5175。
 
 Exit criteria：
-- [ ] 24 頁殘頁可撿、進圖鑑第五列；4 塊碑有多筆跡；`firstPrompt` 記得住。
-- [ ] rubric／playtest／build／e2e 全綠、console error 0；預算在框內。
-- [ ] 三件組＋changelog＋roadmap 打勾。
+- [x] 24 頁殘頁可撿（12 教學＋12 風味）、進圖鑑第五列；4 塊碑有多筆跡（原句／後人補寫／被劃掉）；`firstPrompt` 寫一次就不覆寫。
+- [x] rubric 98,503／playtest 2,533／build ✓／e2e 3,841 全綠、console error 0；三角 217,892（<240k）、光源 37 不變、碰撞體 950、collision-audit 0。
+- [x] 三件組＋changelog＋roadmap 打勾。
 
 ## v1.2 錯誤紀錄
 

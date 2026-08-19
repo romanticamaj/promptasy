@@ -68,7 +68,7 @@ CLAUDE.md 的五個方向與七條護欄仍是最高準則。本 roadmap 只回�
 
 ### 里程碑 B：世界觀投遞 I ＋「寫 prompt」的可見後果（世界觀 × 互動 × 重玩）
 
-- [~] **P07 · 殘頁 ＋ 回信碑 ＋ `firstPrompt` 擷取**（M）— `letters.json`（`authored:"game"`；教學句必附出處、純風味不放連結，同 `secrets.json` 測試規則）＋圖鑑「殘頁」頁；每區 2 頁（24 頁）、放在小景／地標背面、皆有 tell；`LORE_TABLETS` 支援多筆跡（原句／後人補寫／劃掉，字級樣式）；**存檔開始擷取 `firstPrompt`**（序章第一次自由書寫的原文，純文字、≤280 字、HTML escape、只存本機；舊檔無則之後終局改用「你最好的一句」）。
+- [x] **P07 · 殘頁 ＋ 回信碑 ＋ `firstPrompt` 擷取**（M）— `letters.json`（`authored:"game"`；教學句必附出處、純風味不放連結，同 `secrets.json` 測試規則）＋圖鑑「殘頁」頁；每區 2 頁（24 頁）、放在小景／地標背面、皆有 tell；`LORE_TABLETS` 支援多筆跡（原句／後人補寫／劃掉，字級樣式）；**存檔開始擷取 `firstPrompt`**（序章第一次自由書寫的原文，純文字、≤280 字、HTML escape、只存本機；舊檔無則之後終局改用「你最好的一句」）。
   - 依賴：P04。方案：W-1、W-6（擷取部分）。
   - DoD：`zh-scan`、禁字表；存檔純加法＋reset；e2e 撿一頁殘頁進圖鑑。
 
