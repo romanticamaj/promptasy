@@ -1225,3 +1225,36 @@ Exit criteria：
 
 
 **審查後修訂（2026-08-21，8 條）**：① **四座母題只在正中央取一次地面高度**，但三階橫跨快 8 公尺、地形在那個跨距上落差好幾公尺 → 實測 9 塊浮空（最糟 +3.95m）、1 塊埋進土裡；浮起來的還會被 `listSubstantial()` 當成「從底下走過去」而豁免，連穿模稽核都看不見（`twice-01` 整座 0 塊被稽核到）。改成跟 `buildStairRidge()` 同一套：**頂面照最高的那塊地排**（剪影仍是階梯）、**底面各自追自己腳下的地**再多埋 0.35m；rubric 新增逐塊貼地斷言（先紅：9 條失敗）。② 四座母題原本擺在崩落的區緣（`coverage` 0.81–0.95），修好貼地後外側那階的碰撞體就掉進虛空 → 用「先量再放」的老辦法寫了一支搜尋（覆蓋率 ≥0.96、三階地形落差 ≤1.1m、離路 9–26m、互動層淨空、四周 16 向走得到），並**用真的重建世界驗證**（移動母題會改 `keepClear`、程序化道具會重擲），四座全部重新定位。③ e2e「按著 W 走進石脊」那一段的 `g.player.cameraYaw = …` 是**唯讀 getter 上的靜默空操作**（非嚴格模式），玩家其實面向上一段測試留下的隨便方向 → 兩條斷言變成不會失敗的裝飾；改用真的輸入（← →）輪詢轉到對準，並補一條 `yawErr < 0.12` 的前提斷言。④ 同一段的 `!pointInBand(band, x, z, 0)` **不可能失敗**（碰撞半徑本來就把人擋在中線 1.32m 外、半厚只有 0.7）→ 補兩條會失敗的：人真的走過去了、正對面那一段是被面擋下來的。⑤ `sightline-audit.mjs` 的註解把 `hidden`／`hiddenFlat` 講反、還點名了不存在的欄位（實際是 `hidden`＝只看水平、`hiddenTip`＝更嚴）→ 照程式改寫，P12 才不會讀錯欄位把門檻放鬆。⑥ 同檔裁掉橋頭以前的折點用「離中央高原多遠」，只要有折點往回彎就會被默默丟掉 → 改成**照折線弧長**裁（P12 要鋪 11 區，側向的遮擋帶一定會出現往回彎的折點）。⑦ 同檔的 `EYE_HEIGHT` 匯出但沒人讀（真正生效的在 `screens.js`）→ 刪掉，不留兩份真相。⑧ rubric 兩處 `.find()` 沒守（`BRIDGE_LANES`／`CORRIDORS` 都不含附屬區）→ P12 一登記附屬區就會是 `TypeError` 打掛整支測試而不是失敗一條斷言；改成守衛＋一條會失敗的斷言。
+
+### P12 — 地面材質語言 ＋ 每區粒子 ＋ 母題鋪 3–4 區（2026-08-21 開工）
+
+狀態：`in progress`（里程碑 C 第二格）
+
+**現狀**：地面是一張頂點色的地形網格（`src/world/world.js` `buildTerrain()` 附近）——高度分兩色、各區主色只**輕輕染 0.38**、路上再往 `worn` 靠 0.46、崩落邊緣往 `edge` 靠。使用者實測的回饋是「**區域顏色我看不出來**」，P06c／P11 已證實真正的原因是「**路上的東西太少**、顏色沒有東西可以附著」；P11 補了中觀那一階（reasoning 兩道石脊、四座母題），這一格要把**地面自己**也講出區域的差異，並把中觀鋪到另外 3 區。粒子方面每區只有 `motes`（螢火密度倍率）一個旋鈕，12 區共用同一種東西。
+
+**目標**：① 地面「一眼看得出換了一片土地」；② 每一區有一種**只屬於它**的空中粒子；③ 遮擋帶與母題鋪到 grounding／orchestration／config。
+
+**範圍**
+1. **地面材質語言（第二層頂點色）**：每區 2 色基底（`color-script.json` 已有 7 鍵／區，優先沿用，不夠再加鍵，**per-key fallback 的規則不能破**）＋一層低頻碎紋（value noise，純頂點色、不改高度場 → 不影響可行走判定與碰撞）。**區界 6 公尺內漸變**（`regionAt` 已回 `onBridge`；橋上維持現行較淡的染色）。低畫質：碎紋整層關掉、只留基底。
+2. **每區一種粒子**：沿用 `engine.js` 的圓形柔光貼圖與 `THREE.Points`（reactive.js `moths`／`stars` 是現成的寫法），**一區一個 Points、一個 draw call**、共用材質、**0 新光源**；密度沿用 `motes` 倍率當上限。`reducedMotion` → 不動、只留靜態的點；低畫質 → 整層關掉。
+3. **中觀鋪 3 區**：grounding／orchestration／config 各 1–2 道遮擋帶 ＋ 3–4 座母題，母題造型**每區不同**（照該區的傳說鉤，WORLD §1.4）。
+4. **先做工具**（P11 交接的建議）：`scripts/screen-fit.mjs`——給一個區與一種尺寸，掃出**擺得下**的候選（覆蓋率、三階落差、離路距離、各層淨空、四周走得到），並**用重建世界驗證**（P11 的教訓：母題進 `keepClear`，離線幾何算不準）。沒有它就是拿手動試誤去撞 11 區。
+5. **削碰撞體**（P11 交接的預算警告）：reasoning 的中觀層現在 31 個碰撞體（每道帶 ≈12、每座母題 ≈3）。**鋪滿 12 區會逼近 1,400 的硬上限** → 這一格要把每道帶的核心圓串距拉大／扶壁不再各排一串（改成與核心共用），目標**每道帶 ≤7、每座母題 ≤3**，並在 rubric 加一條「中觀層碰撞體 ≤ 每區 20」的斷言。
+
+**不做**：其餘 8 區的中觀（P16b）、可站立表面與跳躍（P13／P14）、地面貼圖檔（維持純程序化，資產授權零負擔）。
+
+**受影響檔案**：`src/world/world.js`、`src/world/screens.js`、`src/world/color-script.js`（如需加鍵則含 `src/data/color-script.json` —— **本 phase 明確授權動它**）、新 `src/world/motes.js`（或併進 world.js，理由寫註解）、新 `scripts/screen-fit.mjs`、`scripts/test-rubric.mjs`、`scripts/headless-check.mjs`、`scripts/expected-counts.json`、`package.json`、`WORLD.md`。
+
+**預算**：三角 218,790 → **<225,000**；**光源 37 不變**；碰撞體 979 → **<1,050**；粒子每區 +1 draw call；collision-audit 未涵蓋 0；`audit:pacing` 死區維持 0／0／0；`audit:sightline` 有帶的區全部通過。
+
+**Acceptance tests（先紅後綠）**
+- rubric：每區地面基底色**兩兩可分辨**（HSL 距離門檻，量得出來的數字）；區界漸變帶寬實測 ≈6m；低畫質確實少了碎紋那一層；每區粒子恰好 1 個 Points、材質共用、0 光源；新三區的遮擋帶／母題吃**同一套擺位斷言**（P11 那些，含逐塊貼地）；中觀層碰撞體 ≤ 每區 20；預算實測；`screen-fit.mjs` 對已知的 reasoning 座標回「可行」（自我驗證）。
+- e2e：teleport 到三個新區的橋頭 → 看不到地標 → 走到揭露點 → 看得到；粒子在畫面上真的有東西（`Points.count > 0` 且材質可見）；低畫質切換後粒子層消失、切回來會回來；零 console error。
+
+**禁區**：`curriculum.json`、`challenges.json`、`flows.json`、`murks.json`、`letters.json`、`solution-stats.json`、`vite.config.js`、`CLAUDE.md`、`CHANGELOG.md`、`gameplay-roadmap.md`、dev server 5173／5174／5175。動到中文字串一定要重跑 `npm run fonts`。
+
+Exit criteria：
+- [ ] 12 區地面兩兩分得出來、區界是漸變不是硬邊；每區一種專屬粒子。
+- [ ] grounding／orchestration／config 三區的中觀鋪好，`audit:sightline` 四區全過。
+- [ ] `scripts/screen-fit.mjs` 可重跑、能給出候選座標。
+- [ ] rubric／playtest／build／e2e 全綠、console error 0；預算在框內。

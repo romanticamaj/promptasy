@@ -95,7 +95,7 @@ CLAUDE.md 的五個方向與七條護欄仍是最高準則。本 roadmap 只回�
   - 依賴：P06（pacing-audit）。方案：M1、M8（母題半）、M11（長凳版）。
   - DoD：collision-audit 0；淨空全保；pacing-audit reasoning 死區數下降；tris 增量 <4k。
 
-- [ ] **P12 · 地面材質語言 ＋ 每區粒子 ＋ 母題鋪 3–4 區**（M）— 地面頂點色第二層（每區 2 色基底＋碎紋，區界 6m 漸變，低畫質 fallback）；每區一種專屬 GPU 粒子（紙屑／火星／花粉／齒輪屑／沙／星塵…）；母題與遮擋帶鋪 grounding／orchestration／config。
+- [~] **P12 · 地面材質語言 ＋ 每區粒子 ＋ 母題鋪 3–4 區**（M）— 地面頂點色第二層（每區 2 色基底＋碎紋，區界 6m 漸變，低畫質 fallback）；每區一種專屬 GPU 粒子（紙屑／火星／花粉／齒輪屑／沙／星塵…）；母題與遮擋帶鋪 grounding／orchestration／config。
   - 依賴：P11。方案：M7、M8、4-C。
   - DoD：tris <225k、碰撞體 <1,050；粒子每區 +1 draw call。
 
