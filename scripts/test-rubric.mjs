@@ -14943,6 +14943,234 @@ console.log('\n▸ 石座演出（v1.2 · P09）');
   }
 }
 
+/* ================================================================== */
+/* v1.2 · P10b：解法百分位（內建分布）＋ 最少技巧達成                   */
+/*   · solution-stats.json：142 關、三軸皆為排好的數字、純統計無出處    */
+/*   · 數字真的是評分引擎跑得出來的（抽驗重算，不是快照）              */
+/*   · 百分位純函式的邊界一致                                          */
+/*   · leanSeals 純加法：normalize／reset／不動 bestGrades 與解鎖      */
+/* ================================================================== */
+console.log('\n▸ 解法百分位與最少技巧達成（v1.2 · P10b）');
+{
+  const Stats = await import('../src/challenges/solution-stats.js');
+  const statsFile = readJson('src/data/solution-stats.json');
+
+  /* --- ① 檔案本身（契約在 expected-counts） --- */
+  {
+    eq(statsFile.authored, 'game', 'solution-stats.json 是遊戲自撰的統計層（authored: game）');
+    eq(statsFile.version, 1, '有版本欄位');
+    ok(/內建/.test(statsFile.note) && /不是其他玩家/.test(statsFile.note), '檔頭就寫明「內建分布、不是其他玩家」（誠實原則）');
+    ok(/build-solution-stats/.test(statsFile.generatedBy), '檔頭指得出重跑用的腳本');
+    eq(statsFile.stats.length, EXPECT.solutionStats.value, `內建分布 ${EXPECT.solutionStats.value} 關（142 關一關一組）`);
+    eq(statsFile.stats.length, challenges.length, '分布數＝關卡數（一關一組，不多不少）');
+    const ids = new Set(statsFile.stats.map((r) => r.id));
+    eq(ids.size, statsFile.stats.length, 'id 沒有重複');
+    for (const c of challenges) ok(ids.has(c.id), `[${c.id}] 有一組內建分布`);
+
+    const ROW_KEYS = ['id', 'total', 'n', 'scores', 'words', 'techniques'];
+    const short = [];
+    for (const row of statsFile.stats) {
+      const tag = `[${row.id}]`;
+      for (const k of Object.keys(row)) ok(ROW_KEYS.includes(k), `${tag} 分布的欄位就是那六個（純統計）`, k);
+      // 純統計不是教學：不准長出出處或技巧 id（那會讓人以為它是內容層）
+      ok(!('source' in row) && !('techniqueId' in row) && !('skillId' in row), `${tag} 沒有 source／techniqueId／skillId（統計不是教學）`);
+      for (const axis of ['scores', 'words', 'techniques']) {
+        const arr = row[axis];
+        ok(Array.isArray(arr) && arr.length > 0, `${tag} ${axis} 是非空陣列`);
+        ok(arr.every((n) => Number.isFinite(n) && n >= 0), `${tag} ${axis} 全是非負數字`);
+        ok(arr.every((n, i) => i === 0 || arr[i - 1] <= n), `${tag} ${axis} 由小到大排好`);
+        eq(arr.length, row.n, `${tag} ${axis} 的長度＝ n`);
+      }
+      ok(row.n <= 9, `${tag} 最多 9 份（結果面只拿來算百分位）`, String(row.n));
+      ok(row.techniques[0] >= 1, `${tag} 最精簡的那一份至少用了 1 種技法`, String(row.techniques[0]));
+      if (row.n < EXPECT.solutionStats.minRows) short.push(row.id);
+      const c = challenges.find((x) => x.id === row.id);
+      const total = (c.rubric || []).reduce((n, r) => n + (Number.isFinite(r.weight) ? r.weight : 1), 0);
+      ok(Math.abs(row.total - Math.round(total * 100) / 100) < 1e-9, `${tag} total ＝ 這一關的滿分（顯示層拿它守門）`);
+      ok(row.scores[row.scores.length - 1] <= row.total + 1e-9, `${tag} 分數不會超過滿分`);
+      ok(row.techniques[row.techniques.length - 1] <= (c.rubric || []).length, `${tag} 技法數不會超過檢查條數`);
+    }
+    eq(
+      JSON.stringify(short),
+      JSON.stringify(EXPECT.solutionStats.shortIds),
+      '誠實缺口就是登記的那幾關（少於 5 份的關卡不准偷偷變多 —— 湊數就是說謊）'
+    );
+    ok(short.length <= EXPECT.solutionStats.maxShortIds, '誠實缺口在上限內', String(short.length));
+  }
+
+  /* --- ② 數字是真的跑出來的（抽驗：拿 sample 重算一次，一定落在分布裡） --- */
+  {
+    const { statsForChallenge } = await import('./build-solution-stats.mjs');
+    // 全 142 關重算太慢，抽 12 關（每一片土地一關）就足以抓到「手改過 json」
+    const seen = new Set();
+    const sampleSet = challenges.filter((c) => {
+      if (seen.has(c.region)) return false;
+      seen.add(c.region);
+      return true;
+    });
+    for (const c of sampleSet) {
+      const rebuilt = statsForChallenge(c);
+      const stored = statsFile.stats.find((r) => r.id === c.id);
+      eq(JSON.stringify(rebuilt), JSON.stringify(stored), `[${c.id}] 重跑腳本得到一樣的分布（數字沒有被手改過）`);
+    }
+    // 示範解答本來就是一份參考解 → 它的三個數字一定在分布的範圍內
+    for (const c of challenges) {
+      const ev = evaluate(c, c.sample);
+      const row = statsFile.stats.find((r) => r.id === c.id);
+      ok(ev.earned <= row.scores[row.scores.length - 1] + 1e-9, `[${c.id}] 示範解答的分數不超過分布的最大值`);
+      ok(
+        Stats.techniqueCountOf(ev) <= row.techniques[row.techniques.length - 1],
+        `[${c.id}] 示範解答的技法數不超過分布的最大值`
+      );
+    }
+  }
+
+  /* --- ③ 純函式：字數、技法數、百分位的邊界 --- */
+  {
+    eq(Stats.countWords('請寫三句話。'), 5, 'countWords：漢字一個算一個（標點不算）');
+    eq(Stats.countWords('temperature 設為 0.2'), 4, 'countWords：拉丁字母／數字一串算一個');
+    eq(Stats.countWords(''), 0, 'countWords：空字串 0');
+    eq(Stats.countWords(null), 0, 'countWords：不是字串就 0');
+    eq(
+      Stats.techniqueCountOf({ results: [{ score: 1 }, { score: 0 }, { score: 1 }] }),
+      2,
+      'techniqueCountOf 數的是「找得到那條技法」的列'
+    );
+    eq(Stats.techniqueCountOf({ results: [{ score: 0.5 }] }), 1, 'techniqueCountOf：用了一半也算用了（用得夠不夠好由上面那一列講）');
+    eq(Stats.techniqueCountOf({ results: [{ score: 0 }, { score: 0 }] }), 0, 'techniqueCountOf：一條都沒用到就 0');
+    eq(Stats.techniqueCountOf({ results: [{ passed: true }] }), 1, 'techniqueCountOf：沒有 score 欄位時退回看 passed');
+    eq(Stats.techniqueCountOf(null), 0, 'techniqueCountOf：沒有東西就 0');
+
+    const dist = [1, 2, 2, 3, 5];
+    eq(Stats.percentileOf(0, dist), 0, '百分位：比全部都小 → 0');
+    eq(Stats.percentileOf(9, dist), 100, '百分位：比全部都大 → 100');
+    eq(Stats.percentileOf(5, dist), 100, '百分位：跟最大的一樣 → 100（並列算贏）');
+    eq(Stats.percentileOf(1, dist), 20, '百分位：跟最小的一樣 → 1/5');
+    eq(Stats.percentileOf(2, dist), 60, '百分位：並列的都算進去（3/5）');
+    eq(Stats.percentileOf(2.5, dist), 60, '百分位：落在兩者之間也一致');
+    eq(Stats.percentileOf(1, []), null, '百分位：沒有分布就回 null（不亂講）');
+    eq(Stats.percentileOf(NaN, dist), null, '百分位：不是數字就回 null');
+
+    const api = Stats.createSolutionStats(statsFile);
+    eq(api.size, 142, 'createSolutionStats 收得下 142 關');
+    eq(api.statsFor('nope'), null, '沒有這一關就 null');
+    ok(Boolean(api.statsFor('gate-of-clarity-01')), '查得到中央高原第一關的分布');
+    // 壞資料一律當成沒有分布（載入必須容錯）
+    const bad = Stats.createSolutionStats({ stats: [{ id: 'x', scores: [3, 1], words: [1], techniques: [1] }] });
+    eq(bad.size, 0, '沒排好的分布不收（壞資料 → 當成沒有）');
+    eq(Stats.createSolutionStats(null).size, 0, 'createSolutionStats(null) 不會爆');
+  }
+
+  /* --- ④ standingFor：過關才說、對不上就不說 --- */
+  {
+    const api = Stats.createSolutionStats(statsFile);
+    const c = challenges.find((x) => x.id === 'gate-of-clarity-01');
+    const pass = evaluate(c, c.sample);
+    const st = api.standingFor(c, pass);
+    ok(Boolean(st), '過關的一次說得出位置');
+    eq(st.n, api.statsFor(c.id).n, '對照的份數就是那一關的份數');
+    eq(st.score, pass.earned, '分數就是這一次的得分');
+    eq(st.words, Stats.countWords(c.sample), '字數就是這一次寫的字數');
+    eq(st.techniques, Stats.techniqueCountOf(pass), '技法數就是這一次真的做到的條數');
+    for (const k of ['scorePct', 'wordsPct', 'techniquesPct']) {
+      ok(st[k] >= 0 && st[k] <= 100, `${k} 落在 0..100`, String(st[k]));
+    }
+    eq(typeof st.lean, 'boolean', 'lean 是布林');
+    eq(st.leanest, api.statsFor(c.id).techniques[0], 'leanest ＝ 分布裡最精簡那一份的技法數');
+
+    const fail = evaluate(c, '幫我寫');
+    eq(api.standingFor(c, fail), null, '沒過關 → 不說（分布講的是解得開的人怎麼寫）');
+    eq(api.standingFor({ id: 'no-such' }, pass), null, '沒有分布的關卡 → 不說');
+    eq(api.standingFor(null, pass), null, 'standingFor(null) 不會爆');
+    // 試煉：runtime 只挑「你學過的」那幾條 → 條數對不上就不比
+    const trial = challenges.find((x) => x.application === true);
+    const trialFull = evaluate(trial, trial.sample);
+    ok(Boolean(api.standingFor(trial, trialFull)), '試煉在「全部學過」時比得下去（滿分總分對得上）');
+    const twoRows = (trial.rubric || []).slice(0, 2);
+    const trialPartial = evaluate({ ...trial, rubric: twoRows, pass: 1 }, trial.sample);
+    eq(api.standingFor(trial, trialPartial), null, '試煉只挑到部分檢查時 → 不比（滿分總分對不上）');
+
+    /* 「最少技巧達成」真的拿得到：用分布裡最精簡的那一份技法數通過就算 */
+    let leanHit = 0;
+    for (const ch of challenges) {
+      const row = api.statsFor(ch.id);
+      const ev = evaluate(ch, ch.sample);
+      const stx = api.standingFor(ch, ev);
+      if (stx && stx.techniques <= row.techniques[0]) leanHit += 1;
+    }
+    ok(leanHit >= 1, '至少有一關的示範解答本身就達成「最少技巧」（徽章拿得到，不是永遠的空頭）', String(leanHit));
+  }
+
+  /* --- ⑤ leanSeals：純加法、冪等、不動 142 關的分子 --- */
+  {
+    const base = SaveIO.defaultSave();
+    ok(Array.isArray(base.leanSeals) && base.leanSeals.length === 0, '新存檔的 leanSeals 是空陣列');
+    eq(JSON.stringify(SaveIO.normalize({}).leanSeals), '[]', '舊存檔沒有這一欄 → 補空陣列');
+    eq(JSON.stringify(SaveIO.normalize({ leanSeals: 'x' }).leanSeals), '[]', '壞值 → 空陣列');
+    eq(
+      JSON.stringify(SaveIO.normalize({ leanSeals: ['a', 'a', 'b', 3] }).leanSeals),
+      JSON.stringify(['a', 'b']),
+      '去重、只留字串'
+    );
+
+    const prog = createProgression({ catalog, challenges });
+    eq(typeof prog.awardLeanSeal, 'function', 'progression.awardLeanSeal()');
+    eq(prog.leanSeals().length, 0, '一開始一枚都沒有');
+    eq(prog.hasLeanSeal('gate-of-clarity-01'), false, '一開始沒拿到');
+    const gradesBefore = JSON.stringify(prog.state.bestGrades);
+    const unlockedBefore = JSON.stringify(prog.state.unlockedRegions);
+    const xpBefore = prog.state.xp;
+    const clearedBefore = prog.clearedCount ? prog.clearedCount() : Object.keys(prog.state.bestGrades).length;
+    eq(prog.awardLeanSeal('gate-of-clarity-01'), true, '第一次拿到 → true（結果面才說那一句）');
+    eq(prog.awardLeanSeal('gate-of-clarity-01'), false, '再拿一次 → false（冪等，不重複說）');
+    eq(prog.hasLeanSeal('gate-of-clarity-01'), true, '拿到了');
+    eq(prog.leanSeals().length, 1, '收了一枚');
+    eq(prog.awardLeanSeal(''), false, '空 id 不收');
+    eq(prog.awardLeanSeal(null), false, 'null 不收');
+    eq(JSON.stringify(prog.state.bestGrades), gradesBefore, '拿徽章**不動** bestGrades（142 關的分子）');
+    eq(JSON.stringify(prog.state.unlockedRegions), unlockedBefore, '拿徽章不解鎖任何一片土地');
+    eq(prog.state.xp, xpBefore, '拿徽章不給 XP');
+    const clearedAfter = prog.clearedCount ? prog.clearedCount() : Object.keys(prog.state.bestGrades).length;
+    eq(clearedAfter, clearedBefore, '拿徽章不動已通關數');
+    ok((prog.masterSeals().lean || []).includes('gate-of-clarity-01'), '圖鑑的成就總表列得出來');
+    // 重置清乾淨
+    prog.resetAll();
+    eq(prog.leanSeals().length, 0, '重置之後一枚都不剩');
+  }
+
+  /* --- ⑥ 接線與用詞：結果面那一行、圖鑑那一格、解鎖完全沒讀過這一欄 --- */
+  {
+    const consoleSrc = srcOf('src/prompt/console.js');
+    ok(/solutionStats/.test(consoleSrc), '主控台收得到內建分布');
+    ok(/standingFor\(/.test(consoleSrc), '結果面問的是 standingFor()');
+    ok(/data-standing/.test(consoleSrc), '那一行有 data-standing 把手（e2e 抓得到）');
+    ok(/百分位/.test(consoleSrc), '那一行講的是百分位');
+    ok(/不是其他玩家/.test(consoleSrc), '那一行**明寫**不是其他玩家的成績（誠實原則）');
+    ok(/內建/.test(consoleSrc), '那一行明寫是內建的分布');
+    ok(/awardLeanSeal\?\.\(/.test(consoleSrc), '徽章走 progression.awardLeanSeal()');
+    ok(/最少技巧達成/.test(consoleSrc), '徽章的名字是「最少技巧達成」');
+    ok(!/最少字/.test(consoleSrc), '**沒有**「最少字」那一枚（短 ≠ 好 prompt，roadmap §0 鐵則）');
+    const codexSrc = srcOf('src/ui/codex.js');
+    ok(/最少技巧達成/.test(codexSrc), '圖鑑的成就那一格列得出「最少技巧達成」');
+    ok(!/最少字/.test(codexSrc), '圖鑑也沒有「最少字」');
+    const progSrc = srcOf('src/progression/progression.js');
+    const unlockAt = progSrc.indexOf('function refreshUnlocks');
+    const unlockBody = progSrc.slice(unlockAt, progSrc.indexOf('\n  }', unlockAt));
+    ok(unlockAt > 0 && unlockBody.length > 50, '（前提）找得到 refreshUnlocks() 本體');
+    ok(!/leanSeals/.test(unlockBody), 'refreshUnlocks() 從頭到尾沒讀過 leanSeals（不影響解鎖）');
+    ok(!/^import .*\.json/m.test(progSrc), 'progression 不 import 任何 JSON（分布由外面注入）');
+    // WORLD.md §3.6：畫面上不出現系統術語（只看那一行的標記本身）
+    {
+      const at = consoleSrc.indexOf('data-standing');
+      const line = consoleSrc.slice(at, consoleSrc.indexOf('</p>', at));
+      ok(at > 0 && line.length > 40, '（前提）抓得到那一行的標記');
+      for (const bad of ['rubric', 'localStorage', '面板', '送出評分']) {
+        ok(!line.includes(bad), `那一行沒有系統術語（${bad}）`);
+      }
+    }
+  }
+}
+
 /* ------------------------------------------------------------------ */
 console.log('');
 if (failures.length) {

@@ -831,6 +831,37 @@ export function createProgression({
       persist();
       return true;
     },
+    /* ---------------------------------------------------------------- *
+     * v1.2 · P10b：最少技巧達成（`leanSeals`）
+     *
+     * 「這一次通過用的技法數 ≤ 內建最精簡的那一份範例解」——**判定不在這一層**
+     * （這一層不 import 任何 JSON），分布與判定住在 `src/challenges/solution-stats.js`，
+     * 主控台算完之後才把 id 交過來。這裡只負責**記住它**：純加法、冪等、
+     * 不給 XP、不寫 `bestGrades`、不碰 `refreshUnlocks()`，不是任何東西的解鎖條件。
+     *
+     * 刻意沒有「最少字」那一枚 —— 短 ≠ 好 prompt（roadmap §0 鐵則）。
+     * ---------------------------------------------------------------- */
+
+    /** 這一關拿到「最少技巧達成」了嗎。 */
+    hasLeanSeal(challengeId) {
+      return Array.isArray(state.leanSeals) && state.leanSeals.includes(challengeId);
+    },
+    /** 已拿到的「最少技巧達成」（關卡 id）。 */
+    leanSeals: () => (Array.isArray(state.leanSeals) ? state.leanSeals.slice() : []),
+    /**
+     * 記下一枚「最少技巧達成」。
+     * @param {string} challengeId
+     * @returns {boolean} 這一次才拿到 → true（結果面只在 true 的時候說一次）
+     */
+    awardLeanSeal(challengeId) {
+      if (typeof challengeId !== 'string' || !challengeId) return false;
+      if (!Array.isArray(state.leanSeals)) state.leanSeals = [];
+      if (state.leanSeals.includes(challengeId)) return false;
+      state.leanSeals.push(challengeId);
+      persist();
+      return true;
+    },
+
     /**
      * 大師層的總表（圖鑑用）。
      * `pureRegions`＝那一區的**教學神廟**全部拿到無筆之印（一區純手，12 枚）。
@@ -855,6 +886,8 @@ export function createProgression({
         pureRegions,
         divergenceProof,
         seals: Array.isArray(state.seals) ? state.seals.slice() : [],
+        // v1.2 · P10b：最少技巧達成（同樣是選配、永不擋路）
+        lean: Array.isArray(state.leanSeals) ? state.leanSeals.slice() : [],
       };
     },
 

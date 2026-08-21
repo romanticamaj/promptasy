@@ -81,6 +81,13 @@ export function defaultSave() {
     scribeSeals: [],
     samplesSeen: [],
     /**
+     * v1.2 · P10b · 最少技巧達成（`leanSeals`）：用**不多於內建最精簡範例解**的技法數
+     * 通過的關卡 id。純加法、冪等、不給 XP、不進 `bestGrades`、不是任何東西的解鎖條件。
+     *
+     * 刻意**沒有**「最少字」那一枚 —— 短 ≠ 好 prompt（roadmap §0 鐵則明文否決）。
+     */
+    leanSeals: [],
+    /**
      * v1.2 · P02：濁靈（murks.json）的安撫進度 —— **單一物件欄** `{ [murkId]: { hits, grade } }`。
      *
      *   hits   已命中的 rubric 列 index（整數、去重、排序）—— 跨次**累積聯集，永不清零**
@@ -253,6 +260,8 @@ export function normalize(raw) {
     penlessSeals: [...new Set(strArr(d.penlessSeals) || [])],
     scribeSeals: [...new Set(strArr(d.scribeSeals) || [])],
     samplesSeen: [...new Set(strArr(d.samplesSeen) || [])],
+    // v1.2 · P10b：舊存檔沒有 leanSeals → 空陣列（純加法，不影響任何既有欄位）
+    leanSeals: [...new Set(strArr(d.leanSeals) || [])],
     // v1.2 · P02：舊存檔沒有 murks → 空物件（純加法，不影響任何既有欄位）
     murks,
     // v1.2 · P07：舊存檔沒有 firstPrompt → 空字串（純加法）。壞值一律落成空字串。

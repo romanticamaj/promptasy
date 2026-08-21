@@ -27,6 +27,7 @@ import datedFile from './data/dated-notes.json';
 import sourceAnchorFile from './data/source-anchors.json';
 import simSamples from './data/sim-samples.json';
 import glossaryFile from './data/glossary.json';
+import solutionStatsFile from './data/solution-stats.json';
 import './styles.css';
 
 import { createEngine } from './engine/engine.js';
@@ -39,6 +40,7 @@ import { createPlayer } from './player/player.js';
 import { createContent } from './challenges/content.js';
 import { createCatalog } from './challenges/catalog.js';
 import { createPrologueContent } from './challenges/prologue.js';
+import { createSolutionStats } from './challenges/solution-stats.js';
 import { createProgression } from './progression/progression.js';
 import { createPromptConsole, registerSimDials } from './prompt/console.js';
 import { createPractice } from './prompt/practice.js';
@@ -320,9 +322,16 @@ function boot() {
 
   /** v1.2 · P03：最近一次 `onRubricHits` 的資料（測試／除錯用）。 */
   let lastRubricHits = null;
+  /*
+   * v1.2 · P10b：解法百分位。**內建分布**（solution-stats.json）由本機評分引擎跑
+   * 每一關自己的示範解答／快速填入／素材拆組出來的通過解產生 —— 不是其他玩家的成績，
+   * 結果面那一行會照實說。判定與百分位是純函式，資料在這裡注入（progression 不 import JSON）。
+   */
+  const solutionStats = createSolutionStats(solutionStatsFile);
   const promptConsole = createPromptConsole({
     content,
     progression,
+    solutionStats,
     onSubmit: () => audio.cue('submit'),
     // 即時預檢又點亮一項時的輕響（Phase 9 的「方向是對的」回饋）
     onChime: () => audio.cue('spark'),
@@ -1442,6 +1451,8 @@ function boot() {
     },
     /** v1.2 · P03：最近一次 onRubricHits 回呼的資料（測試用：契約四鍵、murk／非 murk 差量）。 */
     rubricHits: () => lastRubricHits,
+    /** v1.2 · P10b：解法的內建分布（測試／除錯用：查得到每一關的參考解答分布）。 */
+    solutionStats,
     /** v1.2 · P02：目前稱號 id（測試用：驗濁靈不動稱號）。 */
     rankNow: () => rankFor(rankStats(progression, catalog), ranksFile.ranks).rank.id,
     /** v1.2 · P02：安撫過的濁靈數 —— 只數 murks.json 裡真的有的那幾隻（圖鑑第四列用的同一個數）。 */

@@ -300,6 +300,11 @@ export function normalizeMode(value) {
 export function createPromptConsole({
   content,
   progression,
+  /**
+   * v1.2 · P10b：解法的**內建分布**（`createSolutionStats(solution-stats.json)`）。
+   * 沒給也照樣運作 —— 只是結果面少那一行（離線護欄：多的東西壞掉不能弄壞核心迴圈）。
+   */
+  solutionStats = null,
   onResult,
   /**
    * v1.2 · P03：`onRubricHits({ challenge, passedIndices, newlyPassedIndices, total })` ——
@@ -1871,8 +1876,42 @@ export function createPromptConsole({
       .map((t) => `<li><b>${esc(t.title)}</b> <span class="muted">${esc(t.id)}</span></li>`)
       .join('');
 
-    // 揭示序列的節拍：評價印章 → 分數 → 一條條檢查 → 收穫 → 出處
+    // 揭示序列的節拍：評價印章 → 分數 → 一條條檢查 → 這一次站在哪裡 → 收穫 → 出處
     const tail = evaluation.results.length;
+
+    /*
+     * v1.2 · P10b：解法的位置感（Zachtronics 式的「你在分布的哪裡」，但**誠實標示是內建分布**）。
+     *
+     * 過關才說（分布講的是「解得開的人怎麼寫」）；濁靈沒有分布；試煉的 rubric 條數
+     * 對不上時 `standingFor()` 自己會回 null —— 寧可不說，也不說不準的話。
+     * 「最少技巧達成」在這裡順手入袋（純加法的 `leanSeals`，不給 XP、不動評價）。
+     */
+    let standing = null;
+    try {
+      // 這一層是「多的」：它壞掉不准弄壞結果面（同 onRubricHits 的守法）
+      standing = !murkResult && solutionStats ? solutionStats.standingFor?.(challenge, evaluation) || null : null;
+    } catch (err) {
+      console.warn('[console] 解法分布查不動：', err);
+      standing = null;
+    }
+    const leanNew = Boolean(standing && standing.lean && progression.awardLeanSeal?.(challenge.id));
+    const standingLine = standing
+      ? `<p class="standing reveal" style="--i:${tail}" data-standing>
+          <span class="standing__row"><b>這一次</b>：分數 ${formatScore(standing.score)}（第 ${
+            standing.scorePct
+          } 百分位）· 字數 ${standing.words}（第 ${standing.wordsPct} 百分位）· 用了 ${
+            standing.techniques
+          } 種技法（第 ${standing.techniquesPct} 百分位）</span>
+          <span class="standing__note">百分位＝這一關 ${standing.n} 份<b>內建</b>範例解裡有多少成不比你高。那是遊戲<b>內建</b>的分布，不是其他玩家的成績。</span>
+        </p>`
+      : '';
+    /** 隱藏徽章：用不多於內建最精簡那一份的技法數通過（只在拿到的那一次說一句）。 */
+    const leanLine = leanNew
+      ? `<p class="gain lean-seal reveal" style="--i:${tail + 1}" data-lean-seal>✦ 最少技巧達成 —— 你用 ${
+          standing.techniques
+        } 種技法就把這件事講清楚了，跟這一關最精簡的內建解一樣少。</p>`
+      : '';
+
     resultEl.hidden = false;
     resultEl.innerHTML = `
       <div class="result__top ${evaluation.passed ? 'is-pass' : 'is-fail'} reveal" style="--i:0">
@@ -1902,14 +1941,16 @@ export function createPromptConsole({
         </div>
       </div>
       <ul class="rows">${rows}</ul>
+      ${standingLine}
+      ${leanLine}
       ${
         collected
-          ? `<div class="collected" style="--i:${tail}"><h4><span class="zh">✦ 順手收進圖鑑</span><span class="en">Collected</span></h4><ul>${collected}</ul></div>`
+          ? `<div class="collected" style="--i:${tail + 2}"><h4><span class="zh">✦ 順手收進圖鑑</span><span class="en">Collected</span></h4><ul>${collected}</ul></div>`
           : ''
       }
       ${
         outcome.newlyUnlocked.length
-          ? `<div class="collected" style="--i:${tail + 1}"><h4><span class="zh">✦ 新解鎖區域</span><span class="en">Unlocked</span></h4><ul>${outcome.newlyUnlocked
+          ? `<div class="collected" style="--i:${tail + 3}"><h4><span class="zh">✦ 新解鎖區域</span><span class="en">Unlocked</span></h4><ul>${outcome.newlyUnlocked
               .map((id) => {
                 const g = content.group(id);
                 return `<li><b>${esc(g ? g.name : id)}</b> <span class="muted">${esc(
@@ -1922,9 +1963,9 @@ export function createPromptConsole({
       ${
         trial
           ? `<p class="result__source reveal" style="--i:${
-              tail + 2
+              tail + 4
             }">這是試煉 —— 它不教新的技法，只把你在這片土地上學過的再用一次。</p>`
-          : `<p class="result__source reveal" style="--i:${tail + 2}">${murkResult ? '這一句話背後的技法，官方出處' : '本關技巧的官方出處'}
+          : `<p class="result__source reveal" style="--i:${tail + 4}">${murkResult ? '這一句話背後的技法，官方出處' : '本關技巧的官方出處'}
         <a class="src" href="${esc(challenge.source)}" target="_blank" rel="noopener">${esc(
           content.sourceName(challenge.source)
         )} ↗</a>
@@ -1932,7 +1973,7 @@ export function createPromptConsole({
       }
       ${
         evaluation.passed && !murkResult
-          ? `<div class="result__share reveal" style="--i:${tail + 3}">
+          ? `<div class="result__share reveal" style="--i:${tail + 5}">
               <button class="btn btn--ghost" type="button" data-share>分享這次的刻印<kbd>S</kbd></button>
             </div>`
           : ''

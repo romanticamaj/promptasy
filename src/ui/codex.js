@@ -301,9 +301,13 @@ export function createCodex({
       <ul class="seals__list">${cells}</ul>
       <p class="codex__hint">大師層（完全選配，不給 XP、不解鎖任何東西）：無筆之印 ✒ ${
         m.penless.length
-      } 枚 · 默寫之印 ✍ ${m.scribe.length} 枚 · 一區純手 ${m.pureRegions.length} 片${
-        m.divergenceProof ? ' · ✦ 分歧之證' : ''
-      }</p>
+      } 枚 · 默寫之印 ✍ ${m.scribe.length} 枚 · 一區純手 ${m.pureRegions.length} 片 · 最少技巧達成 ⌁ ${
+        (m.lean || []).length
+      } 枚${m.divergenceProof ? ' · ✦ 分歧之證' : ''}</p>
+      <p class="codex__hint">最少技巧達成 ⌁：用不多於這一關<b>內建範例解</b>裡最精簡那一份的技法數通過。${infoTip(
+        '每一關都附一小把內建的參考解答（由這一關自己的示範解答與提示片段跑評分引擎產生，不是其他玩家的成績）。用不多於其中最精簡那一份的技法數通過，就記下一枚。它不給經驗、不影響評價，也不是任何東西的解鎖條件。',
+        { label: '最少技巧達成是什麼' }
+      )}</p>
     </div>`;
   }
 

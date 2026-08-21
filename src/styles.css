@@ -2234,6 +2234,45 @@ a.src:hover {
   font-size: var(--t-meta);
 }
 
+/* ------------------------------------------------------------------ *
+ * v1.2 · P10b：這一次站在哪裡（內建分布的百分位）＋ 最少技巧達成
+ *
+ * 它是**次要資訊**：排在一條條檢查之後、出處之前，字級與顏色都比收穫那一行輕，
+ * 不准搶走「你缺了什麼」的注意力。第二行明寫那是內建的分布，不是其他玩家。
+ * ------------------------------------------------------------------ */
+.standing {
+  margin: var(--s4) 0 0;
+  padding-top: var(--s3);
+  border-top: 1px solid var(--rule);
+  font-family: var(--font-ui);
+  font-size: var(--t-meta);
+  letter-spacing: var(--tr-cjk);
+  color: var(--paper-3);
+}
+.standing__row {
+  display: block;
+  font-variant-numeric: tabular-nums;
+}
+.standing__row b {
+  color: var(--paper-2);
+  font-weight: 500;
+}
+.standing__note {
+  display: block;
+  margin-top: var(--s2);
+  font-size: var(--t-micro);
+  color: var(--paper-4);
+}
+.standing__note b {
+  color: var(--paper-3);
+  font-weight: 500;
+}
+.lean-seal {
+  margin: var(--s3) 0 0;
+  font-family: var(--font-ui);
+  font-size: var(--t-meta);
+}
+
 .result__source {
   margin: var(--s5) 0 0;
   padding-top: var(--s4);

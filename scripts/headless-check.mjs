@@ -17016,6 +17016,129 @@ async function main() {
   }
 
   /* ================================================================ */
+  /* v1.2 · P10b：解法百分位（內建分布）＋ 最少技巧達成                 */
+  /*   （挑關卡與答案在 node 這一側用真的評分引擎算好，瀏覽器只負責玩） */
+  /* ================================================================ */
+  console.log('\n▸ 解法百分位與最少技巧達成（v1.2 · P10b）');
+  {
+    const { evaluate: evalRubric } = await import('../src/challenges/rubric.js');
+    const { createSolutionStats } = await import('../src/challenges/solution-stats.js');
+    const allChallenges = readData('src/data/challenges.json').challenges;
+    const statsApi = createSolutionStats(readData('src/data/solution-stats.json'));
+    const standingOf = (c, text) => statsApi.standingFor(c, evalRubric(c, text));
+    // 兩個目標都用**中央高原**（預設就解鎖的那一片），而且都用該關自己的示範解答
+    const inFoundations = allChallenges.filter((c) => c.region === 'foundations' && c.application !== true);
+    const leanTarget = inFoundations.find((c) => {
+      const st = standingOf(c, c.sample);
+      return st && st.lean;
+    });
+    const plainTarget = inFoundations.find((c) => {
+      const st = standingOf(c, c.sample);
+      return st && !st.lean && (!leanTarget || c.id !== leanTarget.id);
+    });
+    ok(Boolean(plainTarget), '（前提）找得到一關「有百分位、但還沒達成最少技巧」的示範解答');
+    ok(Boolean(leanTarget), '（前提）找得到一關「示範解答本身就是最少技巧」的關卡（徽章拿得到）');
+
+    /** 開一關、送一段字、把結果面上的那一行讀回來。 */
+    const playOnce = async (id, text) => {
+      return evaluate(`
+        const g = window.__promptasy;
+        const c = g.promptConsole;
+        if (c.isOpen) c.close();
+        await new Promise((r) => setTimeout(r, 260));
+        c.open(g.content.challenge(${JSON.stringify(id)}));
+        await new Promise((r) => setTimeout(r, 340));
+        if (c.mode !== 'free') c.setMode('free');
+        c.goAct(3, { force: true });
+        await new Promise((r) => setTimeout(r, 240));
+        const ta = document.querySelector('#prompt-console .prompt-input');
+        ta.value = ${JSON.stringify(text)};
+        document.querySelector('#prompt-console [data-submit]').click();
+        const el = document.querySelector('#prompt-console .result');
+        const standing = el.querySelector('[data-standing]');
+        const lean = el.querySelector('[data-lean-seal]');
+        const save = JSON.parse(localStorage.getItem('promptasy.v1.save') || '{}');
+        const out = {
+          passed: Boolean(el.querySelector('.result__top.is-pass')),
+          standing: standing ? standing.textContent.replace(/\s+/g, ' ').trim() : null,
+          standingVisible: standing ? standing.getBoundingClientRect().height > 0 : false,
+          lean: lean ? lean.textContent.replace(/\s+/g, ' ').trim() : null,
+          leanSeals: (g.progression.leanSeals && g.progression.leanSeals()) || [],
+          savedLeanSeals: Array.isArray(save.leanSeals) ? save.leanSeals : null,
+          cleared: Object.keys(g.progression.state.bestGrades).length,
+          unlocked: g.progression.state.unlockedRegions.slice(),
+        };
+        c.close();
+        await new Promise((r) => setTimeout(r, 240));
+        return out;
+      `);
+    };
+
+    /* --- ① 過關 → 結果面多一行「這一次站在哪裡」，而且明寫是內建分布 --- */
+    const plain = await playOnce(plainTarget.id, plainTarget.sample);
+    eq(plain.passed, true, `（前提）${plainTarget.id} 的示範解答過關了`);
+    ok(Boolean(plain.standing), '過關後結果面有「這一次」那一行', String(plain.standing));
+    eq(plain.standingVisible, true, '那一行真的量得到（不是 0 高度的空殼）');
+    ok(plain.standing.includes('百分位'), '那一行講的是百分位');
+    ok(plain.standing.includes('內建'), '那一行**明寫是內建**的分布');
+    ok(plain.standing.includes('不是其他玩家'), '那一行明寫**不是其他玩家**的成績（誠實原則）');
+    ok(!/rubric|localStorage|面板/.test(plain.standing), '那一行沒有系統術語（WORLD §3.6）');
+    {
+      const st = standingOf(plainTarget, plainTarget.sample);
+      ok(plain.standing.includes(`第 ${st.scorePct} 百分位`), '分數的百分位跟評分引擎算的一致', `${st.scorePct}`);
+      ok(plain.standing.includes(`用了 ${st.techniques} 種技法`), '技法數跟評分引擎算的一致', `${st.techniques}`);
+      ok(plain.standing.includes(`${st.words}`), '字數也在那一行上', `${st.words}`);
+    }
+    eq(plain.lean, null, '這一關的示範解答還不是最少技巧 → 沒有徽章那一行');
+
+    /* --- ② 沒過關 → 不說（分布講的是「解得開的人怎麼寫」） --- */
+    const weak = await playOnce(plainTarget.id, '幫我用一下');
+    eq(weak.passed, false, '（前提）這一句沒過關');
+    eq(weak.standing, null, '沒過關 → 不說位置（不拿不準的話塞給玩家）');
+    eq(weak.lean, null, '沒過關 → 沒有徽章');
+
+    /* --- ③ 最少技巧達成：拿得到、進存檔、只說一次、不動 142 關的分子 --- */
+    const before = await evaluate(`
+      const g = window.__promptasy;
+      return {
+        leanSeals: (g.progression.leanSeals && g.progression.leanSeals()) || [],
+        cleared: Object.keys(g.progression.state.bestGrades).length,
+        unlocked: g.progression.state.unlockedRegions.length,
+      };
+    `);
+    const lean = await playOnce(leanTarget.id, leanTarget.sample);
+    eq(lean.passed, true, `（前提）${leanTarget.id} 的示範解答過關了`);
+    ok(Boolean(lean.lean), '用最少技巧通過 → 結果面說了那一句', String(lean.lean));
+    ok(lean.lean.includes('最少技巧達成'), '徽章的名字是「最少技巧達成」');
+    ok(!lean.lean.includes('最少字'), '**沒有**「最少字」那一枚（短 ≠ 好 prompt）');
+    ok(lean.leanSeals.includes(leanTarget.id), '徽章進了進度', lean.leanSeals.join(','));
+    ok(Array.isArray(lean.savedLeanSeals) && lean.savedLeanSeals.includes(leanTarget.id), '徽章真的寫進了存檔（重整還在）');
+    eq(
+      before.leanSeals.length + 1,
+      lean.leanSeals.length,
+      '只多了一枚'
+    );
+    const again = await playOnce(leanTarget.id, leanTarget.sample);
+    eq(again.lean, null, '同一關再拿一次 → 不再說第二遍（冪等）');
+    ok(Boolean(again.standing), '但百分位那一行照樣在');
+    eq(again.leanSeals.length, lean.leanSeals.length, '也沒有重複收一枚');
+
+    /* --- ④ 圖鑑的成就那一格列得出來 --- */
+    const codexLean = await evaluate(`
+      const g = window.__promptasy;
+      g.codex.open();
+      await new Promise((r) => setTimeout(r, 420));
+      const txt = document.querySelector('#codex')?.textContent || '';
+      const out = { has: txt.includes('最少技巧達成'), leanWord: txt.includes('最少字') };
+      g.codex.close();
+      await new Promise((r) => setTimeout(r, 320));
+      return out;
+    `);
+    eq(codexLean.has, true, '圖鑑的成就那一格列得出「最少技巧達成」');
+    eq(codexLean.leanWord, false, '圖鑑裡沒有「最少字」');
+  }
+
+  /* ================================================================ */
   await sleep(600);
   const realErrors = consoleErrors.filter((e) => !/favicon|DevTools|Autofill/i.test(e));
   eq(realErrors.length, 0, '全程零 console error', realErrors.slice(0, 6).join('\n      '));

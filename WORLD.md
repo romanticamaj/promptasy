@@ -836,6 +836,14 @@ v1.2 · P07 新增兩欄，都是純加法：`lettersFound`（撿到的殘頁 id
 `samplesSeen`（翻開過範例的關卡 id —— 大師層的防作弊面）。
 **這四欄一格都不影響解鎖**：`refreshUnlocks()` 從頭到尾沒有讀過它們（測試靜態掃描把關）。
 
+v1.2 · P10b 新增一欄，一樣純加法：`leanSeals`（**最少技巧達成**——用不多於該關
+「內建範例解」裡最精簡那一份的技法數通過的關卡 id；`normalize()` 補空陣列、去重、reset 清乾淨）。
+它不給 XP、不寫 `bestGrades`、不是任何東西的解鎖條件，只在結果面說一次、圖鑑的成就那一格數一枚。
+**刻意沒有「最少字」那一枚**：短 ≠ 好 prompt（`docs/design/gameplay-roadmap.md` §0 鐵則明文否決）。
+分布本身住在 `src/data/solution-stats.json`（`authored:"game"`、純視覺統計、無出處，
+由 `scripts/build-solution-stats.mjs` 用真的評分引擎跑每一關自己的示範解答／快速填入／素材
+拆組出來的通過解產生）——畫面上那一行**必須明寫它是內建的分布，不是其他玩家的成績**。
+
 課程 v2 · Phase J3 新增一次**純加法的開機回填**（不是新欄位）：
 開機時照「`bestGrades` × 那一關的 `primarySkillId`」把漏掉的技能補進 `skillsV2`
 （Phase A–I 期間玩到一半的存檔，有些關卡是在它還沒接上 v2 技能之前通過的）。
