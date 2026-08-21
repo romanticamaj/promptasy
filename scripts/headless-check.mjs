@@ -1917,7 +1917,7 @@ async function main() {
         peak: Math.max(...r.samples.map((s) => s.y - s.terr)),
         backToGround: Math.abs(p.y - w.terrainHeight(p.x, p.z)),
         backToStart: Math.abs(p.y - y0),
-        moved: Math.hypot(p.x - home.x, p.z - home.z),
+        moved: Math.hypot(p.x - 0, p.z - 6),
         standing: r.standing,
       };
     }
@@ -2002,41 +2002,7 @@ async function main() {
       }
     }
 
-    /* ③ 不是中央高原：橋上按 J 一寸都不會動 ------------------------------ */
-    {
-      releaseAll();
-      let bridgePt = null;
-      for (const c of w.corridors || []) {
-        for (let t = 6; t < 26 && !bridgePt; t += 1) {
-          const x = c.from.x + c.dir.x * t;
-          const z = c.from.z + c.dir.z * t;
-          const here = w.regionAt(x, z);
-          if (here && here.onBridge && w.isClear(x, z)) bridgePt = { x, z, region: here.id };
-        }
-        if (bridgePt) break;
-      }
-      out.offRegion = { at: bridgePt };
-      if (bridgePt) {
-        g.player.teleport(bridgePt.x, bridgePt.z);
-        await waitGame(0.4);
-        const before = { jumps: g.player.jump.jumps, blocked: g.player.jump.blocked };
-        const ys = [];
-        press('KeyJ');
-        for (let i = 0; i < 14; i += 1) {
-          await waitGame(0.12);
-          const p = P();
-          ys.push(Math.abs(p.y - w.terrainHeight(p.x, p.z)));
-        }
-        release('KeyJ');
-        await waitGame(0.3);
-        out.offRegion.jumpsDelta = g.player.jump.jumps - before.jumps;
-        out.offRegion.blockedDelta = g.player.jump.blocked - before.blocked;
-        out.offRegion.worstOffGround = Math.max(...ys);
-        out.offRegion.airborne = g.player.jump.airborne;
-      }
-    }
-
-    /* ④ 虛空邊緣按 J：全程都踩得到地 ------------------------------------- */
+    /* ③ 虛空邊緣按 J：全程都踩得到地 ------------------------------------- */
     {
       releaseAll();
       g.player.teleport(home.x, home.z);
@@ -2070,6 +2036,61 @@ async function main() {
         out.edge.finalCover = w.coverage(p.x, p.z);
         out.edge.finalFoot = Math.abs(p.y - w.terrainHeight(p.x, p.z));
         out.edge.finalRadius = Math.hypot(p.x, p.z);
+      }
+    }
+
+    /* ④ 不是中央高原：橋上按 J 一寸都不會動（**放在最後** —— 這是這一節唯一
+     *   會踏出中央高原的一步，跑完就立刻回家，不讓進區演出影響後面的斷言）------------------------------ */
+    {
+      releaseAll();
+      /*
+       * 橋是「不是中央高原」最近的一個地方：regionAt() 在橋上回 onBridge: true，
+       * 於是 jumpSpeedFor() 拿到 0 —— 不必把人送進另一片土地就驗得到這條規則。
+       * 走道的參數化是「從高原中心往區中心」，所以要掃過整條（起點那一段還在高原上）。
+       */
+      let bridgePt = null;
+      const lanes = [...(w.corridors || []), ...(w.annexLinks || [])];
+      for (const c of lanes) {
+        const len = c.length || Math.hypot(c.to.x - c.from.x, c.to.z - c.from.z);
+        for (let t = 2; t < len && !bridgePt; t += 0.5) {
+          const x = c.from.x + c.dir.x * t;
+          const z = c.from.z + c.dir.z * t;
+          const here = w.regionAt(x, z);
+          if (here && here.onBridge && w.isClear(x, z)) bridgePt = { x, z, region: here.id, t };
+        }
+        if (bridgePt) break;
+      }
+      out.offRegion = { at: bridgePt };
+      if (bridgePt) {
+        g.player.teleport(bridgePt.x, bridgePt.z);
+        await waitGame(0.4);
+        const before = { jumps: g.player.jump.jumps, blocked: g.player.jump.blocked };
+        const ys = [];
+        press('KeyJ');
+        for (let i = 0; i < 14; i += 1) {
+          await waitGame(0.12);
+          const p = P();
+          ys.push(Math.abs(p.y - w.terrainHeight(p.x, p.z)));
+        }
+        release('KeyJ');
+        await waitGame(0.3);
+        out.offRegion.jumpsDelta = g.player.jump.jumps - before.jumps;
+        out.offRegion.blockedDelta = g.player.jump.blocked - before.blocked;
+        out.offRegion.worstOffGround = Math.max(...ys);
+        out.offRegion.airborne = g.player.jump.airborne;
+        // 立刻回家，並等到真的回到中央高原（進區演出／面板可能會插隊）
+        releaseAll();
+        g.player.teleport(0, 6);
+        await waitGame(0.6);
+        const bail = performance.now() + 8000;
+        while (performance.now() < bail) {
+          const here = w.regionAt(P().x, P().z);
+          if (here && here.id === 'foundations' && !here.onBridge) break;
+          await sleep(100);
+        }
+        if (g.gateAsk.isOpen) g.gateAsk.close({ silent: true });
+        await waitGame(0.4);
+        out.offRegion.backHome = (w.regionAt(P().x, P().z) || {}).id || null;
       }
     }
 
@@ -2124,7 +2145,7 @@ async function main() {
     ok(r.afterFoot < 1e-6, 'P14：走下來之後腳下的高度回到地形高度', `d=${r.afterFoot}`);
   }
 
-  /* ③ 不是中央高原就跳不起來 */
+  /* ④ 不是中央高原就跳不起來 */
   {
     const r = jumpRun.offRegion;
     ok(Boolean(r.at), 'P14：找得到一個橋上的落腳點', JSON.stringify(r.at));
@@ -2132,9 +2153,10 @@ async function main() {
     ok(r.blockedDelta >= 1, 'P14：被擋下來這件事有記錄（不是被吞掉）', `blocked+${r.blockedDelta}`);
     ok(r.worstOffGround < 1e-6, 'P14：橋上按 J 的整段時間，腳下的高度都精確等於地形高度', `worst=${r.worstOffGround}`);
     eq(r.airborne, false, 'P14：橋上按 J 沒有離地');
+    eq(r.backHome, 'foundations', 'P14：跑完就回到中央高原（不把進區演出留給後面的斷言）');
   }
 
-  /* ④ 虛空邊緣：跳了也掉不出去 */
+  /* ③ 虛空邊緣：跳了也掉不出去 */
   {
     const r = jumpRun.edge;
     ok(Boolean(r.at), 'P14：找得到中央高原上「再走一步就是虛空」的邊緣', JSON.stringify(r.at));
@@ -17749,7 +17771,12 @@ async function main() {
      * 件數對的是**資料層**（`SCREEN_BANDS`／`MOTIFS`），不是寫死的數字 ——
      * P12 又鋪了四片土地，寫死就會每加一片紅一次（而且紅的是「數字過期」不是「東西壞了」）。
      */
-    eq(built.layers, new Set([...Screens.SCREEN_BANDS, ...Screens.MOTIFS].map((x) => x.region)).size, 'P11：有中觀層的土地全部蓋出來了');
+    // v1.2 · P14：高台也是中觀層的一種，中央高原因此多了一層（同樣對資料層算，不寫死）
+    eq(
+      built.layers,
+      new Set([...Screens.SCREEN_BANDS, ...Screens.MOTIFS, ...Screens.PLATFORMS].map((x) => x.region)).size,
+      'P11：有中觀層的土地全部蓋出來了'
+    );
     eq(built.bands, Screens.SCREEN_BANDS.length, 'P11：每一道遮擋帶都進了場景圖');
     eq(built.motifs, Screens.MOTIFS.length, 'P11：每一座母題都進了場景圖');
     eq(built.lights, 0, 'P11：中觀層一盞燈都沒加');
