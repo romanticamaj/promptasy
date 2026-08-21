@@ -1102,6 +1102,43 @@ Exit criteria：
 - [x] rubric 100,856／playtest 2,533／build ✓／e2e 3,895 全綠、console error 0。
 - [x] 三件組＋changelog＋roadmap 打勾。
 
+### P09 — 石座演出 a：回呼接石座 ＋ 4 個 check ＋ 一區試水（2026-08-21 開工）
+
+狀態：`in progress`
+
+**現狀**：`onRubricHits({challenge, passedIndices, newlyPassedIndices, total[, murk]})` 已經在 `console.js` 觸發（recorder 之後、畫結果之前），`main.js` 目前只在 `kind === 'murk'` 時接到世界（`world.murks.strike`）；**非 murk 的差量是「本次開啟主控台 session 內」的新增**（記憶體 `Set`，`open()` 歸零）——P03 就把這條路留給石座了。石座 marker（`world.js buildMarker` ~2260）現有子件：`pedestal`（本體）、`shard`（浮起的碑）、`ring`（腳下的圈）、`glow`（PointLight）、`beacon`（光柱）、`halo`、`label`、`spotlight`；`setCleared(grade)`／`setRegionMastered()` 會把它們染暖金。演出的樣板是 `murks.js`（共用 `THREE.Points` 池、per-instance clone 材質、計時器夾 `min(dt,0.1)`、`reducedMotion` 直接終態、零每幀配置）。
+
+**目標**：把「命中哪一條檢查」變成石座旁**看得見的因果**——寫得越對，石座周圍越亮起對應的東西。先做 4 個最常見的檢查器、只在中央高原啟用，驗證體感與成本。
+
+**範圍**
+1. `src/world/rubric-fx.js`（新）：`createRubricFx({ scene 或 parent, kitOf, reducedMotion })` → `{ group, play(marker, checks[], opts), update(dt,t), reset() }`。**演出由 check 名對應**（不進 `challenges.json`、不改任何關卡資料）：
+   - `assignsTask` → 石座腳下的圈**沿順時針掃亮一圈**（像有人把任務講完一輪）。
+   - `specifiesFormat` → 幾片碎石從地面浮起、**排成整齊的一列**（格式對上了），2 秒後落回。
+   - `hasConstraint` → 光柱從無限高**收成有刻度的一段**（量得出來的長度）。
+   - `hasRole` → 浮碑短暫**戴上一層面具般的輪廓光**（換了身分再開口）。
+   - 每段 ≤2.5 秒、彼此可同時播、**共用一個 `THREE.Points` 池（≤24 顆）**；材質共用快取、要動的才 clone；**0 新光源**（用 emissive 與既有 `glow` 的強度變化）；每幀零配置；計時器夾 `min(dt, 0.1)`；`reducedMotion` → 只做終態的一次亮起、不做位移。
+2. `src/main.js`：`onRubricHits` 的非 murk 分支 → 找到 `world.markers` 裡對應的 marker，把 `newlyPassedIndices` 映成 check 名，只對**本 phase 支援的 4 個**且 marker 在 **foundations** 區的才 `play()`；其餘忽略（P10a 再擴）。同時 `engine.pulse(0.18)`（比濁靈輕，別搶結果面的注意力）。
+3. **不干擾閱讀**：演出在世界層，主控台仍開著；音效**不加**（P10a 再看要不要），只用既有的 `carve`／`spark` 通道。低畫質（`quality === 'low'`）**整層關掉**。
+4. `world.js`：`createWorld` 建 `rubricFx`、`root.add`、每幀 `update`、對外 `world.rubricFx`；`reset()` 給進度重置用（照 P03 的 `murks.reset()` 慣例，WORLD §8 G24b）。
+5. e2e 把手：`window.__promptasy.world.rubricFx.state()` 回 `{ playing:[{markerId, check, t}], particlesActive }`。
+
+**非目標**：其餘 4 個 check 與鋪 12 區（P10a）、百分位與徽章（P10b）、音效、改任何關卡資料。
+
+**受影響檔案**：新 `src/world/rubric-fx.js`；`src/world/world.js`、`src/main.js`、`scripts/test-rubric.mjs`、`scripts/headless-check.mjs`；（可能）`src/styles.css` 無需動。
+
+**預算**：三角 +<8k（碎石與刻度都是小幾何、共用）、**光源 0**、碰撞體 0（演出物件全 `noCollide`、不進 `collectSolids`）、collision-audit 0、零每幀配置。
+
+**Acceptance tests（先紅後綠）**
+- rubric：`rubric-fx` 的純函式（check 名 → 演出 id 的對應表、只認 4 個、其餘回 null）；`play()` 對同一個 marker 重複呼叫不疊加同一段；`reset()` 清空；靜態掃描 `update/play` 無 `new THREE.`／`.map(`／`.filter(`；在 node 蓋世界後 `rubricFx.group` 的三角數 <8k、光源 0、碰撞體不變；`reducedMotion` 走終態。
+- e2e（輪詢式）：在 foundations 開一關 → 送一段只命中 `assignsTask` 的 → 輪詢 `rubricFx.state().playing` 有一段且 check 是 `assignsTask`、粒子池有活粒子 → 等它自己結束（≤2.5s）→ playing 歸零；同一次 session 再送同一段 → **不重播**（session 差量）；關掉重開主控台 → session 差量歸零、可以再播；切到低畫質 → 不播；`142 關資料零改動`（rubric 端 sha 或逐值比對）；舊斷言零改動。
+
+**禁區**：`curriculum.json`、`challenges.json`、`flows.json`、`murks.json`、`letters.json`、`color-script.json`、`vite.config.js`、`CLAUDE.md`、`CHANGELOG.md`、`gameplay-roadmap.md`、dev server 5173/5174/5175。
+
+Exit criteria：
+- [ ] foundations 的石座會依命中的 4 個 check 演出；不重播；低畫質關閉；`reducedMotion` 走終態。
+- [ ] rubric／playtest／build／e2e 全綠、console error 0；預算在框內（光源 0、碰撞體不變）。
+- [ ] 三件組＋changelog＋roadmap 打勾。
+
 ## v1.2 錯誤紀錄
 
 （沿用 §8 規則：任何錯誤記在此；同一錯誤不原樣重試；連續三種方法仍無法前進才報阻塞。）
