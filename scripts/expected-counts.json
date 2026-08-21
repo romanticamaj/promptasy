@@ -1,7 +1,7 @@
 {
   "note": "測試用的「這是契約，不是快照」清單。凡是能從 runtime catalog 或資料檔算出來的數字（技巧數、區域數、技能數、flow 數…），測試一律現算，不寫在這裡；只有『這個數字本身就是當期的驗收目標』才登記在這裡，改動它＝有意識地改變契約。每一格都寫得出為什麼。",
   "updatedAt": "2026-08-21",
-  "updatedBy": "v1.2 · P10b：解法百分位的內建分布 142 關（新增 solutionStats 契約；既有契約值一格都沒動）",
+  "updatedBy": "v1.2 · P11：中觀遮擋帶與母題（新增 screens 契約；既有契約值一格都沒動）",
   "contract": {
     "solutionStats": {
       "value": 142,
@@ -9,6 +9,14 @@
       "shortIds": ["honed-blade-24"],
       "why": "v1.2 · P10b：解法百分位的**內建分布**（src/data/solution-stats.json）—— 142 關各一組，數字全部由 scripts/build-solution-stats.mjs 用真的評分引擎跑「這一關自己的示範解答／快速填入／素材」拆組出來的**通過解**產生（authored:\"game\"、純視覺統計、無出處）。它不是其他玩家的成績，結果面那一行必須照實說。minRows 5 是每一關的份數下限；shortIds 是**誠實缺口**——那幾關本來就只有少少幾種寫法過得了（honed-blade-24 的主檢查就是 keepsPromptLean，多貼一行就不精簡了），寧可少於 5 份也不把沒通過的寫法混進來湊數。清單只准縮短、不准變長（變長＝有人開始湊數或把關卡改難了）。",
       "maxShortIds": 3
+    },
+    "screens": {
+      "bands": { "reasoning": 2 },
+      "motifs": { "reasoning": 4 },
+      "perRegionBands": [2, 3],
+      "perRegionMotifs": [3, 5],
+      "why": "v1.2 · P11：中觀那一階（src/world/screens.js）—— 遮擋帶與母題。這一期只做**階梯迴廊一區的切片**：2 道遮擋帶（擋住『橋頭 → 無盡階梯塔』那一條直線，走過去繞過它才揭露）＋ 4 座母題（同一個形狀重複出現，遠看就認得出這是哪一片土地）。perRegionBands／perRegionMotifs 是每一片土地的區間（2–3 道／3–5 座）：**放一道牆或撒一地雜物都會被擋下來**。P12 鋪其他 11 區時往 bands／motifs 各加一行，區間不動。",
+      "updatedBy": "v1.2 · P11"
     },
     "letters": {
       "value": 24,

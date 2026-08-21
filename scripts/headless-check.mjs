@@ -17263,12 +17263,22 @@ async function main() {
       return { x: g.player.position.x, z: g.player.position.z };
     `);
     const sideAfter = (after.x - f.cx) * f.vx + (after.z - f.cz) * f.vz;
+    const alongAfter = (after.x - f.cx) * f.ux + (after.z - f.cz) * f.uz;
     ok(
       sideBefore * sideAfter > 0,
       'P11：一直往石脊走也走不到另一邊（沒有穿模）',
       `${sideBefore.toFixed(2)} → ${sideAfter.toFixed(2)}`
     );
-    ok(Math.abs(sideAfter) > band.depth / 2, 'P11：人停在石脊外面', Math.abs(sideAfter).toFixed(2));
+    /*
+     * 「停在石脊外面」＝ **人不在石脊的足跡裡**（不是「離中線多遠」）——
+     * 貼著面滑到端點外側、再走到與中線齊平的位置是合法的（那正是繞過去），
+     * 會穿模的只有「站進那塊石頭裡」。
+     */
+    ok(
+      !Screens.pointInBand(band, after.x, after.z, 0),
+      'P11：人沒有站進石脊裡（沒有穿模）',
+      `沿長邊 ${alongAfter.toFixed(2)} / 離中線 ${Math.abs(sideAfter).toFixed(2)}（半長 ${(band.length / 2).toFixed(2)}、半厚 ${(band.depth / 2).toFixed(2)}）`
+    );
 
     // 收尾：回到高原，後面的檢查從乾淨的位置繼續
     await evaluate(`window.__promptasy.player.teleport(0, 6); return 1;`);

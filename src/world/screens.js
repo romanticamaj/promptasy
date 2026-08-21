@@ -316,8 +316,8 @@ export function landmarkSight(x, z, landmark, heightAt, bands) {
  * 核心是沿著長邊排的幾塊石板，**每一塊各自貼自己腳下的地**（P10a 的教訓：
  * 一個舞台原點配上散在幾公尺外的零件，就會做出一排浮在半空的牆）；
  * 每一塊的頂都在「自己腳下的地 + height」，所以稽核量到的那個矩形一定是實心的。
- * 兩端再往外疊兩階往下收的石階（在 length 之外），剪影才讀得出「這是一段被走上去的階梯」，
- * 不是一面牆。
+ * 剪影靠兩樣東西讀成「一段被走上去的階梯」而不是一面牆：朝橋頭那一面的一級扶壁，
+ * 以及疊在核心頂上、一階比一階高的頂階（**只往上長，不占地**）。
  */
 function buildStairRidge(band, kit, heightAt) {
   const grp = new THREE.Group();
@@ -378,7 +378,6 @@ function buildStairRidge(band, kit, heightAt) {
     outer.rotation.y = band.rot;
     outer.userData.solidSpan = [(band.length * 0.92) / 2, band.depth / 2];
     grp.add(outer);
-
   }
 
   return grp;

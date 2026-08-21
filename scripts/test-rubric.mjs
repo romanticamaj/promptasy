@@ -14499,16 +14499,36 @@ console.log('\n▸ 中觀：遮擋帶與母題（v1.2 · P11）');
       eq(banned in mo, false, `${tag} 沒有 ${banned} 欄位`);
     }
   }
-  // 這一期的切片：階梯迴廊
+  // 這一期的切片：階梯迴廊（件數是**契約**，不是快照 —— expected-counts 說了算）
   {
+    const contract = EXPECT.screens;
+    eq(contract.perRegionBands[0], 2, 'expected-counts：每片土地 2–3 道遮擋帶');
+    eq(contract.perRegionMotifs[0], Screens.MOTIF_PER_REGION_MIN, 'expected-counts 的母題區間與程式常數一致');
+    eq(contract.perRegionMotifs[1], Screens.MOTIF_PER_REGION_MAX, 'expected-counts 的母題區間與程式常數一致（上限）');
+    for (const [regionId, n] of Object.entries(contract.bands)) {
+      eq(Screens.SCREEN_BANDS.filter((b) => b.region === regionId).length, n, `[${regionId}] 遮擋帶數＝契約值`);
+    }
+    for (const [regionId, n] of Object.entries(contract.motifs)) {
+      eq(Screens.MOTIFS.filter((mo) => mo.region === regionId).length, n, `[${regionId}] 母題數＝契約值`);
+    }
+    eq(
+      new Set(Screens.SCREEN_BANDS.map((b) => b.region)).size,
+      Object.keys(contract.bands).length,
+      '沒有哪一區偷偷多了一層中觀（契約沒登記就不准有）'
+    );
+    eq(
+      new Set(Screens.MOTIFS.map((mo) => mo.region)).size,
+      Object.keys(contract.motifs).length,
+      '母題也一樣：契約沒登記就不准有'
+    );
+    for (const site of World.REGION_SITES) {
+      const n = Screens.SCREEN_BANDS.filter((b) => b.region === site.id).length;
+      if (n) ok(n >= contract.perRegionBands[0] && n <= contract.perRegionBands[1], `[${site.id}] 遮擋帶 2–3 道（不是一道牆）`, String(n));
+      const mn = Screens.MOTIFS.filter((mo) => mo.region === site.id).length;
+      if (mn) ok(mn >= contract.perRegionMotifs[0] && mn <= contract.perRegionMotifs[1], `[${site.id}] 母題 3–5 座`, String(mn));
+    }
     const bands = Screens.SCREEN_BANDS.filter((b) => b.region === 'reasoning');
     const motifs = Screens.MOTIFS.filter((mo) => mo.region === 'reasoning');
-    ok(bands.length >= 2 && bands.length <= 3, '階梯迴廊放 2–3 道遮擋帶（不是一道牆）', String(bands.length));
-    ok(
-      motifs.length >= Screens.MOTIF_PER_REGION_MIN && motifs.length <= Screens.MOTIF_PER_REGION_MAX,
-      `階梯迴廊有 ${Screens.MOTIF_PER_REGION_MIN}–${Screens.MOTIF_PER_REGION_MAX} 個母題`,
-      String(motifs.length)
-    );
     eq(new Set(motifs.map((mo) => mo.kind)).size, 1, '母題是**同一個形狀**重複出現（不然不叫母題）');
     for (let i = 0; i < motifs.length; i += 1) {
       for (let j = i + 1; j < motifs.length; j += 1) {
