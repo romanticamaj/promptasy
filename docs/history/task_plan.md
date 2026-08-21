@@ -1141,6 +1141,46 @@ Exit criteria：
 - [x] rubric 102,414／playtest 2,533／build ✓／e2e 3,952 全綠、console error 0；三角 +356、**光源 +0**、碰撞體 +0、collision-audit 0。
 - [x] 三件組＋changelog＋roadmap 打勾。
 
+### P10a＋P10b — 石座演出鋪滿 12 區 ＋ 解法百分位（2026-08-21 開工，合併一次執行）
+
+狀態：`in progress`（P09 的交接說明指出這兩格的改動都很小：a 是「一個表加四行＋一行常數」、b 是純 UI＋一份資料；合併成一次執行，仍分兩段 commit）
+
+**現狀（P09 交接）**：`src/world/rubric-fx.js` 有 `RUBRIC_FX`（check → fx id 的表）、內部 `SHOW_CHECKS` 陣列、`SHOW_COUNT`／`SHOW_SECONDS`、`beginShow()`／`endShow()`／`update()` 的分段；`showOn`／`showT` 是依 `SHOW_COUNT` 開的 TypedArray（加段自動長大）。`FX_REGIONS = ['foundations']`；`main.js` 已經是「index → check 名 → `fxForCheck()`」，鋪區只要改常數。整層只有一組道具（`stage` 搬到正在演的那座），**鋪 12 區加 0 三角**。兩個測試 pin 了現值（rubric ① 的 `FX_REGIONS`、e2e 的 `fxRegion`）。結果面目前顯示：印章／分數條／逐列／XP／評價；`recordResult` 回傳 `bestGrade`／`improved`。
+
+**目標（a）**：另外四個最常見的檢查器也有演出，並鋪滿 12 區。
+**目標（b）**：過關後看得到「你在第幾百分位」與「最少技巧達成」的隱藏徽章——鼓勵回頭精進，而且**誠實標示那是內建分布**。
+
+**範圍 a**
+1. `rubric-fx.js` 加四段（同樣 ≤2.5 秒、共用粒子池、0 光源、0 碰撞體、`reducedMotion` 只做終態、低畫質不播）：
+   - `hasFewShot` → 兩塊小石板在浮碑兩側**成對浮起**（給它看兩組樣子）。
+   - `hasDelimiters` → 石座周圍**四道短牆升起圍成方框**（把料跟話隔開）。
+   - `asksToVerify` → 浮碑上方一顆小光點**繞一圈回到原位**（回頭再看一遍）。
+   - `groundsInContext` → 腳下的圈**往內收成一個實心的小盤**（站在有依據的地方）。
+2. `FX_REGIONS` 改成 12 區全開；同步兩個 pin 現值的測試。
+3. 預算再測：三角增量目標 <2k（只多幾個小幾何）、光源 0、碰撞體 0。
+
+**範圍 b**
+1. `src/data/solution-stats.json`（`authored:"game"`，純視覺統計、**無出處**）：每一關一組**內建分布**——`{ id, scores:[…], words:[…], techniques:[…] }` 各是 5–9 個數字的排序陣列（由 `sample`／`quickFills`／既有 playtest 解答**在本機跑評分引擎產生**，產生腳本 `scripts/build-solution-stats.mjs` 一起進 repo，可重跑）。
+2. 結果面（`console.js`）過關後多一行：「這一次：分數 X／字數 Y／用了 Z 種技法 · **在內建的範例解裡排第 N 百分位**」，並**明寫「內建分布，不是其他玩家」**（誠實原則）。三軸各給一個百分位。
+3. **最少技巧達成**：若這一次通過且**用到的技法數 ≤ 內建分布的最小值**，給一個隱藏徽章（存檔新欄 `leanSeals: []`，純加法、normalize、reset 清空），結果面顯示一次、圖鑑成就頁列出來。**不用「最少字」**（簡短≠好 prompt，roadmap 鐵則）。
+4. 不動 `refreshUnlocks()`、不動 `bestGrades`、不進 142 關的分母。
+
+**非目標**：真人分布（要後端，非目標）、其餘檢查器的演出（只做這四個＋P09 的四個＝八個）、音效。
+
+**受影響檔案**：`src/world/rubric-fx.js`、`src/main.js`（可能不用改）、新 `src/data/solution-stats.json`＋`scripts/build-solution-stats.mjs`、`src/prompt/console.js`、`src/save/save.js`、`src/progression/progression.js`、`src/ui/codex.js`（成就頁）、`src/styles.css`、`scripts/test-rubric.mjs`、`scripts/headless-check.mjs`、`scripts/expected-counts.json`（新增 `solutionStats: 142`）、fonts。
+
+**Acceptance tests（先紅後綠）**
+- rubric（a）：八個 check 都有 fx id、`SHOW_COUNT` 對得上、`FX_REGIONS` 12 區、每一段的 `reducedMotion` 終態與低畫質不播、三角／光源／碰撞體預算、靜態掃描零每幀配置。
+- rubric（b）：`solution-stats.json` 142 筆、`authored:"game"`、三軸皆為**已排序**的數字陣列且長度 ≥5、**沒有 `source`／`techniqueId`**（純統計不是教學）；百分位純函式（邊界：低於全部→0、高於全部→100、等於某值的處理一致）；`leanSeals` 的 normalize／reset；拿到 lean 徽章**不改**已通關數／稱號／`bestGrades`；`expected-counts.solutionStats === 142`。
+- e2e：在別的區（非 foundations）開一關 → 命中一條 → 演出真的播（鋪區生效）；過關後結果面有百分位那一行且**含「內建」字樣**；用最少技法通過 → 徽章出現且進存檔；舊斷言零改動。
+
+**禁區**：`curriculum.json`、`challenges.json`、`flows.json`、`murks.json`、`letters.json`、`color-script.json`、`vite.config.js`、`CLAUDE.md`、`CHANGELOG.md`、`gameplay-roadmap.md`、dev server 5173/5174/5175。
+
+Exit criteria：
+- [ ] 八個 check 的演出鋪滿 12 區；百分位那一行誠實標示內建分布；最少技巧徽章可得。
+- [ ] rubric／playtest／build／e2e 全綠、console error 0；預算在框內。
+- [ ] 三件組＋changelog＋roadmap 兩格打勾。
+
 ## v1.2 錯誤紀錄
 
 （沿用 §8 規則：任何錯誤記在此；同一錯誤不原樣重試；連續三種方法仍無法前進才報阻塞。）
