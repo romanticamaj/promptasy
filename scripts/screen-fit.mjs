@@ -20,6 +20,7 @@
  *   node scripts/screen-fit.mjs --verify                          驗現行資料（自我驗證）
  *   node scripts/screen-fit.mjs --region grounding --kind motif --shape pageStack --height 5
  *   node scripts/screen-fit.mjs --region grounding --kind band --length 8 --depth 2.4 --height 12
+ *   node scripts/screen-fit.mjs --region foundations --kind platform --height 1.6 --radius 2.6
  *
  * 常用旗標：`--top N`（重建幾個候選，預設 12）、`--grid N`（離線格點，預設 2 公尺）、
  * `--rot N`（遮擋帶試幾個角度，預設 12）、`--json`。
@@ -81,9 +82,10 @@ async function loadTargets() {
  * 一個候選（母題或遮擋帶）在**真的蓋出來的世界**裡過不過。
  * @returns {Promise<{ok:boolean, problems:string[], solids:number, free:number, hug:number[], sight:object|null}>}
  */
-async function verifyInWorld({ regionId, bands, motifs, bends, focusIds, landmarks, base, wantSight }) {
+async function verifyInWorld({ regionId, bands, motifs, platforms = [], bends, focusIds, landmarks, base, wantSight }) {
   const World = await import('../src/world/world.js');
-  const { world, THREE } = await buildWorld({ screens: { bands, motifs, bends }, base });
+  const Screens = await import('../src/world/screens.js');
+  const { world, THREE } = await buildWorld({ screens: { bands, motifs, platforms, bends }, base });
   const layer = world.screens.find((l) => l.id === regionId) || null;
   const problems = [];
   if (!layer) return { ok: false, problems: ['這一區沒有蓋出中觀層'], solids: 0, free: 0, hug: [], sight: null };
@@ -97,6 +99,31 @@ async function verifyInWorld({ regionId, bands, motifs, bends, focusIds, landmar
     for (const sd of World.collectSolids(node, World.terrainHeight)) {
       solids += 1;
       for (const p of solidProblems(World, sd, regionId, targets, landmarks)) problems.push(p);
+    }
+  }
+
+  /*
+   * v1.2 · P14：高台自己那三條（其餘擺位規則與母題共用上面那一套）。
+   * 量的是**真的蓋出來的世界**登記出來的那一顆圓 —— 頂面站不站得上去、
+   * 平到多遠、有沒有被別的東西擋到它自己的頂面，離線幾何一條都算不出來。
+   */
+  for (const pf of platforms) {
+    if (!focusIds.includes(pf.id)) continue;
+    const sd = world.solids.find((c) => c.id === pf.id);
+    if (!sd) {
+      problems.push(`${pf.id} 沒有登記成碰撞圓（頂面就無從量起）`);
+      continue;
+    }
+    const h = sd.standTop - World.terrainHeight(sd.x, sd.z);
+    if (!sd.standable) problems.push(`${pf.id} 站不上去（standable=false）`);
+    if (sd.standR < Screens.PLATFORM_STAND_R_MIN) {
+      problems.push(`${pf.id} 頂面平的那一段只有 ${sd.standR.toFixed(2)}m（要 ≥${Screens.PLATFORM_STAND_R_MIN}）`);
+    }
+    if (h < World.STAND_MIN_H || h > World.STAND_MAX_H) {
+      problems.push(`${pf.id} 頂面離地 ${h.toFixed(2)}m 不在 ${World.STAND_MIN_H}–${World.STAND_MAX_H} 之間`);
+    }
+    if (h < Screens.PLATFORM_HEIGHT_MIN - 0.2 || h > Screens.PLATFORM_HEIGHT_MAX + 0.2) {
+      problems.push(`${pf.id} 頂面離地 ${h.toFixed(2)}m 離設計高度 ${pf.height}m 太遠（地形沒吃平）`);
     }
   }
 
@@ -139,7 +166,8 @@ async function verifyInWorld({ regionId, bands, motifs, bends, focusIds, landmar
       (base || (await worldOptions())).challenges,
       bends
     );
-    for (const mo of motifs) {
+    // 母題與高台共用同一段「離走出來的那條路 7–26 公尺」（看得到、走得過去、不擋路）
+    for (const mo of [...motifs, ...platforms]) {
       if (!focusIds.includes(mo.id)) continue;
       const d = pathDistance(segs, mo.at[0], mo.at[1]);
       if (d < MOTIF_PATH_MIN || d > MOTIF_PATH_MAX) problems.push(`${mo.id} 離路網 ${d.toFixed(1)}m（要 ${MOTIF_PATH_MIN}–${MOTIF_PATH_MAX}）`);
@@ -150,7 +178,7 @@ async function verifyInWorld({ regionId, bands, motifs, bends, focusIds, landmar
   let free = 0;
   let dirs = 0;
   for (const id of focusIds) {
-    const item = [...motifs, ...bands].find((x) => x.id === id);
+    const item = [...motifs, ...bands, ...platforms].find((x) => x.id === id);
     if (!item) continue;
     if (!world.solidAt(item.at[0], item.at[1])) problems.push(`${id} 擋不住人（走得進石頭裡）`);
     const rr = item.length ? item.length / 2 + 4 : 5;
@@ -231,16 +259,16 @@ async function main() {
      * 這一段同時是這支腳本的迴歸測試 —— 篩子改壞了，reasoning 會先紅。
      */
     const only = flag('region', null);
-    const regions = [...new Set([...Screens.SCREEN_BANDS, ...Screens.MOTIFS].map((x) => x.region))].filter(
-      (r) => !only || r === only
-    );
+    const ALL = [...Screens.SCREEN_BANDS, ...Screens.MOTIFS, ...Screens.PLATFORMS];
+    const regions = [...new Set(ALL.map((x) => x.region))].filter((r) => !only || r === only);
     let bad = 0;
     for (const regionId of regions) {
-      const focusIds = [...Screens.SCREEN_BANDS, ...Screens.MOTIFS].filter((x) => x.region === regionId).map((x) => x.id);
+      const focusIds = ALL.filter((x) => x.region === regionId).map((x) => x.id);
       const res = await verifyInWorld({
         regionId,
         bands: Screens.SCREEN_BANDS,
         motifs: Screens.MOTIFS,
+        platforms: Screens.PLATFORMS,
         bends: Screens.PATH_BENDS,
         focusIds,
         landmarks,
@@ -273,8 +301,9 @@ async function main() {
   }
   const grid = num('grid', 2);
   const top = num('top', 12);
-  const height = num('height', kind === 'band' ? 12 : 5);
-  const shape = flag('shape', kind === 'band' ? 'stairRidge' : 'twiceShown');
+  const height = num('height', kind === 'band' ? 12 : kind === 'platform' ? 1.6 : 5);
+  const radius = num('radius', 2.6);
+  const shape = flag('shape', kind === 'band' ? 'stairRidge' : kind === 'platform' ? 'stepStone' : 'twiceShown');
   const length = num('length', 8);
   const depth = num('depth', 2.4);
   const rots = num('rot', 12);
@@ -285,7 +314,8 @@ async function main() {
   const landmark = landmarks.find((l) => l.region === regionId) || null;
 
   // --- ① 離線篩 ---------------------------------------------------
-  const estR = kind === 'band' ? depth / 2 : Math.max(1.0, (height / 3.4) * 0.78);
+  const estR = kind === 'band' ? depth / 2 : kind === 'platform' ? radius : Math.max(1.0, (height / 3.4) * 0.78);
+  const existingPlatforms = Screens.PLATFORMS.filter((p) => p.region === regionId);
   const pathMin = num('pathMin', MOTIF_PATH_MIN);
   const pathMax = num('pathMax', MOTIF_PATH_MAX);
   /*
@@ -322,7 +352,7 @@ async function main() {
        * **遮擋帶不在這裡篩** —— 它是一條長條，中心合不合法說明不了兩端
        * （下面用 `bandSolidCircles()` 逐圓篩，那才是真的門檻）。
        */
-      if (kind === 'motif') {
+      if (kind === 'motif' || kind === 'platform') {
         const near = targets.some(
           (t) => Math.hypot(x - t.at[0], z - t.at[1]) < Rules.LAYER_INTERACT_R[t.k] + World.PLAYER_RADIUS + estR + 0.3
         );
@@ -332,12 +362,13 @@ async function main() {
         }
       }
       const dPath = pathDistance(pathSegs, x, z);
-      if (kind === 'motif') {
+      if (kind === 'motif' || kind === 'platform') {
         if (dPath < pathMin || dPath > pathMax) {
           why['離路網'] += 1;
           continue;
         }
-        if (existingMotifs.some((m) => Math.hypot(x - m.at[0], z - m.at[1]) < MOTIF_GAP)) {
+        const mates = kind === 'platform' ? [...existingPlatforms, ...existingMotifs] : existingMotifs;
+        if (mates.some((m) => Math.hypot(x - m.at[0], z - m.at[1]) < MOTIF_GAP)) {
           why['太靠近同伴'] += 1;
           continue;
         }
@@ -351,7 +382,29 @@ async function main() {
   console.log(`擋掉的原因：${Object.entries(why).map(([k, v]) => `${k} ${v}`).join('、')}`);
 
   const scored = [];
-  if (kind === 'motif') {
+  if (kind === 'platform') {
+    /*
+     * 高台是圓的（沒有正面），所以不用試角度；要挑的是**腳下最平的那一塊地**——
+     * 圓周上八個點與圓心的高差越小，石鼓的底裙才不會一邊浮起來、一邊埋進土裡。
+     */
+    for (const c of cands) {
+      let drop = 0;
+      let cover = 1;
+      const h0 = World.terrainHeight(c.x, c.z);
+      for (let i = 0; i < 8; i += 1) {
+        const a = (i / 8) * Math.PI * 2;
+        const px = c.x + Math.cos(a) * radius;
+        const pz = c.z + Math.sin(a) * radius;
+        drop = Math.max(drop, Math.abs(World.terrainHeight(px, pz) - h0));
+        cover = Math.min(cover, World.coverage(px, pz));
+      }
+      if (cover < MOTIF_COVERAGE_MIN) continue;
+      if (drop > MOTIF_STEP_DROP_MAX) continue;
+      // 想要它剛好在路邊看得到（離路網 12 公尺左右），而且腳下越平越好
+      const score = -Math.abs(c.dPath - 12) * 0.6 - drop * 8;
+      scored.push({ ...c, rot: 0, drop, score });
+    }
+  } else if (kind === 'motif') {
     for (const c of cands) {
       let bestRot = null;
       let bestDrop = Infinity;
@@ -432,18 +485,42 @@ async function main() {
      * 遮擋帶用**探索用**的小間距（`--spread`，預設 3 公尺）——
      * 一道帶只會擺一、兩道，我們要的是「同一段路上的幾種擺法」而不是「散在全區」。
      */
-    const spreadMin = kind === 'motif' ? MOTIF_GAP : num('spread', 3);
+    const spreadMin = kind === 'motif' || kind === 'platform' ? MOTIF_GAP : num('spread', 3);
     if (seen.some((p) => Math.hypot(p[0] - c.x, p[1] - c.z) < spreadMin)) continue;
     seen.push([c.x, c.z]);
     const id = `${regionId}-fit-${seen.length}`;
     let res;
-    if (kind === 'motif') {
+    if (kind === 'platform') {
+      const cand = {
+        id,
+        region: regionId,
+        at: [Number(c.x.toFixed(2)), Number(c.z.toFixed(2))],
+        rot: 0,
+        kind: shape,
+        height,
+        radius,
+      };
+      cand.__dPath = Number(c.dPath.toFixed(1));
+      res = await verifyInWorld({
+        regionId,
+        bands: Screens.SCREEN_BANDS,
+        motifs: Screens.MOTIFS,
+        platforms: [...Screens.PLATFORMS.filter((p) => p.region !== regionId), cand],
+        bends: Screens.PATH_BENDS,
+        focusIds: [id],
+        landmarks,
+        base,
+        wantSight: false,
+      });
+      res.cand = cand;
+    } else if (kind === 'motif') {
       const cand = { id, region: regionId, at: [Number(c.x.toFixed(2)), Number(c.z.toFixed(2))], rot: c.rot, kind: shape, height };
       cand.__dPath = Number(c.dPath.toFixed(1));
       res = await verifyInWorld({
         regionId,
         bands: Screens.SCREEN_BANDS,
         motifs: [...Screens.MOTIFS, cand],
+        platforms: Screens.PLATFORMS,
         bends: Screens.PATH_BENDS,
         focusIds: [id],
         landmarks,
@@ -460,6 +537,7 @@ async function main() {
           regionId,
           bands: [...Screens.SCREEN_BANDS.filter((b) => b.region !== regionId || existingBands.includes(b)), cand],
           motifs: Screens.MOTIFS,
+          platforms: Screens.PLATFORMS,
           bends,
           focusIds: [id],
           landmarks,

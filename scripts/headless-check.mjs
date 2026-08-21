@@ -1771,6 +1771,413 @@ async function main() {
     ok(wk.maxGround < 1e-6, `[${wk.at}] 走的時候兩支答案全程相同`, `max=${wk.maxGround}`);
   }
 
+
+  /* --- v1.2 · P14：跳躍（只在中央高原）-------------------------------
+   *
+   * 上面那一整段（P13）**一個字都沒有改**：不按 `J` 的時候腳下的高度仍然逐幀等於
+   * 地形高度 —— 那就是「行為零改變」在無頭瀏覽器裡的硬證據。
+   * 這一段驗的是「按了 `J` 之後」的四件事：
+   *   ① 真的離地、真的落回原來的高度
+   *   ② 走到第一階旁邊 → 跳上去 → 站得住（腳下 ＝ 頂面）→ 走下來（回到地形高度）
+   *   ③ 不是中央高原（橋上）按 `J` 一寸都不會動
+   *   ④ 站在虛空邊緣按 `J`，全程都踩得到地（絕不會掉出去）
+   *
+   * 遙測（`player.jump`）是刻意存在的：這台機器一幀可能 0.2 秒，
+   * 整趟 0.8 秒的跳躍只會被輪詢看到三四次 ——「某一幀正好抓到他在空中」
+   * 是會隨機器速度變動的斷言（findings · P12）。累計值不會。
+   */
+  const jumpRun = await evaluate(`
+    const g = window.__promptasy;
+    const w = g.world;
+    const P = () => g.player.position;
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    const waitGame = async (seconds) => {
+      const until = window.__gt.t + seconds;
+      const bail = performance.now() + seconds * 8000 + 4000;
+      while (window.__gt.t < until && performance.now() < bail) await new Promise((r) => setTimeout(r, 30));
+    };
+    const press = (code) => window.dispatchEvent(new KeyboardEvent('keydown', { code }));
+    const release = (code) => window.dispatchEvent(new KeyboardEvent('keyup', { code }));
+    const releaseAll = () => { for (const c of ['KeyW', 'KeyJ', 'ArrowLeft', 'ArrowRight']) release(c); };
+    if (g.gateAsk.isOpen) g.gateAsk.close({ silent: true });
+    releaseAll();
+    await waitGame(0.2);
+    const home = { x: P().x, z: P().z };
+    const out = { notes: [] };
+
+    /*
+     * 轉鏡頭一律用**真的方向鍵**並輪詢到位：\`cameraYaw\` 是唯讀 getter，
+     * 指派它在非嚴格模式下是靜默的空包彈（findings · P11）。
+     * 停手的條件有兩個：轉到夠近，或**轉過頭了**（一幀 0.2 秒 × 1.8 rad/s ＝ 0.36 弧度，
+     * 比任何合理的容差都大 —— 只看「夠近」會轉不停）。
+     */
+    const wrap = (d) => { while (d > Math.PI) d -= Math.PI * 2; while (d < -Math.PI) d += Math.PI * 2; return d; };
+    const faceToward = async (tx, tz) => {
+      const want = () => Math.atan2(tx - P().x, tz - P().z);
+      const diff = () => wrap(want() - g.player.cameraYaw);
+      const sign0 = Math.sign(diff());
+      if (sign0 === 0) return 0;
+      const dir = sign0 > 0 ? 'ArrowLeft' : 'ArrowRight';
+      press(dir);
+      const bail = performance.now() + 15000;
+      while (performance.now() < bail) {
+        const d = diff();
+        if (Math.abs(d) < 0.22 || Math.sign(d) !== sign0) break;
+        await sleep(20);
+      }
+      release(dir);
+      await waitGame(0.1);
+      return Math.abs(diff());
+    };
+    /** 走到離 (tx,tz) 這麼近為止（走偏了就重新對準再走一次）。 */
+    const approach = async (tx, tz, want) => {
+      const dist = () => Math.hypot(P().x - tx, P().z - tz);
+      for (let attempt = 0; attempt < 8; attempt += 1) {
+        await faceToward(tx, tz);
+        if (dist() <= want) return true;
+        press('KeyW');
+        const bail = performance.now() + 8000;
+        let stuckFor = 0;
+        let last = dist();
+        while (dist() > want && performance.now() < bail) {
+          await sleep(40);
+          const now = dist();
+          if (last - now < 0.02) stuckFor += 1; else stuckFor = 0;
+          last = now;
+          if (stuckFor > 25) break; // 撞到別的東西了 → 重新對準
+        }
+        release('KeyW');
+        await waitGame(0.25);
+        if (dist() <= want) return true;
+      }
+      return false;
+    };
+    /**
+     * 按住 J 直到落地（**按住**，不是點一下）。
+     * 一幀 0.2 秒時，keydown/keyup 可能整組落在兩幀之間 —— 那樣 \`held\` 永遠是 false、
+     * 「鬆手提前下落」會把每一跳都砍成半高。所以按著不放，等它真的落地再鬆。
+     */
+    const jumpAndLand = async () => {
+      const before = g.player.jump.jumps;
+      const samples = [];
+      press('KeyJ');
+      const bail = performance.now() + 12000;
+      while (performance.now() < bail) {
+        const p = P();
+        samples.push({
+          y: p.y,
+          terr: w.terrainHeight(p.x, p.z),
+          cover: w.coverage(p.x, p.z),
+          air: g.player.jump.airborne,
+          standing: g.player.standingOn,
+        });
+        if (g.player.jump.jumps > before && !g.player.jump.airborne) break;
+        await sleep(35);
+      }
+      /*
+       * 落地那一刻就放開兩個鍵：按著 W 不放的話，殘餘速度會在後面那 0.3 秒
+       * 把人從高台上滑出去 —— 那會讓「站得住」這條斷言變成在賭停在哪裡。
+       * 「落地那一刻站在誰身上」在放手之前就先記下來。
+       */
+      release('KeyJ');
+      release('KeyW');
+      const j = g.player.jump;
+      const touched = g.player.standingOn;
+      await waitGame(0.3);
+      return {
+        jumped: j.jumps > before,
+        jumps: j.jumps,
+        blocked: j.blocked,
+        lastApex: j.lastApex,
+        lastAirTime: j.lastAirTime,
+        touched,
+        standing: g.player.standingOn,
+        samples,
+      };
+    };
+
+    /* ① 站在中央高原的空地上按 J：真的離地，也真的落回原來的高度 --------- */
+    {
+      /*
+       * 刻意用出生點（半徑 7 公尺的淨空區、一定在中央高原上、一定站得住）——
+       * 這一段之前玩家可能被別的段落帶到任何地方，不能假設「他現在站的地方跳得起來」。
+       */
+      out.spawnClear = w.isClear(0, 6);
+      g.player.teleport(0, 6);
+      await waitGame(0.4);
+      const y0 = P().y;
+      const r = await jumpAndLand();
+      const p = P();
+      out.plain = {
+        jumped: r.jumped,
+        lastApex: r.lastApex,
+        lastAirTime: r.lastAirTime,
+        aloftSamples: r.samples.filter((s) => s.y > s.terr + 0.15).length,
+        totalSamples: r.samples.length,
+        peak: Math.max(...r.samples.map((s) => s.y - s.terr)),
+        backToGround: Math.abs(p.y - w.terrainHeight(p.x, p.z)),
+        backToStart: Math.abs(p.y - y0),
+        moved: Math.hypot(p.x - home.x, p.z - home.z),
+        standing: r.standing,
+      };
+    }
+
+    /* ② 跳上第一階 → 站得住 → 走下來 ------------------------------------ */
+    {
+      const pf = w.platforms[0];
+      const solid = w.solids.find((s) => s.id === pf.id) || null;
+      out.platform = { id: pf ? pf.id : null, found: Boolean(solid) };
+      if (solid) {
+        const top = solid.standTop;
+        const near = solid.r + 0.62 + 0.45;
+        // 從高台旁邊一點點開始（傳送到它附近的空地，再用真的按鍵走過去）
+        let start = null;
+        for (let d = solid.r + 2.2; d < solid.r + 7 && !start; d += 0.4) {
+          for (let a = 0; a < 24 && !start; a += 1) {
+            const t = (a / 24) * Math.PI * 2;
+            const x = solid.x + Math.cos(t) * d;
+            const z = solid.z + Math.sin(t) * d;
+            if (w.isClear(x, z)) start = { x, z };
+          }
+        }
+        out.platform.start = start;
+        if (start) {
+          g.player.teleport(start.x, start.z);
+          await waitGame(0.3);
+          out.platform.walkedUp = await approach(solid.x, solid.z, near);
+          out.platform.gap = Math.hypot(P().x - solid.x, P().z - solid.z);
+          // 貼著它了 → 按住 W ＋ J，飛過邊緣落到頂面上（最多試六次）
+          let landedOn = null;
+          let tries = 0;
+          for (; tries < 6 && !landedOn; tries += 1) {
+            await faceToward(solid.x, solid.z);
+            press('KeyW');
+            const r = await jumpAndLand();
+            // 等他真的停下來再判生死（落地時還有殘餘速度，會再滑一小段）
+            const restBail = performance.now() + 6000;
+            while (g.player.speed > 0.05 && performance.now() < restBail) await sleep(40);
+            await waitGame(0.2);
+            out.platform.lastApex = r.lastApex;
+            out.platform.touched = r.touched;
+            if (g.player.standingOn === pf.id) landedOn = pf.id;
+            else {
+              // 沒上去（跳過頭 / 偏了）→ 走回去再試一次
+              await approach(solid.x, solid.z, near);
+            }
+          }
+          out.platform.tries = tries;
+          out.platform.standing = g.player.standingOn;
+          if (landedOn) {
+            const p = P();
+            out.platform.footAboveTerrain = p.y - w.terrainHeight(p.x, p.z);
+            out.platform.footVsTop = Math.abs(p.y - top);
+            out.platform.supportId = w.supportAt(p.x, p.z, p.y).id;
+            out.platform.insideCircle = Math.hypot(p.x - solid.x, p.z - solid.z) <= solid.r;
+            // 站得住：停在上面兩秒，高度一寸都不掉
+            const heldSamples = [];
+            for (let i = 0; i < 12; i += 1) {
+              await waitGame(0.15);
+              heldSamples.push(P().y);
+            }
+            out.platform.holdSpread = Math.max(...heldSamples) - Math.min(...heldSamples);
+            out.platform.stillStanding = g.player.standingOn;
+            // 走下來：一路往前走到走出頂面為止
+            press('KeyW');
+            const bail = performance.now() + 15000;
+            let leftTop = false;
+            while (performance.now() < bail) {
+              if (!leftTop && g.player.standingOn === null) leftTop = true;
+              if (leftTop && !g.player.jump.airborne) break;
+              await sleep(35);
+            }
+            release('KeyW');
+            await waitGame(0.6);
+            const q = P();
+            out.platform.walkedOff = leftTop;
+            out.platform.afterStanding = g.player.standingOn;
+            out.platform.afterFoot = Math.abs(q.y - w.terrainHeight(q.x, q.z));
+            out.platform.afterAirborne = g.player.jump.airborne;
+          }
+        }
+      }
+    }
+
+    /* ③ 不是中央高原：橋上按 J 一寸都不會動 ------------------------------ */
+    {
+      releaseAll();
+      let bridgePt = null;
+      for (const c of w.corridors || []) {
+        for (let t = 6; t < 26 && !bridgePt; t += 1) {
+          const x = c.from.x + c.dir.x * t;
+          const z = c.from.z + c.dir.z * t;
+          const here = w.regionAt(x, z);
+          if (here && here.onBridge && w.isClear(x, z)) bridgePt = { x, z, region: here.id };
+        }
+        if (bridgePt) break;
+      }
+      out.offRegion = { at: bridgePt };
+      if (bridgePt) {
+        g.player.teleport(bridgePt.x, bridgePt.z);
+        await waitGame(0.4);
+        const before = { jumps: g.player.jump.jumps, blocked: g.player.jump.blocked };
+        const ys = [];
+        press('KeyJ');
+        for (let i = 0; i < 14; i += 1) {
+          await waitGame(0.12);
+          const p = P();
+          ys.push(Math.abs(p.y - w.terrainHeight(p.x, p.z)));
+        }
+        release('KeyJ');
+        await waitGame(0.3);
+        out.offRegion.jumpsDelta = g.player.jump.jumps - before.jumps;
+        out.offRegion.blockedDelta = g.player.jump.blocked - before.blocked;
+        out.offRegion.worstOffGround = Math.max(...ys);
+        out.offRegion.airborne = g.player.jump.airborne;
+      }
+    }
+
+    /* ④ 虛空邊緣按 J：全程都踩得到地 ------------------------------------- */
+    {
+      releaseAll();
+      g.player.teleport(home.x, home.z);
+      await waitGame(0.3);
+      // 找中央高原上「站得住、但再走一步就是虛空」的一點
+      let edge = null;
+      for (let a = 0; a < 180 && !edge; a += 1) {
+        const t = (a / 180) * Math.PI * 2;
+        for (let d = 66; d > 50; d -= 0.5) {
+          const x = Math.cos(t) * d;
+          const z = Math.sin(t) * d;
+          if (!w.isClear(x, z)) continue;
+          const ox = Math.cos(t) * (d + 3);
+          const oz = Math.sin(t) * (d + 3);
+          if (w.coverage(ox, oz) < 0.45) { edge = { x, z, ox, oz }; }
+          break;
+        }
+      }
+      out.edge = { at: edge };
+      if (edge) {
+        g.player.teleport(edge.x, edge.z);
+        await waitGame(0.4);
+        await faceToward(edge.ox, edge.oz);
+        press('KeyW');
+        const r = await jumpAndLand();
+        await waitGame(0.5);
+        const p = P();
+        out.edge.jumped = r.jumped;
+        out.edge.worstCover = Math.min(...r.samples.map((s) => s.cover));
+        out.edge.samples = r.samples.length;
+        out.edge.finalCover = w.coverage(p.x, p.z);
+        out.edge.finalFoot = Math.abs(p.y - w.terrainHeight(p.x, p.z));
+        out.edge.finalRadius = Math.hypot(p.x, p.z);
+      }
+    }
+
+    /* 收尾：把人放回這一段之前站的地方 */
+    releaseAll();
+    g.player.teleport(home.x, home.z);
+    await waitGame(0.5);
+    out.dust = (() => {
+      const d = g.engine.scene.getObjectByName('jump-dust');
+      return d ? { exists: true, visible: d.visible, points: d.geometry.attributes.position.count } : { exists: false };
+    })();
+    out.finalFoot = Math.abs(P().y - w.terrainHeight(P().x, P().z));
+    out.finalStanding = g.player.standingOn;
+    return out;
+  `);
+
+  /* ① 平地上跳一下 */
+  {
+    const r = jumpRun.plain;
+    eq(jumpRun.spawnClear, true, 'P14：出生點是站得住的（這一段的起點不是碰運氣）');
+    eq(r.jumped, true, 'P14：在中央高原按 J 真的跳起來了');
+    ok(r.lastApex > 1.6, 'P14：這一跳的頂點跳得上 1.6 公尺', `apex=${r.lastApex.toFixed(2)}`);
+    ok(r.lastApex < 3.0, 'P14：這一跳的頂點跳不上 3.0 公尺', `apex=${r.lastApex.toFixed(2)}`);
+    ok(r.lastAirTime > 0.4, 'P14：滯空時間是一段真的時間（不是一幀）', `${r.lastAirTime.toFixed(2)}s`);
+    ok(r.aloftSamples >= 1, 'P14：輪詢真的抓到「腳離開地面」的取樣點', `${r.aloftSamples}/${r.totalSamples}`);
+    ok(r.peak > 0.5, 'P14：取樣到的最高點真的離地', `peak=${r.peak.toFixed(2)}`);
+    ok(r.backToGround < 1e-6, 'P14：落回地面之後腳下的高度就是地形高度', `d=${r.backToGround}`);
+    ok(r.backToStart < 1e-6, 'P14：落回**原來那個高度**（原地跳沒有把人抬高）', `d=${r.backToStart}`);
+    ok(r.moved < 1.5, 'P14：原地跳沒有把人平移走（不會被傳送）', `moved=${r.moved.toFixed(2)}`);
+    eq(r.standing, null, 'P14：落在地形上（不是站在什麼東西上）');
+  }
+
+  /* ② 跳上第一階、站得住、走下來 */
+  {
+    const r = jumpRun.platform;
+    eq(r.found, true, 'P14：世界裡找得到第一階那一顆碰撞圓', String(r.id));
+    ok(Boolean(r.start), 'P14：第一階旁邊找得到落腳點', JSON.stringify(r.start));
+    eq(r.walkedUp, true, 'P14：用真的按鍵走到第一階旁邊了');
+    ok(r.gap < 4, 'P14：真的貼著第一階（不是在遠處跳）', `gap=${r.gap ? r.gap.toFixed(2) : '?'}`);
+    eq(r.standing, r.id, 'P14：跳上去之後站在第一階上（player.standingOn 說得出是誰）');
+    ok(r.tries <= 6, 'P14：跳上去不需要無限重試', `tries=${r.tries}`);
+    eq(r.touched, r.id, 'P14：落地那一刻就已經站在第一階上（不是滑上去的）');
+    ok(r.footAboveTerrain > 1.4, 'P14：腳下的高度真的被抬到第一階的頂面', `+${(r.footAboveTerrain || 0).toFixed(2)}m`);
+    ok(r.footVsTop < 1e-6, 'P14：腳的高度正好是頂面（不是浮在上面一點）', `d=${r.footVsTop}`);
+    eq(r.supportId, r.id, 'P14：supportAt() 回的支撐面就是第一階');
+    eq(r.insideCircle, true, 'P14：站在頂面上時人的確在那顆碰撞圓裡（而且不會被保險絲推出去）');
+    ok(r.holdSpread < 1e-6, 'P14：站在上面不動的兩秒內高度一寸都沒掉', `spread=${r.holdSpread}`);
+    eq(r.stillStanding, r.id, 'P14：站著不動不會自己滑下去');
+    eq(r.walkedOff, true, 'P14：一直往前走真的會走出頂面（不是被關在上面）');
+    eq(r.afterStanding, null, 'P14：走下來之後就不再站在第一階上');
+    eq(r.afterAirborne, false, 'P14：走下來之後已經落地');
+    ok(r.afterFoot < 1e-6, 'P14：走下來之後腳下的高度回到地形高度', `d=${r.afterFoot}`);
+  }
+
+  /* ③ 不是中央高原就跳不起來 */
+  {
+    const r = jumpRun.offRegion;
+    ok(Boolean(r.at), 'P14：找得到一個橋上的落腳點', JSON.stringify(r.at));
+    eq(r.jumpsDelta, 0, 'P14：不是中央高原（橋上）按 J 一次都跳不起來');
+    ok(r.blockedDelta >= 1, 'P14：被擋下來這件事有記錄（不是被吞掉）', `blocked+${r.blockedDelta}`);
+    ok(r.worstOffGround < 1e-6, 'P14：橋上按 J 的整段時間，腳下的高度都精確等於地形高度', `worst=${r.worstOffGround}`);
+    eq(r.airborne, false, 'P14：橋上按 J 沒有離地');
+  }
+
+  /* ④ 虛空邊緣：跳了也掉不出去 */
+  {
+    const r = jumpRun.edge;
+    ok(Boolean(r.at), 'P14：找得到中央高原上「再走一步就是虛空」的邊緣', JSON.stringify(r.at));
+    eq(r.jumped, true, 'P14：在邊緣上按 J 跳得起來（護欄擋的是落點，不是跳這件事）');
+    ok(r.samples >= 2, 'P14：邊緣那一跳真的取樣到了（不是空過）', String(r.samples));
+    ok(r.worstCover >= 0.45, 'P14：整段跳躍**最糟的那一個取樣點**仍然踩得到地', `worst=${r.worstCover.toFixed(2)}`);
+    ok(r.finalCover >= 0.45, 'P14：落地的那一點踩得到地（沒有掉進虛空）', `cover=${r.finalCover.toFixed(2)}`);
+    ok(r.finalFoot < 1e-6, 'P14：邊緣那一跳落回地形高度', `d=${r.finalFoot}`);
+    ok(r.finalRadius < 70, 'P14：沒有被彈出中央高原', `r=${r.finalRadius.toFixed(1)}`);
+  }
+
+  /* ⑤ 落地塵與收尾 */
+  eq(jumpRun.dust.exists, true, 'P14：落地塵那一組點真的在場景裡');
+  eq(jumpRun.dust.visible, false, 'P14：沒在落地時塵是收起來的');
+  eq(jumpRun.dust.points, 26, 'P14：落地塵是固定的一組點（不是每次落地都 new 一組）');
+  ok(jumpRun.finalFoot < 1e-6, 'P14：這一節結束時玩家貼回地形（後面的斷言看到的是原本的世界）');
+  eq(jumpRun.finalStanding, null, 'P14：這一節結束時玩家沒有站在任何東西上');
+
+  /* ⑥ 真的 CDP 鍵盤事件（不是頁面裡合成的那一種）也跳得起來 */
+  {
+    const before = await evaluate(`return window.__promptasy.player.jump.jumps;`);
+    await keyDown('KeyJ', 'j', { vk: 74 });
+    const after = await waitFor(
+      async () => {
+        const n = await evaluate(`return window.__promptasy.player.jump.jumps;`);
+        return n > before ? n : null;
+      },
+      { label: 'P14：真的鍵盤事件觸發跳躍', every: 120, timeout: 20000 }
+    );
+    await keyUp('KeyJ', 'j', { vk: 74 });
+    ok(after > before, 'P14：CDP 送進去的真 `J` keydown 也跳得起來', `${before} → ${after}`);
+    await waitFor(
+      async () => (await evaluate(`return window.__promptasy.player.jump.airborne === false;`)) || null,
+      { label: 'P14：等它落地', every: 120, timeout: 20000 }
+    );
+    const rest = await evaluate(`
+      const g = window.__promptasy;
+      const p = g.player.position;
+      return Math.abs(p.y - g.world.terrainHeight(p.x, p.z));
+    `);
+    ok(rest < 1e-6, 'P14：落地之後又貼回地形（真鍵盤那一次也一樣）', `d=${rest}`);
+  }
+
   /* --- Phase 5：程序化步態（關節真的在動、左右腿反相） --- */
   const gait = await evaluate(`
     const g = window.__promptasy;

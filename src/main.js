@@ -191,6 +191,14 @@ function boot() {
     startPosition: [0, 6],
     world,
     onStep: () => audio.step(performance.now() / 1000),
+    /*
+     * v1.2 · P14：跳躍的兩聲。兩支都只有合成音（`SFX_FILES` 沒有對應檔案）——
+     * 「檔案缺席時合成音自動後備」這條離線護欄在這裡是預設值，不是備案。
+     */
+    onJump: () => audio.cue('jump'),
+    onLand: (impact) => audio.cue('land', { baseScale: 1 - Math.min(0.18, impact / 120) }),
+    // reduce-motion 關掉的是擠壓與塵的飛散，不是跳躍本身（WORLD.md §2.4）
+    reducedMotion,
   });
 
   /* --- 氛圍的單一入口（v1.2 · P05）：區域色盤 × 一夜的時辰 → 引擎的 setMood ---

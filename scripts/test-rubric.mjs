@@ -3783,7 +3783,8 @@ console.log('▸ 可站立表面（v1.2 · P13）');
     const worldMd = readFileSync(resolve(root, 'WORLD.md'), 'utf8');
     const s31 = worldMd.slice(worldMd.indexOf('### 3.1'), worldMd.indexOf('### 3.2'));
     ok(/\| `J` \|/.test(s31), 'WORLD.md §3.1 的世界層按鍵表有 `J`');
-    ok(/尚未啟用/.test(s31), 'WORLD.md §3.1 明講跳躍鍵尚未啟用');
+    // v1.2 · P14 起跳躍真的接上了鍵盤 —— 「尚未啟用」那句話必須從文件裡消失
+    ok(!/尚未啟用/.test(s31), 'WORLD.md §3.1 不再說跳躍尚未啟用（P14 已經接上鍵盤事件）');
     ok(/P24/.test(s31), 'WORLD.md §3.1 把手把／觸控的跳躍鍵留給 P24');
     ok(/`Space`|空白鍵/.test(s31) && /`Shift`/.test(s31), 'WORLD.md §3.1 說得出為什麼不是 Space／Shift');
     const s63 = worldMd.slice(worldMd.indexOf('### 6.3'), worldMd.indexOf('### 6.4'));
@@ -3805,7 +3806,12 @@ console.log('▸ 可站立表面（v1.2 · P13）');
     ok(/逐圓各自算/.test(s63), 'WORLD.md §6.3 寫了「逐圓各自算」（P10b／P11 的教訓）');
     ok(/平到多遠就只抬到多遠/.test(s63), 'WORLD.md §6.3 寫了「平到多遠就只抬到多遠」（standR 不是 r 的別名）');
     ok(/InstancedMesh/.test(s63), 'WORLD.md §6.3 寫明 instanced 那條路也濾半透明');
-    ok(/沒有把它接到玩家身上|刻意沒有把它接到玩家身上/.test(s63), 'WORLD.md §6.3 明講 groundHeightAt 這一格沒有接到玩家身上');
+    ok(/沒有把它接到玩家身上|刻意沒有把它接到玩家身上/.test(s63), 'WORLD.md §6.3 明講 groundHeightAt（P13 那一支）沒有接到玩家身上');
+    // v1.2 · P14：真的接到玩家身上的是多問一句「腳在哪」的那一支
+    ok(/`supportAt\(x, z, feetY\)`|supportAt/.test(s63), 'WORLD.md §6.3 寫了 P14 接上去的是 supportAt（多問一句腳在哪）');
+    ok(s63.includes('LEDGE_EPS'), 'WORLD.md §6.3 寫了 LEDGE_EPS（站到頂面上的容差）');
+    ok(/不會被瞬間抬到屋頂上/.test(s63), 'WORLD.md §6.3 回答了 P13 交接第 1 條（脫困中的人不會被抬到頂面）');
+    ok(/solidAtAbove/.test(s63), 'WORLD.md §6.3 寫了 solidAtAbove（跳上高台唯一需要的例外）');
   }
 }
 
@@ -15277,7 +15283,9 @@ console.log('\n▸ 中觀：遮擋帶與母題（v1.2 · P11）');
         layer.group.traverse((o) => {
           if (!o.isMesh || !o.geometry) return;
           if (o.userData.noCollide) return;
-          if (!(o.userData.solid || o.userData.solidSpan)) return;
+          // v1.2 · P14：高台把碰撞登記成 `solidRadius`（不是 solid／solidSpan）——
+          // 少了這一句，第一座高台就整座從「逐塊貼地」這條斷言底下溜過去了。
+          if (!(o.userData.solid || o.userData.solidSpan || typeof o.userData.solidRadius === 'number')) return;
           if (!o.geometry.boundingBox) o.geometry.computeBoundingBox();
           eachInstance(o, (mtx, i) => {
             bb3.copy(o.geometry.boundingBox).applyMatrix4(mtx);
@@ -16751,6 +16759,648 @@ console.log('\n▸ 地面材質語言 ＋ 每區粒子（v1.2 · P12）');
     });
     eq(driftPoints, 12, 'P12：新增的粒子 draw call ＝ 12（一區一個）');
     eq(points12 - driftPoints, 9, 'P12：其餘的粒子層一個都沒動（星空 6 ＋ 濁靈 ＋ 螢火 ＋ 石座演出）', String(points12));
+  }
+}
+
+
+/* ================================================================== */
+/* v1.2 · P14：跳躍原型（只在中央高原）                                 */
+/*   · 常數與 WORLD.md §3.1 逐條一致；只有 foundations 跳得起來         */
+/*   · 純函式的彈道：跳得上 1.6、跳不上 3.0（量最差的那一次幀率）        */
+/*   · 狀態機模擬：跳上去 → 站得住 → 走下來；不按 J 逐幀等於地形高度      */
+/*   · 邊界護欄的正反例（虛空、穿模）；escapeSolid 那條路不會被抬到頂面   */
+/*   · 高台：資料契約 ＋ 世界實體 ＋ 預算；零每幀配置的靜態掃描          */
+/* ================================================================== */
+console.log('\n▸ 跳躍原型（v1.2 · P14）');
+{
+  const Jump = await import('../src/player/jump.js');
+  const ScreensP14 = await import('../src/world/screens.js');
+  const worldMdP14 = readFileSync(resolve(root, 'WORLD.md'), 'utf8');
+  const s31P14 = worldMdP14.slice(worldMdP14.indexOf('### 3.1'), worldMdP14.indexOf('### 3.2'));
+  const PLATFORM = ScreensP14.PLATFORMS[0];
+
+  /* --- ① 常數本身說得通，而且與 WORLD.md 是同一組數字 --------------- */
+  {
+    eq(Jump.COYOTE_TIME, 0.1, 'coyote time ＝ 100 毫秒');
+    eq(Jump.JUMP_BUFFER, 0.15, 'input buffer ＝ 150 毫秒');
+    eq(Jump.JUMP_CUT, 0.5, '鬆手把上升速度砍半');
+    ok(Jump.JUMP_BUFFER > Jump.COYOTE_TIME, 'buffer 比 coyote 長（早按比晚按寬容）');
+    ok(Jump.GRAVITY > 9.8, '重力比現實大（遊戲的跳要上去得快、下來得更快）', String(Jump.GRAVITY));
+    ok(Jump.MAX_STEP <= 1 / 60, '垂直積分的步長 ≤ 1/60 秒（軟體渲染一幀 0.2 秒也不會失真）', String(Jump.MAX_STEP));
+    ok(Jump.MAX_FALL > Jump.JUMP_SPEED, '終端速度大於起跳速度（不會在上升時就被夾住）');
+    // WORLD.md §3.1 寫的就是這幾個數字（改了程式沒改文件 → 這裡先紅）
+    ok(s31P14.includes('100 ms'), 'WORLD.md §3.1 寫了 coyote time 100 ms');
+    ok(s31P14.includes('150 ms'), 'WORLD.md §3.1 寫了 input buffer 150 ms');
+    ok(s31P14.includes(String(Jump.JUMP_SPEED)), `WORLD.md §3.1 寫了起跳速度 ${Jump.JUMP_SPEED}`);
+    ok(s31P14.includes(String(Jump.GRAVITY)), `WORLD.md §3.1 寫了重力 ${Jump.GRAVITY}`);
+    ok(s31P14.includes('JUMP_REGIONS'), 'WORLD.md §3.1 指得出「跳得起來的土地」住在哪個常數');
+    ok(s31P14.includes('P16a'), 'WORLD.md §3.1 說得出其餘 11 片土地由哪一格放行');
+    ok(/砍半/.test(s31P14), 'WORLD.md §3.1 寫了鬆手提前下落');
+    ok(
+      s31P14.includes(String(Jump.apexOf(Jump.JUMP_SPEED))),
+      `WORLD.md §3.1 寫了頂點高度 ${Jump.apexOf(Jump.JUMP_SPEED)} 公尺`
+    );
+    ok(/1\/120/.test(s31P14), 'WORLD.md §3.1 寫了垂直積分切成 1/120 秒的小步');
+  }
+
+  /* --- ② 只有中央高原跳得起來（其餘 11 片是 0 —— 這就是「行為零改變」的根） --- */
+  {
+    eq(Jump.JUMP_REGIONS.length, 1, '這一格只開一片土地');
+    eq(Jump.JUMP_REGIONS[0], 'foundations', '開的是中央高原');
+    let nonZero = 0;
+    for (const site of World.REGION_SITES) {
+      const v = Jump.jumpSpeedFor(site.id);
+      if (site.id === 'foundations') {
+        ok(v > 0, '[foundations] 跳得起來', String(v));
+        nonZero += 1;
+      } else {
+        eq(v, 0, `[${site.id}] 跳躍速度是 0（行為與 P14 之前完全相同）`);
+        eq(Jump.jumpApexFor(site.id), 0, `[${site.id}] 跳得多高 ＝ 0`);
+      }
+    }
+    eq(nonZero, 1, '12 片土地裡只有一片非 0');
+    for (const bad of [null, undefined, '', 'nope', '__proto__', 'constructor', 'toString']) {
+      eq(Jump.jumpSpeedFor(bad), 0, `jumpSpeedFor(${JSON.stringify(bad)}) ＝ 0（不會漏原型鍊上的東西）`);
+    }
+  }
+
+  /* --- ③ 彈道：跳得上 1.6、跳不上 3.0（**量最差的那一次幀率**） ------ */
+  {
+    const apex = Jump.apexOf(Jump.JUMP_SPEED);
+    ok(apex > PLATFORM.height + 0.3, `連續解的頂點跳得上 ${PLATFORM.height} 公尺的第一階`, apex.toFixed(3));
+    ok(apex < World.STAND_MAX_H - 0.5, `連續解的頂點跳不上 ${World.STAND_MAX_H} 公尺（STAND_MAX_H 就是契約）`, apex.toFixed(3));
+    /*
+     * 連續解只是紙上的數字，玩家踩到的是離散積分那一條。
+     * findings（P13）：「全程都…」的斷言要量**最差的那一次** ——
+     * 所以這裡對五種幀時間各跑一次，取最小值與最大值來判生死。
+     */
+    const dts = [1 / 240, 1 / 120, 1 / 60, 1 / 30, 0.2];
+    const sims = dts.map((dt) => Jump.simulateApex(Jump.JUMP_SPEED, dt));
+    ok(sims.length === dts.length, '五種幀時間都模擬到了');
+    ok(
+      Math.min(...sims) > PLATFORM.height + 0.3,
+      `離散積分**最矮的那一次**仍然跳得上 ${PLATFORM.height} 公尺`,
+      `min=${Math.min(...sims).toFixed(3)} @dt=${dts[sims.indexOf(Math.min(...sims))]}`
+    );
+    ok(
+      Math.max(...sims) < World.STAND_MAX_H,
+      `離散積分**最高的那一次**仍然跳不上 ${World.STAND_MAX_H} 公尺`,
+      `max=${Math.max(...sims).toFixed(3)}`
+    );
+    ok(
+      Math.max(...sims) - Math.min(...sims) < 0.1,
+      '彈道幾乎與幀率無關（切小步的理由）—— 五種幀時間的頂點差 < 10 公分',
+      `spread=${(Math.max(...sims) - Math.min(...sims)).toFixed(4)} · ${sims.map((v) => v.toFixed(3)).join('/')}`
+    );
+    // 鬆手：輕點一下跳不上第一階（不然「兩種高度」是假的）
+    const tapped = Jump.apexOf(Jump.JUMP_SPEED * Jump.JUMP_CUT);
+    ok(tapped < PLATFORM.height, '輕點一下（起跳就鬆手）跳不上第一階', tapped.toFixed(3));
+    ok(tapped > 0.25, '輕點一下還是離得了地（不是完全沒反應）', tapped.toFixed(3));
+    eq(Jump.apexOf(0), 0, '起跳速度 0 → 一點都跳不起來');
+    eq(Jump.apexOf(-5), 0, '負的起跳速度不會算出一個正的高度');
+  }
+
+  /* ------------------------------------------------------------------ *
+   * ④ 狀態機模擬：一台小小的離線遊戲迴圈。
+   *
+   * 它同時模擬 `player.js` 的兩條規則，所以「跳上去、站得住、走下來」
+   * 這件事不必等 15 分鐘的無頭瀏覽器就答得完：
+   *   · 垂直：`stepJumper()`（真的那一支）
+   *   · 水平：`solidAtAbove()` 的那條例外 —— 腳在頂面以下時高台**擋得住人**
+   * ------------------------------------------------------------------ */
+  const LEDGE = World.LEDGE_EPS;
+  /**
+   * @param {object} o
+   * @param {(x:number)=>number} o.ground 地形高度
+   * @param {null|{x:number,standR:number,standTop:number,id:string}} o.plat 高台（null ＝ 沒有）
+   * @param {number} o.x0 起點
+   * @param {number} o.vx 水平速度（m/s）
+   * @param {number} o.dt
+   * @param {number} o.frames
+   * @param {(f:number)=>boolean} o.press 第 f 幀有沒有按下 J
+   * @param {(f:number)=>boolean} o.hold 第 f 幀 J 還按著嗎
+   * @param {number} o.jumpSpeed
+   * @param {boolean|((f:number)=>boolean)} o.canTakeOff
+   */
+  function runSim(o) {
+    const st = Jump.createJumper();
+    const io = {
+      y: 0, groundY: 0, supportY: 0, supportId: null, supportIndex: -1,
+      wantJump: false, held: false, jumpSpeed: 0, canTakeOff: true,
+    };
+    let x = o.x0;
+    let y = o.ground(x);
+    const trace = [];
+    let worstOffGround = 0;
+    for (let f = 0; f < o.frames; f += 1) {
+      // 水平：腳在頂面以下時，高台擋得住人（＝ solidAtAbove 的那條例外）
+      const vx = typeof o.vx === 'function' ? o.vx(st) : o.vx;
+      const nx = x + vx * o.dt;
+      const blockR = o.plat ? o.plat.standR + World.PLAYER_RADIUS : 0;
+      const passes = o.plat ? y >= o.plat.standTop - LEDGE : true;
+      if (!o.plat || passes || Math.abs(nx - o.plat.x) > blockR) x = nx;
+      // 支撐面：用這一幀開始時腳的高度去問（player.js 是同一句）
+      const g = o.ground(x);
+      let supY = g;
+      let supIdx = -1;
+      let supId = null;
+      if (o.plat && Math.abs(x - o.plat.x) <= o.plat.standR && o.plat.standTop > g && y >= o.plat.standTop - LEDGE) {
+        supY = o.plat.standTop;
+        supIdx = 0;
+        supId = o.plat.id;
+      }
+      io.y = y;
+      io.groundY = g;
+      io.supportY = supY;
+      io.supportIndex = supIdx;
+      io.supportId = supId;
+      io.wantJump = o.press ? o.press(f) : false;
+      io.held = o.hold ? o.hold(f) : false;
+      io.jumpSpeed = o.jumpSpeed;
+      io.canTakeOff = typeof o.canTakeOff === 'function' ? o.canTakeOff(f) : o.canTakeOff !== false;
+      y = Jump.stepJumper(st, o.dt, io);
+      worstOffGround = Math.max(worstOffGround, Math.abs(y - g));
+      trace.push({ f, x, y, g, airborne: st.airborne, standing: st.standing });
+    }
+    return { st, x, y, trace, worstOffGround };
+  }
+
+  const FLAT = () => 0;
+  const HILLY = (x) => 2 * Math.sin(x * 0.31) + 0.6 * Math.cos(x * 1.13);
+  const step = ScreensP14.PLATFORMS[0];
+  const PLAT = { x: 0, standR: 2.45, standTop: step.height, id: step.id };
+
+  /* ④a 不按 J：逐幀等於地形高度（**最差的那一次**也是 0） */
+  {
+    const r = runSim({
+      ground: HILLY, plat: PLAT, x0: 12, vx: -3.5, dt: 1 / 60, frames: 900,
+      press: () => false, hold: () => false, jumpSpeed: Jump.JUMP_SPEED, canTakeOff: true,
+    });
+    ok(r.trace.length === 900, '不按 J 的模擬真的跑了 900 幀（不是空過）');
+    ok(r.trace.some((t) => Math.abs(t.g) > 1.5), '這條路真的有起有伏（不然這一段是空過的）',
+      `最大落差=${Math.max(...r.trace.map((t) => Math.abs(t.g))).toFixed(2)}`);
+    eq(r.worstOffGround, 0, '不按 J：**每一幀**腳的高度都精確等於地形高度（行為零改變）');
+    eq(r.trace.every((t) => t.y === t.g), true, '不按 J：逐幀 === 地形高度（不是「很接近」）');
+    eq(r.st.jumps, 0, '不按 J：一次都沒跳');
+    eq(r.st.airborne, false, '不按 J：從頭到尾沒離過地');
+    eq(r.st.standing, null, '不按 J：從頭到尾沒站到任何東西上（所以走的一定是原本那一行）');
+    // 不按 J 的人走到高台前就被擋下來 —— 上不去，也走不進去
+    ok(
+      Math.abs(Math.abs(r.x - PLAT.x) - (PLAT.standR + World.PLAYER_RADIUS)) < 0.2,
+      '不按 J：走到高台側面就被擋下來（上不去也走不進去）',
+      `x=${r.x.toFixed(2)} 擋人半徑=${(PLAT.standR + World.PLAYER_RADIUS).toFixed(2)}`
+    );
+    ok(r.trace.some((t) => t.x > 10), '這一段真的走了一段路（不是原地不動）', r.trace[0].x.toFixed(1));
+  }
+
+  /* ④b 跳上去 → 站得住 → 走下來（**五種幀時間都要成立**） */
+  {
+    for (const dt of [1 / 240, 1 / 120, 1 / 60, 1 / 30, 0.1]) {
+      const start = PLAT.standR + World.PLAYER_RADIUS + 0.4;
+      // 走過去（撞在側面）→ 按 J 並按住 → 飛過邊緣 → 落到頂面
+      const up = runSim({
+        // 落到頂面上就停下腳步（不然他會一路走過去再走下來 —— 那是下一段要驗的事）
+        ground: FLAT, plat: PLAT, x0: start, vx: (st2) => (st2.standing === PLAT.id ? 0 : -6),
+        dt, frames: Math.ceil(2 / dt),
+        press: (f) => f === Math.ceil(0.2 / dt), hold: () => true,
+        jumpSpeed: Jump.JUMP_SPEED, canTakeOff: true,
+      });
+      eq(up.st.jumps, 1, `[dt=${dt.toFixed(4)}] 真的起跳了一次`);
+      ok(up.st.lastApex > PLAT.standTop, `[dt=${dt.toFixed(4)}] 這一跳的頂點高過頂面`, up.st.lastApex.toFixed(3));
+      eq(up.st.standing, PLAT.id, `[dt=${dt.toFixed(4)}] 落在第一階上，而且站得住`);
+      eq(up.st.airborne, false, `[dt=${dt.toFixed(4)}] 落地了（不是還在空中）`);
+      ok(Math.abs(up.y - PLAT.standTop) < 1e-9, `[dt=${dt.toFixed(4)}] 腳的高度正好是頂面`, up.y.toFixed(4));
+      ok(Math.abs(up.x - PLAT.x) <= PLAT.standR, `[dt=${dt.toFixed(4)}] 落點在頂面平的那一段之內`, up.x.toFixed(2));
+    }
+  }
+  {
+    // 走下來：從頂面上一路往前走，走出平面就開始掉，最後回到地形高度
+    const dt = 1 / 60;
+    const st = Jump.createJumper();
+    const io = { y: PLAT.standTop, groundY: 0, supportY: PLAT.standTop, supportId: PLAT.id, supportIndex: 0,
+      wantJump: false, held: false, jumpSpeed: Jump.JUMP_SPEED, canTakeOff: true };
+    st.standing = PLAT.id;
+    let x = 0;
+    let y = PLAT.standTop;
+    let leftAt = -1;
+    let landedAt = -1;
+    for (let f = 0; f < 240; f += 1) {
+      x += 4 * dt;
+      const onTop = Math.abs(x - PLAT.x) <= PLAT.standR && y >= PLAT.standTop - LEDGE;
+      io.y = y;
+      io.groundY = 0;
+      io.supportY = onTop ? PLAT.standTop : 0;
+      io.supportIndex = onTop ? 0 : -1;
+      io.supportId = onTop ? PLAT.id : null;
+      const wasAir = st.airborne;
+      y = Jump.stepJumper(st, dt, io);
+      if (!wasAir && st.airborne && leftAt < 0) leftAt = f;
+      if (leftAt >= 0 && landedAt < 0 && !st.airborne) landedAt = f;
+    }
+    ok(leftAt > 0, '走出頂面之後真的開始往下掉（不是浮在空中）', `第 ${leftAt} 幀`);
+    ok(landedAt > leftAt, '掉完之後落回地形', `第 ${landedAt} 幀`);
+    eq(st.standing, null, '走下來之後就不再站在高台上了');
+    eq(st.airborne, false, '走下來之後已經落地');
+    eq(y, 0, '腳的高度回到地形高度');
+    ok(landedAt - leftAt >= 2, '掉下來是一段真的下墜，不是瞬間貼地', `${landedAt - leftAt} 幀`);
+  }
+
+  /* ④c 跳不上 3.0 公尺（STAND_MAX_H 那條線） */
+  {
+    const tall = { x: 0, standR: 2.45, standTop: World.STAND_MAX_H, id: 'too-tall' };
+    const r = runSim({
+      ground: FLAT, plat: tall, x0: tall.standR + World.PLAYER_RADIUS + 0.4, vx: -6, dt: 1 / 60, frames: 240,
+      press: (f) => f === 12, hold: () => true, jumpSpeed: Jump.JUMP_SPEED, canTakeOff: true,
+    });
+    eq(r.st.jumps, 1, '[3.0m] 有起跳（不然這一條是空過的）');
+    eq(r.st.standing, null, `[3.0m] 跳不上 ${World.STAND_MAX_H} 公尺的頂面`);
+    eq(r.y, 0, '[3.0m] 落回地面');
+    ok(Math.abs(r.x - tall.x) > tall.standR, '[3.0m] 連水平方向都被擋在外面（腳從來沒高過頂面）', r.x.toFixed(2));
+  }
+
+  /* ④d 別的區按 J：什麼都不會發生 */
+  {
+    const r = runSim({
+      ground: HILLY, plat: null, x0: 5, vx: -3, dt: 1 / 60, frames: 300,
+      press: (f) => f % 30 === 0, hold: () => true, jumpSpeed: 0, canTakeOff: true,
+    });
+    eq(r.st.jumps, 0, '其餘 11 片土地：按了 10 次 J，一次都沒跳起來');
+    eq(r.st.blocked, 10, '被擋下來的次數就是按下去的次數（不是被吞掉，是有記錄的）');
+    eq(r.st.airborne, false, '其餘土地：沒離過地');
+    eq(r.worstOffGround, 0, '其餘土地：**每一幀**腳的高度都精確等於地形高度');
+    eq(r.st.buffer, 0, '按下去的那一次不會留在 buffer 裡等著（走回中央高原不會莫名彈起來）');
+  }
+
+  /* ④e 邊界護欄：腳下不合格就不准離地 */
+  {
+    const r = runSim({
+      ground: HILLY, plat: null, x0: 5, vx: 0, dt: 1 / 60, frames: 120,
+      press: (f) => f % 20 === 0, hold: () => true, jumpSpeed: Jump.JUMP_SPEED, canTakeOff: false,
+    });
+    eq(r.st.jumps, 0, '腳下不合格（虛空邊緣 / 卡在石頭裡）→ 起跳那一刻就被夾住');
+    eq(r.st.blocked, 6, '被夾住的次數有記錄');
+    eq(r.worstOffGround, 0, '被夾住時腳的高度一寸都沒動');
+    // 反例：同一組輸入，只把 canTakeOff 打開就跳得起來（證明夾住的是它，不是別的）
+    const ok2 = runSim({
+      ground: HILLY, plat: null, x0: 5, vx: 0, dt: 1 / 60, frames: 120,
+      press: (f) => f % 20 === 0, hold: () => true, jumpSpeed: Jump.JUMP_SPEED, canTakeOff: true,
+    });
+    ok(ok2.st.jumps >= 1, '[反例] 只把腳下的護欄打開，同一組輸入就跳得起來', String(ok2.st.jumps));
+  }
+
+  /* ④f coyote time：走出邊緣之後那 100 毫秒還跳得起來 */
+  {
+    const dt = 1 / 240;
+    /*
+     * 站在高台頂上 → 第 4 幀走出平面 → 過了 `delaySec` 秒按一次 J。
+     * 地面刻意放在 -50 公尺：這一段要驗的只有 coyote，
+     * 不要讓「落地之後 buffer 補發」混進答案裡（那是下一段的事）。
+     */
+    const runCoyote = (delaySec) => {
+      const st = Jump.createJumper();
+      const io = { y: PLAT.standTop, groundY: -50, supportY: PLAT.standTop, supportId: PLAT.id, supportIndex: 0,
+        wantJump: false, held: true, jumpSpeed: Jump.JUMP_SPEED, canTakeOff: true };
+      st.standing = PLAT.id;
+      st.coyote = Jump.COYOTE_TIME;
+      let y = PLAT.standTop;
+      let airT = null;
+      let pressed = false;
+      for (let f = 0; f < 400; f += 1) {
+        const onTop = airT === null && f < 4;
+        io.y = y;
+        io.groundY = -50;
+        io.supportY = onTop ? PLAT.standTop : -50;
+        io.supportIndex = onTop ? 0 : -1;
+        io.supportId = onTop ? PLAT.id : null;
+        io.wantJump = airT !== null && !pressed && airT >= delaySec;
+        if (io.wantJump) pressed = true;
+        y = Jump.stepJumper(st, dt, io);
+        if (airT === null && st.airborne) airT = 0;
+        else if (airT !== null) airT += dt;
+      }
+      ok(pressed, `coyote：延遲 ${delaySec}s 的那一次真的按下去了（不然這一條是空過的）`);
+      return st.jumps;
+    };
+    eq(runCoyote(0.0), 1, 'coyote：走出邊緣的當下按 J 跳得起來');
+    eq(runCoyote(0.08), 1, 'coyote：走出邊緣後 80 毫秒還跳得起來');
+    eq(runCoyote(0.16), 0, 'coyote：走出邊緣後 160 毫秒就跳不起來了（寬限是有限的）');
+  }
+
+  /* ④g input buffer：落地前先按的那一次算數 */
+  {
+    const dt = 1 / 240;
+    const runBuffer = (beforeLandSec) => {
+      // 從 2 公尺高自由落體，落地前 beforeLandSec 秒按一次 J
+      const fall = Math.sqrt((2 * 2) / Jump.GRAVITY); // 掉 2 公尺要多久
+      const pressAt = Math.max(0, Math.round((fall - beforeLandSec) / dt));
+      const st = Jump.createJumper();
+      st.airborne = true;
+      st.launchY = 2;
+      const io = { y: 2, groundY: 0, supportY: 0, supportId: null, supportIndex: -1,
+        wantJump: false, held: true, jumpSpeed: Jump.JUMP_SPEED, canTakeOff: true };
+      let y = 2;
+      for (let f = 0; f < 600; f += 1) {
+        io.y = y;
+        io.wantJump = f === pressAt;
+        y = Jump.stepJumper(st, dt, io);
+      }
+      return st.jumps;
+    };
+    eq(runBuffer(0.05), 1, 'buffer：落地前 50 毫秒按的跳，落地那一刻補發');
+    eq(runBuffer(0.13), 1, 'buffer：落地前 130 毫秒按的也算數');
+    eq(runBuffer(0.30), 0, 'buffer：落地前 300 毫秒按的已經忘掉了（不是無限期記著）');
+  }
+
+  /* ④h 鬆手提前下落 */
+  {
+    const cut = runSim({
+      ground: FLAT, plat: null, x0: 0, vx: 0, dt: 1 / 240, frames: 400,
+      press: (f) => f === 0, hold: (f) => f < 2, jumpSpeed: Jump.JUMP_SPEED, canTakeOff: true,
+    });
+    const full = runSim({
+      ground: FLAT, plat: null, x0: 0, vx: 0, dt: 1 / 240, frames: 400,
+      press: (f) => f === 0, hold: () => true, jumpSpeed: Jump.JUMP_SPEED, canTakeOff: true,
+    });
+    eq(cut.st.jumps, 1, '[鬆手] 有跳');
+    eq(full.st.jumps, 1, '[按住] 有跳');
+    ok(cut.st.lastApex < full.st.lastApex * 0.45, '鬆手那一跳明顯比按住那一跳矮',
+      `${cut.st.lastApex.toFixed(3)} vs ${full.st.lastApex.toFixed(3)}`);
+    ok(cut.st.lastApex < PLATFORM.height, '鬆手那一跳跳不上第一階（同一個鍵真的有兩種高度）',
+      cut.st.lastApex.toFixed(3));
+    ok(cut.st.lastAirTime < full.st.lastAirTime, '鬆手那一跳滯空也比較短');
+  }
+
+  /* --- ⑤ 高台：資料契約 --------------------------------------------- */
+  {
+    ok(ScreensP14.PLATFORMS.length >= 1, '世界上至少有一座高台', String(ScreensP14.PLATFORMS.length));
+    eq(new Set(ScreensP14.PLATFORMS.map((p) => p.id)).size, ScreensP14.PLATFORMS.length, '高台 id 沒有重複');
+    const regionIdSet = new Set(World.REGION_SITES.map((s2) => s2.id));
+    for (const pf of ScreensP14.PLATFORMS) {
+      const tag = `[platform:${pf.id}]`;
+      ok(/^[a-z0-9-]+$/.test(pf.id), `${tag} id 是 kebab-case`);
+      ok(regionIdSet.has(pf.region), `${tag} region 是真實區域`, pf.region);
+      eq(pf.region, 'foundations', `${tag} 這一格只在跳得起來的那片土地上放高台`);
+      ok(Jump.jumpSpeedFor(pf.region) > 0, `${tag} 蓋在跳得起來的土地上（不然是一面牆）`);
+      ok(ScreensP14.PLATFORM_KIND_IDS.includes(pf.kind), `${tag} 造型是實作得出來的`, pf.kind);
+      ok(Array.isArray(pf.at) && pf.at.length === 2 && pf.at.every(Number.isFinite), `${tag} 座標是兩個有限數字`);
+      ok(
+        pf.height >= ScreensP14.PLATFORM_HEIGHT_MIN && pf.height <= ScreensP14.PLATFORM_HEIGHT_MAX,
+        `${tag} 高度在 ${ScreensP14.PLATFORM_HEIGHT_MIN}–${ScreensP14.PLATFORM_HEIGHT_MAX} 公尺`,
+        String(pf.height)
+      );
+      ok(
+        pf.height >= World.STAND_MIN_H && pf.height <= World.STAND_MAX_H,
+        `${tag} 高度落在「站得上去」的區間內（§6.3）`,
+        String(pf.height)
+      );
+      ok(Jump.apexOf(Jump.JUMP_SPEED) > pf.height, `${tag} 這片土地的跳躍真的跳得上它`);
+      ok(
+        pf.radius >= ScreensP14.PLATFORM_RADIUS_MIN && pf.radius <= ScreensP14.PLATFORM_RADIUS_MAX,
+        `${tag} 半徑在 ${ScreensP14.PLATFORM_RADIUS_MIN}–${ScreensP14.PLATFORM_RADIUS_MAX} 公尺`,
+        String(pf.radius)
+      );
+      for (const banned of ['source', 'teaches', 'techniqueId', 'hint']) {
+        eq(banned in pf, false, `${tag} 沒有 ${banned} 欄位（純風味，不教技巧）`);
+      }
+    }
+    eq(ScreensP14.PLATFORM_STAND_R_MIN > World.PLAYER_RADIUS, true, '頂面平的那一段一定站得下一個人');
+  }
+
+  /* --- ⑤b 高台：真的蓋出來的那一顆圓 -------------------------------- */
+  {
+    for (const [label, w] of [['高畫質', testWorld], ['低畫質', lowWorld]]) {
+      ok(Array.isArray(w.platforms) && w.platforms.length >= 1, `[${label}] 世界認得高台資料`);
+      for (const pf of ScreensP14.PLATFORMS) {
+        const sd = w.solids.filter((c) => c.id === pf.id);
+        eq(sd.length, 1, `[${label}][${pf.id}] 登記成**一顆**碰撞圓（一顆圓、一個名字）`);
+        const c = sd[0] || { standable: null, standR: NaN, standTop: NaN, r: NaN, x: NaN, z: NaN };
+        eq(c.standable, true, `[${label}][${pf.id}] 頂面站得上去`);
+        ok(Math.abs(c.x - pf.at[0]) < 1e-6 && Math.abs(c.z - pf.at[1]) < 1e-6, `[${label}][${pf.id}] 圓心就在資料寫的座標上`);
+        ok(Math.abs(c.r - pf.radius) < 1e-6, `[${label}][${pf.id}] 碰撞半徑就是資料寫的半徑`, String(c.r));
+        const h = c.standTop - World.terrainHeight(c.x, c.z);
+        ok(Math.abs(h - pf.height) < 0.05, `[${label}][${pf.id}] 頂面離自己腳下的地 ${pf.height} 公尺`, h.toFixed(3));
+        ok(
+          c.standR >= ScreensP14.PLATFORM_STAND_R_MIN,
+          `[${label}][${pf.id}] 頂面量過是平的那一段 ≥ ${ScreensP14.PLATFORM_STAND_R_MIN} 公尺`,
+          c.standR.toFixed(2)
+        );
+        ok(c.standR > pf.radius * 0.9, `[${label}][${pf.id}] 圓的頂面「量到多遠都是平的」（不像方的會停在七成）`, c.standR.toFixed(2));
+        // 擋得住人：從外面走不進去
+        ok(Boolean(w.solidAt(c.x, c.z)), `[${label}][${pf.id}] 擋得住人（走不進石頭裡）`);
+        eq(w.isClear(c.x, c.z), false, `[${label}][${pf.id}] 腳在地上時那一點走不到`);
+      }
+    }
+    // 四周繞得過去（P11／P12 那一套）
+    for (const pf of ScreensP14.PLATFORMS) {
+      let free = 0;
+      const rr = pf.radius + World.PLAYER_RADIUS + 2;
+      for (let a = 0; a < 16; a += 1) {
+        const ang = (a / 16) * Math.PI * 2;
+        if (!testWorld.solidAt(pf.at[0] + Math.cos(ang) * rr, pf.at[1] + Math.sin(ang) * rr)) free += 1;
+      }
+      eq(free, 16, `[${pf.id}] 四周 16 個方向全部繞得過去`, `${free}/16`);
+      // 離走出來的那條路 7–26 公尺（與母題共用同一段門檻）
+      const segsP14 = buildPathNetwork(World.REGION_SITES, [...World.CORRIDORS, ...World.ANNEX_LINKS], challenges);
+      let best = Infinity;
+      for (const sg of segsP14) {
+        const dx = sg[2] - sg[0];
+        const dz = sg[3] - sg[1];
+        const len2 = dx * dx + dz * dz;
+        const t = len2 > 0 ? Math.max(0, Math.min(1, ((pf.at[0] - sg[0]) * dx + (pf.at[1] - sg[1]) * dz) / len2)) : 0;
+        best = Math.min(best, Math.hypot(pf.at[0] - (sg[0] + dx * t), pf.at[1] - (sg[1] + dz * t)));
+      }
+      ok(best >= 7 && best <= 26, `[${pf.id}] 離走出來的那條路 7–26 公尺（看得到、走得過去、不擋路）`, best.toFixed(1));
+    }
+  }
+
+  /* --- ⑥ supportAt：接上去的那一條路（含 escapeSolid 那個坑） -------- */
+  {
+    const pf = ScreensP14.PLATFORMS[0];
+    const c = testWorld.solids.find((s2) => s2.id === pf.id) || { x: NaN, z: NaN, standTop: NaN, standR: NaN };
+    const ground = World.terrainHeight(c.x, c.z);
+
+    // 共用物件：兩次呼叫回的是同一個（零每幀配置的證據）
+    const a1 = testWorld.supportAt(c.x, c.z, Infinity);
+    const a2 = testWorld.supportAt(0, 6, Infinity);
+    ok(a1 === a2, 'supportAt() 回的是共用物件（tick 裡不 new）');
+
+    // 腳在地形高度 → 拿到的是地形高度（**這就是脫困中的玩家不會被抬到屋頂上的原因**）
+    eq(
+      testWorld.supportAt(c.x, c.z, ground).y,
+      ground,
+      '[escapeSolid 那條路] 卡在高台裡的人，腳下的高度仍然是地形高度'
+    );
+    // 反例：同一點問「不管腳在哪」（＝ P13 的 groundHeightAt）就會被抬到頂面 —— 證明上一條不是空過的
+    ok(
+      testWorld.groundHeightAt(c.x, c.z) > ground + 1,
+      '[反例] 同一點用 P13 的 groundHeightAt() 問，答案是頂面（所以上一條真的有守住東西）',
+      `${testWorld.groundHeightAt(c.x, c.z).toFixed(2)} vs ${ground.toFixed(2)}`
+    );
+    eq(testWorld.groundHeightAt(c.x, c.z), testWorld.supportAt(c.x, c.z, Infinity).y, 'groundHeightAt() ＝ supportAt(..., Infinity)（兩支共用同一段迴圈）');
+    // 腳已經在頂面上 → 撐得住
+    const onTop = testWorld.supportAt(c.x, c.z, c.standTop);
+    eq(onTop.y, c.standTop, '腳站在頂面上時，支撐面就是頂面');
+    eq(onTop.id, pf.id, '支撐面說得出自己是誰（player.standingOn 回的就是它）');
+    ok(onTop.index >= 0, '支撐面指得到碰撞表裡的那一顆圓');
+    // 差一公分就撐不住（容差是 LEDGE_EPS，不是「差不多就好」）
+    eq(testWorld.supportAt(c.x, c.z, c.standTop - 0.05).y, ground, '腳差 5 公分沒到頂面 → 撐不住（容差是 2 公分）');
+    // 走出平的那一段就沒有支撐
+    eq(
+      testWorld.supportAt(c.x + c.standR + 0.2, c.z, c.standTop).y,
+      World.terrainHeight(c.x + c.standR + 0.2, c.z),
+      '走出頂面平的那一段就沒有支撐（會開始往下掉）'
+    );
+
+    /* escapeSolid：站在頂上是合法的，卡在裡面才要被請出來 */
+    eq(testWorld.escapeSolid(c.x, c.z, 0.35, c.standTop), null, '站在高台頂面上 → 保險絲不動作（那是合法的）');
+    const out = testWorld.escapeSolid(c.x, c.z, 0.35, ground);
+    ok(out !== null, '腳在地上卻站在高台圓心 → 保險絲照樣啟動');
+    ok(
+      out && Math.hypot(out.x - c.x, out.z - c.z) <= 0.36,
+      '脫困仍然是一小步一小步（不是瞬移）',
+      out ? Math.hypot(out.x - c.x, out.z - c.z).toFixed(3) : 'null'
+    );
+    // 不給 feetY 走的是 P13 之前那一支 —— 與「腳在地上」的答案逐值相同
+    const outLegacy = testWorld.escapeSolid(c.x, c.z, 0.35);
+    ok(outLegacy && out && outLegacy.x === out.x && outLegacy.z === out.z, '不給 feetY 與腳在地上時的答案一模一樣');
+  }
+
+  /* --- ⑥b solidAtAbove：擋人的那條例外只在該生效的時候生效 ---------- */
+  {
+    const pf = ScreensP14.PLATFORMS[0];
+    const c = testWorld.solids.find((s2) => s2.id === pf.id);
+    ok(Boolean(c), 'solidAtAbove 的正反例找得到那座高台');
+    if (c) {
+      const near = { x: c.x, z: c.z };
+      ok(Boolean(World.solidAtAbove(near.x, near.z, testWorld.solids, c.standTop - 0.5)), '腳在頂面以下：高台照樣擋人');
+      eq(World.solidAtAbove(near.x, near.z, testWorld.solids, c.standTop) === null ||
+         World.solidAtAbove(near.x, near.z, testWorld.solids, c.standTop).id !== pf.id, true,
+        '腳在頂面以上：這一顆不再擋人');
+      // 反例：不可站立的東西不管腳抬多高都擋人
+      const nonStand = testWorld.solids.find((s2) => !s2.standable && s2.r > 1);
+      ok(Boolean(nonStand), '世界裡找得到一顆站不上去的圓（不然這一條是空過的）');
+      if (nonStand) {
+        ok(
+          Boolean(World.solidAtAbove(nonStand.x, nonStand.z, testWorld.solids, 999)),
+          '站不上去的東西：腳抬到 999 公尺也照樣擋人（例外只給可站立體）'
+        );
+      }
+    }
+  }
+
+  /* --- ⑥c 邊界護欄：不管腳多高都不准落到虛空 ------------------------ */
+  {
+    // 找一個「走得到」的點與一個虛空點
+    let safe = null;
+    let voidPt = null;
+    for (let a = 0; a < 360 && !voidPt; a += 3) {
+      const t = (a / 180) * Math.PI;
+      const x = Math.cos(t) * 200;
+      const z = Math.sin(t) * 200;
+      if (World.coverage(x, z) < 0.2) voidPt = [x, z];
+    }
+    for (let rr = 0; rr < 40 && !safe; rr += 1) {
+      if (testWorld.isClear(rr, 6)) safe = [rr, 6];
+    }
+    ok(Boolean(voidPt), '找得到一個虛空的點（不然這一段是空過的）');
+    ok(Boolean(safe), '找得到一個站得住的點');
+    if (voidPt && safe) {
+      eq(World.coverage(voidPt[0], voidPt[1]) < World.STAND_COVER_MIN, true, '那個點真的在虛空上');
+      const kept = testWorld.clampPosition(voidPt[0], voidPt[1], safe[0], safe[1], 999);
+      ok(
+        !(kept.x === voidPt[0] && kept.z === voidPt[1]),
+        '腳抬到 999 公尺也走不進虛空（isWalkable 一寸都沒放寬）',
+        JSON.stringify(kept)
+      );
+      ok(World.coverage(kept.x, kept.z) >= 0.45, '被夾住之後的落點仍然踩得到地', World.coverage(kept.x, kept.z).toFixed(2));
+      // 反例：同一個呼叫但目標是合法的點 → 走得過去（證明上面夾住的是虛空，不是「什麼都夾」）
+      const moved = testWorld.clampPosition(safe[0], safe[1], safe[0], safe[1] + 0.5, 999);
+      ok(moved.x === safe[0] && moved.z === safe[1], '[反例] 目標合法時照樣走得過去');
+    }
+  }
+
+  /* --- ⑦ 預算與零每幀配置 ------------------------------------------- */
+  {
+    let pfTris = 0;
+    let pfLights = 0;
+    let pfSolids = 0;
+    for (const layer of testWorld.screens) {
+      if (layer.id !== 'foundations') continue;
+      layer.group.traverse((o) => {
+        if (o.isLight) pfLights += 1;
+        if (o.isMesh && o.geometry) {
+          const geo = o.geometry;
+          const n = geo.index ? geo.index.count / 3 : geo.attributes.position.count / 3;
+          pfTris += n * (o.isInstancedMesh ? o.count : 1);
+        }
+      });
+      pfSolids += World.collectSolids(layer.group, World.terrainHeight).length;
+    }
+    ok(pfTris > 0, 'P14：高台真的蓋出來了（三角形不是 0）', `tris=${pfTris}`);
+    ok(pfTris < 2000, 'P14：高台的三角形 < 2,000', `tris=${pfTris}`);
+    eq(pfLights, 0, 'P14：高台一盞燈都沒加');
+    eq(pfSolids, 1, 'P14：高台只登記一顆碰撞圓');
+    let lightsP14 = 0;
+    testScene.traverse((o) => {
+      if (o.isLight) lightsP14 += 1;
+    });
+    eq(lightsP14, 37, 'P14：世界光源數仍然是 37', String(lightsP14));
+    ok(testWorld.solids.length < 1000, 'P14：碰撞體 < 1,000', String(testWorld.solids.length));
+
+    // 靜態掃描：跳躍的那兩段程式在 tick 裡不 new、不 map/filter、不建閉包
+    const jumpSrc = readFileSync(resolve(root, 'src/player/jump.js'), 'utf8');
+    const playerSrc = readFileSync(resolve(root, 'src/player/player.js'), 'utf8');
+    const bodyOf = (src, head, endMark) => {
+      const i = src.indexOf(head);
+      if (i < 0) return '';
+      const j = src.indexOf(endMark, i);
+      return j < 0 ? src.slice(i) : src.slice(i, j);
+    };
+    const stepBody = bodyOf(jumpSrc, 'export function stepJumper(', '\nexport default');
+    ok(stepBody.length > 400, 'stepJumper() 的本體抓得到（不然下面三條是空過的）', String(stepBody.length));
+    for (const bad of ['new ', '.map(', '.filter(', '=>']) {
+      eq(stepBody.includes(bad), false, `P14：stepJumper() 裡沒有 ${bad}（零每幀配置）`);
+    }
+    const vertBody = bodyOf(playerSrc, '  function updateVertical(dt, groundY) {', '\n  engine.onUpdate(');
+    ok(vertBody.length > 400, 'updateVertical() 的本體抓得到（不然下面三條是空過的）', String(vertBody.length));
+    for (const bad of ['new ', '.map(', '.filter(']) {
+      eq(vertBody.includes(bad), false, `P14：updateVertical() 裡沒有 ${bad}（零每幀配置）`);
+    }
+    // 玩家貼地那一行還在（結構上的「行為零改變」）
+    ok(
+      /group\.position\.y = updateVertical\(dt, groundY\);/.test(playerSrc),
+      'player.js 的貼地那一行改成問 updateVertical()（唯一的接點）'
+    );
+    ok(
+      /return io\.groundY;/.test(jumpSrc),
+      'stepJumper() 在「沒離地也沒站在東西上」時直接回地形高度（就是原本那一行）'
+    );
+    ok(/reducedMotion/.test(playerSrc), 'player.js 收得到 reducedMotion');
+    ok(
+      /if \(reducedMotion\) \{\n\s+squash = 0;/.test(playerSrc),
+      'reducedMotion 下不做擠壓（位移保留、擠壓拿掉 —— WORLD.md §2.4）'
+    );
+  }
+
+  /* --- ⑧ 音效與鍵位說明 --------------------------------------------- */
+  {
+    const AudioMod = await import('../src/audio/audio.js');
+    for (const kind of ['jump', 'land']) {
+      const spec = AudioMod.SFX[kind];
+      ok(Boolean(spec), `音效表有 ${kind}`);
+      ok(spec && Array.isArray(spec.seq) && spec.seq.length >= 1, `${kind} 有合成序列（不需要音檔）`);
+      ok(spec && spec.gain > 0 && spec.gain < 0.06, `${kind} 很小聲（跳一整片高原也不吵）`, spec ? String(spec.gain) : '?');
+      eq(kind in AudioMod.SFX_FILES, false, `${kind} 沒有對應音檔 → 離線一定聽得到（合成是預設，不是備案）`);
+    }
+    const KeyHelp = await import('../src/ui/keyhelp.js');
+    const walkGroup = KeyHelp.KEY_GROUPS.find((g2) => g2.id === 'walk');
+    ok(Boolean(walkGroup), '操作一覽有「走路」那一組');
+    const jumpRow = walkGroup && walkGroup.rows.find((r2) => r2.keys.includes('J'));
+    ok(Boolean(jumpRow), '操作一覽的走路那一組有 J');
+    ok(jumpRow && /跳/.test(jumpRow.what), '操作一覽說得出 J 是跳', jumpRow ? jumpRow.what : '');
+    ok(jumpRow && /中央高原/.test(jumpRow.what), '操作一覽誠實標明只有中央高原跳得起來');
+    const introSrc = readFileSync(resolve(root, 'src/ui/intro.js'), 'utf8');
+    ok(/<kbd>J<\/kbd>/.test(introSrc), '首次進入的教學卡也列了 J');
   }
 }
 

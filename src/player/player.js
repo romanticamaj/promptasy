@@ -12,6 +12,7 @@
 import * as THREE from 'three';
 import { terrainHeight as defaultTerrain } from '../world/world.js';
 import { createCharacter } from './character.js';
+import { createJumper, isAloft, jumpSpeedFor, stepJumper } from './jump.js';
 
 const MOVE_SPEED = 11.5;
 const RUN_MULTIPLIER = 1.75;
@@ -65,12 +66,54 @@ const ZOOM_RATE = 14;
 const ZOOM_OUT_KEYS = ['Minus', 'NumpadSubtract', 'PageDown'];
 const ZOOM_IN_KEYS = ['Equal', 'NumpadAdd', 'PageUp'];
 
+/* --- 跳躍（v1.2 · P14） --------------------------------------------------
+ * 常數、彈道與狀態機全部在 `jump.js`（純函式、不 import three）——
+ * 「跳得上 1.6、跳不上 3.0」「鬆手會不會少跳一截」這些問題在 rubric 裡就答得完。
+ *
+ * 這一支只負責把它接上世界：
+ *   · 起跳前問一句「這片土地跳得起來嗎」（只有中央高原非 0）與「腳下安不安全」
+ *   · 空中的每一步水平位移照樣走 `clampPosition()` —— **邊界護欄一寸都不放寬**
+ *   · 腳下的高度改問 `world.supportAt(x, z, 腳的高度)`：
+ *     只有「腳已經站到它頂面以上」的可站立體才撐得住人
+ *
+ * **不按 `J` 的那條路一個位元組都沒有變**：`isAloft()` 是 false 時，
+ * 下面那一段 `updateVertical()` 直接回 `groundY` ——
+ * 也就是 P14 之前那一行 `group.position.y = terrainHeight(...)`。
+ */
+/** 落地擠壓 / 起跳拉長的視覺幅度（0 = 關掉）。 */
+const SQUASH_Y = 0.3;
+const SQUASH_XZ = 0.2;
+/** 擠壓收回去的速率（越大收得越快）。 */
+const SQUASH_DAMP = 9;
+/** 起跳那一下拉長多少（負 = 拉長）。 */
+const STRETCH_ON_JUMP = -0.7;
+/** 落地塵：幾顆、活多久（秒）、散多開。 */
+const DUST_COUNT = 26;
+const DUST_LIFE = 0.55;
+const DUST_SPREAD = 1.9;
+/** 掉到多快才值得噴塵與出聲（m/s）—— 從高台上走下來也算得上一次落地。 */
+const LAND_IMPACT_MIN = 3.2;
+
 /**
  * @param {object} opts
  * @param {object} [opts.world] createWorld() 的回傳值：提供 terrainHeight / clampPosition / colliders
  * @param {Function} [opts.onStep] 走路踏地時的回呼（拿來播腳步聲）
+ * @param {Function} [opts.onJump] 離地那一刻的回呼（播起跳聲）
+ * @param {Function} [opts.onLand] 落地那一刻的回呼，參數是落地速度（m/s）
+ * @param {boolean} [opts.reducedMotion] `prefers-reduced-motion`：
+ *   **關掉的是「動」，不是「回應」**（WORLD.md §2.4）——跳躍照跳、位移一寸不減，
+ *   拿掉的只有擠壓變形與塵埃往外飛的那一段。
  */
-export function createPlayer({ engine, quality = 'high', startPosition = [0, 0], world = null, onStep = null }) {
+export function createPlayer({
+  engine,
+  quality = 'high',
+  startPosition = [0, 0],
+  world = null,
+  onStep = null,
+  onJump = null,
+  onLand = null,
+  reducedMotion = false,
+}) {
   const { scene, camera } = engine;
   const terrainHeight = world && world.terrainHeight ? world.terrainHeight : defaultTerrain;
   const clampPosition =
@@ -78,6 +121,15 @@ export function createPlayer({ engine, quality = 'high', startPosition = [0, 0],
   const colliders = (world && world.colliders) || [];
   // 保險絲：站在實體道具裡時每幀往外推一小步（見 world.escapeSolid）
   const escapeSolid = world && world.escapeSolid ? world.escapeSolid.bind(world) : () => null;
+  /*
+   * v1.2 · P14：腳下真的撐得住你的那一面。回的是**共用物件**（零每幀配置），
+   * 用完就讀。沒有世界時退回「永遠是地形高度」——單獨測角色控制器也跑得動。
+   */
+  const supportAt =
+    world && world.supportAt ? world.supportAt.bind(world) : (x, z) => ({ y: terrainHeight(x, z), index: -1, id: null });
+  /** 起跳前要問的兩件事：這裡是哪一片土地、腳下站不站得穩。 */
+  const regionAt = world && world.regionAt ? world.regionAt : () => null;
+  const isClear = world && world.isClear ? world.isClear : () => true;
 
   /* --- 角色模型 --- */
   const group = new THREE.Group();
@@ -100,9 +152,63 @@ export function createPlayer({ engine, quality = 'high', startPosition = [0, 0],
   group.position.set(sx, terrainHeight(sx, sz), sz);
   scene.add(group);
 
+  /* --- 落地塵（v1.2 · P14） -------------------------------------------
+   * 一組固定 26 顆的點，建好一次就一直留著（**tick 裡不 new**）。
+   * 落地時整組搬到腳下、放大再淡出 —— 沒有新光源、沒有新材質快取。
+   * `reducedMotion` 下只淡出、不往外散（WORLD.md §2.4：關掉的是動、不是回應）。
+   */
+  const dustGeo = new THREE.BufferGeometry();
+  {
+    const pos = new Float32Array(DUST_COUNT * 3);
+    for (let i = 0; i < DUST_COUNT; i += 1) {
+      const a = (i / DUST_COUNT) * Math.PI * 2 + (i % 3) * 0.4;
+      const rad = 0.35 + ((i * 37) % 100) / 100 * 0.65;
+      pos[i * 3] = Math.cos(a) * rad;
+      pos[i * 3 + 1] = 0.08 + ((i * 53) % 100) / 100 * 0.32;
+      pos[i * 3 + 2] = Math.sin(a) * rad;
+    }
+    dustGeo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  }
+  const dustMat = new THREE.PointsMaterial({
+    color: 0xb9c6d4,
+    size: 0.17,
+    transparent: true,
+    opacity: 0,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+  });
+  const dust = new THREE.Points(dustGeo, dustMat);
+  dust.name = 'jump-dust';
+  dust.visible = false;
+  dust.frustumCulled = false;
+  scene.add(dust);
+  let dustT = 0;
+
+  /* --- 跳躍狀態 ---
+   * `jumper` 是 `jump.js` 的那一小台狀態機；`jumpIO` 是遞給它的**同一個**物件
+   * （每幀填一填就好，不 new）。`squash` 是程序化的擠壓 / 拉長，正 = 壓扁。
+   */
+  const jumper = createJumper();
+  const jumpIO = {
+    y: 0,
+    groundY: 0,
+    supportY: 0,
+    supportId: null,
+    supportIndex: -1,
+    wantJump: false,
+    held: false,
+    jumpSpeed: 0,
+    canTakeOff: false,
+  };
+  let squash = 0;
+
   /* --- 輸入 --- */
   const keys = new Set();
   let inputEnabled = true;
+  /** 跳躍鍵（WORLD.md §3.1 · P13 定案）。 */
+  const JUMP_KEY = 'KeyJ';
+  /** 這一幀有沒有「按下」跳躍鍵（邊緣觸發，讀完就清）。 */
+  let jumpPressed = false;
   /** 這一幀有沒有按著 Shift（序章的「學會奔跑」用得到）。 */
   let running = false;
   let cameraYaw = Math.PI; // 一開始面向 -Z（世界深處）
@@ -119,6 +225,8 @@ export function createPlayer({ engine, quality = 'high', startPosition = [0, 0],
 
   function onKeyDown(e) {
     if (!inputEnabled || isTypingTarget(e.target)) return;
+    // 跳躍是**邊緣觸發**：按著不放不會連跳（keydown 會一直重送）。
+    if (e.code === JUMP_KEY && !keys.has(JUMP_KEY)) jumpPressed = true;
     keys.add(e.code);
     if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space', 'PageUp', 'PageDown'].includes(e.code))
       e.preventDefault();
@@ -128,6 +236,7 @@ export function createPlayer({ engine, quality = 'high', startPosition = [0, 0],
   }
   function onBlur() {
     keys.clear();
+    jumpPressed = false;
   }
 
   function onPointerDown(e) {
@@ -200,6 +309,8 @@ export function createPlayer({ engine, quality = 'high', startPosition = [0, 0],
   let lean = 0;
   let stepFlag = 0;
   let camDistSmooth = cameraDistance;
+  /** 跳躍的視覺（擠壓 / 影子 / 塵）這一幀還需不需要收尾。 */
+  let jumpVisualOn = false;
 
   camera.position.set(sx, terrainHeight(sx, sz) + 8, sz + cameraDistance);
   camera.fov = BASE_FOV;
@@ -222,6 +333,78 @@ export function createPlayer({ engine, quality = 'high', startPosition = [0, 0],
     if (!hits.length) return wanted;
     const d = Math.max(2.2, hits[0].distance - 0.9);
     return wanted.copy(anchor).addScaledVector(rayDir, d);
+  }
+
+  /**
+   * v1.2 · P14：這一幀腳要放在多高。
+   *
+   * **貼著地形走的時候（沒有離地、也沒有站在任何東西上），這一支直接回 `groundY`**
+   * —— 也就是 P14 之前那一行 `group.position.y = terrainHeight(...)`。
+   * 所以「不按 `J` 行為零改變」不是統計出來的，是結構上成立的：
+   * `stepJumper()` 的第 ④ 段就是那一行。
+   *
+   * 零每幀配置：`jumpIO` 是同一個物件、`supportAt()` 回的也是同一個物件。
+   *
+   * @param {number} dt
+   * @param {number} groundY 腳下地形的高度
+   * @returns {number} 腳的高度
+   */
+  function updateVertical(dt, groundY) {
+    const px = group.position.x;
+    const pz = group.position.z;
+    const aloft = isAloft(jumper);
+    const wantJump = jumpPressed;
+    jumpPressed = false;
+
+    /*
+     * 支撐面：**用這一幀開始時腳的高度去問**。下墜時那是這一幀的最高點，
+     * 所以一幀 0.2 秒也不會從頂面正中間穿過去（findings：軟體渲染一幀真的有 0.2 秒）。
+     */
+    const sup = aloft ? supportAt(px, pz, group.position.y) : null;
+
+    /*
+     * 起跳前的兩道護欄（只有真的按了跳才問，不是每幀）：
+     *   ① 這片土地跳得起來嗎 —— 只有中央高原非 0，橋上一律 0
+     *   ② 腳下站不站得穩 —— `isClear()` ＝ 覆蓋率 ＋ 閘門 ＋ 沒有卡在石頭裡。
+     *      卡在石頭裡（脫困中）或站在虛空邊緣時**起跳那一刻就被夾住**：不准離地。
+     */
+    let jumpSpeed = 0;
+    let canTakeOff = false;
+    if (wantJump || jumper.buffer > 0) {
+      const here = regionAt(px, pz);
+      jumpSpeed = here && !here.onBridge ? jumpSpeedFor(here.id) : 0;
+      canTakeOff = jumpSpeed > 0 && isClear(px, pz, aloft ? group.position.y : null);
+    }
+
+    jumpIO.y = group.position.y;
+    jumpIO.groundY = groundY;
+    jumpIO.supportY = sup ? sup.y : groundY;
+    jumpIO.supportId = sup ? sup.id : null;
+    jumpIO.supportIndex = sup ? sup.index : -1;
+    jumpIO.wantJump = wantJump;
+    jumpIO.held = inputEnabled && keys.has(JUMP_KEY);
+    jumpIO.jumpSpeed = jumpSpeed;
+    jumpIO.canTakeOff = canTakeOff;
+
+    const jumpsBefore = jumper.jumps;
+    const wasAirborne = jumper.airborne;
+    const y = stepJumper(jumper, dt, jumpIO);
+
+    if (jumper.jumps !== jumpsBefore) {
+      squash = STRETCH_ON_JUMP; // 起跳：拉長
+      onJump?.();
+    } else if (wasAirborne && !jumper.airborne) {
+      // 落地：擠壓 ＋ 塵 ＋ 一聲悶響（掉得夠快才值得，走下一階不會叮咚響）
+      const impact = jumper.lastImpact;
+      if (impact >= LAND_IMPACT_MIN) {
+        squash = Math.min(1, impact / 14);
+        dustT = DUST_LIFE;
+        dust.position.set(px, y + 0.05, pz);
+        dust.visible = true;
+        onLand?.(impact);
+      }
+    }
+    return y;
   }
 
   engine.onUpdate((dt, t) => {
@@ -261,6 +444,13 @@ export function createPlayer({ engine, quality = 'high', startPosition = [0, 0],
     velocity.z = THREE.MathUtils.damp(velocity.z, wants ? wish.z * topSpeed : 0, rate, dt);
     if (!wants && velocity.lengthSq() < 0.02) velocity.set(0, 0, 0);
 
+    /*
+     * v1.2 · P14：腳的高度。**貼著地形走的時候是 `null`** ——
+     * `clampPosition()` 與 `escapeSolid()` 於是走 P13 之前那一支，一個位元組沒動。
+     * 只有離地中／站在高台上時才給數字，讓「腳已經在它頂面以上」的那一顆不擋人。
+     */
+    const feetY = isAloft(jumper) ? group.position.y : null;
+
     const speed = Math.hypot(velocity.x, velocity.z);
     if (speed > 0.01) {
       // 世界邊界 / 未開啟的閘門：走不過去就沿牆滑
@@ -268,7 +458,8 @@ export function createPlayer({ engine, quality = 'high', startPosition = [0, 0],
         group.position.x + velocity.x * dt,
         group.position.z + velocity.z * dt,
         group.position.x,
-        group.position.z
+        group.position.z,
+        feetY
       );
       // 真的被擋住 → 把該軸的速度歸零，才不會貼著牆繼續加速
       if (Math.abs(next.x - group.position.x) < 1e-6 && Math.abs(velocity.x) > 0.01) velocity.x *= 0.2;
@@ -291,7 +482,7 @@ export function createPlayer({ engine, quality = 'high', startPosition = [0, 0],
     }
 
     // 卡在道具裡就慢慢推出來（傳送、資料改動都可能發生；絕不能把玩家關住）
-    const escape = escapeSolid(group.position.x, group.position.z, dt * 6 + 0.05);
+    const escape = escapeSolid(group.position.x, group.position.z, dt * 6 + 0.05, feetY);
     if (escape) {
       group.position.x = escape.x;
       group.position.z = escape.z;
@@ -299,7 +490,7 @@ export function createPlayer({ engine, quality = 'high', startPosition = [0, 0],
 
     // 貼地（走路的上下起伏交給角色的軀幹那一層，腳下的軟陰影才不會跟著飄）
     const groundY = terrainHeight(group.position.x, group.position.z);
-    group.position.y = groundY;
+    group.position.y = updateVertical(dt, groundY);
 
     // 轉向平滑
     let delta = facing - group.rotation.y;
@@ -318,6 +509,40 @@ export function createPlayer({ engine, quality = 'high', startPosition = [0, 0],
       runRatio: THREE.MathUtils.clamp((speed - MOVE_SPEED * 0.92) / (MOVE_SPEED * (RUN_MULTIPLIER - 0.92)), 0, 1),
       lean,
     });
+
+    /* --- v1.2 · P14：起跳拉長 / 落地擠壓、影子留在地上、落地塵 ---
+     * 整段只有在「離地中 / 還在收擠壓 / 塵還沒散」時才跑；三件事都結束之後
+     * 再跑最後一幀把角色、影子、塵都還原（`jumpVisualOn`），之後就完全不進來。
+     * `reducedMotion`：**位移拿掉、回應留著** —— 不擠壓、塵不往外飛，但塵照樣亮一下再淡掉。
+     */
+    const jumpVisual = squash !== 0 || dustT > 0 || isAloft(jumper);
+    if (jumpVisual || jumpVisualOn) {
+      jumpVisualOn = jumpVisual;
+      if (reducedMotion) {
+        squash = 0;
+        character.root.scale.set(1, 1, 1);
+      } else {
+        squash = THREE.MathUtils.damp(squash, 0, SQUASH_DAMP, dt);
+        if (Math.abs(squash) < 0.004) squash = 0;
+        character.root.scale.set(1 + squash * SQUASH_XZ, 1 - squash * SQUASH_Y, 1 + squash * SQUASH_XZ);
+      }
+      // 腳下的軟陰影留在地上（離地越高越小、越淡）—— 貼著地走的時候 drop 是 0，回到原值
+      const drop = Math.max(0, group.position.y - jumpIO.supportY);
+      const shade = Math.max(0.34, 1 - drop * 0.24);
+      blob.position.y = 0.03 - drop;
+      blob.scale.setScalar(shade);
+      blob.material.opacity = 0.28 * shade;
+    }
+    if (dustT > 0) {
+      dustT = Math.max(0, dustT - dt);
+      const p = 1 - dustT / DUST_LIFE;
+      dustMat.opacity = 0.5 * (1 - p) * (1 - p);
+      dust.scale.setScalar(reducedMotion ? DUST_SPREAD * 0.7 : 0.6 + p * DUST_SPREAD);
+      if (dustT === 0) {
+        dust.visible = false;
+        dustMat.opacity = 0;
+      }
+    }
 
     // 奔跑時 FOV 微微拉開 —— 最便宜的速度感
     engine.setFov?.(THREE.MathUtils.damp(camera.fov, BASE_FOV + (RUN_FOV - BASE_FOV) * speedRatio, 4, dt));
@@ -393,6 +618,25 @@ export function createPlayer({ engine, quality = 'high', startPosition = [0, 0],
     get speed() {
       return Math.hypot(velocity.x, velocity.z);
     },
+    /**
+     * v1.2 · P14：跳躍狀態（唯讀，測試 / 除錯用）。
+     *
+     * 為什麼要有 `jumps` / `lastApex` / `lastAirTime` 這幾個**累計值**：
+     * 這台機器一幀可能 0.2 秒（軟體渲染），整趟 0.8 秒的跳躍只會被輪詢看到三四次
+     * —— 「某一幀正好抓到他在空中」是會隨機器速度變動的斷言（findings · P12）。
+     * 累計值不會，所以 e2e 問的是這幾個。
+     */
+    get jump() {
+      return jumper;
+    },
+    /** 站在哪一座高台上（`null` ＝ 貼著地形）。 */
+    get standingOn() {
+      return jumper.standing;
+    },
+    /** 現在離地了嗎。 */
+    get airborne() {
+      return jumper.airborne;
+    },
     /** 目前的鏡頭方位角（弧度）—— 序章用它判斷「玩家真的轉過鏡頭了」。 */
     get cameraYaw() {
       return cameraYaw;
@@ -435,6 +679,7 @@ export function createPlayer({ engine, quality = 'high', startPosition = [0, 0],
       inputEnabled = v;
       if (!v) {
         keys.clear();
+        jumpPressed = false;
         velocity.set(0, 0, 0);
       }
     },
@@ -447,6 +692,13 @@ export function createPlayer({ engine, quality = 'high', startPosition = [0, 0],
     teleport(x, z, face) {
       group.position.set(x, terrainHeight(x, z), z);
       velocity.set(0, 0, 0);
+      // 傳送＝重新落地：跳躍狀態整組歸零，不然人會帶著上一處的垂直速度出現
+      jumper.airborne = false;
+      jumper.standing = null;
+      jumper.vy = 0;
+      jumper.buffer = 0;
+      jumper.cut = false;
+      jumpPressed = false;
       lookNow.set(x, terrainHeight(x, z) + 2.2, z);
       if (Number.isFinite(face)) {
         facing = face;
@@ -462,6 +714,9 @@ export function createPlayer({ engine, quality = 'high', startPosition = [0, 0],
       return character.restAmount;
     },
     dispose() {
+      scene.remove(dust);
+      dustGeo.dispose();
+      dustMat.dispose();
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', onKeyUp);
       window.removeEventListener('blur', onBlur);

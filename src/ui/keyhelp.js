@@ -21,6 +21,8 @@ export const KEY_GROUPS = Object.freeze([
     rows: [
       { keys: ['W', 'A', 'S', 'D'], what: '往前後左右走' },
       { keys: ['Shift'], what: '跑起來' },
+      // v1.2 · P14：跳躍目前只有中央高原跳得起來；其餘土地按下去不會有事發生
+      { keys: ['J'], what: '跳（中央高原上跳得起來，跳得上第一階）' },
     ],
   },
   {

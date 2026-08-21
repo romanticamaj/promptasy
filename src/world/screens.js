@@ -60,6 +60,13 @@ export function disposeScreenCache() {
 }
 
 const box = (w, h, d) => g(`box:${w},${h},${d}`, () => new THREE.BoxGeometry(w, h, d));
+/**
+ * 圓柱（高台用）。`radialSegments` 24 —— 頂面的內接半徑是 r·cos(7.5°) ＝ 0.991 r，
+ * 比 `STAND_RING_STEP`（0.15）小得多，所以 `standR` 追得到幾乎整個碰撞半徑。
+ */
+const cylinder = (r, h) => g(`cyl:${r},${h}`, () => new THREE.CylinderGeometry(r, r, h, 24, 1));
+/** 躺平的環（高台頂面那一圈刻線）。與其他幾何一樣走模組層的快取。 */
+const flatRing = (inner, outer) => g(`ring:${inner},${outer}`, () => new THREE.RingGeometry(inner, outer, 40));
 const stone = (c) => m(`stone:${c}`, () => new THREE.MeshStandardMaterial({ color: c, flatShading: true, roughness: 0.94 }));
 const glow = (c, i = 0.9) =>
   m(`glow:${c},${i}`, () =>
@@ -300,6 +307,59 @@ export const MOTIFS = Object.freeze([
   { id: 'config-mask-02', region: 'config', at: [110, 86], rot: 0, kind: 'emptyMask', height: 4.6 },
   { id: 'config-mask-03', region: 'config', at: [115, 124], rot: 3.67, kind: 'emptyMask', height: 5.0 },
   { id: 'config-mask-04', region: 'config', at: [83, 128], rot: 2.62, kind: 'emptyMask', height: 4.2 },
+]);
+
+/**
+ * 高台（v1.2 · P14）：**站得上去的那一階**。
+ *
+ * 這是中觀層的第三種東西，也是第一種**為了跳躍而存在**的東西。
+ * P13 把「頂面站不站得上去」量成了資料（`standable`／`standTop`／`standR`），
+ * P14 把它接到玩家腳下 —— 這一格自己蓋第一座，證明「跳上去、站得住、走下來」整條路成立。
+ *
+ * `at`      世界座標 [x, z]（用 `npm run screen-fit --kind platform` 搜出來的，不是手挑的）
+ * `rot`     繞 Y 的旋轉（弧度）—— 只影響刻線的朝向，圓的形狀本來就沒有正面
+ * `kind`    造型（目前只有 `stepStone`：一塊圓的石鼓，頂面是平的）
+ * `height`  頂面離自己腳下的地多高（公尺）
+ * `radius`  石鼓的半徑（公尺）＝ 登記的碰撞半徑
+ *
+ * 三條它自己的規則（`test:rubric` 與 `screen-fit` 用同一份門檻）：
+ *   ① 高度落在 `PLATFORM_HEIGHT_MIN`–`PLATFORM_HEIGHT_MAX`，而且**一定在 `STAND_MIN_H`–`STAND_MAX_H` 之內**
+ *      —— 蓋一座跳不上去的高台等於蓋一面牆。
+ *   ② 半徑 ≥ `PLATFORM_RADIUS_MIN`：頂面量出來的 `standR` 要 ≥ `PLATFORM_STAND_R_MIN`（1.2），
+ *      不然人站上去一動就掉下來。
+ *   ③ 其餘擺位規則與母題**共用同一套**（離路網 7–26、離互動圈、離主動線、離閘門、
+ *      腳下覆蓋率、四周繞得過去、逐塊貼地）—— 不另訂一份會分家的門檻。
+ */
+export const PLATFORM_HEIGHT_MIN = 1.2;
+export const PLATFORM_HEIGHT_MAX = 2.4;
+export const PLATFORM_RADIUS_MIN = 1.4;
+export const PLATFORM_RADIUS_MAX = 3.2;
+/** 頂面「證明過是平的」那一段至少要有多寬（公尺）—— 站得住一個人（玩家半徑 0.62）還有餘。 */
+export const PLATFORM_STAND_R_MIN = 1.2;
+
+export const PLATFORMS = Object.freeze([
+  /*
+   * 中央高原 · 第一階
+   *
+   * 高原是所有人出發的地方，可是它從頭到尾只有一個高度 —— 平的。
+   * 第一階是這片土地上第一個「上面」：一塊被踩得發亮的圓石鼓，
+   * 頂面刻著一圈細線（自發光，0 光源），從遠處看得出那一圈光是**平的**，
+   * 不是又一顆石頭。形狀自己說「這個可以站上去」，一個字都不寫。
+   *
+   * 座標是 `node scripts/screen-fit.mjs --region foundations --kind platform --height 1.6 --radius 2.6`
+   * 搜出來的（離線篩 4,000 個格點 → 70 個過篩 → 重建世界逐項量前 8 名），不是手挑的。
+   * 選的是**四周 16/16 全通**的那一個（另外六個可行的候選都有一、兩個方向繞不過去），
+   * 離「走出來的那條路」8.5 公尺 —— 走去任何一座橋都會經過它，但它不擋路。
+   */
+  {
+    id: 'foundations-first-step',
+    region: 'foundations',
+    at: [24, -12],
+    rot: 0,
+    kind: 'stepStone',
+    height: 1.6,
+    radius: 2.6,
+  },
 ]);
 
 /**
@@ -879,6 +939,69 @@ function buildEmptyMask(motif, kit, heightAt) {
   return grp;
 }
 
+/**
+ * 高台：**一塊圓的石鼓**（v1.2 · P14）。
+ *
+ * 為什麼是圓的而不是方的：`standR`（頂面證明過是平的那一段）是**一圈一圈往外量**的，
+ * 方的頂面在對角線方向上會先量到外面 —— 一塊 5.2 × 5.2 的方臺登記成半徑 2.6 的圓，
+ * 可是半徑 2.6 的那一圈有一半落在石頭外面，`standR` 於是卡在 1.8 左右。
+ * 圓的頂面「量到多遠都是平的」，`standR` 才追得上碰撞半徑，人站到邊緣才不會憑空掉下去。
+ *
+ * 三樣東西，兩樣不必擋人：
+ *   · **石鼓本體**（實體）：頂面 `height` 公尺、往地下埋 `SINK` 咬住地形起伏。
+ *     碰撞登記在**群組**上（`solidRadius`）—— 一顆圓、一個名字（`standId`）。
+ *   · **底裙**（露出地面 0.55 公尺 → §6.3 說它跨得過去，不必有碰撞體、稽核也不列）：
+ *     讓石鼓看起來是從地裡長出來的，不是擺上去的。
+ *   · **頂面的一圈刻線**（自發光、半透明 → 不是可以站的面，量頂面時一律不算）：
+ *     夜裡從遠處就看得出那一圈光是平的。**0 新光源。**
+ */
+function buildStepStone(spec, kit, heightAt) {
+  const grp = new THREE.Group();
+  grp.name = `platform:${spec.id}`;
+  const [x, z] = spec.at;
+  const ground = heightAt(x, z);
+  const r = spec.radius;
+  const h = spec.height;
+  const SINK = 0.7; // 往地下埋多深（地形有起伏，埋淺了邊緣會浮起來）
+
+  grp.position.set(x, ground, z);
+
+  /*
+   * 碰撞、頂面與名字**登記在石鼓本身**，不是群組上。
+   * 為什麼：`collectTriangles()` 攤三角面時會跳過標了 `noCollide` 的網格 ——
+   * 把圓登記在群組、把石鼓標成 `noCollide`（遮擋帶那一套寫法）會讓頂面一片都量不到，
+   * 於是「站得上去」永遠是 false。登記在石鼓上，「擋人的那一顆圓」與
+   * 「站得上去的那一面」講的就是同一件東西。
+   */
+  const drum = new THREE.Mesh(cylinder(r, h + SINK), stone(kit.mid));
+  drum.name = `step:${spec.id}`;
+  drum.position.y = (h - SINK) / 2;
+  drum.rotation.y = spec.rot;
+  drum.userData.solidRadius = r;
+  drum.userData.keepSolid = true; // 它就是要擋人，別被淨空濾網當雜物掃掉
+  drum.userData.standId = spec.id; // 站上去之後 `player.standingOn` 回的就是這個字串
+  drum.userData.hugsGround = true; // 「這一塊站在地上」——測試逐塊量它有沒有真的貼住
+  drum.userData.blocksCamera = true;
+  grp.add(drum);
+
+  // 底裙：矮一階的圓臺（露出地面 0.55 —— 跨得過去，不是牆）
+  const skirt = new THREE.Mesh(cylinder(r + 0.55, 0.55 + SINK), stone(kit.dark));
+  skirt.position.y = (0.55 - SINK) / 2;
+  skirt.rotation.y = spec.rot + 0.26;
+  skirt.userData.noCollide = true;
+  grp.add(skirt);
+
+  // 頂面的一圈刻線：光，不是物質（量頂面時被濾掉，稽核也算它是光）
+  const ring = new THREE.Mesh(flatRing(r * 0.62, r * 0.78), glow(kit.accent, 0.8));
+  ring.rotation.x = -Math.PI / 2;
+  ring.rotation.z = spec.rot;
+  ring.position.y = h + 0.02;
+  ring.userData.noCollide = true;
+  grp.add(ring);
+
+  return grp;
+}
+
 const BAND_KINDS = { stairRidge: buildStairRidge };
 const MOTIF_KINDS = {
   twiceShown: buildTwiceShown,
@@ -887,9 +1010,12 @@ const MOTIF_KINDS = {
   emptyMask: buildEmptyMask,
 };
 
+const PLATFORM_KINDS = { stepStone: buildStepStone };
+
 /** 已實作的造型 id（測試會檢查資料只用得到這些）。 */
 export const BAND_KIND_IDS = Object.freeze(Object.keys(BAND_KINDS));
 export const MOTIF_KIND_IDS = Object.freeze(Object.keys(MOTIF_KINDS));
+export const PLATFORM_KIND_IDS = Object.freeze(Object.keys(PLATFORM_KINDS));
 
 /**
  * 蓋出一片土地的中觀層（遮擋帶 ＋ 母題）。沒有資料的區回傳 null。
@@ -904,18 +1030,21 @@ export const MOTIF_KIND_IDS = Object.freeze(Object.keys(MOTIF_KINDS));
 export function buildScreens(regionId, kit, heightAt, data = null) {
   const bands = (data && data.bands ? data.bands : SCREEN_BANDS).filter((b) => b.region === regionId);
   const motifs = (data && data.motifs ? data.motifs : MOTIFS).filter((mo) => mo.region === regionId);
-  if (!bands.length && !motifs.length) return null;
+  const platforms = (data && data.platforms ? data.platforms : PLATFORMS).filter((p) => p.region === regionId);
+  if (!bands.length && !motifs.length && !platforms.length) return null;
   const group = new THREE.Group();
   group.name = `screens:${regionId}`;
   for (const b of bands) group.add((BAND_KINDS[b.kind] || buildStairRidge)(b, kit, heightAt));
   for (const mo of motifs) group.add((MOTIF_KINDS[mo.kind] || buildTwiceShown)(mo, kit, heightAt));
-  return { group, bands, motifs };
+  for (const pf of platforms) group.add((PLATFORM_KINDS[pf.kind] || buildStepStone)(pf, kit, heightAt));
+  return { group, bands, motifs, platforms };
 }
 
 export default {
   SCREEN_BANDS,
   landmarkSight,
   MOTIFS,
+  PLATFORMS,
   PATH_BENDS,
   corridorPolyline,
   bandFootprint,

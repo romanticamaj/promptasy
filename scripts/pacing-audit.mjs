@@ -85,6 +85,9 @@ export async function pacingAudit({ step = SAMPLE_STEP } = {}) {
       ...letters.map((l) => ({ id: l.id, x: l.at[0], z: l.at[1] })),
       ...Screens.SCREEN_BANDS.map((b) => ({ id: b.id, x: b.at[0], z: b.at[1] })),
       ...Screens.MOTIFS.map((mo) => ({ id: mo.id, x: mo.at[0], z: mo.at[1] })),
+      // v1.2 · P14：高台。**新資料層若擺在路網 12m 內，同一個 phase 就要餵進來**
+      // （P07 的教訓：24 頁殘頁漏餵，下一格就照著過期數據決定中景要放哪）。
+      ...Screens.PLATFORMS.map((pf) => ({ id: pf.id, x: pf.at[0], z: pf.at[1] })),
     ],
     marker: challenges.filter((c) => c.position).map((c) => ({ id: c.id, x: c.position[0], z: c.position[1] })),
     landmark: Props.LANDMARKS.map((l) => ({ id: l.id, x: l.at[0], z: l.at[1] })),

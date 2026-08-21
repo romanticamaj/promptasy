@@ -31,7 +31,7 @@ import { createHandleField, HANDLE_RADIUS } from './handles.js';
 import { createMurkField, MURK_RADIUS } from './murks.js';
 import { createRubricFx } from './rubric-fx.js';
 // v1.2 · P11：中觀那一階（遮擋帶與母題）。screens.js 不 import 這裡，也不 import props.js。
-import { SCREEN_BANDS, MOTIFS, buildScreens, landmarkSight, pointInBand } from './screens.js';
+import { SCREEN_BANDS, MOTIFS, PLATFORMS, buildScreens, landmarkSight, pointInBand } from './screens.js';
 // v1.2 · P12：地面的材質語言（每區兩色基底 ＋ 區界漸變 ＋ 低頻碎紋）。ground.js 也不 import 這裡。
 import { groundBaseColor } from './ground.js';
 // v1.2 · P12：每一片土地專屬的空中粒子（一區一個 Points、共用材質、0 光源）。
@@ -1039,24 +1039,49 @@ export function measureSurface(mesh, matrix, x, z, groundY, cover, r = STAND_MIN
 }
 
 /**
- * 腳下的高度 ＝ max(地形, 站得上去的頂面)。
+ * 「腳已經站到它頂面上了」的容差（公尺）。
  *
- * **v1.2 · P13 這一格刻意沒有接到玩家身上。** 沒有跳躍就沒有 Y 軸速度，
- * 玩家永遠貼著地形；而且任何「站得上去的頂面」都在某個碰撞圓裡，
- * 而 `solidAt()` 用的 pad 是 `PLAYER_RADIUS` —— 玩家的中心點永遠進不到圓裡。
- * 所以「接與不接」逐點相同，這件事由 `test:rubric` 在全地圖網格上逐點證明。
- * P14 要接上去的時候注意：`escapeSolid()` 會讓玩家短暫地站在圓內，
- * 那是唯一一條「接上去就會看到差別」的路。
+ * 兩個地方要問同一句話：**這顆可站立體現在該不該擋住我／撐住我**。
+ * 浮點誤差會讓「剛好站在 1.6 公尺的頂面上」變成 1.5999999999，
+ * 少了這個容差，人站在自己剛跳上來的高台上會被判成「還在下面」，
+ * 於是下一幀被 `escapeSolid()` 推出去。2 公分遠小於任何一階的高度差。
+ */
+export const LEDGE_EPS = 0.02;
+
+/**
+ * 支撐面查詢的**共用回傳物件**。
+ *
+ * WORLD.md §6.2「零每幀配置」：`supportAt()` 每一幀都被玩家呼叫，
+ * 回傳新物件就是每幀 new。所以它回的永遠是這一個 —— **用完就讀，不要留著**
+ * （下一次呼叫就被改掉了）。
+ */
+const _support = { y: 0, index: -1, id: null };
+/** `groundHeightAt()` 自己那一份（不要跟每幀的那個互相踩）。 */
+const _supportRaw = { y: 0, index: -1, id: null };
+
+/**
+ * 腳下的支撐面 ＝ max(地形, **腳已經站到它頂面以上**的可站立體)。
+ *
+ * v1.2 · P14 把 P13 量好的資料接到玩家身上，接法只有這一條規則：
+ * 一顆可站立體只有在 `feetY >= standTop - LEDGE_EPS` 時才撐得住人。
+ * 這一句同時回答了 P13 交接的第 1 條 ——
+ * **卡在石頭裡脫困中的玩家不會被瞬間抬到頂面**：他的腳在地形高度，
+ * 比任何一個 `standTop`（至少離地 `STAND_MIN_H` ＝ 0.6）都低，所以拿到的是地形高度，
+ * 由 `escapeSolid()` 慢慢把他請出來（而不是把他請到屋頂上）。
  *
  * @param {number} x
  * @param {number} z
- * @param {Array<{x:number,z:number,r:number,standR:number,top:number,standable:boolean}>} solids
+ * @param {Array<{x:number,z:number,r:number,standR:number,top:number,standTop:number,standable:boolean,id:string|null}>} solids
+ * @param {number} [feetY] 腳的高度（`Infinity` ＝ 不問腳在哪，只問「這裡最高的可站立頂面」）
  * @param {(x:number,z:number)=>number} [heightAt]
- * @returns {number}
+ * @param {{y:number,index:number,id:string|null}} [out] 寫進哪一個共用物件
+ * @returns {{y:number, index:number, id:string|null}} `index < 0` ＝ 撐住你的是地形
  */
-export function groundHeightAt(x, z, solids, heightAt = terrainHeight) {
-  let y = heightAt(x, z);
-  if (!solids) return y;
+export function supportAt(x, z, solids, feetY = Infinity, heightAt = terrainHeight, out = _support) {
+  out.y = heightAt(x, z);
+  out.index = -1;
+  out.id = null;
+  if (!solids) return out;
   for (let i = 0; i < solids.length; i += 1) {
     const s = solids[i];
     if (!s.standable) continue;
@@ -1067,9 +1092,34 @@ export function groundHeightAt(x, z, solids, heightAt = terrainHeight) {
     if (dx * dx + dz * dz > rad * rad) continue;
     // 抬到**腳踩得到的那一面**，不是剪影的頂（有頂蓋的平臺兩者不同）
     const face = Number.isFinite(s.standTop) ? s.standTop : s.top;
-    if (face > y) y = face;
+    if (face <= out.y) continue;
+    if (feetY < face - LEDGE_EPS) continue; // 腳還在它下面 → 它撐不住你
+    out.y = face;
+    out.index = i;
+    out.id = s.id || null;
   }
-  return y;
+  return out;
+}
+
+/**
+ * 腳下的高度 ＝ max(地形, 站得上去的頂面)。
+ *
+ * **v1.2 · P13 建的資料通路**：不問腳在哪（＝ `supportAt(..., Infinity)`），
+ * 所以它回的是「這一點最高的可站立頂面」。玩家走得到的每一點，它的答案與
+ * `terrainHeight()` 逐點相同（`test:rubric` 在 341 × 341 的全地圖網格上證明過）——
+ * 因為每一塊可站立的頂面都躲在某個碰撞圓裡，而 `solidAt()` 的 pad 是 `PLAYER_RADIUS`。
+ *
+ * **v1.2 · P14 接到玩家身上的不是這一支，是 `supportAt()`**（多問一句「腳在哪」）。
+ * 兩支共用同一段迴圈，判準不會分家。
+ *
+ * @param {number} x
+ * @param {number} z
+ * @param {Array<{x:number,z:number,r:number,standR:number,top:number,standable:boolean}>} solids
+ * @param {(x:number,z:number)=>number} [heightAt]
+ * @returns {number}
+ */
+export function groundHeightAt(x, z, solids, heightAt = terrainHeight) {
+  return supportAt(x, z, solids, Infinity, heightAt, _supportRaw).y;
 }
 
 /**
@@ -1157,6 +1207,13 @@ export function collectSolids(root, heightAt = terrainHeight, coverAt = coverage
           r,
           keep,
           explicit: explicit !== null || Boolean(span),
+          /*
+           * v1.2 · P14：`userData.standId` ＝「這一顆圓叫什麼名字」。
+           * 只有真的想被認出來的東西才登記（目前只有高台）——玩家站上去之後，
+           * `player.jump.standing` 回的就是這個字串，e2e 才問得出
+           * 「我現在站的是不是那一座高台」而不是「我腳下的數字變大了」。
+           */
+          id: typeof ud.standId === 'string' ? ud.standId : null,
           top: m.top,
           standTop: m.standTop,
           topFace: m.topFace,
@@ -1257,6 +1314,31 @@ export function markSolidParts(root) {
 export function solidAt(x, z, solids, pad = PLAYER_RADIUS) {
   for (let i = 0; i < solids.length; i += 1) {
     const s = solids[i];
+    const dx = x - s.x;
+    const dz = z - s.z;
+    const rr = s.r + pad;
+    if (dx * dx + dz * dz < rr * rr) return s;
+  }
+  return null;
+}
+
+/**
+ * 同上，但**腳已經站到某顆可站立體的頂面以上時，那一顆不擋人**（v1.2 · P14）。
+ *
+ * 這是跳躍唯一需要的那一條例外：不加它，玩家永遠飛不到高台上面
+ * （水平方向會被自己要站上去的那顆圓擋在外面）。它**只對可站立體生效**，
+ * 而且只在腳真的高過那一面時才生效 —— 從下面撞過去照樣擋得死死的。
+ *
+ * 反過來也一樣重要：人一旦掉到頂面以下（走出邊緣往下墜的那一路），
+ * 那顆圓**立刻恢復擋人**，於是 `clampPosition()`／`escapeSolid()` 會把他推回圓外，
+ * 而不是讓他穿進石頭裡。
+ *
+ * @param {number} feetY 腳的高度（世界座標）
+ */
+export function solidAtAbove(x, z, solids, feetY, pad = PLAYER_RADIUS) {
+  for (let i = 0; i < solids.length; i += 1) {
+    const s = solids[i];
+    if (s.standable && Number.isFinite(s.standTop) && feetY >= s.standTop - LEDGE_EPS) continue;
     const dx = x - s.x;
     const dz = z - s.z;
     const rr = s.r + pad;
@@ -3314,6 +3396,8 @@ export function createWorld({
   // v1.2 · P12：中觀那一層的資料（預設就是出貨的那一份；只有 screen-fit 會換掉）
   const screenBands = (screens && screens.bands) || SCREEN_BANDS;
   const screenMotifs = (screens && screens.motifs) || MOTIFS;
+  // v1.2 · P14：高台（站得上去的那一階）——與遮擋帶／母題同一個注入點
+  const screenPlatforms = (screens && screens.platforms) || PLATFORMS;
   const screenBends = (screens && screens.bends) || undefined;
 
   // 走出來的路（只染地面顏色，不動高度場）
@@ -3358,6 +3442,8 @@ export function createWorld({
       return pts;
     }),
     ...screenMotifs.map((mo) => [mo.at[0], mo.at[1], 5]),
+    // v1.2 · P14：高台 —— 腳下不撒碎石與草叢（自己的半徑再外推 2.5 公尺，跳上去的落腳處要乾淨）
+    ...screenPlatforms.map((pf) => [pf.at[0], pf.at[1], pf.radius + 2.5]),
     ...(shrineSpec ? [[shrineSpec.at[0], shrineSpec.at[1], 10]] : []),
   ];
 
@@ -3417,7 +3503,11 @@ export function createWorld({
      * 所以不呼叫 `markSolidParts()` —— 一道 12 公尺高的石脊不該靠「猜」來決定擋不擋人。
      * 完全靜態：不進 `propAnimations`、不進每幀迴圈。
      */
-    const layer = buildScreens(site.id, kit, terrainHeight, { bands: screenBands, motifs: screenMotifs });
+    const layer = buildScreens(site.id, kit, terrainHeight, {
+      bands: screenBands,
+      motifs: screenMotifs,
+      platforms: screenPlatforms,
+    });
     if (layer) {
       root.add(layer.group);
       screenLayers.push({ id: site.id, ...layer });
@@ -3676,9 +3766,15 @@ export function createWorld({
   const solids = collectSolids(root, terrainHeight).filter((s) => !inNoCollideZone(s));
 
   /** 這個點是不是踩進實體道具裡。 */
-  const hitSolid = (x, z) => solidAt(x, z, solids);
+  /**
+   * 這個點是不是踩進實體道具裡。
+   * `feetY` 給了數字才走 P14 那條路（腳站到頂面以上的可站立體不擋人）；
+   * **不給就是 P13 之前那一支，一個位元組沒動** —— 玩家貼著地形走的時候一律不給。
+   */
+  const hitSolid = (x, z, feetY = null) =>
+    feetY === null ? solidAt(x, z, solids) : solidAtAbove(x, z, solids, feetY);
   /** 走得到嗎：地形 ＋ 閘門 ＋ 實體道具都要過。 */
-  const isClear = (x, z) => isWalkable(x, z) && !hitSolid(x, z);
+  const isClear = (x, z, feetY = null) => isWalkable(x, z) && !hitSolid(x, z, feetY);
 
   const motePhases = motes.userData.phases;
   const moteBaseY = motes.userData.baseY;
@@ -3878,6 +3974,8 @@ export function createWorld({
     /** 資料層的遮擋帶與母題（唯讀，測試與稽核用）。 */
     screenBands: screenBands,
     motifs: screenMotifs,
+    /** v1.2 · P14：資料層的高台（唯讀，測試與稽核用）。 */
+    platforms: screenPlatforms,
     /**
      * 站在 (x, z) 那一區的地標被遮擋帶擋住了嗎？
      * 走的是 `screens.js` 的 `landmarkSight()` —— `scripts/sightline-audit.mjs` 問的是同一支。
@@ -3895,9 +3993,17 @@ export function createWorld({
       return null;
     },
 
-    /** 玩家移動用：走不過去就沿牆滑，不會被卡死。 */
-    clampPosition(nextX, nextZ, prevX, prevZ) {
-      if (isClear(nextX, nextZ)) return { x: nextX, z: nextZ };
+    /**
+     * 玩家移動用：走不過去就沿牆滑，不會被卡死。
+     *
+     * v1.2 · P14 多了一個**可選**的第五個參數 `feetY`（腳的高度）：給了才會讓
+     * 「腳已經站到頂面以上」的可站立體放行 —— 那是跳上高台唯一需要的例外。
+     * 玩家貼著地形走的時候一律不給（`null`），走的是 P13 之前那一條路。
+     * **邊界護欄在這裡是不可妥協的**：不管腳在多高，`isWalkable()`
+     * （覆蓋率 ＋ 閘門）都要過 —— 所以跳到一半也絕不可能落到虛空上。
+     */
+    clampPosition(nextX, nextZ, prevX, prevZ, feetY = null) {
+      if (isClear(nextX, nextZ, feetY)) return { x: nextX, z: nextZ };
 
       /*
        * ① 沿著石頭的**切線**滑。
@@ -3907,7 +4013,7 @@ export function createWorld({
        * 於是人整個黏在石頭上，繞不過去。把位移拆成「指向圓心」與「切線」兩份，
        * 丟掉前者、留下後者，擦到樹的時候才會順著它滑開。
        */
-      const hit = hitSolid(nextX, nextZ);
+      const hit = hitSolid(nextX, nextZ, feetY);
       if (hit) {
         const ox = nextX - hit.x;
         const oz = nextZ - hit.z;
@@ -3925,15 +4031,15 @@ export function createWorld({
             const rim = hit.r + PLAYER_RADIUS + 0.02;
             const sx = hit.x + nx * Math.max(d, rim) + tx;
             const sz = hit.z + nz * Math.max(d, rim) + tz;
-            if (isClear(sx, sz)) return { x: sx, z: sz };
-            if (isClear(prevX + tx, prevZ + tz)) return { x: prevX + tx, z: prevZ + tz };
+            if (isClear(sx, sz, feetY)) return { x: sx, z: sz };
+            if (isClear(prevX + tx, prevZ + tz, feetY)) return { x: prevX + tx, z: prevZ + tz };
           }
         }
       }
 
       // ② 退一步：只鎖住被擋的那一軸，另一軸照走（地形邊緣與閘門也走這條）
-      if (isClear(nextX, prevZ)) return { x: nextX, z: prevZ };
-      if (isClear(prevX, nextZ)) return { x: prevX, z: nextZ };
+      if (isClear(nextX, prevZ, feetY)) return { x: nextX, z: prevZ };
+      if (isClear(prevX, nextZ, feetY)) return { x: prevX, z: nextZ };
       return { x: prevX, z: prevZ };
     },
 
@@ -3952,12 +4058,31 @@ export function createWorld({
     groundHeightAt: (x, z) => groundHeightAt(x, z, solids, terrainHeight),
 
     /**
+     * v1.2 · P14：**腳下真的撐得住你的那一面**（跳躍接上去的就是這一支）。
+     *
+     * 與 `groundHeightAt()` 的差別只有一句話：多問「腳現在在多高」。
+     * 只有 `feetY >= standTop - LEDGE_EPS` 的可站立體才撐得住人 ——
+     * 於是脫困中的玩家（腳在地形高度）拿到的仍然是地形高度。
+     *
+     * **回傳的是共用物件**（零每幀配置）：`{ y, index, id }`，用完就讀，不要留著。
+     */
+    supportAt: (x, z, feetY = Infinity) => supportAt(x, z, solids, feetY, terrainHeight),
+
+    /**
      * 保險絲：萬一玩家站在實體道具裡（傳送、資料改動、地形變化），
      * 每幀往外推一小步把他請出來 —— 不會瞬移，也絕不會被關在裡面。
+     *
+     * v1.2 · P14（P13 交接的第 1 條）：跳躍讓「站在圓裡」變成一件**合法**的事 ——
+     * 站在高台頂上的人，中心點就在那顆碰撞圓裡面。所以這裡多了同一個 `feetY`：
+     * 腳已經在某顆可站立體的頂面以上時，那一顆**不算把你關住**。
+     * 其餘情況（真的卡在石頭裡）行為一個字都沒變，而且**脫困中的人腳下的高度
+     * 仍然是地形高度**——`supportAt()` 只認「腳已經站上去」的頂面，
+     * 所以他不會被瞬間抬到屋頂上，只會被慢慢請出來。
+     *
      * @returns {{x:number,z:number}|null} 不需要脫困時回傳 null
      */
-    escapeSolid(x, z, step = 0.35) {
-      const hit = hitSolid(x, z);
+    escapeSolid(x, z, step = 0.35, feetY = null) {
+      const hit = hitSolid(x, z, feetY);
       if (!hit) return null;
       const dx = x - hit.x;
       const dz = z - hit.z;
