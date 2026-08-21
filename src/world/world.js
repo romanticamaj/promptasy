@@ -746,6 +746,273 @@ const _solidScale = new THREE.Vector3();
 const _solidAxis = new THREE.Vector3();
 const _solidBox = new THREE.Box3();
 
+/* ------------------------------------------------------------------ *
+ * v1.2 · P13：可站立表面（純資料層 —— 這一格還沒有跳躍）
+ *
+ * 碰撞一直是一張「圓的清單」，`solidAt()` 只問「這一點在不在某個圓裡」，
+ * 完全沒有高度概念；玩家每一幀都貼在 `terrainHeight()` 上。
+ * P14 要做跳躍之前，得先有一件事是**資料**：這個圓的頂面在多高、站不站得上去。
+ *
+ * 判準（五條，全部量得出來，`scripts/collision-audit.mjs` 讀的是同一組常數）：
+ *   1. 頂面要是**上向面** —— 面法線離正上方 ≤ 10°（`STAND_UP_DOT`）。
+ *      斜插的石板、圓錐的尖頂、球面的頂點都不算：那不是可以放腳的面。
+ *   2. 頂面**夠平** —— 以圓心為中心、半徑 `STAND_MIN_R` 的一圈上取 8 個點，
+ *      每一點都要踩得到上向面，而且高度與圓心差 ≤ `STAND_FLAT_EPS`。
+ *   3. 面積夠站 —— 上面那一圈的半徑就是 0.8 公尺（＝一個人站得下）。
+ *   4. 離地高度落在 `STAND_MIN_H`–`STAND_MAX_H`（0.6–3.0 公尺）：
+ *      再低就是「跨過去」不是「站上去」，再高就不該跳得上去。
+ *   5. **不准懸在虛空上方** —— 腳下那一點的 `coverage()` 要 ≥ `STAND_COVER_MIN`
+ *      （與 `isWalkable()` 同一條門檻）。站在一塊飄在虛空上的石頭上是死路。
+ *
+ * 三條實作上的堅持：
+ *   · **逐圓各自算**（P10b／P11 連兩次的教訓）：`solidSpan` 的圓串沿著局部 X 排開，
+ *     每一顆圓都用**自己的圓心**去量頭上那一塊面，不共用一個原點的高度。
+ *   · **保守優先**：量不出上向面（尖頂、量體太複雜、根本沒有幾何體）一律
+ *     `standable = false`。誤判成「站得上去」比漏判危險得多。
+ *   · `top` 永遠是數字：有上向面就是那個面的高度（`topFace = true`）；
+ *     沒有就退回「圓心正上方那一塊表面的最高點」，再退回這一件東西的最高點。
+ *   · **平到多遠就只抬到多遠**：`standR` 是真的一圈一圈量出來的，`groundHeightAt()`
+ *     只在這一段裡抬高腳下的高度 —— 碰撞圓的半徑是外接盒的長邊，拿它當可站範圍
+ *     會讓人站在一塊沒有幾何體的空氣上。
+ * ------------------------------------------------------------------ */
+
+/** 站得下一個人的最小頂面半徑（公尺）。 */
+export const STAND_MIN_R = 0.8;
+/** 低於這個離地高度就是「跨過去」，不算站上去。 */
+export const STAND_MIN_H = 0.6;
+/** 高過這個離地高度就不該站得上去（P14 的跳躍高度上限）。 */
+export const STAND_MAX_H = 3.0;
+/** 頂面「夠平」的容差（公尺）。 */
+export const STAND_FLAT_EPS = 0.06;
+/** 上向面：面法線與正上方的夾角 ≤ 10°（寫成 cos 才會真的等於文件上那個角度）。 */
+export const STAND_UP_DOT = Math.cos(Math.PI / 18);
+/** 頂面下方的地要是實地（與 `isWalkable()` 同一條虛空門檻）。 */
+export const STAND_COVER_MIN = 0.45;
+/** 一件東西最多攤這麼多三角面出來量；超過就當作量不出來（保守 → 不可站）。 */
+const STAND_TRI_CAP = 2048;
+
+const _triBuf = new Float64Array(STAND_TRI_CAP * 9);
+const _triUp = new Uint8Array(STAND_TRI_CAP);
+const _triA = new THREE.Vector3();
+const _triB = new THREE.Vector3();
+const _triC = new THREE.Vector3();
+const _triAB = new THREE.Vector3();
+const _triAC = new THREE.Vector3();
+const _triN = new THREE.Vector3();
+
+/**
+ * 把一個網格的三角面攤成世界座標寫進 `_triBuf`，順便標出哪些是上向面。
+ * @returns {number} 累積到的三角形數；-1 = 超過上限（量不出來）
+ */
+function pushTriangles(mesh, mtx, n0) {
+  const geo = mesh.geometry;
+  const pos = geo && geo.attributes && geo.attributes.position;
+  if (!pos || !pos.count) return n0;
+  const idx = geo.index;
+  const tris = idx ? Math.floor(idx.count / 3) : Math.floor(pos.count / 3);
+  if (n0 + tris > STAND_TRI_CAP) return -1;
+  // 鏡像（行列式為負）會把繞序翻過來 —— 法線要跟著翻，不然上下顛倒
+  const flip = mtx.determinant() < 0 ? -1 : 1;
+  let n = n0;
+  for (let t = 0; t < tris; t += 1) {
+    const i0 = idx ? idx.getX(t * 3) : t * 3;
+    const i1 = idx ? idx.getX(t * 3 + 1) : t * 3 + 1;
+    const i2 = idx ? idx.getX(t * 3 + 2) : t * 3 + 2;
+    _triA.fromBufferAttribute(pos, i0).applyMatrix4(mtx);
+    _triB.fromBufferAttribute(pos, i1).applyMatrix4(mtx);
+    _triC.fromBufferAttribute(pos, i2).applyMatrix4(mtx);
+    const o = n * 9;
+    _triBuf[o] = _triA.x; _triBuf[o + 1] = _triA.y; _triBuf[o + 2] = _triA.z;
+    _triBuf[o + 3] = _triB.x; _triBuf[o + 4] = _triB.y; _triBuf[o + 5] = _triB.z;
+    _triBuf[o + 6] = _triC.x; _triBuf[o + 7] = _triC.y; _triBuf[o + 8] = _triC.z;
+    _triAB.subVectors(_triB, _triA);
+    _triAC.subVectors(_triC, _triA);
+    _triN.crossVectors(_triAB, _triAC);
+    const len = _triN.length();
+    _triUp[n] = len > 1e-9 && (_triN.y / len) * flip >= STAND_UP_DOT ? 1 : 0;
+    n += 1;
+  }
+  return n;
+}
+
+/**
+ * 攤開一件東西（含子孫）的三角面。
+ * @param {THREE.Object3D} obj
+ * @param {THREE.Matrix4|null} instanceMtx InstancedMesh 的單一實例矩陣（有給就只看它自己）
+ * @returns {number} 三角形數；-1 = 量不出來
+ */
+function collectTriangles(obj, instanceMtx) {
+  // 光與水不是可以站的面 —— instanced 與非 instanced 兩條路要用同一把尺，
+  // 不然同一件東西改成 InstancedMesh 就會突然「站得上去」。
+  const isLight = (o) => {
+    const mat = Array.isArray(o.material) ? o.material[0] : o.material;
+    return Boolean(mat && mat.transparent);
+  };
+  if (instanceMtx) return isLight(obj) ? 0 : pushTriangles(obj, instanceMtx, 0);
+  let n = 0;
+  obj.traverse((o) => {
+    if (n < 0) return;
+    if (!o.isMesh || o.isInstancedMesh) return;
+    if (o.userData && o.userData.noCollide) return;
+    if (isLight(o)) return;
+    n = pushTriangles(o, o.matrixWorld, n);
+  });
+  return n;
+}
+
+/**
+ * (x, z) 正上方那一塊表面的最高處。
+ * @param {number} count `collectTriangles()` 的回傳值
+ * @param {boolean} upOnly 只看上向面
+ * @returns {number|null} 沒有任何一面蓋到這一點就回 null
+ */
+function surfaceTopAt(x, z, count, upOnly) {
+  let best = null;
+  for (let i = 0; i < count; i += 1) {
+    if (upOnly && !_triUp[i]) continue;
+    const o = i * 9;
+    const ax = _triBuf[o];
+    const az = _triBuf[o + 2];
+    const bx = _triBuf[o + 3];
+    const bz = _triBuf[o + 5];
+    const cx = _triBuf[o + 6];
+    const cz = _triBuf[o + 8];
+    const den = (bz - cz) * (ax - cx) + (cx - bx) * (az - cz);
+    if (Math.abs(den) < 1e-9) continue; // 垂直面：俯視下去只是一條線
+    const l1 = ((bz - cz) * (x - cx) + (cx - bx) * (z - cz)) / den;
+    if (l1 < -1e-6 || l1 > 1 + 1e-6) continue;
+    const l2 = ((cz - az) * (x - cx) + (ax - cx) * (z - cz)) / den;
+    if (l2 < -1e-6 || l2 > 1 + 1e-6) continue;
+    const l3 = 1 - l1 - l2;
+    if (l3 < -1e-6) continue;
+    const y = l1 * _triBuf[o + 1] + l2 * _triBuf[o + 4] + l3 * _triBuf[o + 7];
+    if (best === null || y > best) best = y;
+  }
+  return best;
+}
+
+/** `_triBuf` 裡所有頂點的最高處（最後一層退路：這一件東西的最高點）。 */
+function bufferTop(count) {
+  let best = null;
+  for (let i = 0; i < count * 9; i += 3) {
+    const y = _triBuf[i + 1];
+    if (best === null || y > best) best = y;
+  }
+  return best;
+}
+
+const STAND_RING = 8;
+/** 往外量「頂面平到多遠」的步長（公尺）。 */
+const STAND_RING_STEP = 0.4;
+
+/** 一圈（半徑 rad）上每一點都踩得到上向面，而且高度與圓心差 ≤ STAND_FLAT_EPS。 */
+function ringIsFlat(x, z, count, top, rad) {
+  for (let i = 0; i < STAND_RING; i += 1) {
+    const a = (i / STAND_RING) * Math.PI * 2;
+    const ry = surfaceTopAt(x + Math.cos(a) * rad, z + Math.sin(a) * rad, count, true);
+    if (ry === null || Math.abs(ry - top) > STAND_FLAT_EPS) return false;
+  }
+  return true;
+}
+
+/**
+ * 量一個碰撞圓的頂面：多高、站不站得上去、平到多遠。
+ * 呼叫前一定要先 `collectTriangles()`（用的是同一組模組層緩衝）。
+ *
+ * @param {number} x 圓心
+ * @param {number} z 圓心
+ * @param {number} count `collectTriangles()` 的回傳值（-1 = 量不出來）
+ * @param {number} groundY 這一點的地形高度
+ * @param {number} cover 這一點的地面覆蓋（虛空 = 0）
+ * @param {number} fallbackTop 完全量不出來時的頂面高度
+ * @param {number} r 這個碰撞圓的半徑（站得下人才算 —— 面積也是判準之一）
+ * @returns {{top:number, topFace:boolean, standable:boolean, standR:number}}
+ */
+function measureTop(x, z, count, groundY, cover, fallbackTop, r) {
+  if (count < 0 || count === 0) return { top: fallbackTop, topFace: false, standable: false, standR: 0 };
+  const upTop = surfaceTopAt(x, z, count, true);
+  if (upTop === null) {
+    const anyTop = surfaceTopAt(x, z, count, false);
+    const top = anyTop !== null ? anyTop : bufferTop(count);
+    return { top: top !== null ? top : fallbackTop, topFace: false, standable: false, standR: 0 };
+  }
+  const h = upTop - groundY;
+  let standable = h >= STAND_MIN_H && h <= STAND_MAX_H && cover >= STAND_COVER_MIN && r >= STAND_MIN_R;
+  let standR = 0;
+  if (standable) standable = ringIsFlat(x, z, count, upTop, STAND_MIN_R);
+  if (standable) {
+    /*
+     * **平到多遠就只抬到多遠。** 碰撞圓的半徑是「外接盒的長邊」——
+     * 一塊 7.2 × 1.8 的長石板會登記成半徑 3.6 的圓，可是頂面只證明了
+     * 中心 0.8 公尺那一圈是平的。抬高的範圍要用**真的量過的**那一個半徑，
+     * 不然 P14 會讓人站在一塊根本沒有幾何體的空氣上（審查 · 第 5 條）。
+     */
+    standR = STAND_MIN_R;
+    while (standR < r - 1e-9) {
+      // 一圈一圈**往外長**，中間斷一圈就停 —— 不准跳過去撿外面那一圈
+      // （那會把中間有洞的頂面當成整片平的）
+      const next = Math.min(standR + STAND_RING_STEP, r);
+      if (!ringIsFlat(x, z, count, upTop, next)) break;
+      standR = next;
+    }
+  }
+  return { top: upTop, topFace: true, standable, standR };
+}
+
+/**
+ * 量「這一個網格（或它的某一個實例）在 (x, z) 這一點的頂面」。
+ *
+ * `collectSolids()` 與 `scripts/collision-audit.mjs` 共用這一支 ——
+ * 稽核與資料層對「站不站得上去」的判準只有**一份**（兩份就會有一份是假的）。
+ *
+ * @param {THREE.Mesh} mesh
+ * @param {THREE.Matrix4} matrix 這個網格（或實例）的世界矩陣
+ * @param {number} x
+ * @param {number} z
+ * @param {number} groundY 地形高度
+ * @param {number} cover 地面覆蓋（虛空 = 0）
+ * @param {number} [r] 這一塊的佔地半徑（預設 STAND_MIN_R：只問頂面，不問面積）
+ * @param {number} [fallbackTop] 量不出來時的頂面高度（量體太大、根本沒有幾何體）——
+ *   一定要給得出一個數字，`top` 永遠是數字這條規矩對稽核也適用（審查 · 第 3 條）
+ * @returns {{top:number, topFace:boolean, standable:boolean, standR:number}}
+ */
+export function measureSurface(mesh, matrix, x, z, groundY, cover, r = STAND_MIN_R, fallbackTop = NaN) {
+  const n = pushTriangles(mesh, matrix, 0);
+  return measureTop(x, z, n, groundY, cover, fallbackTop, r);
+}
+
+/**
+ * 腳下的高度 ＝ max(地形, 站得上去的頂面)。
+ *
+ * **v1.2 · P13 這一格刻意沒有接到玩家身上。** 沒有跳躍就沒有 Y 軸速度，
+ * 玩家永遠貼著地形；而且任何「站得上去的頂面」都在某個碰撞圓裡，
+ * 而 `solidAt()` 用的 pad 是 `PLAYER_RADIUS` —— 玩家的中心點永遠進不到圓裡。
+ * 所以「接與不接」逐點相同，這件事由 `test:rubric` 在全地圖網格上逐點證明。
+ * P14 要接上去的時候注意：`escapeSolid()` 會讓玩家短暫地站在圓內，
+ * 那是唯一一條「接上去就會看到差別」的路。
+ *
+ * @param {number} x
+ * @param {number} z
+ * @param {Array<{x:number,z:number,r:number,standR:number,top:number,standable:boolean}>} solids
+ * @param {(x:number,z:number)=>number} [heightAt]
+ * @returns {number}
+ */
+export function groundHeightAt(x, z, solids, heightAt = terrainHeight) {
+  let y = heightAt(x, z);
+  if (!solids) return y;
+  for (let i = 0; i < solids.length; i += 1) {
+    const s = solids[i];
+    if (!s.standable) continue;
+    // 抬高的範圍是**證明過是平的**那一段（standR ≤ r），不是整個碰撞圓
+    const rad = s.standR > 0 ? s.standR : 0;
+    const dx = x - s.x;
+    const dz = z - s.z;
+    if (dx * dx + dz * dz > rad * rad) continue;
+    if (s.top > y) y = s.top;
+  }
+  return y;
+}
+
 /**
  * 幾何體的外接盒（只算一次，之後由 three.js 快取在 geometry 上）。
  *
@@ -774,11 +1041,17 @@ function footprintOf(geometry) {
  * 另外 `userData.keepSolid` 代表「這個碰撞體不是雜物，淨空區不准把它掃掉」
  * （石座本體就是這種：它站在自己的淨空區正中央，但它本來就該擋得住人）。
  *
+ * v1.2 · P13：每個圓再多帶四個欄位 —— `top`（頂面世界高度）、`topFace`
+ * （top 是不是量自真的上向面）、`standable`（站不站得上去）、`standR`
+ * （頂面**證明過是平的**那一段半徑）。判準見上面那一段。
+ * **只加欄位，不加圓**：碰撞行為與這一格之前逐位元組相同。
+ *
  * @param {THREE.Object3D} root
  * @param {(x:number,z:number)=>number} [heightAt] 地形高度（判斷道具是不是飄在半空）
- * @returns {Array<{x:number,z:number,r:number,keep:boolean}>}
+ * @param {(x:number,z:number)=>number} [coverAt] 地面覆蓋（判斷頂面是不是懸在虛空上方）
+ * @returns {Array<{x:number,z:number,r:number,keep:boolean,top:number,topFace:boolean,standable:boolean,standR:number}>}
  */
-export function collectSolids(root, heightAt = terrainHeight) {
+export function collectSolids(root, heightAt = terrainHeight, coverAt = coverage) {
   const out = [];
   root.updateMatrixWorld(true);
 
@@ -792,7 +1065,7 @@ export function collectSolids(root, heightAt = terrainHeight) {
     if (explicit === null && !span && !fp) return;
     const keep = ud.keepSolid === true;
 
-    const push = (mtx) => {
+    const push = (mtx, instanceMtx = null) => {
       mtx.decompose(_solidPos, _solidQuat, _solidScale);
       const sxz = Math.max(Math.abs(_solidScale.x), Math.abs(_solidScale.z));
       let boxR = 0;
@@ -808,6 +1081,30 @@ export function collectSolids(root, heightAt = terrainHeight) {
         if (_solidBox.max.y < ground + 0.5) return; // 貼地的矮件 → 跨過去
       }
 
+      /*
+       * v1.2 · P13：頂面。三角面**第一次真的要用時**才攤開（攤一次，
+       * 底下每一顆圓再各自拿自己的圓心去問「我頭上那一塊面在多高」）——
+       * 提早攤會替「等一下就被丟掉的圓」白做一次全子樹走訪（審查 · 第 4 條）。
+       */
+      let triN = -2; // -2 = 還沒攤；-1 = 攤不出來（量體太大）
+      const fallbackTop = fp ? _solidBox.max.y : _solidPos.y;
+      const emit = (cx, cz, r) => {
+        if (triN === -2) triN = collectTriangles(obj, instanceMtx);
+        const g = heightAt(cx, cz);
+        const m = measureTop(cx, cz, triN, g, coverAt(cx, cz), fallbackTop, r);
+        out.push({
+          x: cx,
+          z: cz,
+          r,
+          keep,
+          explicit: explicit !== null || Boolean(span),
+          top: m.top,
+          topFace: m.topFace,
+          standable: m.standable,
+          standR: m.standR,
+        });
+      };
+
       if (span) {
         // 長條形：沿著局部 X 軸排一串半徑 = 短邊的小圓
         const half = span[0] * sxz;
@@ -820,13 +1117,8 @@ export function collectSolids(root, heightAt = terrainHeight) {
         _solidAxis.normalize();
         for (let i = 0; i < n; i += 1) {
           const t = n === 1 ? 0 : -reach + (i * (reach * 2)) / (n - 1);
-          out.push({
-            x: _solidPos.x + _solidAxis.x * t,
-            z: _solidPos.z + _solidAxis.z * t,
-            r,
-            keep,
-            explicit: true,
-          });
+          // 逐圓各自算 top：一個原點配上散開的零件＝一排浮在半空的東西（P10b／P11）
+          emit(_solidPos.x + _solidAxis.x * t, _solidPos.z + _solidAxis.z * t, r);
         }
         return;
       }
@@ -834,20 +1126,18 @@ export function collectSolids(root, heightAt = terrainHeight) {
       const raw = explicit !== null ? explicit * sxz : boxR;
       if (raw < SOLID_MIN_RADIUS) return;
       const cap = explicit !== null ? SOLID_MAX_EXPLICIT : SOLID_MAX_RADIUS;
-      out.push({
-        x: explicit !== null ? _solidPos.x : boxX,
-        z: explicit !== null ? _solidPos.z : boxZ,
-        r: Math.min(raw, cap),
-        keep,
-        explicit: explicit !== null,
-      });
+      emit(
+        explicit !== null ? _solidPos.x : boxX,
+        explicit !== null ? _solidPos.z : boxZ,
+        Math.min(raw, cap)
+      );
     };
 
     if (obj.isInstancedMesh) {
       for (let i = 0; i < obj.count; i += 1) {
         obj.getMatrixAt(i, _solidMtx);
         _solidMtx.premultiply(obj.matrixWorld);
-        push(_solidMtx);
+        push(_solidMtx, _solidMtx);
       }
     } else {
       push(_solidMtx.copy(obj.matrixWorld));
@@ -3591,6 +3881,15 @@ export function createWorld({
     solids,
     solidAt: hitSolid,
     isClear,
+
+    /**
+     * v1.2 · P13：腳下的高度 ＝ max(地形, 站得上去的頂面)。
+     *
+     * **這一格刻意沒有接到玩家身上**（沒有跳躍就沒有 Y 軸速度）。
+     * 它是 P14 的資料通路，也是「這一格玩家行為零改變」那條斷言問的那一支：
+     * 玩家走得到的每一點，這支的答案都與 `terrainHeight()` 逐點相同。
+     */
+    groundHeightAt: (x, z) => groundHeightAt(x, z, solids, terrainHeight),
 
     /**
      * 保險絲：萬一玩家站在實體道具裡（傳送、資料改動、地形變化），

@@ -91,7 +91,7 @@
     "src/world/screens.js",
     "src/world/world.js"
   ],
-  "corpusHash": "52b733fc7c12b271",
+  "corpusHash": "906d926e2eaee498",
   "coverage": {
     "latin": [
       32,
@@ -789,6 +789,7 @@
       23395,
       23396,
       23401,
+      23403,
       23416,
       23427,
       23431,
@@ -1965,6 +1966,7 @@
       36393,
       36452,
       36466,
+      36493,
       36523,
       36538,
       36544,
@@ -2618,7 +2620,7 @@
       "id": "serif-tc",
       "family": "Arcade Serif TC",
       "file": "arcade-serif-tc.woff2",
-      "bytes": 687184,
+      "bytes": 687824,
       "role": "cjk",
       "variable": true,
       "weight": null,
@@ -2629,7 +2631,7 @@
           "default": 400
         }
       },
-      "requested": 1898,
+      "requested": 1900,
       "missing": 0,
       "source": "NotoSerifTC.ttf",
       "author": "Google (Noto Project)",
@@ -2641,7 +2643,7 @@
       "id": "sans-tc",
       "family": "Arcade Sans TC",
       "file": "arcade-sans-tc.woff2",
-      "bytes": 523168,
+      "bytes": 524152,
       "role": "cjk",
       "variable": true,
       "weight": null,
@@ -2652,7 +2654,7 @@
           "default": 400
         }
       },
-      "requested": 1898,
+      "requested": 1900,
       "missing": 0,
       "source": "NotoSansTC.ttf",
       "author": "Google (Noto Project)",
@@ -2661,5 +2663,5 @@
       "url": "https://github.com/google/fonts/tree/main/ofl/notosanstc"
     }
   ],
-  "totalBytes": 1534672
+  "totalBytes": 1536296
 }

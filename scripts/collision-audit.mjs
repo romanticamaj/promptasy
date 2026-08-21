@@ -1,5 +1,5 @@
 /**
- * Promptasy — 碰撞稽核（Phase 20）
+ * Promptasy — 碰撞稽核（Phase 20；v1.2 · P13 加上「頂面」那一維）
  *
  * 「玩家不可以穿過任何有份量的東西」這件事，用一條**可執行**的規則守住：
  * 把整棵場景圖攤開，逐一量每個網格（含 InstancedMesh 的每個實例）在世界座標下的
@@ -7,15 +7,30 @@
  *
  *   1. 佔地半徑 ≥ RADIUS_MIN（0.5 公尺，也就是直徑一公尺以上）
  *   2. 露出地面的高度 ≥ HEIGHT_MIN（0.9 公尺，跨不過去）
- *   3. 底緣離地 < FLOAT_MIN（1.6 公尺，不然人從底下走得過去）
+ *   3. 底緣離地 < FLOAT_MIN（1.6 公尺）**而且頂面站不上去**
  *   4. 最薄的兩軸都 ≥ PLATE_MIN（0.9 公尺，細桿與電線不算）
  *
- * 例外（有理由，不是漏掉的）都寫在 EXCEPTIONS 裡：地形本身、半透明的光與霧、
- * 閘門的力場（由解鎖邏輯擋，不是碰撞體）、水面。
+ * 第 3 條在 v1.2 · P13 之前只有前半句，那句話預設了「玩家不會站到東西上面」——
+ * 一旦有跳躍（P14）就是漏洞：飄在半空、卻有一片平頂面的東西會**兩頭落空**，
+ * 既不用擋人、也沒人稽核（P11 的浮空母題就是這樣整座漏掉的）。
+ * 現在的語意是「從底下走得過去 **而且** 頂面不可站立」才豁免。
+ *
+ * 可站立體另有一條規則（`auditStandables()`）：頂面高度要量得到、要落在允許區間、
+ * 不准懸在虛空上方、圓要站得下人、量過是平的那一段（`standR`）不得超過碰撞圓。
+ * 判準本身住在 `src/world/world.js`
+ * （`measureSurface()` / `STAND_*`）—— 稽核與資料層共用同一份，不會有第二套判準。
  *
  * 這支模組同時被 `npm run test:rubric` 與臨時的稽核腳本使用。
  */
 import * as THREE from 'three';
+import {
+  measureSurface,
+  coverage as worldCoverage,
+  STAND_MIN_H,
+  STAND_MAX_H,
+  STAND_MIN_R,
+  STAND_COVER_MIN,
+} from '../src/world/world.js';
 
 export const RADIUS_MIN = 0.5;
 export const HEIGHT_MIN = 0.9;
@@ -66,9 +81,10 @@ function geoSignature(mesh) {
  * 把場景裡「有份量」的網格列出來。
  * @param {THREE.Object3D} root
  * @param {(x:number,z:number)=>number} heightAt
- * @returns {Array<{name:string,geo:string,x:number,z:number,r:number,height:number,bottom:number,plate:number,excepted:string|null}>}
+ * @param {(x:number,z:number)=>number} [coverAt] 地面覆蓋（頂面是不是懸在虛空上方）
+ * @returns {Array<{name:string,geo:string,x:number,z:number,r:number,height:number,bottom:number,plate:number,top:number,standable:boolean,standR:number,excepted:string|null}>}
  */
-export function listSubstantial(root, heightAt) {
+export function listSubstantial(root, heightAt, coverAt = worldCoverage) {
   const out = [];
   root.updateMatrixWorld(true);
 
@@ -97,7 +113,6 @@ export function listSubstantial(root, heightAt) {
     const top = _box.max.y - ground;
     const height = top - Math.max(bottom, 0);
     if (height < HEIGHT_MIN) return; // 跨得過去
-    if (bottom >= FLOAT_MIN) return; // 飄在半空 → 從底下走過去
 
     const name = pathOf(mesh);
     const mat = Array.isArray(mesh.material) ? mesh.material[0] : mesh.material;
@@ -107,7 +122,36 @@ export function listSubstantial(root, heightAt) {
       const hit = EXCEPTIONS.find((e) => e.match.test(name));
       if (hit) excepted = hit.why;
     }
-    out.push({ name, geo: geoSignature(mesh), x, z, r, height, bottom, plate, excepted });
+
+    /*
+     * v1.2 · P13：豁免「飄在半空」之前先問一句「那它的頂面站得上去嗎」。
+     * 站得上去的東西就算人從底下走得過去，也一樣要有碰撞體蓋住它 ——
+     * 不然 P14 的跳躍會把它變成一塊沒人管的浮島。
+     *
+     * **例外（光／霧／水／地形／閘門力場）不量頂面**：它們本來就不是可以站的東西，
+     * 量了只會替光和水貼上「可站立」的標籤，順便讓地形那種量體白算一次
+     * （審查 · 第 2 條）。它們的 `top` 用外接盒的頂 —— 仍然是個數字。
+     */
+    const surf = excepted
+      ? { top: _box.max.y, topFace: false, standable: false, standR: 0 }
+      : measureSurface(mesh, matrix, x, z, ground, coverAt(x, z), r, _box.max.y);
+    if (bottom >= FLOAT_MIN && !surf.standable) return; // 飄在半空、頂面也站不上去
+
+    out.push({
+      name,
+      geo: geoSignature(mesh),
+      x,
+      z,
+      r,
+      height,
+      bottom,
+      plate,
+      top: surf.top,
+      topFace: surf.topFace,
+      standable: surf.standable,
+      standR: surf.standR,
+      excepted,
+    });
   };
 
   root.traverse((obj) => {
@@ -132,12 +176,45 @@ export function listSubstantial(root, heightAt) {
  * @param {(x:number,z:number,solids:any[],pad?:number)=>any} solidAt
  * @param {Array<{x:number,z:number,r:number}>} solids
  * @param {(x:number,z:number)=>number} heightAt
+ * @param {(x:number,z:number)=>number} [coverAt]
  */
-export function auditCoverage(root, solidAt, solids, heightAt) {
-  const all = listSubstantial(root, heightAt);
+export function auditCoverage(root, solidAt, solids, heightAt, coverAt = worldCoverage) {
+  const all = listSubstantial(root, heightAt, coverAt);
   const checked = all.filter((s) => !s.excepted);
   const uncovered = checked.filter((s) => !solidAt(s.x, s.z, solids, 0));
   return { all, checked, uncovered, excepted: all.filter((s) => s.excepted) };
+}
+
+/**
+ * 可站立體的稽核（v1.2 · P13）。
+ *
+ * `collectSolids()` 標成 `standable` 的圓，每一顆都要通得過這幾條 ——
+ * 這是一道**單向的守門**：判準改鬆、資料改壞、或有人手動塞一顆 `standable`
+ * 進碰撞表，這裡就會紅。反過來，這裡永遠不會把「不可站」改成「可站」。
+ *
+ * @param {Array<{x:number,z:number,r:number,standR:number,top:number,topFace:boolean,standable:boolean}>} solids
+ * @param {(x:number,z:number)=>number} heightAt
+ * @param {(x:number,z:number)=>number} [coverAt]
+ * @returns {{stand:Array, bad:Array<{x:number,z:number,why:string}>}}
+ */
+export function auditStandables(solids, heightAt, coverAt = worldCoverage) {
+  const stand = solids.filter((s) => s.standable);
+  const bad = [];
+  for (const s of stand) {
+    const why = [];
+    if (!Number.isFinite(s.top)) why.push('頂面高度量不出來');
+    if (!s.topFace) why.push('頂面不是量自真的上向面');
+    const h = s.top - heightAt(s.x, s.z);
+    if (!(h >= STAND_MIN_H - 1e-6 && h <= STAND_MAX_H + 1e-6)) {
+      why.push(`離地 ${Number.isFinite(h) ? h.toFixed(2) : h} 不在 ${STAND_MIN_H}–${STAND_MAX_H} 之間`);
+    }
+    if (coverAt(s.x, s.z) < STAND_COVER_MIN) why.push('頂面懸在虛空上方');
+    if (!(s.r >= STAND_MIN_R)) why.push(`碰撞圓 ${s.r} 站不下人`);
+    if (!(s.standR >= STAND_MIN_R)) why.push(`量過是平的只有 ${s.standR}，站不下人`);
+    if (s.standR > s.r + 1e-6) why.push(`可站半徑 ${s.standR} 比碰撞圓 ${s.r} 還大`);
+    if (why.length) bad.push({ x: s.x, z: s.z, r: s.r, top: s.top, why: why.join('；') });
+  }
+  return { stand, bad };
 }
 
 /** 把稽核結果整理成一份人看得懂的清單（同型的合併成一列）。 */
@@ -159,4 +236,14 @@ export function summarize(rows) {
     .sort((a, b) => b.n - a.n);
 }
 
-export default { listSubstantial, auditCoverage, summarize, EXCEPTIONS, RADIUS_MIN, HEIGHT_MIN, FLOAT_MIN, PLATE_MIN };
+export default {
+  listSubstantial,
+  auditCoverage,
+  auditStandables,
+  summarize,
+  EXCEPTIONS,
+  RADIUS_MIN,
+  HEIGHT_MIN,
+  FLOAT_MIN,
+  PLATE_MIN,
+};
