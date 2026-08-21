@@ -1,7 +1,7 @@
 {
   "note": "測試用的「這是契約，不是快照」清單。凡是能從 runtime catalog 或資料檔算出來的數字（技巧數、區域數、技能數、flow 數…），測試一律現算，不寫在這裡；只有『這個數字本身就是當期的驗收目標』才登記在這裡，改動它＝有意識地改變契約。每一格都寫得出為什麼。",
   "updatedAt": "2026-08-21",
-  "updatedBy": "v1.2 · P11：中觀遮擋帶與母題（新增 screens 契約；既有契約值一格都沒動）",
+  "updatedBy": "v1.2 · P12：中觀鋪到另外四片土地、地面材質語言、每區一種專屬粒子（screens 契約加了三區與 solidsPerRegion；其餘契約值一格都沒動）",
   "contract": {
     "solutionStats": {
       "value": 142,
@@ -11,12 +11,13 @@
       "maxShortIds": 3
     },
     "screens": {
-      "bands": { "reasoning": 2 },
-      "motifs": { "reasoning": 4 },
+      "bands": { "reasoning": 2, "config": 2, "toolcraft": 2 },
+      "motifs": { "reasoning": 4, "grounding": 4, "orchestration": 4, "config": 4 },
       "perRegionBands": [2, 3],
       "perRegionMotifs": [3, 5],
-      "why": "v1.2 · P11：中觀那一階（src/world/screens.js）—— 遮擋帶與母題。這一期只做**階梯迴廊一區的切片**：2 道遮擋帶（擋住『橋頭 → 無盡階梯塔』那一條直線，走過去繞過它才揭露）＋ 4 座母題（同一個形狀重複出現，遠看就認得出這是哪一片土地）。perRegionBands／perRegionMotifs 是每一片土地的區間（2–3 道／3–5 座）：**放一道牆或撒一地雜物都會被擋下來**。P12 鋪其他 11 區時往 bands／motifs 各加一行，區間不動。",
-      "updatedBy": "v1.2 · P11"
+      "solidsPerRegion": 20,
+      "why": "v1.2 · P11／P12：中觀那一階（src/world/screens.js）—— 遮擋帶與母題。P11 做了階梯迴廊一區的切片；P12 把母題鋪到沉書檔案庫（讀過的那一疊）、齒輪工坊（一次只吊一小件）、面具劇場（掛著的空面具），遮擋帶鋪到面具劇場與**契約鍛冶場**。\n\n遮擋帶為什麼不是規格點名的沉書檔案庫／齒輪工坊：scripts/screen-fit.mjs 對真的蓋出來的世界逐點掃過，那兩片土地擺不下（檔案庫的合法擺法只出現在離橋頭 7–11 公尺處，揭露太早過不了『前 12 公尺看不到』；齒輪工坊整片土地 0 個合法擺法 —— 兩座石座的淨空圈在軸線上首尾相接）。契約鍛冶場是全場最空的入口（102 種合法擺法），所以那兩道帶改放在那裡；理由與數字寫在 findings.md。\n\nperRegionBands／perRegionMotifs 是每一片土地的區間（2–3 道／3–5 座）：**放一道牆或撒一地雜物都會被擋下來**。solidsPerRegion 是中觀層每一片土地的碰撞體上限（P12 新增）—— 12 區鋪完 ≈240 個，離 1,400 的硬上限夠遠。",
+      "updatedBy": "v1.2 · P12"
     },
     "letters": {
       "value": 24,

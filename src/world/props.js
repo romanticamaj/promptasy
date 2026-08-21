@@ -2183,8 +2183,14 @@ export function buildTablet(tablet, kit, terrainHeight) {
 /**
  * 主要動線：中央 ↔ 各區（橋），以及各區中心 ↔ 該區每一座石座。
  * 只用來染地面顏色，不動高度場 —— 不會影響可行走性判定。
+ *
+ * @param {object[]} sites
+ * @param {object[]} corridors
+ * @param {object[]} challenges
+ * @param {Record<string, number[][]>} [bendTable] 遮擋帶的折點表；省略 ＝ 出貨的那一份
+ *   （`screens.js` 的 `PATH_BENDS`）。只有 `scripts/screen-fit.mjs` 會換掉它。
  */
-export function buildPathNetwork(sites, corridors, challenges) {
+export function buildPathNetwork(sites, corridors, challenges, bendTable) {
   const segs = [];
   /*
    * 1. 橋：中央 ↔ 各區。
@@ -2195,7 +2201,7 @@ export function buildPathNetwork(sites, corridors, challenges) {
    * `scripts/sightline-audit.mjs` 量的就是這一條折線 —— 畫在地上的路與稽核量的路是同一條。
    */
   for (const c of corridors) {
-    const poly = corridorPolyline(c);
+    const poly = corridorPolyline(c, bendTable);
     for (let i = 0; i + 1 < poly.length; i += 1) segs.push([poly[i][0], poly[i][1], poly[i + 1][0], poly[i + 1][1]]);
   }
 

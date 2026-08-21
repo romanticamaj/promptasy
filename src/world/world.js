@@ -2867,6 +2867,13 @@ export function createWorld({
    * 沒給（或某鍵是 null）→ 舊預設：區主色／kitFor().light／舊螢火算法。世界照樣成立。
    */
   colorScript = null,
+  /**
+   * v1.2 · P12：中觀那一層的資料（`{ bands, motifs, bends }`）。
+   * 省略 ＝ 出貨的那一份（`screens.js` 的 `SCREEN_BANDS`／`MOTIFS`／`PATH_BENDS`）。
+   * **只有 `scripts/screen-fit.mjs` 會換掉它** —— 它是「改資料 → 重建世界 → 量」那個搜尋迴圈
+   * 的唯一注入點（P11 的教訓：母題進 `keepClear`，離線幾何算不出「四周走不走得到」）。
+   */
+  screens = null,
   /** Phase 22：走近會有反應的東西要不要放聲音（面板打開時整組停手）。 */
   onReact = null,
   onSecret = null,
@@ -2892,8 +2899,13 @@ export function createWorld({
     return row && row[key] ? row[key] : null;
   };
 
+  // v1.2 · P12：中觀那一層的資料（預設就是出貨的那一份；只有 screen-fit 會換掉）
+  const screenBands = (screens && screens.bands) || SCREEN_BANDS;
+  const screenMotifs = (screens && screens.motifs) || MOTIFS;
+  const screenBends = (screens && screens.bends) || undefined;
+
   // 走出來的路（只染地面顏色，不動高度場）
-  const pathSegs = buildPathNetwork(REGION_SITES, [...CORRIDORS, ...ANNEX_LINKS], challenges);
+  const pathSegs = buildPathNetwork(REGION_SITES, [...CORRIDORS, ...ANNEX_LINKS], challenges, screenBends);
   root.add(buildTerrain(quality, colorOf, pathSegs));
 
   /**
@@ -2922,7 +2934,7 @@ export function createWorld({
      * v1.2 · P11：中觀的遮擋帶與母題 —— 它們自己就是石頭，腳下不要再撒碎石與草叢
      * （石脊沿著長邊每 2 公尺登記一個點，圓圈才貼得住一條長條形的東西）。
      */
-    ...SCREEN_BANDS.flatMap((b) => {
+    ...screenBands.flatMap((b) => {
       const pts = [];
       const c = Math.cos(b.rot);
       const s2 = -Math.sin(b.rot);
@@ -2933,7 +2945,7 @@ export function createWorld({
       }
       return pts;
     }),
-    ...MOTIFS.map((mo) => [mo.at[0], mo.at[1], 5]),
+    ...screenMotifs.map((mo) => [mo.at[0], mo.at[1], 5]),
     ...(shrineSpec ? [[shrineSpec.at[0], shrineSpec.at[1], 10]] : []),
   ];
 
@@ -2993,10 +3005,10 @@ export function createWorld({
      * 所以不呼叫 `markSolidParts()` —— 一道 12 公尺高的石脊不該靠「猜」來決定擋不擋人。
      * 完全靜態：不進 `propAnimations`、不進每幀迴圈。
      */
-    const screens = buildScreens(site.id, kit, terrainHeight);
-    if (screens) {
-      root.add(screens.group);
-      screenLayers.push({ id: site.id, ...screens });
+    const layer = buildScreens(site.id, kit, terrainHeight, { bands: screenBands, motifs: screenMotifs });
+    if (layer) {
+      root.add(layer.group);
+      screenLayers.push({ id: site.id, ...layer });
     }
   }
 
@@ -3432,8 +3444,8 @@ export function createWorld({
     /** 這個世界蓋出來的中觀層（每一區一筆：group / bands / motifs）。 */
     screens: screenLayers,
     /** 資料層的遮擋帶與母題（唯讀，測試與稽核用）。 */
-    screenBands: SCREEN_BANDS,
-    motifs: MOTIFS,
+    screenBands: screenBands,
+    motifs: screenMotifs,
     /**
      * 站在 (x, z) 那一區的地標被遮擋帶擋住了嗎？
      * 走的是 `screens.js` 的 `landmarkSight()` —— `scripts/sightline-audit.mjs` 問的是同一支。
@@ -3443,11 +3455,11 @@ export function createWorld({
       const id = regionId || (regionAt(x, z) || {}).id;
       const landmark = LANDMARKS.find((l) => l.region === id);
       if (!landmark) return null;
-      return landmarkSight(x, z, landmark, terrainHeight, SCREEN_BANDS.filter((b) => b.region === id));
+      return landmarkSight(x, z, landmark, terrainHeight, screenBands.filter((b) => b.region === id));
     },
     /** 這個點踩進哪一道遮擋帶的足跡了嗎（e2e 驗「擋得住人」用）。 */
     bandAt(x, z, pad = 0) {
-      for (const b of SCREEN_BANDS) if (pointInBand(b, x, z, pad)) return b;
+      for (const b of screenBands) if (pointInBand(b, x, z, pad)) return b;
       return null;
     },
 

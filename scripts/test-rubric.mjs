@@ -2943,29 +2943,13 @@ const handleFile = readJson('src/data/handles.json');
 const murkFile = readJson('src/data/murks.json');
 // v1.2 · P07：抄寫人的殘頁也要蓋進測試世界（它進 keepClear，會影響程序化道具的落點）
 const letterFile = readJson('src/data/letters.json');
-const stubProgression = {
-  bestGrade: () => null,
-  gateStatus: () => ({ unlocked: false, text: '' }),
-  isRegionUnlocked: () => true,
-  hasReadLore: () => false,
-  hasFoundInscription: () => false,
-  hasFoundSecret: () => false,
-  hasUsedHandle: () => false,
-  hasFoundLetter: () => false,
-};
-const worldOpts = {
-  curriculum,
-  // 課程 v2 · Phase E：新上線的區域的名稱與主色住在 regions-v2.json
-  regions: catalog.implementedRegions(),
-  challenges,
-  progression: stubProgression,
-  shrine: prologueForWorld.shrine,
-  inscriptions: inscriptionFile.entries,
-  letters: letterFile.entries,
-  secrets: secretFile.entries,
-  handles: handleFile.entries,
-  murks: murkFile.entries,
-};
+/*
+ * v1.2 · P12：「蓋一次世界」的那一包參數搬到 `scripts/world-harness.mjs` ——
+ * `scripts/screen-fit.mjs`（搜中觀層座標的迴圈）要蓋的是**同一個世界**，
+ * 兩邊各自維護一份參數的話，搜出來的座標會在工具裡合法、在這裡紅。
+ */
+const { stubProgression, worldOptions } = await import('./world-harness.mjs');
+const worldOpts = await worldOptions();
 const testScene = new THREE.Scene();
 const testWorld = World.createWorld({
   engine: { scene: testScene, camera: {}, onUpdate() {} },

@@ -77,15 +77,18 @@ function sampleAlong(points, step, stopBefore) {
  * 跑一次視線稽核。
  * @param {object} [opts]
  * @param {number} [opts.step] 取樣間距
+ * @param {object[]} [opts.bands] 換掉出貨的遮擋帶（`scripts/screen-fit.mjs` 的搜尋迴圈用）
+ * @param {Record<string, number[][]>} [opts.bends] 換掉出貨的折點表（同上）
  * @returns {Promise<{step:number, regions:Record<string, object>}>}
  */
-export async function sightlineAudit({ step = SAMPLE_STEP } = {}) {
+export async function sightlineAudit({ step = SAMPLE_STEP, bands: bandsIn = null, bends = undefined } = {}) {
   const World = await import('../src/world/world.js');
   const Props = await import('../src/world/props.js');
   const Screens = await import('../src/world/screens.js');
 
+  const allBands = bandsIn || Screens.SCREEN_BANDS;
   const landmarkOf = (regionId) => Props.LANDMARKS.find((l) => l.region === regionId) || null;
-  const bandsOf = (regionId) => Screens.SCREEN_BANDS.filter((b) => b.region === regionId);
+  const bandsOf = (regionId) => allBands.filter((b) => b.region === regionId);
 
   const regions = {};
   for (const site of World.REGION_SITES) {
@@ -110,7 +113,7 @@ export async function sightlineAudit({ step = SAMPLE_STEP } = {}) {
     const gate = [(corridor || link).gate.x, (corridor || link).gate.z];
 
     // 走出來的那條路（與 buildPathNetwork 同一份），從橋頭開始
-    const poly = Screens.corridorPolyline(corridor || { from, to: { x: site.x, z: site.z }, region: site.id });
+    const poly = Screens.corridorPolyline(corridor || { from, to: { x: site.x, z: site.z }, region: site.id }, bends);
     /*
      * 裁掉橋頭以前的那一段：**照折線的弧長算**，不是照「離中央高原多遠」。
      * 用半徑裁的話，只要有一個折點是往回彎的（把遮擋帶擺在側邊就會這樣），
