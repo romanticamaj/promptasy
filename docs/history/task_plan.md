@@ -1294,3 +1294,36 @@ Exit criteria：
 - [ ] rubric／playtest／build／e2e 全綠、console error 0；預算在框內。
 
 **審查後修訂（2026-08-22，8 條）**：① **`standR` 會把空氣認證成平的**——往外量的步長是 0.4 公尺、一圈只取 8 個角度，兩圈之間完全沒有取樣點，所以一道 0.28 公尺寬的**環狀**缺口整個被跳過（審查用一個「方芯 ＋ 外圈框」的例子重現：`groundHeightAt` 在縫的正上方也抬得起來）。步長收到 **0.15**、角度加到 **12**，並把「這個數字就是這支量法的解析度」寫進 WORLD §6.3（0.15 遠小於玩家半徑 0.62，量不到的洞人也掉不下去）。新增一個 48 塊小墊子排成連續外環的反例（先紅 4 條）。② **`top` 會回頂蓋的高度**：`surfaceTopAt(..., upOnly)` 回的是**最高**的上向面，所以一座有頂蓋的平臺（走的那一面 1.2、頂蓋 5.0 同屬一顆圓）不但被判成站不上去，`top` 還是個會誤導 P14 的數字。新增 `standTop` ＝ **腳踩得到的那一面**（離地 ≥0.6 之中最低的上向面），`standable`／`standR`／`groundHeightAt` 全部改看它，`top` 維持剪影的頂（稽核的「飄在半空」看它）。③ e2e 那條「整段走下來都待在它旁邊」用 `Math.min`（＝最近的一次），而起點本來就貼著它 —— **永遠成立**；實測按著 W 走一秒會離開 16–18 公尺，所以連句子本身都不成立。改成問「有幾個取樣點在 4 公尺內」＋「沒有瞬移」，兩條都答得出「什麼時候會紅」。④ 同一段的落腳點搜尋接受到 `r + 4`，下一行卻用 `gap ≤ 1.6` 判生死 —— 那一塊旁邊被別的東西塞滿只是內容改動，卻會讓整支 e2e 紅；改成換下一個候選。⑤ `s63.includes(String(STAND_MAX_H))` 是 `includes("3")`，而 `s63` 開頭就是 `"### 6.3"` —— **永遠成立**；改成整段比對 `0.6–3.0`，並補上步長與 `standTop` 兩條。⑥ 稽核反例裡的「虛空」那一列漏了 `standR`，於是同時觸發兩個理由，不是「只差一件事」的對照組。⑦ `collision-audit` 的一列裡 `bottom`／`height` 是離地、`top` 是世界高度，而六行前還有一個同名的區域變數 —— 改名 `topRel` 並在欄位旁註明單位。⑧ WORLD.md 寫「多帶三個欄位」卻列了四個（現在是五個）。**另外根治一個長年的 e2e flake**：導航提示那一段固定餵三拍 `nudge.update(20)`，但真正的遊戲迴圈也在用真實 dt 呼叫同一支 —— 機器一忙就會有別的提示先占走位子（findings 裡登記的「load 高就整段紅」的常客，這一輪也紅了 9 條）。改成**餵到它真的出現為止**，真的壞掉才逾時。
+
+### P14 — 跳躍原型（只在中央高原）（2026-08-22 開工）
+
+狀態：`in progress`（里程碑 C 第四格）
+
+**現狀**：P13 已經把「站得上去的表面」變成資料——`collectSolids()` 每顆圓帶 `top`／`standTop`／`topFace`／`standable`／`standR`，974 顆裡 177 顆可站（165 顆的 `standR < r`）；`groundHeightAt(x, z, solids)` ＝ `max(地形, standTop)`，但**刻意還沒接到玩家身上**（`src/world/world.js:1048` 的註記）。玩家 `player.js` 每一幀都是 `group.position.y = terrainHeight(...)`，**沒有 Y 軸速度、沒有重力**；`clampPosition()`／`escapeSolid()` 都只管 XZ。跳躍鍵已經定案是 **`J`**（WORLD §3.1，標「尚未啟用」）。
+
+**目標**：把跳躍做出來，但**只在中央高原（foundations）生效**——其他 11 片土地的跳躍高度 0，行為與現在完全一樣。這一格自建**第一座 1.6 公尺高台**當落腳點，證明「跳上去、站得住、走下來」整條路成立。
+
+**範圍**
+1. **Y 軸與重力**（`src/player/player.js`）：新增 `velocityY`、重力、落地判定；地面高度改讀 `world.groundHeightAt()`（P13 建好的那一支）。**沒按跳的時候行為必須與現在逐幀相同**——這是驗收的第一條。
+2. **跳的手感**（業界標配，寫進註解與 WORLD §3.1）：coyote time **100ms**（離開邊緣後還能跳）、input buffer **150ms**（落地前按的也算）、**鬆手提前下落**（放開 `J` 時把上升速度砍半）。跳躍高度以「跳得上 1.6 公尺、跳不上 3.0 公尺」為準（`STAND_MAX_H` 就是契約）。
+3. **邊界護欄（不可妥協）**：起跳與落地都要走既有的 `clampPosition()`；落點若不在 `coverage` 內、或會穿進 solids，**起跳那一刻就夾住**——玩家**永遠不會掉進虛空、永遠不會被傳送**。`escapeSolid()` 那條路要決定「脫困時用哪個高度」（P13 交接第 1 條：接上 `groundHeightAt` 之後，脫困中的玩家會被瞬間抬到頂面）。
+4. **回饋**：程序化 squash-stretch（起跳拉長、落地壓扁，不用動畫檔）、落地塵（沿用既有的粒子寫法、**0 新光源**）、落地音（既有的合成音通道，音檔缺席要能後備）。`reducedMotion` **保留位移、去掉擠壓**（WORLD §2.4：關掉的是動、不是回應）。
+5. **第一座高台**：中央高原 1.6 公尺、頂面平、`standable` 為真、`standR ≥ 1.2`；用 `npm run screen-fit` 找落點（不要手挑），並確認不侵犯任何互動層淨空。
+6. **鍵位與說明**：`J` 接上鍵盤事件、keyhelp／設定頁同步、WORLD §3.1 拿掉「尚未啟用」。
+
+**不做**：其他 11 區的跳躍（P16a）、高台語法與高處秘密與橋缺口（P15）、滑翔（P19）、手把／觸控（P24）。
+
+**受影響檔案**：`src/player/player.js`、`src/world/world.js`、（可能）`src/world/props.js`／`screens.js`（高台）、`src/ui/*`（keyhelp）、`src/audio/audio.js`（落地音）、`scripts/test-rubric.mjs`、`scripts/headless-check.mjs`、`WORLD.md`。
+
+**預算**：三角 +高台（**< +2,000**）；**光源 37 不變**；碰撞體 <1,000；collision-audit 未涵蓋 **0**；`audit:pacing` 0／0／0、`audit:sightline` 3 區全過、`screen-fit --verify` 全 ✓；**零每幀配置**（跳躍不准在 tick 裡 new）。
+
+**Acceptance tests（先紅後綠）**
+- rubric：跳躍參數（coyote／buffer／高度區間）是常數且與 WORLD.md 一致；`jumpHeightFor(region)` 只有 foundations 非 0；純函式的彈道算得出「跳得上 1.6、跳不上 3.0」；落點護欄的正反例（虛空、穿模）各一；高台的擺位吃 P11／P12 那一整套斷言。
+- e2e：**不按 `J` 的情況下，舊斷言零改動且全綠**（行為零改變）；按 `J` 真的離地、落回原高度；走到高台旁邊跳上去 → 腳下高度 ＝ 高台頂面 → 走下來回到地形高度；在別的區按 `J` 高度為 0；虛空邊緣按 `J` 不會掉出去。**轉鏡頭要用真的方向鍵並輪詢**（`cameraYaw` 是唯讀 getter，指派是空包彈）。
+
+**禁區**：`curriculum.json`、`challenges.json`、`flows.json`、`murks.json`、`letters.json`、`color-script.json`、`solution-stats.json`、`vite.config.js`、`CLAUDE.md`、`CHANGELOG.md`、`gameplay-roadmap.md`、三件組、dev server 5173／5174／5175。
+
+Exit criteria：
+- [ ] 中央高原跳得起來、跳得上那座 1.6 公尺高台、走得下來；其他 11 區行為零改變。
+- [ ] 舊路線全部**不需要跳**就走得完（不倒退）。
+- [ ] rubric／playtest／build／e2e 全綠、console error 0；預算在框內。
