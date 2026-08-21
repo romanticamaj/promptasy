@@ -94,7 +94,8 @@ export const MOTIF_PER_REGION_MAX = 5;
  * `faceSign` 扶壁在哪一面（局部 ±Z；1 ＝ 朝橋頭那一面）
  *
  * 核心之外還有兩樣東西，**都不算進遮蔽判定**（稽核保守：量到的一定比看到的少）：
- * 朝橋頭那一面的兩級矮扶壁（只往那一面外擴 0.95 公尺，擺位規則逐點掃過），
+ * 朝橋頭那一面的一級矮扶壁（只往那一面外擴 `depth` 公尺 —— 中心擺在 `faceSign * depth`、
+ * 自己的半厚是 `depth / 2`，所以外緣剛好到核心外側再 `depth`；擺位規則逐點掃過），
  * 以及疊在核心頂上、一階比一階高的頂階（只往上長，不占地）。
  */
 export const SCREEN_BANDS = Object.freeze([
@@ -152,12 +153,21 @@ export const SCREEN_BANDS = Object.freeze([
  * `height` 整座的高度（公尺，中景階 3–8）
  */
 export const MOTIFS = Object.freeze([
-  // 四座散在路旁（離路網 5–11 公尺：看得到、走得過去、不擋路），彼此 ≥17 公尺 ——
-  // 重複四次才叫母題；每一座都朝著不同方向，因為每一次示範都是給不同的人看的。
-  { id: 'reasoning-twice-01', region: 'reasoning', at: [-110.73, -62.3], rot: 2.15, kind: 'twiceShown', height: 5.2 },
-  { id: 'reasoning-twice-02', region: 'reasoning', at: [-112.32, -126.47], rot: 0.75, kind: 'twiceShown', height: 4.6 },
-  { id: 'reasoning-twice-03', region: 'reasoning', at: [-58.76, -94.12], rot: 3.55, kind: 'twiceShown', height: 4.0 },
-  { id: 'reasoning-twice-04', region: 'reasoning', at: [-85.81, -119.04], rot: 5.05, kind: 'twiceShown', height: 3.6 },
+  /*
+   * 四座散在路旁，彼此 ≥17 公尺 —— 重複四次才叫母題；
+   * 每一座都朝著不同方向，因為每一次示範都是給不同的人看的。
+   *
+   * 擺位規則（P11 審查後改成量得出來的三條，`scripts/`：見 CHANGELOG）：
+   *   ① 離走出來的那條路 **9–26 公尺**：看得到、走得過去、不擋路
+   *      （也一定落在節奏稽核的 45 公尺中景圈內）。
+   *   ② 三階腳下的地 `coverage ≥ 0.96` —— **不准踩在崩掉的邊緣上**，
+   *      不然外側那階會懸在虛空上方（P11 審查抓到的 01／03 就是這樣）。
+   *   ③ 三階之間的地形落差 ≤ 1.1 公尺：階梯才讀得出是階梯，不是一半埋在山坡裡。
+   */
+  { id: 'reasoning-twice-01', region: 'reasoning', at: [-88.46, -65.22], rot: 2.15, kind: 'twiceShown', height: 5.2 },
+  { id: 'reasoning-twice-02', region: 'reasoning', at: [-116.38, -109.63], rot: 0.75, kind: 'twiceShown', height: 4.6 },
+  { id: 'reasoning-twice-03', region: 'reasoning', at: [-63.11, -94.99], rot: 3.55, kind: 'twiceShown', height: 4.0 },
+  { id: 'reasoning-twice-04', region: 'reasoning', at: [-75.85, -108.7], rot: 5.05, kind: 'twiceShown', height: 3.6 },
 ]);
 
 /**
@@ -393,7 +403,6 @@ function buildTwiceShown(motif, kit, heightAt) {
   const grp = new THREE.Group();
   grp.name = `motif:${motif.id}`;
   const [x, z] = motif.at;
-  const ground = heightAt(x, z);
   const rise = motif.height / 3.4; // 三階（第三階是空的）＋一點底座
   const run = rise * 1.35;
   const w = Math.max(2.0, rise * 1.5);
@@ -407,12 +416,24 @@ function buildTwiceShown(motif, kit, heightAt) {
   const dirZ = -Math.sin(motif.rot);
   // 幾何**以 at 為中心**排（不然「往前長」的那兩階會偷偷伸進別人的淨空圈）
   const back = -run * 0.75;
+  const offOf = (i) => back + (i === 0 ? 0 : run * (i - 0.5));
+  /*
+   * 三階橫跨快 8 公尺，地形在那個跨距上可以差好幾公尺 ——
+   * **只在 at 取一次高度會讓邊上的階浮在空中或埋進土裡**（P11 審查抓到的；
+   * 浮起來的還會被穿模稽核當成「從底下走過去」而豁免）。
+   * 做法跟 buildStairRidge() 一樣：階梯的**頂面**照最高的那塊地排（剪影才是階梯），
+   * 每一塊的**底面**再各自往下追自己腳下的地、多埋一點咬住落差。
+   */
+  const groundOf = [0, 1, 2].map((i) => heightAt(x + dirX * offOf(i), z + dirZ * offOf(i)));
+  const base = Math.max(...groundOf);
+  const topOf = (i) => base + (i === 0 ? rise * 1.1 : rise * 1.1 + rise * 1.15 * i);
   for (let i = 0; i < 3; i += 1) {
     // 第 0 階是底座（矮而寬），第 1、2 階是「示範的兩遍」
-    const h = i === 0 ? rise * 1.1 : rise * 1.15;
-    const y = ground + (i === 0 ? h / 2 : rise * 1.1 + rise * 1.15 * (i - 0.5));
-    const off = back + (i === 0 ? 0 : run * (i - 0.5));
-    p.set(x + dirX * off, y, z + dirZ * off);
+    const off = offOf(i);
+    const top = topOf(i);
+    const bottom = Math.min(groundOf[i], base) - 0.35;
+    const h = top - bottom;
+    p.set(x + dirX * off, (top + bottom) / 2, z + dirZ * off);
     s.set(w - i * 0.28, h, w * 0.62);
     steps.setMatrixAt(i, mtx.compose(p, q, s));
   }
@@ -422,7 +443,7 @@ function buildTwiceShown(motif, kit, heightAt) {
   grp.add(steps);
 
   // 第三階：只剩一圈光的輪廓（懸在半空、不是物質 → 不擋人、不進碰撞）
-  const ghostH = ground + rise * 1.1 + rise * 1.15 * 2 + rise * 0.5;
+  const ghostH = topOf(2) + rise * 0.5;
   const ghost = new THREE.Mesh(box(w - 0.84, 0.14, w * 0.62), glow(kit.accent, 1.1));
   ghost.position.set(x + dirX * (back + run * 2.5), ghostH, z + dirZ * (back + run * 2.5));
   ghost.rotation.y = motif.rot;

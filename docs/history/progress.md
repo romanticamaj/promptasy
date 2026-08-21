@@ -3124,3 +3124,12 @@ e2e 一輪（同時破壞三處：Instagram 那顆回來、divergence 變回硬�
 - 數字：rubric 102,414 → **106,446**、playtest 2,533、e2e 3,952 → **4,000**（零 console error）。
 - **里程碑 B 完成** → 打 tag `v1.2-gate-B`。下一步：P11（中觀遮擋帶＋母題，reasoning 一區切片）。
 
+
+## P11 — 中觀遮擋帶 ＋ 母題（reasoning 一區切片）（2026-08-21）
+
+- 新 `src/world/screens.js`（純資料 ＋ 造型，只 import three.js 以免與 `props.js` 互相引用）：`SCREEN_BANDS` 兩道石脊（`reasoning-first-spine` 7.5×1.4×12m、`reasoning-second-spine` 7×1.4×8m）、`MOTIFS` 四座「示範了兩遍的階梯」、`PATH_BENDS` 讓走出來的路繞過石脊 —— **地上畫的路與稽核量的路是同一份**。
+- 新 `scripts/sightline-audit.mjs`（`npm run audit:sightline`）：從橋頭沿路每 3 公尺問一次「看得到地標嗎」。reasoning：**前 15 公尺看不到、第 15 公尺揭露**（門檻 12／25）；11 區全量得到，1 區有帶、通過 1。
+- 審查 8 條全修，兩條是真問題：母題只在中心取一次地面高度（12 塊裡 9 塊浮空、1 塊埋入，且浮空的會被穿模稽核豁免）；e2e 的 `cameraYaw` 指派是唯讀 getter 上的空操作，讓「走進石脊」整段變成不會失敗的裝飾。
+- 四座母題重新定位：寫了一支「改資料 → 重建世界 → 量」的搜尋（覆蓋率 ≥0.96、三階落差 ≤1.1m、離路 9–26m、互動層淨空、四周 16 向全通），因為母題進 `keepClear`、移動它會讓程序化道具重擲。
+- 預算：三角 218,790（<232k）、**光源 37 不變**、碰撞體 979（<1,000）、collision-audit 未涵蓋 0、`audit:pacing` 死區 0／0／0。
+- 數字：rubric 106,446 → **117,845**、playtest 2,533、build ✓、e2e 4,000 → **4,021**（零 console error）。下一步：P12（地面材質語言 ＋ 每區粒子 ＋ 母題鋪 3–4 區）。

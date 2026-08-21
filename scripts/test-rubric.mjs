@@ -4839,19 +4839,23 @@ for (const kindMeta of Object.values(handleFile.kinds || {})) {
         ...[...World.CORRIDORS, ...World.ANNEX_LINKS].map((c) => Math.hypot(x - c.gate.x, z - c.gate.z))
       );
       ok(gateD >= 8, `${tag} 離閘門 ≥ 8m`, gateD.toFixed(1));
+      // 別區（附屬區沒有 BRIDGE_LANES）要**失敗一條斷言**，不是整支測試爆掉
       const lane = World.BRIDGE_LANES.find((l) => l.region === h.region);
+      ok(Boolean(lane), `${tag} 登記在橋上例外的區有主動線可以量`, h.region);
       let blocked = 0;
-      for (let t = 0; t <= 1.0001; t += 0.02) {
-        const lx = lane.ax + (lane.bx - lane.ax) * t;
-        const lz = lane.az + (lane.bz - lane.az) * t;
-        for (const off of [-World.LANE_HALF, 0, World.LANE_HALF]) {
-          const nx = -(lane.bz - lane.az);
-          const nz = lane.bx - lane.ax;
-          const len = Math.hypot(nx, nz) || 1;
-          if (testWorld.solidAt(lx + (nx / len) * off, lz + (nz / len) * off)) blocked += 1;
+      if (lane) {
+        for (let t = 0; t <= 1.0001; t += 0.02) {
+          const lx = lane.ax + (lane.bx - lane.ax) * t;
+          const lz = lane.az + (lane.bz - lane.az) * t;
+          for (const off of [-World.LANE_HALF, 0, World.LANE_HALF]) {
+            const nx = -(lane.bz - lane.az);
+            const nz = lane.bx - lane.ax;
+            const len = Math.hypot(nx, nz) || 1;
+            if (testWorld.solidAt(lx + (nx / len) * off, lz + (nz / len) * off)) blocked += 1;
+          }
         }
+        eq(blocked, 0, `${tag} 那條橋的主動線（±LANE_HALF）整條走得通`);
       }
-      eq(blocked, 0, `${tag} 那條橋的主動線（±LANE_HALF）整條走得通`);
     }
     ok(Math.hypot(x - 0, z - 6) > World.SPAWN_CLEAR + 2, `${tag} 不壓在出生點上`);
     const toIns = Math.min(...inscriptions.map((i) => Math.hypot(x - i.at[0], z - i.at[1])));
@@ -14574,7 +14578,14 @@ console.log('\n▸ 中觀：遮擋帶與母題（v1.2 · P11）');
       }
       // 整條路走得通（除了塔腳下的臺座那一段 —— 路本來就通到塔腳）
       const landmarkP11 = LANDMARKS.find((l) => l.region === regionId);
-      const poly = Screens.corridorPolyline(World.CORRIDORS.find((c) => c.region === regionId));
+      /*
+       * 折點也可能登記在附屬區（`ANNEX_LINKS`，沒有 CORRIDORS 那一條）——
+       * 兩邊都找不到就**失敗一條斷言**，不是讓 `.find()` 回 undefined 把整支測試打掛。
+       */
+      const linkP11 =
+        World.CORRIDORS.find((c) => c.region === regionId) || World.ANNEX_LINKS.find((a) => a.region === regionId) || null;
+      ok(Boolean(linkP11), `[bend:${regionId}] 這一區找得到走道（CORRIDORS 或 ANNEX_LINKS）`);
+      const poly = linkP11 ? Screens.corridorPolyline(linkP11) : [];
       for (let i = 0; i + 1 < poly.length; i += 1) {
         const [ax, az] = poly[i];
         const [bx2, bz2] = poly[i + 1];
@@ -14679,6 +14690,51 @@ console.log('\n▸ 中觀：遮擋帶與母題（v1.2 · P11）');
       ok(free >= 14, `[${mo.id}] 四周走得到`, `${free}/16`);
     }
   }
+
+    /*
+     * 每一塊各自貼自己腳下的地（P10a／P11 審查的教訓）：
+     * 中觀層的東西動輒橫跨 8 公尺，地形在那個跨距上可以起伏好幾公尺；
+     * 只在中心取一次高度 → 邊上的塊不是浮在空中就是埋進土裡。
+     * 浮起來的塊還會被 listSubstantial() 當成「從底下走過去」而豁免，
+     * 於是穿模稽核也看不到它 —— 所以這條斷言要獨立於稽核存在。
+     */
+    {
+      const bb3 = new THREE.Box3();
+      const m4 = new THREE.Matrix4();
+      const eachInstance = (mesh, cb) => {
+        if (mesh.isInstancedMesh) {
+          for (let i = 0; i < mesh.count; i += 1) {
+            mesh.getMatrixAt(i, m4);
+            m4.premultiply(mesh.matrixWorld);
+            cb(m4, i);
+          }
+        } else cb(m4.copy(mesh.matrixWorld), 0);
+      };
+      let checked = 0;
+      for (const layer of testWorld.screens) {
+        layer.group.updateMatrixWorld(true);
+        layer.group.traverse((o) => {
+          if (!o.isMesh || !o.geometry) return;
+          if (o.userData.noCollide) return;
+          if (!(o.userData.solid || o.userData.solidSpan)) return;
+          if (!o.geometry.boundingBox) o.geometry.computeBoundingBox();
+          eachInstance(o, (mtx, i) => {
+            bb3.copy(o.geometry.boundingBox).applyMatrix4(mtx);
+            const cx = (bb3.min.x + bb3.max.x) / 2;
+            const cz = (bb3.min.z + bb3.max.z) / 2;
+            const bottom = bb3.min.y - World.terrainHeight(cx, cz);
+            checked += 1;
+            ok(
+              bottom <= 0.35,
+              `[${layer.id}] ${o.name || '(mesh)'}#${i} 沒有浮在空中（底面距自己腳下的地 ≤ 0.35m）`,
+              bottom.toFixed(2)
+            );
+            ok(bottom >= -2.2, `[${layer.id}] ${o.name || '(mesh)'}#${i} 沒有整塊埋進土裡`, bottom.toFixed(2));
+          });
+        });
+      }
+      ok(checked >= 12, 'P11：貼地檢查真的量到東西（不是空過）', String(checked));
+    }
 
   /* --- ④ 揭露：sightline-audit 的硬斷言 ---------------------------- */
   {

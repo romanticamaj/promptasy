@@ -17154,6 +17154,7 @@ async function main() {
   console.log('\n▸ 中觀：遮擋帶與揭露（v1.2 · P11）');
   {
     const Screens = await import('../src/world/screens.js');
+    const { PLAYER_RADIUS: PLAYER_RADIUS_E2E } = await import('../src/world/world.js');
     const { sightlineAudit } = await import('./sightline-audit.mjs');
     const audit = await sightlineAudit();
     const sl = audit.regions.reasoning;
@@ -17246,13 +17247,37 @@ async function main() {
     eq(push.aroundClear, true, 'P11：石脊的端點外側走得過去（繞得過去，不是一道牆）');
 
     /* --- ④ 真的按著 W 往石脊走：人停在石脊外面，沒有穿過去 --- */
+    /*
+     * `player.cameraYaw` **只有 getter**（沒有 setter）——
+     * 直接指派在非嚴格模式下是靜默的空操作，那會讓下面整段「按 W 走進去」
+     * 面向上一段測試留下的隨便方向，兩條斷言就都變成不會失敗的裝飾（P11 審查抓到的）。
+     * 所以這裡改用**真的輸入**（← →）把鏡頭轉到對著石脊，並輪詢到真的對準為止。
+     */
     const walk = await evaluate(`
       const g = window.__promptasy;
       g.player.teleport(${approach[0]}, ${approach[1]});
       await new Promise((r) => setTimeout(r, 260));
-      g.player.cameraYaw = Math.atan2(${f.cx} - g.player.position.x, ${f.cz} - g.player.position.z);
-      return { x: g.player.position.x, z: g.player.position.z };
+      const want = Math.atan2(${f.cx} - g.player.position.x, ${f.cz} - g.player.position.z);
+      const norm = (a) => Math.atan2(Math.sin(a), Math.cos(a));
+      let held = null;
+      const press = (code) => {
+        if (held === code) return;
+        if (held) window.dispatchEvent(new KeyboardEvent('keyup', { code: held }));
+        held = code;
+        if (code) window.dispatchEvent(new KeyboardEvent('keydown', { code }));
+      };
+      const t0 = performance.now();
+      let d = norm(want - g.player.cameraYaw);
+      while (Math.abs(d) > 0.05 && performance.now() - t0 < 6000) {
+        press(d > 0 ? 'ArrowLeft' : 'ArrowRight');
+        await new Promise((r) => requestAnimationFrame(r));
+        d = norm(want - g.player.cameraYaw);
+      }
+      press(null);
+      await new Promise((r) => setTimeout(r, 120));
+      return { x: g.player.position.x, z: g.player.position.z, yawErr: Math.abs(norm(want - g.player.cameraYaw)) };
     `);
+    ok(walk.yawErr < 0.12, 'P11：鏡頭真的轉到對著石脊了（cameraYaw 是唯讀的，要用方向鍵轉）', walk.yawErr.toFixed(3));
     const sideBefore = (walk.x - f.cx) * f.vx + (walk.z - f.cz) * f.vz;
     await keyDown('KeyW', 'w', { vk: 87 });
     await sleep(1500);
@@ -17284,6 +17309,25 @@ async function main() {
       !Screens.pointInBand(band, after.x, after.z, 0),
       'P11：人沒有站進石脊裡（沒有穿模）',
       `沿長邊 ${alongAfter.toFixed(2)} / 離中線 ${Math.abs(sideAfter).toFixed(2)}（半長 ${(band.length / 2).toFixed(2)}、半厚 ${(band.depth / 2).toFixed(2)}）`
+    );
+    /*
+     * 上面那條用 pad=0 問「有沒有站進足跡裡」——碰撞半徑本來就把人擋在中線 1.3 公尺外，
+     * 半厚只有 0.7，所以它**永遠成立**、抓不到任何東西（P11 審查抓到的）。
+     * 補兩條會失敗的：① 人真的走到石脊旁邊（不是原地沒動）；
+     * ② 停下來的位置正好是「被面擋住」的距離（穿過去或滑進去都會低於它）。
+     */
+    const sideStart = Math.abs(sideBefore);
+    const sideEnd = Math.abs(sideAfter);
+    const insideLen = Math.abs(alongAfter) <= band.length / 2;
+    ok(
+      sideEnd < sideStart - 0.8 || sideEnd <= band.depth / 2 + PLAYER_RADIUS_E2E + 0.6,
+      'P11：人真的往石脊走過去了（不是原地沒動）',
+      `離中線 ${sideStart.toFixed(2)} → ${sideEnd.toFixed(2)}`
+    );
+    ok(
+      !insideLen || sideEnd >= band.depth / 2 + PLAYER_RADIUS_E2E - 0.15,
+      'P11：正對著石脊那一段，人是被面擋下來的（不是滑進石頭裡）',
+      `離中線 ${sideEnd.toFixed(2)}（半厚 ${(band.depth / 2).toFixed(2)} ＋ 玩家 ${PLAYER_RADIUS_E2E}）`
     );
 
     // 收尾：回到高原，後面的檢查從乾淨的位置繼續

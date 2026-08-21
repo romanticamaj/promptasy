@@ -35,8 +35,10 @@ import { fileURLToPath } from 'node:url';
 export const SAMPLE_STEP = 3;
 /** 橋頭：區界再往區內幾公尺（＝ BRIDGE_LANES 的內端）。 */
 export const BRIDGE_HEAD_INSET = 8;
-/** 眼睛離地（公尺）—— 與第三人稱鏡頭的視高同一階。 */
-export const EYE_HEIGHT = 1.6;
+/*
+ * 眼睛離地寫在 `src/world/screens.js`（`landmarkSight()` 真的在用的那一個）——
+ * 這裡不再複製一份常數：兩份數字只有一份有效，改錯的那一份會「看起來有動、其實沒動」。
+ */
 /** 硬門檻：入口起至少這麼多公尺看不到地標。 */
 export const HIDDEN_MIN = 12;
 /** 硬門檻：走到這麼多公尺內一定看得到（擋住但不迷路）。 */
@@ -109,14 +111,29 @@ export async function sightlineAudit({ step = SAMPLE_STEP } = {}) {
 
     // 走出來的那條路（與 buildPathNetwork 同一份），從橋頭開始
     const poly = Screens.corridorPolyline(corridor || { from, to: { x: site.x, z: site.z }, region: site.id });
+    /*
+     * 裁掉橋頭以前的那一段：**照折線的弧長算**，不是照「離中央高原多遠」。
+     * 用半徑裁的話，只要有一個折點是往回彎的（把遮擋帶擺在側邊就會這樣），
+     * 它就會被默默丟掉 —— 稽核量到的路與地上畫的路從此各走各的（P11 審查抓到的）。
+     */
     const entryD = dist2([from.x, from.z], entry);
-    const route = [entry, ...poly.filter((p) => dist2([from.x, from.z], p) > entryD + 0.5)];
+    const route = [entry];
+    {
+      let arc = 0;
+      for (let i = 1; i < poly.length; i += 1) {
+        arc += dist2(poly[i - 1], poly[i]);
+        if (arc > entryD + 0.5) route.push(poly[i]);
+      }
+    }
     if (dist2(route[route.length - 1], landmark.at) > 0.5) route.push([landmark.at[0], landmark.at[1]]);
 
     /*
      * 判定走的是 `src/world/screens.js` 的 `landmarkSight()` —— **遊戲裡的 e2e 問的是同一支**，
      * 稽核腳本不另外寫一份（不然兩邊會各說各話）。
-     * `hidden` ＝ 水平擋住 **且** 帶頂蓋過塔頂；`hiddenFlat` ＝ 只看水平（P11 規格的門檻）。
+     * 這裡回傳兩個欄位，名字與 `landmarkSight()` 的**剛好對調**，讀的時候要小心：
+     *   `hidden`    ＝ `landmarkSight().flat` ＝ **只看水平**有沒有被帶身擋住（＝ P11 規格的硬門檻）。
+     *   `hiddenTip` ＝ `landmarkSight().hidden` ＝ 水平擋住**且**帶頂還蓋過塔頂（更嚴，只當參考）。
+     * 硬門檻一律讀 `hidden`；想要更嚴的版本才讀 `hiddenTip`。
      */
     const look = (p) => {
       const r = Screens.landmarkSight(p[0], p[1], landmark, World.terrainHeight, bands);
