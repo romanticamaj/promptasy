@@ -3108,3 +3108,11 @@ e2e 一輪（同時破壞三處：Instagram 那顆回來、divergence 變回硬�
 - 數字：rubric 98,503 → **100,856**、playtest 2,533、e2e 3,841 → **3,895**（零 console error）；世界層預算零改動。
 - 下一步：P09（石座演出 a：把 `onRubricHits` 接到石座、4 個 check、一區試水）。
 
+## 2026-08-21 · v1.2 P09 石座演出 a · `done`
+
+- `src/world/rubric-fx.js`（新）：把濁靈那套「命中就演出」接到石座。四個檢查器 → 四段演出：`assignsTask` 腳下的圈順時針掃亮一圈／`specifiesFormat` 碎石浮起排成整齊一列／`hasConstraint` 光柱從無限高收成**有刻度的一段**／`hasRole` 浮碑戴上一層面具般的輪廓光。每段 ≤2.5 秒、可同時播、共用一個 18 顆的粒子池；**一整層只有 356 三角、0 光源、0 碰撞體**（只有一組道具，搬到正在演的那一座）。
+- 只在中央高原啟用（`FX_REGIONS`）、低畫質整層關掉、`reducedMotion` 只做終態；`onRubricHits` 的非 murk 差量是「本次開啟主控台 session 內」的新增 → 同一次不重播。**142 關資料一個位元組沒動**（演出由檢查器名字對應）。
+- 審查 7 條全修（先驗證再破壞、粒子瞬移、reducedMotion 沒遵守、切畫質沒收、危險的 dispose、null guard 不一致、fonts manifest）。
+- 數字：rubric 100,856 → **102,414**、playtest 2,533、e2e 3,895 → **3,952**（零 console error）；三角 217,892 → 218,248、光源 37 不變、碰撞體 950 不變。
+- 下一步：P10a（其餘 4 個 check ＋ 鋪 12 區——照 P09 的交接說明，各是「一個表加四行」與「一行常數」）。
+

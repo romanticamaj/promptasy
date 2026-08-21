@@ -83,6 +83,7 @@
     "src/world/murks.js",
     "src/world/props.js",
     "src/world/reactive.js",
+    "src/world/rubric-fx.js",
     "src/world/world.js"
   ],
   "corpusHash": "2b49b67792a8e064",

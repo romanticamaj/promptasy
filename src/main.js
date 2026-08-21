@@ -370,7 +370,7 @@ function boot() {
           if (name && fxForCheck(name) && !fxChecks.includes(name)) fxChecks.push(name);
         }
         if (!fxChecks.length) return;
-        if (world.rubricFx.play(marker, fxChecks) > 0) engine.pulse(0.18);
+        if (world.rubricFx?.play?.(marker, fxChecks) > 0) engine.pulse(0.18);
         return;
       }
       const newly = Array.isArray(hits.newlyPassedIndices) ? hits.newlyPassedIndices : [];

@@ -125,11 +125,12 @@ const g = (k, make) => {
   return v;
 };
 
-/** 釋放幾何體快取（重建世界時呼叫）。 */
-export function disposeRubricFxCache() {
-  for (const v of GEO.values()) v.dispose();
-  GEO.clear();
-}
+/*
+ * 這裡**刻意沒有** `disposeCache()`：`GEO` 是模組層、被每一個 `createRubricFx()`
+ * 共用（測試一次會蓋好幾個世界），任何一個實例把它 dispose 掉，其他實例的碎石與刻度
+ * 就會從畫面上消失。而且掃亮圈的幾何體是逐實例的（`drawRange` 是可變狀態）、
+ * 材質也沒有納管——一支「只清一半」的函式比沒有更危險。世界目前沒有重建路徑。
+ */
 
 /* 三角形預算：掃亮圈 128 ＋ 碎石 5×12 ＝ 60 ＋ 刻度 4×40 ＝ 160 ＋ 面具輪廓 8 ＝ 356。 */
 const chipGeo = () => g('chip', () => new THREE.BoxGeometry(0.26, 0.05, 0.17));
@@ -362,9 +363,26 @@ export function createRubricFx({ kitOf = null, reducedMotion = false, qualityOf 
     }
   }
 
+  /**
+   * 池子裡還在飛的碎光全部收掉。
+   * 粒子是 `stage` 的區域座標 —— 換石座時 stage 會整組搬過去，
+   * 沒收乾淨的話上一座的碎光會**瞬移**到新的那一座旁邊繼續飛。
+   */
+  function killParticles() {
+    for (let i = 0; i < N; i += 1) {
+      if (pOn[i] === 0) continue;
+      pOn[i] = 0;
+      pLife[i] = 0;
+      pPos[i * 3 + 1] = -999;
+    }
+    particlesActive = 0;
+    pGeo.attributes.position.needsUpdate = true;
+  }
+
   /** 全部收掉（換石座／reset／低畫質）。 */
   function endAll() {
     for (let k = 0; k < SHOW_COUNT; k += 1) endShow(k);
+    killParticles();
     stage.visible = false;
   }
 
@@ -459,6 +477,14 @@ export function createRubricFx({ kitOf = null, reducedMotion = false, qualityOf 
     play(marker, checks) {
       if (!marker || !Array.isArray(checks) || checks.length === 0) return 0;
       if (!this.enabled) return 0;
+      /*
+       * **先確認這一次真的有東西可以演**，才動前一座。
+       * 不然 `play(別座, ['沒支援的檢查'])` 會回 0、卻已經把正在演的那一段拆掉、
+       * 把借走的光柱還回去、把舞台搬走 —— 玩家看到的是演到一半被抽掉。
+       */
+      let playable = 0;
+      for (let i = 0; i < checks.length; i += 1) if (fxForCheck(checks[i])) playable += 1;
+      if (playable === 0) return 0;
       if (current !== marker) {
         endAll();
         current = marker;
@@ -484,6 +510,14 @@ export function createRubricFx({ kitOf = null, reducedMotion = false, qualityOf 
      * @param {number} t
      */
     update(dt, t) {
+      /*
+       * 演到一半被切到低畫質（設定頁）→ 立刻收乾淨並把借走的光柱還回去。
+       * 契約是「低畫質整層不播」，不能只在 `play()` 那一刻檢查。
+       */
+      if (!this.enabled) {
+        if (activeShows > 0 || particlesActive > 0) endAll();
+        return;
+      }
       if (activeShows === 0 && particlesActive === 0) return;
       const adt = dt < 0.1 ? dt : 0.1;
 
@@ -543,9 +577,13 @@ export function createRubricFx({ kitOf = null, reducedMotion = false, qualityOf 
             current.beacon.scale.y = beaconScale0 * s;
             current.beacon.position.y = beaconY0 * s;
           }
-          // 刻度一道一道張開（分幕揭示：由低到高，量得出來的長度）；共用一份材質、整組同進同出
+          /*
+           * 刻度一道一道張開（分幕揭示：由低到高，量得出來的長度）；共用一份材質、整組同進同出。
+           * `reducedMotion` 下**不做這一段位移**——關掉的是「動」不是「回應」（WORLD §2.4）：
+           * 刻度直接就位、只靠透明度亮起來（光柱本來就沒被借走，所以也不會有「刻度浮在沒收短的柱子旁」）。
+           */
           for (let i = 0; i < ticks.length; i += 1) {
-            const stagger = clamp01((w - i * 0.12) / 0.3);
+            const stagger = reducedMotion ? 1 : clamp01((w - i * 0.12) / 0.3);
             ticks[i].scale.setScalar(0.55 + 0.45 * stagger);
           }
           tickMat.opacity = 0.5 * envelope(st, dur, 0.24, 0.42);
@@ -581,15 +619,6 @@ export function createRubricFx({ kitOf = null, reducedMotion = false, qualityOf 
      */
     reset() {
       endAll();
-      for (let i = 0; i < N; i += 1) {
-        if (pOn[i] !== 0) {
-          pOn[i] = 0;
-          pLife[i] = 0;
-          pPos[i * 3 + 1] = -999;
-        }
-      }
-      particlesActive = 0;
-      pGeo.attributes.position.needsUpdate = true;
       current = null;
       return true;
     },
@@ -616,4 +645,4 @@ export function createRubricFx({ kitOf = null, reducedMotion = false, qualityOf 
   return api;
 }
 
-export default { RUBRIC_FX, FX_REGIONS, fxForCheck, fxEnabledIn, createRubricFx, disposeRubricFxCache };
+export default { RUBRIC_FX, FX_REGIONS, fxForCheck, fxEnabledIn, createRubricFx };

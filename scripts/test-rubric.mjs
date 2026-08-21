@@ -14622,8 +14622,45 @@ console.log('\n▸ 石座演出（v1.2 · P09）');
     fx.update(0.05, 0.05);
     eq(marker.beacon.scale.y, scale0, 'reducedMotion：不動光柱（位移是「動」）');
     ok(fx.group.getObjectByName('tick:0').material.opacity > 0, 'reducedMotion：刻度照樣亮起來（回應還在）');
+    // 審查後補：刻度也不准做那 2.4 秒的縮放 —— 直接就位，只用透明度回應
+    const tickScale0 = fx.group.getObjectByName('tick:0').scale.x;
+    const tickTop0 = fx.group.getObjectByName('tick:3').scale.x;
+    ok(Math.abs(tickScale0 - 1) < 1e-6, 'reducedMotion：刻度一開始就在終態大小（不做縮放）', String(tickScale0));
+    ok(Math.abs(tickTop0 - 1) < 1e-6, 'reducedMotion：最高那一道也一樣（不做「由低到高」的位移）', String(tickTop0));
+    for (let i = 0; i < 30; i += 1) fx.update(0.05, i * 0.05);
+    ok(Math.abs(fx.group.getObjectByName('tick:0').scale.x - 1) < 1e-6, 'reducedMotion：走了 1.5 秒刻度還是同一個大小');
     for (let i = 0; i < 70; i += 1) fx.update(0.05, i * 0.05);
     eq(JSON.stringify(fx.state().playing), '[]', 'reducedMotion 一樣會自己收乾淨');
+    fx.reset();
+  }
+
+  /* --- ⑤b 審查後補：play() 先確認有東西可演才動前一座；換石座不留飛在半空的碎光；演到一半切低畫質會收乾淨 --- */
+  {
+    const a = testWorld.markers.find((m) => m.id === 'gate-of-clarity-01');
+    const b = testWorld.markers.find((m) => m.id !== a.id && m.region === 'foundations');
+    let q = 'high';
+    const fx = Fx.createRubricFx({ kitOf: kitOfFx, qualityOf: () => q });
+    const beacon0 = a.beacon.scale.y;
+    eq(fx.play(a, ['hasConstraint']), 1, '（前提）A 座開演了');
+    fx.update(0.05, 0.05);
+    ok(a.beacon.scale.y !== beacon0, '（前提）光柱真的被借走了');
+    eq(fx.play(b, ['hasFewShot']), 0, '不支援的檢查回 0');
+    eq(fx.state().playing.length, 1, '回 0 的那一次**不准**把 A 座正在演的拆掉');
+    ok(a.beacon.scale.y !== beacon0, '也不准把借走的光柱提早還回去');
+    // 真的換座：碎光不能瞬移過去（粒子是舞台的區域座標）
+    eq(fx.play(b, ['assignsTask']), 1, '換到 B 座、支援的檢查照演');
+    eq(a.beacon.scale.y, beacon0, '換座時 A 的光柱有還回去');
+    eq(fx.state().particlesActive, fx.particlesSpawned - (fx.particlesSpawned - fx.state().particlesActive), '（記帳自洽）');
+    ok(fx.state().particlesActive <= 4, '換座之後池子裡只剩這一次噴的（上一座的碎光沒被搬過來）', String(fx.state().particlesActive));
+    // 演到一半切低畫質 → 立刻收乾淨、光柱還回去
+    eq(fx.play(a, ['hasConstraint']), 1, '回到 A 座再演一段');
+    fx.update(0.05, 0.05);
+    q = 'low';
+    fx.update(0.05, 0.1);
+    eq(JSON.stringify(fx.state().playing), '[]', '演到一半切低畫質 → 整層收乾淨');
+    eq(a.beacon.scale.y, beacon0, '切低畫質也要把借走的光柱還回去');
+    eq(fx.state().particlesActive, 0, '切低畫質後池子清空');
+    q = 'high';
     fx.reset();
   }
 
@@ -14703,7 +14740,7 @@ console.log('\n▸ 石座演出（v1.2 · P09）');
     const hitsBody = mainSrcP09.slice(hitsAt, mainSrcP09.indexOf('onResult: (', hitsAt));
     ok(hitsAt > 0 && hitsBody.length > 200, '（前提）找得到 main.js 的 onRubricHits 本體');
     ok(/fxForCheck\(/.test(hitsBody), 'main.js 把 rubric index 換成 check 名再查演出');
-    ok(/rubricFx\.play\(/.test(hitsBody), 'main.js 對石座呼叫 rubricFx.play()');
+    ok(/rubricFx\?\.play\?\.\(/.test(hitsBody), 'main.js 對石座呼叫 rubricFx?.play?.()（與同檔 reset 的守法一致）');
     ok(/FX_REGIONS|fxEnabledIn\(/.test(hitsBody), 'main.js 只對本 phase 鋪到的區演出');
     ok(/engine\.pulse\(0\.18\)/.test(hitsBody), '石座的脈衝比濁靈輕（0.18 < 0.28，別搶結果面的注意力）');
     ok(/world\.rubricFx\?\.reset\?\.\(\)/.test(mainSrcP09), '進度重置時世界端的演出跟著歸零（WORLD §8 G24b）');

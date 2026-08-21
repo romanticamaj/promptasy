@@ -1102,9 +1102,11 @@ Exit criteria：
 - [x] rubric 100,856／playtest 2,533／build ✓／e2e 3,895 全綠、console error 0。
 - [x] 三件組＋changelog＋roadmap 打勾。
 
-### P09 — 石座演出 a：回呼接石座 ＋ 4 個 check ＋ 一區試水（2026-08-21 開工）
+### P09 — 石座演出 a：回呼接石座 ＋ 4 個 check ＋ 一區試水（2026-08-21 開工 · 同日完成）
 
-狀態：`in progress`
+狀態：`done`（`/code-review high` 7 條全修）
+
+**審查後修訂（2026-08-21）**：① `play()` 原本**先拆掉前一座**才驗證這一次有沒有東西可演 → `play(別座, ['沒支援的檢查'])` 回 0 卻已經把正在演的那段抽掉、光柱提早還回去；改成先算出 `playable` 才動前一座。② `endAll()` 沒收粒子 → 換石座時舞台整組搬走，上一座的碎光會**瞬移**到新的那座旁邊繼續飛；抽出 `killParticles()` 給 `endAll()` 與 `reset()` 共用。③ `measured-column` 沒遵守 `reducedMotion`——刻度照樣做 2.4 秒的縮放，而且光柱沒被借走，變成「刻度浮在一根沒收短的柱子旁」；改成直接就位、只用透明度回應（WORLD §2.4：關掉的是動、不是回應）。④ `update()` 沒看 `enabled` → 演到一半切低畫質會繼續演、光柱卡在收短的狀態；改成立刻 `endAll()` 並還回去。⑤ 刪掉沒人呼叫的 `disposeRubricFxCache()`（`GEO` 是模組層共用，任何一個實例 dispose 會害到其他實例；且掃亮圈的幾何體是逐實例的、材質沒納管——「只清一半」比不清更危險），改成一段說明為什麼刻意沒有。⑥ `main.js` 的 `rubricFx.play()` 統一成 `?.play?.()`（與同檔的 `reset` 一致）。⑦ `npm run fonts` 重新同步 manifest 的 `corpusFiles`（新檔沒帶新字，hash 沒變所以指紋測試抓不到）。
 
 **現狀**：`onRubricHits({challenge, passedIndices, newlyPassedIndices, total[, murk]})` 已經在 `console.js` 觸發（recorder 之後、畫結果之前），`main.js` 目前只在 `kind === 'murk'` 時接到世界（`world.murks.strike`）；**非 murk 的差量是「本次開啟主控台 session 內」的新增**（記憶體 `Set`，`open()` 歸零）——P03 就把這條路留給石座了。石座 marker（`world.js buildMarker` ~2260）現有子件：`pedestal`（本體）、`shard`（浮起的碑）、`ring`（腳下的圈）、`glow`（PointLight）、`beacon`（光柱）、`halo`、`label`、`spotlight`；`setCleared(grade)`／`setRegionMastered()` 會把它們染暖金。演出的樣板是 `murks.js`（共用 `THREE.Points` 池、per-instance clone 材質、計時器夾 `min(dt,0.1)`、`reducedMotion` 直接終態、零每幀配置）。
 
@@ -1135,9 +1137,9 @@ Exit criteria：
 **禁區**：`curriculum.json`、`challenges.json`、`flows.json`、`murks.json`、`letters.json`、`color-script.json`、`vite.config.js`、`CLAUDE.md`、`CHANGELOG.md`、`gameplay-roadmap.md`、dev server 5173/5174/5175。
 
 Exit criteria：
-- [ ] foundations 的石座會依命中的 4 個 check 演出；不重播；低畫質關閉；`reducedMotion` 走終態。
-- [ ] rubric／playtest／build／e2e 全綠、console error 0；預算在框內（光源 0、碰撞體不變）。
-- [ ] 三件組＋changelog＋roadmap 打勾。
+- [x] 中央高原的石座會依命中的 4 個 check 演出（掃亮圈／碎石排隊／光柱收成有刻度的一段／浮碑戴輪廓光）；同一次 session 不重播；低畫質整層關閉（演到一半切也收乾淨）；`reducedMotion` 只做終態。
+- [x] rubric 102,414／playtest 2,533／build ✓／e2e 3,952 全綠、console error 0；三角 +356、**光源 +0**、碰撞體 +0、collision-audit 0。
+- [x] 三件組＋changelog＋roadmap 打勾。
 
 ## v1.2 錯誤紀錄
 

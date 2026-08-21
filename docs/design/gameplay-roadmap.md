@@ -76,7 +76,7 @@ CLAUDE.md 的五個方向與七條護欄仍是最高準則。本 roadmap 只回�
   - 依賴：P07。方案：W-2、W-4（回聲部分）。
   - DoD：世界層文字零公司名（rubric 測試 grep）；成就頁免責句存在；e2e 舊斷言零改動。
 
-- [~] **P09 · 石座演出 a：回呼接石座 ＋ 4 個 check ＋ 一區試水**（M）— 把 P03 的 `onRubricHits` 接到石座（`kind` 缺省＝challenge）；為 `assignsTask / specifiesFormat / hasConstraint / hasRole` 各設計一段石座周邊演出（光柱分段點亮、石環刻痕逐條浮現、碎石排成表格、碎石定量），未命中**不演出**；只在 foundations 區啟用；演出資料由 check 名對應（`src/world/rubric-fx.js`），**不進 challenges.json**。
+- [x] **P09 · 石座演出 a：回呼接石座 ＋ 4 個 check ＋ 一區試水**（M）— 把 P03 的 `onRubricHits` 接到石座（`kind` 缺省＝challenge）；為 `assignsTask / specifiesFormat / hasConstraint / hasRole` 各設計一段石座周邊演出（光柱分段點亮、石環刻痕逐條浮現、碎石排成表格、碎石定量），未命中**不演出**；只在 foundations 區啟用；演出資料由 check 名對應（`src/world/rubric-fx.js`），**不進 challenges.json**。
   - 依賴：P03、閘門 A。方案：5-A。
   - DoD：142 關資料零改動；tris 增量 <8k、0 光源；e2e 輪詢式「命中 N 條→演出 N 段」；低畫質可關演出。
 
