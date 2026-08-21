@@ -16869,7 +16869,16 @@ async function main() {
           slabY: fx.group.getObjectByName('slab:0').position.y,
           slabPaired: fx.group.getObjectByName('slab:0').position.y === fx.group.getObjectByName('slab:1').position.y,
           wallScale: w0.scale.y,
-          wallFoot: Math.abs(w0.position.y - w0.geometry.parameters.height * 0.5 * w0.scale.y),
+          // v1.2 · P10 審查後：每一道牆各自貼**自己腳下**的地（舞台原點只是石座正中央的高度）
+          wallFoot: (() => {
+            const g = window.__promptasy;
+            const st = g.world.rubricFx.group.getObjectByName('rubric-fx:stage');
+            const wx = st.position.x + w0.position.x;
+            const wz = st.position.z + w0.position.z;
+            const footWorld = st.position.y + w0.position.y - w0.geometry.parameters.height * 0.5 * w0.scale.y;
+            return Math.abs(footWorld - g.world.terrainHeight(wx, wz));
+          })(),
+          wallVisible: w0.visible,
           ringScale: m.ring.scale.x,
           disc: fx.group.getObjectByName('ground-disc').material.opacity,
         };
@@ -16879,7 +16888,7 @@ async function main() {
     ok(fxNew.slabY > 1.2, '兩塊小石板浮到浮碑旁了', String(fxNew.slabY));
     eq(fxNew.slabPaired, true, '兩塊是**成對**浮起（永遠同高）');
     ok(fxNew.wallScale > 0.5, '四道短牆升起來了', String(fxNew.wallScale));
-    ok(fxNew.wallFoot < 1e-6, '牆底踩在地上（不飄）', String(fxNew.wallFoot));
+    ok(!fxNew.wallVisible || fxNew.wallFoot < 0.01, '出現的短牆真的踩在自己腳下的地上（不飄）', String(fxNew.wallFoot));
     ok(fxNew.disc > 0, '腳下收成的實心小盤亮起來了', String(fxNew.disc));
     ok(fxNew.ringScale < 0.9, '腳下的圈真的往內收了', String(fxNew.ringScale));
     ok(fxColumn.scale < fxAll.beacon0.scale * 0.5, '光柱從無限高收成一段', String(fxColumn.scale));
@@ -17079,13 +17088,14 @@ async function main() {
     eq(plain.passed, true, `（前提）${plainTarget.id} 的示範解答過關了`);
     ok(Boolean(plain.standing), '過關後結果面有「這一次」那一行', String(plain.standing));
     eq(plain.standingVisible, true, '那一行真的量得到（不是 0 高度的空殼）');
-    ok(plain.standing.includes('百分位'), '那一行講的是百分位');
+    ok(/贏過 \d+%/.test(plain.standing), '分數那一軸講「贏過幾成」', plain.standing);
+    ok(/更短/.test(plain.standing) && /更精簡/.test(plain.standing), '字數與技法數講「比幾成更短／更精簡」（越少越好，不能講成第 N 百分位）', plain.standing);
     ok(plain.standing.includes('內建'), '那一行**明寫是內建**的分布');
     ok(plain.standing.includes('不是其他玩家'), '那一行明寫**不是其他玩家**的成績（誠實原則）');
     ok(!/rubric|localStorage|面板/.test(plain.standing), '那一行沒有系統術語（WORLD §3.6）');
     {
       const st = standingOf(plainTarget, plainTarget.sample);
-      ok(plain.standing.includes(`第 ${st.scorePct} 百分位`), '分數的百分位跟評分引擎算的一致', `${st.scorePct}`);
+      ok(plain.standing.includes(`贏過 ${st.scorePct}%`), '分數那一軸的數字跟評分引擎算的一致', `${st.scorePct}`);
       ok(plain.standing.includes(`用了 ${st.techniques} 種技法`), '技法數跟評分引擎算的一致', `${st.techniques}`);
       ok(plain.standing.includes(`${st.words}`), '字數也在那一行上', `${st.words}`);
     }

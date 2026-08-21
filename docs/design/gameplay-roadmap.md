@@ -80,10 +80,10 @@ CLAUDE.md 的五個方向與七條護欄仍是最高準則。本 roadmap 只回�
   - 依賴：P03、閘門 A。方案：5-A。
   - DoD：142 關資料零改動；tris 增量 <8k、0 光源；e2e 輪詢式「命中 N 條→演出 N 段」；低畫質可關演出。
 
-- [~] **P10a · 石座演出 b：其餘 4 個 check ＋ 鋪 12 區**（M）— `hasFewShot / hasDelimiters / asksToVerify / groundsInContext` 演出；鋪全部石座（三角形總量檢查）。
+- [x] **P10a · 石座演出 b：其餘 4 個 check ＋ 鋪 12 區**（M）— `hasFewShot / hasDelimiters / asksToVerify / groundsInContext` 演出；鋪全部石座（三角形總量檢查）。
   - 依賴：P09。方案：5-A。
   - DoD：tris <215k；低畫質可關；e2e 兩區各驗一關。
-- [~] **P10b · 解法百分位 ＋ 最少技巧徽章**（S）— 過關後「你在第 X 百分位」（內建範例解分布：分數／字數／技巧數三軸，UI 明寫「內建分布」）＋「最少技巧達成」隱藏徽章（**不用「最少字」**）。
+- [x] **P10b · 解法百分位 ＋ 最少技巧徽章**（S）— 過關後「你在第 X 百分位」（內建範例解分布：分數／字數／技巧數三軸，UI 明寫「內建分布」）＋「最少技巧達成」隱藏徽章（**不用「最少字」**）。
   - 依賴：P10a。方案：5-H。
   - DoD：百分位資料 `authored:"game"`；e2e 一關驗百分位顯示；不動 `refreshUnlocks()`。
 

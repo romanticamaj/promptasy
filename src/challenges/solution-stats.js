@@ -116,7 +116,7 @@ export function createSolutionStats(file) {
   const byId = new Map();
   const rows = file && Array.isArray(file.stats) ? file.stats : [];
   for (const row of rows) {
-    if (typeof row.id === 'string' && row.id && validEntry(row)) byId.set(row.id, row);
+    if (row && typeof row.id === 'string' && row.id && validEntry(row)) byId.set(row.id, row);
   }
 
   return {

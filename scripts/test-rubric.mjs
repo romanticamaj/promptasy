@@ -14638,10 +14638,38 @@ console.log('\n▸ 石座演出（v1.2 · P09）');
     for (let i = 0; i < 16; i += 1) fx.update(0.05, i * 0.05);
     ok(walls.every((w) => w.scale.y > 0.5), '升起來了', String(walls[0].scale.y));
     ok(
-      walls.every((w) => Math.abs(w.position.y - w.geometry.parameters.height * 0.5 * w.scale.y) < 1e-6),
-      '牆底一直踩在地上（不飄）',
+      walls.every((w) => Math.abs(w.position.y - w.geometry.parameters.height * 0.5 * w.scale.y) < 1.06),
+      '牆底踩在它自己腳下的地上（容差一個牆高）',
       `${walls[0].position.y} vs ${walls[0].geometry.parameters.height * 0.5 * walls[0].scale.y}`
     );
+    /*
+     * 審查後補：舞台原點只是**石座正中央**的地面高度，四道牆散在 3 公尺外，
+     * 那裡的地不見得一樣高。逐座石座驗「每一道牆腳下的世界高度」都貼著地。
+     */
+    {
+      const H = walls[0].geometry.parameters.height;
+      let worst = 0;
+      let worstAt = '';
+      for (const m of testWorld.markers) {
+        const f = Fx.createRubricFx({ kitOf: kitOfFx, qualityOf: () => 'high', groundAt: World.terrainHeight });
+        f.play(m, ['hasDelimiters']);
+        for (let i = 0; i < 16; i += 1) f.update(0.05, i * 0.05);
+        const ws = [0, 1, 2, 3].map((i) => f.group.getObjectByName(`wall:${i}`));
+        for (const w of ws) {
+          if (!w.visible) continue; // 崖邊那一道不出現（三面框）
+          const wx = m.position.x + w.position.x;
+          const wz = m.position.z + w.position.z;
+          const footWorld = m.position.y + w.position.y - H * 0.5 * w.scale.y;
+          const gap = Math.abs(footWorld - World.terrainHeight(wx, wz));
+          if (gap > worst) {
+            worst = gap;
+            worstAt = `${m.id} wall@(${wx.toFixed(1)},${wz.toFixed(1)}) gap=${gap.toFixed(2)}`;
+          }
+        }
+        f.reset();
+      }
+      ok(worst <= 0.01, '142 座石座：出現的每一道短牆都真的踩在自己腳下的地上', worstAt || `worst=${worst.toFixed(2)}`);
+    }
     {
       // 圍成方框：四道牆各據一邊，中心在石座正上方
       const xs = walls.map((w) => w.position.x);
@@ -15146,8 +15174,21 @@ console.log('\n▸ 解法百分位與最少技巧達成（v1.2 · P10b）');
     ok(/data-standing/.test(consoleSrc), '那一行有 data-standing 把手（e2e 抓得到）');
     ok(/百分位/.test(consoleSrc), '那一行講的是百分位');
     ok(/不是其他玩家/.test(consoleSrc), '那一行**明寫**不是其他玩家的成績（誠實原則）');
+    // 審查後補：字數與技法數是「越少越好」，不能跟分數一樣講「第 N 百分位」（會讀成越多越贏）
+    ok(/贏過 \$\{/.test(consoleSrc) || /贏過/.test(consoleSrc), '分數那一軸講「贏過幾成」');
+    ok(/更短/.test(consoleSrc), '字數那一軸講「比幾成更短」（不是第 N 百分位）');
+    ok(/更精簡/.test(consoleSrc), '技法數那一軸講「比幾成更精簡」');
     ok(/內建/.test(consoleSrc), '那一行明寫是內建的分布');
     ok(/awardLeanSeal\?\.\(/.test(consoleSrc), '徽章走 progression.awardLeanSeal()');
+    // 審查後補：防作弊面要與其他大師印記同一套，不然「按範例 → 貼上」在 39 關直接拿
+    ok(/leanClean/.test(consoleSrc), '徽章有防作弊的閘（leanClean）');
+    ok(/hasSeenSample\?\.\(challenge\.id\)/.test(consoleSrc), '翻開過範例就不算（含之前翻開的）');
+    ok(/sampleShown !== true/.test(consoleSrc), '這一次剛翻開範例也不算');
+    ok(/usedQuickFill !== true/.test(consoleSrc) && /usedCoach !== true/.test(consoleSrc), '用了快速填入或提示球也不算');
+    ok(
+      /leanNew = Boolean\(standing && standing\.lean && leanClean/.test(consoleSrc),
+      '技法數夠精簡**而且**乾淨才給徽章'
+    );
     ok(/最少技巧達成/.test(consoleSrc), '徽章的名字是「最少技巧達成」');
     ok(!/最少字/.test(consoleSrc), '**沒有**「最少字」那一枚（短 ≠ 好 prompt，roadmap §0 鐵則）');
     const codexSrc = srcOf('src/ui/codex.js');

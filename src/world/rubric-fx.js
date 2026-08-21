@@ -213,7 +213,7 @@ const discGeo = () => g('disc', () => new THREE.CircleGeometry(1.06, 36));
  * @param {()=>string} [opts.qualityOf]   目前畫質（'low' → 整層不播）
  * @returns {{group:THREE.Group, play:Function, update:Function, reset:Function, state:Function}}
  */
-export function createRubricFx({ kitOf = null, reducedMotion = false, qualityOf = null } = {}) {
+export function createRubricFx({ kitOf = null, reducedMotion = false, qualityOf = null, groundAt = null } = {}) {
   const group = new THREE.Group();
   group.name = 'rubric-fx';
   group.userData.noCollide = true;
@@ -330,11 +330,22 @@ export function createRubricFx({ kitOf = null, reducedMotion = false, qualityOf 
     depthWrite: false,
     blending: THREE.AdditiveBlending,
   });
+  /**
+   * 四道短牆各自的「腳下地面」相對舞台原點的高度差（`beginShow` 時算一次、tick 裡只讀）。
+   * 舞台原點＝石座正中央的地面高度；四道牆散在 3 公尺外，那裡的地不見得一樣高
+   * （實測 142 座裡有 79 座至少一道會差超過一個牆高，最糟的落在崖邊差 18 公尺）。
+   */
+  const wallBaseY = new Float32Array(4);
+  /** 這一道牆這一次要不要出現（崖邊那一道不出現）。 */
+  const wallOn = new Uint8Array(4);
+  /** 每一道牆離中心多遠（地形太不平時會往內收，讓框仍然踩得住）。 */
+  const wallR = new Float32Array(4);
   const walls = [];
   for (let i = 0; i < 4; i += 1) {
     const wall = new THREE.Mesh(wallGeo(), wallMat);
     wall.name = `wall:${i}`;
     // 0/1 前後、2/3 左右 —— 四道對稱，圍出來的是方框
+    wallR[i] = WALL_R;
     if (i < 2) wall.position.set(0, 0, i === 0 ? WALL_R : -WALL_R);
     else {
       wall.position.set(i === 2 ? WALL_R : -WALL_R, 0, 0);
@@ -566,6 +577,54 @@ export function createRubricFx({ kitOf = null, reducedMotion = false, qualityOf 
     stage.visible = false;
   }
 
+  /** 牆腳跟石座的高低差超過這個數就不出現那一道（三面框仍讀得出「圍起來」，好過一道飄在崖上的牆）。 */
+  const WALL_DROP_MAX = 2.5;
+  /** 地形太陡時往內收的備案半徑（由外往內試）。 */
+  const WALL_RADII = Object.freeze([WALL_R, 2.45, 1.9, 1.45]);
+
+  /**
+   * 算出四道牆各自要站多遠、腳下的地比舞台原點高多少。
+   * 只在 `beginShow` 跑一次（tick 裡零計算、零配置）；沒有給 `groundAt` 就退回舊行為（全部踩舞台原點）。
+   */
+  function solveWalls() {
+    for (let i = 0; i < walls.length; i += 1) {
+      wallR[i] = WALL_R;
+      wallBaseY[i] = 0;
+      wallOn[i] = 1;
+    }
+    if (typeof groundAt !== 'function') return;
+    const ox = stage.position.x;
+    const oy = stage.position.y;
+    const oz = stage.position.z;
+    for (let i = 0; i < walls.length; i += 1) {
+      let bestR = WALL_RADII[0];
+      let bestDy = Infinity;
+      for (let k = 0; k < WALL_RADII.length; k += 1) {
+        const r = WALL_RADII[k];
+        const dx = i < 2 ? 0 : i === 2 ? r : -r;
+        const dz = i < 2 ? (i === 0 ? r : -r) : 0;
+        const dy = groundAt(ox + dx, oz + dz) - oy;
+        if (Math.abs(dy) < Math.abs(bestDy)) {
+          bestDy = dy;
+          bestR = r;
+        }
+        // 找到一圈夠平的就收手（越外圈越好看，所以由外往內試）
+        if (Math.abs(dy) <= 0.35) break;
+      }
+      /*
+       * 牆腳**完全貼著它自己腳下的地**（跟著高低走，不夾）。
+       * 連最內圈都還落差 > 2.5 公尺（崖邊、橋緣）→ 那一道乾脆不出現：
+       * 三面框仍讀得出「把料圍起來」，一道飄在半空的牆只會讓人出戲。
+       */
+      wallR[i] = bestR;
+      wallBaseY[i] = bestDy;
+      wallOn[i] = Math.abs(bestDy) <= WALL_DROP_MAX ? 1 : 0;
+      const w = walls[i];
+      if (i < 2) w.position.set(0, w.position.y, i === 0 ? bestR : -bestR);
+      else w.position.set(i === 2 ? bestR : -bestR, w.position.y, 0);
+    }
+  }
+
   /** 這一段的起手式（把道具擺到起點）。 */
   function beginShow(k) {
     showOn[k] = 1;
@@ -620,13 +679,14 @@ export function createRubricFx({ kitOf = null, reducedMotion = false, qualityOf 
       }
     } else if (k === SHOW_WALLS) {
       wallMat.opacity = 0;
+      solveWalls();
       for (let i = 0; i < walls.length; i += 1) {
         const wall = walls[i];
-        wall.visible = true;
-        // 升起來的是 scale.y，位置跟著半高走 —— 牆底永遠踩在地上
+        wall.visible = wallOn[i] === 1;
+        // 升起來的是 scale.y，位置跟著半高走 —— 牆底永遠踩在**它自己腳下**的地上
         const sy = reducedMotion ? 1 : 0.02;
         wall.scale.y = sy;
-        wall.position.y = WALL_H * 0.5 * sy;
+        wall.position.y = wallBaseY[i] + WALL_H * 0.5 * sy;
       }
       if (!reducedMotion) {
         for (let i = 0; i < BURST_PER_SHOW; i += 1) {
@@ -869,7 +929,7 @@ export function createRubricFx({ kitOf = null, reducedMotion = false, qualityOf 
             const w = 0.02 + 0.98 * smooth(clamp01(u / 0.36));
             for (let i = 0; i < walls.length; i += 1) {
               walls[i].scale.y = w;
-              walls[i].position.y = WALL_H * 0.5 * w;
+              walls[i].position.y = wallBaseY[i] + WALL_H * 0.5 * w;
             }
           }
         }

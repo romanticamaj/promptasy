@@ -1141,9 +1141,11 @@ Exit criteria：
 - [x] rubric 102,414／playtest 2,533／build ✓／e2e 3,952 全綠、console error 0；三角 +356、**光源 +0**、碰撞體 +0、collision-audit 0。
 - [x] 三件組＋changelog＋roadmap 打勾。
 
-### P10a＋P10b — 石座演出鋪滿 12 區 ＋ 解法百分位（2026-08-21 開工，合併一次執行）
+### P10a＋P10b — 石座演出鋪滿 12 區 ＋ 解法百分位（2026-08-21 開工 · 同日完成，合併一次執行）
 
-狀態：`in progress`（P09 的交接說明指出這兩格的改動都很小：a 是「一個表加四行＋一行常數」、b 是純 UI＋一份資料；合併成一次執行，仍分兩段 commit）
+狀態：`done`（`/code-review high` 7 條全修；分兩段 commit）
+
+**審查後修訂（2026-08-21）**：① **徽章可以貼範例解直接拿**——`最少技巧達成` 只看技法數，沒有其他大師印記那一套防作弊（`samplesSeen`／`sampleShown`／`usedQuickFill`／`usedCoach`）；實測 39 關的 `sample` 本身就合格，等於「按範例 → 貼上 → 送出」就有。補上 `leanClean` 閘。② **方框短牆有 79/142 座會浮空**（最糟落在崖邊差 18 公尺）——舞台原點只是石座正中央的地面高度，四道牆散在 3 公尺外。改成每道牆**各自貼自己腳下的地**（由外往內試 4 圈半徑找夠平的一圈），落差 >2.5 公尺就**那一道不出現**（三面框仍讀得出「圍起來」，好過一道飄在半空的牆）；rubric 逐 142 座 ×4 道驗過。③ 百分位在**字數與技法數**兩軸語意是反的（越少越好卻寫成「第 N 百分位」，會讀成越多越贏，而且與下一行的徽章互相矛盾）→ 改成「分數贏過 N%／字數比 N% 更短／技法數比 N% 更精簡」。④ 揭示節拍改成依「實際有出現的東西」順排（原本寫死 tail+2…tail+5，沒有分布那一行時中間空 3–4 拍）。⑤ `createSolutionStats` 對 `null` 列會爆（宣稱容錯卻先解參照）。⑥ 產生腳本的檔頭宣稱「三軸逐格對應同一份解答」與實作不符（三軸各自排序）→ 改成明講不要 join。⑦ CHANGELOG／roadmap 由 orchestrator 收尾。
 
 **現狀（P09 交接）**：`src/world/rubric-fx.js` 有 `RUBRIC_FX`（check → fx id 的表）、內部 `SHOW_CHECKS` 陣列、`SHOW_COUNT`／`SHOW_SECONDS`、`beginShow()`／`endShow()`／`update()` 的分段；`showOn`／`showT` 是依 `SHOW_COUNT` 開的 TypedArray（加段自動長大）。`FX_REGIONS = ['foundations']`；`main.js` 已經是「index → check 名 → `fxForCheck()`」，鋪區只要改常數。整層只有一組道具（`stage` 搬到正在演的那座），**鋪 12 區加 0 三角**。兩個測試 pin 了現值（rubric ① 的 `FX_REGIONS`、e2e 的 `fxRegion`）。結果面目前顯示：印章／分數條／逐列／XP／評價；`recordResult` 回傳 `bestGrade`／`improved`。
 
@@ -1177,9 +1179,9 @@ Exit criteria：
 **禁區**：`curriculum.json`、`challenges.json`、`flows.json`、`murks.json`、`letters.json`、`color-script.json`、`vite.config.js`、`CLAUDE.md`、`CHANGELOG.md`、`gameplay-roadmap.md`、dev server 5173/5174/5175。
 
 Exit criteria：
-- [ ] 八個 check 的演出鋪滿 12 區；百分位那一行誠實標示內建分布；最少技巧徽章可得。
-- [ ] rubric／playtest／build／e2e 全綠、console error 0；預算在框內。
-- [ ] 三件組＋changelog＋roadmap 兩格打勾。
+- [x] 八個 check 的演出鋪滿 12 區（鋪區加 0 三角——全世界只有一組道具）；百分位誠實標示是內建分布、三軸方向各自正確；最少技巧徽章可得且**擋得住貼範例解**。
+- [x] rubric 106,446／playtest 2,533／build ✓／e2e 4,000 全綠、console error 0；FX 層 472 三角、**0 光源、0 碰撞體**、collision-audit 0。
+- [x] 三件組＋changelog＋roadmap 兩格打勾。
 
 ## v1.2 錯誤紀錄
 

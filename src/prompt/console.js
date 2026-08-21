@@ -1894,20 +1894,40 @@ export function createPromptConsole({
       console.warn('[console] 解法分布查不動：', err);
       standing = null;
     }
-    const leanNew = Boolean(standing && standing.lean && progression.awardLeanSeal?.(challenge.id));
+    /*
+     * 徽章的防作弊面**與其他大師印記同一套**（`masterSealFor` 的規矩）：
+     * 翻開過範例（含這一次剛翻開的）、用了快速填入或提示球，就不算 ——
+     * 不然「按範例 → 貼上 → 送出」在 39 關可以直接拿到，那不叫精簡，叫抄。
+     */
+    const leanClean =
+      !progression.hasSeenSample?.(challenge.id) &&
+      sampleShown !== true &&
+      usedQuickFill !== true &&
+      usedCoach !== true;
+    const leanNew = Boolean(standing && standing.lean && leanClean && progression.awardLeanSeal?.(challenge.id));
+    /*
+     * 三軸的「好」方向不一樣：分數是**越高越好**，字數與技法數是**越少越精簡**。
+     * 全部都寫「第 N 百分位」的話，一個囉唆的答案會顯示「用了 5 種技法（第 100 百分位）」，
+     * 讀起來像贏了 —— 而它下面那一行徽章講的正好相反。所以後兩軸改成「比 N 成的內建解更精簡」。
+     */
     const standingLine = standing
       ? `<p class="standing reveal" style="--i:${tail}" data-standing>
-          <span class="standing__row"><b>這一次</b>：分數 ${formatScore(standing.score)}（第 ${
+          <span class="standing__row"><b>這一次</b>：分數 ${formatScore(standing.score)}（贏過 ${
             standing.scorePct
-          } 百分位）· 字數 ${standing.words}（第 ${standing.wordsPct} 百分位）· 用了 ${
+          }% 的內建解）· 字數 ${standing.words}（比 ${100 - standing.wordsPct}% 的內建解更短）· 用了 ${
             standing.techniques
-          } 種技法（第 ${standing.techniquesPct} 百分位）</span>
-          <span class="standing__note">百分位＝這一關 ${standing.n} 份<b>內建</b>範例解裡有多少成不比你高。那是遊戲<b>內建</b>的分布，不是其他玩家的成績。</span>
+          } 種技法（比 ${100 - standing.techniquesPct}% 的內建解更精簡）</span>
+          <span class="standing__note">拿來比的是這一關 ${standing.n} 份<b>內建</b>範例解 —— 遊戲自己算出來的分布，不是其他玩家的成績。</span>
         </p>`
       : '';
     /** 隱藏徽章：用不多於內建最精簡那一份的技法數通過（只在拿到的那一次說一句）。 */
+    /*
+     * 揭示節拍照**實際有出現的東西**往後排 —— 之前寫死 tail+2…tail+5，
+     * 沒有分布那一行時（沒過、濁靈、試煉）中間會空出 3–4 拍的靜止。
+     */
+    let beat = tail + (standing ? 1 : 0) + (leanNew ? 1 : 0);
     const leanLine = leanNew
-      ? `<p class="gain lean-seal reveal" style="--i:${tail + 1}" data-lean-seal>✦ 最少技巧達成 —— 你用 ${
+      ? `<p class="gain lean-seal reveal" style="--i:${tail + (standing ? 1 : 0)}" data-lean-seal>✦ 最少技巧達成 —— 你用 ${
           standing.techniques
         } 種技法就把這件事講清楚了，跟這一關最精簡的內建解一樣少。</p>`
       : '';
@@ -1945,12 +1965,12 @@ export function createPromptConsole({
       ${leanLine}
       ${
         collected
-          ? `<div class="collected" style="--i:${tail + 2}"><h4><span class="zh">✦ 順手收進圖鑑</span><span class="en">Collected</span></h4><ul>${collected}</ul></div>`
+          ? `<div class="collected" style="--i:${beat}"><h4><span class="zh">✦ 順手收進圖鑑</span><span class="en">Collected</span></h4><ul>${collected}</ul></div>`
           : ''
       }
       ${
         outcome.newlyUnlocked.length
-          ? `<div class="collected" style="--i:${tail + 3}"><h4><span class="zh">✦ 新解鎖區域</span><span class="en">Unlocked</span></h4><ul>${outcome.newlyUnlocked
+          ? `<div class="collected" style="--i:${beat + (collected ? 1 : 0)}"><h4><span class="zh">✦ 新解鎖區域</span><span class="en">Unlocked</span></h4><ul>${outcome.newlyUnlocked
               .map((id) => {
                 const g = content.group(id);
                 return `<li><b>${esc(g ? g.name : id)}</b> <span class="muted">${esc(
@@ -1963,9 +1983,9 @@ export function createPromptConsole({
       ${
         trial
           ? `<p class="result__source reveal" style="--i:${
-              tail + 4
+              beat + (collected ? 1 : 0) + (outcome.newlyUnlocked.length ? 1 : 0)
             }">這是試煉 —— 它不教新的技法，只把你在這片土地上學過的再用一次。</p>`
-          : `<p class="result__source reveal" style="--i:${tail + 4}">${murkResult ? '這一句話背後的技法，官方出處' : '本關技巧的官方出處'}
+          : `<p class="result__source reveal" style="--i:${beat + (collected ? 1 : 0) + (outcome.newlyUnlocked.length ? 1 : 0)}">${murkResult ? '這一句話背後的技法，官方出處' : '本關技巧的官方出處'}
         <a class="src" href="${esc(challenge.source)}" target="_blank" rel="noopener">${esc(
           content.sourceName(challenge.source)
         )} ↗</a>
@@ -1973,7 +1993,7 @@ export function createPromptConsole({
       }
       ${
         evaluation.passed && !murkResult
-          ? `<div class="result__share reveal" style="--i:${tail + 5}">
+          ? `<div class="result__share reveal" style="--i:${beat + (collected ? 1 : 0) + (outcome.newlyUnlocked.length ? 1 : 0) + 1}">
               <button class="btn btn--ghost" type="button" data-share>分享這次的刻印<kbd>S</kbd></button>
             </div>`
           : ''

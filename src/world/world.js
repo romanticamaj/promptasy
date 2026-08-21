@@ -3086,6 +3086,8 @@ export function createWorld({
     kitOf: (regionId) => kits.get(regionId) || kits.get('foundations'),
     reducedMotion,
     qualityOf: () => (engine && engine.quality) || quality,
+    // 方框短牆散在 3 公尺外，要各自踩自己腳下的地（石座正中央的高度不代表四周）
+    groundAt: terrainHeight,
   });
   root.add(rubricFx.group);
 
