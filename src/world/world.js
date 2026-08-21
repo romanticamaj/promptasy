@@ -29,6 +29,7 @@ import { buildLetter, LETTER_RADIUS } from './letters.js';
 import { createReactiveField, REACTIVE_SPOTS } from './reactive.js';
 import { createHandleField, HANDLE_RADIUS } from './handles.js';
 import { createMurkField, MURK_RADIUS } from './murks.js';
+import { createRubricFx } from './rubric-fx.js';
 
 /** 每片土地：中心、半徑、內圈（完全平坦的核心）。 */
 export const REGION_SITES = Object.freeze([
@@ -3077,6 +3078,17 @@ export function createWorld({
     return marker;
   });
 
+  /* --- v1.2 · P09：石座演出（命中哪一條檢查 → 石座旁邊看得見的因果） ---
+   * 一個世界只有一組道具，播的時候搬到那一座石座腳下（主控台一次只開一關）。
+   * 0 光源、0 碰撞體（全部 noCollide）；低畫質整層不播 —— 畫質是**當下**問的，
+   * 玩家在設定裡切換畫質不必重建世界。 */
+  const rubricFx = createRubricFx({
+    kitOf: (regionId) => kits.get(regionId) || kits.get('foundations'),
+    reducedMotion,
+    qualityOf: () => (engine && engine.quality) || quality,
+  });
+  root.add(rubricFx.group);
+
   /*
    * 閘門：四條橋 ＋ 正南那條 ＋ 加建院落的頸口（課程 v2 · Phase F）。
    * 加建的那一道立在兩片土地的歸屬分界上，`buildGate()` 只需要 `gate` 與 `dir`，
@@ -3355,6 +3367,8 @@ export function createWorld({
     handles: handleField,
     /** v1.2 · P01：濁靈場。 */
     murks: murkField,
+    /** v1.2 · P09：石座演出（rubric 命中 → 石座旁的因果）。 */
+    rubricFx,
     /** v1.2 · P06：這一區道具用的四階色（`kitFor()`；色彩腳本的 rim 已覆寫 light）—— 唯讀（測試與稽核用）。 */
     kitOf: (regionId) => kits.get(regionId) || kits.get('foundations'),
     vignetteAnchors,
@@ -3571,6 +3585,8 @@ export function createWorld({
       reactive.update(dt, t, x, z);
       handleField.update(dt, t, x, z);
       murkField.update(dt, t, x, z);
+      // v1.2 · P09：石座演出（面板開著也照播 —— 玩家正看著結果面，世界在背景）
+      rubricFx.update(dt, t);
     },
 
     /**

@@ -33,6 +33,7 @@ import { createEngine } from './engine/engine.js';
 import { hourOf, hourFactor, composeMood, createMoodMemo } from './engine/hours.js';
 import { createWorld } from './world/world.js';
 import { loadColorScript, colorScriptFor } from './world/color-script.js';
+import { fxForCheck, fxEnabledIn } from './world/rubric-fx.js';
 import colorScriptFile from './data/color-script.json';
 import { createPlayer } from './player/player.js';
 import { createContent } from './challenges/content.js';
@@ -347,12 +348,31 @@ function boot() {
      * v1.2 · P03：命中的檢查看得見 —— recorder 回傳後、畫結果之前，主控台回呼一次。
      * 濁靈：每一條新命中剝一層殼（世界端演出）＋ 一下輕脈衝 ＋ 每殼一聲 murkHit
      * （最多 3 聲、隔 90ms 用 setTimeout 排開；音高層依累積命中數 1/2/3+）。
-     * 關卡（kind 缺省）：P03 只回呼、不演出（P09 接石座）。
+     * 關卡（kind 缺省）：v1.2 · P09 接石座 —— 新命中的 rubric index 換成**檢查器的名字**，
+     * 交給 `world.rubricFx` 在石座旁演一段（腳下的圈掃亮／碎石排成一列／光柱收成一段／
+     * 浮碑戴上輪廓光）。演出時結果面還開著，所以脈衝比濁靈輕（0.18 < 0.28）、不加音效。
      */
     onRubricHits: (hits) => {
       lastRubricHits = hits;
       const ch = hits && hits.challenge;
-      if (!ch || ch.kind !== 'murk') return;
+      if (!ch) return;
+      if (ch.kind !== 'murk') {
+        // 石座（kind 缺省）：只演本 phase 支援的 4 個檢查、且只在鋪到的區
+        const newlyIdx = Array.isArray(hits.newlyPassedIndices) ? hits.newlyPassedIndices : [];
+        if (!newlyIdx.length) return;
+        const marker = world.markers.find((m) => m.id === ch.id);
+        if (!marker || !fxEnabledIn(marker.region)) return;
+        const rubric = ch.rubric || [];
+        const fxChecks = [];
+        for (let k = 0; k < newlyIdx.length; k += 1) {
+          const row = rubric[newlyIdx[k]];
+          const name = row && row.check;
+          if (name && fxForCheck(name) && !fxChecks.includes(name)) fxChecks.push(name);
+        }
+        if (!fxChecks.length) return;
+        if (world.rubricFx.play(marker, fxChecks) > 0) engine.pulse(0.18);
+        return;
+      }
       const newly = Array.isArray(hits.newlyPassedIndices) ? hits.newlyPassedIndices : [];
       const cumulative = Array.isArray(hits.passedIndices) ? hits.passedIndices.length : newly.length;
       // recorder 已經落盤：calmed／newlyCalmed 直接用它回傳的（hits.murk），不讓世界端猜
@@ -495,6 +515,8 @@ function boot() {
       hud.refresh();
       // v1.2 · P03：世界端的濁靈跟著存檔一起歸零（不重載也不會演出失聯）
       world.murks?.reset?.();
+      // v1.2 · P09：石座演出也歸零（借走的光柱還回去、粒子池清空；WORLD §8 G24b）
+      world.rubricFx?.reset?.();
       // v1.2 · P06：閘門標籤／三態與石座三態也跟著歸零（先行前往過的門回到琥珀、它的石座回到暗）
       world.refreshGates?.();
       world.refreshMarkerStates?.();

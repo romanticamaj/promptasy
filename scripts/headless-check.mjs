@@ -16596,6 +16596,317 @@ async function main() {
   }
 
   /* ================================================================ */
+  /* v1.2 · P09：石座演出 —— 回呼接石座、4 個 check、一區試水            */
+  /*   （輪詢式：演出是計時器，不對齊牆鐘）                              */
+  /* ================================================================ */
+  console.log('\n▸ 石座演出（v1.2 · P09）');
+  {
+    /** 只命中 gate-of-clarity-01 的第 0 條（assignsTask）、不命中 hasConstraint 的一句。 */
+    const ONLY_TASK = '請把下面這張告示改寫成清楚好懂的公告。';
+
+    const fxPre = await evaluate(`
+      const g = window.__promptasy;
+      if (g.promptConsole.isOpen) g.promptConsole.close();
+      await new Promise((r) => setTimeout(r, 240));
+      g.engine.setQuality('high');
+      const fx = g.world.rubricFx;
+      fx.reset();
+      let lights = 0, tris = 0, solidFlags = 0, meshes = 0;
+      fx.group.traverse((o) => {
+        const ud = o.userData || {};
+        if (o.isLight) lights += 1;
+        if (ud.solid || ud.solidSpan || typeof ud.solidRadius === 'number') solidFlags += 1;
+        if (o.isMesh && o.geometry) {
+          meshes += 1;
+          const idx = o.geometry.index;
+          tris += idx ? idx.count / 3 : o.geometry.attributes.position.count / 3;
+        }
+      });
+      let worldLights = 0, worldTris = 0;
+      g.engine.scene.traverse((o) => {
+        if (o.isLight) worldLights += 1;
+        if (o.isMesh && o.geometry) {
+          const idx = o.geometry.index;
+          const n = idx ? idx.count / 3 : o.geometry.attributes.position.count / 3;
+          worldTris += n * (o.isInstancedMesh ? o.count : 1);
+        }
+      });
+      return {
+        api: typeof fx.play === 'function' && typeof fx.update === 'function' && typeof fx.reset === 'function' && typeof fx.state === 'function',
+        state0: JSON.stringify(fx.state()),
+        capacity: fx.particleCapacity,
+        enabled: fx.enabled,
+        spawned0: fx.particlesSpawned,
+        lights, tris, solidFlags, meshes,
+        worldLights, worldTris: Math.round(worldTris),
+        solids: g.world.solids.length,
+        marker: !!g.world.markers.find((m) => m.id === 'gate-of-clarity-01'),
+        inRoot: (() => { let hit = false; g.world.root.traverse((o) => { if (o.name === 'rubric-fx') hit = true; }); return hit; })(),
+      };
+    `);
+    eq(fxPre.api, true, 'world.rubricFx 有 play／update／reset／state（e2e 把手）');
+    eq(fxPre.inRoot, true, '演出層掛在世界的 root 底下（rubric-fx）');
+    eq(fxPre.marker, true, '（前提）中央高原的第一座石座在世界裡');
+    eq(JSON.parse(fxPre.state0).playing.length, 0, '一開始什麼都沒在演');
+    eq(fxPre.spawned0, 0, '一開始粒子池沒噴過');
+    ok(fxPre.capacity <= 24, '粒子池 ≤ 24 顆（預算）', String(fxPre.capacity));
+    eq(fxPre.lights, 0, '演出層一盞燈都沒加');
+    eq(fxPre.solidFlags, 0, '演出層沒有任何碰撞旗標（不進碰撞登記表）');
+    ok(fxPre.tris < 8000, '演出層三角形 < 8k（預算）', `tris=${fxPre.tris}`);
+    ok(fxPre.worldLights <= 56, '多了演出層之後燈光仍在預算內', `lights=${fxPre.worldLights}`);
+    ok(fxPre.worldTris < 420000, '多了演出層之後三角形仍在預算內', `tris=${fxPre.worldTris}`);
+    ok(fxPre.solids < 1400, '碰撞體仍在預算內', `solids=${fxPre.solids}`);
+
+    /* --- 送一段只命中 assignsTask 的 → 石座腳下的圈掃亮一圈 --- */
+    const fxHit = await evaluate(`
+      const g = window.__promptasy;
+      const c = g.promptConsole;
+      c.open(g.content.challenge('gate-of-clarity-01'));
+      await new Promise((r) => setTimeout(r, 340));
+      if (c.mode !== 'free') c.setMode('free');
+      c.goAct(3, { force: true });
+      await new Promise((r) => setTimeout(r, 240));
+      const ta = document.querySelector('#prompt-console .prompt-input');
+      ta.value = ${JSON.stringify(ONLY_TASK)};
+      document.querySelector('#prompt-console [data-submit]').click();
+      // 回呼是同步的（recorder 之後、畫結果之前）—— 送出當下就讀得到
+      const hits = g.rubricHits();
+      return {
+        hits: JSON.stringify(hits),
+        newly: hits.newlyPassedIndices.slice(),
+        checks: hits.newlyPassedIndices.map((i) => hits.challenge.rubric[i].check),
+        state: JSON.stringify(g.world.rubricFx.state()),
+        spawned: g.world.rubricFx.particlesSpawned,
+        resultShown: !document.querySelector('#prompt-console .result')?.hidden,
+      };
+    `);
+    eq(JSON.stringify(fxHit.checks), JSON.stringify(['assignsTask']), '這一句只命中 assignsTask（不碰 hasConstraint）', fxHit.checks.join(','));
+    eq(fxHit.resultShown, true, '演出的同時結果面照樣畫出來（演出在世界層，不擋閱讀）');
+    {
+      const st = JSON.parse(fxHit.state);
+      eq(st.playing.length, 1, '腳下的圈開演了一段');
+      eq(st.playing[0].check, 'assignsTask', '演的就是命中的那一條');
+      eq(st.playing[0].fx, 'ring-sweep', 'assignsTask → 腳下的圈掃亮一圈');
+      eq(st.playing[0].markerId, 'gate-of-clarity-01', '演在正確的那一座石座');
+      ok(st.particlesActive > 0, '演出時粒子池有活粒子', String(st.particlesActive));
+    }
+    ok(fxHit.spawned > 0 && fxHit.spawned <= 8, '一段演出只噴少少幾顆碎光（安靜）', String(fxHit.spawned));
+
+    // 掃亮進度真的在長（輪詢，不用固定 sleep）
+    const fxSweeping = await waitFor(async () => {
+      const r = await evaluate(`
+        const fx = window.__promptasy.world.rubricFx;
+        const m = fx.group.getObjectByName('ring-sweep');
+        return { drawn: m.geometry.drawRange.count, total: m.geometry.index.count, opacity: m.material.opacity, playing: fx.state().playing.length };
+      `);
+      return r.drawn > 0 && r.opacity > 0 ? r : null;
+    }, { timeout: 8000, label: '腳下的圈開始掃亮' });
+    ok(fxSweeping.drawn > 0, '腳下的圈亮起了一段弧', `${fxSweeping.drawn}/${fxSweeping.total}`);
+    ok(fxSweeping.opacity > 0, '掃亮的那一圈看得見', String(fxSweeping.opacity));
+
+    // 讓它自己演完（≤ 2.5 秒）
+    const fxDone = await waitFor(async () => {
+      const r = await evaluate(`
+        const fx = window.__promptasy.world.rubricFx;
+        const m = fx.group.getObjectByName('ring-sweep');
+        const st = fx.state();
+        return { playing: st.playing.length, particles: st.particlesActive, visible: m.visible, spawned: fx.particlesSpawned };
+      `);
+      return r.playing === 0 && r.particles === 0 ? r : null;
+    }, { timeout: 9000, label: '演出自己結束' });
+    eq(fxDone.playing, 0, '≤ 2.5 秒後演出自己結束（playing 歸零）');
+    eq(fxDone.particles, 0, '碎光也熄了');
+    eq(fxDone.visible, false, '演完的道具藏起來');
+
+    /* --- 同一次 session 再送同一句 → 不重播（session 差量） --- */
+    const fxAgain = await evaluate(`
+      const g = window.__promptasy;
+      const ta = document.querySelector('#prompt-console .prompt-input');
+      ta.value = ${JSON.stringify(ONLY_TASK)};
+      document.querySelector('#prompt-console [data-submit]').click();
+      const hits = g.rubricHits();
+      return {
+        newly: hits.newlyPassedIndices.slice(),
+        passed: hits.passedIndices.slice(),
+        state: JSON.stringify(g.world.rubricFx.state()),
+        spawned: g.world.rubricFx.particlesSpawned,
+      };
+    `);
+    eq(JSON.stringify(fxAgain.newly), '[]', '同一次 session 再送同一句 → 沒有新命中（session 差量）');
+    eq(JSON.stringify(fxAgain.passed), '[0]', '這一次仍然命中第 0 條（只是不算新的）');
+    eq(JSON.parse(fxAgain.state).playing.length, 0, '沒有新命中 → 不重播');
+    eq(fxAgain.spawned, fxDone.spawned, '不重播 → 粒子池也沒再噴');
+
+    /* --- 關掉重開主控台 → session 差量歸零、可以再演一次 --- */
+    const fxReopen = await evaluate(`
+      const g = window.__promptasy;
+      const c = g.promptConsole;
+      c.close();
+      await new Promise((r) => setTimeout(r, 260));
+      c.open(g.content.challenge('gate-of-clarity-01'));
+      await new Promise((r) => setTimeout(r, 340));
+      if (c.mode !== 'free') c.setMode('free');
+      c.goAct(3, { force: true });
+      await new Promise((r) => setTimeout(r, 240));
+      const ta = document.querySelector('#prompt-console .prompt-input');
+      ta.value = ${JSON.stringify(ONLY_TASK)};
+      document.querySelector('#prompt-console [data-submit]').click();
+      const hits = g.rubricHits();
+      return {
+        newly: hits.newlyPassedIndices.slice(),
+        state: JSON.stringify(g.world.rubricFx.state()),
+        spawned: g.world.rubricFx.particlesSpawned,
+      };
+    `);
+    eq(JSON.stringify(fxReopen.newly), '[0]', '關掉重開 → session 差量歸零，第 0 條又算新命中');
+    {
+      const st = JSON.parse(fxReopen.state);
+      eq(st.playing.length, 1, '重開之後可以再演一次');
+      eq(st.playing[0].check, 'assignsTask', '演的還是那一條');
+    }
+    ok(fxReopen.spawned > fxAgain.spawned, '重開之後真的又噴了碎光', `${fxAgain.spawned} → ${fxReopen.spawned}`);
+    await waitFor(async () => {
+      const r = await evaluate(`return window.__promptasy.world.rubricFx.state().playing.length;`);
+      return r === 0 ? true : null;
+    }, { timeout: 9000, label: '第二次演出也自己結束' });
+
+    /* --- 低畫質：整層關掉 --- */
+    const fxLow = await evaluate(`
+      const g = window.__promptasy;
+      const c = g.promptConsole;
+      g.engine.setQuality('low');
+      const fx = g.world.rubricFx;
+      const enabledLow = fx.enabled;
+      const spawnedBefore = fx.particlesSpawned;
+      c.close();
+      await new Promise((r) => setTimeout(r, 260));
+      c.open(g.content.challenge('gate-of-clarity-01'));
+      await new Promise((r) => setTimeout(r, 340));
+      if (c.mode !== 'free') c.setMode('free');
+      c.goAct(3, { force: true });
+      await new Promise((r) => setTimeout(r, 240));
+      const ta = document.querySelector('#prompt-console .prompt-input');
+      ta.value = ${JSON.stringify(ONLY_TASK)};
+      document.querySelector('#prompt-console [data-submit]').click();
+      const hits = g.rubricHits();
+      const out = {
+        enabledLow,
+        newly: hits.newlyPassedIndices.slice(),
+        state: JSON.stringify(fx.state()),
+        spawned: fx.particlesSpawned,
+        spawnedBefore,
+        resultShown: !document.querySelector('#prompt-console .result')?.hidden,
+      };
+      // 切回高畫質，後面的檢查照舊
+      g.engine.setQuality('high');
+      out.enabledHigh = fx.enabled;
+      c.close();
+      await new Promise((r) => setTimeout(r, 260));
+      return out;
+    `);
+    eq(fxLow.enabledLow, false, '低畫質時演出層是關的');
+    eq(JSON.stringify(fxLow.newly), '[0]', '（前提）低畫質下一樣有新命中');
+    eq(JSON.parse(fxLow.state).playing.length, 0, '低畫質 → 不播');
+    eq(fxLow.spawned, fxLow.spawnedBefore, '低畫質 → 一顆粒子都沒噴');
+    eq(fxLow.resultShown, true, '低畫質下結果面照常（關掉的只有世界層的演出）');
+    eq(fxLow.enabledHigh, true, '切回高畫質演出層就開了（不必重新整理）');
+
+    /* --- 其餘 3 段：四段可以同時播、各自 ≤ 2.5 秒收乾淨 --- */
+    const fxAll = await evaluate(`
+      const g = window.__promptasy;
+      const fx = g.world.rubricFx;
+      fx.reset();
+      const marker = g.world.markers.find((m) => m.id === 'gate-of-clarity-01');
+      const beacon0 = { scale: marker.beacon.scale.y, y: marker.beacon.position.y };
+      const started = fx.play(marker, ['assignsTask', 'specifiesFormat', 'hasConstraint', 'hasRole']);
+      const st = fx.state();
+      return {
+        started,
+        playing: st.playing.map((p) => p.check).sort(),
+        beacon0,
+        // 不支援的檢查一律不演出（P10a 才接）
+        unsupported: fx.play(marker, ['hasFewShot', 'hasDelimiters', 'asksToVerify', 'groundsInContext']),
+      };
+    `);
+    eq(fxAll.started, 4, '四段可以同時開演');
+    eq(JSON.stringify(fxAll.playing), JSON.stringify(['assignsTask', 'hasConstraint', 'hasRole', 'specifiesFormat']), '四段就是 spec 的那四條');
+    eq(fxAll.unsupported, 0, 'P10a 那四個檢查這一 phase 不演出');
+    // 光柱真的被收成一段（輪詢）
+    const fxColumn = await waitFor(async () => {
+      const r = await evaluate(`
+        const g = window.__promptasy;
+        const m = g.world.markers.find((x) => x.id === 'gate-of-clarity-01');
+        const fx = g.world.rubricFx;
+        return {
+          scale: m.beacon.scale.y,
+          y: m.beacon.position.y,
+          tick: fx.group.getObjectByName('tick:0').material.opacity,
+          chipY: fx.group.getObjectByName('chip:0').position.y,
+          rim: fx.group.getObjectByName('mask-rim').material.opacity,
+        };
+      `);
+      return r.scale < fxAll.beacon0.scale * 0.5 && r.tick > 0 ? r : null;
+    }, { timeout: 8000, label: '光柱收成有刻度的一段' });
+    ok(fxColumn.scale < fxAll.beacon0.scale * 0.5, '光柱從無限高收成一段', String(fxColumn.scale));
+    ok(fxColumn.y < fxAll.beacon0.y * 0.5, '收短時底還踩在地上', String(fxColumn.y));
+    ok(fxColumn.tick > 0, '刻度亮起來了（量得出來的長度）', String(fxColumn.tick));
+    ok(fxColumn.chipY > 0.3, '碎石浮起來排隊了', String(fxColumn.chipY));
+    ok(fxColumn.rim > 0, '浮碑戴上了面具般的輪廓光', String(fxColumn.rim));
+    // 全部演完 → 光柱一寸不差地還回去
+    const fxRestored = await waitFor(async () => {
+      const r = await evaluate(`
+        const g = window.__promptasy;
+        const m = g.world.markers.find((x) => x.id === 'gate-of-clarity-01');
+        const fx = g.world.rubricFx;
+        const st = fx.state();
+        return { playing: st.playing.length, particles: st.particlesActive, scale: m.beacon.scale.y, y: m.beacon.position.y };
+      `);
+      return r.playing === 0 ? r : null;
+    }, { timeout: 9000, label: '四段全部演完' });
+    eq(fxRestored.playing, 0, '四段全部 ≤ 2.5 秒內收乾淨');
+    eq(fxRestored.scale, fxAll.beacon0.scale, '光柱的縮放一寸不差地還回去');
+    eq(fxRestored.y, fxAll.beacon0.y, '光柱的高度一寸不差地還回去');
+
+    /* --- 其他片土地這一 phase 不演出（P09 只在中央高原試水） --- */
+    const fxRegion = await evaluate(`
+      const g = window.__promptasy;
+      const fx = g.world.rubricFx;
+      fx.reset();
+      const other = g.world.markers.find((m) => m.region !== 'foundations' && (m.challenge.rubric || []).some((r) => r.check === 'assignsTask'));
+      const before = fx.particlesSpawned;
+      // main.js 的守門是 fxEnabledIn(marker.region) —— 這裡直接驗那一支純函式的效果
+      const mod = await import('/src/world/rubric-fx.js');
+      return {
+        otherRegion: other ? other.region : null,
+        enabledOther: other ? mod.fxEnabledIn(other.region) : null,
+        enabledFoundations: mod.fxEnabledIn('foundations'),
+        regions: JSON.stringify(mod.FX_REGIONS),
+        before,
+      };
+    `);
+    eq(fxRegion.regions, JSON.stringify(['foundations']), 'P09 只鋪中央高原（P10a 鋪 12 區）');
+    eq(fxRegion.enabledFoundations, true, '中央高原有演出');
+    eq(fxRegion.enabledOther, false, `其他片土地（${fxRegion.otherRegion}）這一 phase 不演出`);
+
+    /* --- 進度重置：世界端的演出跟著歸零（WORLD §8 G24b） --- */
+    const fxReset = await evaluate(`
+      const g = window.__promptasy;
+      const fx = g.world.rubricFx;
+      const marker = g.world.markers.find((m) => m.id === 'gate-of-clarity-01');
+      const scale0 = marker.beacon.scale.y;
+      fx.play(marker, ['hasConstraint']);
+      await new Promise((r) => setTimeout(r, 260));
+      const mid = { scale: marker.beacon.scale.y, playing: fx.state().playing.length };
+      fx.reset();
+      return { scale0, mid, after: { scale: marker.beacon.scale.y, playing: fx.state().playing.length, particles: fx.state().particlesActive } };
+    `);
+    ok(fxReset.mid.playing === 1, '（前提）演到一半');
+    eq(fxReset.after.playing, 0, 'reset() 把演出清空');
+    eq(fxReset.after.particles, 0, 'reset() 把粒子池清空');
+    eq(fxReset.after.scale, fxReset.scale0, 'reset() 把借走的光柱還回去');
+  }
+
+  /* ================================================================ */
   await sleep(600);
   const realErrors = consoleErrors.filter((e) => !/favicon|DevTools|Autofill/i.test(e));
   eq(realErrors.length, 0, '全程零 console error', realErrors.slice(0, 6).join('\n      '));

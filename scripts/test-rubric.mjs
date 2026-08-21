@@ -14396,6 +14396,341 @@ console.log('\n▸ 四宿星圖 ＋ 反應式回聲 ＋ 傳說鉤（v1.2 · P08�
 }
 
 
+/* ================================================================== */
+/* v1.2 · P09：石座演出 a —— 回呼接石座 ＋ 4 個 check ＋ 一區試水         */
+/*   · check 名 → 演出的純函式對應表（只認 4 個、其餘 null）            */
+/*   · play()／update()／reset() 的行為；同一段不疊加；dt 夾 0.1        */
+/*   · reducedMotion 走終態；低畫質整層不播                             */
+/*   · 預算：三角 < 8k、0 光源、碰撞體不變；靜態掃描零每幀配置          */
+/*   · 關卡資料一個位元組都沒有為了演出而動                             */
+/* ================================================================== */
+console.log('\n▸ 石座演出（v1.2 · P09）');
+{
+  const Fx = await import('../src/world/rubric-fx.js');
+  const kitOfFx = () => Props.kitFor('#8aa0b4');
+
+  /* --- ① 純函式：check 名 → 演出 id --- */
+  {
+    eq(typeof Fx.fxForCheck, 'function', 'rubric-fx.js 匯出 fxForCheck(check)');
+    eq(Object.keys(Fx.RUBRIC_FX).length, 4, 'P09 只對應 4 個檢查器');
+    eq(
+      JSON.stringify(Object.keys(Fx.RUBRIC_FX).sort()),
+      JSON.stringify(['assignsTask', 'hasConstraint', 'hasRole', 'specifiesFormat']),
+      '對應表就是 spec 的那四條（assignsTask / specifiesFormat / hasConstraint / hasRole）'
+    );
+    eq(Fx.fxForCheck('assignsTask'), 'ring-sweep', 'assignsTask → 腳下的圈掃亮一圈');
+    eq(Fx.fxForCheck('specifiesFormat'), 'chip-row', 'specifiesFormat → 碎石排成一列');
+    eq(Fx.fxForCheck('hasConstraint'), 'measured-column', 'hasConstraint → 光柱收成有刻度的一段');
+    eq(Fx.fxForCheck('hasRole'), 'mask-rim', 'hasRole → 浮碑戴上面具般的輪廓光');
+    eq(new Set(Object.values(Fx.RUBRIC_FX)).size, 4, '四個演出 id 沒有重複');
+    for (const other of ['hasFewShot', 'hasDelimiters', 'asksToVerify', 'groundsInContext', 'positiveFraming']) {
+      eq(Fx.fxForCheck(other), null, `${other} 這一 phase 不演出（P10a 才接）`);
+    }
+    for (const bad of ['', 'constructor', 'toString', '__proto__', 'hasOwnProperty']) {
+      eq(Fx.fxForCheck(bad), null, `fxForCheck(${JSON.stringify(bad)}) 回 null（不會漏原型鍊上的東西）`);
+    }
+    eq(Fx.fxForCheck(null), null, 'fxForCheck(null) 回 null');
+    eq(Fx.fxForCheck(123), null, 'fxForCheck(數字) 回 null');
+    eq(JSON.stringify(Fx.FX_REGIONS), JSON.stringify(['foundations']), 'P09 只在中央高原試水（P10a 鋪 12 區）');
+    eq(Fx.fxEnabledIn('foundations'), true, '中央高原有演出');
+    eq(Fx.fxEnabledIn('reasoning'), false, '其他片土地這一 phase 不演出');
+    // 每一個對應到的檢查器都真的存在（不准對著不存在的 check 演）
+    for (const name of Object.keys(Fx.RUBRIC_FX)) ok(CHECK_IDS.includes(name), `${name} 是真的檢查器`, name);
+  }
+
+  /* --- ② 演出層的行為：play / update / 不疊加 / reset --- */
+  {
+    const marker = testWorld.markers.find((m) => m.id === 'gate-of-clarity-01');
+    ok(Boolean(marker), '（前提）測試世界裡有中央高原的第一座石座');
+    const fx = Fx.createRubricFx({ kitOf: kitOfFx, qualityOf: () => 'high' });
+    ok(fx.group && fx.group.isObject3D, 'createRubricFx 給一個可以掛進世界的 group');
+    eq(fx.group.name, 'rubric-fx', '場景圖節點名 rubric-fx');
+    eq(JSON.stringify(fx.state().playing), '[]', '一開始什麼都沒在演');
+    eq(fx.state().particlesActive, 0, '一開始粒子池是空的');
+    ok(fx.particleCapacity <= 24 && fx.particleCapacity >= 8, '粒子池 ≤ 24 顆（預算）', String(fx.particleCapacity));
+    eq(fx.particles.geometry.attributes.position.count, fx.particleCapacity, '粒子 buffer 一次配好');
+    let fxLights = 0;
+    fx.group.traverse((o) => { if (o.isLight) fxLights += 1; });
+    eq(fxLights, 0, '演出層 0 光源（用自發光與加色混合）');
+    let fxTris = 0;
+    let fxSolidFlags = 0;
+    fx.group.traverse((o) => {
+      const ud = o.userData || {};
+      if (ud.solid || ud.solidSpan || typeof ud.solidRadius === 'number') fxSolidFlags += 1;
+      if (o.isMesh && o.geometry) {
+        const idx = o.geometry.index;
+        fxTris += idx ? idx.count / 3 : o.geometry.attributes.position.count / 3;
+      }
+    });
+    ok(fxTris < 8000, '演出層三角形 < 8k（預算）', `tris=${fxTris}`);
+    eq(fxSolidFlags, 0, '演出層沒有任何碰撞旗標');
+    eq(World.collectSolids(fx.group, World.terrainHeight).length, 0, '演出層一個碰撞體都不進 collectSolids');
+
+    // 未命中的檢查不演出
+    eq(fx.play(marker, ['hasFewShot']), 0, '不支援的檢查 → 不演出');
+    eq(fx.play(marker, []), 0, '空清單 → 不演出');
+    eq(fx.play(null, ['assignsTask']), 0, '沒有石座 → 不演出');
+    eq(JSON.stringify(fx.state().playing), '[]', '以上都沒有留下任何演出');
+
+    // assignsTask：腳下的圈掃亮一圈
+    eq(fx.play(marker, ['assignsTask']), 1, 'assignsTask 開演一段');
+    const st1 = fx.state();
+    eq(st1.playing.length, 1, '正在演一段');
+    eq(st1.playing[0].check, 'assignsTask', '演的是 assignsTask');
+    eq(st1.playing[0].fx, 'ring-sweep', 'state 也回演出 id');
+    eq(st1.playing[0].markerId, 'gate-of-clarity-01', 'state 帶得出是哪一座石座');
+    eq(st1.playing[0].t, 0, '剛開演 t=0');
+    ok(st1.particlesActive > 0, '開演時粒子池有活粒子', String(st1.particlesActive));
+    const spawned1 = fx.particlesSpawned;
+    ok(spawned1 > 0 && spawned1 <= 8, '一段演出只噴少少幾顆（安靜）', String(spawned1));
+    // 掃亮：drawRange 從 0 長出來
+    const sweepMesh = fx.group.getObjectByName('ring-sweep');
+    ok(Boolean(sweepMesh), '找得到掃亮的那一圈');
+    eq(sweepMesh.geometry.drawRange.count, 0, '剛開演時一格都還沒亮');
+    for (let i = 0; i < 12; i += 1) fx.update(0.05, i * 0.05);
+    const drawnMid = sweepMesh.geometry.drawRange.count;
+    ok(drawnMid > 0, '0.6 秒後亮起了一部分', String(drawnMid));
+    ok(drawnMid < (sweepMesh.geometry.index ? sweepMesh.geometry.index.count : 0), '0.6 秒後還沒亮完（一圈要掃一會兒）');
+    ok(sweepMesh.material.opacity > 0, '掃亮的那一圈看得見');
+
+    // 同一段重複呼叫不疊加、不從頭來
+    const tBefore = fx.state().playing[0].t;
+    eq(fx.play(marker, ['assignsTask']), 0, '同一段還在演 → 不重播（不疊加）');
+    eq(fx.state().playing.length, 1, '仍然只有一段在演');
+    eq(fx.state().playing[0].t, tBefore, '計時器沒有被重設（同一段不從頭來）');
+
+    // 演完自己收乾淨
+    for (let i = 0; i < 60; i += 1) fx.update(0.05, 1 + i * 0.05);
+    eq(JSON.stringify(fx.state().playing), '[]', '≤ 2.5 秒後自己演完、playing 歸零');
+    eq(sweepMesh.visible, false, '演完的道具藏起來');
+    eq(fx.state().particlesActive, 0, '碎光也熄了');
+
+    // 演完之後可以再演一次（重玩同一關）
+    eq(fx.play(marker, ['assignsTask']), 1, '演完之後再命中一次 → 可以再演');
+    fx.reset();
+    eq(JSON.stringify(fx.state().playing), '[]', 'reset() 把演出清空（進度重置不重載）');
+    eq(fx.state().particlesActive, 0, 'reset() 把粒子池清空');
+    eq(sweepMesh.geometry.drawRange.count, 0, 'reset() 把掃亮進度歸零');
+
+    // 四段可以同時播
+    eq(fx.play(marker, ['assignsTask', 'specifiesFormat', 'hasConstraint', 'hasRole']), 4, '四段可以同時開演');
+    eq(fx.state().playing.length, 4, '四段同時在演');
+    for (const row of fx.state().playing) ok(Fx.fxForCheck(row.check) === row.fx, `${row.check} 的 fx id 對得上`);
+    for (let i = 0; i < 70; i += 1) fx.update(0.05, i * 0.05);
+    eq(JSON.stringify(fx.state().playing), '[]', '四段全部 ≤ 2.5 秒內收完');
+    fx.reset();
+  }
+
+  /* --- ③ 各段的動作：碎石排成一列、光柱收成一段（借完原樣還回去） --- */
+  {
+    const marker = testWorld.markers.find((m) => m.id === 'gate-of-clarity-01');
+    const fx = Fx.createRubricFx({ kitOf: kitOfFx, qualityOf: () => 'high' });
+    // 碎石：從散落的地面浮起 → 排成整齊的一列 → 落回
+    fx.play(marker, ['specifiesFormat']);
+    const chip0 = fx.group.getObjectByName('chip:0');
+    const chip4 = fx.group.getObjectByName('chip:4');
+    ok(Boolean(chip0) && Boolean(chip4), '找得到碎石');
+    ok(chip0.position.y < 0.3, '一開始碎石躺在地上', String(chip0.position.y));
+    for (let i = 0; i < 24; i += 1) fx.update(0.05, i * 0.05);
+    ok(chip0.position.y > 1.0, '浮起來了', String(chip0.position.y));
+    ok(Math.abs(chip0.position.y - chip4.position.y) < 0.01, '排成整齊的一列（同一個高度）');
+    ok(Math.abs(chip0.position.z) < 0.02 && Math.abs(chip4.position.z) < 0.02, '一列是直的（z 對齊）');
+    ok(chip0.position.x < chip4.position.x, '一列有順序（由左到右）');
+    ok(Math.abs(chip0.rotation.y) < 0.05, '碎石轉正了（整齊）', String(chip0.rotation.y));
+    for (let i = 0; i < 40; i += 1) fx.update(0.05, 1.2 + i * 0.05);
+    ok(chip0.position.y < 0.3, '2 秒後落回地面', String(chip0.position.y));
+    eq(chip0.visible, false, '演完藏起來');
+    fx.reset();
+
+    // 光柱：收成有刻度的一段，演完一寸不差地還回去
+    const scale0 = marker.beacon.scale.y;
+    const posY0 = marker.beacon.position.y;
+    fx.play(marker, ['hasConstraint']);
+    for (let i = 0; i < 16; i += 1) fx.update(0.05, i * 0.05);
+    ok(marker.beacon.scale.y < scale0 * 0.5, '光柱從「無限高」收短了', String(marker.beacon.scale.y));
+    ok(marker.beacon.position.y < posY0 * 0.5, '收短的時候底還是踩在地上（中心跟著降）', String(marker.beacon.position.y));
+    const tick0 = fx.group.getObjectByName('tick:0');
+    const tick3 = fx.group.getObjectByName('tick:3');
+    ok(Boolean(tick0) && Boolean(tick3), '找得到刻度');
+    ok(tick0.material.opacity > 0, '刻度亮起來了（量得出來的長度）');
+    ok(tick3.position.y > tick0.position.y, '刻度由低到高排開');
+    for (let i = 0; i < 60; i += 1) fx.update(0.05, 0.8 + i * 0.05);
+    eq(JSON.stringify(fx.state().playing), '[]', '光柱那一段演完了');
+    eq(marker.beacon.scale.y, scale0, '光柱的縮放一寸不差地還回去');
+    eq(marker.beacon.position.y, posY0, '光柱的高度一寸不差地還回去');
+    eq(tick0.material.opacity, 0, '刻度收乾淨');
+
+    // 演到一半 reset（進度重置）→ 光柱也要還回去
+    fx.play(marker, ['hasConstraint']);
+    for (let i = 0; i < 10; i += 1) fx.update(0.05, i * 0.05);
+    ok(marker.beacon.scale.y !== scale0, '（前提）演到一半光柱是借走的');
+    fx.reset();
+    eq(marker.beacon.scale.y, scale0, 'reset() 把借走的光柱還回去');
+    eq(marker.beacon.position.y, posY0, 'reset() 把光柱的高度還回去');
+
+    // 面具輪廓光：貼著浮碑（浮碑會轉、會上下浮）
+    fx.play(marker, ['hasRole']);
+    marker.shard.position.y = 2.71;
+    marker.shard.rotation.y = 1.23;
+    for (let i = 0; i < 10; i += 1) fx.update(0.05, i * 0.05);
+    const rimMesh = fx.group.getObjectByName('mask-rim');
+    ok(Boolean(rimMesh), '找得到面具般的輪廓光');
+    ok(Math.abs(rimMesh.position.y - 2.71) < 1e-6, '輪廓光貼著浮碑的高度');
+    ok(Math.abs(rimMesh.rotation.y - 1.23) < 1e-6, '輪廓光跟著浮碑轉');
+    ok(rimMesh.material.opacity > 0, '輪廓光看得見');
+    ok(rimMesh.material.side === THREE.BackSide, '輪廓光只畫背面（所以看起來是一圈邊，不是一顆球）');
+    fx.reset();
+
+    // dt 夾：一幀 2 秒也不會讓 2 秒的演出一格跑完
+    const fx2 = Fx.createRubricFx({ kitOf: kitOfFx, qualityOf: () => 'high' });
+    fx2.play(marker, ['assignsTask']);
+    fx2.update(2.0, 2.0);
+    eq(fx2.state().playing.length, 1, '一幀 2 秒：計時器被夾在 0.1s，演出還在');
+    ok(fx2.state().playing[0].t <= 0.1 + 1e-6, '這一格只走了 ≤ 0.1 秒', String(fx2.state().playing[0].t));
+    fx2.reset();
+  }
+
+  /* --- ④ 換石座：前一座收乾淨（含把借走的光柱還回去） --- */
+  {
+    const a = testWorld.markers.find((m) => m.id === 'gate-of-clarity-01');
+    const b = testWorld.markers.find((m) => m.region === 'foundations' && m.id !== a.id);
+    const fx = Fx.createRubricFx({ kitOf: kitOfFx, qualityOf: () => 'high' });
+    const aScale = a.beacon.scale.y;
+    fx.play(a, ['hasConstraint']);
+    for (let i = 0; i < 10; i += 1) fx.update(0.05, i * 0.05);
+    ok(a.beacon.scale.y !== aScale, '（前提）第一座的光柱正被借走');
+    fx.play(b, ['assignsTask']);
+    eq(a.beacon.scale.y, aScale, '換石座 → 前一座的光柱還回去');
+    eq(fx.state().playing.length, 1, '換石座 → 前一座的演出收乾淨、只剩新的那一段');
+    eq(fx.state().playing[0].markerId, b.id, '演的是新的那一座');
+    ok(Math.abs(fx.group.getObjectByName('rubric-fx:stage').position.x - b.position.x) < 1e-6, '演出道具搬到新的那一座腳下');
+    fx.reset();
+  }
+
+  /* --- ⑤ reducedMotion：只做終態的一次亮起、不做位移 --- */
+  {
+    const marker = testWorld.markers.find((m) => m.id === 'gate-of-clarity-01');
+    const scale0 = marker.beacon.scale.y;
+    const fx = Fx.createRubricFx({ kitOf: kitOfFx, qualityOf: () => 'high', reducedMotion: true });
+    eq(fx.play(marker, ['assignsTask', 'specifiesFormat', 'hasConstraint', 'hasRole']), 4, 'reducedMotion 一樣會回應（關掉的是動，不是回應）');
+    eq(fx.particlesSpawned, 0, 'reducedMotion 不噴碎光（不甩動、不噴散）');
+    const sweepMesh = fx.group.getObjectByName('ring-sweep');
+    eq(sweepMesh.geometry.drawRange.count, sweepMesh.geometry.index.count, 'reducedMotion：圈直接整圈亮（終態，不掃）');
+    const chip0 = fx.group.getObjectByName('chip:0');
+    ok(chip0.position.y > 1.0, 'reducedMotion：碎石直接就在那一列上（不從地上浮）', String(chip0.position.y));
+    eq(chip0.rotation.y, 0, 'reducedMotion：碎石一開始就是正的');
+    fx.update(0.05, 0.05);
+    eq(marker.beacon.scale.y, scale0, 'reducedMotion：不動光柱（位移是「動」）');
+    ok(fx.group.getObjectByName('tick:0').material.opacity > 0, 'reducedMotion：刻度照樣亮起來（回應還在）');
+    for (let i = 0; i < 70; i += 1) fx.update(0.05, i * 0.05);
+    eq(JSON.stringify(fx.state().playing), '[]', 'reducedMotion 一樣會自己收乾淨');
+    fx.reset();
+  }
+
+  /* --- ⑥ 低畫質：整層關掉 --- */
+  {
+    const marker = testWorld.markers.find((m) => m.id === 'gate-of-clarity-01');
+    let q = 'low';
+    const fx = Fx.createRubricFx({ kitOf: kitOfFx, qualityOf: () => q });
+    eq(fx.enabled, false, '低畫質時這一層是關的');
+    eq(fx.play(marker, ['assignsTask']), 0, '低畫質不播');
+    eq(JSON.stringify(fx.state().playing), '[]', '低畫質什麼都沒演');
+    eq(fx.particlesSpawned, 0, '低畫質不噴粒子');
+    q = 'high';
+    eq(fx.enabled, true, '切回高畫質這一層就開了（不必重建世界）');
+    eq(fx.play(marker, ['assignsTask']), 1, '切回高畫質就播得動');
+    fx.reset();
+  }
+
+  /* --- ⑦ 靜態掃描：零每幀配置、0 光源、只有一組粒子池 --- */
+  {
+    const fxSrc = srcOf('src/world/rubric-fx.js');
+    const bodyOfFx = (name) => {
+      const at = fxSrc.indexOf(`    ${name}(`);
+      ok(at > 0, `找得到 rubricFx.${name}() 本體`);
+      if (at < 0) return '';
+      const open = fxSrc.indexOf('{', at);
+      let depth = 0;
+      for (let i = open; i < fxSrc.length; i += 1) {
+        if (fxSrc[i] === '{') depth += 1;
+        else if (fxSrc[i] === '}') { depth -= 1; if (depth === 0) return fxSrc.slice(open, i + 1); }
+      }
+      return fxSrc.slice(open);
+    };
+    for (const fn of ['update', 'play', 'reset']) {
+      const body = bodyOfFx(fn);
+      ok(body.length > 50, `rubricFx.${fn}() 本體不是空的`);
+      ok(!/new THREE\./.test(body), `${fn}() 裡沒有 new THREE.`);
+      ok(!/\.map\(/.test(body), `${fn}() 裡沒有 .map(`);
+      ok(!/\.filter\(/.test(body), `${fn}() 裡沒有 .filter(`);
+      ok(!/\bnew\s+[A-Z]/.test(body), `${fn}() 裡沒有 new 任何物件`);
+    }
+    ok(!/new THREE\.(Point|Spot|Directional|Hemisphere|Ambient|RectArea)Light/.test(fxSrc), '演出層一盞燈都沒有');
+    eq((fxSrc.match(/new THREE\.Points\(/g) || []).length, 1, '只有一組共用的 Points 粒子池');
+    ok(/frustumCulled = false/.test(fxSrc), '粒子池關掉 frustum culling');
+    ok(/userData\.noCollide = true/.test(fxSrc), '演出物件全部 noCollide（不進碰撞登記表）');
+    ok(/Math\.min\(dt, 0\.1\)|dt < 0\.1 \? dt : 0\.1/.test(fxSrc), '演出計時器把 dt 夾在 0.1 秒');
+    ok(!/PALETTE\.warm|#f\dddba|0xf3ddba/i.test(fxSrc), '演出不碰暖金（暖金只留給成就熱點）');
+  }
+
+  /* --- ⑧ 接線：world.js 蓋演出層、main.js 把命中換成演出 --- */
+  {
+    ok(Boolean(testWorld.rubricFx), 'world.rubricFx 存在（createWorld 蓋了演出層）');
+    eq(typeof testWorld.rubricFx.play, 'function', 'world.rubricFx.play()');
+    eq(typeof testWorld.rubricFx.update, 'function', 'world.rubricFx.update()');
+    eq(typeof testWorld.rubricFx.reset, 'function', 'world.rubricFx.reset()');
+    eq(typeof testWorld.rubricFx.state, 'function', 'world.rubricFx.state()（e2e 把手）');
+    let inRoot = false;
+    testWorld.root.traverse((o) => { if (o.name === 'rubric-fx') inRoot = true; });
+    eq(inRoot, true, '演出層掛在世界的 root 底下');
+    eq(World.collectSolids(testWorld.rubricFx.group, World.terrainHeight).length, 0, '演出層對碰撞登記表貢獻 0 個碰撞體');
+    ok(testWorld.solids.length < 1400, '加了演出層之後碰撞體仍在預算內', String(testWorld.solids.length));
+    {
+      // 穿模稽核：演出的東西是光，不是物質 —— 一件都不該被判成「有份量卻走得過去」
+      const Audit = await import('./collision-audit.mjs');
+      const res = Audit.auditCoverage(testWorld.rubricFx.group, World.solidAt, testWorld.solids, World.terrainHeight);
+      eq(res.uncovered.length, 0, '演出層的穿模稽核 0（它們是光，不是物質）', Audit.summarize(res.uncovered).join(', '));
+    }
+    let fxLightsInWorld = 0;
+    testWorld.rubricFx.group.traverse((o) => { if (o.isLight) fxLightsInWorld += 1; });
+    eq(fxLightsInWorld, 0, '世界裡的演出層也是 0 光源');
+
+    const worldSrcP09 = srcOf('src/world/world.js');
+    ok(/createRubricFx\(/.test(worldSrcP09), 'world.js 建演出層');
+    ok(/rubricFx\.update\(/.test(worldSrcP09), 'world.js 每幀更新演出層');
+    const mainSrcP09 = srcOf('src/main.js');
+    const hitsAt = mainSrcP09.indexOf('onRubricHits: (hits)');
+    const hitsBody = mainSrcP09.slice(hitsAt, mainSrcP09.indexOf('onResult: (', hitsAt));
+    ok(hitsAt > 0 && hitsBody.length > 200, '（前提）找得到 main.js 的 onRubricHits 本體');
+    ok(/fxForCheck\(/.test(hitsBody), 'main.js 把 rubric index 換成 check 名再查演出');
+    ok(/rubricFx\.play\(/.test(hitsBody), 'main.js 對石座呼叫 rubricFx.play()');
+    ok(/FX_REGIONS|fxEnabledIn\(/.test(hitsBody), 'main.js 只對本 phase 鋪到的區演出');
+    ok(/engine\.pulse\(0\.18\)/.test(hitsBody), '石座的脈衝比濁靈輕（0.18 < 0.28，別搶結果面的注意力）');
+    ok(/world\.rubricFx\?\.reset\?\.\(\)/.test(mainSrcP09), '進度重置時世界端的演出跟著歸零（WORLD §8 G24b）');
+  }
+
+  /* --- ⑨ 關卡資料一個位元組都沒有為了演出而動 --- */
+  {
+    const raw = readFileSync(resolve(root, 'src/data/challenges.json'), 'utf8');
+    for (const id of Object.values(Fx.RUBRIC_FX)) {
+      ok(!raw.includes(id), `challenges.json 沒有演出 id「${id}」（演出由 check 名對應，不進資料層）`);
+    }
+    ok(!/"fx"|"rubricFx"|"effect"/.test(raw), 'challenges.json 沒有任何演出欄位');
+    /* rubric 每一列的欄位表就是 P09 之前的那一份 —— 演出**沒有**在資料層加任何欄位。 */
+    const RUBRIC_ROW_KEYS = ['check', 'checkOptions', 'weight', 'hint', 'techniqueId', 'skillId', 'primary', 'foundation', 'candidate'];
+    let rows = 0;
+    for (const c of challenges) {
+      for (const r of c.rubric || []) {
+        rows += 1;
+        for (const k of Object.keys(r)) {
+          ok(RUBRIC_ROW_KEYS.includes(k), `[${c.id}] rubric 欄位還是 P09 之前那一份（沒有為了演出加欄位）`, k);
+        }
+      }
+    }
+    eq(rows, 310, '（前提）掃過了 142 關的每一條 rubric');
+  }
+}
+
 /* ------------------------------------------------------------------ */
 console.log('');
 if (failures.length) {
