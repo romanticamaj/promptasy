@@ -91,7 +91,7 @@ CLAUDE.md 的五個方向與七條護欄仍是最高準則。本 roadmap 只回�
 
 ### 里程碑 C：地圖中景 → 垂直（地圖 × 動作）
 
-- [ ] **P11 · 中觀遮擋帶 ＋ 母題（reasoning 一區切片）**（M）— 入口看不到地標、繞過一道石脊才揭露；3–5 個重複母題中景（instanced、emissive、0 光源、lane 外 8m）；橋中段長凳＋框景（lane 外 4m）；WORLD.md §4.7 明寫「遮擋帶」為中景階例外（6–12m）。
+- [~] **P11 · 中觀遮擋帶 ＋ 母題（reasoning 一區切片）**（M）— 入口看不到地標、繞過一道石脊才揭露；3–5 個重複母題中景（instanced、emissive、0 光源、lane 外 8m）；橋中段長凳＋框景（lane 外 4m）；WORLD.md §4.7 明寫「遮擋帶」為中景階例外（6–12m）。
   - 依賴：P06（pacing-audit）。方案：M1、M8（母題半）、M11（長凳版）。
   - DoD：collision-audit 0；淨空全保；pacing-audit reasoning 死區數下降；tris 增量 <4k。
 

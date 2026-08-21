@@ -1183,6 +1183,39 @@ Exit criteria：
 - [x] rubric 106,446／playtest 2,533／build ✓／e2e 4,000 全綠、console error 0；FX 層 472 三角、**0 光源、0 碰撞體**、collision-audit 0。
 - [x] 三件組＋changelog＋roadmap 兩格打勾。
 
+### P11 — 中觀遮擋帶 ＋ 母題（reasoning 一區切片）（2026-08-21 開工）
+
+狀態：`in progress`（里程碑 C 第一格）
+
+**現狀**：地圖有巨觀（每區一座 21–27m 地標）與微觀（P06c 之後 44 反應物＋44 器物＋24 殘頁＋8 濁靈）；**中觀是空的**——從橋頭望進去一眼看到底，沒有「翻過去才看到」的揭露（研究 M §1a：BotW 的中三角、Sky 的 meso 層；`research-map-2026-08.md` 提案 M1／M8）。既有工具：`props.js` 的 `STORY_VIGNETTES`／`LANDMARKS`／`PROPS` 原型表與 `place()`（會避開 `keepClear`）、`buildRegionProps()`；`world.js` 的 `BRIDGE_LANES`（`LANE_HALF`）、`REGION_SITES`、`collectSolids`／`markSolidParts`；`scripts/pacing-audit.mjs`（`mid` 那一層現在 0 段死區）；`scripts/collision-audit.mjs` 的四條門檻與 `EXCEPTIONS`。WORLD.md §4.7 三個高度階：微 0.4–1.2／中 3–8／地標 21–27。
+
+**目標**：在 **reasoning（階梯迴廊）** 做一區切片——從橋頭進去**看不到地標**，繞過一道石脊才揭露；同時給那一區 3–5 個**重複出現的母題**中景，讓它遠看就認得出是哪一片土地。做完量一次，確認節奏沒退步，再由 P12 鋪其他區。
+
+**範圍**
+1. **遮擋帶**（新 `src/world/screens.js` 或併進 `props.js`，擇一，理由寫在程式碼註解）：資料驅動 `SCREEN_BANDS`（`{ id, region, at:[x,z], rot, kind, length, height }`），reasoning 放 **2–3 道**：一道擋在橋頭與地標之間、一道在區內主動線的轉折處。高度 **6–12m**（WORLD §4.7 的中景階上限是 8m → 本 phase 在 §4.7 明寫「遮擋帶」是中景階的例外，並登記理由）；**instanced 或共用幾何、emissive、0 新光源**；有份量 → **進碰撞體**（照 `markSolidParts` 的四條件），要通過 collision-audit。
+2. **母題**（同一支資料檔）：reasoning 的調性是「階梯迴廊、稀薄、看得遠、冷紫、一步一步想」→ 母題選**重複的階梯段／半截的階**（研究 W §4 的傳說鉤：「塔沒有頂，因為師傅只示範兩遍」）。3–5 個、instanced、共用材質、0 光源、每個 3–8m（中景階）。
+3. **橋中段**：reasoning 那條橋的中點放一張長凳＋框景（lane 外 4m，器物層現成的 `bench`）。
+4. **驗證揭露真的成立**：新 `scripts/sightline-audit.mjs`——從橋頭（`CORRIDORS[reasoning].gate` 往區內 8m）沿主動線每 3m 取樣，對地標中心做**視線遮蔽判定**（2D：樣點→地標的線段是否穿過任何遮擋帶的矩形足跡；地標本身高 21–27m 所以只判水平遮蔽 ＋ 遮擋帶高度 ≥ 6m 即視為擋得住）。輸出「從入口起前 N 公尺看不到地標、第 M 公尺揭露」。進 `test:rubric` 當硬斷言：**入口起至少前 12 公尺看不到、走到 25 公尺內一定看得到**（擋住但不迷路）。
+5. **不倒退**：`npm run audit:pacing` 三口徑死區**不得增加**（目前 0／0／0）；淨空規則沿用（離石座 ≥12、濁靈 ≥8.7、石碑 ≥10.1、刻文 ≥9.3、殘頁 ≥9.3、器物 ≥8.7、橋主動線 ≥ `LANE_HALF`+4、閘門／頸口 ≥8）；地標周圍 14–16m 留白（§4.1）**不得被遮擋帶侵入**。
+6. WORLD.md：§4.7 加「遮擋帶」例外與理由、§4 加一節「中觀：遮擋與母題」。
+
+**非目標**：其他 11 區（P12）、地面材質與粒子（P12）、可站立表面與跳躍（P13／P14）、滑翔（P19）。
+
+**受影響檔案**：新 `src/world/screens.js`＋資料、`src/world/world.js`、（可能）`src/world/props.js`、新 `scripts/sightline-audit.mjs`、`scripts/test-rubric.mjs`、`scripts/headless-check.mjs`、`scripts/expected-counts.json`、`WORLD.md`、`package.json`（`audit:sightline`）。
+
+**預算**：三角 218,720 → **<232k**；**光源 37 不變**；碰撞體 950 → **<1,000**；collision-audit 未涵蓋 0；零每幀配置（遮擋帶與母題是靜態的，不進每幀迴圈）。
+
+**Acceptance tests（先紅後綠）**
+- rubric：遮擋帶／母題的資料契約（數量、region、高度區間、rot 正規化）；擺位規則逐條（含地標留白 14–16m）；`sightline-audit` 的硬斷言（前 12m 遮住、25m 內揭露）；`audit:pacing` 三口徑不增加；預算實測；collision-audit 0；靜態掃描（沒有每幀迴圈）。
+- e2e：teleport 到 reasoning 橋頭 → 用 `world` 的視線判定確認看不到地標 → 沿動線走到揭露點 → 看得到；遮擋帶擋得住人（`solidAt` 為真）但四周走得過去；舊斷言零改動。
+
+**禁區**：`curriculum.json`、`challenges.json`、`flows.json`、`murks.json`、`letters.json`、`color-script.json`、`solution-stats.json`、`vite.config.js`、`CLAUDE.md`、`CHANGELOG.md`、`gameplay-roadmap.md`、dev server 5173/5174/5175。
+
+Exit criteria：
+- [ ] reasoning 從橋頭看不到地標、繞過石脊才揭露（有腳本量得出來）；3–5 個母題讓那一區遠看認得出。
+- [ ] rubric／playtest／build／e2e 全綠、console error 0；預算在框內、死區沒增加。
+- [ ] WORLD.md §4.7 例外＋§4 中觀那一節；三件組＋changelog＋roadmap 打勾。
+
 ## v1.2 錯誤紀錄
 
 （沿用 §8 規則：任何錯誤記在此；同一錯誤不原樣重試；連續三種方法仍無法前進才報阻塞。）
