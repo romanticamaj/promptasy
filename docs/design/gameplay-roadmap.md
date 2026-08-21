@@ -99,7 +99,7 @@ CLAUDE.md 的五個方向與七條護欄仍是最高準則。本 roadmap 只回�
   - 依賴：P11。方案：M7、M8、4-C。
   - DoD：tris <225k、碰撞體 <1,050；粒子每區 +1 draw call。
 
-- [ ] **P13 · 可站立表面 `solidTop` ＋ 碰撞稽核擴充（無跳躍）**（M）— `collectSolids` 加 `top`（頂面高度）與「可站立體」類別；`clampPosition`／ground = max(terrain, solidTop) 的資料通路先建好（玩家仍貼地、無跳躍，所以此 phase 玩家行為零改變）；collision-audit 新增可站立體規則、`FLOAT_MIN` 例外語意；WORLD.md §6.3 修訂；**決定跳躍鍵**（建議 `Shift`＝跑不動、`Space`＝抬頭不動、新增 `J`／`Ctrl` 之一，e2e 與 keyhelp 同步）。
+- [~] **P13 · 可站立表面 `solidTop` ＋ 碰撞稽核擴充（無跳躍）**（M）— `collectSolids` 加 `top`（頂面高度）與「可站立體」類別；`clampPosition`／ground = max(terrain, solidTop) 的資料通路先建好（玩家仍貼地、無跳躍，所以此 phase 玩家行為零改變）；collision-audit 新增可站立體規則、`FLOAT_MIN` 例外語意；WORLD.md §6.3 修訂；**決定跳躍鍵**（建議 `Shift`＝跑不動、`Space`＝抬頭不動、新增 `J`／`Ctrl` 之一，e2e 與 keyhelp 同步）。
   - 依賴：P11。方案：M5（資料層）。
   - DoD：rubric 測試驗 solidTop 資料；e2e 舊斷言零改動；WORLD.md §3.1 加跳躍鍵條目（標「尚未啟用」）。
 

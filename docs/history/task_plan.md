@@ -1260,3 +1260,35 @@ Exit criteria：
 - [ ] rubric／playtest／build／e2e 全綠、console error 0；預算在框內。
 
 **審查後修訂（2026-08-21，5 條）**：① **每一條橋的兩端各留一條看得見的硬邊**——橋面（兩片土地的半徑之間那一段）不屬於任何一片土地，`groundBlend()` 回空陣列就直接拿中央高原那一組當底，而橋的 `coverage` 是 1.0、「掉進虛空就壓暗」也蓋不住它（實測 toolcraft 橋頭 0.098 的跳色，12 區裡有 6 區每次進出都會走過）。新增 `World.BRIDGE_SPANS`（橋＋頸口共 11 條）與 `ground.js` 的 `spansAt()`：橋面沿著橋從這頭的土地漸變到那頭、再用離中線 14 公尺的橫向斜坡與腳下的土地互相讓位——兩端接得上，`sight` 那條穿過分歧之廳的也不跳色。沿線最大跳色 **0.098 → 0.0014**；斷言先紅（5 條）再綠。② **粒子飄得比自己宣告的高度高一倍**：`baseY` 已經散在 [lo, hi]，`update()` 又加了一整個 span 的 `dy` → 天花板變成 `hi + span`（齒輪工坊宣告 12m、實測 25.9m；`sight` 31m）。會飄的那幾層改成只由 `dy` 帶高度、起點的高低改用 `riseAt` 的初始相位表示。斷言要量「離**出生那一點**的地面多高」（不是腳下當下那一點——swirl 會把點帶到坡下，那是地形不是它自己飄的）；先紅 10 條。③ `CULL_M = 120` 名不符實（真的拿去比的是 `CULL_M + 60`）→ 改成 `180` 並直接比它，加一條靜態掃描守著。④ `groundHigh ≤ groundLow` 那條驗證的訊息少寫了 `.鍵名` → `loadColorScript()` 認不出壞的是哪一鍵，於是 `hasColorScript()` 說壞了、`colorScriptFor()` 卻照樣把倒過來的高度階交出去（＝這個模組宣稱「絕不回一列壞的」的破口）；改格式並補逐鍵退回的斷言。⑤ e2e 的「標題卡上排隊中的音檔沒有失控」在量機器速度不是量護欄——24 支音效是刻意一起抓的、一次只抓兩支，`pending` 本來就會停在 20 上下（load 高時必紅，改成輪詢 15 秒也排不完）；`audio.debug()` 補一個 `pendingBgm`，改成量**佇列裡的配樂支數**（那才是「別把 35 MB 排進去」的護欄），與機器速度無關。另外把 WORLD.md 兩處與程式不符的敘述改對（`toneDistance` 門檻寫 0.06、實際常數 0.05；碎紋的「低畫質整層關掉」其實是建構時決定、中途切畫質不會重烤）。
+
+### P13 — 可站立表面 `solidTop` ＋ 碰撞稽核擴充（無跳躍）（2026-08-21 開工）
+
+狀態：`in progress`（里程碑 C 第三格）
+
+**現狀**：碰撞是一張「圓的清單」——`collectSolids()`（`src/world/world.js:781`）把場景裡有份量的東西掃成 `{x, z, r}`，`solidAt()` 只問「這一點在不在某個圓裡」，**完全沒有高度概念**。玩家永遠貼著地形：`player.js` 每一幀都是 `terrainHeight(x, z)`（301、448 行等處），沒有 Y 軸速度、沒有重力。`collision-audit` 的四條門檻裡有一條 `FLOAT_MIN`：底面離地 ≥2 公尺就當「從底下走過去」而豁免——**這條規則預設了「玩家不會站到東西上面」**，一旦有跳躍就會變成漏洞（P11 已經吃過一次虧：浮空的母題因此完全沒被稽核到）。
+
+**目標**：把「可以站上去的表面」變成**資料**，而且**玩家行為一格都不變**。這一格不做跳躍——先讓資料通路、稽核規則、鍵位決定都到位，P14 才敢動玩家。
+
+**範圍**
+1. **`collectSolids` 加 `top`**：每個碰撞圓多帶 `top`（頂面世界高度）與 `standable`（可站立體）旗標。判準寫在程式碼註解並登記進 WORLD §6.3：頂面夠平、離地 0.6–3.0 公尺、面積夠站（半徑 ≥0.8）、不是傾斜或尖的東西。既有的 `solidSpan` 圓串要**逐圓各自算 top**（不是整條共用一個——P10b／P11 連兩次的教訓）。
+2. **`groundHeightAt(x, z)` 的資料通路**：新增一支「腳下的高度 ＝ max(地形, 站得上去的頂面)」，**先建好但不接上玩家**（或接上但因為沒有跳躍、玩家永遠在地形高度而行為相同）。要有測試證明「同一組座標下，接與不接的結果逐點相同」——這就是「零改變」的硬證據。
+3. **`collision-audit` 擴充**：`FLOAT_MIN` 的豁免語意改成「**從底下走得過去 ** 而且 ** 頂面不可站立**」；可站立體另立一條規則（頂面高度要量得到、要落在允許區間、不准懸在虛空上方）。稽核未涵蓋數維持 **0**。
+4. **決定跳躍鍵並寫進 WORLD §3.1**（標「尚未啟用」）：`Shift`／`Space` 都已有用途（跑、抬頭），建議 `J`；一併決定手把／觸控的對應留給 P24。**這一格不接鍵盤事件**。
+5. **WORLD.md**：§6.3 修訂（碰撞四條件 → 加上「頂面」那一維）、§3.1 加跳躍鍵條目、§4.11／§4.10 若有受影響一併更新。
+
+**不做**：跳躍本身、重力、Y 軸速度、squash-stretch、落地塵與落地音（P14）；高台與橋缺口（P15）。**玩家的移動行為這一格必須零改變。**
+
+**受影響檔案**：`src/world/world.js`、`scripts/collision-audit.mjs`、`scripts/test-rubric.mjs`、`scripts/headless-check.mjs`、（可能）`src/world/props.js`／`screens.js` 的 `userData` 標註、`WORLD.md`、`scripts/expected-counts.json`。
+
+**預算**：三角 219,730 → **不增**（這一格不加幾何）；光源 **37 不變**；碰撞體 975 → **<1,000**（只加欄位不加圓）；collision-audit 未涵蓋 **0**；`audit:pacing` 0／0／0、`audit:sightline` 3 區全過、`screen-fit --verify` 5 片全 ✓。
+
+**Acceptance tests（先紅後綠）**
+- rubric：`collectSolids()` 每個圓都有 `top`（數值合理、逐圓各自算）；`standable` 的判準逐條驗（含「頂面懸在虛空上方的不算」）；`groundHeightAt` 與 `terrainHeight` 在**全地圖網格**上逐點比對，證明玩家腳下的高度這一格沒變；`collision-audit` 新規則的正反例各一（先紅）。
+- e2e：**舊斷言零改動**且全綠（這就是「行為零改變」的驗收）；走過幾處有可站立體的地方，玩家高度仍等於地形高度。
+
+**禁區**：`curriculum.json`、`challenges.json`、`flows.json`、`murks.json`、`letters.json`、`color-script.json`、`solution-stats.json`、`vite.config.js`、`CLAUDE.md`、`CHANGELOG.md`、`gameplay-roadmap.md`、三件組、dev server 5173／5174／5175。
+
+Exit criteria：
+- [ ] `solidTop`／`standable` 是資料，稽核看得懂它，玩家行為逐點證明沒變。
+- [ ] 跳躍鍵決定並寫進 WORLD §3.1（標尚未啟用）。
+- [ ] rubric／playtest／build／e2e 全綠、console error 0；預算在框內。
