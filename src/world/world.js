@@ -901,15 +901,63 @@ function bufferTop(count) {
   return best;
 }
 
-const STAND_RING = 8;
-/** 往外量「頂面平到多遠」的步長（公尺）。 */
-const STAND_RING_STEP = 0.4;
+/**
+ * (x, z) 正上方**最低的那一個上向面**，但至少要在 `minY` 以上。
+ *
+ * 為什麼需要它：`surfaceTopAt(..., true)` 回的是**最高**的上向面 ——
+ * 一座有頂蓋的平臺（走的那一面 1.2 公尺、頂蓋 5 公尺同屬一顆碰撞圓）會回頂蓋的高度，
+ * 於是「站得上去的那一面」不但被判成站不上去，`top` 還是個會誤導 P14 的數字（審查 · 第 2 條）。
+ * 站人的永遠是**腳踩得到的那一面**，所以另外量一支。
+ *
+ * @returns {number|null}
+ */
+function surfaceUpLowestAbove(x, z, count, minY) {
+  let best = null;
+  for (let i = 0; i < count; i += 1) {
+    if (!_triUp[i]) continue;
+    const o = i * 9;
+    const ax = _triBuf[o];
+    const az = _triBuf[o + 2];
+    const bx = _triBuf[o + 3];
+    const bz = _triBuf[o + 5];
+    const cx = _triBuf[o + 6];
+    const cz = _triBuf[o + 8];
+    const den = (bz - cz) * (ax - cx) + (cx - bx) * (az - cz);
+    if (Math.abs(den) < 1e-9) continue;
+    const l1 = ((bz - cz) * (x - cx) + (cx - bx) * (z - cz)) / den;
+    if (l1 < -1e-6 || l1 > 1 + 1e-6) continue;
+    const l2 = ((cz - az) * (x - cx) + (ax - cx) * (z - cz)) / den;
+    if (l2 < -1e-6 || l2 > 1 + 1e-6) continue;
+    const l3 = 1 - l1 - l2;
+    if (l3 < -1e-6) continue;
+    const y = l1 * _triBuf[o + 1] + l2 * _triBuf[o + 4] + l3 * _triBuf[o + 7];
+    if (y < minY - 1e-6) continue;
+    if (best === null || y < best) best = y;
+  }
+  return best;
+}
 
-/** 一圈（半徑 rad）上每一點都踩得到上向面，而且高度與圓心差 ≤ STAND_FLAT_EPS。 */
-function ringIsFlat(x, z, count, top, rad) {
+const STAND_RING = 12;
+/**
+ * 往外量「頂面平到多遠」的步長（公尺）。
+ *
+ * **這個數字就是這支量法的解析度**：比它窄的洞量不到（兩圈之間沒有取樣點）。
+ * 審查前是 0.4，實測可以讓一個 0.28 公尺寬的環狀缺口整個被跳過、
+ * 於是 `standR` 認證了一圈根本沒有幾何體的空氣（審查 · 第 1 條）。
+ * 收到 0.15 之後，比玩家半徑（0.62）小得多的洞才可能漏 —— 那種洞人也掉不下去。
+ */
+export const STAND_RING_STEP = 0.15;
+
+/**
+ * 一圈（半徑 rad）上每一點都踩得到上向面，而且高度與圓心差 ≤ STAND_FLAT_EPS。
+ *
+ * 量的是**腳踩得到的那一面**（`minY` 以上最低的上向面）—— 不是最高的那一面，
+ * 不然有頂蓋的平臺會被自己的頂蓋否掉（審查 · 第 2 條）。
+ */
+function ringIsFlat(x, z, count, top, rad, minY) {
   for (let i = 0; i < STAND_RING; i += 1) {
     const a = (i / STAND_RING) * Math.PI * 2;
-    const ry = surfaceTopAt(x + Math.cos(a) * rad, z + Math.sin(a) * rad, count, true);
+    const ry = surfaceUpLowestAbove(x + Math.cos(a) * rad, z + Math.sin(a) * rad, count, minY);
     if (ry === null || Math.abs(ry - top) > STAND_FLAT_EPS) return false;
   }
   return true;
@@ -929,17 +977,26 @@ function ringIsFlat(x, z, count, top, rad) {
  * @returns {{top:number, topFace:boolean, standable:boolean, standR:number}}
  */
 function measureTop(x, z, count, groundY, cover, fallbackTop, r) {
-  if (count < 0 || count === 0) return { top: fallbackTop, topFace: false, standable: false, standR: 0 };
+  if (count < 0 || count === 0)
+    return { top: fallbackTop, topFace: false, standable: false, standR: 0, standTop: fallbackTop };
   const upTop = surfaceTopAt(x, z, count, true);
   if (upTop === null) {
     const anyTop = surfaceTopAt(x, z, count, false);
     const top = anyTop !== null ? anyTop : bufferTop(count);
-    return { top: top !== null ? top : fallbackTop, topFace: false, standable: false, standR: 0 };
+    return { top: top !== null ? top : fallbackTop, topFace: false, standable: false, standR: 0, standTop: top !== null ? top : fallbackTop };
   }
-  const h = upTop - groundY;
+  /*
+   * `top` ＝ **最高**的上向面（剪影的頂，稽核的「飄在半空」那一條看它）；
+   * `standTop` ＝ **腳踩得到的那一面**（離地 ≥ STAND_MIN_H 之中最低的一個）。
+   * 有頂蓋的平臺兩者不同 —— 站人的一定是後者。
+   */
+  const standTopRaw = surfaceUpLowestAbove(x, z, count, groundY + STAND_MIN_H);
+  const standTop = standTopRaw !== null ? standTopRaw : upTop;
+  const h = standTop - groundY;
   let standable = h >= STAND_MIN_H && h <= STAND_MAX_H && cover >= STAND_COVER_MIN && r >= STAND_MIN_R;
   let standR = 0;
-  if (standable) standable = ringIsFlat(x, z, count, upTop, STAND_MIN_R);
+  const minFace = groundY + STAND_MIN_H;
+  if (standable) standable = ringIsFlat(x, z, count, standTop, STAND_MIN_R, minFace);
   if (standable) {
     /*
      * **平到多遠就只抬到多遠。** 碰撞圓的半徑是「外接盒的長邊」——
@@ -952,11 +1009,11 @@ function measureTop(x, z, count, groundY, cover, fallbackTop, r) {
       // 一圈一圈**往外長**，中間斷一圈就停 —— 不准跳過去撿外面那一圈
       // （那會把中間有洞的頂面當成整片平的）
       const next = Math.min(standR + STAND_RING_STEP, r);
-      if (!ringIsFlat(x, z, count, upTop, next)) break;
+      if (!ringIsFlat(x, z, count, standTop, next, minFace)) break;
       standR = next;
     }
   }
-  return { top: upTop, topFace: true, standable, standR };
+  return { top: upTop, topFace: true, standable, standR, standTop };
 }
 
 /**
@@ -1008,7 +1065,9 @@ export function groundHeightAt(x, z, solids, heightAt = terrainHeight) {
     const dx = x - s.x;
     const dz = z - s.z;
     if (dx * dx + dz * dz > rad * rad) continue;
-    if (s.top > y) y = s.top;
+    // 抬到**腳踩得到的那一面**，不是剪影的頂（有頂蓋的平臺兩者不同）
+    const face = Number.isFinite(s.standTop) ? s.standTop : s.top;
+    if (face > y) y = face;
   }
   return y;
 }
@@ -1049,7 +1108,7 @@ function footprintOf(geometry) {
  * @param {THREE.Object3D} root
  * @param {(x:number,z:number)=>number} [heightAt] 地形高度（判斷道具是不是飄在半空）
  * @param {(x:number,z:number)=>number} [coverAt] 地面覆蓋（判斷頂面是不是懸在虛空上方）
- * @returns {Array<{x:number,z:number,r:number,keep:boolean,top:number,topFace:boolean,standable:boolean,standR:number}>}
+ * @returns {Array<{x:number,z:number,r:number,keep:boolean,top:number,standTop:number,topFace:boolean,standable:boolean,standR:number}>}
  */
 export function collectSolids(root, heightAt = terrainHeight, coverAt = coverage) {
   const out = [];
@@ -1099,6 +1158,7 @@ export function collectSolids(root, heightAt = terrainHeight, coverAt = coverage
           keep,
           explicit: explicit !== null || Boolean(span),
           top: m.top,
+          standTop: m.standTop,
           topFace: m.topFace,
           standable: m.standable,
           standR: m.standR,

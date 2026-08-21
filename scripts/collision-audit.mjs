@@ -110,8 +110,8 @@ export function listSubstantial(root, heightAt, coverAt = worldCoverage) {
     if (r < RADIUS_MIN) return;
     const ground = heightAt(x, z);
     const bottom = _box.min.y - ground;
-    const top = _box.max.y - ground;
-    const height = top - Math.max(bottom, 0);
+    const topRel = _box.max.y - ground;
+    const height = topRel - Math.max(bottom, 0);
     if (height < HEIGHT_MIN) return; // 跨得過去
 
     const name = pathOf(mesh);
@@ -133,7 +133,7 @@ export function listSubstantial(root, heightAt, coverAt = worldCoverage) {
      * （審查 · 第 2 條）。它們的 `top` 用外接盒的頂 —— 仍然是個數字。
      */
     const surf = excepted
-      ? { top: _box.max.y, topFace: false, standable: false, standR: 0 }
+      ? { top: _box.max.y, topFace: false, standable: false, standR: 0, standTop: _box.max.y }
       : measureSurface(mesh, matrix, x, z, ground, coverAt(x, z), r, _box.max.y);
     if (bottom >= FLOAT_MIN && !surf.standable) return; // 飄在半空、頂面也站不上去
 
@@ -146,7 +146,9 @@ export function listSubstantial(root, heightAt, coverAt = worldCoverage) {
       height,
       bottom,
       plate,
+      // 注意單位：`bottom`／`height` 是**離地**，`top`／`standTop` 是**世界高度**（審查 · 第 7 條）
       top: surf.top,
+      standTop: surf.standTop,
       topFace: surf.topFace,
       standable: surf.standable,
       standR: surf.standR,

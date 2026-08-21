@@ -3471,14 +3471,71 @@ console.log('▸ 可站立表面（v1.2 · P13）');
       const donut = firstSolid(soloSolids(donutGrp), '中間斷掉的頂面');
       eq(donut.standable, true, '[判準] 中央那一塊還是站得上去');
       ok(
-        Math.abs(donut.standR - World.STAND_MIN_R) < 1e-9,
-        '[判準] 可站範圍停在斷掉的那一圈之前（不會跳過去撿外面那一圈）',
+        donut.standR >= World.STAND_MIN_R && donut.standR <= 1.0 + 1e-9,
+        '[判準] 可站範圍停在中央那一塊的邊上（不會跳過去撿外面那一圈的墊子）',
         `standR=${donut.standR}`
       );
       eq(
         World.groundHeightAt(3.0, 0, [donut], flatGround),
         0,
         '[判準] 外圍那幾塊的正上方不算腳下的高度（它們沒有連著）'
+      );
+
+      /*
+       * ⑬b **窄的環狀缺口也要抓得到**（審查 · 第 1 條）：
+       * 一塊 1.72 的方芯外面接一圈從 1.14 起的框 —— 中間 0.86–1.14 是空的。
+       * 審查前步長是 0.4，兩圈之間剛好跳過那道縫，`standR` 於是認證了一圈
+       * 根本沒有幾何體的空氣（`groundHeightAt(1.0, 0)` 抬得起來）。
+       */
+      const gapGrp = new THREE.Group();
+      const gh = 1.0;
+      const gcore = new THREE.Mesh(new THREE.CylinderGeometry(0.86, 0.86, gh, 32), new THREE.MeshBasicMaterial());
+      gcore.position.y = gh / 2;
+      gapGrp.add(gcore);
+      // 外圈：48 塊小墊子排成連續的一環（1.1–1.5），與芯之間留一道 0.86–1.10 的窄縫
+      for (let i = 0; i < 48; i += 1) {
+        const a = (i / 48) * Math.PI * 2;
+        const pad = new THREE.Mesh(new THREE.BoxGeometry(0.4, gh, 0.4), new THREE.MeshBasicMaterial());
+        pad.position.set(Math.cos(a) * 1.3, gh / 2, Math.sin(a) * 1.3);
+        pad.rotation.y = -a;
+        gapGrp.add(pad);
+      }
+      gapGrp.userData.solidRadius = 1.5;
+      const gapSolid = firstSolid(soloSolids(gapGrp), '中間有一道窄縫的頂面');
+      ok(
+        gapSolid.standR <= 0.86 + 1e-6,
+        '[判準] 窄的環狀缺口也停得住（不會把空氣認證成平的）',
+        `standR=${gapSolid.standR}`
+      );
+      for (const rx of [0.9, 1.0, 1.1]) {
+        eq(
+          World.groundHeightAt(rx, 0, [gapSolid], flatGround),
+          0,
+          `[判準] 縫上方 (${rx}, 0) 不會被抬起來（那裡沒有東西）`
+        );
+      }
+
+      /*
+       * ⑬c **有頂蓋的平臺**（審查 · 第 2 條）：走的那一面 1.2、頂蓋 5.0 在同一顆圓裡。
+       * `top` 是剪影的頂（＝頂蓋），`standTop` 才是腳踩得到的那一面 ——
+       * 站不站得上去、抬到多高，都要看後者。
+       */
+      const canopyGrp = new THREE.Group();
+      const deck = new THREE.Mesh(new THREE.BoxGeometry(3, 1.2, 3), new THREE.MeshBasicMaterial());
+      deck.position.y = 0.6;
+      canopyGrp.add(deck);
+      const roof = new THREE.Mesh(new THREE.BoxGeometry(3, 0.4, 3), new THREE.MeshBasicMaterial());
+      roof.position.y = 5.0;
+      canopyGrp.add(roof);
+      canopyGrp.userData.solidRadius = 1.5;
+      const canopy = firstSolid(soloSolids(canopyGrp), '有頂蓋的平臺');
+      ok(Math.abs(canopy.top - 5.2) < 1e-6, '[判準] top 是剪影的頂（頂蓋）', String(canopy.top));
+      ok(Math.abs(canopy.standTop - 1.2) < 1e-6, '[判準] standTop 是腳踩得到的那一面', String(canopy.standTop));
+      eq(canopy.standable, true, '[判準] 有頂蓋不代表站不上去（站的是下面那一面）');
+      ok(
+        Math.abs(World.groundHeightAt(0, 0, [canopy], flatGround) - 1.2) < 1e-5,
+        '[判準] 抬到腳踩得到的那一面，不是頂蓋',
+        String(World.groundHeightAt(0, 0, [canopy], flatGround))
       );
     }
 
@@ -3644,7 +3701,7 @@ console.log('▸ 可站立表面（v1.2 · P13）');
       [{ x: 0, z: 6, r: 1.2, standR: 1.2, top: NaN, topFace: false, standable: true }, '量不出來'],
       [{ x: 0, z: 6, r: 1.2, standR: 1.2, top: g0 + 9, topFace: true, standable: true }, '不在'],
       [{ x: 0, z: 6, r: 0.3, standR: 0.3, top: g0 + 1.2, topFace: true, standable: true }, '站不下人'],
-      [{ x: 0, z: -120, r: 1.2, top: World.terrainHeight(0, -120) + 1.2, topFace: true, standable: true }, '虛空'],
+      [{ x: 0, z: -120, r: 1.2, standR: 1.2, top: World.terrainHeight(0, -120) + 1.2, topFace: true, standable: true }, '虛空'],
       [{ x: 0, z: 6, r: 1.2, standR: 0.4, top: g0 + 1.2, topFace: true, standable: true }, '量過是平的只有'],
       [{ x: 0, z: 6, r: 1.2, standR: 2.0, top: g0 + 1.2, topFace: true, standable: true }, '還大'],
     ];
@@ -3734,8 +3791,17 @@ console.log('▸ 可站立表面（v1.2 · P13）');
     for (const key of ['`top`', '`topFace`', '`standable`', '`standR`', 'groundHeightAt']) {
       ok(s63.includes(key), `WORLD.md §6.3 寫了 ${key}`);
     }
-    ok(s63.includes(String(World.STAND_MIN_R)) && s63.includes(String(World.STAND_MAX_H)),
-      'WORLD.md §6.3 的判準數字與程式碼一致');
+    /*
+     * 高度區間要整段比對：`String(STAND_MAX_H)` 是 `"3"`，而 `s63` 開頭就是 `"### 6.3"` ——
+     * 只 includes 一個 `"3"` 是**永遠成立**的空泛斷言（審查 · 第 5 條）。
+     */
+    ok(
+      s63.includes(`${World.STAND_MIN_H}–${World.STAND_MAX_H}`),
+      `WORLD.md §6.3 寫了完整的高度區間 ${World.STAND_MIN_H}–${World.STAND_MAX_H}`
+    );
+    ok(s63.includes(String(World.STAND_MIN_R)), 'WORLD.md §6.3 的站得下人半徑與程式碼一致');
+    ok(s63.includes(String(World.STAND_RING_STEP)), 'WORLD.md §6.3 寫了往外量的步長（＝這支量法的解析度）');
+    ok(s63.includes('`standTop`'), 'WORLD.md §6.3 寫了 standTop（腳踩得到的那一面）');
     ok(/逐圓各自算/.test(s63), 'WORLD.md §6.3 寫了「逐圓各自算」（P10b／P11 的教訓）');
     ok(/平到多遠就只抬到多遠/.test(s63), 'WORLD.md §6.3 寫了「平到多遠就只抬到多遠」（standR 不是 r 的別名）');
     ok(/InstancedMesh/.test(s63), 'WORLD.md §6.3 寫明 instanced 那條路也濾半透明');

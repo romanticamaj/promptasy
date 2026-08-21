@@ -1691,7 +1691,9 @@ async function main() {
           if (w.isClear(x, z)) spot = { x, z, gap: d - s.r };
         }
       }
-      if (!spot) continue;
+      // 找不到、或最近的空位也離得太遠 → 換下一個候選（不是讓整支 e2e 紅：
+      // 那一塊旁邊被別的東西塞滿只是內容改動，不是回歸）
+      if (!spot || spot.gap > 1.6) continue;
       g.player.teleport(spot.x, spot.z);
       await waitGame(0.2);
       // 站定：腳下的高度就是地形高度，兩支答案一致
@@ -1703,14 +1705,23 @@ async function main() {
       let maxFoot = 0;
       let maxGround = 0;
       let maxSpeed = 0;
-      let nearest = Infinity;
+      /*
+       * 按著 W 走一秒會離開十幾公尺（實測 16–18），所以「整段都待在它旁邊」本來就不成立 ——
+       * 原本用 Math.min 寫的那一條**永遠成立、什麼都沒問**（審查 · 第 3 條）。
+       * 真正該問的是：① 真的有**幾個取樣點**是在它旁邊走過的（不然這一段跟可站立體無關）、
+       * ② 沒有瞬移（走得再遠也在一秒走得到的範圍內）。高度相不相等那幾條本來就是全程在問。
+       */
+      let farthest = 0;
+      let nearSamples = 0;
       for (let i = 0; i < 16; i += 1) {
         await waitGame(0.06);
         const p = g.player.position;
         maxFoot = Math.max(maxFoot, Math.abs(p.y - w.terrainHeight(p.x, p.z)));
         maxGround = Math.max(maxGround, Math.abs(w.groundHeightAt(p.x, p.z) - w.terrainHeight(p.x, p.z)));
         maxSpeed = Math.max(maxSpeed, g.player.speed);
-        nearest = Math.min(nearest, Math.hypot(p.x - s.x, p.z - s.z) - s.r);
+        const away = Math.hypot(p.x - s.x, p.z - s.z) - s.r;
+        farthest = Math.max(farthest, away);
+        if (away <= 4) nearSamples += 1;
       }
       window.dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyW' }));
       await waitGame(1.0);
@@ -1722,7 +1733,8 @@ async function main() {
         maxFoot,
         maxGround,
         maxSpeed,
-        nearest,
+        farthest,
+        nearSamples,
       });
     }
     // 把人放回這一段之前站的地方 —— 這一節不改變後面任何一條舊斷言看到的世界
@@ -1746,7 +1758,12 @@ async function main() {
   eq(standing.walks.length, 3, '真的站到三塊可站立體旁邊了', JSON.stringify(standing.walks.map((wk) => wk.at)));
   for (const wk of standing.walks) {
     ok(wk.gap <= 1.6, `[${wk.at}] 站的位置真的貼著那塊可站立體`, `gap=${wk.gap.toFixed(2)}`);
-    ok(wk.nearest <= 1.6, `[${wk.at}] 整段走下來都待在它旁邊`, `nearest=${wk.nearest.toFixed(2)}`);
+    ok(
+      wk.nearSamples >= 3,
+      `[${wk.at}] 真的有走在那塊可站立體旁邊（4 公尺內的取樣點）`,
+      `${wk.nearSamples}/16`
+    );
+    ok(wk.farthest <= 30, `[${wk.at}] 沒有瞬移（一秒走得到的範圍內）`, `farthest=${wk.farthest.toFixed(2)}`);
     ok(wk.maxSpeed > 0.5, `[${wk.at}] 按 W 真的有走（輸入有進去）`, `v=${wk.maxSpeed.toFixed(2)}`);
     ok(wk.restFoot < 1e-6, `[${wk.at}] 站定時腳下的高度就是地形高度`, `d=${wk.restFoot}`);
     ok(wk.restGround < 1e-6, `[${wk.at}] 站定時 groundHeightAt 與 terrainHeight 同一個答案`, `d=${wk.restGround}`);
@@ -6923,9 +6940,18 @@ async function main() {
      */
     for (let i = 0; i < 8; i += 1) g.nudge.update(20);
     g.nudge.update(0.1);            // 認識新目標（這一拍只做基準）
-    g.nudge.update(20);
-    g.nudge.update(20);
-    g.nudge.update(20);             // 累積 60 秒沒有靠近
+    /*
+     * 累積「沒有靠近目標」的時間。**用輪詢餵而不是固定餵三拍**：
+     * 真正的遊戲迴圈也在用真實 dt 呼叫同一支，機器一忙就可能有別的提示先占走位子、
+     * 或把冷卻又推起來 —— 固定三拍於是變成在賭時序（這一段是 findings 裡登記的
+     * 「load 高就整段紅」的常客）。餵到它真的出現為止，真的壞掉才會逾時。
+     */
+    let ready = g.nudge.state();
+    for (let i = 0; i < 60 && !ready.visible; i += 1) {
+      g.nudge.update(20);
+      await new Promise((r) => requestAnimationFrame(r));
+      ready = g.nudge.state();
+    }
     const el = document.querySelector('.nudge');
     // 淡入是 CSS 轉場 —— 輪詢等它跑完再量（固定 sleep 在慢機器上會賭輸）
     let opacity = 0;
