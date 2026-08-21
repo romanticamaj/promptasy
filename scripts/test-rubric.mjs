@@ -15978,6 +15978,11 @@ console.log('\n▸ 地面材質語言 ＋ 每區粒子（v1.2 · P12）');
       ok(built.length <= 7, `[band:${b.id}] 一道帶的碰撞體 ≤ 7`, String(built.length));
     }
     // 中觀層每一片土地的碰撞體 ≤ 20
+    eq(
+      EXPECT.screens.solidsPerRegion,
+      Rules12.SOLIDS_PER_REGION_MAX,
+      'expected-counts 的「每區中觀碰撞體上限」與程式常數一致（兩份數字只有一份有效）'
+    );
     for (const layer of testWorld.screens) {
       const n = World.collectSolids(layer.group, World.terrainHeight).length;
       ok(

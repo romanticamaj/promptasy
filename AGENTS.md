@@ -61,4 +61,10 @@ npm run fonts          # 重切字型子集（改過中文字串後必跑）
 npm run test:rubric    # 快（~15s）— 每次都跑
 npm run test:playtest  # 快（~10s）— 動到關卡時跑
 npm run test:e2e       # 慢（15–20min）— 大改動才跑，先問使用者
+
+npm run audit:pacing   # POI 節奏稽核（三口徑死區只准變少）
+npm run audit:sightline# 視線稽核（有遮擋帶的區：前 12m 看不到、25m 內揭露）
+npm run screen-fit -- --verify          # 中觀層落點自我驗證（現行資料全部要 ✓）
+npm run screen-fit -- --region <id> --kind motif|band   # 搜新的落點（改資料 → 重建世界 → 量）
+npm run colors:table   # 從 color-script.json 產生 WORLD.md §2.2 的色卡表（改 json 就重跑貼上）
 ```

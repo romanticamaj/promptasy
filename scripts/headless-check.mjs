@@ -9162,7 +9162,12 @@ async function main() {
     await new Promise((r) => setTimeout(r, 400));
     obj.hit = 0;
     g.codex.open();
-    await new Promise((r) => setTimeout(r, 300));
+    // 輪詢到提示真的收起來（軟體渲染一幀可能好幾百毫秒，固定 sleep 對不準牆鐘）
+    const t0 = Date.now();
+    while (Date.now() - t0 < 4000) {
+      await new Promise((r) => setTimeout(r, 60));
+      if (document.querySelector('[data-interact]').hidden) break;
+    }
     const hintDuring = document.querySelector('[data-interact]').hidden;
     window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyE', bubbles: true }));
     await new Promise((r) => setTimeout(r, 400));
@@ -17182,11 +17187,19 @@ async function main() {
         hasSight: typeof g.world.landmarkSightFrom === 'function',
       };
     `);
-    eq(built.layers, 1, 'P11：世界蓋出了一片土地的中觀層');
-    eq(built.bands, 2, 'P11：兩道遮擋帶進了場景圖');
-    eq(built.motifs, 4, 'P11：四座母題進了場景圖');
+    /*
+     * 件數對的是**資料層**（`SCREEN_BANDS`／`MOTIFS`），不是寫死的數字 ——
+     * P12 又鋪了四片土地，寫死就會每加一片紅一次（而且紅的是「數字過期」不是「東西壞了」）。
+     */
+    eq(built.layers, new Set([...Screens.SCREEN_BANDS, ...Screens.MOTIFS].map((x) => x.region)).size, 'P11：有中觀層的土地全部蓋出來了');
+    eq(built.bands, Screens.SCREEN_BANDS.length, 'P11：每一道遮擋帶都進了場景圖');
+    eq(built.motifs, Screens.MOTIFS.length, 'P11：每一座母題都進了場景圖');
     eq(built.lights, 0, 'P11：中觀層一盞燈都沒加');
-    ok(built.meshes > 0 && built.named >= 6, 'P11：每一道石脊／每一座母題都有自己的節點名', String(built.named));
+    ok(
+      built.meshes > 0 && built.named >= Screens.SCREEN_BANDS.length + Screens.MOTIFS.length,
+      'P11：每一道石脊／每一座母題都有自己的節點名',
+      String(built.named)
+    );
     eq(built.hasSight, true, 'P11：世界有視線判定 API');
 
     /* --- ② 站在橋頭：看不到塔；沿路走到揭露點：看得到 --- */
@@ -17324,11 +17337,221 @@ async function main() {
       'P11：人真的往石脊走過去了（不是原地沒動）',
       `離中線 ${sideStart.toFixed(2)} → ${sideEnd.toFixed(2)}`
     );
-    ok(
-      !insideLen || sideEnd >= band.depth / 2 + PLAYER_RADIUS_E2E - 0.15,
-      'P11：正對著石脊那一段，人是被面擋下來的（不是滑進石頭裡）',
-      `離中線 ${sideEnd.toFixed(2)}（半厚 ${(band.depth / 2).toFixed(2)} ＋ 玩家 ${PLAYER_RADIUS_E2E}）`
+    /*
+     * 「被面擋下來」的門檻要拿**碰撞器真正保證的那一條線**去問，不是拿畫出來的矩形。
+     * 石脊的碰撞是沿長邊排的一串圓（`bandSolidCircles()`），圓與圓之間會有扇貝形的凹口 ——
+     * 人站在兩顆圓中間時，離中線最近只到 `sqrt((r + 玩家半徑)² − (間距/2)²)`。
+     * 拿 `半厚 + 玩家半徑` 去問等於在問一個碰撞器從來沒保證過的數字（P11 那版剛好矇對，
+     * P12 把帶加厚之後就紅了 —— 紅的是門檻寫錯，不是世界壞了）。
+     * 這裡改成逐圓算出**保證值**再問，並且另外釘住「扇貝的凹口不准太深」——
+     * 圓串排稀了（或半徑縮小了）那一條會紅。
+     */
+    const circles = Screens.bandSolidCircles(band);
+    ok(circles.length >= 2, 'P11：（前提）石脊的碰撞是一串圓', String(circles.length));
+    const spacing = Math.hypot(circles[1].x - circles[0].x, circles[1].z - circles[0].z);
+    const guaranteed = Math.sqrt(
+      Math.max(0, (circles[0].r + PLAYER_RADIUS_E2E) ** 2 - (spacing / 2) ** 2)
     );
+    ok(
+      !insideLen || sideEnd >= guaranteed - 0.05,
+      'P11：正對著石脊那一段，人是被面擋下來的（不是滑進石頭裡）',
+      `離中線 ${sideEnd.toFixed(2)}（碰撞器保證 ${guaranteed.toFixed(2)}：圓半徑 ${circles[0].r} ＋ 玩家 ${PLAYER_RADIUS_E2E}、圓距 ${spacing.toFixed(2)}）`
+    );
+    ok(
+      band.depth / 2 + PLAYER_RADIUS_E2E - guaranteed < 0.35,
+      'P11：圓與圓之間的凹口夠淺（碰撞擋住的形狀跟看到的一樣）',
+      `${(band.depth / 2 + PLAYER_RADIUS_E2E - guaranteed).toFixed(3)}m`
+    );
+
+    // 收尾：回到高原，後面的檢查從乾淨的位置繼續
+    await evaluate(`window.__promptasy.player.teleport(0, 6); return 1;`);
+    await sleep(240);
+  }
+
+  /* ================================================================ */
+  /* v1.2 · P12：地面材質語言 ＋ 每區一種粒子 ＋ 新鋪的三道遮擋帶        */
+  /* ================================================================ */
+  console.log('\n▸ 地面材質語言 ＋ 每區粒子（v1.2 · P12）');
+  {
+    const Screens = await import('../src/world/screens.js');
+    const { sightlineAudit: sightlineAuditP12 } = await import('./sightline-audit.mjs');
+    const auditP12 = await sightlineAuditP12();
+
+    /* --- ① 新鋪的兩片土地：橋頭看不到地標，走到揭露點就看得到 --- */
+    for (const regionId of ['config', 'toolcraft']) {
+      const sl12 = auditP12.regions[regionId];
+      ok(Boolean(sl12) && sl12.bands.length >= 1, `（前提）${regionId} 有遮擋帶可以量`, sl12 ? String(sl12.bands.length) : 'null');
+      if (!sl12 || !sl12.bands.length) continue;
+      const lookAt = async (at) =>
+        evaluate(`
+          const g = window.__promptasy;
+          g.progression.skipGate('${regionId}');
+          g.world.openGate('${regionId}', true);
+          g.player.teleport(${at[0]}, ${at[1]});
+          await new Promise((r) => setTimeout(r, 320));
+          const s = g.world.landmarkSightFrom(g.player.position.x, g.player.position.z, '${regionId}');
+          return { flat: s.flat, hidden: s.hidden, by: s.by, x: g.player.position.x, z: g.player.position.z };
+        `);
+      const head12 = await lookAt(sl12.entry);
+      ok(
+        Math.hypot(head12.x - sl12.entry[0], head12.z - sl12.entry[1]) < 1.5,
+        `P12：[${regionId}] 人真的站到橋頭那一點`,
+        Math.hypot(head12.x - sl12.entry[0], head12.z - sl12.entry[1]).toFixed(2)
+      );
+      eq(head12.flat, true, `P12：[${regionId}] 站在橋頭看不到地標`);
+      const mid12 = sl12.samples.find((sm) => sm.arc >= 9 && sm.arc < sl12.revealAt) || sl12.samples[3];
+      const atMid12 = await lookAt(mid12.at);
+      eq(atMid12.flat, true, `P12：[${regionId}] 走了 ${mid12.arc} 公尺還是看不到`);
+      const rev12 = sl12.samples.find((sm) => sm.arc === sl12.revealAt) || sl12.samples[sl12.samples.length - 1];
+      const atRev12 = await lookAt(rev12.at);
+      eq(atRev12.flat, false, `P12：[${regionId}] 繞過去（第 ${sl12.revealAt} 公尺）地標就揭露了`);
+      ok(sl12.revealAt <= 25, `P12：[${regionId}] 揭露在 25 公尺內（擋住但不迷路）`, String(sl12.revealAt));
+    }
+
+    /* --- ② 只有母題的兩片土地：母題真的擋得住人（走不進石頭裡） --- */
+    for (const regionId of ['grounding', 'orchestration']) {
+      const list = Screens.MOTIFS.filter((mo) => mo.region === regionId);
+      ok(list.length >= 3, `（前提）${regionId} 有三座以上的母題`, String(list.length));
+      const mo = list[0];
+      const solid = await evaluate(`
+        const g = window.__promptasy;
+        g.progression.skipGate('${regionId}');
+        g.world.openGate('${regionId}', true);
+        return {
+          core: Boolean(g.world.solidAt(${mo.at[0]}, ${mo.at[1]})),
+          named: Boolean(g.world.root.getObjectByName('motif:${mo.id}')),
+        };
+      `);
+      eq(solid.core, true, `P12：[${regionId}] 母題 ${mo.id} 擋得住人`);
+      eq(solid.named, true, `P12：[${regionId}] 母題 ${mo.id} 在場景圖裡有自己的節點`);
+    }
+
+    /* --- ③ 粒子：畫面上真的有東西，一區一個 Points、共用材質、0 光源 --- */
+    const drift = await evaluate(`
+      const g = window.__promptasy;
+      const layer = g.world.drifts;
+      const mats = new Set();
+      let points = 0, lights = 0, total = 0, minCount = 1e9;
+      layer.group.traverse((o) => {
+        if (o.isLight) lights += 1;
+        if (o.isPoints) {
+          points += 1;
+          mats.add(o.material.uuid);
+          const n = o.geometry.attributes.position.count;
+          total += n;
+          if (n < minCount) minCount = n;
+        }
+      });
+      const first = layer.group.children[0];
+      return {
+        points, lights, mats: mats.size, total, minCount,
+        visible: layer.group.visible,
+        matVisible: Boolean(first.material.visible && first.material.opacity > 0 && first.material.map),
+        names: layer.layers.map((l) => l.points.name),
+      };
+    `);
+    eq(drift.points, 12, 'P12：一片土地一個 Points（12 個 draw call）');
+    eq(drift.mats, 1, 'P12：12 區共用同一個材質');
+    eq(drift.lights, 0, 'P12：粒子層一盞燈都沒加');
+    ok(drift.minCount > 0, 'P12：每一片土地的粒子都不是空的（Points.count > 0）', String(drift.minCount));
+    ok(drift.total > 500, 'P12：畫面上真的有一整層粒子', String(drift.total));
+    eq(drift.visible, true, 'P12：高畫質時粒子層是開著的');
+    eq(drift.matVisible, true, 'P12：粒子的材質看得見（有貼圖、不透明度 > 0）');
+    ok(
+      drift.names.every((n) => /^drift:[a-z]+$/.test(n)),
+      'P12：每一層的節點名照 §5.1（drift:<regionId>）',
+      drift.names.slice(0, 3).join(',')
+    );
+
+    /* --- ④ 粒子會動；切到低畫質整層消失、切回來又回來 --- */
+    const moved = await evaluate(`
+      const g = window.__promptasy;
+      const arr = g.world.drifts.layers[0].points.geometry.attributes.position.array;
+      const before = Float32Array.from(arr);
+      const t0 = Date.now();
+      // 輪詢到「真的有一顆動了」為止（軟體渲染一幀可能好幾百毫秒，不能用固定 sleep 對齊）
+      while (Date.now() - t0 < 6000) {
+        await new Promise((r) => setTimeout(r, 120));
+        for (let i = 0; i < before.length; i += 1) if (Math.abs(before[i] - arr[i]) > 1e-4) return { moved: true, ms: Date.now() - t0 };
+      }
+      return { moved: false, ms: Date.now() - t0 };
+    `);
+    eq(moved.moved, true, 'P12：粒子真的在動（輪詢到位置變了）', `${moved.ms}ms`);
+
+    // 畫質的選單住在設定頁裡 —— 沒開設定頁那顆 <select> 根本不在 DOM 上
+    await key('KeyO', 'o', { vk: 79 });
+    await sleep(350);
+    const settingsOpen12 = await evaluate(`return { open: window.__promptasy.settings.isOpen, sel: Boolean(document.getElementById('set-quality')) };`);
+    eq(settingsOpen12.open, true, 'P12：（前提）設定頁開著');
+    eq(settingsOpen12.sel, true, 'P12：（前提）畫質選單在 DOM 上');
+    const driftLow = await evaluate(`
+      const g = window.__promptasy;
+      const sel = document.getElementById('set-quality');
+      sel.value = 'low';
+      sel.dispatchEvent(new Event('change', { bubbles: true }));
+      const t0 = Date.now();
+      while (Date.now() - t0 < 6000) {
+        await new Promise((r) => setTimeout(r, 120));
+        if (g.engine.quality === 'low' && g.world.drifts.group.visible === false) break;
+      }
+      const arr = g.world.drifts.layers[0].points.geometry.attributes.position.array;
+      const snap = Float32Array.from(arr);
+      await new Promise((r) => setTimeout(r, 700));
+      let still = true;
+      for (let i = 0; i < snap.length; i += 1) if (snap[i] !== arr[i]) { still = false; break; }
+      return { quality: g.engine.quality, visible: g.world.drifts.group.visible, still };
+    `);
+    eq(driftLow.quality, 'low', 'P12：畫質切到低了');
+    eq(driftLow.visible, false, 'P12：低畫質 → 粒子層整層消失');
+    eq(driftLow.still, true, 'P12：低畫質 → 粒子一個位元組都不動（零每幀工作）');
+
+    const driftBack = await evaluate(`
+      const g = window.__promptasy;
+      const sel = document.getElementById('set-quality');
+      sel.value = 'high';
+      sel.dispatchEvent(new Event('change', { bubbles: true }));
+      const t0 = Date.now();
+      while (Date.now() - t0 < 6000) {
+        await new Promise((r) => setTimeout(r, 120));
+        if (g.engine.quality === 'high' && g.world.drifts.group.visible === true) break;
+      }
+      return { quality: g.engine.quality, visible: g.world.drifts.group.visible };
+    `);
+    eq(driftBack.quality, 'high', 'P12：畫質切回高了');
+    eq(driftBack.visible, true, 'P12：切回高畫質 → 粒子層回來了');
+    await key('Escape', 'Escape', { vk: 27 });
+    await sleep(250);
+
+    /* --- ⑤ 地面：兩片土地的頂點色真的不一樣 --- */
+    const groundColors = await evaluate(`
+      const g = window.__promptasy;
+      const mesh = g.world.root.getObjectByName('terrain');
+      const pos = mesh.geometry.attributes.position;
+      const col = mesh.geometry.attributes.color;
+      const want = ${JSON.stringify(['foundations', 'grounding', 'toolcraft', 'config'])};
+      const acc = {};
+      for (const id of want) acc[id] = { r: 0, g: 0, b: 0, n: 0 };
+      for (let i = 0; i < pos.count; i += 1) {
+        const x = pos.getX(i), z = pos.getZ(i);
+        const here = g.world.regionAt ? g.world.regionAt(x, z) : null;
+        if (!here || here.onBridge || !acc[here.id]) continue;
+        acc[here.id].r += col.getX(i); acc[here.id].g += col.getY(i); acc[here.id].b += col.getZ(i); acc[here.id].n += 1;
+      }
+      const out = {};
+      for (const id of want) out[id] = acc[id].n ? [acc[id].r / acc[id].n, acc[id].g / acc[id].n, acc[id].b / acc[id].n, acc[id].n] : null;
+      return out;
+    `);
+    const ids12e = Object.keys(groundColors);
+    for (const id of ids12e) ok(groundColors[id] && groundColors[id][3] > 50, `P12：[${id}] 量得到足夠的地面頂點`, groundColors[id] ? String(groundColors[id][3]) : 'null');
+    for (let i = 0; i < ids12e.length; i += 1) {
+      for (let j = i + 1; j < ids12e.length; j += 1) {
+        const a = groundColors[ids12e[i]];
+        const b = groundColors[ids12e[j]];
+        if (!a || !b) continue;
+        const d = Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
+        ok(d > 0.01, `P12：[${ids12e[i]}／${ids12e[j]}] 兩片土地的地面顏色不一樣`, d.toFixed(4));
+      }
+    }
 
     // 收尾：回到高原，後面的檢查從乾淨的位置繼續
     await evaluate(`window.__promptasy.player.teleport(0, 6); return 1;`);
