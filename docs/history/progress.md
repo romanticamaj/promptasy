@@ -3133,3 +3133,14 @@ e2e 一輪（同時破壞三處：Instagram 那顆回來、divergence 變回硬�
 - 四座母題重新定位：寫了一支「改資料 → 重建世界 → 量」的搜尋（覆蓋率 ≥0.96、三階落差 ≤1.1m、離路 9–26m、互動層淨空、四周 16 向全通），因為母題進 `keepClear`、移動它會讓程序化道具重擲。
 - 預算：三角 218,790（<232k）、**光源 37 不變**、碰撞體 979（<1,000）、collision-audit 未涵蓋 0、`audit:pacing` 死區 0／0／0。
 - 數字：rubric 106,446 → **117,845**、playtest 2,533、build ✓、e2e 4,000 → **4,021**（零 console error）。下一步：P12（地面材質語言 ＋ 每區粒子 ＋ 母題鋪 3–4 區）。
+
+## P12 — 地面材質語言 ＋ 每區粒子 ＋ 中觀鋪到五片土地（2026-08-21）
+
+- **地面**：新 `src/world/ground.js` —— 每區 `groundLow`／`groundHigh` 兩色基底 ＋ 區界 6 公尺漸變 ＋ 週期 20／8 公尺的低頻碎紋（低畫質只留基底）。12 區 66 對兩兩可分辨，最小 0.064（校驗場／分歧之廳）、中位數 0.203。純頂點色，不改高度場。
+- **橋面**（審查後補）：新 `World.BRIDGE_SPANS` ＋ `spansAt()`，橋沿著自己從這頭漸變到那頭、再與腳下的土地橫向讓位；沿線最大跳色 0.098 → **0.0014**。
+- **粒子**：新 `src/world/drifts.js` —— 12 片土地各一種空氣、12 個 `Points`（+12 draw call）、**共用 1 個材質**、三角 +0、光源 +0、983 顆點；低畫質整層關、`reducedMotion` 不動、中心離鏡頭 `CULL_M`(180m) 外整層跳過。
+- **中觀**：遮擋帶鋪到 config ＋ toolcraft（不是原訂的 grounding／orchestration —— 工具掃過之後那兩片擺不下，理由登記在 WORLD §4.10 ⑤「有些土地擺不下遮擋帶，那就不要擺」）；母題鋪 grounding／orchestration／config。hidden/reveal：reasoning 15/15、config 15/15、toolcraft 21/21。
+- **工具**：新 `scripts/screen-fit.mjs`（`npm run screen-fit -- --verify` 是新的護欄，動中觀資料後要跑）、`scripts/world-harness.mjs`（測試與工具共用「蓋一次世界」）、`scripts/lib/screen-rules.mjs`（擺位門檻的唯一一份）。一道帶的碰撞體 12 → **4**。
+- 審查 5 條全修：橋頭硬邊、粒子飄過天花板一倍、`CULL_M` 名不符實、`groundHigh` 那條驗證失去逐鍵退回、e2e 有一條在量機器速度。
+- 預算：三角 **219,730**（<225k）、光源 **37**（不變）、碰撞體 **975**（<1,050）、collision-audit 0、pacing 0／0／0。
+- 數字：rubric 117,845 → **125,703**、playtest 2,533、build ✓、e2e 4,021 → **4,068**（零 console error）。下一步：P13（可站立表面 `solidTop` ＋ 碰撞稽核擴充，無跳躍）。

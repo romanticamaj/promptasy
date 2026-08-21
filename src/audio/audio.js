@@ -1859,6 +1859,12 @@ export function createAudio({ volume = 0.5, muted = false, region = 'foundations
           sfxBus: Boolean(sfxBus),
         },
         pending: queue.length + running,
+        /*
+         * 排隊中的**配樂**支數。`pending` 本身在標題卡上本來就會衝到 20 上下
+         * （24 支音效是刻意一起抓的），對它下斷言等於在量機器多快 ——
+         * 真正要守的護欄是「別把 12 首配樂都排進去」（共約 35 MB），量這一個才對。
+         */
+        pendingBgm: queue.filter((j) => /^bgm_/.test(j.file)).length,
         failed: Array.from(fetchState.entries())
           .filter(([, v]) => v === 'failed')
           .map(([k]) => k),

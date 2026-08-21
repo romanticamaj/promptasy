@@ -775,6 +775,7 @@ async function main() {
         .reduce((a, r) => a + (r.transferSize || r.encodedBodySize || 0), 0),
       started: d.started,
       pending: d.pending,
+      pendingBgm: d.pendingBgm,
       source: d.source,
     };
   `);
@@ -799,7 +800,19 @@ async function main() {
     '標題卡上下載的音檔總量沒有失控（整包 35 MB 沒有被拉下來）',
     `${(beforeGesture.audioBytes / 1e6).toFixed(1)} MB`
   );
-  ok(beforeGesture.pending <= 4, '標題卡上排隊中的音檔沒有失控', `pending=${beforeGesture.pending}`);
+  /*
+   * `pending` 是**當下**還在飛的音檔數。24 支音效是刻意一起抓的（一按下去就要有聲音）、
+   * 而且一次只抓兩支 —— 所以剛進標題卡時它本來就會停在 20 上下，抽乾要好幾秒。
+   * 對那個數字下斷言等於在量這台機器多快（load 高時必紅，實測 pending=20、
+   * 改成輪詢 15 秒也排不完）。真正要守的護欄是**別把 12 首配樂排進去**（共約 35 MB），
+   * 所以改量佇列裡的配樂支數 —— 那個與機器速度無關。
+   */
+  ok(
+    beforeGesture.pendingBgm <= 2,
+    '標題卡上排隊中的配樂沒有失控（12 首沒有被排進佇列）',
+    `pendingBgm=${beforeGesture.pendingBgm}`
+  );
+  ok(beforeGesture.pending <= 30, '標題卡上的下載佇列本身有上限（不是把整包都排進去）', `pending=${beforeGesture.pending}`);
 
   /*
    * Phase 34.5 · 揭示不擋輸入：兩句話還在淡入時按下開始，一樣直接進場

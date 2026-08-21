@@ -7054,6 +7054,24 @@ console.log('\n▸ 區域色彩腳本 ＋ 三態 ＋ 節奏稽核（v1.2 · P06�
       eq(m.particle, null, 'particle 壞掉：particle null（world.js 用舊算法）');
       eq(JSON.stringify(CS.colorScriptRow('reasoning')), JSON.stringify(csJson.regions.foundations), 'colorScriptRow（色卡表用）退回 foundations 那一列（那一列驗得過）');
     }
+    /*
+     * 倒過來的高度階也要**逐鍵**退回（P12 審查抓到的）：那一條驗證原本只寫 `${id}: …`，
+     * 沒有 `.鍵名`，於是 `hasColorScript()` 說壞了、`colorScriptFor()` 卻照樣把倒過來的
+     * 那一組交出去 —— 地形就用著一組「高處比低處暗」的色畫下去。
+     */
+    {
+      const badG = JSON.parse(JSON.stringify(csJson));
+      badG.regions.grounding.groundHigh = '#0a0908'; // 比 groundLow 還暗
+      const w0 = console.warn;
+      console.warn = () => {};
+      CS.loadColorScript(badG);
+      console.warn = w0;
+      eq(CS.hasColorScript('grounding'), false, 'groundHigh 倒過來：hasColorScript false');
+      const m = CS.colorScriptFor('grounding');
+      ok(m.groundHigh !== '#0a0908', 'groundHigh 倒過來：壞值不准交出去（逐鍵退回）', String(m.groundHigh));
+      eq(m.key, csJson.regions.grounding.key, 'groundHigh 倒過來：其他鍵仍是自己的');
+      eq(m.sky.top, csJson.regions.grounding.skyTop, 'groundHigh 倒過來：sky.top 仍是自己的');
+    }
     // foundations 自己壞了：colorScriptRow 絕不回壞列 → null；colorScriptFor 逐鍵預設；其他區照舊
     {
       const badF = JSON.parse(JSON.stringify(csJson));
@@ -15726,6 +15744,71 @@ console.log('\n▸ 地面材質語言 ＋ 每區粒子（v1.2 · P12）');
     }
   }
 
+  /* --- ②b 地面：橋面沒有硬邊（P12 審查） ------------------------- */
+  {
+    /*
+     * 橋面（兩片土地的半徑之間那一段）不屬於任何一片土地 —— `groundBlend()` 回空陣列，
+     * 而橋的 `coverage` 是 1.0，所以「掉進虛空就壓暗」那一層也蓋不住它。
+     * 審查前橋的兩端各留一條看得見的硬邊（實測 0.098 的跳色）。
+     * 這裡沿著每一條橋的中線每 0.25 公尺走一遍，量**相鄰兩點的顏色差**。
+     */
+    const toneOfBridge = (id) => {
+      const r = CS12.colorScriptFor(id);
+      return { low: r.groundLow, high: r.groundHigh };
+    };
+    const cA = new THREE.Color();
+    const cB = new THREE.Color();
+    const sampleAt = (x, z, out) =>
+      Ground.groundBaseColor(out, x, z, World.terrainHeight(x, z), {
+        toneOf: toneOfBridge,
+        sites: World.REGION_SITES,
+        links: World.BRIDGE_SPANS,
+        grain: false,
+      });
+    ok(World.BRIDGE_SPANS.length >= 11, '（前提）每一條橋與頸口都登記在 BRIDGE_SPANS', String(World.BRIDGE_SPANS.length));
+    let worstJump = 0;
+    let worstAt = '';
+    for (const span of World.BRIDGE_SPANS) {
+      const dx = span.bx - span.ax;
+      const dz = span.bz - span.az;
+      const len = Math.hypot(dx, dz);
+      let prev = null;
+      for (let d = span.aR - 6; d <= len - span.bR + 6; d += 0.25) {
+        const x = span.ax + (dx / len) * d;
+        const z = span.az + (dz / len) * d;
+        sampleAt(x, z, cA);
+        if (prev) {
+          const j = Math.hypot(cA.r - prev[0], cA.g - prev[1], cA.b - prev[2]);
+          if (j > worstJump) {
+            worstJump = j;
+            worstAt = `${span.toId} @${d.toFixed(1)}m`;
+          }
+        }
+        prev = [cA.r, cA.g, cA.b];
+      }
+    }
+    ok(worstJump < 0.02, `橋面沿線沒有硬邊（最大跳色 ${worstAt}）`, worstJump.toFixed(4));
+    // 橋的兩端要跟各自的土地接得上（不是「橋自己一個顏色」）
+    for (const span of World.BRIDGE_SPANS.slice(0, 4)) {
+      const dx = span.bx - span.ax;
+      const dz = span.bz - span.az;
+      const len = Math.hypot(dx, dz);
+      for (const [d0, d1, who] of [
+        [span.aR - 1, span.aR + 1, span.fromId],
+        [len - span.bR - 1, len - span.bR + 1, span.toId],
+      ]) {
+        sampleAt(span.ax + (dx / len) * d0, span.az + (dz / len) * d0, cA);
+        sampleAt(span.ax + (dx / len) * d1, span.az + (dz / len) * d1, cB);
+        const j = Math.hypot(cA.r - cB.r, cA.g - cB.g, cA.b - cB.b);
+        ok(j < 0.02, `[${span.toId}] 橋在 ${who} 那一端與土地接得上`, j.toFixed(4));
+      }
+    }
+    // 沒給 links 就是舊行為（退得回去，不是唯一一條路）
+    Ground.groundBaseColor(cA, 0, 0, 1, { toneOf: toneOfBridge, sites: World.REGION_SITES, grain: false });
+    Ground.groundBaseColor(cB, 0, 0, 1, { toneOf: toneOfBridge, sites: World.REGION_SITES, links: World.BRIDGE_SPANS, grain: false });
+    eq(cA.getHex(), cB.getHex(), '土地正中央不受橋面那一層影響');
+  }
+
   /* --- ③ 地面：碎紋只在高畫質，而且畫出來的就是算出來的 ---------- */
   {
     const toneOf12 = (id) => {
@@ -15863,6 +15946,31 @@ console.log('\n▸ 地面材質語言 ＋ 每區粒子（v1.2 · P12）');
       eq(inside, pos.count, `${tag} 每一顆都撒在自己那一片土地上`);
       eq(above, pos.count, `${tag} 每一顆都在地面以上（不是埋在土裡）`);
     }
+    /*
+     * **天花板也要驗**（P12 審查抓到的）：`update()` 會在 `baseY` 上再加 0…span 的 `dy`，
+     * 如果起點自己也散在 [lo, hi]，兩邊各加一次 → 實際上限變成 `hi + span`
+     * （齒輪工坊宣告 12m、實測飄到 25.9m）。
+     * 量的是「離**自己出生那一點**的地面多高」——不是離腳下當下那一點，
+     * 因為 swirl 會把點橫向帶到坡下，那是地形的起伏不是它自己飄的。
+     * 這一段會動到每一層的座標，所以擺在前面那些「出生點」斷言的後面。
+     */
+    for (const layer of testWorld.drifts.layers) {
+      const spec = Drifts.DRIFTS[layer.id];
+      const arr = layer.points.geometry.attributes.position.array;
+      let ceil = -Infinity;
+      for (let step = 0; step < 24; step += 1) {
+        testWorld.drifts.update(1 / 60, (step / 24) * 40, { position: { x: layer.cx, y: 8, z: layer.cz } });
+        for (let i = 0; i < layer.n; i += 1) {
+          const h = arr[i * 3 + 1] - World.terrainHeight(layer.baseX[i], layer.baseZ[i]);
+          if (h > ceil) ceil = h;
+        }
+      }
+      ok(
+        spec.rise === 0 || ceil <= spec.y[1] + spec.bob + 0.35,
+        `[drift:${layer.id}] 飄不出自己宣告的高度（≤ ${spec.y[1]} ＋ 起伏 ${spec.bob}）`,
+        ceil.toFixed(2)
+      );
+    }
     // 12 種參數不准長一樣（不然就不是「專屬」）
     const shapes = new Set();
     for (const id of Object.keys(Drifts.DRIFTS)) {
@@ -15930,6 +16038,15 @@ console.log('\n▸ 地面材質語言 ＋ 每區粒子（v1.2 · P12）');
       ok(!updateBody.includes(bad), `P12：粒子的每幀迴圈沒有 ${bad.trim()}`);
     }
     ok(!/requestAnimationFrame/.test(driftSrc), 'P12：drifts.js 沒有自己的動畫迴圈');
+    /*
+     * 匯出的 `CULL_M` 就是真的拿去比的那一個數字（P12 審查前是 `CULL_M + 60`，
+     * 調 `CULL_M` 不會生效 —— 兩份真相裡有一份沒作用，比沒有更糟）。
+     */
+    ok(
+      /dx \* dx \+ dz \* dz > CULL_M \* CULL_M/.test(driftSrc),
+      'P12：距離分級直接用 CULL_M（不是 CULL_M ＋ 別的數）'
+    );
+    ok(Drifts.CULL_M >= 150, 'P12：CULL_M 含得住最大的一片土地（半徑 62）加上視距', String(Drifts.CULL_M));
   }
 
   /* --- ⑥ 中觀：新的四片土地吃同一套規則 -------------------------- */

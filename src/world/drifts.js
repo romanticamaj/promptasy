@@ -22,8 +22,13 @@
  */
 import * as THREE from 'three';
 
-/** 離鏡頭這麼遠的土地整層不算（每幀迴圈的距離分級，WORLD §6.2）。 */
-export const CULL_M = 120;
+/**
+ * 離鏡頭這麼遠的**土地中心**就整層不算（每幀迴圈的距離分級，WORLD §6.2）。
+ *
+ * 量的是到土地中心的距離，所以要含得住半徑最大的那一片（62 公尺）再加上鏡頭的視距 ——
+ * 這個數字就是最後真的拿去比的那一個（P12 審查前是 `CULL_M + 60`，改 `CULL_M` 不會生效）。
+ */
+export const CULL_M = 180;
 /** 高畫質時每一片土地的粒子數上限（再乘上該區的 `motes` 密度倍率）。 */
 export const BASE_COUNT = 90;
 
@@ -173,6 +178,7 @@ export function createDrifts({
     const baseY = new Float32Array(n);
     const baseZ = new Float32Array(n);
     const phase = new Float32Array(n);
+    const riseAt = new Float32Array(n);
     const span = new Float32Array(n);
 
     _tint.set(particleOf ? particleOf(site.id) || '#cfe8f6' : '#cfe8f6');
@@ -225,12 +231,21 @@ export function createDrifts({
       }
       const lo = spec.y[0];
       const hi = spec.y[1];
-      const y = heightAt(x, z) + lo + Math.pow(rand(), spec.shape === 'low' ? 1.2 : 1.6) * (hi - lo);
+      /*
+       * 會往上飄的那幾層（`rise !== 0`），高度的變化交給 `update()` 的 `dy`（0…span）——
+       * 這裡**只把起點散開，不再自己加一次高度**。P12 審查前兩邊各加一次，
+       * 天花板變成 `hi + span`（齒輪工坊宣告 12m、實測飄到 25.9m）。
+       * 不飄的那幾層（`rise === 0`）沒有 `dy`，起點就是它最後的高度，照舊散在 [lo, hi]。
+       */
+      const spread = Math.pow(rand(), spec.shape === 'low' ? 1.2 : 1.6) * (hi - lo);
+      const y = heightAt(x, z) + lo + (spec.rise !== 0 ? 0 : spread);
       baseX[i] = x;
       baseY[i] = y;
       baseZ[i] = z;
       span[i] = hi - lo;
       phase[i] = rand() * Math.PI * 2;
+      // 會飄的那幾層：起點的高低改由 `dy` 的初始相位表示（一樣散得開，但吃得到天花板）
+      riseAt[i] = spec.rise !== 0 ? spread : 0;
       positions[i * 3] = x;
       positions[i * 3 + 1] = y;
       positions[i * 3 + 2] = z;
@@ -247,11 +262,11 @@ export function createDrifts({
     points.name = `drift:${site.id}`;
     points.frustumCulled = false;
     group.add(points);
-    layers.push({ id: site.id, spec, points, n, baseX, baseY, baseZ, phase, span, cx: site.x, cz: site.z });
+    layers.push({ id: site.id, spec, points, n, baseX, baseY, baseZ, phase, riseAt, span, cx: site.x, cz: site.z });
   }
 
   /**
-   * 每幀：只動離鏡頭 `CULL_M` 公尺內的那幾片土地。
+   * 每幀：只動中心離鏡頭 `CULL_M` 公尺內的那幾片土地。
    * `reducedMotion` 或低畫質時整支是一個 if 就回去了（零工作）。
    */
   function update(dt, t, camera) {
@@ -264,7 +279,7 @@ export function createDrifts({
       const layer = layers[li];
       const dx = layer.cx - camX;
       const dz = layer.cz - camZ;
-      if (dx * dx + dz * dz > (CULL_M + 60) * (CULL_M + 60)) continue;
+      if (dx * dx + dz * dz > CULL_M * CULL_M) continue;
       const spec = layer.spec;
       const arr = layer.points.geometry.attributes.position.array;
       for (let i = 0; i < layer.n; i += 1) {
@@ -273,7 +288,7 @@ export function createDrifts({
         // 往上（或往下）飄，到頂就回到底 —— 用取餘數，不需要每個點自己記狀態
         let dy = 0;
         if (spec.rise !== 0) {
-          const travel = (t * spec.rise + ph) % s;
+          const travel = (t * spec.rise + layer.riseAt[i]) % s;
           dy = travel < 0 ? travel + s : travel;
           if (spec.mirror && (i & 1) === 1) dy = s - dy; // 校驗場：一半往上、一半往下
         }

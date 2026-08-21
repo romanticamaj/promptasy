@@ -205,7 +205,14 @@ export function validateColorScript(data, atmo = REGION_ATMOSPHERE) {
     {
       const lo = hexToHsl(row.groundLow);
       const hi = hexToHsl(row.groundHigh);
-      if (lo && hi && hi.l <= lo.l) problems.push(`${id}: groundHigh 不比 groundLow 亮（高處要比低處亮，高度階才讀得出來）`);
+      /*
+       * 訊息一定要寫成 `${id}.${key}: …` —— `loadColorScript()` 是用這個格式
+       * 認出「壞的是哪一個鍵」再逐鍵退回的。P12 審查前這一條只寫 `${id}: …`，
+       * 於是 `hasColorScript()` 說這一區壞了、`colorScriptFor()` 卻照樣把
+       * 那組反過來的高度階交出去（＝這個模組宣稱「絕不回一列壞的」的破口）。
+       */
+      if (lo && hi && hi.l <= lo.l)
+        problems.push(`${id}.groundHigh: 不比 groundLow 亮（高處要比低處亮，高度階才讀得出來）`);
     }
   }
   return problems;

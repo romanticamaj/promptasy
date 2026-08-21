@@ -22,6 +22,8 @@ import * as THREE from 'three';
 
 /** 區界漸變的帶寬（公尺）：兩片土地相接處，顏色在這麼寬的一條帶裡交出去。 */
 export const GROUND_BLEND_M = 6;
+/** 橋面漸變吃得到多寬（公尺，離橋中線）—— 比 `LANE_HALF`＋護欄再寬一點就夠。 */
+export const SPAN_HALF_W = 14;
 /** 碎紋的兩階週期（公尺）與振幅（相對亮度）。 */
 export const GRAIN_PERIOD_A = 20;
 export const GRAIN_PERIOD_B = 8;
@@ -101,6 +103,46 @@ export function groundBlend(x, z, sites, blendM = GROUND_BLEND_M) {
   return out;
 }
 
+/**
+ * 橋面（兩片土地半徑之間的那一段）在這一點的漸變權重。
+ *
+ * `u` 是**沿橋**的位置：0 ＝ 這頭土地的邊界、1 ＝ 那頭土地的邊界 ——
+ * 於是橋的兩端與各自的土地顏色**剛好接得上**，中間是一段連續的過渡。
+ *
+ * 為什麼要回一串而不是「最近的那一條」：橋是從中央高原**放射**出去的，
+ * 靠近高原時好幾條的橫向距離都在 `SPAN_HALF_W` 之內 —— 挑最近的那一條會在
+ * 兩條橋的分界上跳色（實測 0.038）。照橫向距離加權混起來就沒有那條線。
+ * 離所有橋都太遠 ＝ 真的虛空，回空陣列。
+ *
+ * @param {number} x
+ * @param {number} z
+ * @param {Array<{fromId:string,toId:string,ax:number,az:number,bx:number,bz:number,aR:number,bR:number}>} links
+ * @returns {Array<{fromId:string,toId:string,u:number,w:number}>}
+ */
+export function spansAt(x, z, links) {
+  const out = [];
+  let sum = 0;
+  for (const l of links) {
+    const dx = l.bx - l.ax;
+    const dz = l.bz - l.az;
+    const len = Math.hypot(dx, dz) || 1;
+    const t = ((x - l.ax) * dx + (z - l.az) * dz) / (len * len);
+    const px = l.ax + dx * t;
+    const pz = l.az + dz * t;
+    const perp = Math.hypot(x - px, z - pz);
+    if (perp >= SPAN_HALF_W) continue;
+    const along = t * len;
+    const inner = len - l.bR;
+    if (along <= l.aR || along >= inner) continue; // 這一段已經是土地自己的事
+    const w = 1 - perp / SPAN_HALF_W;
+    out.push({ fromId: l.fromId, toId: l.toId, u: (along - l.aR) / Math.max(1e-3, inner - l.aR), w, near: w });
+    sum += w;
+  }
+  for (const o of out) o.w /= sum;
+  return out;
+}
+
+const _span = new THREE.Color();
 const _low = new THREE.Color();
 const _high = new THREE.Color();
 const _mix = new THREE.Color();
@@ -118,20 +160,24 @@ const _mix = new THREE.Color();
  * @param {object} opts
  * @param {(id:string)=>{low:string|number, high:string|number}} opts.toneOf 每區的兩色基底
  * @param {Array} opts.sites 土地表（`REGION_SITES`）
+ * @param {Array} [opts.links] 橋／頸口（`bridgeSpans()` 的輸出）—— 沒給就退回舊行為
  * @param {boolean} [opts.grain] 要不要碎紋（低畫質 = false）
  * @returns {THREE.Color} out
  */
-export function groundBaseColor(out, x, z, y, { toneOf, sites, grain = true }) {
+export function groundBaseColor(out, x, z, y, { toneOf, sites, links = null, grain = true }) {
   const t = Math.max(0, Math.min(1, (y + 2.5) / 7));
   const blend = groundBlend(x, z, sites);
+  /*
+   * 兩層疊起來：**土地的色** ＋ **橋面的色**，照離橋中線的距離互相讓位。
+   *
+   * 橋面（兩片土地的半徑之間那一段）不屬於任何一片土地，`groundBlend()` 回空陣列；
+   * 直接拿中央高原那一組當底會在每一條橋的兩端各留一條看得見的硬邊（P12 審查實測 0.098）。
+   * 而且有的橋會**穿過另一片土地的圓**（sight 那條穿過分歧之廳）—— 只挑一邊就會在
+   * 圓的邊界上再跳一次色。所以兩邊都算，再用同一條橫向斜坡混：
+   * 中線上是橋的色、`SPAN_HALF_W` 之外完全是土地的色，中間連續。
+   */
   out.setRGB(0, 0, 0);
-  if (!blend.length) {
-    // 虛空：沒有任何土地含得住這一點 —— 用中央高原那一組當底（外面還會往 edge 壓暗）
-    const tone = toneOf(sites.length ? sites[0].id : 'foundations');
-    _low.set(tone.low);
-    _high.set(tone.high);
-    out.copy(_low).lerp(_high, t);
-  } else {
+  if (blend.length) {
     for (const b of blend) {
       const tone = toneOf(b.id);
       _low.set(tone.low);
@@ -141,7 +187,32 @@ export function groundBaseColor(out, x, z, y, { toneOf, sites, grain = true }) {
       out.g += _mix.g * b.w;
       out.b += _mix.b * b.w;
     }
+  } else {
+    // 真的虛空（也是橋面斜坡的外側退路）：用中央高原那一組當底，外面還會往 edge 壓暗
+    const tone = toneOf(sites.length ? sites[0].id : 'foundations');
+    _low.set(tone.low);
+    _high.set(tone.high);
+    out.copy(_low).lerp(_high, t);
   }
+
+  const spans = links ? spansAt(x, z, links) : [];
+  if (spans.length) {
+    let wSpan = 0;
+    _span.setRGB(0, 0, 0);
+    for (const sp of spans) {
+      const a = toneOf(sp.fromId);
+      const b = toneOf(sp.toId);
+      _low.set(a.low).lerp(_high.set(b.low), sp.u);
+      _high.set(a.high).lerp(_mix.set(b.high), sp.u);
+      _mix.copy(_low).lerp(_high, t);
+      _span.r += _mix.r * sp.w;
+      _span.g += _mix.g * sp.w;
+      _span.b += _mix.b * sp.w;
+      if (sp.near > wSpan) wSpan = sp.near;
+    }
+    out.lerp(_span, wSpan);
+  }
+
   if (grain) {
     const k = 1 + groundGrain(x, z) * GRAIN_AMOUNT;
     out.multiplyScalar(k);
@@ -149,4 +220,4 @@ export function groundBaseColor(out, x, z, y, { toneOf, sites, grain = true }) {
   return out;
 }
 
-export default { GROUND_BLEND_M, GRAIN_AMOUNT, GRAIN_PERIOD_A, GRAIN_PERIOD_B, groundGrain, groundBlend, groundBaseColor };
+export default { GROUND_BLEND_M, SPAN_HALF_W, spansAt, GRAIN_AMOUNT, GRAIN_PERIOD_A, GRAIN_PERIOD_B, groundGrain, groundBlend, groundBaseColor };

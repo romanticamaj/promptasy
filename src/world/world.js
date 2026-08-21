@@ -242,6 +242,43 @@ export const ANNEX_LINKS = Object.freeze(
   })
 );
 
+/**
+ * 橋與頸口的「跨距」：給地面色用的 `{ fromId, toId, ax, az, bx, bz, aR, bR }`。
+ *
+ * 兩片土地的半徑之間那一段（＝橋面）不屬於任何一片土地，`groundBlend()` 會回空陣列；
+ * 沒有這張表的話橋的兩端會各留一條看得見的硬邊（P12 審查抓到的）。
+ */
+export const BRIDGE_SPANS = Object.freeze([
+  ...CORRIDORS.map((c) => {
+    const site = SITE_BY_ID.get(c.region);
+    return Object.freeze({
+      fromId: HUB.id,
+      toId: c.region,
+      ax: c.from.x,
+      az: c.from.z,
+      bx: c.to.x,
+      bz: c.to.z,
+      aR: HUB.radius,
+      bR: site.radius,
+    });
+  }),
+  ...ANNEX_LINKS.map((l) => {
+    const host = SITE_BY_ID.get(l.host);
+    const site = SITE_BY_ID.get(l.region);
+    return Object.freeze({
+      fromId: l.host,
+      toId: l.region,
+      ax: l.from.x,
+      az: l.from.z,
+      bx: l.to.x,
+      bz: l.to.z,
+      aR: host.radius,
+      bR: site.radius,
+    });
+  }),
+]);
+
+
 /** 主動線的淨空半寬（公尺）。 */
 export const LANE_HALF = 3.2;
 /** 石座周圍的淨空半徑：走得到、繞得過去、按得到 E。 */
@@ -982,7 +1019,7 @@ function buildTerrain(quality, colorOf, pathSegs = [], toneOf = null) {
     pos.setY(i, y);
 
     const cov = coverage(x, z);
-    groundBaseColor(tmp, x, z, y, { toneOf: tone, sites: REGION_SITES, grain });
+    groundBaseColor(tmp, x, z, y, { toneOf: tone, sites: REGION_SITES, links: BRIDGE_SPANS, grain });
 
     // 各區用自己的主色輕輕染一下地面 —— 只取色相、壓低亮度，夜色才不會被洗白
     const here = regionAt(x, z);
