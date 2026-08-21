@@ -17264,10 +17264,16 @@ async function main() {
     `);
     const sideAfter = (after.x - f.cx) * f.vx + (after.z - f.cz) * f.vz;
     const alongAfter = (after.x - f.cx) * f.ux + (after.z - f.cz) * f.uz;
+    /*
+     * 「沒有穿模」＝ **沒有從石脊中間穿過去**。
+     * 換到另一面本身是合法的（貼著面滑到端點、繞過去就是我們要的體驗）——
+     * 所以換面時要求人已經走過端點（沿長邊的座標超出半長），
+     * 不合法的是「還在石脊正對面的那一段，人卻已經在另一面」。
+     */
     ok(
-      sideBefore * sideAfter > 0,
-      'P11：一直往石脊走也走不到另一邊（沒有穿模）',
-      `${sideBefore.toFixed(2)} → ${sideAfter.toFixed(2)}`
+      sideBefore * sideAfter > 0 || Math.abs(alongAfter) > band.length / 2,
+      'P11：一直往石脊走，只能繞過端點，不會從中間穿過去',
+      `離中線 ${sideBefore.toFixed(2)} → ${sideAfter.toFixed(2)}｜沿長邊 ${alongAfter.toFixed(2)}（半長 ${(band.length / 2).toFixed(2)}）`
     );
     /*
      * 「停在石脊外面」＝ **人不在石脊的足跡裡**（不是「離中線多遠」）——
