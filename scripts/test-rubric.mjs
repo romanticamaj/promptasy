@@ -3257,6 +3257,493 @@ console.log('▸ 穿模稽核（Phase 20）');
 }
 
 /* ------------------------------------------------------------------ */
+/* 3e. v1.2 · P13：可站立表面（純資料層 —— 這一格還沒有跳躍）             */
+/* ------------------------------------------------------------------ */
+console.log('▸ 可站立表面（v1.2 · P13）');
+{
+  const AuditP13 = await import('./collision-audit.mjs');
+
+  /* --- 常數本身要說得通（改鬆了這裡先紅） --- */
+  ok(World.STAND_MIN_H < World.STAND_MAX_H, '可站立的高度區間是一段真的區間',
+    `${World.STAND_MIN_H}–${World.STAND_MAX_H}`);
+  ok(World.STAND_MIN_R >= World.PLAYER_RADIUS, '頂面至少站得下一個人（半徑 ≥ PLAYER_RADIUS）',
+    `${World.STAND_MIN_R} vs ${World.PLAYER_RADIUS}`);
+  eq(World.STAND_COVER_MIN, 0.45, '「不准懸在虛空上方」與 isWalkable() 用同一條覆蓋門檻');
+  ok(
+    Math.abs(World.STAND_UP_DOT - Math.cos(Math.PI / 18)) < 1e-12,
+    '上向面的容差就是文件寫的 10°（常數是真的拿去比的那一個）',
+    `${World.STAND_UP_DOT}`
+  );
+  ok(World.STAND_UP_DOT >= 0.98, '上向面的容差很緊（斜面不是可以放腳的面）', `${World.STAND_UP_DOT}`);
+  ok(World.STAND_FLAT_EPS <= 0.1, '「夠平」的容差是公分級的', `${World.STAND_FLAT_EPS}`);
+
+  /* --- 每一顆圓都有 top，而且 standable 的都在允許區間 --- */
+  for (const [label, w] of [['高畫質', testWorld], ['低畫質', lowWorld]]) {
+    ok(
+      w.solids.every((s) => Number.isFinite(s.top)),
+      `[${label}] 每個碰撞圓都有 top（頂面世界高度）`,
+      `缺=${w.solids.filter((s) => !Number.isFinite(s.top)).length}／${w.solids.length}`
+    );
+    ok(
+      w.solids.every((s) => typeof s.standable === 'boolean' && typeof s.topFace === 'boolean'),
+      `[${label}] 每個碰撞圓都有 standable / topFace 旗標`
+    );
+    ok(
+      w.solids.every((s) => Math.abs(s.top) < 200),
+      `[${label}] top 落在世界的高度範圍內（沒有 NaN 也沒有天文數字）`,
+      `max=${Math.max(...w.solids.map((s) => Math.abs(s.top))).toFixed(1)}`
+    );
+    const stand = w.solids.filter((s) => s.standable);
+    ok(stand.length > 20, `[${label}] 世界裡真的有站得上去的東西（不然這一節是空過的）`, `n=${stand.length}`);
+    ok(
+      stand.every((s) => s.topFace),
+      `[${label}] 可站立體的 top 一定量自真的上向面`,
+      `例外=${stand.filter((s) => !s.topFace).length}`
+    );
+    ok(
+      stand.every((s) => {
+        const h = s.top - World.terrainHeight(s.x, s.z);
+        return h >= World.STAND_MIN_H - 1e-6 && h <= World.STAND_MAX_H + 1e-6;
+      }),
+      `[${label}] 可站立體的離地高度都在 ${World.STAND_MIN_H}–${World.STAND_MAX_H} 之間`
+    );
+    ok(stand.every((s) => s.r >= World.STAND_MIN_R), `[${label}] 可站立體的圓都站得下一個人`);
+    ok(
+      w.solids.every((s) => Number.isFinite(s.standR) && s.standR >= 0 && s.standR <= s.r + 1e-9),
+      `[${label}] 每個圓的 standR 都落在 0..r 之間（抬高的範圍不會比碰撞圓大）`
+    );
+    ok(
+      stand.every((s) => s.standR >= World.STAND_MIN_R),
+      `[${label}] 可站立體「量過是平的」那一段至少 ${World.STAND_MIN_R} 公尺`
+    );
+    ok(
+      w.solids.every((s) => s.standable || s.standR === 0),
+      `[${label}] 站不上去的圓 standR 一律是 0（不會偷偷抬高腳下的高度）`
+    );
+    ok(
+      stand.some((s) => s.standR < s.r - 1e-6),
+      `[${label}] 真的有「碰撞圓比平頂大」的東西（standR 不是 r 的別名）`,
+      `n=${stand.filter((s) => s.standR < s.r - 1e-6).length}／${stand.length}`
+    );
+    ok(
+      stand.every((s) => World.coverage(s.x, s.z) >= World.STAND_COVER_MIN),
+      `[${label}] 沒有任何一塊可站立的頂面懸在虛空上方`
+    );
+  }
+
+  /* ------------------------------------------------------------------ *
+   * 判準逐條驗：一件東西單獨放進空場景，地面固定在 0、覆蓋固定 1。
+   * 每一條都是「只差這一件事」的對照組 —— 答得出「什麼情況下它會紅」。
+   * ------------------------------------------------------------------ */
+  const flatGround = () => 0;
+  const solidGround = () => 1;
+  /**
+   * 取第一顆圓，順便補一條「掃得出東西」的斷言。
+   * findings（P11）：測試裡的查表沒守衛就是地雷 —— 一個 TypeError 會把整支測試打掛，
+   * 而不是紅一條。掃不出來時回一顆「什麼都不是」的替身，讓後面的斷言照樣紅。
+   */
+  const firstSolid = (list, label) => {
+    ok(list.length >= 1, `[判準] ${label}：掃得出碰撞圓`, `n=${list.length}`);
+    return list[0] || { x: NaN, z: NaN, r: NaN, top: NaN, topFace: null, standable: null };
+  };
+  /** 把一件東西單獨掃成碰撞圓（可覆寫地面高度與覆蓋）。 */
+  const soloSolids = (obj, ground = flatGround, cover = solidGround) => {
+    const holder = new THREE.Group();
+    holder.add(obj);
+    return World.collectSolids(holder, ground, cover);
+  };
+  /** 一塊平頂的方台：寬 w、頂面高 h。 */
+  const slab = (w, h, extra = {}) => {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, w), new THREE.MeshBasicMaterial());
+    m.position.y = h / 2;
+    m.userData.solid = true;
+    Object.assign(m.userData, extra);
+    return m;
+  };
+
+  {
+    // ① 正例：2 × 2 的平頂方台，頂面 1.2 公尺
+    const one = firstSolid(soloSolids(slab(2, 1.2)), '平頂方台');
+    eq(one.standable, true, '[判準] 平頂 · 1.2 公尺高 · 2 公尺見方 → 站得上去');
+    ok(Math.abs(one.top - 1.2) < 1e-6, '[判準] top 就是頂面的世界高度', `top=${one.top}`);
+    eq(one.topFace, true, '[判準] top 量自真的上向面');
+
+    // ② 太矮：0.55 公尺 → 是「跨過去」不是「站上去」
+    const low = firstSolid(soloSolids(slab(2, 0.55)), '矮台');
+    eq(low.standable, false, `[判準] 頂面只有 0.55 公尺（< ${World.STAND_MIN_H}）→ 站不上去`);
+
+    // ③ 太高：3.4 公尺 → 不該站得上去
+    const tall = firstSolid(soloSolids(slab(2, 3.4)), '高台');
+    eq(tall.standable, false, `[判準] 頂面 3.4 公尺（> ${World.STAND_MAX_H}）→ 站不上去`);
+    ok(Math.abs(tall.top - 3.4) < 1e-6, '[判準] 站不上去的東西照樣量得到 top');
+
+    // ④ 面積不夠：頂面只有 1.2 見方（圓半徑刻意給足，隔離出「面積」這一條）
+    const narrow = firstSolid(soloSolids(slab(1.2, 1.2, { solidRadius: 1.0 })), '窄頂台');
+    eq(narrow.r, 1.0, '[判準] 這一顆的半徑是明講的 1.0');
+    eq(narrow.standable, false, `[判準] 頂面只有 1.2 見方（放不下半徑 ${World.STAND_MIN_R} 的一圈）→ 站不上去`);
+
+    // ⑤ 圓太小：頂面很大，但登記的碰撞圓站不下人
+    const pin = firstSolid(soloSolids(slab(3, 1.2, { solidRadius: 0.7 })), '細圓台');
+    eq(pin.r, 0.7, '[判準] 這一顆的半徑是明講的 0.7');
+    eq(pin.standable, false, `[判準] 碰撞圓 0.7 < ${World.STAND_MIN_R} → 站不上去（頂面再大也一樣）`);
+
+    // ⑥ 斜的：3° 還算平、6° 就不是了（容差是公分級的，不是「看起來很平」）
+    const tilted = (deg) => {
+      const m = slab(2.4, 1.2);
+      m.rotation.x = (deg * Math.PI) / 180;
+      m.position.y = 1.2;
+      return soloSolids(m);
+    };
+    eq(firstSolid(tilted(3), '斜 3° 的台').standable, true, '[判準] 斜 3°（0.8 公尺處落差 4.2 公分）→ 還站得上去');
+    eq(firstSolid(tilted(6), '斜 6° 的台').standable, false, '[判準] 斜 6°（0.8 公尺處落差 8.4 公分）→ 站不上去');
+    const steep = firstSolid(tilted(20), '斜 20° 的台');
+    eq(steep.standable, false, '[判準] 斜 20° → 站不上去');
+    eq(steep.topFace, false, '[判準] 斜 20° 的面根本不算「上向面」');
+
+    // ⑦ 尖的：圓錐沒有頂面
+    const cone = new THREE.Mesh(new THREE.ConeGeometry(1.2, 1.6, 12), new THREE.MeshBasicMaterial());
+    cone.position.y = 0.8;
+    cone.userData.solid = true;
+    const coneSolid = firstSolid(soloSolids(cone), '圓錐');
+    eq(coneSolid.standable, false, '[判準] 尖的東西站不上去（沒有上向面）');
+    eq(coneSolid.topFace, false, '[判準] 圓錐的 top 退回「正上方那一塊表面的最高點」');
+    ok(coneSolid.top > 1.5, '[判準] 圓錐的 top 仍然是個合理的數字', `top=${coneSolid.top}`);
+
+    // ⑧ 圓的：球頂在中心是平的，但走開 0.8 公尺就滑下去了
+    const ball = new THREE.Mesh(new THREE.SphereGeometry(1.5, 16, 12), new THREE.MeshBasicMaterial());
+    ball.position.y = 1.5;
+    ball.userData.solid = true;
+    eq(firstSolid(soloSolids(ball), '球').standable, false, '[判準] 圓的石頭站不上去（頂面撐不出一圈平的）');
+
+    // ⑨ 懸在虛空上方：同一塊方台，只差腳下沒有地
+    const overVoid = firstSolid(soloSolids(slab(2, 1.2), flatGround, () => 0.2), '虛空上方的台');
+    eq(overVoid.standable, false, '[判準] 頂面懸在虛空上方 → 不算可站立（站上去是死路）');
+
+    // ⑩ 長石板：碰撞圓是外接盒的長邊，但抬高的只有「量過是平的」那一段
+    {
+      const plank = new THREE.Mesh(new THREE.BoxGeometry(7.2, 1.2, 1.8), new THREE.MeshBasicMaterial());
+      plank.position.y = 0.6;
+      plank.userData.solid = true;
+      const one2 = firstSolid(soloSolids(plank), '長石板');
+      eq(one2.standable, true, '[判準] 長石板中央站得上去');
+      ok(Math.abs(one2.r - 3.6) < 1e-6, '[判準] 長石板的碰撞圓是外接盒的長邊（3.6）', `r=${one2.r}`);
+      ok(
+        one2.standR < one2.r - 0.5,
+        '[判準] 但「量過是平的」只有窄邊那一段（standR ≪ r）',
+        `standR=${one2.standR.toFixed(2)} r=${one2.r.toFixed(2)}`
+      );
+      const list = [one2];
+      eq(
+        World.groundHeightAt(0, 0, list, flatGround),
+        one2.top,
+        '[判準] 中央抬得起來'
+      );
+      eq(
+        World.groundHeightAt(one2.standR + 0.05, 0, list, flatGround),
+        0,
+        '[判準] 走出 standR 之後就不抬了（碰撞圓再大也一樣）'
+      );
+    }
+
+    // ⑪ 半透明的光不是可以站的面
+    const glow = new THREE.Mesh(
+      new THREE.BoxGeometry(2, 1.2, 2),
+      new THREE.MeshBasicMaterial({ transparent: true })
+    );
+    glow.position.y = 0.6;
+    glow.userData.solidRadius = 1.0;
+    eq(firstSolid(soloSolids(glow), '半透明的光').standable, false, '[判準] 半透明的光站不上去');
+
+    // ⑬ 中間斷一圈就停：外面那一圈再平也不撿（頂面不是整片的）
+    {
+      const donutGrp = new THREE.Group();
+      const th = 1.2;
+      const core = new THREE.Mesh(new THREE.BoxGeometry(2, th, 2), new THREE.MeshBasicMaterial());
+      core.position.y = th / 2;
+      donutGrp.add(core);
+      for (let i = 0; i < 8; i += 1) {
+        const a = (i / 8) * Math.PI * 2;
+        const pad = new THREE.Mesh(new THREE.BoxGeometry(1.2, th, 1.2), new THREE.MeshBasicMaterial());
+        pad.position.set(Math.cos(a) * 3.0, th / 2, Math.sin(a) * 3.0);
+        donutGrp.add(pad);
+      }
+      donutGrp.userData.solidRadius = 3.0;
+      const donut = firstSolid(soloSolids(donutGrp), '中間斷掉的頂面');
+      eq(donut.standable, true, '[判準] 中央那一塊還是站得上去');
+      ok(
+        Math.abs(donut.standR - World.STAND_MIN_R) < 1e-9,
+        '[判準] 可站範圍停在斷掉的那一圈之前（不會跳過去撿外面那一圈）',
+        `standR=${donut.standR}`
+      );
+      eq(
+        World.groundHeightAt(3.0, 0, [donut], flatGround),
+        0,
+        '[判準] 外圍那幾塊的正上方不算腳下的高度（它們沒有連著）'
+      );
+    }
+
+    // ⑫ 同一件東西改成 InstancedMesh 也不能突然變成站得上去（審查 · 第 1 條）
+    {
+      const mk = (mat) => {
+        const inst = new THREE.InstancedMesh(new THREE.BoxGeometry(2, 1.2, 2), mat, 1);
+        const m = new THREE.Matrix4().makeTranslation(0, 0.6, 0);
+        inst.setMatrixAt(0, m);
+        inst.userData.solid = true;
+        return inst;
+      };
+      eq(
+        firstSolid(soloSolids(mk(new THREE.MeshBasicMaterial())), 'instanced 石台').standable,
+        true,
+        '[判準] instanced 的實心方台照樣站得上去'
+      );
+      eq(
+        firstSolid(soloSolids(mk(new THREE.MeshBasicMaterial({ transparent: true }))), 'instanced 光').standable,
+        false,
+        '[判準] instanced 的半透明也是光，不是可以站的面'
+      );
+    }
+  }
+
+  /* --- solidSpan 的圓串：逐圓各自算 top（P10b／P11 連兩次的教訓） --- */
+  {
+    const bench = new THREE.Mesh(new THREE.BoxGeometry(8, 1.0, 1.8), new THREE.MeshBasicMaterial());
+    bench.userData.solidSpan = [4, 0.9];
+    bench.position.y = 1.4;
+    bench.rotation.z = (12 * Math.PI) / 180; // 沿著長軸斜著擺（12° 明確在上向面門檻之外）
+    const chain = soloSolids(bench);
+    ok(chain.length >= 4, 'solidSpan 排出一串圓', `n=${chain.length}`);
+    ok(chain.every((s) => Number.isFinite(s.top)), '串上每一顆圓都有自己的 top');
+    const tops = chain.map((s) => s.top);
+    const spread = Math.max(...tops) - Math.min(...tops);
+    ok(
+      spread > 0.5,
+      '斜著擺的長條：每一顆圓的 top 各自不同（不是共用一個原點的高度）',
+      `spread=${spread.toFixed(2)} tops=${tops.map((t) => t.toFixed(2)).join(',')}`
+    );
+    // 沿著軸走，top 要單調（斜的就是斜的，不會忽高忽低）
+    const sorted = [...chain].sort((a, b) => a.x - b.x).map((s) => s.top);
+    const rising = sorted.every((t, i) => i === 0 || t >= sorted[i - 1] - 1e-6);
+    const falling = sorted.every((t, i) => i === 0 || t <= sorted[i - 1] + 1e-6);
+    ok(rising || falling, '斜著擺的長條：top 沿著長軸單調變化');
+
+    // 平著擺的同一條長凳：每一顆圓的 top 一樣，而且整條都站得上去
+    const flatBench = new THREE.Mesh(new THREE.BoxGeometry(8, 1.0, 2.0), new THREE.MeshBasicMaterial());
+    flatBench.userData.solidSpan = [4, 1.0];
+    flatBench.position.y = 0.5;
+    const flatChain = soloSolids(flatBench);
+    ok(
+      flatChain.every((s) => Math.abs(s.top - 1.0) < 1e-6),
+      '平著擺的長條：每一顆圓量到的都是同一片頂面',
+      flatChain.map((s) => s.top.toFixed(3)).join(',')
+    );
+    ok(flatChain.every((s) => s.standable), '平著擺的長條：整條都站得上去');
+  }
+
+  /* ------------------------------------------------------------------ *
+   * 「玩家腳下的高度這一格沒有變」—— 全地圖網格逐點比對。
+   *
+   * groundHeightAt() 是 P14 的資料通路，這一格**沒有接到玩家身上**。
+   * 這一段證明的是：就算接上去，玩家走得到的每一點答案都一模一樣 ——
+   * 因為每一塊可站立的頂面都躲在某個碰撞圓裡，而 solidAt() 的 pad 是
+   * PLAYER_RADIUS，玩家的中心點永遠進不去。
+   *
+   * 什麼情況下它會紅：groundHeightAt() 多加了一格 pad、可站立體被登記得比
+   * 碰撞圓大、或是有一顆可站立的圓漏掉了碰撞（兩張表不同步）。
+   * ------------------------------------------------------------------ */
+  {
+    const R = 170;
+    const STEP = 1;
+    let total = 0;
+    let clearPts = 0;
+    let diff = 0;
+    let diffClear = 0;
+    let worstClear = 0;
+    for (let x = -R; x <= R; x += STEP) {
+      for (let z = -R; z <= R; z += STEP) {
+        total += 1;
+        const th = World.terrainHeight(x, z);
+        const gh = testWorld.groundHeightAt(x, z);
+        const clear = testWorld.isClear(x, z);
+        if (clear) clearPts += 1;
+        if (gh !== th) {
+          diff += 1;
+          if (clear) {
+            diffClear += 1;
+            worstClear = Math.max(worstClear, Math.abs(gh - th));
+          }
+        }
+      }
+    }
+    ok(total > 100000, '網格真的掃過整張地圖', `n=${total}`);
+    ok(clearPts > 20000, '網格裡有夠多「玩家真的走得到」的點', `n=${clearPts}`);
+    ok(diff > 0, 'groundHeightAt() 真的會抬高某些點（不然這條斷言是空過的）', `n=${diff}`);
+    eq(
+      diffClear,
+      0,
+      '玩家走得到的每一點，groundHeightAt() 與 terrainHeight() 逐點相同（行為零改變）',
+      `不同的點=${diffClear}／${clearPts}，最大差=${worstClear.toFixed(3)}`
+    );
+    // 每一塊可站立的頂面都抬得起來，而且它的圓心一定不是玩家站得到的地方
+    const stand = testWorld.solids.filter((s) => s.standable);
+    ok(
+      stand.every((s) => testWorld.groundHeightAt(s.x, s.z) > World.terrainHeight(s.x, s.z)),
+      '每一塊可站立的頂面都真的抬高了腳下的高度'
+    );
+    ok(
+      stand.every((s) => !testWorld.isClear(s.x, s.z)),
+      '可站立體的圓心都不是玩家走得到的點（所以接上去也不會有差別）'
+    );
+    // 出生點 ＋ 每一片土地上一個玩家真的站得住的點：兩支答案逐點相同
+    eq(testWorld.groundHeightAt(0, 6), World.terrainHeight(0, 6), '出生點腳下的高度沒有變');
+    for (const site of World.REGION_SITES) {
+      let spot = null;
+      for (let ring = 0; ring < 30 && !spot; ring += 1) {
+        for (let a = 0; a < 16 && !spot; a += 1) {
+          const t = (a / 16) * Math.PI * 2;
+          const x = site.x + Math.cos(t) * ring;
+          const z = site.z + Math.sin(t) * ring;
+          if (testWorld.isClear(x, z)) spot = [x, z];
+        }
+      }
+      ok(spot, `[${site.id}] 找得到一個玩家站得住的點`);
+      if (!spot) continue;
+      eq(
+        testWorld.groundHeightAt(spot[0], spot[1]),
+        World.terrainHeight(spot[0], spot[1]),
+        `[${site.id}] 玩家站得住的那一點，腳下的高度沒有變`
+      );
+    }
+    // 沒有碰撞表時退回地形（純函式的預設路徑）
+    eq(World.groundHeightAt(0, 6, null), World.terrainHeight(0, 6), 'groundHeightAt 沒有碰撞表時就是地形高度');
+  }
+
+  /* ------------------------------------------------------------------ *
+   * collision-audit 的新規則：正例（真的世界）＋ 反例（手動塞壞資料）
+   * ------------------------------------------------------------------ */
+  {
+    for (const [label, w, scn] of [['高畫質', testWorld, testScene], ['低畫質', lowWorld, lowScene]]) {
+      const rows = AuditP13.listSubstantial(scn, World.terrainHeight, World.coverage);
+      ok(rows.length > 150, `[${label}] 稽核清單真的掃到東西`, `n=${rows.length}`);
+      ok(
+        rows.every((r) => Number.isFinite(r.top)),
+        `[${label}] 稽核清單每一列的 top 都是數字（量體太大的退回外接盒的頂）`,
+        rows.filter((r) => !Number.isFinite(r.top)).map((r) => r.name).slice(0, 3).join(',')
+      );
+      ok(
+        rows.every((r) => !(r.excepted && r.standable)),
+        `[${label}] 光、霧、水、地形不會被貼上「可站立」的標籤`,
+        rows.filter((r) => r.excepted && r.standable).map((r) => r.name).slice(0, 3).join(',')
+      );
+      const res = AuditP13.auditStandables(w.solids, World.terrainHeight, World.coverage);
+      ok(res.stand.length > 20, `[${label}] 稽核真的看到可站立體`, `n=${res.stand.length}`);
+      eq(res.bad.length, 0, `[${label}] 沒有一塊可站立的頂面違規`, res.bad.slice(0, 4).map((b) => b.why).join(' ｜ '));
+    }
+    // 反例：四種違規各塞一顆，每一顆都要被抓出來、而且說得出理由
+    const g0 = World.terrainHeight(0, 6);
+    const bads = [
+      [{ x: 0, z: 6, r: 1.2, standR: 1.2, top: NaN, topFace: false, standable: true }, '量不出來'],
+      [{ x: 0, z: 6, r: 1.2, standR: 1.2, top: g0 + 9, topFace: true, standable: true }, '不在'],
+      [{ x: 0, z: 6, r: 0.3, standR: 0.3, top: g0 + 1.2, topFace: true, standable: true }, '站不下人'],
+      [{ x: 0, z: -120, r: 1.2, top: World.terrainHeight(0, -120) + 1.2, topFace: true, standable: true }, '虛空'],
+      [{ x: 0, z: 6, r: 1.2, standR: 0.4, top: g0 + 1.2, topFace: true, standable: true }, '量過是平的只有'],
+      [{ x: 0, z: 6, r: 1.2, standR: 2.0, top: g0 + 1.2, topFace: true, standable: true }, '還大'],
+    ];
+    for (const [row, needle] of bads) {
+      const res = AuditP13.auditStandables([row], World.terrainHeight, World.coverage);
+      eq(res.bad.length, 1, `[稽核反例] 這一顆被抓出來了（${needle}）`, JSON.stringify(row));
+      const why = res.bad[0] ? res.bad[0].why : '（沒有被抓出來）';
+      ok(why.includes(needle), `[稽核反例] 理由講得出來（${needle}）`, why);
+    }
+    // 正例：合格的那一顆一顆都不算違規
+    ok(
+      AuditP13.auditStandables(
+        [{ x: 0, z: 6, r: 1.2, standR: 1.2, top: g0 + 1.2, topFace: true, standable: true }],
+        World.terrainHeight,
+        World.coverage
+      ).bad.length === 0,
+      '[稽核正例] 合格的可站立體不會被誤判'
+    );
+    // 不是可站立體的一律不管（這道規則只對 standable 說話）
+    eq(
+      AuditP13.auditStandables(
+        [{ x: 0, z: -120, r: 0.1, standR: 0, top: NaN, topFace: false, standable: false }],
+        World.terrainHeight,
+        World.coverage
+      ).bad.length,
+      0,
+      '[稽核] 沒有標 standable 的圓不受這道規則管'
+    );
+  }
+
+  /* ------------------------------------------------------------------ *
+   * FLOAT_MIN 的豁免語意：「從底下走得過去」**而且**「頂面站不上去」才豁免。
+   * P13 之前只有前半句 —— 飄在半空、卻有一片平頂的東西會整個漏掉稽核。
+   * ------------------------------------------------------------------ */
+  {
+    const floating = (deg, y) => {
+      const scn = new THREE.Group();
+      const m = new THREE.Mesh(new THREE.BoxGeometry(3, 1.0, 3), new THREE.MeshBasicMaterial());
+      m.position.y = y;
+      m.rotation.x = (deg * Math.PI) / 180;
+      m.name = 'floating-slab';
+      scn.add(m);
+      scn.updateMatrixWorld(true);
+      return AuditP13.listSubstantial(scn, flatGround, solidGround);
+    };
+    const flat = floating(0, 2.3);
+    eq(flat.length, 1, '[FLOAT_MIN] 飄在半空、頂面平的東西**要**被稽核到');
+    const flatRow = flat[0] || { bottom: NaN, standable: null };
+    ok(flatRow.bottom >= AuditP13.FLOAT_MIN, '[FLOAT_MIN] 它的底緣確實高過豁免門檻（P13 之前會被跳過）',
+      `bottom=${flatRow.bottom}`);
+    eq(flatRow.standable, true, '[FLOAT_MIN] 它被判定為可站立體');
+    const tilt = floating(20, 2.7);
+    eq(tilt.length, 0, '[FLOAT_MIN] 飄在半空、頂面站不上去的東西照樣豁免（人從底下走過去）');
+
+    /*
+     * 量體太大（超過 STAND_TRI_CAP）就量不出頂面 —— 這時候 `top` 仍然要是個數字
+     * （退回外接盒的頂），而且一律保守判成「站不上去」（審查 · 第 3 條）。
+     */
+    const scn = new THREE.Group();
+    const boulder = new THREE.Mesh(new THREE.SphereGeometry(3, 64, 48), new THREE.MeshBasicMaterial());
+    boulder.position.y = 3;
+    boulder.name = 'huge-boulder';
+    scn.add(boulder);
+    scn.updateMatrixWorld(true);
+    const tris = boulder.geometry.index
+      ? boulder.geometry.index.count / 3
+      : boulder.geometry.attributes.position.count / 3;
+    ok(tris > 2048, '這顆石頭的量體真的超過 STAND_TRI_CAP（不然這一條是空過的）', `tris=${tris}`);
+    const huge = AuditP13.listSubstantial(scn, flatGround, solidGround);
+    eq(huge.length, 1, '[量不出來] 大量體照樣進得了稽核清單');
+    const hugeRow = huge[0] || { top: NaN, standable: null };
+    ok(Number.isFinite(hugeRow.top), '[量不出來] top 退回外接盒的頂，仍然是個數字', `top=${hugeRow.top}`);
+    ok(Math.abs(hugeRow.top - 6) < 1e-4, '[量不出來] 退回的那個數字就是它的最高點', `top=${hugeRow.top}`);
+    eq(hugeRow.standable, false, '[量不出來] 量不出頂面一律保守判成站不上去');
+  }
+
+  /* --- WORLD.md 有把這一格的規則寫下來（§3.1 的跳躍鍵、§6.3 的頂面那一維） --- */
+  {
+    const worldMd = readFileSync(resolve(root, 'WORLD.md'), 'utf8');
+    const s31 = worldMd.slice(worldMd.indexOf('### 3.1'), worldMd.indexOf('### 3.2'));
+    ok(/\| `J` \|/.test(s31), 'WORLD.md §3.1 的世界層按鍵表有 `J`');
+    ok(/尚未啟用/.test(s31), 'WORLD.md §3.1 明講跳躍鍵尚未啟用');
+    ok(/P24/.test(s31), 'WORLD.md §3.1 把手把／觸控的跳躍鍵留給 P24');
+    ok(/`Space`|空白鍵/.test(s31) && /`Shift`/.test(s31), 'WORLD.md §3.1 說得出為什麼不是 Space／Shift');
+    const s63 = worldMd.slice(worldMd.indexOf('### 6.3'), worldMd.indexOf('### 6.4'));
+    ok(/頂面站不上去/.test(s63), 'WORLD.md §6.3 第 3 條寫了「而且頂面站不上去」');
+    for (const key of ['`top`', '`topFace`', '`standable`', '`standR`', 'groundHeightAt']) {
+      ok(s63.includes(key), `WORLD.md §6.3 寫了 ${key}`);
+    }
+    ok(s63.includes(String(World.STAND_MIN_R)) && s63.includes(String(World.STAND_MAX_H)),
+      'WORLD.md §6.3 的判準數字與程式碼一致');
+    ok(/逐圓各自算/.test(s63), 'WORLD.md §6.3 寫了「逐圓各自算」（P10b／P11 的教訓）');
+    ok(/平到多遠就只抬到多遠/.test(s63), 'WORLD.md §6.3 寫了「平到多遠就只抬到多遠」（standR 不是 r 的別名）');
+    ok(/InstancedMesh/.test(s63), 'WORLD.md §6.3 寫明 instanced 那條路也濾半透明');
+    ok(/沒有把它接到玩家身上|刻意沒有把它接到玩家身上/.test(s63), 'WORLD.md §6.3 明講 groundHeightAt 這一格沒有接到玩家身上');
+  }
+}
+
+/* ------------------------------------------------------------------ */
 /* 4. 存檔 + 進程（headless smoke test）                                */
 /* ------------------------------------------------------------------ */
 console.log('▸ 存檔與進程');

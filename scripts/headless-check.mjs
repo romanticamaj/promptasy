@@ -1642,6 +1642,118 @@ async function main() {
   `);
   ok(runFov.running > runFov.idle + 1, '奔跑時 FOV 拉開（M5 速度感）', `run=${runFov.running.toFixed(1)} idle=${runFov.idle.toFixed(1)}`);
 
+  /* --- v1.2 · P13：可站立表面是資料，玩家腳下的高度一格沒變 ---------------
+   *
+   * 這一格**沒有跳躍**，所以驗收的重點反過來：新的資料通路
+   * （`world.groundHeightAt()` ＝ max(地形, 站得上去的頂面)）已經在世界裡了，
+   * 但玩家走到哪裡，腳下的高度都還是 `terrainHeight()` 那一個數字。
+   * 什麼情況下它會紅：有人把 groundHeightAt 接到玩家身上、或是某塊可站立的
+   * 頂面伸進了玩家走得到的範圍（兩張表不同步）。
+   */
+  const standing = await evaluate(`
+    const g = window.__promptasy;
+    const w = g.world;
+    const waitGame = async (seconds) => {
+      const until = window.__gt.t + seconds;
+      const bail = performance.now() + seconds * 8000 + 4000;
+      while (window.__gt.t < until && performance.now() < bail) await new Promise((r) => setTimeout(r, 30));
+    };
+    if (g.gateAsk.isOpen) g.gateAsk.close({ silent: true });
+    await waitGame(0.2);
+    const home = { x: g.player.position.x, z: g.player.position.z };
+    const stand = w.solids.filter((s) => s.standable);
+    let raised = 0;
+    let centreReachable = 0;
+    for (const s of stand) {
+      if (w.groundHeightAt(s.x, s.z) > w.terrainHeight(s.x, s.z)) raised += 1;
+      if (w.isClear(s.x, s.z)) centreReachable += 1;
+    }
+    /*
+     * 挑三塊中央高原上的可站立體，站到**貼著它**的地方，再往前走一段，
+     * 逐幀量「腳下的高度」與「groundHeightAt 的答案」。
+     *
+     * 走的方向是鏡頭的前方（forward = sin/cos(cameraYaw)），不是角色的面向；
+     * 而 cameraYaw 是唯讀 getter，指派它是靜默的空包彈（findings · P11）——
+     * 所以這裡不去控制方向：**撞到東西停下來也算數**，要驗的是高度，不是走多遠。
+     * 「輸入真的有進去」另外用速度證明（blocked 也會有速度，只是走不動）。
+     */
+    const near = stand.filter((s) => Math.hypot(s.x, s.z) < 46 && s.r < 2.5);
+    const walks = [];
+    for (const s of near) {
+      if (walks.length >= 3) break;
+      // 貼著它的落腳點：從碰撞圈外一圈一圈往外找，找到最近的那一個
+      let spot = null;
+      for (let d = s.r + 0.75; d < s.r + 4 && !spot; d += 0.25) {
+        for (let a = 0; a < 16 && !spot; a += 1) {
+          const t = (a / 16) * Math.PI * 2;
+          const x = s.x + Math.cos(t) * d;
+          const z = s.z + Math.sin(t) * d;
+          if (w.isClear(x, z)) spot = { x, z, gap: d - s.r };
+        }
+      }
+      if (!spot) continue;
+      g.player.teleport(spot.x, spot.z);
+      await waitGame(0.2);
+      // 站定：腳下的高度就是地形高度，兩支答案一致
+      const rest = {
+        foot: Math.abs(g.player.position.y - w.terrainHeight(spot.x, spot.z)),
+        ground: Math.abs(w.groundHeightAt(spot.x, spot.z) - w.terrainHeight(spot.x, spot.z)),
+      };
+      window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyW' }));
+      let maxFoot = 0;
+      let maxGround = 0;
+      let maxSpeed = 0;
+      let nearest = Infinity;
+      for (let i = 0; i < 16; i += 1) {
+        await waitGame(0.06);
+        const p = g.player.position;
+        maxFoot = Math.max(maxFoot, Math.abs(p.y - w.terrainHeight(p.x, p.z)));
+        maxGround = Math.max(maxGround, Math.abs(w.groundHeightAt(p.x, p.z) - w.terrainHeight(p.x, p.z)));
+        maxSpeed = Math.max(maxSpeed, g.player.speed);
+        nearest = Math.min(nearest, Math.hypot(p.x - s.x, p.z - s.z) - s.r);
+      }
+      window.dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyW' }));
+      await waitGame(1.0);
+      walks.push({
+        at: s.x.toFixed(1) + ',' + s.z.toFixed(1),
+        gap: spot.gap,
+        restFoot: rest.foot,
+        restGround: rest.ground,
+        maxFoot,
+        maxGround,
+        maxSpeed,
+        nearest,
+      });
+    }
+    // 把人放回這一段之前站的地方 —— 這一節不改變後面任何一條舊斷言看到的世界
+    g.player.teleport(home.x, home.z);
+    await waitGame(0.3);
+    return {
+      total: w.solids.length,
+      finiteTop: w.solids.filter((s) => Number.isFinite(s.top)).length,
+      stand: stand.length,
+      raised,
+      centreReachable,
+      candidates: near.length,
+      walks,
+    };
+  `);
+  eq(standing.finiteTop, standing.total, '每個碰撞圓都有 top（頂面世界高度）', `${standing.finiteTop}/${standing.total}`);
+  ok(standing.stand > 20, '世界裡真的有站得上去的東西', `n=${standing.stand}`);
+  eq(standing.raised, standing.stand, '每一塊可站立的頂面都抬得起腳下的高度');
+  eq(standing.centreReachable, 0, '可站立體的圓心都不是玩家走得到的點');
+  ok(standing.candidates >= 3, '中央高原上找得到三塊以上可站立體', `n=${standing.candidates}`);
+  eq(standing.walks.length, 3, '真的站到三塊可站立體旁邊了', JSON.stringify(standing.walks.map((wk) => wk.at)));
+  for (const wk of standing.walks) {
+    ok(wk.gap <= 1.6, `[${wk.at}] 站的位置真的貼著那塊可站立體`, `gap=${wk.gap.toFixed(2)}`);
+    ok(wk.nearest <= 1.6, `[${wk.at}] 整段走下來都待在它旁邊`, `nearest=${wk.nearest.toFixed(2)}`);
+    ok(wk.maxSpeed > 0.5, `[${wk.at}] 按 W 真的有走（輸入有進去）`, `v=${wk.maxSpeed.toFixed(2)}`);
+    ok(wk.restFoot < 1e-6, `[${wk.at}] 站定時腳下的高度就是地形高度`, `d=${wk.restFoot}`);
+    ok(wk.restGround < 1e-6, `[${wk.at}] 站定時 groundHeightAt 與 terrainHeight 同一個答案`, `d=${wk.restGround}`);
+    ok(wk.maxFoot < 1e-6, `[${wk.at}] 走的時候腳下的高度全程等於地形高度`, `max=${wk.maxFoot}`);
+    ok(wk.maxGround < 1e-6, `[${wk.at}] 走的時候兩支答案全程相同`, `max=${wk.maxGround}`);
+  }
+
   /* --- Phase 5：程序化步態（關節真的在動、左右腿反相） --- */
   const gait = await evaluate(`
     const g = window.__promptasy;
