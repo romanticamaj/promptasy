@@ -6,15 +6,32 @@
     "solutionStats": {
       "value": 142,
       "minRows": 5,
-      "shortIds": ["honed-blade-24"],
+      "shortIds": [
+        "honed-blade-24"
+      ],
       "why": "v1.2 · P10b：解法百分位的**內建分布**（src/data/solution-stats.json）—— 142 關各一組，數字全部由 scripts/build-solution-stats.mjs 用真的評分引擎跑「這一關自己的示範解答／快速填入／素材」拆組出來的**通過解**產生（authored:\"game\"、純視覺統計、無出處）。它不是其他玩家的成績，結果面那一行必須照實說。minRows 5 是每一關的份數下限；shortIds 是**誠實缺口**——那幾關本來就只有少少幾種寫法過得了（honed-blade-24 的主檢查就是 keepsPromptLean，多貼一行就不精簡了），寧可少於 5 份也不把沒通過的寫法混進來湊數。清單只准縮短、不准變長（變長＝有人開始湊數或把關卡改難了）。",
       "maxShortIds": 3
     },
     "screens": {
-      "bands": { "reasoning": 2, "config": 2, "toolcraft": 2 },
-      "motifs": { "reasoning": 4, "grounding": 4, "orchestration": 4, "config": 4 },
-      "perRegionBands": [2, 3],
-      "perRegionMotifs": [3, 5],
+      "bands": {
+        "reasoning": 2,
+        "config": 2,
+        "toolcraft": 2
+      },
+      "motifs": {
+        "reasoning": 3,
+        "grounding": 4,
+        "orchestration": 4,
+        "config": 4
+      },
+      "perRegionBands": [
+        2,
+        3
+      ],
+      "perRegionMotifs": [
+        3,
+        5
+      ],
       "solidsPerRegion": 20,
       "why": "v1.2 · P11／P12：中觀那一階（src/world/screens.js）—— 遮擋帶與母題。P11 做了階梯迴廊一區的切片；P12 把母題鋪到沉書檔案庫（讀過的那一疊）、齒輪工坊（一次只吊一小件）、面具劇場（掛著的空面具），遮擋帶鋪到面具劇場與**契約鍛冶場**。\n\n遮擋帶為什麼不是規格點名的沉書檔案庫／齒輪工坊：scripts/screen-fit.mjs 對真的蓋出來的世界逐點掃過，那兩片土地擺不下（檔案庫的合法擺法只出現在離橋頭 7–11 公尺處，揭露太早過不了『前 12 公尺看不到』；齒輪工坊整片土地 0 個合法擺法 —— 兩座石座的淨空圈在軸線上首尾相接）。契約鍛冶場是全場最空的入口（102 種合法擺法），所以那兩道帶改放在那裡；理由與數字寫在 findings.md。\n\nperRegionBands／perRegionMotifs 是每一片土地的區間（2–3 道／3–5 座）：**放一道牆或撒一地雜物都會被擋下來**。solidsPerRegion 是中觀層每一片土地的碰撞體上限（P12 新增）—— 12 區鋪完 ≈240 個，離 1,400 的硬上限夠遠。",
       "updatedBy": "v1.2 · P12"

@@ -2948,7 +2948,7 @@ const letterFile = readJson('src/data/letters.json');
  * `scripts/screen-fit.mjs`（搜中觀層座標的迴圈）要蓋的是**同一個世界**，
  * 兩邊各自維護一份參數的話，搜出來的座標會在工具裡合法、在這裡紅。
  */
-const { stubProgression, worldOptions } = await import('./world-harness.mjs');
+const { stubProgression, worldOptions, installCanvasStub } = await import('./world-harness.mjs');
 const worldOpts = await worldOptions();
 const testScene = new THREE.Scene();
 const testWorld = World.createWorld({
@@ -7125,13 +7125,19 @@ console.log('\n▸ 區域色彩腳本 ＋ 三態 ＋ 節奏稽核（v1.2 · P06�
     eq(n.key, null, 'colorScriptFor 未知區：key null');
     eq(n.rim, null, 'colorScriptFor 未知區：rim null');
     eq(n.particle, null, 'colorScriptFor 未知區：particle null');
+    eq(n.groundLow, null, 'colorScriptFor 未知區：groundLow null（world.js 退回全域 PALETTE.ground）');
+    eq(n.groundHigh, null, 'colorScriptFor 未知區：groundHigh null');
     eq(JSON.stringify(CS.colorScriptFor(undefined)), JSON.stringify(n), 'colorScriptFor(undefined) ＝ 未知區');
   }
   {
     const keys = ['fog', 'tint', 'hemi', 'fogNear', 'fogFar', 'exposure', 'motes'];
     const atmoKeys = Object.keys(World.atmosphereFor('foundations')).sort().join(',');
     eq(keys.slice().sort().join(','), atmoKeys, 'colorScriptFor 與 atmosphereFor 同形（七個鍵）＋ 額外 sky/key/rim/particle');
-    ok(Object.keys(CS.colorScriptFor('foundations')).sort().join(',') === [...keys, 'sky', 'key', 'rim', 'particle'].sort().join(','), 'colorScriptFor 的鍵集合固定');
+    ok(
+      Object.keys(CS.colorScriptFor('foundations')).sort().join(',') ===
+        [...keys, 'sky', 'key', 'rim', 'particle', 'groundLow', 'groundHigh'].sort().join(','),
+      'colorScriptFor 的鍵集合固定'
+    );
   }
   eq(Object.keys(CS.colorScriptTable()).length, 12, 'colorScriptTable() 12 區');
 
@@ -15609,6 +15615,467 @@ console.log('\n▸ 解法百分位與最少技巧達成（v1.2 · P10b）');
         ok(!line.includes(bad), `那一行沒有系統術語（${bad}）`);
       }
     }
+  }
+}
+
+/* ================================================================== */
+/* v1.2 · P12：地面材質語言 ＋ 每區一種粒子 ＋ 中觀鋪到另外四片土地       */
+/*                                                                    */
+/*   · 地面：每區兩色基底兩兩可分辨、區界漸變帶寬 ≈6m、低畫質沒有碎紋   */
+/*     —— 而且畫出來的頂點色就是 groundBaseColor() 算的那一個           */
+/*   · 粒子：一區恰好 1 個 Points、12 區共用同一個材質、0 光源、        */
+/*     低畫質整層關、reducedMotion 不動、每幀零配置                     */
+/*   · 中觀：新三區吃同一套擺位斷言、逐塊貼地、每區碰撞體 ≤ 20          */
+/*   · 預算：三角 < 225k、光源 37、碰撞體 < 1,050                       */
+/* ================================================================== */
+console.log('\n▸ 地面材質語言 ＋ 每區粒子（v1.2 · P12）');
+{
+  const Ground = await import('../src/world/ground.js');
+  const Drifts = await import('../src/world/drifts.js');
+  const CS12 = await import('../src/world/color-script.js');
+  const colorScriptJson = readJson('src/data/color-script.json');
+  CS12.loadColorScript(colorScriptJson);
+
+  /* --- ① 地面：每區兩色基底 ------------------------------------- */
+  {
+    const ids12 = Object.keys(World.REGION_ATMOSPHERE);
+    eq(ids12.length, 12, '（前提）12 片土地');
+    for (const id of ids12) {
+      const row = colorScriptJson.regions[id];
+      ok(CS12.HEX_RE.test(String(row.groundLow)), `[${id}] groundLow 是 #rrggbb`, String(row.groundLow));
+      ok(CS12.HEX_RE.test(String(row.groundHigh)), `[${id}] groundHigh 是 #rrggbb`, String(row.groundHigh));
+      const lo = CS12.hexToHsl(row.groundLow);
+      const hi = CS12.hexToHsl(row.groundHigh);
+      ok(lo.l <= CS12.GROUND_TOLERANCE.lowMaxLightness, `[${id}] groundLow 壓得夠暗`, lo.l.toFixed(3));
+      ok(hi.l <= CS12.GROUND_TOLERANCE.highMaxLightness, `[${id}] groundHigh 壓得夠暗`, hi.l.toFixed(3));
+      ok(hi.l > lo.l, `[${id}] 高處比低處亮（高度階讀得出來）`);
+      ok(lo.s <= CS12.GROUND_TOLERANCE.maxSaturation, `[${id}] groundLow 不是糖果色`, lo.s.toFixed(3));
+      ok(hi.s <= CS12.GROUND_TOLERANCE.maxSaturation, `[${id}] groundHigh 不是糖果色`, hi.s.toFixed(3));
+    }
+    // 兩兩分得出來（66 對）—— 兩片土地共用同一組色、或某一片忘了填就會紅
+    let worst = Infinity;
+    let worstPair = '';
+    for (let i = 0; i < ids12.length; i += 1) {
+      for (let j = i + 1; j < ids12.length; j += 1) {
+        const a = colorScriptJson.regions[ids12[i]];
+        const b = colorScriptJson.regions[ids12[j]];
+        const d = Math.max(
+          CS12.toneDistance(a.groundLow, b.groundLow),
+          CS12.toneDistance(a.groundHigh, b.groundHigh)
+        );
+        ok(
+          d >= CS12.TONE_DISTANCE_MIN,
+          `[${ids12[i]}／${ids12[j]}] 地面兩兩分得出來（≥ ${CS12.TONE_DISTANCE_MIN}）`,
+          d.toFixed(3)
+        );
+        if (d < worst) {
+          worst = d;
+          worstPair = `${ids12[i]}／${ids12[j]}`;
+        }
+      }
+    }
+    ok(worst >= CS12.TONE_DISTANCE_MIN, `地面色最接近的一對：${worstPair}`, worst.toFixed(3));
+    // 這個門檻本身要有意義：拿兩組**一樣**的色去問，它一定要回 0
+    eq(CS12.toneDistance('#2a3947', '#2a3947'), 0, '同一個色的可分辨距離是 0（門檻擋得住「兩區共用一組色」）');
+    ok(CS12.toneDistance('#2a3947', '#3b3527') > CS12.TONE_DISTANCE_MIN, '差很多的兩個色距離遠大於門檻');
+  }
+
+  /* --- ② 地面：區界 6 公尺漸變 ---------------------------------- */
+  {
+    eq(Ground.GROUND_BLEND_M, 6, '區界漸變帶寬寫在 ground.js（6 公尺）');
+    /*
+     * 帶寬是**量**出來的：沿著母土地 → 加建院落的頸口取樣，看那一片的歸屬權重
+     * 從 5% 走到 95% 走了幾公尺。四座加建的院落都要落在 6 公尺 ±1.5 之內。
+     * （不是「差不多」而已 —— 帶寬變成 0 就是硬邊、變成 30 就是整片糊掉，兩種都會紅。）
+     */
+    const widthAcross = (ax, az, bx, bz, id) => {
+      const N = 600;
+      let lo = null;
+      let hi = null;
+      for (let i = 0; i <= N; i += 1) {
+        const x = ax + ((bx - ax) * i) / N;
+        const z = az + ((bz - az) * i) / N;
+        const w = Ground.groundBlend(x, z, World.REGION_SITES).find((o) => o.id === id);
+        const v = w ? w.w : 0;
+        const d = Math.hypot(x - ax, z - az);
+        if (lo === null && v >= 0.05) lo = d;
+        if (hi === null && v >= 0.95) hi = d;
+      }
+      return lo === null || hi === null ? null : hi - lo;
+    };
+    const necks = [
+      ['frugality', 0, -40, 0, -100],
+      ['wards', 95, -110, 108, -160],
+      ['refinery', -100, 100, -140, 140],
+      ['divergence', 40, 10, 90, 20],
+    ];
+    for (const [id, ax, az, bx, bz] of necks) {
+      const w = widthAcross(ax, az, bx, bz, id);
+      ok(w !== null, `[${id}] 量得到區界的漸變帶（不是量在空氣裡）`);
+      ok(
+        w !== null && Math.abs(w - Ground.GROUND_BLEND_M) <= 1.5,
+        `[${id}] 區界漸變帶寬 ≈ ${Ground.GROUND_BLEND_M} 公尺（不是硬邊、也不是整片糊掉）`,
+        w === null ? 'null' : `${w.toFixed(2)}m`
+      );
+    }
+    // 深在自己土地裡的一點：只有自己（權重 1），不會被隔壁染到
+    for (const site of World.REGION_SITES) {
+      if (site.annexOf) continue;
+      const w = Ground.groundBlend(site.x, site.z, World.REGION_SITES);
+      ok(w.length >= 1 && w[0].id === site.id && w.find((o) => o.id === site.id).w > 0.99, `[${site.id}] 土地中央只有自己的顏色`);
+    }
+  }
+
+  /* --- ③ 地面：碎紋只在高畫質，而且畫出來的就是算出來的 ---------- */
+  {
+    const toneOf12 = (id) => {
+      const r = CS12.colorScriptFor(id);
+      return { low: r.groundLow, high: r.groundHigh };
+    };
+    const c1 = new THREE.Color();
+    const c2 = new THREE.Color();
+    let differ = 0;
+    let maxDelta = 0;
+    for (let i = 0; i < 200; i += 1) {
+      const x = -140 + (i % 20) * 14;
+      const z = -140 + Math.floor(i / 20) * 14;
+      const y = World.terrainHeight(x, z);
+      Ground.groundBaseColor(c1, x, z, y, { toneOf: toneOf12, sites: World.REGION_SITES, grain: true });
+      Ground.groundBaseColor(c2, x, z, y, { toneOf: toneOf12, sites: World.REGION_SITES, grain: false });
+      const d = Math.abs(c1.r - c2.r) + Math.abs(c1.g - c2.g) + Math.abs(c1.b - c2.b);
+      if (d > 1e-6) differ += 1;
+      if (d > maxDelta) maxDelta = d;
+    }
+    ok(differ >= 190, '碎紋那一層真的改了顏色（200 個樣點裡幾乎都不同）', String(differ));
+    ok(maxDelta < 0.16, '碎紋只是紋理不是噪點（振幅有上限）', maxDelta.toFixed(3));
+    // 同一點問兩次要一樣（可重現，不是 Math.random）
+    Ground.groundBaseColor(c1, 12.5, -33.25, 1.2, { toneOf: toneOf12, sites: World.REGION_SITES, grain: true });
+    Ground.groundBaseColor(c2, 12.5, -33.25, 1.2, { toneOf: toneOf12, sites: World.REGION_SITES, grain: true });
+    eq(c1.getHex(), c2.getHex(), '碎紋可重現（同一點永遠同一個顏色）');
+
+    /*
+     * **畫出來的就是算出來的**：把地形網格的頂點色跟 `groundBaseColor()` 對一遍。
+     * 高畫質的地形有碎紋、低畫質沒有 —— 兩邊各取幾個「不在路上、不在區緣」的頂點來比
+     * （路與區緣還會再往 worn／edge 靠，那兩層不是這一節在驗的）。
+     */
+    /*
+     * **要對「真的出貨的那個世界」驗**：`testWorld`／`lowWorld` 是不帶色彩腳本蓋的
+     * （P06 的退路：沒有腳本時地面退回全域 `PALETTE.ground`／`groundHigh`），
+     * 而遊戲在 `main.js` 是帶著 `colorScriptFor` 蓋的。所以這一節自己蓋兩個帶腳本的世界。
+     */
+    const restoreGround = installCanvasStub();
+    let toneWorlds;
+    try {
+      toneWorlds = [
+        ['高畫質', World.createWorld({ engine: { scene: new THREE.Scene(), camera: {}, onUpdate() {} }, quality: 'high', ...worldOpts, colorScript: CS12.colorScriptFor }), true],
+        ['低畫質', World.createWorld({ engine: { scene: new THREE.Scene(), camera: {}, onUpdate() {} }, quality: 'low', ...worldOpts, colorScript: CS12.colorScriptFor }), false],
+      ];
+    } finally {
+      restoreGround();
+    }
+    const terrainOf = (world) => world.root.getObjectByName('terrain');
+    const segs12base = buildPathNetwork(World.REGION_SITES, [...World.CORRIDORS, ...World.ANNEX_LINKS], challenges);
+    const accent12 = new THREE.Color();
+    const groupColorOf = new Map((curriculum.groups || []).map((g) => [g.id, g.color]));
+    for (const r of catalog.implementedRegions()) if (!groupColorOf.has(r.id)) groupColorOf.set(r.id, r.color);
+    /**
+     * 把 `buildTerrain()` 那一段**逐步重算一次**：基底（ground.js）→ 該區主色染一次。
+     * 只挑「覆蓋滿、不在橋上、不在路上」的頂點，這樣 worn／edge 兩層不會插手，
+     * 期望值就是精確的 —— 高畫質應該逐值等於「有碎紋」那一版、低畫質等於「沒碎紋」那一版。
+     */
+    const expectAt = (out, x, z, y, grain) => {
+      Ground.groundBaseColor(out, x, z, y, { toneOf: toneOf12, sites: World.REGION_SITES, grain });
+      const here = World.regionAt(x, z);
+      if (here) {
+        accent12.set(groupColorOf.get(here.id) || '#8aa0b4').multiplyScalar(0.42);
+        out.lerp(accent12, here.onBridge ? 0.22 : 0.38);
+      }
+      return out;
+    };
+    for (const [label, world, grain] of toneWorlds) {
+      const mesh = terrainOf(world);
+      ok(Boolean(mesh), `[${label}] 找得到地形網格`);
+      const pos = mesh.geometry.attributes.position;
+      const col = mesh.geometry.attributes.color;
+      ok(Boolean(col), `[${label}] 地形有頂點色`);
+      let checked12 = 0;
+      let wrongWay = 0;
+      for (let i = 0; i < pos.count && checked12 < 60; i += 1) {
+        const x = pos.getX(i);
+        const z = pos.getZ(i);
+        if (World.coverage(x, z) < 0.999) continue; // 區緣還要往 edge 靠
+        const here = World.regionAt(x, z);
+        if (!here || here.onBridge) continue;
+        if (pathInfluence(x, z, segs12base) > 0) continue; // 路上還要往 worn 靠
+        checked12 += 1;
+        const y = pos.getY(i);
+        const drawn = new THREE.Color(col.getX(i), col.getY(i), col.getZ(i));
+        expectAt(c1, x, z, y, grain);
+        const d = Math.hypot(drawn.r - c1.r, drawn.g - c1.g, drawn.b - c1.b);
+        ok(d < 2e-3, `[${label}] 頂點 ${i} 畫出來的就是 ground.js 算的那一個`, d.toFixed(5));
+        // 另一種畫質的算法要**對不上** —— 不然這條斷言等於沒問（碎紋有沒有都一樣就是沒做）
+        expectAt(c2, x, z, y, !grain);
+        const dOther = Math.hypot(drawn.r - c2.r, drawn.g - c2.g, drawn.b - c2.b);
+        if (dOther <= d) wrongWay += 1;
+      }
+      ok(checked12 >= 30, `[${label}] 真的量到夠多頂點（不是空過）`, String(checked12));
+      eq(wrongWay, 0, `[${label}] 每一個頂點都靠「這個畫質該有的碎紋」那一邊`, `${wrongWay}/${checked12}`);
+    }
+
+  }
+
+  /* --- ④ 粒子：一區一個 Points、共用材質、0 光源 ----------------- */
+  {
+    ok(Boolean(testWorld.drifts), '世界蓋出了每區專屬的粒子層');
+    eq(testWorld.drifts.layers.length, World.REGION_SITES.length, '一片土地一組（12 組）');
+    const mats = new Set();
+    let points = 0;
+    let lights12 = 0;
+    let meshes = 0;
+    testWorld.drifts.group.traverse((o) => {
+      if (o.isLight) lights12 += 1;
+      if (o.isPoints) {
+        points += 1;
+        mats.add(o.material);
+      } else if (o.isMesh) meshes += 1;
+    });
+    eq(points, 12, '恰好 12 個 THREE.Points（一區一個 draw call）');
+    eq(mats.size, 1, '12 區共用同一個材質');
+    eq(lights12, 0, 'P12：粒子層一盞燈都沒加');
+    eq(meshes, 0, '粒子層沒有網格（三角形 +0）');
+    for (const layer of testWorld.drifts.layers) {
+      const tag = `[drift:${layer.id}]`;
+      ok(Boolean(Drifts.DRIFTS[layer.id]), `${tag} 有自己的一組參數`);
+      ok(layer.n > 0, `${tag} 真的有點`, String(layer.n));
+      const pos = layer.points.geometry.attributes.position;
+      eq(pos.count, layer.n, `${tag} 點數與資料一致`);
+      ok(layer.points.name === `drift:${layer.id}`, `${tag} 節點名照 §5.1`);
+      // 每一顆都在這片土地上、都在地面以上
+      let inside = 0;
+      let above = 0;
+      for (let i = 0; i < pos.count; i += 1) {
+        const x = pos.getX(i);
+        const z = pos.getZ(i);
+        const site = World.REGION_SITES.find((sm) => sm.id === layer.id);
+        if (Math.hypot(x - site.x, z - site.z) <= site.radius + 6) inside += 1;
+        if (pos.getY(i) > World.terrainHeight(x, z) + 0.2) above += 1;
+      }
+      eq(inside, pos.count, `${tag} 每一顆都撒在自己那一片土地上`);
+      eq(above, pos.count, `${tag} 每一顆都在地面以上（不是埋在土裡）`);
+    }
+    // 12 種參數不准長一樣（不然就不是「專屬」）
+    const shapes = new Set();
+    for (const id of Object.keys(Drifts.DRIFTS)) {
+      const d = Drifts.DRIFTS[id];
+      shapes.add(`${d.shape}|${d.rise}|${d.bob}|${d.swirl}|${d.speed}|${d.tone}`);
+    }
+    eq(shapes.size, 12, '12 片土地的空氣兩兩不同（不是同一種東西換個顏色）');
+    eq(Object.keys(Drifts.DRIFTS).length, 12, 'DRIFTS 表剛好 12 片土地');
+    for (const id of Object.keys(Drifts.DRIFTS)) {
+      ok(World.REGION_SITES.some((sm) => sm.id === id), `DRIFTS 的 ${id} 是真實區域`);
+    }
+  }
+
+  /* --- ⑤ 粒子：低畫質整層關、reducedMotion 不動、零每幀配置 ------ */
+  {
+    const kit12 = { sites: World.REGION_SITES, heightAt: World.terrainHeight, particleOf: () => '#cfe8f6', densityOf: () => 1 };
+    const cam = { position: { x: 0, y: 2, z: 0 } };
+    const restore12 = installCanvasStub();
+    try {
+      // 低畫質：整層藏起來、位置一個位元組都不動
+      let quality12 = 'low';
+      const lowDrift = Drifts.createDrifts({ ...kit12, qualityOf: () => quality12 });
+      const arrLow = lowDrift.layers[0].points.geometry.attributes.position.array;
+      const snapLow = Float32Array.from(arrLow);
+      lowDrift.update(0.1, 3.7, cam);
+      eq(lowDrift.group.visible, false, '低畫質：粒子層整層關掉');
+      ok(snapLow.every((v, i) => v === arrLow[i]), '低畫質：位置一個位元組都沒動（零每幀工作）');
+      // 切回高畫質就要回來（畫質是當下問的，不必重建世界）
+      quality12 = 'high';
+      lowDrift.update(0.1, 3.8, cam);
+      eq(lowDrift.group.visible, true, '切回高畫質：粒子層回來了');
+      ok(!snapLow.every((v, i) => v === arrLow[i]), '切回高畫質：位置開始動了');
+
+      // reducedMotion：點還在、還會亮，但不動
+      const still = Drifts.createDrifts({ ...kit12, reducedMotion: true, qualityOf: () => 'high' });
+      const arrStill = still.layers[0].points.geometry.attributes.position.array;
+      const snapStill = Float32Array.from(arrStill);
+      still.update(0.1, 9.3, cam);
+      still.update(0.1, 19.3, cam);
+      eq(still.group.visible, true, 'reducedMotion：粒子還在（關掉的是動，不是回應）');
+      ok(snapStill.every((v, i) => v === arrStill[i]), 'reducedMotion：一顆都沒有移動');
+      ok(still.layers.every((l) => l.n > 0), 'reducedMotion：每一區還是有點');
+
+      // 離鏡頭很遠的土地整層跳過（距離分級）
+      const far = Drifts.createDrifts({ ...kit12, qualityOf: () => 'high' });
+      const layerFar = far.layers.find((l) => l.id === 'forms');
+      ok(Boolean(layerFar), '（前提）找得到量器坊那一層');
+      const arrFar = layerFar.points.geometry.attributes.position.array;
+      const snapFar = Float32Array.from(arrFar);
+      far.update(0.1, 5.5, { position: { x: -300, y: 2, z: -300 } });
+      ok(snapFar.every((v, i) => v === arrFar[i]), '離鏡頭 180 公尺以外的土地整層跳過');
+      far.update(0.1, 5.5, { position: { x: 0, y: 2, z: 124 } });
+      ok(!snapFar.every((v, i) => v === arrFar[i]), '鏡頭走到那片土地上就會動（斷言不是空過）');
+      lowDrift.dispose();
+      still.dispose();
+      far.dispose();
+    } finally {
+      restore12();
+    }
+    // 靜態掃描：每幀迴圈裡零配置
+    const driftSrc = readFileSync(resolve(root, 'src/world/drifts.js'), 'utf8');
+    const updateBody = CS12.bodyOf(driftSrc, 'function update');
+    ok(updateBody.length > 200, '（前提）抓得到 drifts.js 的 update()');
+    for (const bad of ['new ', '.map(', '.filter(', '=>']) {
+      ok(!updateBody.includes(bad), `P12：粒子的每幀迴圈沒有 ${bad.trim()}`);
+    }
+    ok(!/requestAnimationFrame/.test(driftSrc), 'P12：drifts.js 沒有自己的動畫迴圈');
+  }
+
+  /* --- ⑥ 中觀：新的四片土地吃同一套規則 -------------------------- */
+  {
+    const Screens12 = await import('../src/world/screens.js');
+    const Rules12 = (await import('./lib/screen-rules.mjs')).default;
+    eq(Screens12.SOLID_MIN_R, World.SOLID_MIN_RADIUS, 'screens.js 的 SOLID_MIN_R 與 world.js 逐值相同');
+    for (const b of Screens12.SCREEN_BANDS) {
+      ok(
+        b.depth >= Screens12.BAND_DEPTH_MIN && b.depth <= Screens12.BAND_DEPTH_MAX,
+        `[band:${b.id}] 厚度 ${Screens12.BAND_DEPTH_MIN}–${Screens12.BAND_DEPTH_MAX} 公尺（碰撞圓串的半徑就是半個厚度）`,
+        String(b.depth)
+      );
+    }
+    ok(Screens12.APRON_HEIGHT < 0.9, '朝橋頭那一面的矮階低於 §6.3 的 0.9（所以不必有碰撞體）', String(Screens12.APRON_HEIGHT));
+    // 一片土地的母題只准一種造型
+    for (const site of World.REGION_SITES) {
+      const list = Screens12.MOTIFS.filter((mo) => mo.region === site.id);
+      if (!list.length) continue;
+      eq(new Set(list.map((mo) => mo.kind)).size, 1, `[${site.id}] 母題是同一個形狀重複出現`);
+      for (let i = 0; i < list.length; i += 1) {
+        for (let j = i + 1; j < list.length; j += 1) {
+          const d = Math.hypot(list[i].at[0] - list[j].at[0], list[i].at[1] - list[j].at[1]);
+          ok(d >= Rules12.MOTIF_GAP, `[${site.id}] 母題 ${list[i].id}／${list[j].id} 散得夠開`, d.toFixed(1));
+        }
+      }
+    }
+    // 每一種登記的造型都真的被用到（沒有寫了沒人用的造型）
+    for (const kind of Screens12.MOTIF_KIND_IDS) {
+      ok(Screens12.MOTIFS.some((mo) => mo.kind === kind), `母題造型 ${kind} 真的有土地在用`);
+    }
+    // 資料層算出來的碰撞圓 ＝ 蓋出來的碰撞圓（`screen-fit` 的離線篩靠它）
+    for (const b of Screens12.SCREEN_BANDS) {
+      const layer = testWorld.screens.find((l) => l.id === b.region);
+      ok(Boolean(layer), `[band:${b.id}] 這一區蓋出了中觀層`);
+      const node = layer ? layer.group.children.find((c) => c.name === `screen:${b.id}`) : null;
+      ok(Boolean(node), `[band:${b.id}] 場景圖裡找得到它`);
+      const built = node ? World.collectSolids(node, World.terrainHeight) : [];
+      const predicted = Screens12.bandSolidCircles(b);
+      eq(built.length, predicted.length, `[band:${b.id}] 資料層算的碰撞圓數 ＝ 蓋出來的`, `${predicted.length} vs ${built.length}`);
+      for (let i = 0; i < Math.min(built.length, predicted.length); i += 1) {
+        const d = Math.hypot(built[i].x - predicted[i].x, built[i].z - predicted[i].z);
+        ok(d < 0.01, `[band:${b.id}] 第 ${i} 個碰撞圓的位置對得上`, d.toFixed(4));
+        ok(Math.abs(built[i].r - predicted[i].r) < 1e-6, `[band:${b.id}] 第 ${i} 個碰撞圓的半徑對得上`);
+      }
+      ok(built.length <= 7, `[band:${b.id}] 一道帶的碰撞體 ≤ 7`, String(built.length));
+    }
+    // 中觀層每一片土地的碰撞體 ≤ 20
+    for (const layer of testWorld.screens) {
+      const n = World.collectSolids(layer.group, World.terrainHeight).length;
+      ok(
+        n <= Rules12.SOLIDS_PER_REGION_MAX,
+        `[${layer.id}] 中觀層的碰撞體 ≤ 每區 ${Rules12.SOLIDS_PER_REGION_MAX}`,
+        String(n)
+      );
+      for (const mo of layer.motifs) {
+        const node = layer.group.children.find((c) => c.name === `motif:${mo.id}`);
+        ok(Boolean(node), `[motif:${mo.id}] 場景圖裡找得到它`);
+        const n2 = node ? World.collectSolids(node, World.terrainHeight).length : 99;
+        ok(n2 <= 3, `[motif:${mo.id}] 一座母題的碰撞體 ≤ 3`, String(n2));
+      }
+    }
+    // 母題腳下的那幾點：覆蓋率與落差（造型與規則問的是同一組點）
+    for (const mo of Screens12.MOTIFS) {
+      const pts = Screens12.motifGroundPoints(mo);
+      eq(pts.length, Screens12.motifBlocks(mo).length, `[motif:${mo.id}] 落點數 ＝ 實體塊數`);
+      const hs = [];
+      for (const [px, pz] of pts) {
+        const cov = World.coverage(px, pz);
+        ok(cov >= Rules12.MOTIF_COVERAGE_MIN, `[motif:${mo.id}] 每一塊腳下都站得住`, cov.toFixed(3));
+        hs.push(World.terrainHeight(px, pz));
+      }
+      const drop = Math.max(...hs) - Math.min(...hs);
+      ok(drop <= Rules12.MOTIF_STEP_DROP_MAX, `[motif:${mo.id}] 各塊之間的落差 ≤ ${Rules12.MOTIF_STEP_DROP_MAX}m`, drop.toFixed(2));
+      const segs12 = buildPathNetwork(World.REGION_SITES, [...World.CORRIDORS, ...World.ANNEX_LINKS], challenges);
+      const dPath = Rules12.pathDistance(segs12, mo.at[0], mo.at[1]);
+      ok(
+        dPath >= Rules12.MOTIF_PATH_MIN && dPath <= Rules12.MOTIF_PATH_MAX,
+        `[motif:${mo.id}] 離路網 ${Rules12.MOTIF_PATH_MIN}–${Rules12.MOTIF_PATH_MAX} 公尺`,
+        dPath.toFixed(1)
+      );
+    }
+    /*
+     * 逐塊貼地 —— 這一次驗的是**自己宣告站在地上**的那些塊（`hugsGround`）。
+     * P11 那版靠 `solid || solidSpan` 認人，P12 把石脊的碰撞集中成一個節點之後，
+     * 核心石板就不再帶那兩個旗標了 —— 不改認法的話，一整道 12 公尺高的牆會從這條斷言裡消失。
+     */
+    {
+      const bb12 = new THREE.Box3();
+      const m12 = new THREE.Matrix4();
+      let checkedHug = 0;
+      for (const layer of testWorld.screens) {
+        layer.group.updateMatrixWorld(true);
+        layer.group.traverse((o) => {
+          if (!o.isMesh || !o.geometry || !o.userData.hugsGround) return;
+          if (!o.geometry.boundingBox) o.geometry.computeBoundingBox();
+          const each = (mtx, i) => {
+            bb12.copy(o.geometry.boundingBox).applyMatrix4(mtx);
+            const cx = (bb12.min.x + bb12.max.x) / 2;
+            const cz = (bb12.min.z + bb12.max.z) / 2;
+            const bottom = bb12.min.y - World.terrainHeight(cx, cz);
+            checkedHug += 1;
+            ok(bottom <= Rules12.GROUND_HUG_MAX, `[${layer.id}] ${o.name || '(mesh)'}#${i} 沒有浮在空中`, bottom.toFixed(2));
+            ok(bottom >= -Rules12.GROUND_BURY_MAX, `[${layer.id}] ${o.name || '(mesh)'}#${i} 沒有整塊埋進土裡`, bottom.toFixed(2));
+          };
+          if (o.isInstancedMesh) {
+            for (let i = 0; i < o.count; i += 1) {
+              o.getMatrixAt(i, m12);
+              m12.premultiply(o.matrixWorld);
+              each(m12, i);
+            }
+          } else each(m12.copy(o.matrixWorld), 0);
+        });
+      }
+      ok(checkedHug >= 60, 'P12：貼地檢查真的量到東西（不是空過）', String(checkedHug));
+    }
+  }
+
+  /* --- ⑦ 預算 ---------------------------------------------------- */
+  {
+    let tris12 = 0;
+    let lights12 = 0;
+    let points12 = 0;
+    testScene.traverse((o) => {
+      if (o.isLight) lights12 += 1;
+      if (o.isPoints) points12 += 1;
+      if (o.isMesh && o.geometry) {
+        const geo = o.geometry;
+        const n = geo.index ? geo.index.count / 3 : geo.attributes.position ? geo.attributes.position.count / 3 : 0;
+        tris12 += n * (o.isInstancedMesh ? o.count : 1);
+      }
+    });
+    ok(tris12 < 225000, 'P12：世界三角形 < 225k', `tris=${Math.round(tris12)}`);
+    eq(lights12, 37, 'P12：光源數不變（地面／粒子／中觀一盞燈都不加）', `lights=${lights12}`);
+    ok(testWorld.solids.length < 1050, 'P12：碰撞體 < 1,050', `n=${testWorld.solids.length}`);
+    /*
+     * 粒子的 draw call：這一格加的是 12 個（一區一個），**其餘一個都沒動**。
+     * 場景裡本來就有的那 9 個：星空 6（`engine.js` 的星層）、濁靈的光屑、
+     * 舊的那一層全域螢火 `motes`、石座演出的光屑 `rubric-fx-particles`。
+     */
+    let driftPoints = 0;
+    testWorld.drifts.group.traverse((o) => {
+      if (o.isPoints) driftPoints += 1;
+    });
+    eq(driftPoints, 12, 'P12：新增的粒子 draw call ＝ 12（一區一個）');
+    eq(points12 - driftPoints, 9, 'P12：其餘的粒子層一個都沒動（星空 6 ＋ 濁靈 ＋ 螢火 ＋ 石座演出）', String(points12));
   }
 }
 

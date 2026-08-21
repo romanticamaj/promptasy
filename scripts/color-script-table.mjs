@@ -12,7 +12,7 @@ import { dirname, resolve } from 'node:path';
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, '..');
 const json = JSON.parse(readFileSync(resolve(root, 'src/data/color-script.json'), 'utf8'));
-const { loadColorScript, colorScriptTable, hexToHsl, hueDelta, SKY_BASE } = await import('../src/world/color-script.js');
+const { loadColorScript, colorScriptTable, hexToHsl, hueDelta, toneDistance, SKY_BASE } = await import('../src/world/color-script.js');
 const World = await import('../src/world/world.js');
 
 const problems = loadColorScript(json);
@@ -37,12 +37,32 @@ const fmt = (n, digits = 0) => {
 };
 
 const rows = [];
-rows.push('| 區域 | skyTop | skyLow | 天空偏移（色相°／亮度） | fog | tint | key（補光） | rim（補色） | particle（螢火） |');
-rows.push('|---|---|---|---|---|---|---|---|---|');
+rows.push('| 區域 | skyTop | skyLow | 天空偏移（色相°／亮度） | fog | tint | key（補光） | rim（補色） | particle（螢火） | groundLow | groundHigh |');
+rows.push('|---|---|---|---|---|---|---|---|---|---|---|');
 const table = colorScriptTable();
 for (const id of Object.keys(World.REGION_ATMOSPHERE)) {
   const r = table[id];
   const off = `${fmt(hueDelta(r.skyTop, SKY_BASE.top))}° ／ ${fmt(hexToHsl(r.skyTop).l - baseTop.l, 2)}·${fmt(hexToHsl(r.skyLow).l - baseLow.l, 2)}`;
-  rows.push(`| ${REGION_ZH[id] || id} \`${id}\` | \`${r.skyTop}\` | \`${r.skyLow}\` | ${off} | \`${r.fog}\` | \`${r.tint}\` | \`${r.key}\` | \`${r.rim}\` | \`${r.particle}\` |`);
+  rows.push(
+    `| ${REGION_ZH[id] || id} \`${id}\` | \`${r.skyTop}\` | \`${r.skyLow}\` | ${off} | \`${r.fog}\` | \`${r.tint}\` | ` +
+      `\`${r.key}\` | \`${r.rim}\` | \`${r.particle}\` | \`${r.groundLow}\` | \`${r.groundHigh}\` |`
+  );
 }
 console.log(rows.join('\n'));
+
+/*
+ * v1.2 · P12：順便印出「地面兩兩分不分得出來」的最小距離 —— 這一格是站長回饋
+ * 「區域顏色我看不出來」的驗收數字，`test:rubric` 用同一支 `toneDistance()` 當硬斷言。
+ */
+const ids = Object.keys(World.REGION_ATMOSPHERE);
+const pairs = [];
+for (let i = 0; i < ids.length; i += 1) {
+  for (let j = i + 1; j < ids.length; j += 1) {
+    const a = table[ids[i]];
+    const b = table[ids[j]];
+    pairs.push([Math.max(toneDistance(a.groundLow, b.groundLow), toneDistance(a.groundHigh, b.groundHigh)), `${ids[i]}／${ids[j]}`]);
+  }
+}
+pairs.sort((a, b) => a[0] - b[0]);
+console.log(`\n地面基底色的可分辨距離（${pairs.length} 對）：最小 ${pairs[0][0].toFixed(3)}（${pairs[0][1]}）、` +
+  `中位數 ${pairs[Math.floor(pairs.length / 2)][0].toFixed(3)}、最大 ${pairs[pairs.length - 1][0].toFixed(3)}`);

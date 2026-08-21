@@ -130,6 +130,22 @@ async function verifyInWorld({ regionId, bands, motifs, bends, focusIds, landmar
     });
   }
 
+  // 母題離「走出來的那條路」：7–26 公尺（看得到、走得過去、不擋路）
+  {
+    const Props = await import('../src/world/props.js');
+    const segs = Props.buildPathNetwork(
+      World.REGION_SITES,
+      [...World.CORRIDORS, ...World.ANNEX_LINKS],
+      (base || (await worldOptions())).challenges,
+      bends
+    );
+    for (const mo of motifs) {
+      if (!focusIds.includes(mo.id)) continue;
+      const d = pathDistance(segs, mo.at[0], mo.at[1]);
+      if (d < MOTIF_PATH_MIN || d > MOTIF_PATH_MAX) problems.push(`${mo.id} 離路網 ${d.toFixed(1)}m（要 ${MOTIF_PATH_MIN}–${MOTIF_PATH_MAX}）`);
+    }
+  }
+
   // 擋得住人 ＋ 四周走得到（這一段就是離線算不出來的那一段）
   let free = 0;
   let dirs = 0;

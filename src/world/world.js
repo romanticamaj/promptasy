@@ -32,6 +32,10 @@ import { createMurkField, MURK_RADIUS } from './murks.js';
 import { createRubricFx } from './rubric-fx.js';
 // v1.2 · P11：中觀那一階（遮擋帶與母題）。screens.js 不 import 這裡，也不 import props.js。
 import { SCREEN_BANDS, MOTIFS, buildScreens, landmarkSight, pointInBand } from './screens.js';
+// v1.2 · P12：地面的材質語言（每區兩色基底 ＋ 區界漸變 ＋ 低頻碎紋）。ground.js 也不 import 這裡。
+import { groundBaseColor } from './ground.js';
+// v1.2 · P12：每一片土地專屬的空中粒子（一區一個 Points、共用材質、0 光源）。
+import { createDrifts } from './drifts.js';
 
 /** 每片土地：中心、半徑、內圈（完全平坦的核心）。 */
 export const REGION_SITES = Object.freeze([
@@ -930,10 +934,26 @@ function makeLabel(text, { color = '#dbe9f3', sub = '', width = 512 } = {}) {
   return sprite;
 }
 
+/**
+ * 每區地面兩色基底的預設：色彩腳本沒給（或那一鍵驗不過）就退回全域的
+ * `PALETTE.ground`／`groundHigh` —— **逐鍵**退回（P06 的規矩），
+ * 所以某一區的地面色打錯只會讓那一區退回預設，不會把整片地圖染成別區的顏色。
+ * @param {null|((id:string)=>{groundLow?:string, groundHigh?:string})} toneOf
+ */
+function terrainToneOf(toneOf) {
+  const dflt = { low: PALETTE.ground, high: PALETTE.groundHigh };
+  if (typeof toneOf !== 'function') return () => dflt;
+  return (id) => {
+    const row = toneOf(id);
+    if (!row) return dflt;
+    return { low: row.groundLow || dflt.low, high: row.groundHigh || dflt.high };
+  };
+}
+
 /* ------------------------------------------------------------------ *
  * 地形網格
  * ------------------------------------------------------------------ */
-function buildTerrain(quality, colorOf, pathSegs = []) {
+function buildTerrain(quality, colorOf, pathSegs = [], toneOf = null) {
   const seg = quality === 'high' ? 200 : 110;
   const size = WORLD_RADIUS * 2 + 40;
   const geo = new THREE.PlaneGeometry(size, size, seg, seg);
@@ -941,13 +961,19 @@ function buildTerrain(quality, colorOf, pathSegs = []) {
 
   const pos = geo.attributes.position;
   const colors = new Float32Array(pos.count * 3);
-  const low = new THREE.Color(PALETTE.ground);
-  const high = new THREE.Color(PALETTE.groundHigh);
   const edge = new THREE.Color(0x0f151b);
   // 被踩出來的路：比周圍亮一階、帶一點暖 —— 玩家看的是「對比」，不是箭頭
   const worn = new THREE.Color(0x8d8f88);
   const tmp = new THREE.Color();
   const accent = new THREE.Color();
+  /*
+   * v1.2 · P12：地面的第二層頂點色（`src/world/ground.js`）——
+   * 每區兩色基底 ＋ 區界 6 公尺漸變 ＋ 低頻碎紋。色彩腳本沒給就退回全域的
+   * `PALETTE.ground`／`groundHigh`（逐鍵退回，畫面與 P12 之前逐值相同）。
+   * **碎紋只在高畫質**：低畫質只留基底。
+   */
+  const tone = terrainToneOf(toneOf);
+  const grain = quality === 'high';
 
   for (let i = 0; i < pos.count; i += 1) {
     const x = pos.getX(i);
@@ -956,8 +982,7 @@ function buildTerrain(quality, colorOf, pathSegs = []) {
     pos.setY(i, y);
 
     const cov = coverage(x, z);
-    const t = THREE.MathUtils.clamp((y + 2.5) / 7, 0, 1);
-    tmp.copy(low).lerp(high, t);
+    groundBaseColor(tmp, x, z, y, { toneOf: tone, sites: REGION_SITES, grain });
 
     // 各區用自己的主色輕輕染一下地面 —— 只取色相、壓低亮度，夜色才不會被洗白
     const here = regionAt(x, z);
@@ -2906,7 +2931,7 @@ export function createWorld({
 
   // 走出來的路（只染地面顏色，不動高度場）
   const pathSegs = buildPathNetwork(REGION_SITES, [...CORRIDORS, ...ANNEX_LINKS], challenges, screenBends);
-  root.add(buildTerrain(quality, colorOf, pathSegs));
+  root.add(buildTerrain(quality, colorOf, pathSegs, typeof colorScript === 'function' ? colorScript : null));
 
   /**
    * 「留白清單」：石座、小景、地標周圍不放隨機裝飾。
@@ -3090,6 +3115,23 @@ export function createWorld({
 
   const motes = buildMotes(quality, colorOf, vignetteAnchors, (id) => scriptColor(id, 'particle'));
   root.add(motes);
+
+  /* --- v1.2 · P12：每一片土地專屬的空中粒子（`drifts.js`） ---
+   * 一區一個 Points、12 區共用同一個材質、0 光源；低畫質整層關（畫質是**當下**問的，
+   * 玩家在設定裡切換不必重建世界，同 rubric-fx）；reducedMotion 只留靜態的點。 */
+  const drifts = createDrifts({
+    sites: REGION_SITES,
+    heightAt: terrainHeight,
+    particleOf: (id) => scriptColor(id, 'particle'),
+    densityOf: (id) => atmosphereFor(id).motes,
+    landmarkOf: (id) => {
+      const lm = LANDMARKS.find((l) => l.region === id);
+      return lm ? lm.at : null;
+    },
+    reducedMotion,
+    qualityOf: () => (engine && engine.quality) || quality,
+  });
+  root.add(drifts.group);
 
   const mist = buildGroundMist(quality);
   root.add(mist);
@@ -3374,6 +3416,7 @@ export function createWorld({
       arr.array[i * 3 + 1] = moteBaseY[i] + Math.sin(t * 0.5 * moteDrift[i] + motePhases[i]) * 1.1;
     }
     arr.needsUpdate = true;
+    drifts.update(dt, t, engine.camera);
     beacon.rotation.y = t * 0.06;
 
     // 貼地霧氣：慢慢轉、慢慢起伏
@@ -3401,6 +3444,8 @@ export function createWorld({
     colliders,
     mist,
     motes,
+    /** v1.2 · P12：每一片土地專屬的空中粒子（一區一個 Points）。 */
+    drifts,
     tablets,
     /** Phase 22：刻文小語（走近按 E）。 */
     inscriptions: inscriptionObjs,

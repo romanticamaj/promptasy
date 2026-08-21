@@ -30,8 +30,38 @@ export const SKY_BASE = Object.freeze({ top: '#101a28', low: '#33465c' });
 /** 微偏容差：色相 ±12°、亮度 ±0.08、飽和 ±0.2；天空／霧的 HSL 亮度上限 0.35（仍是夜）。 */
 export const SKY_TOLERANCE = Object.freeze({ hueDeg: 12, lightness: 0.08, saturation: 0.2, maxLightness: 0.35 });
 
-/** 每區必備的七個色鍵。 */
-export const COLOR_KEYS = Object.freeze(['skyTop', 'skyLow', 'fog', 'tint', 'key', 'rim', 'particle']);
+/** 每區必備的九個色鍵（v1.2 · P12 加了地面那兩色）。 */
+export const COLOR_KEYS = Object.freeze(['skyTop', 'skyLow', 'fog', 'tint', 'key', 'rim', 'particle', 'groundLow', 'groundHigh']);
+
+/**
+ * 地面兩色基底的夜色門檻（v1.2 · P12）。
+ * 地面比天空可以亮一點（它會被補光打到），但仍然「壓暗、天空是主角」（WORLD §2.2）——
+ * 低處 ≤ 0.30、高處 ≤ 0.40。飽和度上限擋住「把土地塗成糖果色」。
+ */
+export const GROUND_TOLERANCE = Object.freeze({ lowMaxLightness: 0.3, highMaxLightness: 0.4, maxSaturation: 0.35 });
+
+/**
+ * 兩組地面色的**可分辨距離**（0–1 的一個數；越大越分得出來）。
+ *
+ * 夜裡的地面亮度都很低，直接比 RGB 距離會全部擠在一起、量不出「換了一片土地」；
+ * 所以在 HSL 上量，而且**色相差要用飽和度加權** —— 兩塊都接近灰的時候，色相差是看不見的。
+ * `test:rubric` 拿它當硬斷言：12 片土地兩兩都要 ≥ `TONE_DISTANCE_MIN`。
+ *
+ * @param {string} a `#rrggbb`
+ * @param {string} b `#rrggbb`
+ * @returns {number}
+ */
+export function toneDistance(a, b) {
+  const A = hexToHsl(a);
+  const B = hexToHsl(b);
+  if (!A || !B) return 0;
+  const sw = Math.min(A.s, B.s);
+  const dh = (hueDeltaDeg(A.h, B.h) / 180) * sw;
+  return Math.hypot(dh * 2.2, (A.s - B.s) * 0.9, (A.l - B.l) * 1.6);
+}
+
+/** 兩片土地的地面「分得出來」的門檻（`toneDistance` 的下限）。 */
+export const TONE_DISTANCE_MIN = 0.05;
 
 /** 數字色 → `#rrggbb`（小寫）。 */
 export const hex6 = (n) => `#${(n & 0xffffff).toString(16).padStart(6, '0')}`;
@@ -162,6 +192,21 @@ export function validateColorScript(data, atmo = REGION_ATMOSPHERE) {
       const c = hexToHsl(row[k]);
       if (c && c.l > tol.maxLightness) problems.push(`${id}.${k}: lightness ${c.l.toFixed(3)} > ${tol.maxLightness} (not night)`);
     }
+    // 地面那兩色：自己的夜色門檻（比天空鬆一點，但仍然壓得住 —— WORLD §2.2）
+    for (const [k, cap] of [
+      ['groundLow', GROUND_TOLERANCE.lowMaxLightness],
+      ['groundHigh', GROUND_TOLERANCE.highMaxLightness],
+    ]) {
+      const c = hexToHsl(row[k]);
+      if (!c) continue;
+      if (c.l > cap) problems.push(`${id}.${k}: lightness ${c.l.toFixed(3)} > ${cap} (地面要壓暗)`);
+      if (c.s > GROUND_TOLERANCE.maxSaturation) problems.push(`${id}.${k}: saturation ${c.s.toFixed(3)} > ${GROUND_TOLERANCE.maxSaturation}`);
+    }
+    {
+      const lo = hexToHsl(row.groundLow);
+      const hi = hexToHsl(row.groundHigh);
+      if (lo && hi && hi.l <= lo.l) problems.push(`${id}: groundHigh 不比 groundLow 亮（高處要比低處亮，高度階才讀得出來）`);
+    }
   }
   return problems;
 }
@@ -243,6 +288,9 @@ export function colorScriptFor(regionId) {
     key: pick('key', null),
     rim: pick('rim', null),
     particle: pick('particle', null),
+    // v1.2 · P12：地面兩色基底（逐鍵退回 null → world.js 用全域 PALETTE.ground／groundHigh）
+    groundLow: pick('groundLow', null),
+    groundHigh: pick('groundHigh', null),
   };
 }
 
@@ -252,4 +300,4 @@ export function colorScriptTable() {
   return Object.fromEntries(Object.keys(REGION_ATMOSPHERE).map((id) => [id, { ...(colorScriptRow(id) || {}) }]));
 }
 
-export default { loadColorScript, colorScriptFor, colorScriptRow, colorScriptTable, colorScriptProblems, hasColorScript, validateColorScript, hexToHsl, hueDeltaDeg, hueDelta, hex6, bodyOf };
+export default { loadColorScript, colorScriptFor, toneDistance, TONE_DISTANCE_MIN, GROUND_TOLERANCE, colorScriptRow, colorScriptTable, colorScriptProblems, hasColorScript, validateColorScript, hexToHsl, hueDeltaDeg, hueDelta, hex6, bodyOf };

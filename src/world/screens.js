@@ -255,13 +255,16 @@ export const SCREEN_BANDS = Object.freeze([
  */
 export const MOTIFS = Object.freeze([
   /*
-   * 階梯迴廊：四座散在路旁，彼此 ≥17 公尺 —— 重複四次才叫母題；
-   * 每一座都朝著不同方向，因為每一次示範都是給不同的人看的。
+   * 階梯迴廊：三座散在路旁，彼此 ≥40 公尺 —— 每一座都朝著不同方向，
+   * 因為每一次示範都是給不同的人看的。
+   *
+   * P11 原本放了四座，但其中三座離「走出來的那條路」只有 2.6／5.1／5.8 公尺 ——
+   * §4.10 白紙黑字寫著 7–26，那條規則當時只活在工具裡、沒有進測試（P12 補上了硬斷言，
+   * 補上的當天就抓到這三座）。重搜之後這片土地只擺得下三座，那就三座。
    */
   { id: 'reasoning-twice-01', region: 'reasoning', at: [-88.46, -65.22], rot: 2.15, kind: 'twiceShown', height: 5.2 },
-  { id: 'reasoning-twice-02', region: 'reasoning', at: [-116.38, -109.63], rot: 0.75, kind: 'twiceShown', height: 4.6 },
-  { id: 'reasoning-twice-03', region: 'reasoning', at: [-63.11, -94.99], rot: 3.55, kind: 'twiceShown', height: 4.0 },
-  { id: 'reasoning-twice-04', region: 'reasoning', at: [-75.85, -108.7], rot: 5.05, kind: 'twiceShown', height: 3.6 },
+  { id: 'reasoning-twice-02', region: 'reasoning', at: [-112, -126], rot: 0.52, kind: 'twiceShown', height: 4.6 },
+  { id: 'reasoning-twice-03', region: 'reasoning', at: [-60, -95], rot: 1.57, kind: 'twiceShown', height: 4.0 },
   /*
    * 沉書檔案庫：「讀過的那一疊」——矮台上立著一疊讀完的石板書，
    * 最上面那一頁翻開來懸在半空、只剩一圈光（枯掉的那幾頁）。
