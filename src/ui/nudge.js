@@ -349,17 +349,16 @@ export function createNudge({ world, player, getRegion = () => 'foundations', co
       if (!enabled) return false;
       if (!ECHO_LINES[kind]) return false;
       /*
-       * 面板還開著（多半就是剛做完那件事的那個面板）→ 先記著，收起來那一拍再說。
-       * 解鎖也一樣要等 —— 它原本會在面板底下說完再被收掉，玩家根本看不到。
+       * **一律先記著**，不當場說。
+       *
+       * 事情發生的那一拍，畫面上通常正要開一個面板 —— 撿到的殘頁、讀到的碑、
+       * 剛評完的結果都是先叫 echo 再 openPanel。當場說的話那一句會被下一幀的
+       * isBusy 收掉，玩家一個字都看不到。等面板收起來、畫面空出來，`update()`
+       * 才把它說出口（見上面的 flush；連解鎖也一樣要等）。
+       * 只留最新的一件事 —— 回聲不排隊。
        */
-      if (isBusy()) {
-        pending = { kind, ctx };
-        return false;
-      }
-      // 解鎖走它自己那條路（帶方向與步數，而且不受冷卻限制）
-      if (kind === 'regionUnlocked') return api.announceUnlock(ctx.regionId ?? ctx.name ?? '');
-      if (echoCooldown > 0) return false;
-      return speakEcho(kind, ctx);
+      pending = { kind, ctx };
+      return true;
     },
 
     /** 玩家做了某件事（打開面板 / 通關 / 讀碑）→ 他沒有迷路，計時歸零。 */

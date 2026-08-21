@@ -1068,9 +1068,11 @@ Exit criteria：
 - [x] rubric 98,503／playtest 2,533／build ✓／e2e 3,841 全綠、console error 0；三角 217,892（<240k）、光源 37 不變、碰撞體 950、collision-audit 0。
 - [x] 三件組＋changelog＋roadmap 打勾。
 
-### P08 — 四宿星圖 ＋ 反應式回聲 ＋ 12 區傳說鉤（2026-08-20 開工）
+### P08 — 四宿星圖 ＋ 反應式回聲 ＋ 12 區傳說鉤（2026-08-20 開工 · 2026-08-21 完成）
 
-狀態：`in progress`
+狀態：`done`（實作 subagent 撞 session 上限，orchestrator 接手收尾）
+
+**收尾時的修訂**：回聲原本「面板開著就先記著、否則當場說」——但事情發生的那一拍**畫面通常正要開一個面板**（撿到的殘頁、讀到的碑、剛評完的結果都是先叫 echo 再 openPanel），當場說的那一句會被下一幀的 `isBusy` 收掉，玩家一個字都看不到。改成**一律先記著**，等 `update()` 看到面板收起來才說；冷卻中直接丟棄（回聲不排隊、只講最近那一件事）；解鎖仍走它自己那條不受冷卻限制的路。
 
 **現狀**：圖鑑的廠家徽章是 `codex.js` 的 `badgeStrip()`（`curriculum.json` 的 `vendors`：openai／anthropic／google／xai，各有 `name`／`color`；每廠集滿 5 個技巧標記＝隱藏成就）。回聲的通道是 `src/ui/nudge.js`（`show(kind,{eyebrow:'回聲', line, sub})`、`announceUnlock(regionId)`、`noteActivity()`、有冷卻），目前只在序章／導航／解鎖時說話。12 區的守護／聲音／傳說鉤在研究 W §4 有整表，P07 的殘頁用掉了一部分，石碑（`LORE_TABLETS`）也各有一塊。
 
@@ -1096,9 +1098,9 @@ Exit criteria：
 **禁區**：`curriculum.json`、`challenges.json`、`flows.json`、`color-script.json`、`vite.config.js`、`CLAUDE.md`、`CHANGELOG.md`、`gameplay-roadmap.md`、dev server 5173/5174/5175。
 
 Exit criteria：
-- [ ] 星圖上線、免責句在、世界層零公司名（測試守著）；回聲 ≥12 條分支會依情境換；12 區傳說鉤齊。
-- [ ] rubric／playtest／build／e2e 全綠、console error 0。
-- [ ] 三件組＋changelog＋roadmap 打勾。
+- [x] 四宿星圖上線（每宿星點數＝該部原典已收的技巧標記，滿五顆整組亮起連線，四宿全亮＝既有隱藏成就、判定一格沒動）；免責句「本遊戲與這四家沒有隸屬或背書關係。」在星圖與成就頁；世界層零公司名有 rubric 硬斷言守著；回聲 13 條分支；12 區傳說鉤齊。
+- [x] rubric 100,856／playtest 2,533／build ✓／e2e 3,895 全綠、console error 0。
+- [x] 三件組＋changelog＋roadmap 打勾。
 
 ## v1.2 錯誤紀錄
 

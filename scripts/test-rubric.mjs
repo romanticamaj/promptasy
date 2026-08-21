@@ -14318,8 +14318,15 @@ console.log('\n▸ 四宿星圖 ＋ 反應式回聲 ＋ 傳說鉤（v1.2 · P08�
     ok(Nudge.ECHO_COOLDOWN_SECONDS >= 10 && Nudge.ECHO_COOLDOWN_SECONDS <= 45, '回聲有自己的冷卻（10–45 秒）', String(Nudge.ECHO_COOLDOWN_SECONDS));
     ok(Nudge.ECHO_COOLDOWN_SECONDS < Nudge.COOLDOWN_SECONDS, '反應句的冷卻比導航提示短（它是回應，不是催促）');
     ok(/echo\(kind, ctx = \{\}\) \{/.test(nudgeSrcP08), '回聲的入口是 echo(kind, ctx)');
-    ok(/if \(isBusy\(\)\) \{\s*\n\s*pending = \{ kind, ctx \};/.test(nudgeSrcP08), '面板還開著就先記下來，收起來再說');
-    ok(/if \(echoCooldown > 0\) return false;/.test(nudgeSrcP08), '冷卻中不說話');
+    ok(
+      /pending = \{ kind, ctx \};\s*\n\s*return true;/.test(nudgeSrcP08),
+      '回聲一律先記著，等畫面空出來才說（事情發生那一拍多半正要開一個面板）'
+    );
+    ok(
+      /if \(isBusy\(\)\) \{[\s\S]{0,220}?\n      \}\n[\s\S]{0,600}?if \(pending\) \{/.test(nudgeSrcP08),
+      '面板還開著就一個字都不說（flush 排在既有的 isBusy 規矩後面）'
+    );
+    ok(/if \(echoCooldown <= 0\) \{\s*\n\s*speakEcho\(p\.kind, p\.ctx\);/.test(nudgeSrcP08), '冷卻中不說話（不排隊嘮叨）');
     ok(/if \(!enabled\) return false;/.test(nudgeSrcP08), '整組關掉時（序章）不說話');
     ok(/pending = null;/.test(nudgeSrcP08), '說出口之後就把待講的那一句清掉（不排隊）');
     ok(
