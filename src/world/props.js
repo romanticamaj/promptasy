@@ -18,6 +18,8 @@
  */
 import * as THREE from 'three';
 import { PALETTE } from '../engine/engine.js';
+// v1.2 · P11：路要繞過中觀的遮擋帶。screens.js 刻意**不** import props.js（不會有循環相依）。
+import { corridorPolyline } from './screens.js';
 
 /* ------------------------------------------------------------------ *
  * 幾何體 / 材質快取
@@ -2184,8 +2186,18 @@ export function buildTablet(tablet, kit, terrainHeight) {
  */
 export function buildPathNetwork(sites, corridors, challenges) {
   const segs = [];
-  // 1. 橋：中央 ↔ 各區
-  for (const c of corridors) segs.push([c.from.x, c.from.z, c.to.x, c.to.z]);
+  /*
+   * 1. 橋：中央 ↔ 各區。
+   *
+   * v1.2 · P11：路是被**走出來**的，所以遇到遮擋帶時它會繞過去 ——
+   * `corridorPolyline()` 把該區登記的折點（`screens.js` 的 `PATH_BENDS`）串進來，
+   * 沒有登記的區回傳的還是「中心 → 中心」那一條直線，逐點與 P10 之前完全相同。
+   * `scripts/sightline-audit.mjs` 量的就是這一條折線 —— 畫在地上的路與稽核量的路是同一條。
+   */
+  for (const c of corridors) {
+    const poly = corridorPolyline(c);
+    for (let i = 0; i + 1 < poly.length; i += 1) segs.push([poly[i][0], poly[i][1], poly[i + 1][0], poly[i + 1][1]]);
+  }
 
   for (const site of sites) {
     const pins = (challenges || [])

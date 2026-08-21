@@ -4800,14 +4800,59 @@ for (const kindMeta of Object.values(handleFile.kinds || {})) {
         return Math.hypot(x - (l.ax + dx * t), z - (l.az + dz * t));
       })
     );
+  /*
+   * v1.2 · P11：**橋上的器物**的例外表（上限 1 條，每一條寫理由）。
+   *
+   * 研究 M §1f／提案 M11：一條 100 公尺的直橋中段要有一個「中點事件」，
+   * 不然過橋只是走廊。但橋面只有 `half 9`、真正平的甲板是 `flat 5` ——
+   * 「站在橋上」與「離主動線 > 8 公尺」在幾何上互斥（8 公尺處已經是往虛空垂下去的坡）。
+   * 所以這一件登記例外，並改用更嚴的替代斷言：主動線 ±LANE_HALF 一寸都不准被碰
+   * （長凳本來就沒有碰撞體 —— 凳面 0.19、凳腳 0.5，兩軸都薄於 SOLID_PLATE_MIN）、
+   * 甲板覆蓋 ≥ 0.95、離閘門 ≥ 8。
+   */
+  const P11_BRIDGE_HANDLES = Object.freeze({
+    'rsn-bench-corridor': {
+      minLane: 4.5,
+      why: '橋中段的長凳（研究 M11 的中點事件）：橋面平的部分只有半寬 5 公尺，要坐在橋上就一定在主動線 8 公尺內；它沒有碰撞體，主動線一寸沒被碰到。',
+    },
+  });
+  ok(Object.keys(P11_BRIDGE_HANDLES).length <= 1, '橋上的器物例外表最多 1 條（P11）');
+  for (const e of Object.values(P11_BRIDGE_HANDLES)) ok((e.why || '').length >= 10, '每一條例外都寫了理由', e.why);
+
   for (const h of handles) {
     const tag = `[handle:${h.id}]`;
     const [x, z] = h.at;
     const here = World.regionAt(x, z);
-    ok(here && here.id === h.region && !here.onBridge, `${tag} 落在標示的區域裡（而且不在橋上）`, JSON.stringify(here));
+    const bridgeOk = P11_BRIDGE_HANDLES[h.id];
+    ok(
+      here && here.id === h.region && (!here.onBridge || Boolean(bridgeOk)),
+      `${tag} 落在標示的區域裡（不在橋上，除非登記過）`,
+      JSON.stringify(here)
+    );
     ok(World.coverage(x, z) > 0.85, `${tag} 站得住（沒有掉進虛空）`, World.coverage(x, z).toFixed(2));
     ok(nearestPedestal(x, z) >= 7, `${tag} 不在石座的淨空圈裡`, nearestPedestal(x, z).toFixed(1));
-    ok(laneDist(x, z) > 8, `${tag} 不擋橋的主動線`, laneDist(x, z).toFixed(1));
+    ok(laneDist(x, z) > (bridgeOk ? bridgeOk.minLane : 8), `${tag} 不擋橋的主動線`, laneDist(x, z).toFixed(1));
+    if (bridgeOk) {
+      // 替代斷言：主動線本身一寸都沒被碰到、甲板是平的、離閘門夠遠
+      ok(World.coverage(x, z) >= 0.95, `${tag} 站在橋面平的那一段`, World.coverage(x, z).toFixed(2));
+      const gateD = Math.min(
+        ...[...World.CORRIDORS, ...World.ANNEX_LINKS].map((c) => Math.hypot(x - c.gate.x, z - c.gate.z))
+      );
+      ok(gateD >= 8, `${tag} 離閘門 ≥ 8m`, gateD.toFixed(1));
+      const lane = World.BRIDGE_LANES.find((l) => l.region === h.region);
+      let blocked = 0;
+      for (let t = 0; t <= 1.0001; t += 0.02) {
+        const lx = lane.ax + (lane.bx - lane.ax) * t;
+        const lz = lane.az + (lane.bz - lane.az) * t;
+        for (const off of [-World.LANE_HALF, 0, World.LANE_HALF]) {
+          const nx = -(lane.bz - lane.az);
+          const nz = lane.bx - lane.ax;
+          const len = Math.hypot(nx, nz) || 1;
+          if (testWorld.solidAt(lx + (nx / len) * off, lz + (nz / len) * off)) blocked += 1;
+        }
+      }
+      eq(blocked, 0, `${tag} 那條橋的主動線（±LANE_HALF）整條走得通`);
+    }
     ok(Math.hypot(x - 0, z - 6) > World.SPAWN_CLEAR + 2, `${tag} 不壓在出生點上`);
     const toIns = Math.min(...inscriptions.map((i) => Math.hypot(x - i.at[0], z - i.at[1])));
     ok(toIns >= 8, `${tag} 不壓在刻文小語上（不搶 E）`, toIns.toFixed(1));
@@ -14395,6 +14440,301 @@ console.log('\n▸ 四宿星圖 ＋ 反應式回聲 ＋ 傳說鉤（v1.2 · P08�
   }
 }
 
+
+/* ================================================================== */
+/* v1.2 · P11：中觀 —— 遮擋帶 ＋ 母題 ＋ 揭露（reasoning 一區切片）       */
+/*                                                                    */
+/*   · 資料契約：數量、region、高度／長度區間、rot 正規化、造型是實作得出來的 */
+/*   · 擺位：**對真的蓋出來的那個世界驗**（P10a 的教訓：舞台上量不到地形）  */
+/*     —— 逐個碰撞體對每一件互動物、主動線、閘門、地標留白量距離           */
+/*   · 揭露：sightline-audit 的硬斷言（前 12m 看不到、25m 內揭露）        */
+/*   · 節奏：pacing-audit 三口徑死區不得增加                             */
+/*   · 預算：三角 < 232k、光源 37 不變、碰撞體 < 1,000、穿模 0、0 每幀工作 */
+/* ================================================================== */
+console.log('\n▸ 中觀：遮擋帶與母題（v1.2 · P11）');
+{
+  const Screens = await import('../src/world/screens.js');
+  const regionIdSetP11 = new Set(World.REGION_SITES.map((s) => s.id));
+
+  /* --- ① 資料契約 ------------------------------------------------- */
+  ok(Screens.SCREEN_BANDS.length >= 2, '世界上至少有兩道遮擋帶', String(Screens.SCREEN_BANDS.length));
+  eq(new Set(Screens.SCREEN_BANDS.map((b) => b.id)).size, Screens.SCREEN_BANDS.length, '遮擋帶 id 沒有重複');
+  eq(new Set(Screens.MOTIFS.map((m2) => m2.id)).size, Screens.MOTIFS.length, '母題 id 沒有重複');
+  for (const b of Screens.SCREEN_BANDS) {
+    const tag = `[band:${b.id}]`;
+    ok(/^[a-z0-9-]+$/.test(b.id), `${tag} id 是 kebab-case`);
+    ok(regionIdSetP11.has(b.region), `${tag} region 是真實區域`, b.region);
+    ok(Screens.BAND_KIND_IDS.includes(b.kind), `${tag} 造型是實作得出來的`, b.kind);
+    ok(Array.isArray(b.at) && b.at.length === 2 && b.at.every(Number.isFinite), `${tag} 座標是兩個有限數字`);
+    ok(Number.isFinite(b.rot) && Math.abs(b.rot) <= Math.PI * 2, `${tag} rot 正規化在 ±2π 內`, String(b.rot));
+    ok(
+      b.height >= Screens.BAND_HEIGHT_MIN && b.height <= Screens.BAND_HEIGHT_MAX,
+      `${tag} 高度在 ${Screens.BAND_HEIGHT_MIN}–${Screens.BAND_HEIGHT_MAX} 公尺（§4.7 的登記例外）`,
+      String(b.height)
+    );
+    ok(
+      b.length >= Screens.BAND_LENGTH_MIN && b.length <= Screens.BAND_LENGTH_MAX,
+      `${tag} 長度在 ${Screens.BAND_LENGTH_MIN}–${Screens.BAND_LENGTH_MAX} 公尺（不是一道牆）`,
+      String(b.length)
+    );
+    ok(b.depth >= 1 && b.depth <= 3, `${tag} 厚度 1–3 公尺`, String(b.depth));
+    ok(b.faceSign === 1 || b.faceSign === -1, `${tag} 扶壁在哪一面寫明了`, String(b.faceSign));
+    // 護欄 2：這一層一個字都不准宣稱技巧
+    for (const banned of ['source', 'teaches', 'techniqueId', 'hint']) {
+      eq(banned in b, false, `${tag} 沒有 ${banned} 欄位（純風味，不教技巧）`);
+    }
+  }
+  for (const mo of Screens.MOTIFS) {
+    const tag = `[motif:${mo.id}]`;
+    ok(/^[a-z0-9-]+$/.test(mo.id), `${tag} id 是 kebab-case`);
+    ok(regionIdSetP11.has(mo.region), `${tag} region 是真實區域`, mo.region);
+    ok(Screens.MOTIF_KIND_IDS.includes(mo.kind), `${tag} 造型是實作得出來的`, mo.kind);
+    ok(
+      mo.height >= Screens.MOTIF_HEIGHT_MIN && mo.height <= Screens.MOTIF_HEIGHT_MAX,
+      `${tag} 高度在中景階 ${Screens.MOTIF_HEIGHT_MIN}–${Screens.MOTIF_HEIGHT_MAX} 公尺`,
+      String(mo.height)
+    );
+    ok(Number.isFinite(mo.rot) && Math.abs(mo.rot) <= Math.PI * 2, `${tag} rot 正規化在 ±2π 內`);
+    for (const banned of ['source', 'teaches', 'techniqueId']) {
+      eq(banned in mo, false, `${tag} 沒有 ${banned} 欄位`);
+    }
+  }
+  // 這一期的切片：階梯迴廊
+  {
+    const bands = Screens.SCREEN_BANDS.filter((b) => b.region === 'reasoning');
+    const motifs = Screens.MOTIFS.filter((mo) => mo.region === 'reasoning');
+    ok(bands.length >= 2 && bands.length <= 3, '階梯迴廊放 2–3 道遮擋帶（不是一道牆）', String(bands.length));
+    ok(
+      motifs.length >= Screens.MOTIF_PER_REGION_MIN && motifs.length <= Screens.MOTIF_PER_REGION_MAX,
+      `階梯迴廊有 ${Screens.MOTIF_PER_REGION_MIN}–${Screens.MOTIF_PER_REGION_MAX} 個母題`,
+      String(motifs.length)
+    );
+    eq(new Set(motifs.map((mo) => mo.kind)).size, 1, '母題是**同一個形狀**重複出現（不然不叫母題）');
+    for (let i = 0; i < motifs.length; i += 1) {
+      for (let j = i + 1; j < motifs.length; j += 1) {
+        const d = Math.hypot(motifs[i].at[0] - motifs[j].at[0], motifs[i].at[1] - motifs[j].at[1]);
+        ok(d >= 16, `母題 ${motifs[i].id} / ${motifs[j].id} 散得夠開（≥16m）`, d.toFixed(1));
+      }
+    }
+    // 兩道石脊之間要走得過去（缺口，不是牆）
+    for (let i = 0; i < bands.length; i += 1) {
+      for (let j = i + 1; j < bands.length; j += 1) {
+        const d = Math.hypot(bands[i].at[0] - bands[j].at[0], bands[i].at[1] - bands[j].at[1]);
+        ok(d >= 8, `石脊 ${bands[i].id} / ${bands[j].id} 之間留得下缺口`, d.toFixed(1));
+      }
+    }
+  }
+
+  /* --- ② 走出來的路：折點與路網是同一份 --------------------------- */
+  {
+    const segsP11 = buildPathNetwork(World.REGION_SITES, [...World.CORRIDORS, ...World.ANNEX_LINKS], challenges);
+    for (const [regionId, bends] of Object.entries(Screens.PATH_BENDS)) {
+      ok(regionIdSetP11.has(regionId), `[bend:${regionId}] region 是真實區域`);
+      ok(bends.length >= 2, `[bend:${regionId}] 至少兩個折點`);
+      for (const p of bends) {
+        const here = World.regionAt(p[0], p[1]);
+        ok(
+          here && (here.id === regionId || here.onBridge),
+          `[bend:${regionId}] 折點 ${p} 落在那一區（或橋上）`,
+          JSON.stringify(here)
+        );
+        ok(World.coverage(p[0], p[1]) > 0.9, `[bend:${regionId}] 折點 ${p} 站得住`);
+        for (const b of Screens.SCREEN_BANDS) {
+          ok(!Screens.pointInBand(b, p[0], p[1], World.PLAYER_RADIUS + 1), `[bend:${regionId}] 折點 ${p} 沒有撞進 ${b.id}`);
+        }
+      }
+      // 折點真的進了畫在地上的路網
+      for (let i = 0; i + 1 < bends.length; i += 1) {
+        const hit = segsP11.some(
+          (sg) =>
+            Math.hypot(sg[0] - bends[i][0], sg[1] - bends[i][1]) < 0.01 &&
+            Math.hypot(sg[2] - bends[i + 1][0], sg[3] - bends[i + 1][1]) < 0.01
+        );
+        ok(hit, `[bend:${regionId}] 第 ${i} 段折線真的畫進了路網（buildPathNetwork）`);
+      }
+      // 整條路走得通（除了塔腳下的臺座那一段 —— 路本來就通到塔腳）
+      const landmarkP11 = LANDMARKS.find((l) => l.region === regionId);
+      const poly = Screens.corridorPolyline(World.CORRIDORS.find((c) => c.region === regionId));
+      for (let i = 0; i + 1 < poly.length; i += 1) {
+        const [ax, az] = poly[i];
+        const [bx2, bz2] = poly[i + 1];
+        const len = Math.hypot(bx2 - ax, bz2 - az);
+        for (let t = 0; t <= len; t += 0.5) {
+          const px = ax + ((bx2 - ax) * t) / len;
+          const pz = az + ((bz2 - az) * t) / len;
+          if (landmarkP11 && Math.hypot(px - landmarkP11.at[0], pz - landmarkP11.at[1]) < 12) continue;
+          if (Math.hypot(px, pz) < World.REGION_SITES[0].radius) continue; // 高原那一段不是這次的事
+          ok(!testWorld.solidAt(px, pz), `[bend:${regionId}] 走出來的路上沒有被石頭堵住 @(${px.toFixed(1)}, ${pz.toFixed(1)})`);
+        }
+      }
+    }
+  }
+
+  /* --- ③ 擺位：對**真的蓋出來的世界**驗（不是對資料驗） ------------- */
+  {
+    /*
+     * 遮擋帶不是互動物（沒有 E），所以它守的是**淨空**規則而不是「互動圈不重疊」：
+     * 每一個碰撞圓都要離得夠遠，讓玩家還走得到那件東西的互動半徑內。
+     *   石座 PEDESTAL_CLEAR(5.6)＋玩家(0.62)＋自己的半徑；其餘照各層的互動半徑相加。
+     */
+    const LAYER_R_P11 = { marker: 5.6, murk: 5.5, secret: 5.5, tablet: 4.6, react: 4.4, ins: 3.8, letter: 3.8, handle: 3.2 };
+    const targets = [];
+    for (const c of challenges) if (c.position) targets.push({ k: 'marker', id: c.id, at: c.position });
+    for (const i of inscriptions) targets.push({ k: 'ins', id: i.id, at: i.at });
+    for (const l of letterFile.entries) targets.push({ k: 'letter', id: l.id, at: l.at });
+    for (const h of handles) targets.push({ k: 'handle', id: h.id, at: h.at });
+    for (const sp of Reactive.REACTIVE_SPOTS) targets.push({ k: 'react', id: sp.id, at: sp.at });
+    for (const mk of murkFile.entries) targets.push({ k: 'murk', id: mk.id, at: mk.at });
+    for (const t of LORE_TABLETS) targets.push({ k: 'tablet', id: t.id, at: t.at });
+    for (const sc of secrets) targets.push({ k: 'secret', id: sc.id, at: sc.at });
+
+    const laneDistP11 = (x, z) =>
+      Math.min(
+        ...World.BRIDGE_LANES.map((l) => {
+          const dx = l.bx - l.ax;
+          const dz = l.bz - l.az;
+          const len2 = dx * dx + dz * dz;
+          const t = Math.max(0, Math.min(1, ((x - l.ax) * dx + (z - l.az) * dz) / len2));
+          return Math.hypot(x - (l.ax + dx * t), z - (l.az + dz * t));
+        })
+      );
+    const gateDistP11 = (x, z) =>
+      Math.min(...[...World.CORRIDORS, ...World.ANNEX_LINKS].map((c) => Math.hypot(x - c.gate.x, z - c.gate.z)));
+
+    ok(Array.isArray(testWorld.screens) && testWorld.screens.length >= 1, '世界蓋出了中觀層', String(testWorld.screens.length));
+    let screenSolids = 0;
+    let screenLights = 0;
+    let screenTris = 0;
+    for (const layer of testWorld.screens) {
+      const solids = World.collectSolids(layer.group, World.terrainHeight);
+      screenSolids += solids.length;
+      layer.group.traverse((o) => {
+        if (o.isLight) screenLights += 1;
+        if (o.isMesh && o.geometry) {
+          const geo = o.geometry;
+          const n = geo.index ? geo.index.count / 3 : geo.attributes.position.count / 3;
+          screenTris += n * (o.isInstancedMesh ? o.count : 1);
+        }
+      });
+      ok(solids.length > 0, `[${layer.id}] 中觀層有碰撞體（有份量的東西要擋得住人）`);
+      for (const sd of solids) {
+        for (const t of targets) {
+          const need = LAYER_R_P11[t.k] + World.PLAYER_RADIUS + sd.r;
+          const d = Math.hypot(sd.x - t.at[0], sd.z - t.at[1]);
+          ok(d >= need, `[${layer.id}] 碰撞體離 ${t.k}:${t.id} ≥ ${need.toFixed(1)}m`, d.toFixed(2));
+        }
+        for (const lm of LANDMARKS) {
+          const d = Math.hypot(sd.x - lm.at[0], sd.z - lm.at[1]);
+          ok(d >= lm.clear, `[${layer.id}] 沒有侵入地標 ${lm.id} 的 ${lm.clear}m 留白`, d.toFixed(2));
+        }
+        ok(laneDistP11(sd.x, sd.z) >= World.LANE_HALF + 4 - sd.r, `[${layer.id}] 離橋的主動線夠遠`, laneDistP11(sd.x, sd.z).toFixed(2));
+        ok(gateDistP11(sd.x, sd.z) >= 8, `[${layer.id}] 離閘門 ≥ 8m`, gateDistP11(sd.x, sd.z).toFixed(2));
+        const here = World.regionAt(sd.x, sd.z);
+        ok(here && here.id === layer.id && !here.onBridge, `[${layer.id}] 碰撞體站在自己那一片土地上`, JSON.stringify(here));
+        ok(World.coverage(sd.x, sd.z) > 0.9, `[${layer.id}] 碰撞體沒有掉進虛空`, World.coverage(sd.x, sd.z).toFixed(2));
+      }
+    }
+    eq(screenLights, 0, 'P11：中觀層一盞燈都沒加');
+    ok(screenTris < 4000, 'P11：中觀層的三角形很省', `tris=${Math.round(screenTris)}`);
+    ok(screenSolids <= 60, 'P11：中觀層的碰撞體沒有失控', `n=${screenSolids}`);
+
+    // 繞得過去：石脊四周、母題四周
+    for (const b of Screens.SCREEN_BANDS) {
+      ok(Boolean(testWorld.solidAt(b.at[0], b.at[1])), `[${b.id}] 石脊擋得住人（走不進石頭裡）`);
+      let around = 0;
+      const rr = b.length / 2 + 4;
+      for (let a = 0; a < 24; a += 1) {
+        const ang = (a / 24) * Math.PI * 2;
+        if (!testWorld.solidAt(b.at[0] + Math.cos(ang) * rr, b.at[1] + Math.sin(ang) * rr)) around += 1;
+      }
+      ok(around >= 16, `[${b.id}] 四周繞得過去（${rr.toFixed(1)}m 外 24 個方向至少 16 個走得到）`, `${around}/24`);
+    }
+    for (const mo of Screens.MOTIFS) {
+      ok(Boolean(testWorld.solidAt(mo.at[0], mo.at[1])), `[${mo.id}] 母題擋得住人`);
+      let free = 0;
+      for (let a = 0; a < 16; a += 1) {
+        const ang = (a / 16) * Math.PI * 2;
+        if (!testWorld.solidAt(mo.at[0] + Math.cos(ang) * 5, mo.at[1] + Math.sin(ang) * 5)) free += 1;
+      }
+      ok(free >= 14, `[${mo.id}] 四周走得到`, `${free}/16`);
+    }
+  }
+
+  /* --- ④ 揭露：sightline-audit 的硬斷言 ---------------------------- */
+  {
+    const { sightlineAudit, HIDDEN_MIN, REVEAL_MAX } = await import('./sightline-audit.mjs');
+    const audit = await sightlineAudit();
+    ok(Object.keys(audit.regions).length >= 11, 'sightlineAudit() 量得到每一片有橋／有頸口的土地', String(Object.keys(audit.regions).length));
+    const withBands = Object.entries(audit.regions).filter(([, r]) => r.bands.length);
+    ok(withBands.length >= 1, '至少有一區有遮擋帶可以量');
+    for (const [id, r] of withBands) {
+      ok(
+        r.hiddenFor >= HIDDEN_MIN,
+        `[${id}] 從橋頭起至少前 ${HIDDEN_MIN} 公尺看不到地標`,
+        `hiddenFor=${r.hiddenFor}`
+      );
+      ok(
+        r.revealAt <= REVEAL_MAX,
+        `[${id}] 走到 ${REVEAL_MAX} 公尺內一定看得到（擋住但不迷路）`,
+        `revealAt=${r.revealAt}`
+      );
+      eq(r.pass, true, `[${id}] 揭露通過門檻`);
+      // 揭露之後不准再被擋回去（不然是迷宮不是揭露）
+      const after = r.samples.filter((sm) => sm.arc >= r.revealAt);
+      ok(after.every((sm) => !sm.hidden), `[${id}] 揭露之後就一直看得到`);
+      // 起點那一刻連塔頂都被壓住（比規格更嚴的那一欄，量得出來就記著）
+      ok(r.samples[0] && r.samples[0].hiddenTip, `[${id}] 站在橋頭連塔頂都看不到`);
+    }
+    for (const [id, r] of Object.entries(audit.regions)) {
+      if (r.bands.length) continue;
+      eq(r.pass, null, `[${id}] 還沒有遮擋帶 → 不判定（P12 再鋪）`);
+    }
+    // 世界裡的判定與稽核腳本是同一支
+    const rr = audit.regions.reasoning;
+    const live = testWorld.landmarkSightFrom(rr.entry[0], rr.entry[1], 'reasoning');
+    eq(live.flat, rr.samples[0].hidden, 'world.landmarkSightFrom() 與稽核腳本回同一個答案');
+  }
+
+  /* --- ⑤ 節奏：三口徑死區不得增加 ---------------------------------- */
+  {
+    const { pacingAudit } = await import('./pacing-audit.mjs');
+    const pace = await pacingAudit();
+    for (const kind of ['encounter', 'micro', 'mid']) {
+      eq(pace.deadZones[kind].length, 0, `P11：${kind} 死區仍然是 0 段（鋪中景沒有把節奏弄壞）`);
+    }
+  }
+
+  /* --- ⑥ 預算與「零每幀工作」 -------------------------------------- */
+  {
+    let tris = 0;
+    let lights = 0;
+    testScene.traverse((o) => {
+      if (o.isLight) lights += 1;
+      if (o.isMesh && o.geometry) {
+        const geo = o.geometry;
+        const n = geo.index ? geo.index.count / 3 : geo.attributes.position ? geo.attributes.position.count / 3 : 0;
+        tris += n * (o.isInstancedMesh ? o.count : 1);
+      }
+    });
+    ok(tris < 232000, 'P11：世界三角形 < 232k', `tris=${Math.round(tris)}`);
+    eq(lights, 37, 'P11：光源數不變（中觀層一盞燈都不加）', `lights=${lights}`);
+    ok(testWorld.solids.length < 1000, 'P11：碰撞體 < 1,000', `n=${testWorld.solids.length}`);
+    const Audit11 = await import('./collision-audit.mjs');
+    for (const layer of testWorld.screens) {
+      const res = Audit11.auditCoverage(layer.group, World.solidAt, testWorld.solids, World.terrainHeight);
+      eq(res.uncovered.length, 0, `[${layer.id}] 中觀層沒有穿模點（有份量的都擋得住）`, res.uncovered.map((u) => u.name).join(','));
+    }
+    // 靜態掃描：這一層完全靜態
+    const screensSrc = readFileSync(resolve(root, 'src/world/screens.js'), 'utf8');
+    ok(!/requestAnimationFrame/.test(screensSrc), 'P11：screens.js 沒有自己的動畫迴圈');
+    ok(!/export function update|\bupdate\(dt/.test(screensSrc), 'P11：中觀層沒有 update()（不進每幀迴圈）');
+    const worldSrc11 = readFileSync(resolve(root, 'src/world/world.js'), 'utf8');
+    ok(!/propAnimations\.push\(\{ kind: 'screen/.test(worldSrc11), 'P11：中觀層沒有被塞進每幀的道具動畫清單');
+    for (const layer of testWorld.screens) {
+      ok(typeof layer.group.userData.update !== 'function', `[${layer.id}] 中觀層沒有每幀回呼`);
+    }
+  }
+}
 
 /* ================================================================== */
 /* v1.2 · P09：石座演出 a —— 回呼接石座 ＋ 4 個 check ＋ 一區試水         */

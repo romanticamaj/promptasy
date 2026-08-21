@@ -30,6 +30,8 @@ import { createReactiveField, REACTIVE_SPOTS } from './reactive.js';
 import { createHandleField, HANDLE_RADIUS } from './handles.js';
 import { createMurkField, MURK_RADIUS } from './murks.js';
 import { createRubricFx } from './rubric-fx.js';
+// v1.2 · P11：中觀那一階（遮擋帶與母題）。screens.js 不 import 這裡，也不 import props.js。
+import { SCREEN_BANDS, MOTIFS, buildScreens, landmarkSight, pointInBand } from './screens.js';
 
 /** 每片土地：中心、半徑、內圈（完全平坦的核心）。 */
 export const REGION_SITES = Object.freeze([
@@ -2916,6 +2918,22 @@ export function createWorld({
     ...handles.map((h) => [h.at[0], h.at[1], 5.5]),
     // v1.2 · P01：濁靈 —— 一團暗色濁氣，旁邊被草叢埋掉就看不出「這裡有東西」
     ...murks.map((m) => [m.at[0], m.at[1], 5.5]),
+    /*
+     * v1.2 · P11：中觀的遮擋帶與母題 —— 它們自己就是石頭，腳下不要再撒碎石與草叢
+     * （石脊沿著長邊每 2 公尺登記一個點，圓圈才貼得住一條長條形的東西）。
+     */
+    ...SCREEN_BANDS.flatMap((b) => {
+      const pts = [];
+      const c = Math.cos(b.rot);
+      const s2 = -Math.sin(b.rot);
+      const n = Math.max(2, Math.ceil(b.length / 2));
+      for (let i = 0; i <= n; i += 1) {
+        const t = -b.length / 2 + (b.length * i) / n;
+        pts.push([b.at[0] + c * t, b.at[1] + s2 * t, b.depth / 2 + 3]);
+      }
+      return pts;
+    }),
+    ...MOTIFS.map((mo) => [mo.at[0], mo.at[1], 5]),
     ...(shrineSpec ? [[shrineSpec.at[0], shrineSpec.at[1], 10]] : []),
   ];
 
@@ -2946,6 +2964,7 @@ export function createWorld({
   );
   const propAnimations = [];
   const vignetteAnchors = [];
+  const screenLayers = [];
 
   for (const site of REGION_SITES) {
     root.add(buildFlora(site, colorOf(site.id), quality, keepClear));
@@ -2966,6 +2985,18 @@ export function createWorld({
       root.add(landmark.group);
       markSolidParts(landmark.group);
       propAnimations.push({ kind: 'landmark', id: landmark.spec.id, data: landmark.group.userData });
+    }
+
+    /*
+     * v1.2 · P11：中觀（遮擋帶 ＋ 母題）。
+     * 這一層的每一塊石板在 `screens.js` 就**明講**了自己的碰撞（`solidSpan`／`solid`／`noCollide`），
+     * 所以不呼叫 `markSolidParts()` —— 一道 12 公尺高的石脊不該靠「猜」來決定擋不擋人。
+     * 完全靜態：不進 `propAnimations`、不進每幀迴圈。
+     */
+    const screens = buildScreens(site.id, kit, terrainHeight);
+    if (screens) {
+      root.add(screens.group);
+      screenLayers.push({ id: site.id, ...screens });
     }
   }
 
@@ -3396,6 +3427,29 @@ export function createWorld({
     /** 橋與加建的頸口（測試與除錯用）。 */
     corridors: CORRIDORS,
     annexLinks: ANNEX_LINKS,
+
+    /* --- v1.2 · P11：中觀（遮擋帶與母題） --- */
+    /** 這個世界蓋出來的中觀層（每一區一筆：group / bands / motifs）。 */
+    screens: screenLayers,
+    /** 資料層的遮擋帶與母題（唯讀，測試與稽核用）。 */
+    screenBands: SCREEN_BANDS,
+    motifs: MOTIFS,
+    /**
+     * 站在 (x, z) 那一區的地標被遮擋帶擋住了嗎？
+     * 走的是 `screens.js` 的 `landmarkSight()` —— `scripts/sightline-audit.mjs` 問的是同一支。
+     * @returns {null|{hidden:boolean, flat:boolean, by:string|null}} 那一區沒有地標就回 null
+     */
+    landmarkSightFrom(x, z, regionId) {
+      const id = regionId || (regionAt(x, z) || {}).id;
+      const landmark = LANDMARKS.find((l) => l.region === id);
+      if (!landmark) return null;
+      return landmarkSight(x, z, landmark, terrainHeight, SCREEN_BANDS.filter((b) => b.region === id));
+    },
+    /** 這個點踩進哪一道遮擋帶的足跡了嗎（e2e 驗「擋得住人」用）。 */
+    bandAt(x, z, pad = 0) {
+      for (const b of SCREEN_BANDS) if (pointInBand(b, x, z, pad)) return b;
+      return null;
+    },
 
     /** 玩家移動用：走不過去就沿牆滑，不會被卡死。 */
     clampPosition(nextX, nextZ, prevX, prevZ) {

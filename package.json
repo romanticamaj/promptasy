@@ -27,6 +27,7 @@
     "shots:hours": "node scripts/shots-hours.mjs",
     "shots:regions": "node scripts/shots-regions.mjs",
     "audit:pacing": "node scripts/pacing-audit.mjs",
+    "audit:sightline": "node scripts/sightline-audit.mjs",
     "colors:table": "node scripts/color-script-table.mjs"
   },
   "dependencies": {

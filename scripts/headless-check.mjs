@@ -17149,6 +17149,133 @@ async function main() {
   }
 
   /* ================================================================ */
+  /* v1.2 · P11：中觀 —— 從橋頭看不到塔，繞過石脊才揭露                  */
+  /* ================================================================ */
+  console.log('\n▸ 中觀：遮擋帶與揭露（v1.2 · P11）');
+  {
+    const Screens = await import('../src/world/screens.js');
+    const { sightlineAudit } = await import('./sightline-audit.mjs');
+    const audit = await sightlineAudit();
+    const sl = audit.regions.reasoning;
+    ok(sl.bands.length >= 2, '（前提）階梯迴廊有兩道遮擋帶', String(sl.bands.length));
+
+    /* --- ① 世界裡真的蓋出了那一層（0 光源、有節點名） --- */
+    const built = await evaluate(`
+      const g = window.__promptasy;
+      if (g.promptConsole.isOpen) g.promptConsole.close();
+      await new Promise((r) => setTimeout(r, 220));
+      g.progression.skipGate('reasoning');
+      g.world.openGate('reasoning', true);
+      const layers = g.world.screens || [];
+      let lights = 0, meshes = 0, named = 0;
+      for (const l of layers) l.group.traverse((o) => {
+        if (o.isLight) lights += 1;
+        if (o.isMesh) meshes += 1;
+        if (o.name && (o.name.startsWith('screen:') || o.name.startsWith('motif:'))) named += 1;
+      });
+      return {
+        layers: layers.length,
+        bands: layers.reduce((n, l) => n + l.bands.length, 0),
+        motifs: layers.reduce((n, l) => n + l.motifs.length, 0),
+        lights, meshes, named,
+        hasSight: typeof g.world.landmarkSightFrom === 'function',
+      };
+    `);
+    eq(built.layers, 1, 'P11：世界蓋出了一片土地的中觀層');
+    eq(built.bands, 2, 'P11：兩道遮擋帶進了場景圖');
+    eq(built.motifs, 4, 'P11：四座母題進了場景圖');
+    eq(built.lights, 0, 'P11：中觀層一盞燈都沒加');
+    ok(built.meshes > 0 && built.named >= 6, 'P11：每一道石脊／每一座母題都有自己的節點名', String(built.named));
+    eq(built.hasSight, true, 'P11：世界有視線判定 API');
+
+    /* --- ② 站在橋頭：看不到塔；沿路走到揭露點：看得到 --- */
+    const entry = sl.entry;
+    const revealSample = sl.samples.find((sm) => sm.arc === sl.revealAt) || sl.samples[sl.samples.length - 1];
+    const midSample = sl.samples.find((sm) => sm.arc === 12) || sl.samples[4];
+    const look = async (at) =>
+      evaluate(`
+        const g = window.__promptasy;
+        g.player.teleport(${at[0]}, ${at[1]});
+        await new Promise((r) => setTimeout(r, 320));
+        const s = g.world.landmarkSightFrom(g.player.position.x, g.player.position.z, 'reasoning');
+        return { flat: s.flat, hidden: s.hidden, by: s.by, x: g.player.position.x, z: g.player.position.z };
+      `);
+
+    const atHead = await look(entry);
+    eq(atHead.flat, true, 'P11：站在橋頭，無盡階梯塔被石脊擋住了');
+    eq(atHead.hidden, true, 'P11：連塔頂那顆光球都壓在石脊背後');
+    ok(
+      Math.hypot(atHead.x - entry[0], atHead.z - entry[1]) < 1.5,
+      'P11：人真的站到橋頭那一點',
+      Math.hypot(atHead.x - entry[0], atHead.z - entry[1]).toFixed(2)
+    );
+
+    const atMid = await look(midSample.at);
+    eq(atMid.flat, true, `P11：走了 ${midSample.arc} 公尺還是看不到（前 12 公尺都被擋著）`);
+
+    const atReveal = await look(revealSample.at);
+    eq(atReveal.flat, false, `P11：繞過石脊（第 ${sl.revealAt} 公尺）塔就揭露了`);
+    ok(sl.revealAt <= 25, 'P11：揭露發生在 25 公尺內（擋住但不迷路）', String(sl.revealAt));
+
+    /* --- ③ 石脊擋得住人，端點外側繞得過去 --- */
+    const band = Screens.SCREEN_BANDS.find((b) => b.region === 'reasoning' && b.height >= 10);
+    const f = Screens.bandFootprint(band);
+    const approach = [f.cx + f.vx * 5.5 * band.faceSign, f.cz + f.vz * 5.5 * band.faceSign];
+    const push = await evaluate(`
+      const g = window.__promptasy;
+      g.player.teleport(${approach[0]}, ${approach[1]});
+      await new Promise((r) => setTimeout(r, 320));
+      const before = { x: g.player.position.x, z: g.player.position.z };
+      const clamped = g.world.clampPosition(${f.cx}, ${f.cz}, before.x, before.z);
+      const solidAtCore = Boolean(g.world.solidAt(${f.cx}, ${f.cz}));
+      const endX = ${f.cx + f.ux * (band.length / 2 + 3)};
+      const endZ = ${f.cz + f.uz * (band.length / 2 + 3)};
+      return {
+        solidAtCore,
+        clampedX: clamped.x,
+        clampedZ: clamped.z,
+        aroundClear: !g.world.solidAt(endX, endZ) && g.world.isWalkable(endX, endZ),
+      };
+    `);
+    eq(push.solidAtCore, true, 'P11：石脊本體擋得住人（走不進石頭裡）');
+    ok(
+      Math.hypot(push.clampedX - f.cx, push.clampedZ - f.cz) > band.depth / 2,
+      'P11：往石脊裡推會被擋回來（不是穿過去）',
+      Math.hypot(push.clampedX - f.cx, push.clampedZ - f.cz).toFixed(2)
+    );
+    eq(push.aroundClear, true, 'P11：石脊的端點外側走得過去（繞得過去，不是一道牆）');
+
+    /* --- ④ 真的按著 W 往石脊走：人停在石脊外面，沒有穿過去 --- */
+    const walk = await evaluate(`
+      const g = window.__promptasy;
+      g.player.teleport(${approach[0]}, ${approach[1]});
+      await new Promise((r) => setTimeout(r, 260));
+      g.player.cameraYaw = Math.atan2(${f.cx} - g.player.position.x, ${f.cz} - g.player.position.z);
+      return { x: g.player.position.x, z: g.player.position.z };
+    `);
+    const sideBefore = (walk.x - f.cx) * f.vx + (walk.z - f.cz) * f.vz;
+    await keyDown('KeyW', 'w', { vk: 87 });
+    await sleep(1500);
+    await keyUp('KeyW', 'w', { vk: 87 });
+    const after = await evaluate(`
+      const g = window.__promptasy;
+      await new Promise((r) => setTimeout(r, 240));
+      return { x: g.player.position.x, z: g.player.position.z };
+    `);
+    const sideAfter = (after.x - f.cx) * f.vx + (after.z - f.cz) * f.vz;
+    ok(
+      sideBefore * sideAfter > 0,
+      'P11：一直往石脊走也走不到另一邊（沒有穿模）',
+      `${sideBefore.toFixed(2)} → ${sideAfter.toFixed(2)}`
+    );
+    ok(Math.abs(sideAfter) > band.depth / 2, 'P11：人停在石脊外面', Math.abs(sideAfter).toFixed(2));
+
+    // 收尾：回到高原，後面的檢查從乾淨的位置繼續
+    await evaluate(`window.__promptasy.player.teleport(0, 6); return 1;`);
+    await sleep(240);
+  }
+
+  /* ================================================================ */
   await sleep(600);
   const realErrors = consoleErrors.filter((e) => !/favicon|DevTools|Autofill/i.test(e));
   eq(realErrors.length, 0, '全程零 console error', realErrors.slice(0, 6).join('\n      '));

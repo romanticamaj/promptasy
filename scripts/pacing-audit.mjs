@@ -14,6 +14,7 @@
  *   encounter  微觸**與**中景都 > 45 m（走 45 m 沒有任何小東西回應你、也沒有中景可看 —— 最嚴格的「空」）
  *   micro      微觸 > 45 m（WORLD §4.4 那條「每 20–30 m 一次反應」的反面）
  *   mid        中景 > 45 m（P11–P16 鋪中景要先看這一欄；石座與地標不算 —— 一根 20 m 高的地標 45 m 外看得到，但那不是「遇到」）
+ *              v1.2 · P11 起，中觀的遮擋帶與母題（`screens.js`）也算在這一層
  *
  * 只讀資料、不蓋 three.js 場景（路網與座標都是資料層的常數；跟 world.js 用同一份）。
  *   node scripts/pacing-audit.mjs            印表
@@ -67,6 +68,9 @@ export async function pacingAudit({ step = SAMPLE_STEP } = {}) {
   const murks = readJson('src/data/murks.json').entries || [];
   // v1.2 · P07：殘頁也是「路上讀得到的東西」，擺位規則要求離路網 ≤12m → 算進中景那一層
   const letters = readJson('src/data/letters.json').entries || [];
+  // v1.2 · P11：中觀那一層（遮擋帶與母題）本來就是「中景」的定義 —— 不算進來，下一個
+  // 「先量再放」的 phase 會拿到過期數據（同 P07 把殘頁補進來的理由）。
+  const Screens = await import('../src/world/screens.js');
 
   const pois = {
     micro: [
@@ -79,6 +83,8 @@ export async function pacingAudit({ step = SAMPLE_STEP } = {}) {
       ...inscriptions.map((i) => ({ id: i.id, x: i.at[0], z: i.at[1] })),
       ...murks.map((m) => ({ id: m.id, x: m.at[0], z: m.at[1] })),
       ...letters.map((l) => ({ id: l.id, x: l.at[0], z: l.at[1] })),
+      ...Screens.SCREEN_BANDS.map((b) => ({ id: b.id, x: b.at[0], z: b.at[1] })),
+      ...Screens.MOTIFS.map((mo) => ({ id: mo.id, x: mo.at[0], z: mo.at[1] })),
     ],
     marker: challenges.filter((c) => c.position).map((c) => ({ id: c.id, x: c.position[0], z: c.position[1] })),
     landmark: Props.LANDMARKS.map((l) => ({ id: l.id, x: l.at[0], z: l.at[1] })),
