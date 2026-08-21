@@ -1,5 +1,5 @@
 /**
- * Promptasy — 石座演出（Rubric FX）：把「命中哪一條檢查」變成石座旁看得見的因果（v1.2 · P09）
+ * Promptasy — 石座演出（Rubric FX）：把「命中哪一條檢查」變成石座旁看得見的因果（v1.2 · P09／P10a）
  *
  * 離線評分引擎判完之後，主控台的 `onRubricHits` 回呼會帶著**這一次新命中的 rubric index**
  * 過來（見 `console.js rubricHitsFor`）。`main.js` 把 index 換成**檢查器的名字**，交給這一層
@@ -10,6 +10,10 @@
  *   · `specifiesFormat` → 幾片碎石從地面浮起、**排成整齊的一列**，然後落回（格式對上了）
  *   · `hasConstraint`   → 光柱從「無限高」**收成有刻度的一段**（量得出來的長度）
  *   · `hasRole`         → 浮碑短暫**戴上一層面具般的輪廓光**（換了身分再開口）
+ *   · `hasFewShot`      → 兩塊小石板在浮碑兩側**成對浮起**（給它看兩組樣子）
+ *   · `hasDelimiters`   → 石座周圍**四道短牆升起圍成方框**（把料跟話隔開）
+ *   · `asksToVerify`    → 浮碑上方一顆小光點**繞一圈回到原位**（回頭再看一遍）
+ *   · `groundsInContext`→ 腳下的圈**往內收成一個實心的小盤**（站在有依據的地方）
  *
  * 硬規則（WORLD.md §2.2／§2.4／§6）：
  *   · **安靜、讀得懂**：演出時結果面還開著，它只能在背景發生，不准搶走寫字的回饋
@@ -22,7 +26,10 @@
  *   · 低畫質（`quality === 'low'`）→ 整層不播
  *
  * 一個世界只有**一組**演出道具（`stage`），播的時候搬到那一座石座腳下 ——
- * 主控台一次只開一關，所以永遠只有一座石座在演；四段可以同時播，同一段不疊加。
+ * 主控台一次只開一關，所以永遠只有一座石座在演；八段可以同時播，同一段不疊加。
+ *
+ * **借用石座自己的零件**（光柱、腳下的圈）只有一個歸還入口 `releaseBorrowed()` ——
+ * 收段、換石座、reset、切低畫質全部走它，借了就一定一寸不差地還回去（P09 審查 ①②④）。
  */
 import * as THREE from 'three';
 
@@ -30,16 +37,38 @@ import * as THREE from 'three';
  * check 名 → 演出（純資料；P10a 會把其餘 4 個檢查加進來）
  * ------------------------------------------------------------------ */
 
-/** 這一 phase 支援的四段演出：`check 名 → 演出 id`。 */
+/** 支援演出的八個檢查器：`check 名 → 演出 id`（P09 四個 ＋ P10a 四個）。 */
 export const RUBRIC_FX = Object.freeze({
   assignsTask: 'ring-sweep',
   specifiesFormat: 'chip-row',
   hasConstraint: 'measured-column',
   hasRole: 'mask-rim',
+  hasFewShot: 'pair-slabs',
+  hasDelimiters: 'frame-walls',
+  asksToVerify: 'return-light',
+  groundsInContext: 'ground-disc',
 });
 
-/** 目前鋪到哪幾片土地（P09 只在中央高原試水；P10a 鋪滿 12 區）。 */
-export const FX_REGIONS = Object.freeze(['foundations']);
+/**
+ * 鋪到哪幾片土地（P10a：12 區全開）。
+ *
+ * 整層只有**一組**道具（`stage` 搬到正在演的那一座），所以鋪滿 12 區加 0 個三角形、
+ * 0 盞燈、0 個碰撞體 —— 它就是一行常數。
+ */
+export const FX_REGIONS = Object.freeze([
+  'foundations',
+  'reasoning',
+  'grounding',
+  'orchestration',
+  'config',
+  'forms',
+  'toolcraft',
+  'wards',
+  'refinery',
+  'frugality',
+  'sight',
+  'divergence',
+]);
 
 /**
  * 這一條檢查有沒有對應的演出（純函式）。認不得的一律回 null ——
@@ -52,8 +81,9 @@ export function fxForCheck(check) {
   return Object.prototype.hasOwnProperty.call(RUBRIC_FX, check) ? RUBRIC_FX[check] : null;
 }
 
-/** 這一片土地現在演不演（P09：只有中央高原）。 */
+/** 這一片土地現在演不演（P10a：12 片全開；不是土地的一律 false）。 */
 export function fxEnabledIn(regionId) {
+  if (typeof regionId !== 'string' || !regionId) return false;
   return FX_REGIONS.indexOf(regionId) >= 0;
 }
 
@@ -61,18 +91,31 @@ export function fxEnabledIn(regionId) {
  * 演出參數（秒；全部是計時器，不是幀數）
  * ------------------------------------------------------------------ */
 
-/** 四段演出的順序（陣列 index ＝ 內部的 show id）。 */
-const SHOW_CHECKS = Object.freeze(['assignsTask', 'specifiesFormat', 'hasConstraint', 'hasRole']);
+/** 八段演出的順序（陣列 index ＝ 內部的 show id）。 */
+const SHOW_CHECKS = Object.freeze([
+  'assignsTask',
+  'specifiesFormat',
+  'hasConstraint',
+  'hasRole',
+  'hasFewShot',
+  'hasDelimiters',
+  'asksToVerify',
+  'groundsInContext',
+]);
 const SHOW_SWEEP = 0;
 const SHOW_CHIPS = 1;
 const SHOW_COLUMN = 2;
 const SHOW_RIM = 3;
-const SHOW_COUNT = 4;
+const SHOW_SLABS = 4;
+const SHOW_WALLS = 5;
+const SHOW_MOTE = 6;
+const SHOW_DISC = 7;
+const SHOW_COUNT = 8;
 /** 每一段的長度（秒）。全部 ≤ 2.5 —— 玩家還在讀結果面，演出不准拖。 */
-const SHOW_SECONDS = Object.freeze([2.0, 2.4, 2.4, 1.8]);
+const SHOW_SECONDS = Object.freeze([2.0, 2.4, 2.4, 1.8, 2.2, 2.0, 2.4, 2.2]);
 
-/** 粒子池（≤ 24 顆，一次配好）。 */
-export const PARTICLE_CAPACITY = 18;
+/** 粒子池（≤ 24 顆，一次配好）。八段同時播時 8×4 顆會回收最老的，池子大一點就少一點瞬滅。 */
+export const PARTICLE_CAPACITY = 24;
 /** 一段演出附帶幾顆碎光（安靜就好）。 */
 const BURST_PER_SHOW = 4;
 
@@ -95,6 +138,23 @@ const COLUMN_SEGMENT = 6.4;
 const COLUMN_FULL = 34;
 /** 刻度環的高度（等距四道：量得出來的長度）。 */
 const TICK_Y = Object.freeze([1.6, 3.2, 4.8, 6.4]);
+
+/** 兩塊小石板：躺在地上的位置 → 浮碑兩側的終位（成對，永遠同高）。 */
+const SLAB_X = 1.18;
+const SLAB_REST_Y = 0.08;
+const SLAB_UP_Y = 2.32;
+const SLAB_TILT = 0.22;
+
+/** 四道短牆：離石座中心多遠、多高（升起來的是 scale.y，底一直踩在地上）。 */
+const WALL_R = 3.05;
+const WALL_H = 1.05;
+
+/** 繞一圈的小光點：繞多大一圈、繞在浮碑的哪個高度。 */
+const MOTE_R = 1.42;
+const MOTE_Y = 2.5;
+
+/** 腳下的圈往內收到剩幾成（1 ＝ 原樣）。 */
+const DISC_SHRINK = 0.42;
 
 /** 沒有色盤時的退路（灰藍；絕不用暖金）。 */
 const FALLBACK_ACCENT = 0x8aa0b4;
@@ -132,10 +192,17 @@ const g = (k, make) => {
  * 材質也沒有納管——一支「只清一半」的函式比沒有更危險。世界目前沒有重建路徑。
  */
 
-/* 三角形預算：掃亮圈 128 ＋ 碎石 5×12 ＝ 60 ＋ 刻度 4×40 ＝ 160 ＋ 面具輪廓 8 ＝ 356。 */
+/*
+ * 三角形預算：掃亮圈 128 ＋ 碎石 5×12 ＝ 60 ＋ 刻度 4×40 ＝ 160 ＋ 面具輪廓 8 ＝ 356（P09）
+ * ＋ 石板 2×12 ＝ 24 ＋ 短牆 4×12 ＝ 48 ＋ 小光點 8 ＋ 實心小盤 36 ＝ 116（P10a）＝ 472。
+ */
 const chipGeo = () => g('chip', () => new THREE.BoxGeometry(0.26, 0.05, 0.17));
 const tickGeo = () => g('tick', () => new THREE.RingGeometry(0.42, 0.62, 20, 1));
 const rimGeo = () => g('rim', () => new THREE.OctahedronGeometry(0.95, 0));
+const slabGeo = () => g('slab', () => new THREE.BoxGeometry(0.52, 0.07, 0.34));
+const wallGeo = () => g('wall', () => new THREE.BoxGeometry(2.4, WALL_H, 0.14));
+const moteGeo = () => g('mote', () => new THREE.OctahedronGeometry(0.15, 0));
+const discGeo = () => g('disc', () => new THREE.CircleGeometry(1.06, 36));
 
 /**
  * 建立石座演出層。
@@ -236,6 +303,81 @@ export function createRubricFx({ kitOf = null, reducedMotion = false, qualityOf 
   rim.userData.noCollide = true;
   stage.add(rim);
 
+  /* --- ⑤ 兩塊小石板：在浮碑兩側成對浮起（給它看兩組樣子） --- */
+  const slabMat = new THREE.MeshBasicMaterial({
+    color: FALLBACK_LIGHT,
+    transparent: true,
+    opacity: 0,
+    depthWrite: false,
+  });
+  const slabs = [];
+  for (let i = 0; i < 2; i += 1) {
+    const slab = new THREE.Mesh(slabGeo(), slabMat);
+    slab.name = `slab:${i}`;
+    // 一左一右，各自朝內側斜一點點（像兩張攤開給人看的樣張）
+    slab.rotation.z = i === 0 ? SLAB_TILT : -SLAB_TILT;
+    slab.visible = false;
+    slab.userData.noCollide = true;
+    stage.add(slab);
+    slabs.push(slab);
+  }
+
+  /* --- ⑥ 四道短牆：升起來圍成一個方框（把料跟話隔開） --- */
+  const wallMat = new THREE.MeshBasicMaterial({
+    color: FALLBACK_ACCENT,
+    transparent: true,
+    opacity: 0,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+  });
+  const walls = [];
+  for (let i = 0; i < 4; i += 1) {
+    const wall = new THREE.Mesh(wallGeo(), wallMat);
+    wall.name = `wall:${i}`;
+    // 0/1 前後、2/3 左右 —— 四道對稱，圍出來的是方框
+    if (i < 2) wall.position.set(0, 0, i === 0 ? WALL_R : -WALL_R);
+    else {
+      wall.position.set(i === 2 ? WALL_R : -WALL_R, 0, 0);
+      wall.rotation.y = Math.PI / 2;
+    }
+    wall.visible = false;
+    wall.userData.noCollide = true;
+    stage.add(wall);
+    walls.push(wall);
+  }
+
+  /* --- ⑦ 繞一圈回到原位的小光點（回頭再看一遍） --- */
+  const moteMat = new THREE.MeshBasicMaterial({
+    color: FALLBACK_LIGHT,
+    transparent: true,
+    opacity: 0,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+  });
+  const mote = new THREE.Mesh(moteGeo(), moteMat);
+  mote.name = 'return-light';
+  mote.position.set(MOTE_R, MOTE_Y, 0);
+  mote.visible = false;
+  mote.userData.noCollide = true;
+  stage.add(mote);
+
+  /* --- ⑧ 腳下的圈收成一個實心的小盤（站在有依據的地方） --- */
+  const discMat = new THREE.MeshBasicMaterial({
+    color: FALLBACK_ACCENT,
+    transparent: true,
+    opacity: 0,
+    side: THREE.DoubleSide,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+  });
+  const disc = new THREE.Mesh(discGeo(), discMat);
+  disc.name = 'ground-disc';
+  disc.rotation.x = -Math.PI / 2;
+  disc.position.y = 0.05;
+  disc.visible = false;
+  disc.userData.noCollide = true;
+  stage.add(disc);
+
   /* --- 粒子池：一組共用的 Points，buffer 一次配好（零每幀配置） --- */
   const N = PARTICLE_CAPACITY;
   const pPos = new Float32Array(N * 3);
@@ -275,6 +417,10 @@ export function createRubricFx({ kitOf = null, reducedMotion = false, qualityOf 
   let beaconScale0 = 1;
   let beaconY0 = 0;
   let beaconBorrowed = false;
+  /** 腳下那個圈借用前的原樣（同上；它的縮放沒有別人在動，透明度才是石座自己的）。 */
+  let ringScaleX0 = 1;
+  let ringScaleY0 = 1;
+  let ringBorrowed = false;
   let activeShows = 0;
 
   /** 找一顆沒在用的粒子（沒有就回收最老的一顆）。 */
@@ -330,14 +476,33 @@ export function createRubricFx({ kitOf = null, reducedMotion = false, qualityOf 
     pGeo.attributes.position.needsUpdate = true;
   }
 
-  /** 把借來的光柱還回去（一寸不差）。 */
-  function releaseBeacon() {
-    if (!beaconBorrowed) return;
-    if (current && current.beacon) {
-      current.beacon.scale.y = beaconScale0;
-      current.beacon.position.y = beaconY0;
+  /* 借用石座零件的旗標（單一歸還入口 `releaseBorrowed()` 用）。 */
+  const BORROW_BEACON = 1;
+  const BORROW_RING = 2;
+  const BORROW_ALL = 3;
+
+  /**
+   * 把借來的石座零件還回去（一寸不差）。
+   *
+   * **唯一的歸還入口**：收段（`endShow`）、換石座、`reset()`、演到一半切低畫質
+   * 全部走這裡，所以不會有「借了沒還」或「還了兩次」的路徑（P09 審查 ①②④）。
+   * @param {number} what BORROW_BEACON / BORROW_RING / BORROW_ALL
+   */
+  function releaseBorrowed(what) {
+    if (what & BORROW_BEACON && beaconBorrowed) {
+      if (current && current.beacon) {
+        current.beacon.scale.y = beaconScale0;
+        current.beacon.position.y = beaconY0;
+      }
+      beaconBorrowed = false;
     }
-    beaconBorrowed = false;
+    if (what & BORROW_RING && ringBorrowed) {
+      if (current && current.ring) {
+        current.ring.scale.x = ringScaleX0;
+        current.ring.scale.y = ringScaleY0;
+      }
+      ringBorrowed = false;
+    }
   }
 
   /** 收掉某一段（把它的道具藏起來）。 */
@@ -356,10 +521,23 @@ export function createRubricFx({ kitOf = null, reducedMotion = false, qualityOf 
     } else if (k === SHOW_COLUMN) {
       tickMat.opacity = 0;
       for (let i = 0; i < ticks.length; i += 1) ticks[i].visible = false;
-      releaseBeacon();
-    } else {
+      releaseBorrowed(BORROW_BEACON);
+    } else if (k === SHOW_RIM) {
       rim.visible = false;
       rimMat.opacity = 0;
+    } else if (k === SHOW_SLABS) {
+      slabMat.opacity = 0;
+      for (let i = 0; i < slabs.length; i += 1) slabs[i].visible = false;
+    } else if (k === SHOW_WALLS) {
+      wallMat.opacity = 0;
+      for (let i = 0; i < walls.length; i += 1) walls[i].visible = false;
+    } else if (k === SHOW_MOTE) {
+      mote.visible = false;
+      moteMat.opacity = 0;
+    } else {
+      disc.visible = false;
+      discMat.opacity = 0;
+      releaseBorrowed(BORROW_RING);
     }
   }
 
@@ -382,6 +560,8 @@ export function createRubricFx({ kitOf = null, reducedMotion = false, qualityOf 
   /** 全部收掉（換石座／reset／低畫質）。 */
   function endAll() {
     for (let k = 0; k < SHOW_COUNT; k += 1) endShow(k);
+    // 保險：即使某一段從沒開演過，借出去的東西也一定還回去（單一歸還入口）
+    releaseBorrowed(BORROW_ALL);
     killParticles();
     stage.visible = false;
   }
@@ -422,10 +602,53 @@ export function createRubricFx({ kitOf = null, reducedMotion = false, qualityOf 
         beaconBorrowed = true;
       }
       if (!reducedMotion) for (let i = 0; i < BURST_PER_SHOW; i += 1) spawnBurst(0.35, TICK_Y[i % TICK_Y.length], 0.35, i + 2);
-    } else {
+    } else if (k === SHOW_RIM) {
       rim.visible = true;
       rimMat.opacity = 0;
       if (!reducedMotion) for (let i = 0; i < BURST_PER_SHOW; i += 1) spawnBurst(0, 2.5, 0, i + 3);
+    } else if (k === SHOW_SLABS) {
+      slabMat.opacity = 0;
+      for (let i = 0; i < slabs.length; i += 1) {
+        const slab = slabs[i];
+        slab.visible = true;
+        const sx = i === 0 ? -SLAB_X : SLAB_X;
+        // reducedMotion 終態：已經浮到浮碑兩側（不做位移）
+        slab.position.set(sx, reducedMotion ? SLAB_UP_Y : SLAB_REST_Y, 0);
+      }
+      if (!reducedMotion) {
+        for (let i = 0; i < BURST_PER_SHOW; i += 1) spawnBurst(i % 2 === 0 ? -SLAB_X : SLAB_X, 0.12, 0, i + 4);
+      }
+    } else if (k === SHOW_WALLS) {
+      wallMat.opacity = 0;
+      for (let i = 0; i < walls.length; i += 1) {
+        const wall = walls[i];
+        wall.visible = true;
+        // 升起來的是 scale.y，位置跟著半高走 —— 牆底永遠踩在地上
+        const sy = reducedMotion ? 1 : 0.02;
+        wall.scale.y = sy;
+        wall.position.y = WALL_H * 0.5 * sy;
+      }
+      if (!reducedMotion) {
+        for (let i = 0; i < BURST_PER_SHOW; i += 1) {
+          spawnBurst(i < 2 ? 0 : i === 2 ? WALL_R : -WALL_R, 0.1, i < 2 ? (i === 0 ? WALL_R : -WALL_R) : 0, i + 5);
+        }
+      }
+    } else if (k === SHOW_MOTE) {
+      mote.visible = true;
+      moteMat.opacity = 0;
+      // 起點＝終點：繞一圈回到原位（reducedMotion 就停在這裡，只亮起來）
+      mote.position.set(MOTE_R, MOTE_Y, 0);
+      if (!reducedMotion) for (let i = 0; i < BURST_PER_SHOW; i += 1) spawnBurst(MOTE_R, MOTE_Y, 0, i + 6);
+    } else {
+      disc.visible = true;
+      discMat.opacity = 0;
+      // 借腳下那個圈：把它往內收（reducedMotion 不借 —— 那是位移，不是亮起）
+      if (!reducedMotion && current && current.ring) {
+        ringScaleX0 = current.ring.scale.x;
+        ringScaleY0 = current.ring.scale.y;
+        ringBorrowed = true;
+      }
+      if (!reducedMotion) for (let i = 0; i < BURST_PER_SHOW; i += 1) spawnBurst(0, 0.12, 0, i + 7);
     }
   }
 
@@ -436,8 +659,12 @@ export function createRubricFx({ kitOf = null, reducedMotion = false, qualityOf 
     const light = kit && Number.isFinite(kit.light) ? kit.light : FALLBACK_LIGHT;
     sweepMat.color.setHex(accent);
     tickMat.color.setHex(accent);
+    wallMat.color.setHex(accent);
+    discMat.color.setHex(accent);
     chipMat.color.setHex(light);
     rimMat.color.setHex(light);
+    slabMat.color.setHex(light);
+    moteMat.color.setHex(light);
     pMat.color.setHex(light);
   }
 
@@ -606,6 +833,85 @@ export function createRubricFx({ kitOf = null, reducedMotion = false, qualityOf 
             rim.rotation.y = shard.rotation.y;
             rim.rotation.z = shard.rotation.z;
           }
+        }
+      }
+
+      /* --- ⑤ 兩塊小石板成對浮起，再落回 --- */
+      if (showOn[SHOW_SLABS] === 1) {
+        const dur = SHOW_SECONDS[SHOW_SLABS];
+        showT[SHOW_SLABS] += adt;
+        const st = showT[SHOW_SLABS];
+        if (st >= dur) endShow(SHOW_SLABS);
+        else {
+          slabMat.opacity = 0.7 * envelope(st, dur, 0.22, 0.42);
+          if (!reducedMotion) {
+            const u = st / dur;
+            // 0–0.4 浮起；0.4–0.74 停在浮碑兩側；0.74–1 落回
+            const w = u < 0.4 ? smooth(u / 0.4) : u < 0.74 ? 1 : 1 - smooth((u - 0.74) / 0.26);
+            const y = SLAB_REST_Y + (SLAB_UP_Y - SLAB_REST_Y) * w;
+            // 兩塊**成對**：同一個 w、同一個高度，一起上一起下
+            for (let i = 0; i < slabs.length; i += 1) slabs[i].position.y = y;
+          }
+        }
+      }
+
+      /* --- ⑥ 四道短牆升起圍成方框 --- */
+      if (showOn[SHOW_WALLS] === 1) {
+        const dur = SHOW_SECONDS[SHOW_WALLS];
+        showT[SHOW_WALLS] += adt;
+        const st = showT[SHOW_WALLS];
+        if (st >= dur) endShow(SHOW_WALLS);
+        else {
+          wallMat.opacity = 0.34 * envelope(st, dur, 0.2, 0.44);
+          if (!reducedMotion) {
+            const u = st / dur;
+            // 0–0.36 升起；之後就站在那裡（收尾靠透明度淡出，不用再降下去）
+            const w = 0.02 + 0.98 * smooth(clamp01(u / 0.36));
+            for (let i = 0; i < walls.length; i += 1) {
+              walls[i].scale.y = w;
+              walls[i].position.y = WALL_H * 0.5 * w;
+            }
+          }
+        }
+      }
+
+      /* --- ⑦ 小光點繞浮碑一圈、回到原位 --- */
+      if (showOn[SHOW_MOTE] === 1) {
+        const dur = SHOW_SECONDS[SHOW_MOTE];
+        showT[SHOW_MOTE] += adt;
+        const st = showT[SHOW_MOTE];
+        if (st >= dur) endShow(SHOW_MOTE);
+        else {
+          moteMat.opacity = 0.62 * envelope(st, dur, 0.2, 0.4);
+          const shardM = current ? current.shard : null;
+          const baseY = shardM ? shardM.position.y : MOTE_Y;
+          if (reducedMotion) mote.position.y = baseY;
+          else {
+            // 0–0.86 繞完一整圈（回到出發的角度），之後停在原位
+            const a = smooth(clamp01(st / (dur * 0.86))) * Math.PI * 2;
+            mote.position.x = Math.cos(a) * MOTE_R;
+            mote.position.z = Math.sin(a) * MOTE_R;
+            mote.position.y = baseY;
+          }
+        }
+      }
+
+      /* --- ⑧ 腳下的圈往內收成一個實心的小盤 --- */
+      if (showOn[SHOW_DISC] === 1) {
+        const dur = SHOW_SECONDS[SHOW_DISC];
+        showT[SHOW_DISC] += adt;
+        const st = showT[SHOW_DISC];
+        if (st >= dur) endShow(SHOW_DISC);
+        else {
+          const u = st / dur;
+          // 0–0.34 往內收；0.34–0.76 停成一個小盤；0.76–1 放回去
+          const w = u < 0.34 ? smooth(u / 0.34) : u < 0.76 ? 1 : 1 - smooth(clamp01((u - 0.76) / 0.24));
+          if (ringBorrowed && current && current.ring) {
+            const s = 1 + (DISC_SHRINK - 1) * w;
+            current.ring.scale.x = ringScaleX0 * s;
+            current.ring.scale.y = ringScaleY0 * s;
+          }
+          discMat.opacity = 0.34 * envelope(st, dur, 0.26, 0.44) * (reducedMotion ? 1 : w);
         }
       }
 

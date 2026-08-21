@@ -348,16 +348,17 @@ function boot() {
      * v1.2 · P03：命中的檢查看得見 —— recorder 回傳後、畫結果之前，主控台回呼一次。
      * 濁靈：每一條新命中剝一層殼（世界端演出）＋ 一下輕脈衝 ＋ 每殼一聲 murkHit
      * （最多 3 聲、隔 90ms 用 setTimeout 排開；音高層依累積命中數 1/2/3+）。
-     * 關卡（kind 缺省）：v1.2 · P09 接石座 —— 新命中的 rubric index 換成**檢查器的名字**，
+     * 關卡（kind 缺省）：v1.2 · P09／P10a 接石座 —— 新命中的 rubric index 換成**檢查器的名字**，
      * 交給 `world.rubricFx` 在石座旁演一段（腳下的圈掃亮／碎石排成一列／光柱收成一段／
-     * 浮碑戴上輪廓光）。演出時結果面還開著，所以脈衝比濁靈輕（0.18 < 0.28）、不加音效。
+     * 浮碑戴上輪廓光／小石板成對浮起／四道短牆圍成方框／小光點繞一圈／腳下的圈收成小盤）。
+     * 演出時結果面還開著，所以脈衝比濁靈輕（0.18 < 0.28）、不加音效。
      */
     onRubricHits: (hits) => {
       lastRubricHits = hits;
       const ch = hits && hits.challenge;
       if (!ch) return;
       if (ch.kind !== 'murk') {
-        // 石座（kind 缺省）：只演本 phase 支援的 4 個檢查、且只在鋪到的區
+        // 石座（kind 缺省）：只演有對應演出的那 8 個檢查，且只在鋪到的區（P10a：12 區全開）
         const newlyIdx = Array.isArray(hits.newlyPassedIndices) ? hits.newlyPassedIndices : [];
         if (!newlyIdx.length) return;
         const marker = world.markers.find((m) => m.id === ch.id);

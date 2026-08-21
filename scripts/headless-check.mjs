@@ -16818,19 +16818,30 @@ async function main() {
       fx.reset();
       const marker = g.world.markers.find((m) => m.id === 'gate-of-clarity-01');
       const beacon0 = { scale: marker.beacon.scale.y, y: marker.beacon.position.y };
+      const ring0 = marker.ring.scale.x;
       const started = fx.play(marker, ['assignsTask', 'specifiesFormat', 'hasConstraint', 'hasRole']);
       const st = fx.state();
       return {
         started,
         playing: st.playing.map((p) => p.check).sort(),
         beacon0,
-        // 不支援的檢查一律不演出（P10a 才接）
-        unsupported: fx.play(marker, ['hasFewShot', 'hasDelimiters', 'asksToVerify', 'groundsInContext']),
+        ring0,
+        // P10a 的四段接上之後，八段可以同時播
+        more: fx.play(marker, ['hasFewShot', 'hasDelimiters', 'asksToVerify', 'groundsInContext']),
+        // 沒有對應演出的檢查一律不演出
+        unsupported: fx.play(marker, ['positiveFraming', 'keepsPromptLean']),
+        playingAll: fx.state().playing.map((p) => p.check).sort(),
       };
     `);
     eq(fxAll.started, 4, '四段可以同時開演');
     eq(JSON.stringify(fxAll.playing), JSON.stringify(['assignsTask', 'hasConstraint', 'hasRole', 'specifiesFormat']), '四段就是 spec 的那四條');
-    eq(fxAll.unsupported, 0, 'P10a 那四個檢查這一 phase 不演出');
+    eq(fxAll.more, 4, 'P10a 的四段也接上了（八段可以同時播）');
+    eq(
+      JSON.stringify(fxAll.playingAll),
+      JSON.stringify(['asksToVerify', 'assignsTask', 'groundsInContext', 'hasConstraint', 'hasDelimiters', 'hasFewShot', 'hasRole', 'specifiesFormat']),
+      '八段同時在演，就是 RUBRIC_FX 的那八條'
+    );
+    eq(fxAll.unsupported, 0, '沒有對應演出的檢查一律不演出');
     // 光柱真的被收成一段（輪詢）
     const fxColumn = await waitFor(async () => {
       const r = await evaluate(`
@@ -16847,6 +16858,30 @@ async function main() {
       `);
       return r.scale < fxAll.beacon0.scale * 0.5 && r.tick > 0 ? r : null;
     }, { timeout: 8000, label: '光柱收成有刻度的一段' });
+    // P10a 的四段也真的動了（同一次八段同播；輪詢，不用固定 sleep）
+    const fxNew = await waitFor(async () => {
+      const r = await evaluate(`
+        const g = window.__promptasy;
+        const fx = g.world.rubricFx;
+        const m = g.world.markers.find((x) => x.id === 'gate-of-clarity-01');
+        const w0 = fx.group.getObjectByName('wall:0');
+        return {
+          slabY: fx.group.getObjectByName('slab:0').position.y,
+          slabPaired: fx.group.getObjectByName('slab:0').position.y === fx.group.getObjectByName('slab:1').position.y,
+          wallScale: w0.scale.y,
+          wallFoot: Math.abs(w0.position.y - w0.geometry.parameters.height * 0.5 * w0.scale.y),
+          ringScale: m.ring.scale.x,
+          disc: fx.group.getObjectByName('ground-disc').material.opacity,
+        };
+      `);
+      return r.slabY > 1.2 && r.wallScale > 0.5 && r.disc > 0 && r.ringScale < 0.9 ? r : null;
+    }, { timeout: 8000, label: 'P10a 的四段也演起來了' });
+    ok(fxNew.slabY > 1.2, '兩塊小石板浮到浮碑旁了', String(fxNew.slabY));
+    eq(fxNew.slabPaired, true, '兩塊是**成對**浮起（永遠同高）');
+    ok(fxNew.wallScale > 0.5, '四道短牆升起來了', String(fxNew.wallScale));
+    ok(fxNew.wallFoot < 1e-6, '牆底踩在地上（不飄）', String(fxNew.wallFoot));
+    ok(fxNew.disc > 0, '腳下收成的實心小盤亮起來了', String(fxNew.disc));
+    ok(fxNew.ringScale < 0.9, '腳下的圈真的往內收了', String(fxNew.ringScale));
     ok(fxColumn.scale < fxAll.beacon0.scale * 0.5, '光柱從無限高收成一段', String(fxColumn.scale));
     ok(fxColumn.y < fxAll.beacon0.y * 0.5, '收短時底還踩在地上', String(fxColumn.y));
     ok(fxColumn.tick > 0, '刻度亮起來了（量得出來的長度）', String(fxColumn.tick));
@@ -16859,13 +16894,46 @@ async function main() {
         const m = g.world.markers.find((x) => x.id === 'gate-of-clarity-01');
         const fx = g.world.rubricFx;
         const st = fx.state();
-        return { playing: st.playing.length, particles: st.particlesActive, scale: m.beacon.scale.y, y: m.beacon.position.y };
+        return { playing: st.playing.length, particles: st.particlesActive, scale: m.beacon.scale.y, y: m.beacon.position.y, ring: m.ring.scale.x };
       `);
       return r.playing === 0 ? r : null;
     }, { timeout: 9000, label: '四段全部演完' });
-    eq(fxRestored.playing, 0, '四段全部 ≤ 2.5 秒內收乾淨');
+    eq(fxRestored.playing, 0, '八段全部 ≤ 2.5 秒內收乾淨');
     eq(fxRestored.scale, fxAll.beacon0.scale, '光柱的縮放一寸不差地還回去');
     eq(fxRestored.y, fxAll.beacon0.y, '光柱的高度一寸不差地還回去');
+    eq(fxRestored.ring, fxAll.ring0, '腳下的圈也一寸不差地還回去');
+
+    /* --- 小光點：繞一圈**回到原位**（起點就是終點，所以要在頁面裡逐幀取樣才驗得出來） --- */
+    const fxMote = await evaluate(`
+      const g = window.__promptasy;
+      const fx = g.world.rubricFx;
+      fx.reset();
+      const m = g.world.markers.find((x) => x.id === 'gate-of-clarity-01');
+      const started = fx.play(m, ['asksToVerify']);
+      const mote = fx.group.getObjectByName('return-light');
+      const sx = mote.position.x;
+      const sz = mote.position.z;
+      let maxAway = 0;
+      let last = 0;
+      let lastOpacity = 0;
+      const t0 = performance.now();
+      // 逐幀取樣（不是固定 sleep）：演完就跳出，最多等 12 秒（軟體渲染一幀 0.2 秒）
+      while (fx.state().playing.length > 0 && performance.now() - t0 < 12000) {
+        await new Promise((r) => requestAnimationFrame(r));
+        const d = Math.hypot(mote.position.x - sx, mote.position.z - sz);
+        if (fx.state().playing.length > 0) {
+          last = d;
+          lastOpacity = mote.material.opacity;
+          if (d > maxAway) maxAway = d;
+        }
+      }
+      return { started, maxAway, last, lastOpacity, playing: fx.state().playing.length };
+    `);
+    eq(fxMote.started, 1, '（前提）小光點那一段開演了');
+    ok(fxMote.maxAway > 1.5, '小光點真的繞出去了（離出發點最遠 > 1.5 公尺）', String(fxMote.maxAway));
+    ok(fxMote.last < 0.35, '最後回到原位（繞一圈，不是繞不停）', String(fxMote.last));
+    ok(fxMote.lastOpacity > 0, '繞的時候看得見', String(fxMote.lastOpacity));
+    eq(fxMote.playing, 0, '小光點那一段 ≤ 2.5 秒自己收乾淨');
 
     /* --- 其他片土地這一 phase 不演出（P09 只在中央高原試水） --- */
     const fxRegion = await evaluate(`
@@ -16880,13 +16948,54 @@ async function main() {
         otherRegion: other ? other.region : null,
         enabledOther: other ? mod.fxEnabledIn(other.region) : null,
         enabledFoundations: mod.fxEnabledIn('foundations'),
+        enabledNowhere: mod.fxEnabledIn('nowhere'),
         regions: JSON.stringify(mod.FX_REGIONS),
         before,
       };
     `);
-    eq(fxRegion.regions, JSON.stringify(['foundations']), 'P09 只鋪中央高原（P10a 鋪 12 區）');
+    eq(JSON.parse(fxRegion.regions).length, 12, 'P10a：十二片土地全部鋪上演出');
     eq(fxRegion.enabledFoundations, true, '中央高原有演出');
-    eq(fxRegion.enabledOther, false, `其他片土地（${fxRegion.otherRegion}）這一 phase 不演出`);
+    eq(fxRegion.enabledOther, true, `其他片土地（${fxRegion.otherRegion}）這一 phase 也演出了`);
+    eq(fxRegion.enabledNowhere, false, '不是土地的字串仍然不演出');
+
+    /* --- 鋪區真的生效：在**別的區**開一關、送一句 → 石座旁真的演起來（走 main.js 的整條路） --- */
+    const fxOtherRegion = await evaluate(`
+      const g = window.__promptasy;
+      const c = g.promptConsole;
+      const fx = g.world.rubricFx;
+      fx.reset();
+      if (c.isOpen) c.close();
+      await new Promise((r) => setTimeout(r, 240));
+      const other = g.world.markers.find((m) => m.region !== 'foundations' && (m.challenge.rubric || []).some((r) => r.check === 'assignsTask'));
+      c.open(g.content.challenge(other.id));
+      await new Promise((r) => setTimeout(r, 340));
+      if (c.mode !== 'free') c.setMode('free');
+      c.goAct(3, { force: true });
+      await new Promise((r) => setTimeout(r, 240));
+      const ta = document.querySelector('#prompt-console .prompt-input');
+      ta.value = ${JSON.stringify(ONLY_TASK)};
+      document.querySelector('#prompt-console [data-submit]').click();
+      const hits = g.rubricHits();
+      const st = fx.state();
+      const out = {
+        id: other.id,
+        region: other.region,
+        newly: hits.newlyPassedIndices.slice(),
+        playing: st.playing.map((p) => p.check),
+        markerId: st.playing.length ? st.playing[0].markerId : null,
+      };
+      c.close();
+      await new Promise((r) => setTimeout(r, 240));
+      return out;
+    `);
+    ok(fxOtherRegion.region !== 'foundations', `（前提）挑到的是別片土地（${fxOtherRegion.region}）`);
+    ok(fxOtherRegion.newly.length > 0, '（前提）那一句在別的區也有新命中', JSON.stringify(fxOtherRegion.newly));
+    ok(fxOtherRegion.playing.length > 0, '別片土地的石座也演起來了（鋪區真的生效）', fxOtherRegion.playing.join(','));
+    eq(fxOtherRegion.markerId, fxOtherRegion.id, '演在那一座石座上');
+    await waitFor(async () => {
+      const r = await evaluate(`return window.__promptasy.world.rubricFx.state().playing.length;`);
+      return r === 0 ? true : null;
+    }, { timeout: 9000, label: '別片土地的演出也自己結束' });
 
     /* --- 進度重置：世界端的演出跟著歸零（WORLD §8 G24b） --- */
     const fxReset = await evaluate(`

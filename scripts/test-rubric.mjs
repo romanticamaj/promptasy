@@ -14412,28 +14412,47 @@ console.log('\n▸ 石座演出（v1.2 · P09）');
   /* --- ① 純函式：check 名 → 演出 id --- */
   {
     eq(typeof Fx.fxForCheck, 'function', 'rubric-fx.js 匯出 fxForCheck(check)');
-    eq(Object.keys(Fx.RUBRIC_FX).length, 4, 'P09 只對應 4 個檢查器');
+    eq(Object.keys(Fx.RUBRIC_FX).length, 8, 'P10a：八個檢查器都有演出');
     eq(
       JSON.stringify(Object.keys(Fx.RUBRIC_FX).sort()),
-      JSON.stringify(['assignsTask', 'hasConstraint', 'hasRole', 'specifiesFormat']),
-      '對應表就是 spec 的那四條（assignsTask / specifiesFormat / hasConstraint / hasRole）'
+      JSON.stringify([
+        'asksToVerify',
+        'assignsTask',
+        'groundsInContext',
+        'hasConstraint',
+        'hasDelimiters',
+        'hasFewShot',
+        'hasRole',
+        'specifiesFormat',
+      ]),
+      '對應表就是 spec 的那八條（P09 四條 ＋ P10a 四條）'
     );
     eq(Fx.fxForCheck('assignsTask'), 'ring-sweep', 'assignsTask → 腳下的圈掃亮一圈');
     eq(Fx.fxForCheck('specifiesFormat'), 'chip-row', 'specifiesFormat → 碎石排成一列');
     eq(Fx.fxForCheck('hasConstraint'), 'measured-column', 'hasConstraint → 光柱收成有刻度的一段');
     eq(Fx.fxForCheck('hasRole'), 'mask-rim', 'hasRole → 浮碑戴上面具般的輪廓光');
-    eq(new Set(Object.values(Fx.RUBRIC_FX)).size, 4, '四個演出 id 沒有重複');
-    for (const other of ['hasFewShot', 'hasDelimiters', 'asksToVerify', 'groundsInContext', 'positiveFraming']) {
-      eq(Fx.fxForCheck(other), null, `${other} 這一 phase 不演出（P10a 才接）`);
+    eq(Fx.fxForCheck('hasFewShot'), 'pair-slabs', 'hasFewShot → 兩塊小石板成對浮起');
+    eq(Fx.fxForCheck('hasDelimiters'), 'frame-walls', 'hasDelimiters → 四道短牆升起圍成方框');
+    eq(Fx.fxForCheck('asksToVerify'), 'return-light', 'asksToVerify → 一顆小光點繞一圈回到原位');
+    eq(Fx.fxForCheck('groundsInContext'), 'ground-disc', 'groundsInContext → 腳下的圈往內收成實心的小盤');
+    eq(new Set(Object.values(Fx.RUBRIC_FX)).size, 8, '八個演出 id 沒有重複');
+    for (const other of ['positiveFraming', 'asksForPlanFirst', 'keepsPromptLean']) {
+      eq(Fx.fxForCheck(other), null, `${other} 沒有演出（只有那八條有）`);
     }
     for (const bad of ['', 'constructor', 'toString', '__proto__', 'hasOwnProperty']) {
       eq(Fx.fxForCheck(bad), null, `fxForCheck(${JSON.stringify(bad)}) 回 null（不會漏原型鍊上的東西）`);
     }
     eq(Fx.fxForCheck(null), null, 'fxForCheck(null) 回 null');
     eq(Fx.fxForCheck(123), null, 'fxForCheck(數字) 回 null');
-    eq(JSON.stringify(Fx.FX_REGIONS), JSON.stringify(['foundations']), 'P09 只在中央高原試水（P10a 鋪 12 區）');
-    eq(Fx.fxEnabledIn('foundations'), true, '中央高原有演出');
-    eq(Fx.fxEnabledIn('reasoning'), false, '其他片土地這一 phase 不演出');
+    eq(Fx.FX_REGIONS.length, 12, 'P10a：十二片土地全部鋪上演出');
+    eq(
+      JSON.stringify(Fx.FX_REGIONS.slice().sort()),
+      JSON.stringify(catalog.implementedRegionIds().slice().sort()),
+      'FX_REGIONS 就是世界上那 12 片土地（一片不多、一片不少）'
+    );
+    for (const id of catalog.implementedRegionIds()) eq(Fx.fxEnabledIn(id), true, `${id} 有演出（12 區全開）`);
+    eq(Fx.fxEnabledIn('nowhere'), false, '不存在的區域仍然不演出');
+    eq(Fx.fxEnabledIn(null), false, 'fxEnabledIn(null) 不演出');
     // 每一個對應到的檢查器都真的存在（不准對著不存在的 check 演）
     for (const name of Object.keys(Fx.RUBRIC_FX)) ok(CHECK_IDS.includes(name), `${name} 是真的檢查器`, name);
   }
@@ -14467,7 +14486,7 @@ console.log('\n▸ 石座演出（v1.2 · P09）');
     eq(World.collectSolids(fx.group, World.terrainHeight).length, 0, '演出層一個碰撞體都不進 collectSolids');
 
     // 未命中的檢查不演出
-    eq(fx.play(marker, ['hasFewShot']), 0, '不支援的檢查 → 不演出');
+    eq(fx.play(marker, ['positiveFraming']), 0, '不支援的檢查 → 不演出');
     eq(fx.play(marker, []), 0, '空清單 → 不演出');
     eq(fx.play(null, ['assignsTask']), 0, '沒有石座 → 不演出');
     eq(JSON.stringify(fx.state().playing), '[]', '以上都沒有留下任何演出');
@@ -14590,6 +14609,162 @@ console.log('\n▸ 石座演出（v1.2 · P09）');
     fx2.reset();
   }
 
+  /* --- ③b P10a 的四段：成對石板／方框短牆／繞一圈的光點／收成實心的小盤 --- */
+  {
+    const marker = testWorld.markers.find((m) => m.id === 'gate-of-clarity-01');
+    const fx = Fx.createRubricFx({ kitOf: kitOfFx, qualityOf: () => 'high' });
+
+    // hasFewShot：兩塊小石板在浮碑兩側成對浮起
+    eq(fx.play(marker, ['hasFewShot']), 1, 'hasFewShot 開演一段');
+    const slabL = fx.group.getObjectByName('slab:0');
+    const slabR = fx.group.getObjectByName('slab:1');
+    ok(Boolean(slabL) && Boolean(slabR), '找得到兩塊小石板');
+    ok(slabL.position.y < 0.3 && slabR.position.y < 0.3, '一開始躺在地上', `${slabL.position.y}`);
+    ok(slabL.position.x < 0 && slabR.position.x > 0, '一左一右在浮碑兩側');
+    for (let i = 0; i < 20; i += 1) fx.update(0.05, i * 0.05);
+    ok(slabL.position.y > 1.4, '浮起來了', String(slabL.position.y));
+    eq(slabL.position.y, slabR.position.y, '**成對**浮起（兩塊永遠同高）');
+    ok(slabL.material.opacity > 0, '看得見');
+    for (let i = 0; i < 50; i += 1) fx.update(0.05, 1 + i * 0.05);
+    eq(JSON.stringify(fx.state().playing), '[]', '≤ 2.5 秒收乾淨');
+    eq(slabL.visible, false, '演完藏起來');
+    fx.reset();
+
+    // hasDelimiters：四道短牆升起圍成方框
+    eq(fx.play(marker, ['hasDelimiters']), 1, 'hasDelimiters 開演一段');
+    const walls = [0, 1, 2, 3].map((i) => fx.group.getObjectByName(`wall:${i}`));
+    ok(walls.every(Boolean), '找得到四道短牆');
+    ok(walls.every((w) => w.scale.y < 0.2), '一開始還沒升起來', String(walls[0].scale.y));
+    for (let i = 0; i < 16; i += 1) fx.update(0.05, i * 0.05);
+    ok(walls.every((w) => w.scale.y > 0.5), '升起來了', String(walls[0].scale.y));
+    ok(
+      walls.every((w) => Math.abs(w.position.y - w.geometry.parameters.height * 0.5 * w.scale.y) < 1e-6),
+      '牆底一直踩在地上（不飄）',
+      `${walls[0].position.y} vs ${walls[0].geometry.parameters.height * 0.5 * walls[0].scale.y}`
+    );
+    {
+      // 圍成方框：四道牆各據一邊，中心在石座正上方
+      const xs = walls.map((w) => w.position.x);
+      const zs = walls.map((w) => w.position.z);
+      ok(Math.max(...xs) > 2 && Math.min(...xs) < -2, '左右各一道');
+      ok(Math.max(...zs) > 2 && Math.min(...zs) < -2, '前後各一道');
+      ok(Math.abs(xs.reduce((a, b) => a + b, 0)) < 1e-6 && Math.abs(zs.reduce((a, b) => a + b, 0)) < 1e-6, '四道對稱（圍出來的是方框，不是歪的）');
+    }
+    for (let i = 0; i < 50; i += 1) fx.update(0.05, 1 + i * 0.05);
+    eq(JSON.stringify(fx.state().playing), '[]', '短牆 ≤ 2.5 秒收乾淨');
+    eq(walls[0].visible, false, '演完藏起來');
+    fx.reset();
+
+    // asksToVerify：一顆小光點繞浮碑一圈、回到原位
+    eq(fx.play(marker, ['asksToVerify']), 1, 'asksToVerify 開演一段');
+    const mote = fx.group.getObjectByName('return-light');
+    ok(Boolean(mote), '找得到那顆小光點');
+    const moteStart = { x: mote.position.x, z: mote.position.z };
+    let maxAway = 0;
+    let lastAway = 0;
+    for (let i = 0; i < 44; i += 1) {
+      fx.update(0.05, i * 0.05);
+      if (fx.state().playing.length === 0) break;
+      lastAway = Math.hypot(mote.position.x - moteStart.x, mote.position.z - moteStart.z);
+      if (lastAway > maxAway) maxAway = lastAway;
+    }
+    ok(maxAway > 1.5, '真的繞出去了（離起點最遠 > 1.5 公尺）', String(maxAway));
+    ok(lastAway < 0.25, '最後回到原位（繞一圈，不是繞不停）', String(lastAway));
+    ok(Math.abs(mote.position.y - marker.shard.position.y) < 1.2, '光點繞的是浮碑（跟著它的高度）');
+    for (let i = 0; i < 50; i += 1) fx.update(0.05, 2 + i * 0.05);
+    eq(JSON.stringify(fx.state().playing), '[]', '光點 ≤ 2.5 秒收乾淨');
+    fx.reset();
+
+    // groundsInContext：腳下的圈往內收成一個實心的小盤（借完一寸不差還回去）
+    const ringScale0 = marker.ring.scale.x;
+    eq(fx.play(marker, ['groundsInContext']), 1, 'groundsInContext 開演一段');
+    const disc = fx.group.getObjectByName('ground-disc');
+    ok(Boolean(disc), '找得到那個實心的小盤');
+    for (let i = 0; i < 16; i += 1) fx.update(0.05, i * 0.05);
+    ok(marker.ring.scale.x < ringScale0 * 0.8, '腳下的圈往內收了', String(marker.ring.scale.x));
+    eq(marker.ring.scale.x, marker.ring.scale.y, '圈是等比往內收（沒有被壓扁）');
+    ok(disc.material.opacity > 0, '實心的小盤浮出來了');
+    ok(disc.position.y < 0.3, '小盤貼在地上');
+    for (let i = 0; i < 60; i += 1) fx.update(0.05, 1 + i * 0.05);
+    eq(JSON.stringify(fx.state().playing), '[]', '小盤 ≤ 2.5 秒收乾淨');
+    eq(marker.ring.scale.x, ringScale0, '腳下的圈一寸不差地還回去');
+    eq(marker.ring.scale.y, ringScale0, '（兩軸都還）');
+    eq(disc.material.opacity, 0, '小盤收乾淨');
+
+    // 演到一半 reset / 換石座 / 切低畫質 → 圈都要還回去
+    fx.play(marker, ['groundsInContext']);
+    for (let i = 0; i < 8; i += 1) fx.update(0.05, i * 0.05);
+    ok(marker.ring.scale.x !== ringScale0, '（前提）演到一半圈是借走的');
+    fx.reset();
+    eq(marker.ring.scale.x, ringScale0, 'reset() 把借走的圈還回去');
+
+    // 八段可以同時播
+    eq(
+      fx.play(marker, [
+        'assignsTask',
+        'specifiesFormat',
+        'hasConstraint',
+        'hasRole',
+        'hasFewShot',
+        'hasDelimiters',
+        'asksToVerify',
+        'groundsInContext',
+      ]),
+      8,
+      '八段可以同時開演'
+    );
+    eq(fx.state().playing.length, 8, '八段同時在演');
+    for (const row of fx.state().playing) ok(Fx.fxForCheck(row.check) === row.fx, `${row.check} 的 fx id 對得上`);
+    for (let i = 0; i < 70; i += 1) fx.update(0.05, i * 0.05);
+    eq(JSON.stringify(fx.state().playing), '[]', '八段全部 ≤ 2.5 秒內收完');
+    eq(marker.ring.scale.x, ringScale0, '八段收完，圈也還回去了');
+    fx.reset();
+  }
+
+  /* --- ③c P10a 的四段：reducedMotion 只做終態、低畫質整層不播 --- */
+  {
+    const marker = testWorld.markers.find((m) => m.id === 'gate-of-clarity-01');
+    const ringScale0 = marker.ring.scale.x;
+    const fx = Fx.createRubricFx({ kitOf: kitOfFx, qualityOf: () => 'high', reducedMotion: true });
+    eq(fx.play(marker, ['hasFewShot', 'hasDelimiters', 'asksToVerify', 'groundsInContext']), 4, 'reducedMotion 一樣會回應');
+    eq(fx.particlesSpawned, 0, 'reducedMotion 不噴碎光');
+    const slab = fx.group.getObjectByName('slab:0');
+    ok(slab.position.y > 1.4, 'reducedMotion：石板直接就在終態高度（不從地上浮）', String(slab.position.y));
+    const wall = fx.group.getObjectByName('wall:0');
+    ok(Math.abs(wall.scale.y - 1) < 1e-6, 'reducedMotion：短牆直接就是整面（不升）', String(wall.scale.y));
+    const mote = fx.group.getObjectByName('return-light');
+    const mx = mote.position.x;
+    const mz = mote.position.z;
+    fx.update(0.05, 0.05);
+    eq(marker.ring.scale.x, ringScale0, 'reducedMotion：不動腳下的圈（位移是「動」）');
+    ok(fx.group.getObjectByName('ground-disc').material.opacity > 0, 'reducedMotion：小盤照樣亮起來（回應還在）');
+    for (let i = 0; i < 20; i += 1) fx.update(0.05, i * 0.05);
+    ok(Math.abs(mote.position.x - mx) < 1e-6 && Math.abs(mote.position.z - mz) < 1e-6, 'reducedMotion：光點停在原位（不繞）');
+    ok(Math.abs(fx.group.getObjectByName('wall:0').scale.y - 1) < 1e-6, 'reducedMotion：短牆一直是整面（不做升起的位移）');
+    ok(mote.material.opacity > 0, 'reducedMotion：光點照樣亮著（回應還在）');
+    for (let i = 0; i < 70; i += 1) fx.update(0.05, i * 0.05);
+    eq(JSON.stringify(fx.state().playing), '[]', 'reducedMotion 一樣自己收乾淨');
+    eq(marker.ring.scale.x, ringScale0, 'reducedMotion 收完圈仍是原樣');
+    fx.reset();
+
+    // 低畫質：新的四段一樣整層不播
+    let q = 'low';
+    const fxLow = Fx.createRubricFx({ kitOf: kitOfFx, qualityOf: () => q });
+    eq(fxLow.play(marker, ['hasFewShot', 'hasDelimiters', 'asksToVerify', 'groundsInContext']), 0, '低畫質：新的四段也不播');
+    eq(fxLow.particlesSpawned, 0, '低畫質：一顆粒子都沒噴');
+    // 演到一半切低畫質 → 借走的圈要還回去
+    q = 'high';
+    eq(fxLow.play(marker, ['groundsInContext']), 1, '切回高畫質播得動');
+    fxLow.update(0.05, 0.05);
+    ok(marker.ring.scale.x !== ringScale0, '（前提）圈正被借走');
+    q = 'low';
+    fxLow.update(0.05, 0.1);
+    eq(JSON.stringify(fxLow.state().playing), '[]', '演到一半切低畫質 → 整層收乾淨');
+    eq(marker.ring.scale.x, ringScale0, '切低畫質也要把借走的圈還回去');
+    q = 'high';
+    fxLow.reset();
+  }
+
   /* --- ④ 換石座：前一座收乾淨（含把借走的光柱還回去） --- */
   {
     const a = testWorld.markers.find((m) => m.id === 'gate-of-clarity-01');
@@ -14644,7 +14819,7 @@ console.log('\n▸ 石座演出（v1.2 · P09）');
     eq(fx.play(a, ['hasConstraint']), 1, '（前提）A 座開演了');
     fx.update(0.05, 0.05);
     ok(a.beacon.scale.y !== beacon0, '（前提）光柱真的被借走了');
-    eq(fx.play(b, ['hasFewShot']), 0, '不支援的檢查回 0');
+    eq(fx.play(b, ['positiveFraming']), 0, '不支援的檢查回 0');
     eq(fx.state().playing.length, 1, '回 0 的那一次**不准**把 A 座正在演的拆掉');
     ok(a.beacon.scale.y !== beacon0, '也不准把借走的光柱提早還回去');
     // 真的換座：碎光不能瞬移過去（粒子是舞台的區域座標）
