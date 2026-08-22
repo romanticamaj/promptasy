@@ -1418,20 +1418,25 @@ function dressMaskStep(grp, { spec, kit, r, h }) {
  * 而且**厚的那一維只有 0.28** —— 穿模稽核的 `PLATE_MIN`（0.9）看它是薄片，不是牆。
  * 真的踏得上去的仍然只有石鼓本身：這兩級是一句話，不是路。
  */
-function dressTwiceStep(grp, { spec, kit, r }) {
+function dressTwiceStep(grp, { spec, kit, r, h }) {
   const dirX = Math.cos(spec.rot);
   const dirZ = -Math.sin(spec.rot);
-  for (let i = 0; i < 2; i += 1) {
-    const step = new THREE.Mesh(box(r * 0.9, 0.24 + i * 0.2, 0.28), stone(kit.dark));
-    step.position.set(dirX * (r + 0.5 - i * 0.26), 0.12 + i * 0.1, dirZ * (r + 0.5 - i * 0.26));
+  /*
+   * 兩級小階排在**底裙外面**：裙是一個半徑 `r + 0.55`、露出地面 0.55 公尺的實心圓臺，
+   * 貼著它擺的話整塊會被裙吃掉 —— 三角形照付、畫面上一點都看不到
+   * （P16a 第一版就是這樣寫的，`test:rubric` 的「裝飾看得見」那一條會紅）。
+   */
+  for (const s of [{ d: r + 1.35, top: 0.3 }, { d: r + 0.85, top: 0.6 }]) {
+    const step = new THREE.Mesh(box(r * 0.9, s.top, 0.3), stone(kit.dark));
+    step.position.set(dirX * s.d, s.top / 2, dirZ * s.d);
     // 寬邊要沿著切線（P15 審查 · 第 4 條：`rotation.y = θ` 轉的是局部 +X ＝ 徑向）
     step.rotation.y = spec.rot + Math.PI / 2;
     step.userData.noCollide = true;
     grp.add(step);
   }
-  // 第三級：抬起來、只剩一圈光（不是物質 —— 站不上去，也擋不住人）
-  const ghost = new THREE.Mesh(box(r * 0.9, 0.08, 0.3), glow(kit.accent, 0.9));
-  ghost.position.set(dirX * (r + 0.86), 0.82, dirZ * (r + 0.86));
+  // 第三級：踏不到，只剩一圈光懸在第二級與頂面之間（「第三遍要你自己踏出來」）
+  const ghost = new THREE.Mesh(box(r * 0.9, 0.09, 0.32), glow(kit.accent, 0.95));
+  ghost.position.set(dirX * (r + 0.45), h * 0.66, dirZ * (r + 0.45));
   ghost.rotation.y = spec.rot + Math.PI / 2;
   ghost.userData.noCollide = true;
   grp.add(ghost);
@@ -1474,10 +1479,11 @@ function dressHoistStep(grp, { spec, kit, r, h }) {
  * 所以裙上一件雜物都沒有：四個矮托座 ＋ 一圈光，就這樣。
  */
 function dressTakenStep(grp, { spec, kit, r, h }) {
+  // 托座擺在**裙外面**（同 `dressTwiceStep` 的那一條：裙會把貼著它的東西整塊吃掉）
   for (let i = 0; i < 4; i += 1) {
     const a = spec.rot + (i / 4) * Math.PI * 2;
     const socket = new THREE.Mesh(box(0.46, 0.3, 0.46), stone(kit.dark));
-    socket.position.set(Math.cos(a) * (r + 0.34), 0.15, Math.sin(a) * (r + 0.34));
+    socket.position.set(Math.cos(a) * (r + 0.85), 0.15, Math.sin(a) * (r + 0.85));
     socket.rotation.y = -a;
     socket.userData.noCollide = true;
     grp.add(socket);
@@ -1498,8 +1504,9 @@ function dressMirrorStep(grp, { spec, kit, r, h }) {
   const n = 6;
   for (let i = 0; i < n; i += 1) {
     const a = spec.rot + (i / n) * Math.PI * 2;
-    const pane = new THREE.Mesh(box(r * 0.62, 0.5, 0.1), glow(kit.light, i === 0 ? 0.9 : 0.45));
-    pane.position.set(Math.cos(a) * (r + 0.52), 0.36, Math.sin(a) * (r + 0.52));
+    // 半徑取 `r + 0.6`、高 0.68：一半嵌在裙裡、一半站在裙頂上面 —— 看得見的那一半才算數
+    const pane = new THREE.Mesh(box(r * 0.62, 0.68, 0.1), glow(kit.light, i === 0 ? 0.9 : 0.45));
+    pane.position.set(Math.cos(a) * (r + 0.6), 0.45, Math.sin(a) * (r + 0.6));
     // 鏡面要正對外面 → 寬邊沿切線（同 `dressMaskStep` 的那一條）
     pane.rotation.y = -a + Math.PI / 2;
     pane.userData.noCollide = true;
@@ -1507,8 +1514,8 @@ function dressMirrorStep(grp, { spec, kit, r, h }) {
   }
   // 兩道刻線：下面那一道是原本寫的，上面那一道是改過的（後者亮、也短一截）
   for (const [y, len, lit] of [
-    [h - 0.54, 0.9, 0.4],
-    [h - 0.3, 0.64, 1.1],
+    [h - 0.54, 0.55, 0.4],
+    [h - 0.3, 0.38, 1.1],
   ]) {
     const mark = new THREE.Mesh(box(0.06, 0.06, r * len), glow(kit.accent, lit));
     mark.position.set(Math.cos(spec.rot) * (r + 0.03), y, Math.sin(spec.rot) * (r + 0.03));

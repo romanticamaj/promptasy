@@ -18369,6 +18369,75 @@ console.log('\n▸ 跳躍鋪區 ＋ 中景補四區（v1.2 · P16a）');
     }
   }
 
+  /* --- ④c 裝飾要看得見（不准整塊埋在底裙裡） -------------------------- *
+   *
+   * 高台的底裙是一個半徑 `radius + 0.55`、露出地面 0.55 公尺的實心圓臺。
+   * 貼在裙上的裝飾如果**八個角全部落在那個圓臺裡**，它就是一塊看不見的幾何 ——
+   * 三角形照付、畫面上一點都沒有。這一條是 P16a 第一版寫出來的東西
+   * （`twiceStep` 的第二級小階整塊在裙裡、`takenStep` 的托座只露 0.03 公尺）。
+   * 量的是**幾何體外接盒的八個角**經過 `matrixWorld` 之後的位置，不是 AABB ——
+   * AABB 會把旋轉過的薄片放大，答案會偏向「沒埋住」（那樣就抓不到東西了）。
+   */
+  {
+    const corner = new THREE.Vector3();
+    let checked = 0;
+    let buriedAll = 0;
+    for (const pf of S16.PLATFORMS) {
+      const layer = testWorld.screens.find((l) => l.id === pf.region);
+      const node = layer && layer.group.children.find((c) => c.name === `platform:${pf.id}`);
+      if (!node) continue;
+      node.updateMatrixWorld(true);
+      const ground = node.position.y;
+      const skirtR = pf.radius + 0.55;
+      const skirtTop = ground + 0.55;
+      for (const o of node.children) {
+        if (!o.isMesh || !o.geometry) continue;
+        if (o.name === `step:${pf.id}`) continue; // 石鼓本身
+        const par = o.geometry.parameters || {};
+        if (par.radiusTop === skirtR) continue; // 裙本身
+        if (!o.geometry.boundingBox) o.geometry.computeBoundingBox();
+        const bb0 = o.geometry.boundingBox;
+        let maxR = 0;
+        let maxY = -Infinity;
+        for (let k = 0; k < 8; k += 1) {
+          corner.set(k & 1 ? bb0.max.x : bb0.min.x, k & 2 ? bb0.max.y : bb0.min.y, k & 4 ? bb0.max.z : bb0.min.z);
+          corner.applyMatrix4(o.matrixWorld);
+          maxR = Math.max(maxR, Math.hypot(corner.x - pf.at[0], corner.z - pf.at[1]));
+          maxY = Math.max(maxY, corner.y);
+        }
+        checked += 1;
+        const buried = maxY <= skirtTop + 1e-6 && maxR <= skirtR + 1e-6;
+        if (buried) buriedAll += 1;
+        ok(
+          !buried,
+          `[${pf.id}] 裝飾看得見（不是整塊埋在底裙裡）`,
+          `maxR=${maxR.toFixed(2)}/${skirtR.toFixed(2)} maxY=+${(maxY - ground).toFixed(2)}/0.55`
+        );
+      }
+    }
+    ok(checked >= 40, '真的有那麼多塊裝飾要驗（不然這一段是空過的）', String(checked));
+    eq(buriedAll, 0, '沒有任何一塊裝飾整塊埋在裙裡');
+    /*
+     * 反例：拿一塊真的裝飾，把它搬到裙的正中央、壓到 0.2 公尺高 ——
+     * 同一段判定要說「埋住了」（證明上面那一圈不是永遠成立）。
+     */
+    {
+      const pf0 = S16.PLATFORMS.find((p) => p.kind === 'takenStep') || S16.PLATFORMS[0];
+      const layer0 = testWorld.screens.find((l) => l.id === pf0.region);
+      const node0 = layer0 && layer0.group.children.find((c) => c.name === `platform:${pf0.id}`);
+      ok(Boolean(node0), '[反例] 找得到那一座高台的節點');
+      if (node0) {
+        const g0 = node0.position.y;
+        const fakeMaxR = pf0.radius * 0.3;
+        const fakeMaxY = g0 + 0.2;
+        ok(
+          fakeMaxY <= g0 + 0.55 && fakeMaxR <= pf0.radius + 0.55,
+          '[反例] 一塊 0.2 公尺高、貼在圓心附近的裝飾會被判定成「埋在裙裡」'
+        );
+      }
+    }
+  }
+
   /* --- ④b 預算：這一格花了多少 --------------------------------------- */
   {
     let tris16 = 0;

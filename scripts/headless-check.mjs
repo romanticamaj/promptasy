@@ -18621,6 +18621,248 @@ async function main() {
     ok(fuse.finalFoot < 1e-6, 'P15：這一節結束時玩家貼回地形');
   }
 
+
+  /* ================================================================ */
+  console.log('\n▸ 跳躍鋪區（v1.2 · P16a）');
+  /* --- v1.2 · P16a：跳躍長到八片土地 --------------------------------
+   *
+   * 兩件事，都用**真的按鍵**做：
+   *   ① 在這一格**新開的**一片土地上跳上一座高台（減法之庭 —— 全場最平的那一片）
+   *   ② 在量出來**擺不下高台**的那一片（契約鍛冶場）按住 `J`：什麼都不會發生
+   *      —— 這一條就是「按了 J 卻沒有任何東西跳得上去」那個壞結果的反面證據。
+   *
+   * 兩段都先把區域暫時標成已解鎖（`isWalkable()` 擋的是鎖著的院子），跑完還原。
+   * 上高台的做法沿用 P15 交接的那一套：**走到貼著它 → 停下來 → 原地按住 J →
+   * 等腳高過 `standTop` 再按 W**（`sleep` 只用來讓出時間片，不拿來對齊牆鐘）。
+   */
+  const P16A_PRELUDE = `
+    const g = window.__promptasy;
+    const w = g.world;
+    const P = () => g.player.position;
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    if (!window.__gt) {
+      window.__gt = { t: 0 };
+      g.engine.onUpdate((dt) => { window.__gt.t += dt; });
+    }
+    const waitGame = async (seconds) => {
+      const until = window.__gt.t + seconds;
+      const bail = performance.now() + seconds * 8000 + 4000;
+      while (window.__gt.t < until && performance.now() < bail) await new Promise((r) => setTimeout(r, 30));
+    };
+    const press = (code) => window.dispatchEvent(new KeyboardEvent('keydown', { code }));
+    const release = (code) => window.dispatchEvent(new KeyboardEvent('keyup', { code }));
+    const releaseAll = () => { for (const c of ['KeyW', 'KeyJ', 'ArrowLeft', 'ArrowRight']) release(c); };
+    const wrap = (d) => { while (d > Math.PI) d -= Math.PI * 2; while (d < -Math.PI) d += Math.PI * 2; return d; };
+    const faceToward = async (tx, tz) => {
+      const want = () => Math.atan2(tx - P().x, tz - P().z);
+      const diff = () => wrap(want() - g.player.cameraYaw);
+      const sign0 = Math.sign(diff());
+      if (sign0 === 0) return 0;
+      const dir = sign0 > 0 ? 'ArrowLeft' : 'ArrowRight';
+      press(dir);
+      const bail = performance.now() + 12000;
+      while (performance.now() < bail) {
+        const d = diff();
+        if (Math.abs(d) < 0.14 || Math.sign(d) !== sign0) break;
+        await sleep(20);
+      }
+      release(dir);
+      await waitGame(0.1);
+      return Math.abs(diff());
+    };
+    /* 暫時把一片土地標成已解鎖（跑完要還原）—— isWalkable() 擋的是鎖著的院子。 */
+    const openRegion = (id) => {
+      const st = g.progression.state;
+      const had = st.unlockedRegions.includes(id);
+      if (!had) st.unlockedRegions.push(id);
+      w.refreshGates();
+      return had;
+    };
+    const closeRegion = (id, had) => {
+      const st = g.progression.state;
+      if (!had && st.unlockedRegions.includes(id)) st.unlockedRegions.splice(st.unlockedRegions.indexOf(id), 1);
+      w.refreshGates();
+    };
+    if (g.gateAsk.isOpen) g.gateAsk.close({ silent: true });
+    if (g.codex.isOpen) g.codex.close();
+    releaseAll();
+  `;
+
+  /* ① 新開的土地上跳上一座高台 */
+  const p16Climb = await evaluate(`
+    ${P16A_PRELUDE}
+    const REGION = 'frugality';
+    const had = openRegion(REGION);
+    await waitGame(0.3);
+    const pf = (w.platforms || []).find((x) => x.region === REGION);
+    const out = { region: REGION, id: pf ? pf.id : null, kind: pf ? pf.kind : null };
+    const solid = pf ? w.solids.find((c) => c.id === pf.id) : null;
+    out.found = Boolean(solid);
+    if (!solid) { closeRegion(REGION, had); return out; }
+    // 起跳點：離石鼓 2.4 公尺、而且中間一路走得到的一個方向（同 P15）
+    const runUp = solid.r + 2.4;
+    let start = null;
+    for (let a = 0; a < 32 && !start; a += 1) {
+      const t = (a / 32) * Math.PI * 2;
+      const x = solid.x + Math.cos(t) * runUp;
+      const z = solid.z + Math.sin(t) * runUp;
+      if (!w.isClear(x, z)) continue;
+      let clean = true;
+      for (let u = 0.4; u < runUp - (solid.r + 0.9); u += 0.4) {
+        const px = x + (solid.x - x) * (u / runUp);
+        const pz = z + (solid.z - z) * (u / runUp);
+        if (!w.isClear(px, pz)) { clean = false; break; }
+      }
+      if (clean) start = { x, z };
+    }
+    out.start = start;
+    if (!start) { closeRegion(REGION, had); return out; }
+    let landed = false;
+    let tries = 0;
+    let nearest = 99;
+    for (; tries < 6 && !landed; tries += 1) {
+      g.player.teleport(start.x, start.z);
+      await waitGame(0.4);
+      await faceToward(solid.x, solid.z);
+      press('KeyW');
+      const apBail = performance.now() + 8000;
+      while (performance.now() < apBail) {
+        const d = Math.hypot(P().x - solid.x, P().z - solid.z);
+        nearest = Math.min(nearest, d);
+        if (d <= solid.r + 0.62 + 0.5) break;
+        await sleep(30);
+      }
+      release('KeyW');
+      const rest0 = performance.now() + 4000;
+      while (g.player.speed > 0.05 && performance.now() < rest0) await sleep(40);
+      await waitGame(0.15);
+      await faceToward(solid.x, solid.z);
+      const before = g.player.jump.jumps;
+      press('KeyJ');
+      const upBail = performance.now() + 6000;
+      while (performance.now() < upBail && P().y < solid.standTop + 0.02) await sleep(20);
+      press('KeyW');
+      const bail = performance.now() + 9000;
+      while (performance.now() < bail) {
+        nearest = Math.min(nearest, Math.hypot(P().x - solid.x, P().z - solid.z));
+        if (g.player.standingOn === pf.id) {
+          const p = P();
+          landed = true;
+          out.footAbove = p.y - w.terrainHeight(p.x, p.z);
+          out.landedAt = Math.hypot(p.x - solid.x, p.z - solid.z);
+          break;
+        }
+        if (g.player.jump.jumps > before && !g.player.jump.airborne) break;
+        await sleep(30);
+      }
+      release('KeyJ');
+      release('KeyW');
+      const restBail = performance.now() + 5000;
+      while (g.player.speed > 0.05 && performance.now() < restBail) await sleep(40);
+      await waitGame(0.3);
+    }
+    out.tries = tries;
+    out.nearest = nearest;
+    out.landed = landed;
+    out.standing = g.player.standingOn;
+    if (landed) {
+      press('KeyW');
+      const bail2 = performance.now() + 9000;
+      let left = false;
+      while (performance.now() < bail2) {
+        if (!left && g.player.standingOn === null) left = true;
+        if (left && !g.player.jump.airborne) break;
+        await sleep(35);
+      }
+      release('KeyW');
+      await waitGame(0.5);
+      out.afterFoot = Math.abs(P().y - w.terrainHeight(P().x, P().z));
+      out.afterStanding = g.player.standingOn;
+    }
+    releaseAll();
+    g.player.teleport(0, 6);
+    await waitGame(0.6);
+    closeRegion(REGION, had);
+    return out;
+  `);
+
+  {
+    eq(p16Climb.found, true, `P16a：${p16Climb.region} 上真的有一座高台`, String(p16Climb.id));
+    eq(p16Climb.kind, 'takenStep', 'P16a：減法之庭的高台用的是它自己的造型');
+    ok(Boolean(p16Climb.start), 'P16a：那座高台旁邊找得到落腳點', JSON.stringify(p16Climb.start));
+    eq(p16Climb.landed, true, `P16a：**在新開的土地上跳上了 ${p16Climb.id}**`, String(p16Climb.standing));
+    ok(p16Climb.tries < 6, 'P16a：跳上去不用把重試次數用光', `tries=${p16Climb.tries}`);
+    ok(p16Climb.nearest < 3, 'P16a：真的走到它面前才起跳', `d=${(p16Climb.nearest || 99).toFixed(2)}`);
+    ok(p16Climb.footAbove > 1.4, 'P16a：踩到頂面那一刻腳真的被抬高', `+${(p16Climb.footAbove || 0).toFixed(2)}m`);
+    ok(p16Climb.landedAt < 2.2, 'P16a：落在頂面上（不是擦邊）', `d=${(p16Climb.landedAt || 99).toFixed(2)}`);
+    eq(p16Climb.afterStanding, null, 'P16a：走下來之後就不再站在它上面');
+    ok(p16Climb.afterFoot < 1e-6, 'P16a：走下來之後貼回地形', `d=${p16Climb.afterFoot}`);
+  }
+
+  /* ② 擺不下高台的那一片：按住 J 什麼都不會發生 */
+  const p16NoJump = await evaluate(`
+    ${P16A_PRELUDE}
+    const REGION = 'toolcraft';
+    const had = openRegion(REGION);
+    await waitGame(0.3);
+    const out = { region: REGION, platforms: (w.platforms || []).filter((p) => p.region === REGION).length };
+    /*
+     * 找一個站得住、而且真的屬於這片土地的點：**掃整張地圖問 regionAt()**，
+     * 不要寫死那一區的中心（座標寫死在測試裡，資料一搬就是一條假的斷言）。
+     */
+    let spot = null;
+    for (let x = -170; x <= 170 && !spot; x += 4) {
+      for (let z = -170; z <= 170 && !spot; z += 4) {
+        const here = w.regionAt(x, z);
+        if (here && here.id === REGION && !here.onBridge && w.isClear(x, z)) spot = { x, z };
+      }
+    }
+    out.spot = spot;
+    if (!spot) { closeRegion(REGION, had); return out; }
+    g.player.teleport(spot.x, spot.z);
+    await waitGame(0.8);
+    out.regionHere = (w.regionAt(P().x, P().z) || {}).id || null;
+    const jumpsBefore = g.player.jump.jumps;
+    /*
+     * **量最差的那一次**（findings：Math.min 寫的「全程都…」是假斷言）：
+     * 整段按住 J 期間離地最高的那一刻是多少 —— 要的是 0。
+     */
+    let worstLift = 0;
+    press('KeyJ');
+    await waitGame(1.6);
+    const bail = performance.now() + 9000;
+    while (performance.now() < bail) {
+      const p = P();
+      worstLift = Math.max(worstLift, p.y - w.terrainHeight(p.x, p.z));
+      if (window.__gt.t > 0 && g.player.jump.jumps > jumpsBefore) break;
+      if (performance.now() > bail - 6000) break;
+      await sleep(30);
+    }
+    release('KeyJ');
+    await waitGame(0.4);
+    const p2 = P();
+    worstLift = Math.max(worstLift, p2.y - w.terrainHeight(p2.x, p2.z));
+    out.jumpsDelta = g.player.jump.jumps - jumpsBefore;
+    out.airborne = g.player.jump.airborne;
+    out.standing = g.player.standingOn;
+    out.worstLift = worstLift;
+    releaseAll();
+    g.player.teleport(0, 6);
+    await waitGame(0.6);
+    closeRegion(REGION, had);
+    return out;
+  `);
+
+  {
+    eq(p16NoJump.platforms, 0, 'P16a：契約鍛冶場真的一座高台都沒有（量出來擺不下）');
+    ok(Boolean(p16NoJump.spot), 'P16a：契約鍛冶場上找得到站得住的點', JSON.stringify(p16NoJump.spot));
+    eq(p16NoJump.regionHere, 'toolcraft', 'P16a：人真的站在契約鍛冶場上（不然下面幾條是空過的）');
+    eq(p16NoJump.jumpsDelta, 0, 'P16a：**按住 J 一秒半，一次都沒有跳起來**');
+    eq(p16NoJump.airborne, false, 'P16a：整段沒有離地');
+    eq(p16NoJump.standing, null, 'P16a：也沒有站到任何東西上');
+    ok(p16NoJump.worstLift < 1e-6, 'P16a：整段離地最高的那一刻仍然是 0（量的是最差那一次）', `max=${p16NoJump.worstLift}`);
+  }
+
   /* ================================================================ */
   await sleep(600);
   const realErrors = consoleErrors.filter((e) => !/favicon|DevTools|Autofill/i.test(e));
