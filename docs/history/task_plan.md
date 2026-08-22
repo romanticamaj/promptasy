@@ -1396,3 +1396,35 @@ Exit criteria：
 - [ ] 不按 `J` 的可達性沒有變差；rubric／playtest／build／e2e 全綠、console error 0；預算在框內。
 
 **審查後修訂（2026-08-23，10 條）**：① 重複貼上的孤兒註解（`reasoning-third-step` 的說明整段出現兩次）＋三處多餘空行。② `dressTakenStep` 的「被拿走的那一件」是一圈半徑 0.42–0.50 的光，掛在頂面上方 0.62 公尺 —— 玩家半徑是 0.62，所以**站在上面的人身上會有一圈光穿過去**（那還是新 e2e 會爬的那一座）；改成平貼在頂面上 3 公分，順便更像「這裡原本擺著一件東西」。新增一條「裝飾不准落在站著的人那根柱子裡」的斷言（先紅）。③ 新函式插在 `pointInBand` 的 JSDoc 與函式之間，把註解接到了別人身上（那句「這個點在不在足跡裡」現在描述的是一支回傳距離的函式）。④ 「裝飾看得見」的反例是**兩個常數互比**（`fakeMaxY <= g0 + 0.55`），永遠成立、什麼都沒證明；改成把一塊**真的**裝飾複製一份搬到裙心壓矮，再問同一支量法。⑤ e2e 那段「在沒有高台的土地按 J」先等 1.6 秒才開始取樣，可是整段跳躍的滯空不到一秒 —— 要抓的那一段被整個跳過去，`worstLift` 於是永遠是 0；改成按下去就開始量。⑥ 同一段的 `bail = now + 9000` 配上 `if (now > bail - 6000) break`＝其實 3 秒就結束，斷言的文案卻寫「按住 J 一秒半」；三個數字對齊。⑦ `expected-counts.json` 把 §4.12 那張表的數字**抄了一份**（契約鍛冶場 209／2.01 vs 表裡的 742／1.92），兩份互相打架；改成只留一份、別處指過來。同時在表上註明 `toolcraft` 這一格自己補了 4 座母題，所以**它現在重跑是 3 → 0**（結論沒變）。⑧ 兩座高台的跳躍餘裕只剩 0.014／0.018（門檻是 0.2 的頭部空間），而且那兩片土地在這一格之後**再也沒有第二個合法落點**（forms 重跑 53 → 0）—— 沒有辦法挪，改成逐座把餘裕印進斷言訊息、並在 §4.12 寫明「動任何東西前先看這兩座」。⑨ `jumpApexFor` 的 JSDoc 還寫著「其餘 11 片是 0」（現在是 4 片）。⑩ 「未命名的工具」的註解說刃「從柄頂斜著往上」，但 `ghostPlate()` 只轉 Y、是平的。
+
+### P16b — 中景收尾：護欄崗／觀象臺／分歧之廳 ＋ 全區檢視（2026-08-23 開工）
+
+狀態：`in progress`（里程碑 C 最後一格 → 完成後打 tag `v1.2-gate-C`）
+
+**現狀**：中觀層現在有三種東西——遮擋帶（reasoning 2、config 2、toolcraft 2、forms 2）、母題（grounding／orchestration／config／toolcraft 各 3–4）、高台（11 座／8 片土地）。跳躍開在 8 片。**沒有任何中觀層的三片**是 `wards`（護欄崗）、`sight`（觀象臺）、`divergence`（分歧之廳）——P16a 量出來它們在**離線篩就 0 個格點**（wards 0、divergence 1、sight 110 但全被跳躍門檻擋掉）。P16a 的交接寫得很清楚：wards／divergence 是**淨空半徑**的問題（閘門 ≥8 ＋ 地標留白 14–16 ＋ 互動圈吃光內圈），不是地形問題；sight／toolcraft 是地形問題。
+
+**目標**：讓 12 片土地**每一片都有中觀層**（帶、母題或高台，至少一種），並把里程碑 C 收乾淨。做法仍是「先量再放」，但這一格允許**動淨空半徑**——前提是拿數字說話，而且不能讓任何互動搶不到 `E`。
+
+**範圍**
+1. **先量**：對 wards／sight／divergence 各跑一次三種 kind（band／motif／platform）的搜尋，把「被哪一條擋掉幾個」印出來（`screen-fit` 已經會印），寫進 §4.12 那張表旁邊。
+2. **裁決淨空**：如果瓶頸是某一條淨空半徑，就**逐條檢視它為什麼是那個數字**（WORLD §3.2 的互動層優先序）。可以動的是「中觀層與互動點之間的距離」，**不可以動的是互動半徑本身**（那會讓玩家搶不到 `E`）。任何調整都要：① 寫下原本的理由與新的理由；② 逐點重驗所有互動點仍搶得到 `E`（rubric 既有的斷言）。
+3. **擺上去**：三片各至少一種中觀層。真的動了淨空還是擺不下，就登記「這一片沒有中觀層」的理由——但要說得出**還差多少**（例如「最好的落點還差 0.3 公尺」）。
+4. **全區檢視**：`audit:pacing` 12 片死區仍 0；`audit:sightline` 有帶的區全過；`screen-fit --verify` 全 ✓；預算收尾。
+5. **里程碑 C 收尾**：`docs/design/gameplay-roadmap.md` 的里程碑 C 全部打勾，打 tag **`v1.2-gate-C`**（由 orchestrator 打）。
+
+**不做**：大濁靈（P17）、守門者（P18）、捷徑與外交式導向（P19）、行動裝置（P24）。
+
+**受影響檔案**：`src/world/screens.js`、`scripts/screen-fit.mjs`、`scripts/lib/screen-rules.mjs`、`scripts/test-rubric.mjs`、`scripts/headless-check.mjs`、`scripts/expected-counts.json`、`WORLD.md`、（若動淨空）`src/world/world.js`。
+
+**預算**：三角 224,946 → **<240,000**；**光源 37 不變**；碰撞體 992 → **<1,150**；collision-audit 未涵蓋 **0**；可站立體稽核 **0**；`audit:pacing` 12 片死區 **0**；`screen-fit --verify` 全 ✓。
+
+**Acceptance tests（先紅後綠）**
+- rubric：12 片土地**每一片都有中觀層**（或登記過理由）；動過的淨空半徑要有一條「為什麼是這個數字」的斷言守著；所有互動點仍搶得到 `E`（既有斷言零改動全綠）；新的中觀吃 P11／P12／P14／P15／P16a 那整套擺位斷言（含逐塊貼地、跳躍餘裕、裝飾不穿人）。
+- e2e：走進三片新補的土地，看得到那件中觀層的東西；零 console error。
+
+**禁區**：`curriculum.json`、`challenges.json`、`flows.json`、`murks.json`、`letters.json`、`color-script.json`、`solution-stats.json`、`secrets.json`、`vite.config.js`、`CLAUDE.md`、`CHANGELOG.md`、`gameplay-roadmap.md`、三件組、dev server 5173／5174／5175。
+
+Exit criteria：
+- [ ] 12 片土地每一片都有中觀層，或有量得出數字的理由說明為什麼沒有。
+- [ ] 全區 `audit:pacing` 死區 0、`screen-fit --verify` 全 ✓、預算在框內。
+- [ ] rubric／playtest／build／e2e 全綠、console error 0；里程碑 C 可以打勾。
