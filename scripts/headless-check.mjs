@@ -18975,7 +18975,14 @@ async function main() {
         const dist = () => Math.hypot(P().x - c.at[0], P().z - c.at[1]);
         const probes = [];
         let walk = null;
+        /*
+         * **整片土地共用一個時間預算**（P16b 審查 · 第 2 條）：
+         * 每一次探測各自給 45 秒的話，六次就會衝破 CDP 的 90 秒保險絲 ——
+         * 而 Runtime.evaluate 逾時是**整支 e2e 中斷**，不是紅一條。
+         */
+        const regionBail = performance.now() + 60000;
         for (const s of dirs.slice(0, 6)) {
+          if (performance.now() > regionBail) break;
           g.player.teleport(s.x, s.z);
           await waitGame(0.4);
           const faceErr = await faceToward(c.at[0], c.at[1]);
@@ -18983,7 +18990,7 @@ async function main() {
           press('KeyW');
           let minD = d0;
           const until = window.__gt.t + 4;
-          const bail = performance.now() + 45000;
+          const bail = Math.min(performance.now() + 12000, regionBail);
           while (window.__gt.t < until && performance.now() < bail) {
             const d = dist();
             if (d < minD) minD = d;
@@ -19011,6 +19018,7 @@ async function main() {
         // ③ 站在橋頭問遊戲自己那一支
         const sight = w.landmarkSightFrom(c.entry[0], c.entry[1], c.region);
         rec.sightFlat = sight ? sight.flat : null;
+        rec.sightHidden = sight ? sight.hidden : null;
         rec.exempt = c.exempt;
         g.player.teleport(0, 6);
         await waitGame(0.4);
@@ -19041,7 +19049,9 @@ async function main() {
       if (r.exempt) {
         eq(r.sightFlat, false, `${tag}：橋頭看得到地標 —— 這是登記過的例外（SIGHT_EXEMPT），不是壞掉`);
       } else {
-        eq(r.sightFlat, true, `${tag}：站在橋頭看不到地標（遊戲自己那一支判定）`);
+        // `flat` 只說「水平被核心矩形切到」；真的擋住要看 `hidden`（帶頂也蓋過塔頂）
+        eq(r.sightFlat, true, `${tag}：橋頭到地標那條直線被石脊切到（水平判定）`);
+        eq(r.sightHidden, true, `${tag}：站在橋頭真的看不到地標（連塔頂也擋住）`);
       }
     }
     ok(seen.length === 3, 'P16b：三片土地都走過了', String(seen.length));

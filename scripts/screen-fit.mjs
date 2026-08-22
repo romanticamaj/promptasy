@@ -258,16 +258,29 @@ export async function verifyInWorld({ regionId, bands, motifs, platforms = [], b
     // 那條線上原本就有的東西不是這一層的事。
     const poly = bends[regionId] && linkHere ? Screens.corridorPolyline(linkHere, bends) : [];
     const lmHere = landmarks.find((l) => l.region === regionId) || null;
+    /*
+     * 起點要裁在**這一條走道自己的起點**（`linkHere.from`）那一片土地的邊緣，
+     * 不是「離世界原點多遠」——附屬區的折線是從**母土地的中心**出發的，
+     * 拿高原的半徑去裁的話，母土地不是中央高原的那幾片（護欄崗→沉書檔案庫、
+     * 校驗場→演武場）會把整片母土地的道具都掃成「路被堵住」（P16b 審查 · 第 6 條）。
+     */
+    const fromSite = linkHere ? World.REGION_SITES.find((r) => r.x === linkHere.from.x && r.z === linkHere.from.z) : null;
+    const fromR = fromSite ? fromSite.radius : World.REGION_SITES[0].radius;
+    let blockedOnce = false;
     for (let i = 0; i + 1 < poly.length; i += 1) {
       const [ax, az] = poly[i];
       const [bx2, bz2] = poly[i + 1];
       const len = Math.hypot(bx2 - ax, bz2 - az);
+      if (len < 1e-6) continue; // 兩個重疊的折點：不是一段，別拿它當除數（會算出 NaN）
       for (let t = 0; t <= len; t += 0.5) {
         const px = ax + ((bx2 - ax) * t) / len;
         const pz = az + ((bz2 - az) * t) / len;
         if (lmHere && Math.hypot(px - lmHere.at[0], pz - lmHere.at[1]) < 12) continue;
-        if (Math.hypot(px, pz) < World.REGION_SITES[0].radius) continue; // 高原那一段不是這次的事
-        if (world.solidAt(px, pz)) problems.push(`走出來的路被石頭堵住 @(${px.toFixed(1)}, ${pz.toFixed(1)})`);
+        if (Math.hypot(px - linkHere.from.x, pz - linkHere.from.z) < fromR) continue; // 出發的那一片土地不是這次的事
+        if (world.solidAt(px, pz) && !blockedOnce) {
+          blockedOnce = true; // 一段路堵住只講一次（不然會刷出幾百行一樣的話）
+          problems.push(`走出來的路被石頭堵住 @(${px.toFixed(1)}, ${pz.toFixed(1)})`);
+        }
       }
     }
     for (const p of bends[regionId] || []) {

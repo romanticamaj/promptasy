@@ -18591,10 +18591,12 @@ console.log('\n▸ 中景收尾：每一片土地都有中觀層（v1.2 · P16b�
 
   /* --- ① 12 片土地每一片都有中觀層 ---------------------------------- */
   {
-    const has = (id) =>
-      S17.SCREEN_BANDS.some((b) => b.region === id) ||
-      S17.MOTIFS.some((m) => m.region === id) ||
-      S17.PLATFORMS.some((p) => p.region === id);
+    // 三層當參數傳進來 —— 反例才有辦法拿**同一支**去問「三層都空的土地」
+    const hasIn = (bands, motifs, platforms, id) =>
+      bands.some((b) => b.region === id) ||
+      motifs.some((m) => m.region === id) ||
+      platforms.some((p) => p.region === id);
+    const has = (id) => hasIn(S17.SCREEN_BANDS, S17.MOTIFS, S17.PLATFORMS, id);
     let covered = 0;
     for (const site of World.REGION_SITES) {
       ok(has(site.id), `[${site.id}] 有中觀層（遮擋帶／母題／高台至少一種）`);
@@ -18606,14 +18608,31 @@ console.log('\n▸ 中景收尾：每一片土地都有中觀層（v1.2 · P16b�
      * 反例：把某一片土地的三層都拿掉，同一支判定就要回 false ——
      * 證明 `has()` 不是「怎麼樣都成立」（findings：新斷言先問一句「什麼情況下它會紅」）。
      */
-    const fake = (id) => [].some((x) => x.region === id);
-    eq(fake('wards'), false, '反例：三層都空的土地，同一種問法會回 false');
+    eq(hasIn([], [], [], 'wards'), false, '反例：三層都空的時候，**同一支** has() 會回 false');
+    eq(
+      hasIn(S17.SCREEN_BANDS.filter((b) => b.region !== 'wards'), [], [], 'wards'),
+      false,
+      '反例：只把護欄崗那幾道帶拿掉，同一支也會回 false'
+    );
+    eq(hasIn(S17.SCREEN_BANDS, [], [], 'wards'), true, '反例的對照：帶還在的時候它回 true（不是永遠 false）');
   }
 
   /* --- ② 反應物的淨空跟著自己的觸發半徑走 --------------------------- */
   {
-    const kinds = Object.keys(Reactive.REACT_TRIGGER_R);
-    ok(kinds.length >= 6, '六種反應物都登記了自己的觸發半徑', String(kinds.length));
+    /*
+     * 從**真的蓋得出來的那份清單**出發（`REACTION_KINDS`），不是從半徑表出發 ——
+     * 不然新加一種反應物卻忘了登記半徑，它會以 `enter: undefined` 蓋出來
+     * （＝一種永遠不會回應的東西），而這一圈連看都不會看它（P16b 審查 · 第 4 條）。
+     */
+    const kinds = Object.keys(Reactive.REACTION_KINDS);
+    ok(kinds.length >= 6, '六種反應物都在清單裡', String(kinds.length));
+    for (const kind of kinds) {
+      ok(
+        Number.isFinite(Reactive.REACT_TRIGGER_R[kind]),
+        `[${kind}] 登記了自己的觸發半徑（沒登記就會蓋出一個永遠不回應的東西）`,
+        String(Reactive.REACT_TRIGGER_R[kind])
+      );
+    }
     /*
      * **建造器與淨空規則是同一份**：真的蓋一個出來，比對它登記的觸發半徑。
      * 這一條在 P16b 之前抓不到東西（規則整層寫死 4.4，蓋出來的是 1.75–4.4）。
@@ -18699,8 +18718,10 @@ console.log('\n▸ 中景收尾：每一片土地都有中觀層（v1.2 · P16b�
    *
    * 動過「中觀層與互動點之間的距離」之後，這一條是**真正要守的東西**：
    * 距離公式怎麼寫都好，玩家得走得到那件東西、按得下去。
-   * 量的是互動圈上 24 個方向裡有幾個站得住（`isWalkable`，跟遊戲同一支），
-   * 以及那件東西**自己那一點**周圍最近的一個站得住的位置在不在互動半徑內。
+   * 量的是互動圈上 24 個方向裡有幾個**真的站得到**（`isWalkable` **再加上道具的碰撞體**）。
+   * 只問 `isWalkable` 是不夠的（P16b 審查 · 第 1 條）：它刻意不看 solids，
+   * 而這一節放鬆的正是「中觀層與互動點之間的距離」—— 一道石脊擺進互動圈裡，
+   * 只問 `isWalkable` 的版本一句話都不會說（實測最擠的點 15/24 → 加上碰撞體只剩 13/24）。
    */
   {
     const targets = Rules17.interactionTargets({
@@ -18724,14 +18745,14 @@ console.log('\n▸ 中景收尾：每一片土地都有中觀層（v1.2 · P16b�
         // 站在互動圈內緣（再往內半個玩家半徑）—— 那裡站得住就按得到 `E`
         const px = t.at[0] + Math.cos(ang) * (R - 0.3);
         const pz = t.at[1] + Math.sin(ang) * (R - 0.3);
-        if (testWorld.isWalkable(px, pz)) free += 1;
+        if (testWorld.isWalkable(px, pz) && !testWorld.solidAt(px, pz)) free += 1;
       }
       if (free < worstFree) {
         worstFree = free;
         worstId = `${t.k}:${t.id}`;
       }
       /*
-       * 門檻 12／24（實測最擠的是 15）—— 比現況嚴一格，而且**半圈**這件事有意義：
+       * 門檻 12／24（實測最擠的是 13）—— 比現況嚴一格，而且**半圈**這件事有意義：
        * 一件東西被擋掉超過一半的方向，就已經是「要繞很久才按得到」了。
        */
       ok(free >= 12, `[${t.k}:${t.id}] 互動圈上還有站得住的位置（搶得到 E）`, `${free}/24`);

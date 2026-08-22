@@ -114,7 +114,7 @@ CLAUDE.md 的五個方向與七條護欄仍是最高準則。本 roadmap 只回�
 - [x] **P16a · 跳躍全區啟用 ＋ 母題／高台鋪 forms／toolcraft／frugality／refinery**（M）— 跳躍高度全區開；四區的中景、粒子、高台。
   - 依賴：P15。方案：M1、M5、M8。
   - DoD：tris <232k、碰撞體 <1,100；四區 pacing-audit 死區 ≤1。
-- [~] **P16b · 母題／高台鋪 wards／sight／divergence ＋ 全區收尾**（M）— 剩餘區；pacing-audit 全區。
+- [x] **P16b · 母題／高台鋪 wards／sight／divergence ＋ 全區收尾**（M）— 剩餘區；pacing-audit 全區。
   - 依賴：P16a。
   - DoD：tris <240k、光源 37、碰撞體 <1,150；pacing-audit 每區 >45m 死區 ≤1。
 
