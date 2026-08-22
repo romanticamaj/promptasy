@@ -1362,3 +1362,35 @@ Exit criteria：
 - [ ] rubric／playtest／build／e2e 全綠、console error 0；預算在框內。
 
 **審查後修訂（2026-08-23，8 條）**：① 全部找齊的提示還寫著「**四個**藏起來的地方，你全都找到了（12 / 12）」——數量寫死在句子裡，資料一長就自打嘴巴；改成不報死數字。② 祕密造型的起伏繞著一個**寫死的 0.62** 擺，於是掛在 2.3 公尺柱頂的三片風片一進 45 公尺就整組被拉到柱腳（1.90 → 0.67）；改成繞著**它自己被擺在哪裡**（蓋出來那一刻記在 `userData.baseY`）。③ 同一行也把刻意平躺在石鼓面上的記號抬到 2.27 公尺 —— 高處那個 tell 的前提是「從地上看不到」，抬上去就破功了（同一個修正一起解決）。④ 面具浮雕的轉向少了 90°：`rotation.y = θ` 把局部 +X 轉到徑向，所以 1.12 公尺寬的那一片**指著外面**，變成從石鼓側面伸出去 0.56 公尺的鰭（實測法線與徑向的內積 0.000，而且人直接穿過去）；補一條「浮雕的正面要朝外」的斷言。⑤ 「聲音先到」把 `told` 記在冷卻判斷**之前** —— 進圈那一刻若剛好撞上別的反應音的 90 毫秒冷卻，這一聲被丟掉、而且這一處**整場再也不會響**；改成響了才算說過。⑥ `buildBridgeGap()` 把 `outer = -5.2` 寫死、隱含假設 `keepSide === 1`，而 `BRIDGE_GAPS` 的上限是 2 —— 下一道缺口若開在另一側，洞會畫在窄板上面、真正的缺口反而沒有東西；兩個邊界都照 `keepSide` 鏡射。⑦ keyhelp 的註解把跳得起來的四片土地寫錯（寫了不能跳的契約鍛冶場、漏了量器坊）——那正是 P16a 會讀的那一行。⑧ 「窄板整條走得到」用 `isWalkable()` 掃，它不看道具的碰撞體 —— 哪天有人把石頭擺在窄板上這一條還是綠的；改用 `isClear()`。
+
+### P16a — 跳躍鋪區 ＋ 母題／高台鋪 forms／toolcraft／frugality／refinery（2026-08-23 開工）
+
+狀態：`in progress`（里程碑 C 第六格）
+
+**現狀**：跳躍只在 `JUMP_REGIONS`（中央高原、沉書檔案庫、面具劇場、量器坊）開，因為**那四片才有高台**。高台目前 5 座（`PLATFORMS` in `src/world/screens.js`），高度 1.6、`platformRise()` 保證**四周每一個方向**都跳得上去（P15 的教訓：`height` 量的是它自己腳下的地，人卻是站在旁邊起跳的）。中觀（遮擋帶／母題）目前鋪了 reasoning／config／toolcraft（帶）＋ grounding／orchestration／config（母題）。祕密 12 處、橋缺口 1 道。P15 交接明講：**其餘 8 片土地地形起伏更大，很可能同樣蓋不出合法高台**。
+
+**目標**：把「跳」變成**全世界的動詞**——但誠實地做：先量，蓋得出高台的土地才開跳躍；蓋不出來的，要嘛換造型／換尺寸把它蓋出來，要嘛登記「這片土地沒有高台」的理由。同時把 forms／toolcraft／frugality／refinery 四片的中景補起來。
+
+**範圍**
+1. **先量再說**：對 12 片土地各跑一次 `npm run screen-fit -- --kind platform`，把「合法落點數」列成一張表寫進 `WORLD.md` §4.12。這張表就是這一格的決策依據，不要憑感覺。
+2. **高台鋪到（至少）forms／toolcraft／frugality／refinery**：每片 1–2 座、高度 1.6–2.4、造型照該區語彙。蓋不出來的土地要在 §4.12 寫明**量到什麼所以不擺**（沿用 §4.10 ⑤「擺不下就不擺」）。若某片土地換小一點的半徑／換造型就擺得下，優先那樣做，別直接放棄。
+3. **`JUMP_REGIONS` 跟著高台走**：有高台才開跳躍——「按了 J 卻沒有任何東西跳得上去」比不能跳更糟。`keyhelp` 的說明與註解要同步（P15 審查抓過一次寫錯區的註解）。
+4. **中景補四區**：forms／toolcraft／frugality／refinery 各補母題或遮擋帶（`screen-fit` 說得出擺不擺得下）；`audit:sightline` 有帶的區全過、四區 `audit:pacing` 死區 **≤1**（目前全 0，不得變差）。
+5. **不倒退**：沿用 P15 那條全地圖洪水填充——**不按 `J`**，所有互動點仍然到得了、每座橋仍然走得完。
+
+**不做**：wards／sight／divergence 的中景（P16b）、滑翔（P19）、大濁靈與守門者（P17／P18）。
+
+**受影響檔案**：`src/world/screens.js`、`src/player/jump.js`（`JUMP_REGIONS`）、`src/ui/keyhelp.js`、`scripts/screen-fit.mjs`、`scripts/lib/screen-rules.mjs`、`scripts/test-rubric.mjs`、`scripts/headless-check.mjs`、`scripts/expected-counts.json`、`WORLD.md`。
+
+**預算**：三角 222,410 → **<232,000**；**光源 37 不變**；碰撞體 974 → **<1,100**；collision-audit 未涵蓋 **0**；可站立體稽核 **0**；`audit:pacing` 四區死區 ≤1（現在全 0）；`audit:sightline` 有帶的區全過；`screen-fit --verify` 全 ✓。
+
+**Acceptance tests（先紅後綠）**
+- rubric：每一座高台都通過 `platformRise()`（**四周每個方向**都在跳得上去的範圍內，先紅：把任何一座往斜坡挪就要失敗）；`JUMP_REGIONS` 與「真的有高台的土地」逐項相等（先紅：多開一片沒有高台的就要失敗）；新的中景吃 P11／P12 那整套擺位斷言；不按 `J` 的可達性逐點不變。
+- e2e：在新開的土地上跳上一座高台；在**沒有高台**的土地按 `J` 什麼都不會發生；零 console error。
+
+**禁區**：`curriculum.json`、`challenges.json`、`flows.json`、`murks.json`、`letters.json`、`color-script.json`、`solution-stats.json`、`secrets.json`、`vite.config.js`、`CLAUDE.md`、`CHANGELOG.md`、`gameplay-roadmap.md`、三件組、dev server 5173／5174／5175。
+
+Exit criteria：
+- [ ] 12 片土地各有一句「有沒有高台、為什麼」的量測結論（寫進 WORLD.md §4.12）。
+- [ ] 至少 forms／toolcraft／frugality／refinery 補上中景；`JUMP_REGIONS` 與高台一致。
+- [ ] 不按 `J` 的可達性沒有變差；rubric／playtest／build／e2e 全綠、console error 0；預算在框內。
