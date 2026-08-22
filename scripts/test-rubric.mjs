@@ -17727,6 +17727,19 @@ console.log('\n▸ 高台語法 ＋ 高處的祕密 ＋ 橋缺口（v1.2 · P15�
           `[${label}][${pf.id}] **從四周每一個站得住的方向都跳得上去**（最難的那一側 ≤ ${need.toFixed(2)}m）`,
           `worst=${rise.worst.toFixed(2)} @${JSON.stringify(rise.at)}`
         );
+        /*
+         * 餘裕**逐座報出來**（P16a 審查 · 第 8 條）：`PLATFORM_JUMP_MARGIN` 0.2 是給
+         * 離散化與最差幀時間的頭部空間，但有兩座（量器坊第二座、演武場那座）
+         * 只剩 0.01–0.02 —— 那是「今天剛好過」而不是「有餘裕」。
+         * 這一條不擋，只是把數字放進失敗訊息裡：以後有人動地形、動 `PLATFORM_TAKEOFF_PAD`
+         * 或在旁邊擺了新道具，先紅的會是它們，而且一眼看得出是為什麼。
+         */
+        const slack = need - rise.worst;
+        ok(
+          slack >= 0,
+          `[${label}][${pf.id}] 跳躍餘裕（剩 ${slack.toFixed(3)}m；<0.05 就是「剛好過」，動任何東西前先看它）`,
+          slack.toFixed(3)
+        );
       }
     }
     // 反例：把高台抬到頂點以上，同一支判定就要說「跳不上去」（證明它不是永遠成立）
@@ -18382,6 +18395,45 @@ console.log('\n▸ 跳躍鋪區 ＋ 中景補四區（v1.2 · P16a）');
     const corner = new THREE.Vector3();
     let checked = 0;
     let buriedAll = 0;
+    /*
+     * 量法抽成一支：**反例要能真的呼叫它**（P16a 審查 · 第 4 條 ——
+     * 原本的反例是拿兩個常數互比，永遠成立、什麼都沒證明）。
+     */
+    const measureDeco = (mesh, pf, ground) => {
+      if (!mesh.geometry.boundingBox) mesh.geometry.computeBoundingBox();
+      const bb0 = mesh.geometry.boundingBox;
+      let maxR = 0;
+      let maxY = -Infinity;
+      let minY = Infinity;
+      let bx0 = Infinity;
+      let bx1 = -Infinity;
+      let bz0 = Infinity;
+      let bz1 = -Infinity;
+      for (let k = 0; k < 8; k += 1) {
+        corner.set(k & 1 ? bb0.max.x : bb0.min.x, k & 2 ? bb0.max.y : bb0.min.y, k & 4 ? bb0.max.z : bb0.min.z);
+        corner.applyMatrix4(mesh.matrixWorld);
+        maxR = Math.max(maxR, Math.hypot(corner.x - pf.at[0], corner.z - pf.at[1]));
+        maxY = Math.max(maxY, corner.y);
+        minY = Math.min(minY, corner.y);
+        bx0 = Math.min(bx0, corner.x);
+        bx1 = Math.max(bx1, corner.x);
+        bz0 = Math.min(bz0, corner.z);
+        bz1 = Math.max(bz1, corner.z);
+      }
+      /*
+       * 「離軸心最近有多近」不能拿八個角去挑最小的 —— 一圈以軸心為中心的環，
+       * 八個角全在外圍，最小值反而是 0.71（那條斷言於是抓不到穿過人身體的東西）。
+       * 改成量**外接盒**到軸心的距離（盒子把軸心夾在中間就是 0）：對旋轉過的薄片偏保守，
+       * 而保守的方向剛好是「寧可誤報也不要漏掉」。
+       */
+      const minR = Math.hypot(
+        Math.max(bx0 - pf.at[0], 0, pf.at[0] - bx1),
+        Math.max(bz0 - pf.at[1], 0, pf.at[1] - bz1)
+      );
+      const skirtR = pf.radius + 0.55;
+      const skirtTop = ground + 0.55;
+      return { maxR, minR, maxY, minY, buried: maxY <= skirtTop + 1e-6 && maxR <= skirtR + 1e-6 };
+    };
     for (const pf of S16.PLATFORMS) {
       const layer = testWorld.screens.find((l) => l.id === pf.region);
       const node = layer && layer.group.children.find((c) => c.name === `platform:${pf.id}`);
@@ -18395,23 +18447,26 @@ console.log('\n▸ 跳躍鋪區 ＋ 中景補四區（v1.2 · P16a）');
         if (o.name === `step:${pf.id}`) continue; // 石鼓本身
         const par = o.geometry.parameters || {};
         if (par.radiusTop === skirtR) continue; // 裙本身
-        if (!o.geometry.boundingBox) o.geometry.computeBoundingBox();
-        const bb0 = o.geometry.boundingBox;
-        let maxR = 0;
-        let maxY = -Infinity;
-        for (let k = 0; k < 8; k += 1) {
-          corner.set(k & 1 ? bb0.max.x : bb0.min.x, k & 2 ? bb0.max.y : bb0.min.y, k & 4 ? bb0.max.z : bb0.min.z);
-          corner.applyMatrix4(o.matrixWorld);
-          maxR = Math.max(maxR, Math.hypot(corner.x - pf.at[0], corner.z - pf.at[1]));
-          maxY = Math.max(maxY, corner.y);
-        }
+        const m = measureDeco(o, pf, ground);
         checked += 1;
-        const buried = maxY <= skirtTop + 1e-6 && maxR <= skirtR + 1e-6;
-        if (buried) buriedAll += 1;
+        if (m.buried) buriedAll += 1;
         ok(
-          !buried,
+          !m.buried,
           `[${pf.id}] 裝飾看得見（不是整塊埋在底裙裡）`,
-          `maxR=${maxR.toFixed(2)}/${skirtR.toFixed(2)} maxY=+${(maxY - ground).toFixed(2)}/0.55`
+          `maxR=${m.maxR.toFixed(2)}/${skirtR.toFixed(2)} maxY=+${(m.maxY - ground).toFixed(2)}/0.55`
+        );
+        /*
+         * **不准穿過站在上面的人**（P16a 審查 · 第 2 條）：站在頂面上的人是一根
+         * 半徑 `PLAYER_RADIUS`、從腳到頭 1.7 公尺的柱子。任何一塊裝飾只要有一個角
+         * 落在那根柱子裡，它就是從人身上穿過去（`noCollide` 擋不住視覺）。
+         */
+        const topY = ground + pf.height;
+        const throughBody =
+          m.minR < World.PLAYER_RADIUS && m.maxY > topY + 0.12 && m.minY < topY + 1.7;
+        ok(
+          !throughBody,
+          `[${pf.id}] 裝飾不會從站在上面的人身上穿過去`,
+          `minR=${m.minR.toFixed(2)} y=${(m.minY - topY).toFixed(2)}…${(m.maxY - topY).toFixed(2)}`
         );
       }
     }
@@ -18428,12 +18483,28 @@ console.log('\n▸ 跳躍鋪區 ＋ 中景補四區（v1.2 · P16a）');
       ok(Boolean(node0), '[反例] 找得到那一座高台的節點');
       if (node0) {
         const g0 = node0.position.y;
-        const fakeMaxR = pf0.radius * 0.3;
-        const fakeMaxY = g0 + 0.2;
-        ok(
-          fakeMaxY <= g0 + 0.55 && fakeMaxR <= pf0.radius + 0.55,
-          '[反例] 一塊 0.2 公尺高、貼在圓心附近的裝飾會被判定成「埋在裙裡」'
+        // 拿一塊**真的**裝飾，複製一份搬到裙的正中央、壓到 0.2 公尺高，再問同一支
+        const real = node0.children.find(
+          (c) => c.isMesh && c.geometry && c.name !== `step:${pf0.id}` && (c.geometry.parameters || {}).radiusTop !== pf0.radius + 0.55
         );
+        ok(Boolean(real), '[反例] 找得到一塊真的裝飾可以拿來搬');
+        if (real) {
+          ok(!measureDeco(real, pf0, g0).buried, '[反例] 它原本是看得見的（不然這一條是空過的）');
+          const moved = real.clone();
+          moved.position.set(0, 0.1, 0);
+          moved.rotation.set(0, 0, 0);
+          moved.scale.set(0.2, 0.2, 0.2);
+          node0.add(moved);
+          node0.updateMatrixWorld(true);
+          const mm = measureDeco(moved, pf0, g0);
+          node0.remove(moved);
+          node0.updateMatrixWorld(true);
+          ok(
+            mm.buried,
+            '[反例] 同一塊裝飾搬到裙的正中央、壓矮之後就被判定成「埋在裙裡」',
+            `maxR=${mm.maxR.toFixed(2)} maxY=+${(mm.maxY - g0).toFixed(2)}`
+          );
+        }
       }
     }
   }

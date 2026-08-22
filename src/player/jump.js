@@ -120,7 +120,7 @@ export function apexOf(v, g = GRAVITY) {
   return v > 0 ? (v * v) / (2 * g) : 0;
 }
 
-/** 這一片土地跳得多高（公尺）。其餘 11 片是 0。 */
+/** 這一片土地跳得多高（公尺）。沒有高台的土地是 0（數量寫在 `JUMP_REGIONS`，不寫死在句子裡）。 */
 export function jumpApexFor(regionId) {
   return apexOf(jumpSpeedFor(regionId));
 }

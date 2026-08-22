@@ -540,11 +540,6 @@ export const PLATFORMS = Object.freeze([
    * 示範與推理（v1.2 · P16a）：**示範了兩遍的那一階**——裙上貼著兩級很淺的小階，
    * 第三級抬起來、只剩一圈光（母題 `twiceShown` 的同一句話：
    * 「師傅只示範兩遍，第三遍要你自己踏出來」）。真的踏得上去的是石鼓本身。
-   */
-  /*
-   * 示範與推理（v1.2 · P16a）：**示範了兩遍的那一階**——裙上貼著兩級很淺的小階，
-   * 第三級抬起來、只剩一圈光（母題 `twiceShown` 的同一句話：
-   * 「師傅只示範兩遍，第三遍要你自己踏出來」）。真的踏得上去的是石鼓本身。
    *
    * **整片土地只有這一個落點**：格點掃到 0.25 公尺才找得到它
    * （2 公尺的格點掃出 0 個，0.5 公尺掃出的那一個「四周繞不過去」）。
@@ -716,7 +711,6 @@ export function bandSolidCircles(band) {
   return out;
 }
 
-/** 這個點在不在某一道遮擋帶的足跡裡（可加外擴，例如玩家半徑）。 */
 /**
  * 一個點離一道遮擋帶的**核心矩形**多遠（公尺，在矩形裡就是 0）。
  *
@@ -741,6 +735,7 @@ export function bandCoreDistance(band, x, z) {
   return Math.hypot(a, b);
 }
 
+/** 這個點在不在某一道遮擋帶的足跡裡（可加外擴，例如玩家半徑）。 */
 export function pointInBand(band, x, z, pad = 0) {
   const f = bandFootprint(band);
   const dx = x - f.cx;
@@ -1260,13 +1255,12 @@ function buildUnnamedTool(motif, kit, heightAt) {
   collar.rotation.y = motif.rot + Math.PI / 2;
   collar.userData.noCollide = true;
   grp.add(collar);
-  // 刃：只剩光，從柄頂斜著往上（沒打完的那一把）
+
+  // 刃：只剩光，平躺在柄頂上（沒打完的那一把 —— `ghostPlate()` 只轉 Y，是平的）
   ghostPlate(grp, kit, x + dirX * w * 0.5, base + h * 1.04, z + dirZ * w * 0.5, motif.rot, w * 0.28, w * 0.9, 1.2);
 
   return grp;
 }
-
-
 
 /**
  * 高台：**一塊圓的石鼓**（v1.2 · P14）。
@@ -1488,10 +1482,15 @@ function dressTakenStep(grp, { spec, kit, r, h }) {
     socket.userData.noCollide = true;
     grp.add(socket);
   }
-  // 被拿走的那一件：只剩一圈懸在頂面上方的光輪廓（地標「空的基座」的同一句話）
+  /*
+   * 被拿走的那一件：頂面上一圈**平貼著**的光輪廓（地標「空的基座」的同一句話）。
+   * 高度刻意只離頂面 3 公分：這一圈的半徑 0.42–0.50 比玩家的 0.62 還小，
+   * 抬到膝蓋高度就會**從站在上面的人身上穿過去**（P16a 審查 · 第 2 條）。
+   * 平貼在腳邊反而更像「這裡原本擺著一件東西」。
+   */
   const outline = new THREE.Mesh(flatRing(r * 0.3, r * 0.36), glow(kit.light, 0.9));
   outline.rotation.x = -Math.PI / 2;
-  outline.position.y = h + 0.62;
+  outline.position.y = h + 0.03;
   outline.userData.noCollide = true;
   grp.add(outline);
 }

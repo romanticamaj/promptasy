@@ -111,7 +111,7 @@ CLAUDE.md 的五個方向與七條護欄仍是最高準則。本 roadmap 只回�
   - 依賴：P14。方案：M5、M10、M11（缺口版）。
   - DoD：collision-audit 0；秘密皆有 tell；不跳也走得完每一座橋。
 
-- [~] **P16a · 跳躍全區啟用 ＋ 母題／高台鋪 forms／toolcraft／frugality／refinery**（M）— 跳躍高度全區開；四區的中景、粒子、高台。
+- [x] **P16a · 跳躍全區啟用 ＋ 母題／高台鋪 forms／toolcraft／frugality／refinery**（M）— 跳躍高度全區開；四區的中景、粒子、高台。
   - 依賴：P15。方案：M1、M5、M8。
   - DoD：tris <232k、碰撞體 <1,100；四區 pacing-audit 死區 ≤1。
 - [ ] **P16b · 母題／高台鋪 wards／sight／divergence ＋ 全區收尾**（M）— 剩餘區；pacing-audit 全區。

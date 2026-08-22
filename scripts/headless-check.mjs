@@ -18828,14 +18828,17 @@ async function main() {
      * 整段按住 J 期間離地最高的那一刻是多少 —— 要的是 0。
      */
     let worstLift = 0;
+    /*
+     * 取樣要**從按下去的那一刻就開始**：整段跳躍的滯空不到一秒，
+     * 原本先等 1.6 秒再開始量，等於把要抓的那一段整個跳過去
+     * （離地最高的那一刻於是永遠是 0，那條斷言就變成裝飾）（P16a 審查 · 第 5 條）。
+     */
     press('KeyJ');
-    await waitGame(1.6);
-    const bail = performance.now() + 9000;
+    const bail = performance.now() + 3000;
     while (performance.now() < bail) {
       const p = P();
       worstLift = Math.max(worstLift, p.y - w.terrainHeight(p.x, p.z));
       if (window.__gt.t > 0 && g.player.jump.jumps > jumpsBefore) break;
-      if (performance.now() > bail - 6000) break;
       await sleep(30);
     }
     release('KeyJ');
@@ -18857,7 +18860,7 @@ async function main() {
     eq(p16NoJump.platforms, 0, 'P16a：契約鍛冶場真的一座高台都沒有（量出來擺不下）');
     ok(Boolean(p16NoJump.spot), 'P16a：契約鍛冶場上找得到站得住的點', JSON.stringify(p16NoJump.spot));
     eq(p16NoJump.regionHere, 'toolcraft', 'P16a：人真的站在契約鍛冶場上（不然下面幾條是空過的）');
-    eq(p16NoJump.jumpsDelta, 0, 'P16a：**按住 J 一秒半，一次都沒有跳起來**');
+    eq(p16NoJump.jumpsDelta, 0, 'P16a：**按住 J 三秒，一次都沒有跳起來**');
     eq(p16NoJump.airborne, false, 'P16a：整段沒有離地');
     eq(p16NoJump.standing, null, 'P16a：也沒有站到任何東西上');
     ok(p16NoJump.worstLift < 1e-6, 'P16a：整段離地最高的那一刻仍然是 0（量的是最差那一次）', `max=${p16NoJump.worstLift}`);
