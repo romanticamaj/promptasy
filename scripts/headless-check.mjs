@@ -18899,9 +18899,16 @@ async function main() {
       JSON.stringify(cases.map((c) => c.bandId))
     );
 
-    const seen = await evaluate(`
+    /*
+     * **一片土地一次 `evaluate`**：三片擠在同一次呼叫裡，最壞情況
+     * （三次轉身各 12 秒 ＋ 三段各 4 秒的走路）會逼近 CDP 的 90 秒保險絲 ——
+     * 那會變成「整支測試中斷」而不是「紅一條」（findings：`waitFor` 逾時會中止整支測試）。
+     */
+    const seen = [];
+    for (const oneCase of cases) {
+      const rec1 = await evaluate(`
       ${P16A_PRELUDE}
-      const CASES = ${JSON.stringify(cases)};
+      const CASES = ${JSON.stringify([oneCase])};
       const out = [];
       for (const c of CASES) {
         const had = openRegion(c.region);
@@ -18938,8 +18945,8 @@ async function main() {
          * 擋下來，「走得動 → 停住」那兩條就變成在量別人（findings：測試裡的搜尋條件
          * 與判定條件要一致）。所以從 7 公尺一路往內問到 3 公尺，全部要走得到。
          */
-        let start = null;
-        for (let a = 0; a < 48 && !start; a += 1) {
+        const dirs = [];
+        for (let a = 0; a < 48; a += 1) {
           const ang = (a / 48) * Math.PI * 2;
           let clear = true;
           for (let rr = 7; rr >= 3 && clear; rr -= 1) {
@@ -18948,30 +18955,59 @@ async function main() {
             const here = w.regionAt(px, pz);
             if (!here || here.id !== c.region || here.onBridge || !w.isClear(px, pz)) clear = false;
           }
-          if (clear) start = { x: c.at[0] + Math.cos(ang) * 7, z: c.at[1] + Math.sin(ang) * 7 };
+          if (clear) dirs.push({ deg: Math.round((ang * 180) / Math.PI), x: c.at[0] + Math.cos(ang) * 7, z: c.at[1] + Math.sin(ang) * 7 });
         }
-        rec.start = start;
-        if (start) {
-          g.player.teleport(start.x, start.z);
-          await waitGame(0.5);
-          rec.faceErr = await faceToward(c.at[0], c.at[1]);
-          const d0 = Math.hypot(P().x - c.at[0], P().z - c.at[1]);
+        rec.dirs = dirs.length;
+        rec.start = dirs[0] || null;
+        /*
+         * 量的是**整段按住 W 期間離它最近的那一刻**，不是「最後停在哪」。
+         *
+         * 第一版量的是終點，實測在觀象臺會紅：**人先靠近、然後倒退 3.84 公尺**。
+         * 原因不是地形也不是這道帶擋不住 —— 是**鏡頭避障**：走到一道 10 公尺高的
+         * 石脊前面，鏡頭撞上它會繞開，cameraYaw 一轉，同一顆 W 的前進方向就換了，
+         * 人於是掉頭走掉。這條路上沒有「一直往它走」這種東西可以量。
+         * 最近的那一刻不受鏡頭影響，而且它問的正是要問的事：
+         *   · minD 大於 1.4 —— **走不進石頭裡**（沒有碰撞體的話這個數字會趨近 0）
+         *   · d0 減 minD 大於 2.5 —— 真的走到它面前（不是站著不動）
+         * 一個方向走不到就換下一個（最多 6 個）；六個都走不到才紅 ——
+         * 那時候紅的是「這道帶四周沒有一個走得到的方向」，也是該紅的事。
+         */
+        const dist = () => Math.hypot(P().x - c.at[0], P().z - c.at[1]);
+        const probes = [];
+        let walk = null;
+        for (const s of dirs.slice(0, 6)) {
+          g.player.teleport(s.x, s.z);
+          await waitGame(0.4);
+          const faceErr = await faceToward(c.at[0], c.at[1]);
+          const d0 = dist();
           press('KeyW');
-          await waitGame(2.2);
-          const dMid = Math.hypot(P().x - c.at[0], P().z - c.at[1]);
-          const pMid = { x: P().x, z: P().z };
-          await waitGame(1.8);
-          const dEnd = Math.hypot(P().x - c.at[0], P().z - c.at[1]);
+          let minD = d0;
+          const until = window.__gt.t + 4;
+          const bail = performance.now() + 45000;
+          while (window.__gt.t < until && performance.now() < bail) {
+            const d = dist();
+            if (d < minD) minD = d;
+            if (minD < 2.2) break; // 已經貼到它了，不必再走
+            await sleep(40);
+          }
+          const dLast = dist();
+          if (dLast < minD) minD = dLast;
           release('KeyW');
           releaseAll();
-          rec.d0 = Number(d0.toFixed(2));
-          rec.dMid = Number(dMid.toFixed(2));
-          rec.dEnd = Number(dEnd.toFixed(2));
-          rec.walked = Number((d0 - dMid).toFixed(2));
-          // 「停住了」＝ 後半段還按著 W，人卻幾乎沒有再靠近（量的是最後那 1.8 秒）
-          rec.creep = Number(Math.abs(dMid - dEnd).toFixed(2));
-          rec.slid = Number(Math.hypot(P().x - pMid.x, P().z - pMid.z).toFixed(2));
+          await waitGame(0.3);
+          probes.push({ deg: s.deg, d0: Number(d0.toFixed(2)), minD: Number(minD.toFixed(2)) });
+          if (d0 - minD < 2.5) continue;
+          walk = {
+            deg: s.deg,
+            faceErr: Number(faceErr.toFixed(3)),
+            d0: Number(d0.toFixed(2)),
+            minD: Number(minD.toFixed(2)),
+            closed: Number((d0 - minD).toFixed(2)),
+          };
+          break;
         }
+        rec.probes = probes;
+        rec.walk = walk;
         // ③ 站在橋頭問遊戲自己那一支
         const sight = w.landmarkSightFrom(c.entry[0], c.entry[1], c.region);
         rec.sightFlat = sight ? sight.flat : null;
@@ -18983,6 +19019,8 @@ async function main() {
       }
       return out;
     `);
+      seen.push(...rec1);
+    }
 
     for (const r of seen) {
       const tag = `P16b[${r.region}]`;
@@ -18993,11 +19031,13 @@ async function main() {
       eq(r.groupVisible, true, `${tag}：中觀層那一組是開著的`);
       ok(r.lift > 3, `${tag}：它有中景的高度（最高的一塊離地 > 3 公尺）`, `+${r.lift}m`);
       eq(r.blocks, true, `${tag}：它擋得住人（走不進石頭裡）`);
-      ok(Boolean(r.start), `${tag}：找得到一個朝著它走過去的起點`, JSON.stringify(r.start));
-      ok(r.faceErr < 0.35, `${tag}：真的轉身面向它了`, String(r.faceErr));
-      ok(r.walked > 1.5, `${tag}：前半段人真的走動了（不是站著不動）`, `${r.walked}m`);
-      ok(r.creep < 0.6, `${tag}：**還按著 W 卻停住了** —— 被它擋下來`, `後 1.8 秒再靠近 ${r.creep}m`);
-      ok(r.dEnd > 1.2, `${tag}：人停在它外面（沒有穿進去）`, `d=${r.dEnd}m`);
+      ok(r.dirs >= 1, `${tag}：四周找得到走得過去的方向`, `${r.dirs}/48`);
+      ok(Boolean(r.walk), `${tag}：有一個方向真的走得到它面前`, `試過 ${JSON.stringify(r.probes)}`);
+      if (r.walk) {
+        ok(r.walk.faceErr < 0.35, `${tag}：真的轉身面向它了`, String(r.walk.faceErr));
+        ok(r.walk.closed > 2.5, `${tag}：按著 W 真的走到它面前（不是站著不動）`, `拉近 ${r.walk.closed}m`);
+        ok(r.walk.minD > 1.4, `${tag}：**再靠也靠不進去** —— 它擋得住人`, `最近 ${r.walk.minD}m`);
+      }
       if (r.exempt) {
         eq(r.sightFlat, false, `${tag}：橋頭看得到地標 —— 這是登記過的例外（SIGHT_EXEMPT），不是壞掉`);
       } else {

@@ -15287,7 +15287,8 @@ console.log('\n▸ 中觀：遮擋帶與母題（v1.2 · P11）');
      * v1.2 · P16b：這張表以前在這裡**抄了第二份**（`LAYER_R_P11`），
      * 而 `scripts/lib/screen-rules.mjs` 已經有同一張 —— 兩份數字遲早分家
      * （findings：「同一份量測不要抄第二份」）。現在測試與搜尋工具共用那一支，
-     * 反應物由 `reactive.js` 逐觸發點交出自己的半徑（風鈴 3.2、音石 1.75…）。
+     * 反應物由 `reactive.js` 交出**自己**的半徑（風鈴 3.2、螢蛾 3.0、小獸 4.2…；
+     * 音石列刻意維持整排一個 4.4，理由在 `SONGSTONE_ROW_CLEAR`）。
      */
     const RulesP16b = (await import('./lib/screen-rules.mjs')).default;
     const targets = RulesP16b.interactionTargets({

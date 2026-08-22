@@ -80,7 +80,7 @@ async function loadTargets() {
     inscriptions: readJson('src/data/inscriptions.json').entries,
     letters: readJson('src/data/letters.json').entries,
     handles: readJson('src/data/handles.json').entries,
-    // 逐觸發點、各自帶自己的半徑（音石列一排 5 顆攤成 5 個目標）——見 `screen-rules.mjs` 的 `targetRadius`
+    // 每一個各自帶自己的觸發半徑（風鈴 3.2、螢蛾 3.0…）——見 `screen-rules.mjs` 的 `targetRadius`
     reactiveSpots: Reactive.reactiveTargets(),
     murks: readJson('src/data/murks.json').entries,
     tablets: Props.LORE_TABLETS,

@@ -34,7 +34,7 @@ export const LAYER_INTERACT_R = Object.freeze({
  * 被整批套在風鈴（3.2）、靜水盤（3.2）、螢蛾（3.0）、小獸（4.2）、音石（1.75）身上 ——
  * 拿光菇圈的尺寸去量風鈴，等於 P06c 記下的那條教訓（「淨空半徑要跟著那一層自己的
  * 互動半徑走」）在同一層裡又犯了一次。現在 `reactive.js` 的 `reactiveTargets()`
- * 逐觸發點交出自己的半徑（音石列一排 5 顆會攤成 5 個目標，兩端不再被漏掉），
+ * 交出**自己**的半徑（音石列是刻意的例外：整排一個目標 4.4，理由在 `SONGSTONE_ROW_CLEAR`），
  * **這一支只負責挑**：沒有人再抄第二份數字。
  */
 export const targetRadius = (t) => (Number.isFinite(t.r) ? t.r : LAYER_INTERACT_R[t.k]);
@@ -127,7 +127,7 @@ export function interactionTargets(data) {
   for (const i of data.inscriptions || []) out.push({ k: 'ins', id: i.id, at: i.at });
   for (const l of data.letters || []) out.push({ k: 'letter', id: l.id, at: l.at });
   for (const h of data.handles || []) out.push({ k: 'handle', id: h.id, at: h.at });
-  // 反應物由 `reactive.js` 的 `reactiveTargets()` 逐觸發點攤好、各自帶 `r`（見 `targetRadius`）
+  // 反應物由 `reactive.js` 的 `reactiveTargets()` 各自帶好自己的 `r`（見 `targetRadius`）
   for (const s of data.reactiveSpots || []) out.push({ k: 'react', id: s.id, at: s.at, r: s.r });
   for (const m of data.murks || []) out.push({ k: 'murk', id: m.id, at: m.at });
   for (const t of data.tablets || []) out.push({ k: 'tablet', id: t.id, at: t.at });
