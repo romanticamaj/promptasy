@@ -103,7 +103,7 @@ CLAUDE.md 的五個方向與七條護欄仍是最高準則。本 roadmap 只回�
   - 依賴：P11。方案：M5（資料層）。
   - DoD：rubric 測試驗 solidTop 資料；e2e 舊斷言零改動；WORLD.md §3.1 加跳躍鍵條目（標「尚未啟用」）。
 
-- [~] **P14 · 跳躍原型（單區）**（M）— Y 軸與重力、跳（coyote 100ms、input buffer 150ms、鬆手提前下落）、程序化 squash-stretch、落地塵、落地音；只在 foundations 允許（其他區跳躍高度 0，行為不變）；**邊界護欄**：跳躍落點若不在 coverage 內或會穿 solids，起跳即被夾住（不會掉進虛空、無傳送）；`reducedMotion` 保留位移去掉擠壓。
+- [x] **P14 · 跳躍原型（單區）**（M）— Y 軸與重力、跳（coyote 100ms、input buffer 150ms、鬆手提前下落）、程序化 squash-stretch、落地塵、落地音；只在 foundations 允許（其他區跳躍高度 0，行為不變）；**邊界護欄**：跳躍落點若不在 coverage 內或會穿 solids，起跳即被夾住（不會掉進虛空、無傳送）；`reducedMotion` 保留位移去掉擠壓。
   - 依賴：P13。方案：2-A（只跳）。**本 phase 自建一座 foundations 的 1.6m 測試高台**（也是正式的第一座）。
   - DoD：舊路線全部不需要跳就走得完；e2e 跳上該高台；FPS 低畫質不降。
 

@@ -116,7 +116,12 @@ export function simulateApex(v, dt = 1 / 60, g = GRAVITY) {
  * —— tick 裡不 new。
  *
  * · `airborne` 離地中
- * · `standing`  站在哪一顆可站立體上（`null` ＝ 貼著地形；只有落到頂面才會非 null）
+ * · `supported` **站在某一顆可站立體的頂面上**（狀態；`false` ＝ 貼著地形）
+ * · `standing`  站的是哪一顆（**只是標籤**，給 HUD／e2e 看；沒有登記 `standId` 的就是 null）
+ *
+ *   兩個一定要分開：全世界 180 顆可站立體裡只有登記過 `standId` 的那幾顆有名字，
+ *   拿名字當狀態的話「跳上一顆沒名字的石頭」下一幀就會被判成沒站在東西上、
+ *   整個人穿回地形高度再被 `escapeSolid()` 擠出來（P14 審查 · 第 1 條）。
  * · `vy`        垂直速度（m/s，正 = 往上）
  * · `coyote`    還剩多少寬限可以起跳（秒）
  * · `buffer`    還記著多久前按的那一次跳（秒）
@@ -129,6 +134,7 @@ export function simulateApex(v, dt = 1 / 60, g = GRAVITY) {
 export function createJumper() {
   return {
     airborne: false,
+    supported: false,
     standing: null,
     vy: 0,
     coyote: 0,
@@ -147,7 +153,7 @@ export function createJumper() {
 
 /** 這一格狀態算不算「離開了地形」（＝要走跳躍那條路，而不是原本的貼地那一行）。 */
 export function isAloft(st) {
-  return st.airborne || st.standing !== null;
+  return st.airborne || st.supported;
 }
 
 /**
@@ -170,7 +176,7 @@ export function isAloft(st) {
  * @returns {number} 這一幀之後腳的高度
  *
  * **不按跳躍鍵的保證**：`wantJump` 永遠是 false → `airborne` 永遠是 false →
- * `standing` 永遠是 null → 這支一路走到最後回的就是 `io.groundY`，
+ * `supported` 永遠是 false → 這支一路走到最後回的就是 `io.groundY`，
  * 與 P14 之前那一行 `group.position.y = terrainHeight(...)` 逐位元組相同。
  */
 export function stepJumper(st, dt, io) {
@@ -185,6 +191,7 @@ export function stepJumper(st, dt, io) {
     if (io.jumpSpeed > 0 && io.canTakeOff) {
       st.vy = io.jumpSpeed;
       st.airborne = true;
+      st.supported = false;
       st.standing = null;
       st.coyote = 0;
       st.buffer = 0;
@@ -205,9 +212,10 @@ export function stepJumper(st, dt, io) {
   }
 
   /* ③ 站在頂面上：走出那一段平面就開始掉（這是唯一一條「不按跳也會離地」的路）。 */
-  if (!st.airborne && st.standing !== null) {
+  if (!st.airborne && st.supported) {
     if (io.supportIndex < 0) {
       st.airborne = true;
+      st.supported = false;
       st.vy = 0;
       st.standing = null;
       st.launchY = io.y;
@@ -215,6 +223,8 @@ export function stepJumper(st, dt, io) {
       st.airT = 0;
       st.coyote = COYOTE_TIME; // 走出邊緣的那一段寬限
     } else {
+      // 走到另一顆頂面上時標籤要跟著換（不然 standingOn 會一直報第一顆的名字）
+      st.standing = io.supportId;
       st.coyote = COYOTE_TIME;
       return io.supportY;
     }
@@ -260,7 +270,8 @@ export function stepJumper(st, dt, io) {
     st.airborne = false;
     st.vy = 0;
     st.cut = false;
-    st.standing = io.supportIndex >= 0 ? io.supportId : null;
+    st.supported = io.supportIndex >= 0;
+    st.standing = st.supported ? io.supportId : null;
     st.coyote = COYOTE_TIME;
     st.lastApex = st.apex;
     st.lastAirTime = st.airT;

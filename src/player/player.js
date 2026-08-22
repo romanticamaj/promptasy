@@ -694,6 +694,7 @@ export function createPlayer({
       velocity.set(0, 0, 0);
       // 傳送＝重新落地：跳躍狀態整組歸零，不然人會帶著上一處的垂直速度出現
       jumper.airborne = false;
+      jumper.supported = false;
       jumper.standing = null;
       jumper.vy = 0;
       jumper.buffer = 0;

@@ -2131,7 +2131,9 @@ async function main() {
     eq(r.walkedUp, true, 'P14：用真的按鍵走到第一階旁邊了');
     ok(r.gap < 4, 'P14：真的貼著第一階（不是在遠處跳）', `gap=${r.gap ? r.gap.toFixed(2) : '?'}`);
     eq(r.standing, r.id, 'P14：跳上去之後站在第一階上（player.standingOn 說得出是誰）');
-    ok(r.tries <= 6, 'P14：跳上去不需要無限重試', `tries=${r.tries}`);
+    // 重試迴圈的界線本來就是 6 → `<= 6` 永遠成立、什麼都沒問（審查 · 第 3 條）
+    // 重試迴圈本身就寫死 `tries < 6`，所以 `<= 6` 是永遠成立的空泛斷言（審查 · 第 3 條）
+    ok(r.tries < 6, 'P14：跳上去不用把六次重試用光（真的跳上去了才停）', `tries=${r.tries}`);
     eq(r.touched, r.id, 'P14：落地那一刻就已經站在第一階上（不是滑上去的）');
     ok(r.footAboveTerrain > 1.4, 'P14：腳下的高度真的被抬到第一階的頂面', `+${(r.footAboveTerrain || 0).toFixed(2)}m`);
     ok(r.footVsTop < 1e-6, 'P14：腳的高度正好是頂面（不是浮在上面一點）', `d=${r.footVsTop}`);

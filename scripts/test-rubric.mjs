@@ -16892,6 +16892,7 @@ console.log('\n▸ 跳躍原型（v1.2 · P14）');
     let y = o.ground(x);
     const trace = [];
     let worstOffGround = 0;
+    let landedFrame = -1;
     for (let f = 0; f < o.frames; f += 1) {
       // 水平：腳在頂面以下時，高台擋得住人（＝ solidAtAbove 的那條例外）
       const vx = typeof o.vx === 'function' ? o.vx(st) : o.vx;
@@ -16920,9 +16921,10 @@ console.log('\n▸ 跳躍原型（v1.2 · P14）');
       io.canTakeOff = typeof o.canTakeOff === 'function' ? o.canTakeOff(f) : o.canTakeOff !== false;
       y = Jump.stepJumper(st, o.dt, io);
       worstOffGround = Math.max(worstOffGround, Math.abs(y - g));
-      trace.push({ f, x, y, g, airborne: st.airborne, standing: st.standing });
+      trace.push({ f, x, y, g, airborne: st.airborne, supported: st.supported, standing: st.standing });
+      if (landedFrame < 0 && !st.airborne && st.supported) landedFrame = f;
     }
-    return { st, x, y, trace, worstOffGround };
+    return { st, x, y, trace, worstOffGround, landedFrame };
   }
 
   const FLAT = () => 0;
@@ -16943,6 +16945,7 @@ console.log('\n▸ 跳躍原型（v1.2 · P14）');
     eq(r.trace.every((t) => t.y === t.g), true, '不按 J：逐幀 === 地形高度（不是「很接近」）');
     eq(r.st.jumps, 0, '不按 J：一次都沒跳');
     eq(r.st.airborne, false, '不按 J：從頭到尾沒離過地');
+    eq(r.st.supported, false, '不按 J：從頭到尾沒站到任何東西上（所以走的一定是原本那一行）');
     eq(r.st.standing, null, '不按 J：從頭到尾沒站到任何東西上（所以走的一定是原本那一行）');
     // 不按 J 的人走到高台前就被擋下來 —— 上不去，也走不進去
     ok(
@@ -16973,12 +16976,46 @@ console.log('\n▸ 跳躍原型（v1.2 · P14）');
       ok(Math.abs(up.x - PLAT.x) <= PLAT.standR, `[dt=${dt.toFixed(4)}] 落點在頂面平的那一段之內`, up.x.toFixed(2));
     }
   }
+  /* ④b2 **落在一顆沒有名字的可站立體上**（P14 審查 · 第 1 條）
+   *
+   * 全世界 180 顆可站立體裡只有登記過 `standId` 的那幾顆有名字。狀態機一度拿
+   * 「叫什麼名字」當「站不站著」，於是跳上一顆沒名字的石頭之後**下一幀就穿回地形高度**，
+   * 再被 escapeSolid() 橫向擠出來（實測：f=40 落在 1.10、f=41 掉回 0）。
+   */
+  {
+    const dt = 1 / 60;
+    const anon = { x: PLAT.x, standR: PLAT.standR, standTop: PLAT.standTop, id: null };
+    const start = anon.standR + World.PLAYER_RADIUS + 0.4;
+    const up = runSim({
+      ground: FLAT, plat: anon, x0: start, vx: (st2) => (st2.supported ? 0 : -6),
+      dt, frames: Math.ceil(3 / dt),
+      press: (f) => f === Math.ceil(0.2 / dt), hold: () => true,
+      jumpSpeed: Jump.JUMP_SPEED, canTakeOff: true,
+    });
+    eq(up.st.supported, true, '落在沒有名字的可站立體上：站得住');
+    eq(up.st.standing, null, '沒有名字的就是沒有名字（標籤仍是 null）');
+    eq(up.st.airborne, false, '落地了');
+    ok(Math.abs(up.y - anon.standTop) < 1e-9, '腳的高度停在頂面（不是穿回地形）', up.y.toFixed(4));
+    /*
+     * 最關鍵的一條：落地之後**又走了一整秒**，人還在頂面上。
+     * 壞掉的版本會在落地的下一幀就掉回 0 —— 所以這裡量的是整段的最低點。
+     */
+    const after = up.trace.filter((t) => t.f >= up.landedFrame);
+    ok(after.length > 30, '（前提）落地之後還有夠多幀可以看', String(after.length));
+    ok(
+      after.every((t) => Math.abs(t.y - anon.standTop) < 1e-9),
+      '落地之後整整一秒都還站在上面（不會下一幀就穿回地形）',
+      `最低 ${Math.min(...after.map((t) => t.y)).toFixed(3)}`
+    );
+  }
+
   {
     // 走下來：從頂面上一路往前走，走出平面就開始掉，最後回到地形高度
     const dt = 1 / 60;
     const st = Jump.createJumper();
     const io = { y: PLAT.standTop, groundY: 0, supportY: PLAT.standTop, supportId: PLAT.id, supportIndex: 0,
       wantJump: false, held: false, jumpSpeed: Jump.JUMP_SPEED, canTakeOff: true };
+    st.supported = true;
     st.standing = PLAT.id;
     let x = 0;
     let y = PLAT.standTop;
@@ -17003,6 +17040,27 @@ console.log('\n▸ 跳躍原型（v1.2 · P14）');
     eq(st.airborne, false, '走下來之後已經落地');
     eq(y, 0, '腳的高度回到地形高度');
     ok(landedAt - leftAt >= 2, '掉下來是一段真的下墜，不是瞬間貼地', `${landedAt - leftAt} 幀`);
+  }
+
+  /* ④b3 從一顆頂面走到另一顆：標籤要跟著換（P14 審查 · 第 2 條）
+   *
+   * 站著的時候只檢查「還有沒有支撐」，不重讀是哪一顆 —— 於是 `standingOn`
+   * 會一直報第一顆的名字。今天只有一座高台看不出來，P16a 鋪滿 12 區就會錯。
+   */
+  {
+    const dt = 1 / 60;
+    const st = Jump.createJumper();
+    st.supported = true;
+    st.standing = 'first';
+    const io = { y: PLAT.standTop, groundY: 0, supportY: PLAT.standTop, supportId: 'first', supportIndex: 0,
+      wantJump: false, held: false, jumpSpeed: 0, canTakeOff: true };
+    Jump.stepJumper(st, dt, io);
+    eq(st.standing, 'first', '（前提）先站在第一顆上');
+    io.supportId = 'second';
+    io.supportIndex = 1;
+    Jump.stepJumper(st, dt, io);
+    eq(st.standing, 'second', '走到第二顆頂面上時標籤跟著換');
+    eq(st.supported, true, '換過去之後仍然站著');
   }
 
   /* ④c 跳不上 3.0 公尺（STAND_MAX_H 那條線） */
@@ -17060,7 +17118,8 @@ console.log('\n▸ 跳躍原型（v1.2 · P14）');
       const st = Jump.createJumper();
       const io = { y: PLAT.standTop, groundY: -50, supportY: PLAT.standTop, supportId: PLAT.id, supportIndex: 0,
         wantJump: false, held: true, jumpSpeed: Jump.JUMP_SPEED, canTakeOff: true };
-      st.standing = PLAT.id;
+      st.supported = true;
+    st.standing = PLAT.id;
       st.coyote = Jump.COYOTE_TIME;
       let y = PLAT.standTop;
       let airT = null;
