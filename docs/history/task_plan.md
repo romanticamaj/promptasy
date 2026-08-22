@@ -1329,3 +1329,34 @@ Exit criteria：
 - [ ] rubric／playtest／build／e2e 全綠、console error 0；預算在框內。
 
 **審查後修訂（2026-08-22，3 條）**：① **跳上任何一顆「沒有名字」的可站立體，下一幀就會穿回地形高度**——狀態機把 `st.standing`（是哪一顆）同時當成「站不站著」用，但 `supportAt()` 的 `id` 來自 `userData.standId`，而全世界 180 顆可站立體裡**只有那座高台登記過名字**（中央高原跳得到的 17 顆裡只有 1 顆有）。審查用真的世界重現：跳上 (34, −30) 那顆石頭 → 落地那一幀 y=2.55（頂面）但 `standing=null` → 下一幀 `isAloft()` 是 false，整支回 `groundY`，人**穿回石頭裡**再被 `escapeSolid()` 以 0.15 m/幀橫向擠出來（約半秒的滑行）。改成 `supported`（狀態，布林）與 `standing`（標籤）**兩個欄位**：狀態看 `supportIndex >= 0`，名字只給 HUD／e2e 看。新增一個「沒有名字的可站立體」模擬（先紅 3 條），並在「不按 J」那一節補一條 `supported === false`。② 站著的時候只檢查「還有沒有支撐」、不重讀是哪一顆 → 從一顆頂面走到另一顆時 `standingOn` 會一直報第一顆的名字（今天只有一座高台看不出來，P16a 鋪滿就會錯）；補上換標籤與一條兩顆之間的斷言。③ e2e 的 `ok(r.tries <= 6, …)` 是**永遠成立**的空泛斷言——產生它的迴圈本來就寫死 `tries < 6`，所以「跳上去了」與「六次都沒跳上去」會得到一樣的結果；改成 `< 6`。
+
+### P15 — 高台語法 ＋ 高處秘密 ＋ 橋缺口（鋪 4 區）（2026-08-22 開工）
+
+狀態：`in progress`（里程碑 C 第五格）
+
+**現狀**：P14 讓中央高原跳得起來（頂點 **2.08 公尺**、coyote 100ms、buffer 150ms、鬆手砍半），並蓋了第一座高台 `foundations-first-step`（1.6 公尺圓石鼓，`PLATFORMS` 資料層在 `src/world/screens.js`，落點用 `npm run screen-fit -- --kind platform` 搜出來）。可站立表面是資料（`top`／`standTop`／`standable`／`standR`），`supportAt()` 判定「腳夠高才撐得住」。祕密目前只有 **4 處**（`src/data/secrets.json`）。橋是一條連續的甲板，沒有任何缺口。
+
+**目標**：把「跳」變成一種**看得懂的地圖語法**——高台不是裝飾，是「站上去會看到別的東西」；並讓跳躍第一次換到東西（高處的祕密）。同時在橋上開一道缺口當作**可選的捷徑**，但**旁邊一定留一條不用跳就走得過去的窄板**（護欄 7：不倒退）。
+
+**範圍**
+1. **高台語法（鋪 4 區：foundations 已有 1 座，另補 3 區）**：每區 2 處，高度 **1.6–2.4 公尺**（P14 交接：2.5–3.0 的可站立體「站得上去卻跳不上去」，別做那個）。造型照該區的母題語彙；**站上去要看得到別的東西**——用 `landmarkSight()` 量：站在高台頂面看得到該區地標／或看得到一處原本被遮擋帶擋住的東西，寫成硬斷言。
+2. **高處秘密（secrets 4 → 12）**：三種 tell 各佔一部分——**不對的東西**（顏色／形狀與周圍格格不入）、**聲音先到**（走近才聽得到的細碎聲）、**高處**（只有站上高台才看得到／搆得到）。全部是**純風味**（`authored: "game"`、**不掛 source**，護欄 2：不杜撰出處）；圖鑑加一個「秘境」章節收藏它們。
+3. **橋缺口**：挑 **1–2 座**橋，在中段開一道 **3 公尺**的缺口（跳得過去：2.08 的頂點配上水平速度綽綽有餘），**缺口旁邊保留一條窄板**（`LANE_HALF` 之外、不用跳就走得過去）。e2e 要證明「**完全不按 J 也走得完每一座橋**」。
+4. **不倒退的硬證據**：所有既有路線（142 座石座、8 隻濁靈、24 頁殘頁、44 反應物、44 器物、12 座地標）**不跳也到得了**——寫一條「不按 J 的可達性」斷言（沿用 P13 的全地圖網格與 `isWalkable`）。
+
+**不做**：其餘 8 區的高台（P16b）、滑翔（P19）、大濁靈與守門者（P17／P18）、行動裝置（P24）。
+
+**受影響檔案**：`src/world/screens.js`（`PLATFORMS`）、`src/data/secrets.json`（**本 phase 明確授權動它**）、`src/world/world.js`（橋缺口）、`src/ui/codex.js` 或圖鑑相關（秘境章節）、`scripts/screen-fit.mjs`、`scripts/test-rubric.mjs`、`scripts/headless-check.mjs`、`scripts/expected-counts.json`、`WORLD.md`。
+
+**預算**：三角 219,914 → **< 226,000**；**光源 37 不變**；碰撞體 975 → **<1,020**；collision-audit 未涵蓋 **0**；可站立體稽核 **0**；`audit:pacing` 0／0／0、`audit:sightline` 3 區全過、`screen-fit --verify` 全 ✓。
+
+**Acceptance tests（先紅後綠）**
+- rubric：高台高度都在 1.6–2.4；每座高台「站上去看得到的東西」量得出來（先紅：把高台壓矮或搬走就要失敗）；12 處祕密每一處都有 tell 且 tell 的種類分佈合契約；祕密沒有 `source`；橋缺口的寬度與窄板的可走性逐點掃過；**不按 J 的可達性**：每一個互動點都走得到。
+- e2e：跳上兩座新高台、在高處撿到一處祕密、圖鑑「秘境」章節看得到它；**全程不按 J 走完一座有缺口的橋**；缺口正中央跳過去也成立；零 console error。
+
+**禁區**：`curriculum.json`、`challenges.json`、`flows.json`、`murks.json`、`letters.json`、`color-script.json`、`solution-stats.json`、`vite.config.js`、`CLAUDE.md`、`CHANGELOG.md`、`gameplay-roadmap.md`、三件組、dev server 5173／5174／5175。
+
+Exit criteria：
+- [ ] 4 區各有高台，站上去**看得到別的東西**（量得出來）；12 處祕密、三種 tell 都有；圖鑑有「秘境」章節。
+- [ ] 橋缺口跳得過去，而且**完全不按 J 也走得完每一座橋**、每一個互動點都到得了。
+- [ ] rubric／playtest／build／e2e 全綠、console error 0；預算在框內。
