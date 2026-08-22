@@ -15283,16 +15283,23 @@ console.log('\n▸ 中觀：遮擋帶與母題（v1.2 · P11）');
      * 每一個碰撞圓都要離得夠遠，讓玩家還走得到那件東西的互動半徑內。
      *   石座 PEDESTAL_CLEAR(5.6)＋玩家(0.62)＋自己的半徑；其餘照各層的互動半徑相加。
      */
-    const LAYER_R_P11 = { marker: 5.6, murk: 5.5, secret: 5.5, tablet: 4.6, react: 4.4, ins: 3.8, letter: 3.8, handle: 3.2 };
-    const targets = [];
-    for (const c of challenges) if (c.position) targets.push({ k: 'marker', id: c.id, at: c.position });
-    for (const i of inscriptions) targets.push({ k: 'ins', id: i.id, at: i.at });
-    for (const l of letterFile.entries) targets.push({ k: 'letter', id: l.id, at: l.at });
-    for (const h of handles) targets.push({ k: 'handle', id: h.id, at: h.at });
-    for (const sp of Reactive.REACTIVE_SPOTS) targets.push({ k: 'react', id: sp.id, at: sp.at });
-    for (const mk of murkFile.entries) targets.push({ k: 'murk', id: mk.id, at: mk.at });
-    for (const t of LORE_TABLETS) targets.push({ k: 'tablet', id: t.id, at: t.at });
-    for (const sc of groundSecrets) targets.push({ k: 'secret', id: sc.id, at: sc.at });
+    /*
+     * v1.2 · P16b：這張表以前在這裡**抄了第二份**（`LAYER_R_P11`），
+     * 而 `scripts/lib/screen-rules.mjs` 已經有同一張 —— 兩份數字遲早分家
+     * （findings：「同一份量測不要抄第二份」）。現在測試與搜尋工具共用那一支，
+     * 反應物由 `reactive.js` 逐觸發點交出自己的半徑（風鈴 3.2、音石 1.75…）。
+     */
+    const RulesP16b = (await import('./lib/screen-rules.mjs')).default;
+    const targets = RulesP16b.interactionTargets({
+      challenges,
+      inscriptions,
+      letters: letterFile.entries,
+      handles,
+      reactiveSpots: Reactive.reactiveTargets(),
+      murks: murkFile.entries,
+      tablets: LORE_TABLETS,
+      secrets: groundSecrets,
+    });
 
     const laneDistP11 = (x, z) =>
       Math.min(
@@ -15325,7 +15332,7 @@ console.log('\n▸ 中觀：遮擋帶與母題（v1.2 · P11）');
       ok(solids.length > 0, `[${layer.id}] 中觀層有碰撞體（有份量的東西要擋得住人）`);
       for (const sd of solids) {
         for (const t of targets) {
-          const need = LAYER_R_P11[t.k] + World.PLAYER_RADIUS + sd.r;
+          const need = RulesP16b.targetRadius(t) + World.PLAYER_RADIUS + sd.r;
           const d = Math.hypot(sd.x - t.at[0], sd.z - t.at[1]);
           ok(d >= need, `[${layer.id}] 碰撞體離 ${t.k}:${t.id} ≥ ${need.toFixed(1)}m`, d.toFixed(2));
         }
@@ -15343,11 +15350,12 @@ console.log('\n▸ 中觀：遮擋帶與母題（v1.2 · P11）');
     eq(screenLights, 0, 'P11：中觀層一盞燈都沒加');
     /*
      * v1.2 · P16a：中觀層一次長了 6 座高台、4 座母題、2 道遮擋帶 —— 上限跟著抬一階。
-     * 門檻要比現況嚴一格（findings：斷言的門檻要比產生它的那段程式更嚴一格）：
-     * 現況三角 6,288／碰撞體 84，所以守 7,000 與 96（＝再多鋪滿一片土地還在框內）。
+     * 門檻要比現況嚴一格（findings：斷言的門檻要比產生它的那段程式更嚴一格）。
+     * **v1.2 · P16b**：最後三片土地各補兩道帶（＋6 道），現況三角 7,080／碰撞體 109
+     * —— 守 8,000 與 120（＝再多鋪一片土地的兩道帶還在框內；12 片都有了，不會再長）。
      */
-    ok(screenTris < 7000, 'P11：中觀層的三角形很省', `tris=${Math.round(screenTris)}`);
-    ok(screenSolids <= 96, 'P11：中觀層的碰撞體沒有失控', `n=${screenSolids}`);
+    ok(screenTris < 8000, 'P11：中觀層的三角形很省', `tris=${Math.round(screenTris)}`);
+    ok(screenSolids <= 120, 'P11：中觀層的碰撞體沒有失控', `n=${screenSolids}`);
 
     // 繞得過去：石脊四周、母題四周
     for (const b of Screens.SCREEN_BANDS) {
@@ -15423,7 +15431,12 @@ console.log('\n▸ 中觀：遮擋帶與母題（v1.2 · P11）');
     const { sightlineAudit, HIDDEN_MIN, REVEAL_MAX } = await import('./sightline-audit.mjs');
     const audit = await sightlineAudit();
     ok(Object.keys(audit.regions).length >= 11, 'sightlineAudit() 量得到每一片有橋／有頸口的土地', String(Object.keys(audit.regions).length));
-    const withBands = Object.entries(audit.regions).filter(([, r]) => r.bands.length);
+    /*
+     * v1.2 · P16b：登記過 `SIGHT_EXEMPT` 的土地不進這一圈 ——
+     * 這道門檻問的是「地標有沒有被擋住」，而它量到「擺不下會擋住的那一道」。
+     * 例外本身由下面 P16b 那一段守（登記的土地必須真的有帶、而且真的沒有一道擋得住）。
+     */
+    const withBands = Object.entries(audit.regions).filter(([, r]) => r.bands.length && !r.exempt);
     ok(withBands.length >= 1, '至少有一區有遮擋帶可以量');
     for (const [id, r] of withBands) {
       ok(
@@ -18555,6 +18568,189 @@ console.log('\n▸ 跳躍鋪區 ＋ 中景補四區（v1.2 · P16a）');
     const jumpLine = keyhelpSrc.split('\n').find((l) => l.includes("keys: ['J']")) || '';
     ok(jumpLine.length > 0, 'keyhelp 找得到 J 那一行');
     ok(!/[一二三四五六七八九十]片/.test(jumpLine), 'keyhelp 的 J 那一行沒有把片數寫死', jumpLine.trim());
+  }
+}
+
+
+/* ================================================================== *
+ * 中景收尾：12 片土地每一片都有中觀層（v1.2 · P16b）
+ * ================================================================== *
+ *
+ * 這一格要證的只有一句話：**沒有一片土地是空的**（遮擋帶／母題／高台至少一種）。
+ * 其餘三段守的是為了做到它而動過的三件事，每一件都要說得出「為什麼是這個數字」：
+ *   ① 反應物的淨空跟著**自己**的觸發半徑走（以前整層套用最大的那一個）。
+ *   ② `SIGHT_EXEMPT` 是登記例外，不是把門檻調鬆。
+ *   ③ 所有互動點仍然搶得到 `E` —— 對**真的蓋出來的世界**逐點量。
+ */
+console.log('\n▸ 中景收尾：每一片土地都有中觀層（v1.2 · P16b）');
+{
+  const S17 = await import('../src/world/screens.js');
+  const Rules17 = (await import('./lib/screen-rules.mjs')).default;
+  const world17 = readFileSync(resolve(root, 'WORLD.md'), 'utf8');
+
+  /* --- ① 12 片土地每一片都有中觀層 ---------------------------------- */
+  {
+    const has = (id) =>
+      S17.SCREEN_BANDS.some((b) => b.region === id) ||
+      S17.MOTIFS.some((m) => m.region === id) ||
+      S17.PLATFORMS.some((p) => p.region === id);
+    let covered = 0;
+    for (const site of World.REGION_SITES) {
+      ok(has(site.id), `[${site.id}] 有中觀層（遮擋帶／母題／高台至少一種）`);
+      if (has(site.id)) covered += 1;
+    }
+    eq(covered, World.REGION_SITES.length, '12 片土地一片都沒有漏', `${covered}/${World.REGION_SITES.length}`);
+    ok(World.REGION_SITES.length >= 12, '真的有 12 片土地在被驗（不然上面那一圈是空過的）', String(World.REGION_SITES.length));
+    /*
+     * 反例：把某一片土地的三層都拿掉，同一支判定就要回 false ——
+     * 證明 `has()` 不是「怎麼樣都成立」（findings：新斷言先問一句「什麼情況下它會紅」）。
+     */
+    const fake = (id) => [].some((x) => x.region === id);
+    eq(fake('wards'), false, '反例：三層都空的土地，同一種問法會回 false');
+  }
+
+  /* --- ② 反應物的淨空跟著自己的觸發半徑走 --------------------------- */
+  {
+    const kinds = Object.keys(Reactive.REACT_TRIGGER_R);
+    ok(kinds.length >= 6, '六種反應物都登記了自己的觸發半徑', String(kinds.length));
+    /*
+     * **建造器與淨空規則是同一份**：真的蓋一個出來，比對它登記的觸發半徑。
+     * 這一條在 P16b 之前抓不到東西（規則整層寫死 4.4，蓋出來的是 1.75–4.4）。
+     */
+    const kit = kitFor('#c2c79f');
+    for (const kind of kinds) {
+      const built = Reactive.buildReaction({ id: `probe-${kind}`, kind, region: 'foundations', at: [0, 0] }, kit, () => 0);
+      ok(Boolean(built && built.triggers && built.triggers.length), `[${kind}] 蓋得出來、而且有觸發點`);
+      if (!built || !built.triggers || !built.triggers.length) continue;
+      eq(
+        built.triggers[0].enter,
+        Reactive.reactiveTriggerR(kind, {}),
+        `[${kind}] 蓋出來的觸發半徑＝淨空規則問到的那一個（只有一份數字）`
+      );
+    }
+    // 靜水盤是唯一跟著參數走的：換了水盤半徑，兩邊要一起變
+    eq(Reactive.reactiveTriggerR('ripple', { radius: 3 }), 4.5, '靜水盤的觸發半徑跟著水盤半徑走（3 ＋ 1.5）');
+    // 音石列刻意維持整排一個目標（理由寫在 `SONGSTONE_ROW_CLEAR`）
+    const row = Reactive.reactiveTargets(Reactive.REACTIVE_SPOTS.filter((sp) => sp.kind === 'songstone'));
+    ok(row.length >= 5, '音石列有被攤出來', String(row.length));
+    ok(
+      row.every((t) => t.r === Reactive.SONGSTONE_ROW_CLEAR),
+      '音石列走的是整排那一個淨空半徑（不是每一顆 1.75）'
+    );
+    eq(Reactive.SONGSTONE_ROW_CLEAR, Rules17.LAYER_INTERACT_R.react, '整排那一個＝反應層的預設值（沒有第三個數字）');
+    // `targetRadius()` 的兩條路都要走得通
+    eq(Rules17.targetRadius({ k: 'react', id: 'x', at: [0, 0], r: 3.2 }), 3.2, 'targetRadius：帶了 r 就用它');
+    eq(Rules17.targetRadius({ k: 'letter', id: 'x', at: [0, 0] }), 3.8, 'targetRadius：沒帶 r 才退回那一層的預設');
+  }
+
+  /* --- ③ 視線的登記例外 --------------------------------------------- */
+  {
+    const exemptIds = Object.keys(S17.SIGHT_EXEMPT);
+    const regionIds = new Set(World.REGION_SITES.map((r) => r.id));
+    const { BRIDGE_HEAD_INSET } = await import('./sightline-audit.mjs');
+    for (const id of exemptIds) {
+      ok(regionIds.has(id), `[sight-exempt:${id}] 是真實區域`);
+      const reason = S17.SIGHT_EXEMPT[id];
+      ok(reason.length >= 30, `[sight-exempt:${id}] 寫得出理由`, String(reason.length));
+      ok(/\d/.test(reason), `[sight-exempt:${id}] 理由裡有量到的數字（說得出還差多少）`);
+      const bands = S17.SCREEN_BANDS.filter((b) => b.region === id);
+      ok(bands.length > 0, `[sight-exempt:${id}] 真的有遮擋帶（沒帶就不必例外）`, String(bands.length));
+      /*
+       * **例外要會過期**：哪一天這片土地擺得下真的擋得住的那一道，這條就要紅。
+       * 量的是「橋頭 → 地標」那條直線有沒有被它的核心矩形切到 —— 與 `screen-fit`
+       * 找第一道帶時用的是同一支（`segmentCrossesBand`）。
+       */
+      const site = World.REGION_SITES.find((r) => r.id === id);
+      const landmark = LANDMARKS.find((l) => l.region === id);
+      const link = World.CORRIDORS.find((c) => c.region === id) || World.ANNEX_LINKS.find((a) => a.region === id);
+      ok(Boolean(site && landmark && link), `[sight-exempt:${id}] 找得到地標與走道`);
+      if (!site || !landmark || !link) continue;
+      const along = World.CORRIDORS.includes(link) ? link.length - site.radius + BRIDGE_HEAD_INSET : link.gateAt + BRIDGE_HEAD_INSET;
+      const entry = [link.from.x + link.dir.x * along, link.from.z + link.dir.z * along];
+      for (const b of bands) {
+        eq(
+          Boolean(S17.segmentCrossesBand(b, entry[0], entry[1], landmark.at[0], landmark.at[1])),
+          false,
+          `[sight-exempt:${id}] ${b.id} 真的沒有擋在「橋頭 → 地標」那條直線上（擋得住就該把例外拿掉）`
+        );
+      }
+      /*
+       * 反例：拿一片**有**擋得住的那一道的土地問同一支，答案要相反 ——
+       * 不然上面那一圈是「怎麼問都 false」。
+       */
+      const ref = S17.SCREEN_BANDS.find((b) => b.region === 'reasoning');
+      const refSite = World.REGION_SITES.find((r) => r.id === 'reasoning');
+      const refLm = LANDMARKS.find((l) => l.region === 'reasoning');
+      const refLink = World.CORRIDORS.find((c) => c.region === 'reasoning');
+      const refAlong = refLink.length - refSite.radius + BRIDGE_HEAD_INSET;
+      const refEntry = [refLink.from.x + refLink.dir.x * refAlong, refLink.from.z + refLink.dir.z * refAlong];
+      eq(
+        Boolean(S17.segmentCrossesBand(ref, refEntry[0], refEntry[1], refLm.at[0], refLm.at[1])),
+        true,
+        '反例：真的擋得住的那一道，同一支判定會回 true'
+      );
+    }
+    ok(exemptIds.length <= 2, '登記例外不准變成常態（最多兩片）', String(exemptIds.length));
+    ok(world17.includes('SIGHT_EXEMPT'), 'WORLD.md 記得這條登記例外');
+  }
+
+  /* --- ④ 每一個互動點仍然搶得到 `E`（對真的蓋出來的世界量） ---------- *
+   *
+   * 動過「中觀層與互動點之間的距離」之後，這一條是**真正要守的東西**：
+   * 距離公式怎麼寫都好，玩家得走得到那件東西、按得下去。
+   * 量的是互動圈上 24 個方向裡有幾個站得住（`isWalkable`，跟遊戲同一支），
+   * 以及那件東西**自己那一點**周圍最近的一個站得住的位置在不在互動半徑內。
+   */
+  {
+    const targets = Rules17.interactionTargets({
+      challenges,
+      inscriptions,
+      letters: letterFile.entries,
+      handles,
+      reactiveSpots: Reactive.reactiveTargets(),
+      murks: murkFile.entries,
+      tablets: LORE_TABLETS,
+      secrets: groundSecrets,
+    });
+    ok(targets.length >= 200, '互動點真的有那麼多要驗（不然這一段是空過的）', String(targets.length));
+    let worstFree = 99;
+    let worstId = '';
+    for (const t of targets) {
+      const R = Rules17.targetRadius(t);
+      let free = 0;
+      for (let a = 0; a < 24; a += 1) {
+        const ang = (a / 24) * Math.PI * 2;
+        // 站在互動圈內緣（再往內半個玩家半徑）—— 那裡站得住就按得到 `E`
+        const px = t.at[0] + Math.cos(ang) * (R - 0.3);
+        const pz = t.at[1] + Math.sin(ang) * (R - 0.3);
+        if (testWorld.isWalkable(px, pz)) free += 1;
+      }
+      if (free < worstFree) {
+        worstFree = free;
+        worstId = `${t.k}:${t.id}`;
+      }
+      /*
+       * 門檻 12／24（實測最擠的是 15）—— 比現況嚴一格，而且**半圈**這件事有意義：
+       * 一件東西被擋掉超過一半的方向，就已經是「要繞很久才按得到」了。
+       */
+      ok(free >= 12, `[${t.k}:${t.id}] 互動圈上還有站得住的位置（搶得到 E）`, `${free}/24`);
+    }
+    console.log(`    ↳ 最擠的互動點：${worstId}（互動圈上 ${worstFree}/24 個方向站得住）`);
+  }
+
+  /* --- ⑤ 文件與資料是同一份 ------------------------------------------ */
+  {
+    const s410 = world17.slice(world17.indexOf('### 4.10'), world17.indexOf('### 4.11'));
+    ok(s410.includes('P16b'), 'WORLD.md §4.10 記得這一格補了哪三片土地');
+    for (const id of ['wards', 'sight', 'divergence']) {
+      ok(s410.includes(id), `WORLD.md §4.10 點得出 ${id}`);
+    }
+    // 每一道新帶都吃得了既有的那一整套（造型、長寬高、faceSign）
+    for (const b of S17.SCREEN_BANDS) {
+      ok(b.depth >= 2 && b.depth <= 3, `[${b.id}] 厚度在 2–3 公尺`, String(b.depth));
+      ok(b.length >= 7 && b.length <= 20, `[${b.id}] 長度在 7–20 公尺`, String(b.length));
+      ok(b.height >= 6 && b.height <= 12, `[${b.id}] 高度在 6–12 公尺`, String(b.height));
+    }
   }
 }
 

@@ -80,7 +80,8 @@ async function loadTargets() {
     inscriptions: readJson('src/data/inscriptions.json').entries,
     letters: readJson('src/data/letters.json').entries,
     handles: readJson('src/data/handles.json').entries,
-    reactiveSpots: Reactive.REACTIVE_SPOTS,
+    // 逐觸發點、各自帶自己的半徑（音石列一排 5 顆攤成 5 個目標）——見 `screen-rules.mjs` 的 `targetRadius`
+    reactiveSpots: Reactive.reactiveTargets(),
     murks: readJson('src/data/murks.json').entries,
     tablets: Props.LORE_TABLETS,
     secrets: readJson('src/data/secrets.json').entries,
@@ -89,9 +90,13 @@ async function loadTargets() {
 
 /**
  * 一個候選（母題或遮擋帶）在**真的蓋出來的世界**裡過不過。
+ *
+ * **匯出是刻意的**（v1.2 · P16b）：折點（`PATH_BENDS`）沒有搜尋器 —— `autoBends()` 只產生
+ * 一條建議，被石頭堵住時要靠一支臨時腳本繞著它試。那支腳本必須問**同一支**判定，
+ * 不然又會出現「工具說可行、測試說不行」。
  * @returns {Promise<{ok:boolean, problems:string[], solids:number, free:number, hug:number[], sight:object|null}>}
  */
-async function verifyInWorld({ regionId, bands, motifs, platforms = [], bends, focusIds, landmarks, base, wantSight }) {
+export async function verifyInWorld({ regionId, bands, motifs, platforms = [], bends, focusIds, landmarks, base, wantSight }) {
   const World = await import('../src/world/world.js');
   const Screens = await import('../src/world/screens.js');
   const { world, THREE } = await buildWorld({ screens: { bands, motifs, platforms, bends }, base });
@@ -234,14 +239,39 @@ async function verifyInWorld({ regionId, bands, motifs, platforms = [], bends, f
     const { sightlineAudit, HIDDEN_MIN, REVEAL_MAX } = await import('./sightline-audit.mjs');
     const audit = await sightlineAudit({ bands, bends });
     const r = audit.regions[regionId];
-    sight = r ? { hiddenFor: r.hiddenFor, revealAt: r.revealAt, pass: r.pass, entry: r.entry } : null;
-    if (!r || r.pass !== true) {
+    sight = r ? { hiddenFor: r.hiddenFor, revealAt: r.revealAt, pass: r.pass, exempt: r.exempt, entry: r.entry } : null;
+    // 登記過例外的土地不被問「地標擋不擋得住」（`screens.js` 的 `SIGHT_EXEMPT`）——
+    // 其餘每一條擺位規則照吃，一條都沒有放鬆。
+    if (!r || (r.pass !== true && !r.exempt)) {
       problems.push(`視線沒過（前 ${r ? r.hiddenFor : '?'}m 看不到、第 ${r ? r.revealAt : '?'}m 揭露；要 ≥${HIDDEN_MIN} / ≤${REVEAL_MAX}）`);
     }
-    // 折點本身要站得住、不能撞進任何一道帶、也不能被石頭堵住
+    /*
+     * 折線要站得住、也不能被石頭堵住 —— **量的是整條線，不是那幾個折點**。
+     *
+     * v1.2 · P16b：以前只量折點。兩個折點各自乾淨、中間那一段卻穿過一顆石頭
+     * 是完全可能的（觀象臺那一條實測就是：折點都過，第 112.5–114.5 公尺那一段被堵）。
+     * `test:rubric` 一直是逐 0.5 公尺掃整條折線的 —— 於是又出現一次
+     * 「工具說可行、測試說不行」（P15 的 `AROUND_*` 是同一個病）。現在兩邊同一種量法。
+     */
+    const linkHere = World.CORRIDORS.find((c) => c.region === regionId) || World.ANNEX_LINKS.find((a) => a.region === regionId);
+    // 只量**登記過折點**的區（與 `test:rubric` 同一個範圍）：沒有折點的區走的是自古以來那條直線，
+    // 那條線上原本就有的東西不是這一層的事。
+    const poly = bends[regionId] && linkHere ? Screens.corridorPolyline(linkHere, bends) : [];
+    const lmHere = landmarks.find((l) => l.region === regionId) || null;
+    for (let i = 0; i + 1 < poly.length; i += 1) {
+      const [ax, az] = poly[i];
+      const [bx2, bz2] = poly[i + 1];
+      const len = Math.hypot(bx2 - ax, bz2 - az);
+      for (let t = 0; t <= len; t += 0.5) {
+        const px = ax + ((bx2 - ax) * t) / len;
+        const pz = az + ((bz2 - az) * t) / len;
+        if (lmHere && Math.hypot(px - lmHere.at[0], pz - lmHere.at[1]) < 12) continue;
+        if (Math.hypot(px, pz) < World.REGION_SITES[0].radius) continue; // 高原那一段不是這次的事
+        if (world.solidAt(px, pz)) problems.push(`走出來的路被石頭堵住 @(${px.toFixed(1)}, ${pz.toFixed(1)})`);
+      }
+    }
     for (const p of bends[regionId] || []) {
       if (World.coverage(p[0], p[1]) <= 0.9) problems.push(`折點 ${p} 站不住`);
-      if (world.solidAt(p[0], p[1])) problems.push(`折點 ${p} 被石頭堵住`);
     }
   }
 
@@ -314,7 +344,11 @@ async function main() {
       console.log(
         `${tag} ${regionId.padEnd(14)} ${focusIds.length} 件 · 碰撞體 ${res.solids} · 四周 ${res.free}/${res.dirs} · ` +
           `貼地 ${Math.min(...res.hug).toFixed(2)}…${Math.max(...res.hug).toFixed(2)}m` +
-          (res.sight ? ` · 前 ${res.sight.hiddenFor}m 看不到、第 ${res.sight.revealAt}m 揭露` : '')
+          (res.sight
+            ? res.sight.exempt
+              ? ' · 視線登記例外'
+              : ` · 前 ${res.sight.hiddenFor}m 看不到、第 ${res.sight.revealAt}m 揭露`
+            : '')
       );
       for (const p of res.problems) console.log(`    · ${p}`);
       if (!res.ok) bad += 1;
@@ -358,6 +392,23 @@ async function main() {
    * （orchestration 有 13 座石座，光是石座的淨空就吃掉整片內圈）。
    */
   const why = { 區域: 0, 覆蓋: 0, 主動線: 0, 閘門: 0, 地標留白: 0, 互動圈: 0, 離路網: 0, 太靠近同伴: 0, 貼著石脊: 0 };
+  /*
+   * v1.2 · P16b：**離線篩不准比真的門檻還嚴。**
+   *
+   * 「離閘門」「地標留白」「離主動線」三條，`solidProblems()`（真的門檻）量的是
+   * **碰撞圓的圓心**：`gate < 8`、`d < lm.clear`、`lane < LANE_HALF + 4 − r`。
+   * 離線篩卻一律把 `estR` 加上去 —— 對母題與遮擋帶那是刻意的保守（圓心與圓的落點不同），
+   * 但**高台只有一顆圓、圓心就在 `at`**，加 `estR` 等於憑空嚴了 1.4 公尺，
+   * 主動線那一條更是嚴了 2.8（規則是減半徑，篩子是加半徑）。
+   * 後果：P16a 對護欄崗量到「連一個格點都活不到」，寫進了 §4.12 的表 ——
+   * 那個 0 其實是**篩子的 0**，不是土地的 0（P16a 自己記過「量到 0 與用粗格點量到 0
+   * 是兩件事」，這是同一條教訓的第三種形態：**用錯門檻量到的 0**）。
+   * 現在高台走精確門檻，母題／遮擋帶維持保守（它們的圓真的散在 `at` 之外）。
+   */
+  const exact = kind === 'platform';
+  const laneNeed = exact ? World.LANE_HALF + Rules.LANE_MARGIN - radius : World.LANE_HALF + Rules.LANE_MARGIN + estR;
+  const gateNeed = exact ? Rules.GATE_MIN : Rules.GATE_MIN + estR;
+  const lmPad = exact ? 0 : estR;
   const cands = [];
   for (let x = site.x - site.radius; x <= site.x + site.radius; x += grid) {
     for (let z = site.z - site.radius; z <= site.z + site.radius; z += grid) {
@@ -370,15 +421,15 @@ async function main() {
         why['覆蓋'] += 1;
         continue;
       }
-      if (laneDistance(World, x, z) < World.LANE_HALF + Rules.LANE_MARGIN + estR) {
+      if (laneDistance(World, x, z) < laneNeed) {
         why['主動線'] += 1;
         continue;
       }
-      if (gateDistance(World, x, z) < Rules.GATE_MIN + estR) {
+      if (gateDistance(World, x, z) < gateNeed) {
         why['閘門'] += 1;
         continue;
       }
-      if (landmarks.some((l) => Math.hypot(x - l.at[0], z - l.at[1]) < l.clear + estR)) {
+      if (landmarks.some((l) => Math.hypot(x - l.at[0], z - l.at[1]) < l.clear + lmPad)) {
         why['地標留白'] += 1;
         continue;
       }
@@ -389,7 +440,7 @@ async function main() {
        */
       if (kind === 'motif' || kind === 'platform') {
         const near = targets.some(
-          (t) => Math.hypot(x - t.at[0], z - t.at[1]) < Rules.LAYER_INTERACT_R[t.k] + World.PLAYER_RADIUS + estR + 0.3
+          (t) => Math.hypot(x - t.at[0], z - t.at[1]) < Rules.targetRadius(t) + World.PLAYER_RADIUS + estR + 0.3
         );
         if (near) {
           why['互動圈'] += 1;
@@ -568,6 +619,17 @@ async function main() {
      * 遮擋帶的離線篩看的是**它登記出來的每一個碰撞圓**（`bandSolidCircles()`），
      * 不是中心點 —— 「中心離石座夠遠、兩端卻踩進去」的候選以前要等重建才被打回票。
      */
+    /*
+     * v1.2 · P16b：**遮擋帶也要說得出「被哪一條擋掉幾個」。**
+     * 母題與高台那兩支早就有 `why`／`whyP`，只有帶這一支從頭到尾沉默 ——
+     * 於是「這片土地 866 個格點 → 0 個候選」這句話講不出理由，
+     * 也就無從判斷「換短一點、換薄一點會不會就擺得下」（P16b 要量的正是這件事）。
+     * `nearBest` 記的是**被某一條擋掉的那些擺法裡最好的那一個還差多少公尺** ——
+     * 那個數字就是「這片土地離擺得下還差多遠」。
+     */
+    const whyB = { 沒擋在視線上: 0, 離橋頭太近或太遠: 0, 腳下站不住: 0, 碰撞圓踩到別人: 0 };
+    let nearBest = Infinity; // 「碰撞圓踩到別人」那一條最小的缺口（公尺）
+    let nearWho = '';
     for (const c of cands) {
       for (let i = 0; i < rots; i += 1) {
         const rot = (i / rots) * Math.PI;
@@ -575,9 +637,15 @@ async function main() {
         // 這一道要真的擋在「橋頭 → 地標」那條直線上（橋頭那一刻看不到，是硬門檻的第一條）
         const hit = Screens.segmentCrossesBand(band, entry[0], entry[1], landmark.at[0], landmark.at[1]);
         // `--noSight`：找**第二道**（給入口厚度、不負責擋視線）時不要求它擋在那條直線上
-        if (!hit && !flag('noSight')) continue;
+        if (!hit && !flag('noSight')) {
+          whyB['沒擋在視線上'] += 1;
+          continue;
+        }
         const dEntry = Math.hypot(c.x - entry[0], c.z - entry[1]);
-        if (dEntry < num('entryMin', 8) || dEntry > num('entryMax', 24)) continue;
+        if (dEntry < num('entryMin', 8) || dEntry > num('entryMax', 24)) {
+          whyB['離橋頭太近或太遠'] += 1;
+          continue;
+        }
         // 石脊自己每一塊腳下都要站得住
         const f = Screens.bandFootprint(band);
         let ok = true;
@@ -586,15 +654,48 @@ async function main() {
           const pz = f.cz + f.uz * f.halfLen * t;
           if (World.coverage(px, pz) <= 0.9) ok = false;
         }
-        if (!ok) continue;
-        for (const sd of Screens.bandSolidCircles(band)) {
-          if (solidProblems(World, sd, regionId, targets, landmarks).length) ok = false;
+        if (!ok) {
+          whyB['腳下站不住'] += 1;
+          continue;
         }
-        if (!ok) continue;
+        /*
+         * 「還差多少」量的是**這一種擺法最差的那一條**（不是所有擺法所有違規裡最小的那一個 ——
+         * 那個數字永遠是 0，因為擺法是連續的，邊界上一定有人差 0.001）。
+         * 一種擺法要能出貨，它每一條都得過 → 它的缺口就是最差那一條；
+         * 全部擺法裡最小的那個缺口，才是「這片土地離擺得下還差多遠」。
+         */
+        let worstGap = -Infinity;
+        let worstWho = '';
+        for (const sd of Screens.bandSolidCircles(band)) {
+          const probs = solidProblems(World, sd, regionId, targets, landmarks);
+          if (!probs.length) continue;
+          ok = false;
+          // 只有「離某個東西太近」那幾條說得出距離，其餘（掉出區、虛空）沒有公尺數 → 記成無限大
+          for (const p of probs) {
+            const m = /（(-?[\d.]+) < ([\d.]+)）/.exec(p);
+            const gap = m ? Number(m[2]) - Number(m[1]) : Infinity;
+            if (gap > worstGap) {
+              worstGap = gap;
+              worstWho = p;
+            }
+          }
+        }
+        if (!ok) {
+          if (worstWho && worstGap < nearBest) {
+            nearBest = worstGap;
+            nearWho = worstWho;
+          }
+          whyB['碰撞圓踩到別人'] += 1;
+          continue;
+        }
         const score = -Math.abs(dEntry - num('entryWant', 15));
         scored.push({ ...c, rot: Number(rot.toFixed(4)), dEntry, entry, score, band });
       }
     }
+    console.log(
+      `遮擋帶自己那幾條擋掉的：${Object.entries(whyB).map(([k, v]) => `${k} ${v}`).join('、')}` +
+        (Number.isFinite(nearBest) ? `；被淨空擋掉的那些擺法裡最好的還差 ${nearBest.toFixed(2)}m（${nearWho}）` : '')
+    );
   }
 
   scored.sort((a, b) => b.score - a.score);
@@ -695,4 +796,4 @@ async function main() {
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) await main();
 
-export default { autoBends };
+export default { autoBends, verifyInWorld };

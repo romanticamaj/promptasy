@@ -18866,6 +18866,147 @@ async function main() {
     ok(p16NoJump.worstLift < 1e-6, 'P16a：整段離地最高的那一刻仍然是 0（量的是最差那一次）', `max=${p16NoJump.worstLift}`);
   }
 
+  console.log('\n▸ 中景收尾：最後三片土地（v1.2 · P16b）');
+  /* --- v1.2 · P16b：走進最後三片土地，那道石脊真的在那裡 --------------
+   *
+   * 三件事，都用**真的按鍵**與**遊戲自己那一支判定**做：
+   *   ① 那一層真的蓋出來、看得見、而且有中景的高度（不是一團空的 Group）。
+   *   ② 走過去會被它擋下來 —— 先走得動、然後**停住**（純裝飾的話人會一路穿過去）。
+   *   ③ 站在橋頭問**遊戲自己**的 `landmarkSightFrom()`：
+   *      觀象臺與分歧之廳看不到地標；護欄崗看得到 —— 那是登記過的例外
+   *      （`screens.js` 的 `SIGHT_EXEMPT`），不是壞掉。
+   */
+  {
+    const ScreensP16b = await import('../src/world/screens.js');
+    const { sightlineAudit: sightlineAuditP16b } = await import('./sightline-audit.mjs');
+    const auditP16b = await sightlineAuditP16b();
+    const cases = [];
+    for (const region of ['wards', 'sight', 'divergence']) {
+      const band = ScreensP16b.SCREEN_BANDS.find((b) => b.region === region);
+      const entry = (auditP16b.regions[region] || {}).entry || null;
+      cases.push({
+        region,
+        bandId: band ? band.id : null,
+        at: band ? band.at : null,
+        height: band ? band.height : 0,
+        entry,
+        exempt: Boolean(ScreensP16b.SIGHT_EXEMPT[region]),
+      });
+    }
+    ok(
+      cases.every((c) => c.bandId && c.at && c.entry),
+      'P16b：三片土地的帶與橋頭座標都是從資料算出來的（沒有寫死在測試裡）',
+      JSON.stringify(cases.map((c) => c.bandId))
+    );
+
+    const seen = await evaluate(`
+      ${P16A_PRELUDE}
+      const CASES = ${JSON.stringify(cases)};
+      const out = [];
+      for (const c of CASES) {
+        const had = openRegion(c.region);
+        await waitGame(0.2);
+        const rec = { region: c.region, bandId: c.bandId };
+        const layer = (w.screens || []).find((l) => l.id === c.region);
+        rec.layer = Boolean(layer);
+        if (layer) {
+          layer.group.updateMatrixWorld(true);
+          const node = layer.group.children.find((o) => o.name.endsWith(':' + c.bandId)) || null;
+          rec.node = Boolean(node);
+          let meshes = 0;
+          let lift = 0;
+          let hidden = 0;
+          if (node) {
+            node.traverse((o) => {
+              if (!o.isMesh) return;
+              meshes += 1;
+              if (!o.visible) hidden += 1;
+              // 世界矩陣的位移（elements[12/13/14]）—— 不必在頁面裡拿 THREE
+              const e = o.matrixWorld.elements;
+              lift = Math.max(lift, e[13] - w.terrainHeight(e[12], e[14]));
+            });
+          }
+          rec.meshes = meshes;
+          rec.hiddenMeshes = hidden;
+          rec.lift = Number(lift.toFixed(2));
+          rec.groupVisible = layer.group.visible !== false;
+        }
+        // ② 走過去會被擋下來
+        rec.blocks = Boolean(w.solidAt(c.at[0], c.at[1]));
+        /*
+         * 起點要挑一個**整條走廊都空的**方向：只驗起點的話，人會在半路被別的東西
+         * 擋下來，「走得動 → 停住」那兩條就變成在量別人（findings：測試裡的搜尋條件
+         * 與判定條件要一致）。所以從 7 公尺一路往內問到 3 公尺，全部要走得到。
+         */
+        let start = null;
+        for (let a = 0; a < 48 && !start; a += 1) {
+          const ang = (a / 48) * Math.PI * 2;
+          let clear = true;
+          for (let rr = 7; rr >= 3 && clear; rr -= 1) {
+            const px = c.at[0] + Math.cos(ang) * rr;
+            const pz = c.at[1] + Math.sin(ang) * rr;
+            const here = w.regionAt(px, pz);
+            if (!here || here.id !== c.region || here.onBridge || !w.isClear(px, pz)) clear = false;
+          }
+          if (clear) start = { x: c.at[0] + Math.cos(ang) * 7, z: c.at[1] + Math.sin(ang) * 7 };
+        }
+        rec.start = start;
+        if (start) {
+          g.player.teleport(start.x, start.z);
+          await waitGame(0.5);
+          rec.faceErr = await faceToward(c.at[0], c.at[1]);
+          const d0 = Math.hypot(P().x - c.at[0], P().z - c.at[1]);
+          press('KeyW');
+          await waitGame(2.2);
+          const dMid = Math.hypot(P().x - c.at[0], P().z - c.at[1]);
+          const pMid = { x: P().x, z: P().z };
+          await waitGame(1.8);
+          const dEnd = Math.hypot(P().x - c.at[0], P().z - c.at[1]);
+          release('KeyW');
+          releaseAll();
+          rec.d0 = Number(d0.toFixed(2));
+          rec.dMid = Number(dMid.toFixed(2));
+          rec.dEnd = Number(dEnd.toFixed(2));
+          rec.walked = Number((d0 - dMid).toFixed(2));
+          // 「停住了」＝ 後半段還按著 W，人卻幾乎沒有再靠近（量的是最後那 1.8 秒）
+          rec.creep = Number(Math.abs(dMid - dEnd).toFixed(2));
+          rec.slid = Number(Math.hypot(P().x - pMid.x, P().z - pMid.z).toFixed(2));
+        }
+        // ③ 站在橋頭問遊戲自己那一支
+        const sight = w.landmarkSightFrom(c.entry[0], c.entry[1], c.region);
+        rec.sightFlat = sight ? sight.flat : null;
+        rec.exempt = c.exempt;
+        g.player.teleport(0, 6);
+        await waitGame(0.4);
+        closeRegion(c.region, had);
+        out.push(rec);
+      }
+      return out;
+    `);
+
+    for (const r of seen) {
+      const tag = `P16b[${r.region}]`;
+      eq(r.layer, true, `${tag}：這一區真的蓋出了中觀層`);
+      eq(r.node, true, `${tag}：場景圖裡找得到 ${r.bandId}`);
+      ok(r.meshes >= 4, `${tag}：那道石脊有實體（不是一團空的 Group）`, `meshes=${r.meshes}`);
+      eq(r.hiddenMeshes, 0, `${tag}：沒有任何一塊是隱形的`);
+      eq(r.groupVisible, true, `${tag}：中觀層那一組是開著的`);
+      ok(r.lift > 3, `${tag}：它有中景的高度（最高的一塊離地 > 3 公尺）`, `+${r.lift}m`);
+      eq(r.blocks, true, `${tag}：它擋得住人（走不進石頭裡）`);
+      ok(Boolean(r.start), `${tag}：找得到一個朝著它走過去的起點`, JSON.stringify(r.start));
+      ok(r.faceErr < 0.35, `${tag}：真的轉身面向它了`, String(r.faceErr));
+      ok(r.walked > 1.5, `${tag}：前半段人真的走動了（不是站著不動）`, `${r.walked}m`);
+      ok(r.creep < 0.6, `${tag}：**還按著 W 卻停住了** —— 被它擋下來`, `後 1.8 秒再靠近 ${r.creep}m`);
+      ok(r.dEnd > 1.2, `${tag}：人停在它外面（沒有穿進去）`, `d=${r.dEnd}m`);
+      if (r.exempt) {
+        eq(r.sightFlat, false, `${tag}：橋頭看得到地標 —— 這是登記過的例外（SIGHT_EXEMPT），不是壞掉`);
+      } else {
+        eq(r.sightFlat, true, `${tag}：站在橋頭看不到地標（遊戲自己那一支判定）`);
+      }
+    }
+    ok(seen.length === 3, 'P16b：三片土地都走過了', String(seen.length));
+  }
+
   /* ================================================================ */
   await sleep(600);
   const realErrors = consoleErrors.filter((e) => !/favicon|DevTools|Autofill/i.test(e));

@@ -95,6 +95,7 @@ export async function sightlineAudit({ step = SAMPLE_STEP, bands: bandsIn = null
     const landmark = landmarkOf(site.id);
     if (!landmark) continue;
     const bands = bandsOf(site.id);
+    const exempt = Screens.SIGHT_EXEMPT[site.id] || '';
     const corridor = World.CORRIDORS.find((c) => c.region === site.id);
     const link = World.ANNEX_LINKS.find((a) => a.region === site.id);
     if (!corridor && !link) continue;
@@ -176,7 +177,17 @@ export async function sightlineAudit({ step = SAMPLE_STEP, bands: bandsIn = null
         edge: look(edge),
         gate: look(gate),
       },
-      pass: bands.length === 0 ? null : hiddenFor >= HIDDEN_MIN && revealAt <= REVEAL_MAX,
+      /*
+       * v1.2 · P16b：`pass` 有三種值 —— `true`／`false`／`null`（沒有被問到）。
+       * 沒有帶的土地本來就是 `null`；**登記過例外**的土地也是 `null`，
+       * 因為這道門檻問的是「地標有沒有被擋住」，而它量到「擺不下會擋住的那一道」
+       * （理由與數字在 `screens.js` 的 `SIGHT_EXEMPT`）。
+       * 例外不是把門檻調鬆：它的帶仍然照樣吃每一條淨空與擺位規則，
+       * 而 `test:rubric` 會反過來驗「登記過的土地真的沒有任何一道擋在那條直線上」——
+       * 哪一天擺得下了，那條斷言會紅，這筆登記就該拿掉。
+       */
+      exempt: exempt || null,
+      pass: bands.length === 0 || exempt ? null : hiddenFor >= HIDDEN_MIN && revealAt <= REVEAL_MAX,
     };
   }
 
@@ -189,13 +200,14 @@ function print(audit) {
   const rows = Object.entries(audit.regions);
   console.log(`視線稽核 · 每 ${audit.step} 公尺一個樣點 · 門檻：前 ${audit.hiddenMin}m 看不到、${audit.revealMax}m 內揭露\n`);
   for (const [id, r] of rows) {
-    const tag = r.bands.length ? (r.pass ? '✓' : '✗') : '·';
+    const tag = !r.bands.length || r.exempt ? '·' : r.pass ? '✓' : '✗';
     const hid = Number.isFinite(r.hiddenFor) ? `${r.hiddenFor}m` : '整條路都看不到';
     const rev = Number.isFinite(r.revealAt) ? `${r.revealAt}m` : '沒有揭露';
     console.log(
       `${tag} ${id.padEnd(14)} 遮擋帶 ${String(r.bands.length).padStart(2)} 道 · ` +
         `前 ${hid} 看不到、第 ${rev} 揭露 · 路長 ${r.routeLength}m`
     );
+    if (r.exempt) console.log(`    登記例外（不被問地標擋不擋得住）：${r.exempt}`);
     if (r.bands.length) {
       console.log(
         `    橋頭 ${r.entry.join(', ')} → ${r.landmark.id}（高 ${r.landmark.height}m）｜` +
@@ -207,8 +219,12 @@ function print(audit) {
       console.log(`    ${line}`);
     }
   }
-  const measured = rows.filter(([, r]) => r.bands.length);
-  console.log(`\n有遮擋帶的區：${measured.length}／${rows.length}；通過：${measured.filter(([, r]) => r.pass).length}`);
+  const measured = rows.filter(([, r]) => r.bands.length && !r.exempt);
+  const exempted = rows.filter(([, r]) => r.exempt);
+  console.log(
+    `\n有遮擋帶的區：${rows.filter(([, r]) => r.bands.length).length}／${rows.length}；` +
+      `被問到的：${measured.length}（登記例外 ${exempted.length}）；通過：${measured.filter(([, r]) => r.pass).length}`
+  );
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {

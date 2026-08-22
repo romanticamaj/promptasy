@@ -27,6 +27,18 @@ export const LAYER_INTERACT_R = Object.freeze({
   handle: 3.2,
 });
 
+/**
+ * 一個淨空目標**自己**的半徑（公尺）：目標帶了 `r` 就用它，沒帶才退回那一層的預設。
+ *
+ * v1.2 · P16b 補的：反應層那一格（4.4）是**六種反應物裡最大的那一個**（光菇圈），
+ * 被整批套在風鈴（3.2）、靜水盤（3.2）、螢蛾（3.0）、小獸（4.2）、音石（1.75）身上 ——
+ * 拿光菇圈的尺寸去量風鈴，等於 P06c 記下的那條教訓（「淨空半徑要跟著那一層自己的
+ * 互動半徑走」）在同一層裡又犯了一次。現在 `reactive.js` 的 `reactiveTargets()`
+ * 逐觸發點交出自己的半徑（音石列一排 5 顆會攤成 5 個目標，兩端不再被漏掉），
+ * **這一支只負責挑**：沒有人再抄第二份數字。
+ */
+export const targetRadius = (t) => (Number.isFinite(t.r) ? t.r : LAYER_INTERACT_R[t.k]);
+
 /** 離橋的主動線：`LANE_HALF + LANE_MARGIN`（再扣掉自己的半徑 —— 圓心在外面就夠了）。 */
 export const LANE_MARGIN = 4;
 /** 離閘門（公尺）。 */
@@ -115,7 +127,8 @@ export function interactionTargets(data) {
   for (const i of data.inscriptions || []) out.push({ k: 'ins', id: i.id, at: i.at });
   for (const l of data.letters || []) out.push({ k: 'letter', id: l.id, at: l.at });
   for (const h of data.handles || []) out.push({ k: 'handle', id: h.id, at: h.at });
-  for (const s of data.reactiveSpots || []) out.push({ k: 'react', id: s.id, at: s.at });
+  // 反應物由 `reactive.js` 的 `reactiveTargets()` 逐觸發點攤好、各自帶 `r`（見 `targetRadius`）
+  for (const s of data.reactiveSpots || []) out.push({ k: 'react', id: s.id, at: s.at, r: s.r });
   for (const m of data.murks || []) out.push({ k: 'murk', id: m.id, at: m.at });
   for (const t of data.tablets || []) out.push({ k: 'tablet', id: t.id, at: t.at });
   /*
@@ -181,7 +194,7 @@ export function pathDistance(segs, x, z) {
 export function solidProblems(World, sd, regionId, targets, landmarks) {
   const problems = [];
   for (const t of targets) {
-    const need = LAYER_INTERACT_R[t.k] + World.PLAYER_RADIUS + sd.r;
+    const need = targetRadius(t) + World.PLAYER_RADIUS + sd.r;
     const d = Math.hypot(sd.x - t.at[0], sd.z - t.at[1]);
     if (d < need) problems.push(`太靠近 ${t.k}:${t.id}（${d.toFixed(2)} < ${need.toFixed(2)}）`);
   }
@@ -202,6 +215,7 @@ export function solidProblems(World, sd, regionId, targets, landmarks) {
 
 export default {
   LAYER_INTERACT_R,
+  targetRadius,
   PLATFORM_MOTIF_GAP,
   AROUND_RING,
   AROUND_FREE_MIN,

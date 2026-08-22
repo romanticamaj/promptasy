@@ -105,6 +105,96 @@ function put(parent, geometry, material, pos = [0, 0, 0], rot = [0, 0, 0], scale
 export const PENTATONIC = Object.freeze([0, 2, 4, 7, 9, 12, 14, 16]);
 const semitone = (n) => Math.pow(2, n / 12);
 
+/**
+ * 每一種反應物**自己**的觸發半徑（公尺）。WORLD.md §3.2 那一列寫的「1.75–4.4（自動）」
+ * 就是這六個數字的區間 —— 它們**本來就不一樣**：風鈴要走到手邊才晃得起來，
+ * 光菇圈是一整圈依序亮起來的連續回應，音石列的每一顆各自是一個觸發點。
+ *
+ * v1.2 · P16b 把它抽出來的理由：中觀層的淨空規則（`scripts/lib/screen-rules.mjs`）
+ * 以前對整個反應層套用**最大的那一個（4.4）**，等於拿光菇圈的尺寸去量風鈴 ——
+ * 這正是 P06c 記下的那條教訓（「淨空半徑要跟著**那一層自己的互動半徑**走，
+ * 把別層的保守值整批套過來會把小東西擠出地圖」）在同一層裡又犯了一次。
+ * 建造器與淨空規則從此讀**同一份**。
+ *
+ * 靜水盤（ripple）是唯一跟著參數走的：它的觸發半徑是「水盤半徑 ＋ 1.5」，
+ * 所以放在 `reactiveTriggerR()` 裡算，不是常數。
+ */
+export const REACT_TRIGGER_R = Object.freeze({
+  chime: 3.2,
+  glowcap: 4.4,
+  songstone: 1.75,
+  ripple: 3.2, // ＝ 預設水盤半徑 1.7 ＋ 1.5（有 `opts.radius` 時以那個為準）
+  spirit: 4.2,
+  moths: 3.0,
+});
+
+/** 靜水盤的水盤半徑（公尺）—— 觸發半徑是它 ＋1.5。 */
+const RIPPLE_R = 1.7;
+
+/**
+ * 一個反應物的觸發半徑（公尺）。`opts` 會影響的只有靜水盤。
+ * @param {string} kind
+ * @param {object} [opts]
+ */
+export function reactiveTriggerR(kind, opts = {}) {
+  if (kind === 'ripple') return (opts.radius || RIPPLE_R) + 1.5;
+  return REACT_TRIGGER_R[kind];
+}
+
+/**
+ * 音石列每一顆石頭相對於落點的位移（公尺）—— 一排 5 顆、間距 2.3，散開 ±4.6 公尺。
+ *
+ * 抽出來是因為「一個 id 對應一排東西」這件事會被**別人**問到（P06c 的教訓：
+ * 中心合法不代表整排合法）。目前的呼叫者是建造器與 `test:rubric` 的逐顆斷言；
+ * 中觀層的淨空刻意不逐顆問（理由在 `SONGSTONE_ROW_CLEAR`）。
+ * @param {object} [opts] `{ stones, gap, dir }`
+ * @returns {number[][]} `[[dx, dz], …]`
+ */
+export function songStoneOffsets(opts = {}) {
+  const n = opts.stones || 5;
+  const gap = opts.gap || 2.3;
+  const dir = Number.isFinite(opts.dir) ? opts.dir : 0;
+  const out = [];
+  for (let i = 0; i < n; i += 1) {
+    const off = (i - (n - 1) / 2) * gap;
+    out.push([Math.cos(dir) * off, Math.sin(dir) * off]);
+  }
+  return out;
+}
+
+/**
+ * 音石列在**中觀層淨空**這件事上算幾公尺（公尺）——**不是** `REACT_TRIGGER_R.songstone`。
+ *
+ * 1.75 是每一顆石頭自己的觸發半徑；一排 5 顆散開 ±4.6 公尺，
+ * 照理該攤成 5 個各自 1.75 的目標。v1.2 · P16b 真的攤過一次，量到的是：
+ * **那條規則問錯了問題**。音石列是「沿著走」的東西 —— 它的保證是「整排走得完、
+ * 每一顆都踩得到」（P06c 已經有逐顆 `isWalkable` 的硬斷言在守），
+ * 而不是「每一顆四周整圈都走得到」。整圈那條線攤下去的後果實測是：
+ * `frugality-emptied-step` 離 `frg-song-eastedge` 最東那一顆 3.30 公尺、差 0.47 公尺不合格，
+ * 而減法之庭**再也找不到第二個落點**（0.25 公尺格點掃過 66,049 格，合法候選 0）——
+ * 被擋掉的那一側玩家本來就還是從其餘 15 個方向走得進 1.75 的觸發圈，那一顆照響。
+ *
+ * 所以這一層維持「整排一個目標、半徑 4.4」（＝反應層的預設值，涵蓋到路過的人一定踩得到），
+ * 並且把量到的數字留在這裡：要動那座高台或這一排音石之前，先讀這一段。
+ */
+export const SONGSTONE_ROW_CLEAR = 4.4;
+
+/**
+ * 把 `REACTIVE_SPOTS` 攤成中觀層擺位規則吃的淨空目標：**每一個各自帶自己的半徑**。
+ * 除了音石列（見 `SONGSTONE_ROW_CLEAR`）之外，一個落點就是一個目標。
+ * @param {Array} [spots]
+ * @returns {Array<{id:string, region:string, at:number[], r:number}>}
+ */
+export function reactiveTargets(spots = REACTIVE_SPOTS) {
+  const out = [];
+  for (const s of spots) {
+    const opts = s.opts || {};
+    const r = s.kind === 'songstone' ? SONGSTONE_ROW_CLEAR : reactiveTriggerR(s.kind, opts);
+    out.push({ id: s.id, region: s.region, at: s.at, r });
+  }
+  return out;
+}
+
 /* ------------------------------------------------------------------ *
  * 六種反應
  * ------------------------------------------------------------------ */
@@ -133,7 +223,7 @@ function buildChime(kit, opts = {}) {
     tubes,
     spark,
     swing: 0,
-    triggers: [{ dx: 0, dz: 0, enter: 3.2, note: 0 }],
+    triggers: [{ dx: 0, dz: 0, enter: REACT_TRIGGER_R.chime, note: 0 }],
     onEnter() {
       this.swing = 1;
       // varied：這個音是隨機挑的 → 交給環狀緩衝把「剛剛才響過的那幾個」擋掉，
@@ -174,7 +264,7 @@ function buildGlowCaps(kit, opts = {}) {
   return {
     group: grp,
     caps,
-    triggers: [{ dx: 0, dz: 0, enter: 4.4, note: 0 }],
+    triggers: [{ dx: 0, dz: 0, enter: REACT_TRIGGER_R.glowcap, note: 0 }],
     onEnter() {
       return { sound: 'bloom', note: 7 };
     },
@@ -198,15 +288,14 @@ function buildGlowCaps(kit, opts = {}) {
  */
 function buildSongStones(kit, opts = {}) {
   const grp = new THREE.Group();
-  const n = opts.stones || 5;
-  const gap = opts.gap || 2.3;
-  const dir = Number.isFinite(opts.dir) ? opts.dir : 0;
+  // 位移與淨空規則共用同一支（`songStoneOffsets`）——一排 5 顆的兩端不會再被漏掉
+  const offsets = songStoneOffsets(opts);
+  const n = offsets.length;
   const stones = [];
   const triggers = [];
   for (let i = 0; i < n; i += 1) {
-    const off = (i - (n - 1) / 2) * gap;
-    const x = Math.cos(dir) * off;
-    const z = Math.sin(dir) * off;
+    const x = offsets[i][0];
+    const z = offsets[i][1];
     const holder = new THREE.Object3D();
     holder.position.set(x, 0, z);
     const mat = emissive(kit.light, 0.16);
@@ -214,7 +303,7 @@ function buildSongStones(kit, opts = {}) {
     const vein = put(holder, torus(0.3, 0.03, 4, 14), mat, [0, 0.46, 0], [-Math.PI / 2, 0, 0]);
     grp.add(holder);
     stones.push({ holder, body, vein, mat, ring: 0 });
-    triggers.push({ dx: x, dz: z, enter: 1.75, note: PENTATONIC[i % PENTATONIC.length] });
+    triggers.push({ dx: x, dz: z, enter: REACT_TRIGGER_R.songstone, note: PENTATONIC[i % PENTATONIC.length] });
   }
   return {
     group: grp,
@@ -239,7 +328,7 @@ function buildSongStones(kit, opts = {}) {
 /** ④ 靜水盤（ripple）：踏近水邊 → 一圈水紋盪開。 */
 function buildRipplePool(kit, opts = {}) {
   const grp = new THREE.Group();
-  const r = opts.radius || 1.7;
+  const r = opts.radius || RIPPLE_R;
   put(grp, torus(r, 0.16, 4, 18), stone(kit.dark), [0, 0.14, 0], [-Math.PI / 2, 0, 0]);
   put(
     grp,
@@ -268,7 +357,7 @@ function buildRipplePool(kit, opts = {}) {
     group: grp,
     rings,
     r,
-    triggers: [{ dx: 0, dz: 0, enter: r + 1.5, note: 0 }],
+    triggers: [{ dx: 0, dz: 0, enter: reactiveTriggerR('ripple', opts), note: 0 }],
     onEnter() {
       const slot = this.rings.find((x) => x.life <= 0) || this.rings[0];
       slot.life = 1;
@@ -313,7 +402,7 @@ function buildSpirit(kit) {
     away: 0, // 0 = 在原地，1 = 竄開了
     hop: 0,
     facing: 0,
-    triggers: [{ dx: 0, dz: 0, enter: 4.2, note: 0 }],
+    triggers: [{ dx: 0, dz: 0, enter: REACT_TRIGGER_R.spirit, note: 0 }],
     onEnter() {
       if (this.away > 0.2) return null;
       this.away = 1;
@@ -382,7 +471,7 @@ function buildMoths(kit, opts = {}) {
     home,
     vel,
     scatter: 0,
-    triggers: [{ dx: 0, dz: 0, enter: 3.0, note: 0 }],
+    triggers: [{ dx: 0, dz: 0, enter: REACT_TRIGGER_R.moths, note: 0 }],
     onEnter() {
       this.scatter = 1;
       return { sound: 'flutter', note: 19 };
@@ -1052,6 +1141,11 @@ export function createReactiveField({
 
 export default {
   REACTIVE_SPOTS,
+  REACT_TRIGGER_R,
+  SONGSTONE_ROW_CLEAR,
+  reactiveTriggerR,
+  songStoneOffsets,
+  reactiveTargets,
   REACTION_KINDS,
   SECRET_XP,
   SECRET_RADIUS,
