@@ -46,6 +46,20 @@ export const MOTIF_PATH_MIN = 7;
 export const MOTIF_PATH_MAX = 26;
 /** 母題彼此至少隔多遠（公尺）—— 重複才叫母題，擠在一起就是一堆雜物。 */
 export const MOTIF_GAP = 16;
+/**
+ * **高台離母題**至少隔多遠（公尺，v1.2 · P15）。
+ *
+ * 母題彼此的 16 是「重複才叫母題」的規矩 —— 那條規矩管的是**同一種形狀**。
+ * 高台與母題是兩種不同的東西（一個是「這裡是哪」，一個是「這個站得上去」），
+ * 擠在一起不會糊成一團，只會擋路 —— 所以守的是**走得過去**：
+ * 母題的碰撞半徑 ≈1.4 ＋ 高台 1.6 ＋ 兩倍玩家半徑 ＝ 4.2，12 公尺留得下 7.8 公尺的空地。
+ *
+ * 這個數字是**量出來**才改的（同 P12 把 `MOTIF_PATH_MIN` 9 → 7 的作法）：
+ * v1.2 · P15 加上「四周每個方向都跳得上去」之後，12 片土地裡**只有中央高原**
+ * 還找得到離母題 16 公尺以上的合法落點；沉書檔案庫最遠的合法點是 20.6、
+ * 面具劇場是 13.9 —— 16 那條線會讓「有高台的土地」直接從四片變成一片。
+ */
+export const PLATFORM_MOTIF_GAP = 12;
 /** 兩道遮擋帶之間要留得下的缺口（公尺）。 */
 export const BAND_GAP = 8;
 /** 母題每一塊腳下的覆蓋率下限（不准踩在崩掉的區緣上）。 */
@@ -59,9 +73,21 @@ export const GROUND_HUG_MAX = 0.35;
 /** 逐塊貼地：底面最多埋這麼深（公尺）—— 再深就是整塊沉進土裡。 */
 export const GROUND_BURY_MAX = 2.2;
 /**
+ * 「四周繞得過去」量在哪一圈、要通幾個方向（v1.2 · P15 抽出來的共用件）。
+ *
+ * 這兩個數字以前住在兩個地方：`screen-fit`（產生座標的那一支）量半徑 5 的圈、
+ * 16 個方向裡要 14 個；`test:rubric` 量「半徑 ＋ 玩家 ＋ 2」的圈、要 16 個全通。
+ * P14 只有一座高台、剛好兩邊都過；P15 一鋪開就出現
+ * 「工具說可行、測試說不行」——**兩份數字分家了**。現在只有這一份。
+ */
+export const AROUND_RING = 5;
+export const AROUND_DIRS = 16;
+export const AROUND_FREE_MIN = 14;
+
+/**
  * 中觀層每一片土地的碰撞體上限（v1.2 · P12：12 區鋪完要離 1,400 的硬上限夠遠）。
  * **20 → 22（v1.2 · P15）**：每片土地多了兩座高台、一座一顆圓。
- * 面具劇場是現在最擠的一片：2 道帶（8）＋ 4 座母題（8）＋ 2 座高台（2）＝ 18。
+ * 面具劇場是現在最擠的一片：2 道帶（8）＋ 4 座母題（8）＋ 1 座高台（1）＝ 17。
  */
 export const SOLIDS_PER_REGION_MAX = 22;
 
@@ -163,6 +189,10 @@ export function solidProblems(World, sd, regionId, targets, landmarks) {
 
 export default {
   LAYER_INTERACT_R,
+  PLATFORM_MOTIF_GAP,
+  AROUND_RING,
+  AROUND_FREE_MIN,
+  AROUND_DIRS,
   LANE_MARGIN,
   GATE_MIN,
   MOTIF_PATH_MIN,

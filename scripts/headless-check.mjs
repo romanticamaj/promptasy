@@ -18245,15 +18245,31 @@ async function main() {
       const solid = w.solids.find((c) => c.id === ${JSON.stringify(id)});
       const step = { id: ${JSON.stringify(id)}, found: Boolean(solid), reveals: (pf && pf.reveals) || null };
       if (!solid) return step;
-      // 旁邊一點點、但站得住的落腳點（同 P14：從 r+2.2 往外找第一個清的點）
+      /*
+       * 起跳點：離石鼓 2.4 公尺、而且**中間一路都走得到**的一個方向。
+       *
+       * 這台機器一幀 0.2 秒，跳一次總共只有四幀 —— 上高台這件事因此對「哪一幀
+       * 在做什麼」非常敏感，兩種直覺的做法都試過而且都不行：
+       *   · **貼著它按 W ＋ J**：起跳那一幀腳還在地上、石鼓照樣擋人，
+       *     clampPosition() 把水平速度砍到 20%；等腳升過頂面已經沒有前進的力氣
+       *     （standR 2.60 的那一座剛好上得去，standR 1.85 的那一座六次都上不去）。
+       *   · **助跑 ＋ 提早起跳**：11.5 m/s × 0.8 秒滯空 ＝ 飛 9 公尺，整個飛過去。
+       * 成立的做法是第三種：**先跳，等腳高過頂面再往前推**（見下面）。
+       */
+      const runUp = solid.r + 2.4;
       let start = null;
-      for (let d = solid.r + 2.2; d < solid.r + 7 && !start; d += 0.4) {
-        for (let a = 0; a < 24 && !start; a += 1) {
-          const t = (a / 24) * Math.PI * 2;
-          const x = solid.x + Math.cos(t) * d;
-          const z = solid.z + Math.sin(t) * d;
-          if (w.isClear(x, z)) start = { x, z };
+      for (let a = 0; a < 32 && !start; a += 1) {
+        const t = (a / 32) * Math.PI * 2;
+        const x = solid.x + Math.cos(t) * runUp;
+        const z = solid.z + Math.sin(t) * runUp;
+        if (!w.isClear(x, z)) continue;
+        let clean = true;
+        for (let u = 0.4; u < runUp - (solid.r + 0.9); u += 0.4) {
+          const px = x + (solid.x - x) * (u / runUp);
+          const pz = z + (solid.z - z) * (u / runUp);
+          if (!w.isClear(px, pz)) { clean = false; break; }
         }
+        if (clean) start = { x, z };
       }
       step.start = start;
       if (!start) return step;
@@ -18276,49 +18292,71 @@ async function main() {
        * 從兩公尺外衝過去的話，撞上石鼓那一幀 clampPosition() 會把水平速度砍到 20%，
        * 人升上去的時候已經沒有前進的力氣、又落回原地（第一版就是這樣四次都沒上去）。
        */
-      const approach = async (tx, tz, stopAt) => {
-        await faceToward(tx, tz);
-        press('KeyW');
-        const bail = performance.now() + 12000;
-        while (performance.now() < bail) {
-          if (Math.hypot(P().x - tx, P().z - tz) <= stopAt) break;
-          await sleep(35);
-        }
-        release('KeyW');
-        const restBail = performance.now() + 4000;
-        while (g.player.speed > 0.05 && performance.now() < restBail) await sleep(40);
-        await waitGame(0.2);
-        return Math.hypot(P().x - tx, P().z - tz);
-      };
-      step.approached = await approach(solid.x, solid.z, solid.r + 0.62 + 0.45);
       let landed = false;
       let tries = 0;
+      let nearest = 99;
       for (; tries < 6 && !landed; tries += 1) {
+        g.player.teleport(start.x, start.z);
+        await waitGame(0.4);
         await faceToward(solid.x, solid.z);
+        // ① 先走到貼著石鼓，然後**停下來**（從靜止起跳，才留得下一整幀的加速預算）
         press('KeyW');
+        const apBail = performance.now() + 8000;
+        while (performance.now() < apBail) {
+          const d = Math.hypot(P().x - solid.x, P().z - solid.z);
+          nearest = Math.min(nearest, d);
+          if (d <= solid.r + 0.62 + 0.5) break;
+          await sleep(30);
+        }
+        release('KeyW');
+        const rest0 = performance.now() + 4000;
+        while (g.player.speed > 0.05 && performance.now() < rest0) await sleep(40);
+        await waitGame(0.15);
+        await faceToward(solid.x, solid.z);
         const before = g.player.jump.jumps;
+        // ② 原地起跳（**按著不放**：鬆手會把跳躍砍成半高 0.52 公尺）
         press('KeyJ');
-        const bail = performance.now() + 10000;
+        /*
+         * ③ **等腳真的高過頂面再往前推。**
+         * 腳還在頂面以下時，石鼓是一面實心的牆（solidAtAbove）——
+         * 那時候按 W 只是把水平速度餵給 clampPosition 去砍。
+         * 等腳過了頂面它就不擋人了，這時候從靜止推一幀就走得完那 0.8 公尺。
+         */
+        const upBail = performance.now() + 6000;
+        while (performance.now() < upBail && P().y < solid.standTop + 0.02) await sleep(20);
+        press('KeyW');
+        const bail = performance.now() + 9000;
         while (performance.now() < bail) {
-          if (g.player.standingOn === step.id) { landed = true; break; }
+          nearest = Math.min(nearest, Math.hypot(P().x - solid.x, P().z - solid.z));
+          if (g.player.standingOn === step.id) {
+            /*
+             * **腳被抬高這件事要在踩到頂面那一刻就量**（同 P14 的 touched）——
+             * 助跑跳上去的時候人還有 10 m/s 的水平速度，等它衰減完才量的話，
+             * 量到的是「他滑出去之後站在哪」，那條斷言就變成在賭停在哪裡。
+             * 高處的祕密也是在同一幀被撿到的（腳的高度那一關在這一刻就過了）。
+             */
+            const p = P();
+            landed = true;
+            step.footAbove = p.y - w.terrainHeight(p.x, p.z);
+            step.landedAt = Math.hypot(p.x - solid.x, p.z - solid.z);
+            break;
+          }
           if (g.player.jump.jumps > before && !g.player.jump.airborne) break;
-          await sleep(35);
+          await sleep(30);
         }
         release('KeyJ');
         release('KeyW');
-        // 等殘餘速度停下來再判生死（落地時還會滑一小段）
+        // 等殘餘速度停下來（落地時還會滑一小段），再交給下一步
         const restBail = performance.now() + 5000;
         while (g.player.speed > 0.05 && performance.now() < restBail) await sleep(40);
         await waitGame(0.3);
-        if (g.player.standingOn === step.id) landed = true;
-        if (!landed) { g.player.teleport(start.x, start.z); await waitGame(0.3); await approach(solid.x, solid.z, solid.r + 0.62 + 0.45); }
       }
       step.tries = tries;
+      step.nearest = nearest;
       step.standing = g.player.standingOn;
       step.landed = landed;
       if (landed) {
-        const p = P();
-        step.footAbove = p.y - w.terrainHeight(p.x, p.z);
+        step.standingAfterSettle = g.player.standingOn;
         if (step.reveals) {
           const bail = performance.now() + 9000;
           while (performance.now() < bail) {
@@ -18353,10 +18391,16 @@ async function main() {
       ok(Boolean(st.start), `P15：${st.id} 旁邊找得到落腳點`, JSON.stringify(st.start));
       eq(st.landed, true, `P15：跳上了 ${st.id}（player.standingOn 說得出是誰）`, String(st.standing));
       ok(st.tries < 6, `P15：跳上 ${st.id} 不用把重試次數用光（真的跳上去了才停）`, `tries=${st.tries}`);
-      ok(st.approached < 5, `P15：真的貼著 ${st.id}（不是在遠處跳）`, `d=${(st.approached || 0).toFixed(2)}`);
-      ok(st.footAbove > 1.4, `P15：${st.id} 站上去之後腳真的被抬高`, `+${(st.footAbove || 0).toFixed(2)}m`);
-      eq(st.afterStanding, null, `P15：從 ${st.id} 走下來之後就不再站在它上面`);
-      ok(st.afterFoot < 1e-6, `P15：從 ${st.id} 走下來之後貼回地形`, `d=${st.afterFoot}`);
+      ok(st.nearest < 3, `P15：助跑真的跑到 ${st.id} 面前（不是在遠處跳）`, `d=${(st.nearest || 99).toFixed(2)}`);
+      ok(st.footAbove > 1.4, `P15：踩到 ${st.id} 頂面那一刻腳真的被抬高`, `+${(st.footAbove || 0).toFixed(2)}m`);
+      ok(st.landedAt < 2.2, `P15：落在 ${st.id} 的頂面上（不是擦邊）`, `d=${(st.landedAt || 99).toFixed(2)}`);
+      /*
+       * 助跑跳上去的人落地時還有 10 m/s，可能滑出頂面 —— 所以這兩條問的是
+       * 「**最後**回到地形上」而不是「一路站著走下來」（站得住那件事由 P14 的
+       * 第一階與 `test:rubric` 的模擬各驗過一次；這裡不假裝它證明了別的事）。
+       */
+      eq(st.afterStanding, null, `P15：離開 ${st.id} 之後就不再站在它上面`);
+      ok(st.afterFoot < 1e-6, `P15：離開 ${st.id} 之後貼回地形`, `d=${st.afterFoot}`);
     }
     const withSecret = p15Steps.filter((st) => st.reveals);
     eq(withSecret.length, 1, 'P15：兩座裡剛好一座頂上有東西');

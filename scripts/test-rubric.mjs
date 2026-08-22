@@ -17328,6 +17328,7 @@ console.log('\n▸ 跳躍原型（v1.2 · P14）');
   }
 
   /* --- ⑤ 高台：資料契約 --------------------------------------------- */
+  const RulesP14 = (await import('./lib/screen-rules.mjs')).default;
   {
     ok(ScreensP14.PLATFORMS.length >= 1, '世界上至少有一座高台', String(ScreensP14.PLATFORMS.length));
     eq(new Set(ScreensP14.PLATFORMS.map((p) => p.id)).size, ScreensP14.PLATFORMS.length, '高台 id 沒有重複');
@@ -17390,10 +17391,15 @@ console.log('\n▸ 跳躍原型（v1.2 · P14）');
     // 四周繞得過去（P11／P12 那一套）
     const allAround = [];
     for (const pf of ScreensP14.PLATFORMS) {
+      /*
+       * 量在哪一圈、要通幾個方向，**與產生這些座標的 `screen-fit` 同一份**
+       * （`scripts/lib/screen-rules.mjs` 的 `AROUND_*`）——P14 兩邊各寫一份，
+       * P15 一鋪開就出現「工具說可行、測試說不行」。
+       */
       let free = 0;
-      const rr = pf.radius + World.PLAYER_RADIUS + 2;
-      for (let a = 0; a < 16; a += 1) {
-        const ang = (a / 16) * Math.PI * 2;
+      const rr = RulesP14.AROUND_RING;
+      for (let a = 0; a < RulesP14.AROUND_DIRS; a += 1) {
+        const ang = (a / RulesP14.AROUND_DIRS) * Math.PI * 2;
         if (!testWorld.solidAt(pf.at[0] + Math.cos(ang) * rr, pf.at[1] + Math.sin(ang) * rr)) free += 1;
       }
       /*
@@ -17401,7 +17407,7 @@ console.log('\n▸ 跳躍原型（v1.2 · P14）');
        * 「不另訂一份會分家的門檻」（§4.12 ③）。P14 只有一座、剛好挑到 16/16，
        * 把 16 寫死會讓資料一長就必紅。下面另外守「至少有一座是全通的」。
        */
-      ok(free >= 14, `[${pf.id}] 四周 16 個方向裡至少 14 個繞得過去`, `${free}/16`);
+      ok(free >= RulesP14.AROUND_FREE_MIN, `[${pf.id}] 四周 ${RulesP14.AROUND_DIRS} 個方向裡至少 ${RulesP14.AROUND_FREE_MIN} 個繞得過去`, `${free}/${RulesP14.AROUND_DIRS}`);
       allAround.push(free);
       // 離走出來的那條路 7–26 公尺（與母題共用同一段門檻）
       const segsP14 = buildPathNetwork(World.REGION_SITES, [...World.CORRIDORS, ...World.ANNEX_LINKS], challenges);
@@ -17415,7 +17421,7 @@ console.log('\n▸ 跳躍原型（v1.2 · P14）');
       }
       ok(best >= 7 && best <= 26, `[${pf.id}] 離走出來的那條路 7–26 公尺（看得到、走得過去、不擋路）`, best.toFixed(1));
     }
-    ok(allAround.some((n) => n === 16), '至少有一座高台四周 16/16 全通', allAround.join('/'));
+    ok(allAround.some((n) => n === RulesP14.AROUND_DIRS), '至少有一座高台四周全通', allAround.join('/'));
     // 高台彼此至少隔 16 公尺（與母題共用同一條「重複才叫語彙、擠在一起就是雜物」）
     for (let i = 0; i < ScreensP14.PLATFORMS.length; i += 1) {
       for (let j = i + 1; j < ScreensP14.PLATFORMS.length; j += 1) {
@@ -17650,10 +17656,45 @@ console.log('\n▸ 高台語法 ＋ 高處的祕密 ＋ 橋缺口（v1.2 · P15�
   const Reactive15 = await import('../src/world/reactive.js');
   const AudioP15 = await import('../src/audio/audio.js');
 
-  /* --- ① 高台：跳得上去，而且還留得下餘裕 --------------------------- */
+  /* --- ① 高台：**從四周每一個方向**都跳得上去 ----------------------- *
+   *
+   * 這一條是 P15 的 e2e 逼出來的，也是這一格最重要的一條。
+   * `height` 量的是「頂面離**自己腳下**的地多高」，可是玩家是站在**旁邊**起跳的：
+   * 地形一斜，同一座高台從高的那一側是 1.2 公尺、從低的那一側可能是 2.6 公尺 ——
+   * 於是它 `standable` 為真、`height` 合法、穿模稽核與可站立體稽核全綠，
+   * **卻有一半的方向跳不上去**（P14 交接點名的「別做那個」，
+   * 只是這一次不是資料寫太高，是地形替你寫高的）。
+   *
+   * 先紅實測：P15 第一版的七座新高台，這一條全部紅（最糟的一座要爬 4.96 公尺）。
+   */
   {
     const dts = [1 / 240, 1 / 120, 1 / 60, 1 / 30, 0.2];
     const worst = Math.min(...dts.map((dt) => Jump15.simulateApex(Jump15.JUMP_SPEED, dt)));
+    const need = worst - Screens15.PLATFORM_JUMP_MARGIN;
+    for (const [label, w] of [['高畫質', testWorld], ['低畫質', lowWorld]]) {
+      for (const pf of Screens15.PLATFORMS) {
+        const sd = w.solids.find((c) => c.id === pf.id);
+        ok(Boolean(sd), `[${label}][${pf.id}] 找得到那一顆圓`);
+        if (!sd) continue;
+        const rise = Screens15.platformRise(sd, World.terrainHeight, (x, z) => w.isWalkable(x, z));
+        ok(rise.samples >= 6, `[${label}][${pf.id}] 四周站得住的起跳點夠多`, String(rise.samples));
+        ok(
+          rise.worst <= need,
+          `[${label}][${pf.id}] **從四周每一個站得住的方向都跳得上去**（最難的那一側 ≤ ${need.toFixed(2)}m）`,
+          `worst=${rise.worst.toFixed(2)} @${JSON.stringify(rise.at)}`
+        );
+      }
+    }
+    // 反例：把高台抬到頂點以上，同一支判定就要說「跳不上去」（證明它不是永遠成立）
+    {
+      const sd = testWorld.solids.find((c) => c.id === Screens15.PLATFORMS[0].id);
+      const tall = Screens15.platformRise(
+        { ...sd, standTop: sd.standTop + 1.5 },
+        World.terrainHeight,
+        (x, z) => testWorld.isWalkable(x, z)
+      );
+      ok(tall.worst > need, '[反例] 同一座高台抬高 1.5 公尺就跳不上去了', tall.worst.toFixed(2));
+    }
     for (const pf of Screens15.PLATFORMS) {
       /*
        * findings：「`Math.min` 寫的『全程都…』是假斷言」—— 所以這裡量的是

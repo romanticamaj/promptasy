@@ -320,7 +320,7 @@ export const MOTIFS = Object.freeze([
  * `rot`     繞 Y 的旋轉（弧度）—— 只影響刻線與裝飾的朝向，圓的頂面本來就沒有正面
  * `kind`    造型：頂面**一律是圓的**（理由見 `buildStepStone`），變的是裙與外圈的語彙 ——
  *           `stepStone`（中央高原）素石鼓、`pageStep`（沉書檔案庫）翻過的那一疊、
- *           `jigStep`（契約鍛冶場）箍了鐵環的墊塊、`maskStep`（面具劇場）裙上一張很淺的面具
+ *           `maskStep`（面具劇場）裙上一張很淺的面具、`gaugeStep`（量器坊）外圈一圈刻度
  * `height`  頂面離自己腳下的地多高（公尺）
  * `radius`  石鼓的半徑（公尺）＝ 登記的碰撞半徑
  * `reveals` （選配，v1.2 · P15）**站上來才搆得到的那一件東西**的 id（`src/data/secrets.json`
@@ -345,20 +345,64 @@ export const PLATFORM_RADIUS_MIN = 1.4;
 export const PLATFORM_RADIUS_MAX = 3.2;
 /** 頂面「證明過是平的」那一段至少要有多寬（公尺）—— 站得住一個人（玩家半徑 0.62）還有餘。 */
 export const PLATFORM_STAND_R_MIN = 1.2;
+/**
+ * **從四周每一個起跳點都要跳得上去**時，要留多少餘裕（公尺，v1.2 · P15）。
+ *
+ * 這一條是 P15 的 e2e 逼出來的：`height` 量的是「頂面離**自己腳下**的地多高」，
+ * 可是玩家是站在**旁邊**起跳的。地形一斜，同一座高台從高的那一側是 1.2 公尺、
+ * 從低的那一側可能是 2.6 公尺 —— 於是它 `standable` 為真、`height` 合法、
+ * 稽核全綠，**卻有一半的方向跳不上去**（P14 交接點名的「別做那個」，
+ * 只是這一次不是資料寫太高，是地形替你寫高的）。
+ *
+ * 判準：起跳圈（碰撞半徑 ＋ 玩家半徑 ＋ 0.5）上每一個**站得住**的方向，
+ * `standTop − 那一點的地形高度` 都要 ≤ 離散彈道頂點 − 這個餘裕。
+ * 0.2 是實測訂的：P14 那座已經出貨、跑得動的第一階，最差的方向餘裕是 0.31。
+ */
+export const PLATFORM_JUMP_MARGIN = 0.2;
+/** 起跳圈離碰撞圓外緣多遠（公尺）—— 玩家半徑 ＋ 一點點站得住的餘地。 */
+export const PLATFORM_TAKEOFF_PAD = 0.5;
+
+/**
+ * 從四周量「這座高台從每一個方向跳不跳得上去」。
+ * **搜尋工具（`screen-fit`）、`test:rubric` 與遊戲問的是同一支。**
+ *
+ * @param {{x:number, z:number, r:number, standTop:number}} disc 圓心、碰撞半徑、頂面世界高度
+ * @param {(x:number,z:number)=>number} heightAt
+ * @param {(x:number,z:number)=>boolean} walkableAt 那一點站不站得住（站不住的方向不算）
+ * @param {number} [n] 取樣幾個方向
+ * @returns {{worst:number, best:number, samples:number, at:number[]|null}}
+ *   `worst` ＝ 最難的那一個方向要爬多高（公尺）；`at` ＝ 那一點的座標
+ */
+export function platformRise(disc, heightAt, walkableAt, n = 24) {
+  const d = disc.r + 0.62 + PLATFORM_TAKEOFF_PAD;
+  let worst = -Infinity;
+  let best = Infinity;
+  let samples = 0;
+  let at = null;
+  for (let i = 0; i < n; i += 1) {
+    const t = (i / n) * Math.PI * 2;
+    const x = disc.x + Math.cos(t) * d;
+    const z = disc.z + Math.sin(t) * d;
+    if (walkableAt && !walkableAt(x, z)) continue;
+    samples += 1;
+    const rise = disc.standTop - heightAt(x, z);
+    if (rise > worst) {
+      worst = rise;
+      at = [Number(x.toFixed(2)), Number(z.toFixed(2))];
+    }
+    if (rise < best) best = rise;
+  }
+  return { worst, best, samples, at };
+}
 
 export const PLATFORMS = Object.freeze([
   /*
-   * 中央高原 · 第一階
+   * 中央高原 · 第一階（v1.2 · P14）
    *
    * 高原是所有人出發的地方，可是它從頭到尾只有一個高度 —— 平的。
    * 第一階是這片土地上第一個「上面」：一塊被踩得發亮的圓石鼓，
    * 頂面刻著一圈細線（自發光，0 光源），從遠處看得出那一圈光是**平的**，
    * 不是又一顆石頭。形狀自己說「這個可以站上去」，一個字都不寫。
-   *
-   * 座標是 `node scripts/screen-fit.mjs --region foundations --kind platform --height 1.6 --radius 2.6`
-   * 搜出來的（離線篩 4,000 個格點 → 70 個過篩 → 重建世界逐項量前 8 名），不是手挑的。
-   * 選的是**四周 16/16 全通**的那一個（另外六個可行的候選都有一、兩個方向繞不過去），
-   * 離「走出來的那條路」8.5 公尺 —— 走去任何一座橋都會經過它，但它不擋路。
    */
   {
     id: 'foundations-first-step',
@@ -374,17 +418,17 @@ export const PLATFORMS = Object.freeze([
    *
    * 第一階教你「這個可以站上去」，第二階回答「站上去換得到什麼」：
    * 頂面上躺著一件只有站上來才搆得到的東西（`reveals` 指的那一處祕密）。
-   * 從地上看不到它 —— 頂面離地 1.7 公尺，比眼睛（`EYE_HEIGHT` 1.6）還高，
-   * 平躺在上面的東西從下面永遠只看得到石鼓的側面。
+   * 從地上看不到它 —— 頂面離地 1.6 公尺（＝ `EYE_HEIGHT`），
+   * 平躺在上面的東西從下面只看得到石鼓的側面。
    */
   {
     id: 'foundations-second-step',
     region: 'foundations',
-    at: [-28, -18],
+    at: [-23, -37],
     rot: 0.4,
     kind: 'stepStone',
-    height: 1.7,
-    radius: 2,
+    height: 1.6,
+    radius: 1.6,
     reveals: 'ledger-of-the-unsaid',
   },
   /*
@@ -395,67 +439,40 @@ export const PLATFORMS = Object.freeze([
   {
     id: 'grounding-read-step',
     region: 'grounding',
-    at: [79, -117],
+    at: [80, -117],
     rot: 0.9,
     kind: 'pageStep',
-    height: 1.7,
-    radius: 2,
-    reveals: 'margin-of-the-unread',
-  },
-  {
-    id: 'grounding-shelf-step',
-    region: 'grounding',
-    at: [78, -67],
-    rot: 2.1,
-    kind: 'pageStep',
-    height: 1.7,
+    height: 1.6,
     radius: 1.6,
-  },
-  /*
-   * 契約鍛冶場（v1.2 · P15）：**立起來的墊塊**——石鼓外圈箍了一道金屬環與幾顆鉚頭
-   * （這片土地的語彙：工具、夾具、沒有刻名字的鑰匙）。
-   */
-  {
-    id: 'toolcraft-jig-step',
-    region: 'toolcraft',
-    at: [-145, -22],
-    rot: 0,
-    kind: 'jigStep',
-    height: 1.7,
-    radius: 2,
-  },
-  {
-    id: 'toolcraft-bench-step',
-    region: 'toolcraft',
-    at: [-135, 13],
-    rot: 1.2,
-    kind: 'jigStep',
-    height: 1.7,
-    radius: 2,
-    reveals: 'unstamped-key',
+    reveals: 'margin-of-the-unread',
   },
   /*
    * 面具劇場（v1.2 · P15）：**沒有人站的那一階**——石鼓的裙上浮著一張很淺的面具浮雕，
    * 頂面空著（這片土地的語彙：掛著的空面具、「你不是它」）。
    */
   {
-    id: 'config-wing-step',
-    region: 'config',
-    at: [64, 83],
-    rot: 2.6,
-    kind: 'maskStep',
-    height: 1.7,
-    radius: 2,
-    reveals: 'understudy-mark',
-  },
-  {
     id: 'config-gallery-step',
     region: 'config',
-    at: [128, 89],
-    rot: 0.6,
+    at: [115, 98],
+    rot: 2.6,
     kind: 'maskStep',
-    height: 1.7,
+    height: 1.6,
     radius: 1.6,
+    reveals: 'understudy-mark',
+  },
+  /*
+   * 量器坊（v1.2 · P15）：**一格一格的那一階**——鼓身外圈刻著一圈刻度，
+   * 其中一格比別格長（這片土地的語彙：刻度之柱、量得準不準先看有沒有同一個零）。
+   */
+  {
+    id: 'forms-gauge-step',
+    region: 'forms',
+    at: [13, 144],
+    rot: 1.8,
+    kind: 'gaugeStep',
+    height: 1.6,
+    radius: 1.6,
+    reveals: 'zeroless-rule',
   },
 ]);
 
@@ -1131,21 +1148,23 @@ function dressPageStep(grp, { spec, kit, r, h }) {
   grp.add(page);
 }
 
-/** 契約鍛冶場：外圈箍一道環、幾顆鉚頭（母題「一次只吊一小件」的同一種手感）。 */
-function dressJigStep(grp, { spec, kit, r, h }) {
-  const band = new THREE.Mesh(cylinder(r + 0.08, 0.26), stone(kit.light));
-  band.position.y = h - 0.42;
-  band.userData.noCollide = true;
-  grp.add(band);
-  const n = 6;
+/** 量器坊：鼓身外圈一圈刻度，其中一格比別格長（「先看有沒有同一個零」）。 */
+function dressGaugeStep(grp, { spec, kit, r, h }) {
+  const n = 12;
   for (let i = 0; i < n; i += 1) {
     const a = spec.rot + (i / n) * Math.PI * 2;
-    const rivet = new THREE.Mesh(box(0.16, 0.16, 0.16), glow(kit.accent, 0.6));
-    rivet.position.set(Math.cos(a) * (r + 0.12), h - 0.42, Math.sin(a) * (r + 0.12));
-    rivet.rotation.y = -a;
-    rivet.userData.noCollide = true;
-    grp.add(rivet);
+    const long = i === 0;
+    const tick = new THREE.Mesh(box(0.07, long ? 0.62 : 0.3, 0.07), glow(kit.accent, long ? 1.1 : 0.6));
+    tick.position.set(Math.cos(a) * (r + 0.05), h - (long ? 0.42 : 0.26), Math.sin(a) * (r + 0.05));
+    tick.rotation.y = -a;
+    tick.userData.noCollide = true;
+    grp.add(tick);
   }
+  // 鼓身腰上一道很淺的環，把刻度串成一把尺
+  const band = new THREE.Mesh(cylinder(r + 0.03, 0.08), stone(kit.light));
+  band.position.y = h - 0.62;
+  band.userData.noCollide = true;
+  grp.add(band);
 }
 
 /** 面具劇場：裙上一張很淺的面具浮雕，眼孔只剩光（「你不是它」）。 */
@@ -1186,7 +1205,7 @@ const MOTIF_KINDS = {
 const PLATFORM_KINDS = {
   stepStone: buildStepStone,
   pageStep: (spec, kit, heightAt) => buildStepStone(spec, kit, heightAt, dressPageStep),
-  jigStep: (spec, kit, heightAt) => buildStepStone(spec, kit, heightAt, dressJigStep),
+  gaugeStep: (spec, kit, heightAt) => buildStepStone(spec, kit, heightAt, dressGaugeStep),
   maskStep: (spec, kit, heightAt) => buildStepStone(spec, kit, heightAt, dressMaskStep),
 };
 
@@ -1221,6 +1240,8 @@ export function buildScreens(regionId, kit, heightAt, data = null) {
 export default {
   SCREEN_BANDS,
   EYE_HEIGHT,
+  PLATFORM_JUMP_MARGIN,
+  platformRise,
   landmarkSight,
   MOTIFS,
   PLATFORMS,

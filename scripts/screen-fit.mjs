@@ -48,6 +48,15 @@ const {
   solidProblems,
 } = Rules;
 
+/**
+ * 離散彈道**最差的那一種幀時間**能升到多高（公尺）——「跳得上去」的那一條線就是它。
+ * 與 `test:rubric` 問的是同一支（`jump.js` 的 `simulateApex()`），不會各說各話。
+ */
+const JumpMod = await import('../src/player/jump.js');
+const JUMP_APEX = Math.min(
+  ...[1 / 240, 1 / 120, 1 / 60, 1 / 30, 0.2].map((dt) => JumpMod.simulateApex(JumpMod.JUMP_SPEED, dt))
+);
+
 const argv = process.argv.slice(2);
 const flag = (name, dflt = null) => {
   const i = argv.indexOf(`--${name}`);
@@ -125,6 +134,20 @@ async function verifyInWorld({ regionId, bands, motifs, platforms = [], bends, f
     if (h < Screens.PLATFORM_HEIGHT_MIN - 0.2 || h > Screens.PLATFORM_HEIGHT_MAX + 0.2) {
       problems.push(`${pf.id} 頂面離地 ${h.toFixed(2)}m 離設計高度 ${pf.height}m 太遠（地形沒吃平）`);
     }
+    /*
+     * v1.2 · P15：**從四周每一個站得住的方向都要跳得上去。**
+     * `height` 量的是「離自己腳下的地多高」，可是人是站在旁邊起跳的 ——
+     * 地形一斜，同一座高台從低的那一側可能要爬 2.6 公尺（跳不上去），
+     * 而 `standable`／`height`／穿模稽核全部照樣綠。
+     */
+    const rise = Screens.platformRise(sd, World.terrainHeight, (x, z) => world.isWalkable(x, z));
+    const need = JUMP_APEX - Screens.PLATFORM_JUMP_MARGIN;
+    if (!(rise.samples >= 6)) problems.push(`${pf.id} 四周站得住的起跳點太少（${rise.samples}）`);
+    if (rise.worst > need) {
+      problems.push(
+        `${pf.id} 有方向跳不上去：最難的那一側要爬 ${rise.worst.toFixed(2)}m（頂點 ${JUMP_APEX.toFixed(2)} − 餘裕 ${Screens.PLATFORM_JUMP_MARGIN} ＝ ${need.toFixed(2)}）@${JSON.stringify(rise.at)}`
+      );
+    }
   }
 
   // 逐塊貼地（獨立於穿模稽核 —— 浮起來的塊會被 FLOAT_MIN 豁免，稽核看不到）
@@ -181,9 +204,9 @@ async function verifyInWorld({ regionId, bands, motifs, platforms = [], bends, f
     const item = [...motifs, ...bands, ...platforms].find((x) => x.id === id);
     if (!item) continue;
     if (!world.solidAt(item.at[0], item.at[1])) problems.push(`${id} 擋不住人（走得進石頭裡）`);
-    const rr = item.length ? item.length / 2 + 4 : 5;
-    const n = item.length ? 24 : 16;
-    const need = item.length ? 16 : 14;
+    const rr = item.length ? item.length / 2 + 4 : Rules.AROUND_RING;
+    const n = item.length ? 24 : Rules.AROUND_DIRS;
+    const need = item.length ? 16 : Rules.AROUND_FREE_MIN;
     let f = 0;
     for (let a = 0; a < n; a += 1) {
       const ang = (a / n) * Math.PI * 2;
@@ -367,8 +390,16 @@ async function main() {
           why['離路網'] += 1;
           continue;
         }
-        const mates = kind === 'platform' ? [...existingPlatforms, ...existingMotifs] : existingMotifs;
-        if (mates.some((m) => Math.hypot(x - m.at[0], z - m.at[1]) < MOTIF_GAP)) {
+        /*
+         * 高台與**母題**之間守的是另一條（`PLATFORM_MOTIF_GAP` 12）——
+         * 兩種不同的東西不會糊成一團，只會擋路。高台與**高台**之間仍然是 16。
+         */
+        const tooClose =
+          kind === 'platform'
+            ? existingPlatforms.some((m) => Math.hypot(x - m.at[0], z - m.at[1]) < MOTIF_GAP) ||
+              existingMotifs.some((m) => Math.hypot(x - m.at[0], z - m.at[1]) < Rules.PLATFORM_MOTIF_GAP)
+            : existingMotifs.some((m) => Math.hypot(x - m.at[0], z - m.at[1]) < MOTIF_GAP);
+        if (tooClose) {
           why['太靠近同伴'] += 1;
           continue;
         }
@@ -412,6 +443,19 @@ async function main() {
       }
       if (cover < MOTIF_COVERAGE_MIN) continue;
       if (drop > MOTIF_STEP_DROP_MAX) continue;
+      /*
+       * **四周每一個方向都要跳得上去**（離線用「腳下地形 ＋ 設計高度」近似頂面高度；
+       * 真正的門檻仍由重建那一段拿真的 `standTop` 再驗一次）。
+       * 這一條是 P15 的 e2e 逼出來的 —— 少了它，搜出來的座標有一半是
+       * 「standable 為真、卻有一半方向跳不上去」的高台。
+       */
+      const riseOff = Screens.platformRise(
+        { x: c.x, z: c.z, r: radius, standTop: h0 + height },
+        World.terrainHeight,
+        (x, z) => World.coverage(x, z) >= 0.45
+      );
+      if (!(riseOff.samples >= 6)) continue;
+      if (riseOff.worst > JUMP_APEX - Screens.PLATFORM_JUMP_MARGIN) continue;
       let margin = 0;
       if (wantReveal) {
         const foot = Screens.landmarkSight(c.x, c.z, landmark, World.terrainHeight, revealBands);
@@ -429,8 +473,8 @@ async function main() {
         margin = foot.have - foot.need + (top.need - top.have);
       }
       // 想要它剛好在路邊看得到（離路網 12 公尺左右），而且腳下越平越好
-      const score = -Math.abs(c.dPath - 12) * 0.6 - drop * 8 + margin * 6;
-      scored.push({ ...c, rot: 0, drop, margin, score });
+      const score = -Math.abs(c.dPath - 12) * 0.6 - drop * 8 + margin * 6 - riseOff.worst * 3;
+      scored.push({ ...c, rot: 0, drop, margin, rise: Number(riseOff.worst.toFixed(2)), score });
     }
   } else if (kind === 'motif') {
     for (const c of cands) {
@@ -513,7 +557,8 @@ async function main() {
      * 遮擋帶用**探索用**的小間距（`--spread`，預設 3 公尺）——
      * 一道帶只會擺一、兩道，我們要的是「同一段路上的幾種擺法」而不是「散在全區」。
      */
-    const spreadMin = kind === 'motif' || kind === 'platform' ? MOTIF_GAP : num('spread', 3);
+    // `--spread` 讓探索時看得到「同一塊空地上的幾種擺法」（出貨的門檻仍由重建那一段守）
+    const spreadMin = kind === 'motif' || kind === 'platform' ? num('spread', MOTIF_GAP) : num('spread', 3);
     if (seen.some((p) => Math.hypot(p[0] - c.x, p[1] - c.z) < spreadMin)) continue;
     seen.push([c.x, c.z]);
     const id = `${regionId}-fit-${seen.length}`;
