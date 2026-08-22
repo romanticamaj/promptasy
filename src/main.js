@@ -514,6 +514,9 @@ function boot() {
     getRank: () => rankFor(rankStats(progression, catalog), ranksFile.ranks),
     inscriptionTotal: (inscriptionFile.entries || []).length,
     secretTotal: (secretFile.entries || []).length,
+    // v1.2 · P15：圖鑑的「秘境」章節 —— 找到的收進來，沒找到的只留一行 tell
+    secrets: secretFile.entries || [],
+    secretTells: secretFile.tells || {},
     handleTotal: (handleFile.entries || []).length,
     // v1.2 · P07：圖鑑第五列「抄寫人的殘頁 n/24」＋可展開的清單
     letterTotal: (letterFile.entries || []).length,
@@ -1153,7 +1156,8 @@ function boot() {
     if (prologue.isActive) prologue.tick(dt);
 
     // 會回應的東西：走過去它就有反應（面板打開 / 序章進行中時 isBusy 自己會停手）
-    world.updateReactions(dt, t, player.position.x, player.position.z);
+    // v1.2 · P15：多遞一個「腳現在在多高」—— 高處的祕密要站上高台才搆得到
+    world.updateReactions(dt, t, player.position.x, player.position.z, player.position.y);
 
     // 區域切換：HUD、配樂、氣氛一起換（跨過一座橋要有「事件感」）
     const here = world.regionAt(player.position.x, player.position.z);

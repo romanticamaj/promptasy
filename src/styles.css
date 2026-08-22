@@ -159,6 +159,11 @@
   --star-dim: rgba(169, 201, 216, 0.16);
   --gold: #e6c79b;
   --gold-dim: rgba(230, 199, 155, 0.12);
+  /*
+   * 「可以先行前往／這裡有東西」那一類的提示色（v1.2 · P06 定的 PALETTE.invite）。
+   * **不准借用暖金** —— WORLD.md §2.2 明訂暖金只留給成就熱點。
+   */
+  --invite: #a8865c;
   --good: #7fd1a8;
   --warn: #e6b45f;
   --bad: #e0806e;

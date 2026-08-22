@@ -613,28 +613,129 @@ function secretHush(kit) {
   return { group: grp, spin: pool, stars: null };
 }
 
+/**
+ * 高處的記號（v1.2 · P15）：**躺在高台頂面上的那一件東西**。
+ *
+ * 它刻意是**平的**：一片很淺的刻板、幾顆小石籤、一圈光。
+ * 從地上看不到（頂面比 `EYE_HEIGHT` 1.6 公尺還高 —— 平躺的東西從下面只看得到石鼓的側面），
+ * 也搆不到（`SECRET_HIGH_REACH`）。**跳上去才換得到。**
+ */
+function secretTopMark(kit) {
+  const grp = new THREE.Group();
+  // 刻板：躺平的一小塊，邊緣一圈光
+  put(grp, boxg(1.25, 0.06, 0.9), stone(kit.mid), [0, 0.04, 0]);
+  const halo = put(grp, disc(0.78, 18), auraMaterial(kit.light, 0.2), [0, 0.09, 0], [-Math.PI / 2, 0, 0]);
+  // 三枚小石籤：站上去才看得到它們排成一列
+  for (let i = 0; i < 3; i += 1) {
+    put(grp, boxg(0.16, 0.2, 0.16), stone(kit.dark), [-0.36 + i * 0.36, 0.14, 0.52], [0, 0.2 * i, 0]);
+  }
+  const mark = put(grp, ico(0.13, 0), emissive(kit.accent, 2.2), [0, 0.2, -0.34]);
+  return { group: grp, spin: halo, stars: mark };
+}
+
+/** 顏色不對的那一小塊（v1.2 · P15 · tell「odd」的專用造型）：一排刻度石裡混進來的那一片。 */
+function secretOddShard(kit) {
+  const grp = new THREE.Group();
+  for (let i = 0; i < 5; i += 1) {
+    put(grp, boxg(0.42, 1.1 + (i % 3) * 0.24, 0.34), stone(kit.mid), [-1.6 + i * 0.8, 0.6, 0], [0, 0.12 * i, 0.04 * (i - 2)]);
+  }
+  put(grp, cyl(0.9, 1.1, 0.34, 7), stone(kit.dark), [0, 0.17, 0.9]);
+  const lifted = put(grp, boxg(0.46, 1.0, 0.3), stone(kit.light), [0.4, 0.62, 0.95], [0.1, 0.5, -0.18]);
+  return { group: grp, spin: null, stars: lifted };
+}
+
+/** 走近才聽得到的那幾片薄石（v1.2 · P15 · tell「sound」的專用造型）。 */
+function secretWhisper(kit) {
+  const grp = new THREE.Group();
+  put(grp, cyl(0.34, 0.42, 2.3, 6), stone(kit.dark), [0, 1.15, 0], [0.14, 0.3, 0.24]);
+  const chimes = new THREE.Group();
+  for (let i = 0; i < 3; i += 1) {
+    const a = (i / 3) * Math.PI * 2;
+    put(chimes, boxg(0.2, 0.72, 0.05), stone(kit.light), [Math.cos(a) * 0.34, -0.42, Math.sin(a) * 0.34], [0, -a, 0.06]);
+  }
+  chimes.position.set(0.32, 1.9, 0.42);
+  grp.add(chimes);
+  const halo = put(grp, torus(0.66, 0.035, 4, 18), auraMaterial(kit.light, 0.18), [0.32, 1.5, 0.42], [-Math.PI / 2, 0, 0]);
+  return { group: grp, spin: halo, stars: chimes };
+}
+
 const SECRET_BUILDERS = {
   stargrove: secretStarGrove,
   jokestele: secretJokeStele,
   echoshrine: secretEchoShrine,
   hush: secretHush,
+  topmark: secretTopMark,
+  oddshard: secretOddShard,
+  whisper: secretWhisper,
 };
 
-/** 蓋出一個祕密。 */
-export function buildSecret(spec, kit, terrainHeight) {
+/**
+ * 三種 tell（v1.2 · P15）：找到它之前，世界先給的那一點提示。
+ *
+ * 這三種**不是三套程式**，是同一件事的三個入口：
+ *   · `odd`   **不對的東西**：一小塊顏色與這片土地格格不入的碎片（`oddAccent`）。
+ *             眼角先看到它 —— 純視覺，不吃任何每幀工作。
+ *   · `sound` **聲音先到**：外圈再套一個半徑（`SECRET_TELL_RATIO` 倍），
+ *             走進去先響一聲很細的音，看到它之前就先聽到。
+ *   · `high`  **高處**：它躺在高台的頂面上；腳離地不到 `SECRET_HIGH_REACH` 就搆不到
+ *             （站在地上、蹲在旁邊都一樣）——**跳上去才換得到**。
+ */
+export const SECRET_TELLS = Object.freeze(['odd', 'sound', 'high']);
+/** 「聲音先到」的外圈是發現半徑的幾倍。 */
+export const SECRET_TELL_RATIO = 1.8;
+/**
+ * 「高處」搆得到的門檻：腳離自己腳下的地至少這麼高（公尺）。
+ *
+ * **刻意是一個固定的常數，不是「那座高台的頂面」**：門檻若跟著高台走，
+ * 把高台壓矮之後「站上去搆得到」照樣成立 —— 那條斷言就永遠不會紅（findings：
+ * 「寫得出來的斷言不等於抓得到東西」）。1.4 公尺低於現行每一座高台（1.6／1.7），
+ * 高於任何一階地形起伏與 `STAND_MIN_H`（0.6）—— 走路的人永遠搆不到。
+ */
+export const SECRET_HIGH_REACH = 1.4;
+
+/**
+ * 蓋出一個祕密。
+ *
+ * @param {object} spec `secrets.json` 的一筆
+ * @param {object} kit 這一區的四階色
+ * @param {(x:number,z:number)=>number} terrainHeight
+ * @param {number} [lift] **頂面加高**（公尺）—— `tell: "high"` 的祕密躺在高台的頂面上，
+ *   所以它的整組幾何要往上搬那一座高台的高度（`screens.js` 的 `PLATFORMS`）。
+ *   0 ＝ 站在地上（其餘每一處都是 0，行為與 P15 之前逐值相同）。
+ */
+export function buildSecret(spec, kit, terrainHeight, lift = 0) {
   const make = SECRET_BUILDERS[spec.prop] || secretJokeStele;
   const built = make(kit);
   const grp = new THREE.Group();
   const [x, z] = spec.at;
-  const y = terrainHeight(x, z);
+  const y = terrainHeight(x, z) + (lift > 0 ? lift : 0);
   grp.position.set(x, y, z);
   grp.rotation.y = Number.isFinite(spec.rot) ? spec.rot : 0;
   grp.name = `secret:${spec.id}`;
   grp.add(built.group);
+  /*
+   * tell「不對的東西」：一小塊顏色與這片土地格格不入的碎片（`oddAccent`）。
+   * 它是**加在造型之外**的一件東西 —— 三種 tell 於是可以套在任何一種造型上，
+   * 不必為了換 tell 重寫一個 prop（`test:rubric` 逐處驗它真的存在、而且顏色真的不對）。
+   */
+  if (spec.tell === 'odd' && spec.oddAccent) {
+    const shard = put(grp, ico(0.34, 0), emissive(spec.oddAccent, 2.4), [1.15, 0.42, -0.9], [0.4, 0.7, 0.2], [1, 1.5, 0.7]);
+    shard.name = `secret-odd:${spec.id}`;
+    shard.userData.noCollide = true;
+  }
   return {
     id: spec.id,
     spec,
     group: grp,
+    /** 這一處的 tell（`null` ＝ 沒登記；資料層一律要有，測試在守）。 */
+    tell: spec.tell || null,
+    /** 腳要離地多高才搆得到（`tell: "high"` 才 > 0）。 */
+    reach: spec.tell === 'high' ? SECRET_HIGH_REACH : 0,
+    /** 「聲音先到」的外圈半徑（0 ＝ 這一處沒有聲音 tell）。 */
+    tellRadius: spec.tell === 'sound' ? (spec.radius || SECRET_RADIUS) * SECRET_TELL_RATIO : 0,
+    /** 腳下地形的高度（`reach` 是**離地**多高，不是世界高度）。 */
+    groundY: terrainHeight(x, z),
+    told: false,
     position: new THREE.Vector3(x, y, z),
     found: false,
     setFound(v) {
@@ -700,6 +801,12 @@ export const RECENT_SIZE = 4;
 export function createReactiveField({
   spots = REACTIVE_SPOTS,
   secrets = [],
+  /**
+   * v1.2 · P15：高台（`screens.js` 的 `PLATFORMS`）—— `tell: "high"` 的祕密
+   * 躺在 `onPlatform` 指的那一座的頂面上，所以這裡要查得到它有多高。
+   * 沒給就當作沒有高台（那幾處會退回站在地上，測試會抓到「搆得到卻不必跳」）。
+   */
+  platforms = [],
   kitOf,
   terrainHeight,
   onReact = null,
@@ -718,9 +825,11 @@ export function createReactiveField({
     objects.push(built);
   }
 
+  const platformById = new Map((platforms || []).map((pf) => [pf.id, pf]));
   const secretObjs = [];
   for (const spec of secrets) {
-    const built = buildSecret(spec, kitOf(spec.region), terrainHeight);
+    const pf = spec.onPlatform ? platformById.get(spec.onPlatform) : null;
+    const built = buildSecret(spec, kitOf(spec.region), terrainHeight, pf ? pf.height : 0);
     group.add(built.group);
     secretObjs.push(built);
   }
@@ -806,7 +915,15 @@ export function createReactiveField({
       return objects.find((o) => o.id === id) || null;
     },
 
-    update(dt, t, px, pz) {
+    /**
+     * @param {number} dt
+     * @param {number} t
+     * @param {number} px 玩家 x
+     * @param {number} pz 玩家 z
+     * @param {number} [py] **玩家腳的世界高度**（v1.2 · P15：`tell: "high"` 的祕密要問它）。
+     *   沒給就當作站在地上 —— 那幾處於是永遠搆不到（保守：寧可拿不到，不要白給）。
+     */
+    update(dt, t, px, pz, py = -Infinity) {
       clock = t;
       frame += 1;
       const busy = isBusy ? isBusy() : false;
@@ -882,8 +999,25 @@ export function createReactiveField({
         if (d2 > FAR_SQ) continue;
         s.update(dt, t, kinetic);
         if (busy || s.found) continue;
+        /*
+         * tell「聲音先到」（v1.2 · P15）：外圈先響一聲很細的音 ——
+         * **看到它之前就先聽到**。一處只響一次（`told`），而且與所有反應物共用
+         * 同一條全域聲音冷卻，不會跟旁邊的風鈴糊在一起。
+         */
+        if (s.tellRadius > 0 && !s.told && d2 <= s.tellRadius * s.tellRadius) {
+          s.told = true;
+          if (onReact && clock - lastSoundAt >= SOUND_COOLDOWN) {
+            lastSoundAt = clock;
+            onReact({ id: s.id, kind: 'secret-tell', sound: 'chime', note: PENTATONIC[0], baseScale: semitone(19) });
+          }
+        }
         const r = (s.spec.radius || SECRET_RADIUS) ** 2;
         if (d2 > r) continue;
+        /*
+         * tell「高處」：腳離地不到 `SECRET_HIGH_REACH` 就搆不到。
+         * 走路的人腳永遠在地形高度上（`py === s.groundY`）—— 只有站上高台才過得了這一關。
+         */
+        if (s.reach > 0 && !(py >= s.groundY + s.reach)) continue;
         s.setFound(true);
         onSecret?.(s.id);
       }
@@ -897,6 +1031,9 @@ export default {
   REACTION_KINDS,
   SECRET_XP,
   SECRET_RADIUS,
+  SECRET_TELLS,
+  SECRET_TELL_RATIO,
+  SECRET_HIGH_REACH,
   buildReaction,
   buildSecret,
   createReactiveField,

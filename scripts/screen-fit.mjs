@@ -387,6 +387,18 @@ async function main() {
      * 高台是圓的（沒有正面），所以不用試角度；要挑的是**腳下最平的那一塊地**——
      * 圓周上八個點與圓心的高差越小，石鼓的底裙才不會一邊浮起來、一邊埋進土裡。
      */
+    /*
+     * v1.2 · P15 · `--reveal landmark`：**站上去要看得到別的東西**。
+     * 同一個 (x, z)、只有眼睛高了 `height` 公尺，`landmarkSight()` 的答案就要
+     * 從「擋住」翻成「看得到」—— 把高台從裝飾變成一句看得懂的地圖語法。
+     * 這一段與 `test:rubric` 的硬斷言問的是**同一支**判定。
+     */
+    const wantReveal = flag('reveal', null) === 'landmark';
+    const revealBands = Screens.SCREEN_BANDS.filter((b) => b.region === regionId);
+    if (wantReveal && (!landmark || !revealBands.length)) {
+      console.error(`${regionId} 沒有地標或沒有遮擋帶，--reveal landmark 無從量起`);
+      process.exit(2);
+    }
     for (const c of cands) {
       let drop = 0;
       let cover = 1;
@@ -400,9 +412,25 @@ async function main() {
       }
       if (cover < MOTIF_COVERAGE_MIN) continue;
       if (drop > MOTIF_STEP_DROP_MAX) continue;
+      let margin = 0;
+      if (wantReveal) {
+        const foot = Screens.landmarkSight(c.x, c.z, landmark, World.terrainHeight, revealBands);
+        if (!foot.hidden) continue;
+        const top = Screens.landmarkSight(
+          c.x,
+          c.z,
+          landmark,
+          World.terrainHeight,
+          revealBands,
+          h0 + height + Screens.EYE_HEIGHT
+        );
+        if (top.hidden) continue;
+        // 餘裕越大越穩（腳下這一刻擋得越死、站上去揭露得越乾脆）
+        margin = foot.have - foot.need + (top.need - top.have);
+      }
       // 想要它剛好在路邊看得到（離路網 12 公尺左右），而且腳下越平越好
-      const score = -Math.abs(c.dPath - 12) * 0.6 - drop * 8;
-      scored.push({ ...c, rot: 0, drop, score });
+      const score = -Math.abs(c.dPath - 12) * 0.6 - drop * 8 + margin * 6;
+      scored.push({ ...c, rot: 0, drop, margin, score });
     }
   } else if (kind === 'motif') {
     for (const c of cands) {

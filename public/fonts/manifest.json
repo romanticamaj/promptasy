@@ -92,7 +92,7 @@
     "src/world/screens.js",
     "src/world/world.js"
   ],
-  "corpusHash": "b03b461749ea1f68",
+  "corpusHash": "18fa589beb649f9a",
   "coverage": {
     "latin": [
       32,
@@ -1077,6 +1077,7 @@
       25581,
       25582,
       25588,
+      25606,
       25613,
       25622,
       25628,
@@ -1085,6 +1086,7 @@
       25645,
       25654,
       25664,
+      25684,
       25688,
       25705,
       25720,
@@ -1344,9 +1346,11 @@
       27867,
       27873,
       27874,
+      27877,
       27880,
       27927,
       27934,
+      27946,
       27963,
       27965,
       27966,
@@ -1585,6 +1589,7 @@
       31169,
       31185,
       31186,
+      31192,
       31204,
       31227,
       31232,
@@ -1621,6 +1626,7 @@
       31561,
       31572,
       31574,
+      31629,
       31639,
       31649,
       31661,
@@ -2147,6 +2153,7 @@
       38592,
       38597,
       38598,
+      38613,
       38614,
       38617,
       38620,
@@ -2628,7 +2635,7 @@
       "id": "serif-tc",
       "family": "Arcade Serif TC",
       "file": "arcade-serif-tc.woff2",
-      "bytes": 691080,
+      "bytes": 694028,
       "role": "cjk",
       "variable": true,
       "weight": null,
@@ -2639,7 +2646,7 @@
           "default": 400
         }
       },
-      "requested": 1907,
+      "requested": 1914,
       "missing": 0,
       "source": "NotoSerifTC.ttf",
       "author": "Google (Noto Project)",
@@ -2651,7 +2658,7 @@
       "id": "sans-tc",
       "family": "Arcade Sans TC",
       "file": "arcade-sans-tc.woff2",
-      "bytes": 526652,
+      "bytes": 528508,
       "role": "cjk",
       "variable": true,
       "weight": null,
@@ -2662,7 +2669,7 @@
           "default": 400
         }
       },
-      "requested": 1907,
+      "requested": 1914,
       "missing": 0,
       "source": "NotoSansTC.ttf",
       "author": "Google (Noto Project)",
@@ -2671,5 +2678,5 @@
       "url": "https://github.com/google/fonts/tree/main/ofl/notosanstc"
     }
   ],
-  "totalBytes": 1542052
+  "totalBytes": 1546856
 }

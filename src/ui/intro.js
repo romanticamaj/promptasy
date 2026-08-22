@@ -21,7 +21,7 @@ export function createIntro({ onDismiss }) {
       <ul class="intro__keys">
         <li><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd><span>移動</span></li>
         <li><kbd>Shift</kbd><span>奔跑</span></li>
-        <li><kbd>J</kbd><span>跳（中央高原）</span></li>
+        <li><kbd>J</kbd><span>跳（有高台的土地）</span></li>
         <li><kbd>←</kbd><kbd>→</kbd> / 滑鼠拖曳<span>轉鏡頭</span></li>
         <li><kbd>↑</kbd><kbd>↓</kbd> / <kbd>空白鍵</kbd><span>抬頭看天空</span></li>
         <li><kbd>-</kbd><kbd>=</kbd><span>鏡頭拉遠 / 拉近</span></li>

@@ -22,6 +22,9 @@ import { MANSION_TARGET, allMansionsLit, starMansions, starMapBlock } from './st
 /** 官方出處在畫面上的說法（和主控台第二幕同一句話）。 */
 const SOURCE_LABEL = '神諭原典';
 
+/** 秘境那一章的 tell 排序（與 `secrets.json` 的 `tells` 同一組鍵）。 */
+const SECRET_TELL_ORDER = Object.freeze(['odd', 'sound', 'high']);
+
 export function createCodex({
   content,
   progression,
@@ -31,6 +34,13 @@ export function createCodex({
   /** Phase 22：世界裡的小收集 —— 刻文小語與藏起來的地方各有幾個。 */
   inscriptionTotal = 0,
   secretTotal = 0,
+  /**
+   * v1.2 · P15：「秘境」章節 —— `secrets.json` 的 entries 與那份 tell 說明。
+   * 找到的收進來（標題、那幾句話、註腳）；沒找到的只留一行 **tell**：
+   * 不說在哪裡，只說「世界會怎麼先告訴你」——收集的鉤子在這裡，不在座標。
+   */
+  secrets = [],
+  secretTells = {},
   /** Phase 25：動得了的器物有幾件。 */
   handleTotal = 0,
   /** v1.2 · P02：濁靈（murks.json entries）—— 第四列「濁言與正言」與可展開的條目。 */
@@ -311,6 +321,56 @@ export function createCodex({
     </div>`;
   }
 
+  /* ---------------------------------------------------------------- *
+   * v1.2 · P15：秘境（藏起來的地方）
+   *
+   * 護欄 2：這一章**一個字的教學都沒有** —— 純風味。所以它不掛技巧、不放連結、
+   * 不顯示任何官方出處（`secrets.json` 連 `source` 欄位都不准有，`test:rubric` 在守）。
+   * ---------------------------------------------------------------- */
+  const TELL_LABEL = Object.freeze({ odd: '不對的東西', sound: '聲音先到', high: '高處' });
+
+  function secretCard(sec, regionName) {
+    const got = progression.hasFoundSecret ? progression.hasFoundSecret(sec.id) : false;
+    const tell = TELL_LABEL[sec.tell] || '';
+    if (!got) {
+      return `<li class="tech tech--locked">
+        <div class="tech__head">
+          <span class="tech__id">${esc(regionName)}</span>
+          <b class="tech__title">？？？</b>
+          ${tell ? `<span class="tech__chips"><span class="chip" style="--c:var(--invite)">${esc(tell)}</span></span>` : ''}
+        </div>
+      </li>`;
+    }
+    return `<li class="tech">
+      <details>
+        <summary>
+          <span class="tech__id">${esc(regionName)}</span>
+          <b class="tech__title">${esc(sec.title)}</b>
+          ${tell ? `<span class="tech__chips"><span class="chip" style="--c:var(--invite)">${esc(tell)}</span></span>` : ''}
+        </summary>
+        <div class="tech__body">
+          ${(sec.lines || []).map((l) => `<p class="tech__tip">${esc(l)}</p>`).join('')}
+          ${sec.note ? `<p class="tech__note">${esc(sec.note)}</p>` : ''}
+        </div>
+      </details>
+    </li>`;
+  }
+
+  function secretChapter() {
+    if (!secrets.length) return '';
+    const names = new Map(content.groupsOrdered().map((g) => [g.id, g.name]));
+    const found = secrets.filter((sc) => (progression.hasFoundSecret ? progression.hasFoundSecret(sc.id) : false)).length;
+    const legend = SECRET_TELL_ORDER.filter((k) => secrets.some((sc) => sc.tell === k))
+      .map((k) => `<b>${esc(TELL_LABEL[k])}</b>：${esc(secretTells[k] || '')}`)
+      .join('<br>');
+    return `<div class="seals">
+      <div class="meta-rule"><h4><span class="zh">秘境</span><span class="en">Hidden Places</span></h4></div>
+      <p class="muted" style="margin:0 0 var(--s4);font-size:var(--t-micro)">走進去就算找到，不用按鍵。它們不教任何技巧 —— 只是這個世界自己的事（${found} / ${secrets.length}）。</p>
+      <ul class="techs">${secrets.map((sc) => secretCard(sc, names.get(sc.region) || sc.region)).join('')}</ul>
+      ${legend ? `<p class="codex__hint">${legend}</p>` : ''}
+    </div>`;
+  }
+
   function techniqueCard(tech) {
     const got = progression.isCollected(tech.id);
     const vendors = (tech.vendors || [])
@@ -500,7 +560,7 @@ export function createCodex({
       })
       .join('');
 
-    overlay.body.innerHTML = `${rankBar()}${badgeStrip()}${sealStrip()}<div class="codex">${groups}</div>`;
+    overlay.body.innerHTML = `${rankBar()}${badgeStrip()}${sealStrip()}${secretChapter()}<div class="codex">${groups}</div>`;
     // 每次重繪都會換掉 ⓘ 節點，但事件是委派在 body 上，綁一次就夠
     bindInfoTips(overlay.body);
     /*

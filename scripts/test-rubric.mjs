@@ -4875,6 +4875,14 @@ console.log('\n▸ 刻文小語與地圖彩蛋（Phase 22）');
 
 const inscriptions = inscriptionFile.entries;
 const secrets = secretFile.entries;
+/*
+ * v1.2 · P15：**走在地上碰得到的**那幾處祕密。
+ * `tell: "high"` 的躺在高台頂面上（腳離地 < `SECRET_HIGH_REACH` 一律搆不到），
+ * 所以「不要兩件事同時觸發」那一組距離規則對它們沒有意義 ——
+ * 它腳下那一塊地的淨空由那座高台自己守（與母題共用同一份門檻）。
+ * `scripts/lib/screen-rules.mjs` 的 `interactionTargets()` 用的是同一條規則。
+ */
+const groundSecrets = secrets.filter((sc) => sc.tell !== 'high');
 const insContent = createContent(curriculum, challengeData, builderZh, null, null, curriculumZh);
 const Inscriptions = await import('../src/world/inscriptions.js');
 const Reactive = await import('../src/world/reactive.js');
@@ -4960,13 +4968,46 @@ ok(
 );
 
 /* --- 祕密：純風味（跟石碑同一層護欄） -------------------------------- */
+/*
+ * v1.2 · P15：祕密從 4 處長到 12 處，而且散到 8 片土地 ——
+ * `curriculum.groups` 只有既有五區，所以區域名單改用世界真的蓋出來的那 12 片。
+ * 每片土地的主色（tell「odd」要拿它去比色相）：舊五區在 curriculum、
+ * 其餘七區在 `regions-v2.json` —— 與世界建構時 `colorOf()` 讀的是同一份。
+ */
+const regionIdSetP15 = new Set(World.REGION_SITES.map((s2) => s2.id));
+const ScreensP15 = await import('../src/world/screens.js');
+const regionColorP15 = new Map();
+for (const g of curriculum.groups) regionColorP15.set(g.id, g.color);
+for (const r of readJson('src/data/regions-v2.json').regions || []) {
+  if (r.color) regionColorP15.set(r.id, r.color);
+}
+
 eq(secretFile.authored, 'game', 'secrets.json 檔頭明講是遊戲自撰的層');
 eq(new Set(secrets.map((s) => s.id)).size, secrets.length, '祕密 id 沒有重複');
-ok(secrets.length >= 3 && secrets.length <= 6, '祕密數量在 3–6 之間', `n=${secrets.length}`);
+eq(secrets.length, EXPECT.secrets.value, '祕密數量＝契約值', `n=${secrets.length}`);
 eq(secrets.filter((s) => s.blessing).length, 1, '只有一個祕密帶「回聲的祝福」');
+/*
+ * v1.2 · P15：三種 tell（找到它之前，世界先給的那一點提示）。
+ * 契約：**三種都要有人用**，而且每一種至少 `minPerTell` 處 ——
+ * 只用一種就不叫「三種 tell」，那是同一件事重複 12 遍。
+ */
+{
+  const byTell = new Map(Reactive.SECRET_TELLS.map((k) => [k, 0]));
+  for (const sc of secrets) if (byTell.has(sc.tell)) byTell.set(sc.tell, byTell.get(sc.tell) + 1);
+  eq(
+    secrets.filter((sc) => Reactive.SECRET_TELLS.includes(sc.tell)).length,
+    secrets.length,
+    '每一處祕密都登記了一種 tell'
+  );
+  for (const k of Reactive.SECRET_TELLS) {
+    ok(byTell.get(k) >= EXPECT.secrets.minPerTell, `[tell:${k}] 至少 ${EXPECT.secrets.minPerTell} 處用得到`, String(byTell.get(k)));
+    ok(typeof secretFile.tells[k] === 'string' && secretFile.tells[k].length > 8, `[tell:${k}] 檔頭說得出它是什麼`);
+  }
+  eq(Object.keys(secretFile.tells).length, Reactive.SECRET_TELLS.length, 'tell 說明表沒有多出沒人用的種類');
+}
 for (const s of secrets) {
   const tag = `[secret:${s.id}]`;
-  ok(regionIdSet.has(s.region), `${tag} region 是真實區域`, s.region);
+  ok(regionIdSetP15.has(s.region), `${tag} region 是真實區域`, s.region);
   ok(typeof s.title === 'string' && s.title.length >= 2 && s.title.length <= 14, `${tag} 有簡短標題`, s.title);
   ok(Array.isArray(s.lines) && s.lines.length >= 2 && s.lines.length <= 4, `${tag} 2–4 句`);
   for (const line of [...(s.lines || []), s.note || '']) {
@@ -4998,6 +5039,73 @@ for (const s of secrets) {
   );
   ok(toLane > 8, `${tag} 不在必經的主動線上`, toLane.toFixed(1));
   ok(nearestPedestal(x, z) >= 8, `${tag} 不擋石座`, nearestPedestal(x, z).toFixed(1));
+
+  /* --- v1.2 · P15：三種 tell 各自的資料契約 --- */
+  if (s.tell === 'odd') {
+    // 「不對的東西」＝ 真的有一塊顏色不對：與這片土地的主色**色相差 ≥ 60°**
+    ok(/^#[0-9a-f]{6}$/i.test(s.oddAccent || ''), `${tag} odd 要指名那一塊不對的顏色`, String(s.oddAccent));
+    const hueOf = (hex) => {
+      const r = parseInt(hex.slice(1, 3), 16) / 255;
+      const g2 = parseInt(hex.slice(3, 5), 16) / 255;
+      const b = parseInt(hex.slice(5, 7), 16) / 255;
+      const mx = Math.max(r, g2, b);
+      const mn = Math.min(r, g2, b);
+      const d = mx - mn;
+      if (d < 1e-6) return 0;
+      let h = 0;
+      if (mx === r) h = ((g2 - b) / d) % 6;
+      else if (mx === g2) h = (b - r) / d + 2;
+      else h = (r - g2) / d + 4;
+      return ((h * 60) % 360 + 360) % 360;
+    };
+    const base = regionColorP15.get(s.region);
+    ok(Boolean(base), `${tag} 查得到這片土地的主色`, String(base));
+    const dh = Math.abs(hueOf(s.oddAccent) - hueOf(base));
+    const gap = Math.min(dh, 360 - dh);
+    ok(gap >= 60, `${tag} 那一塊真的格格不入（色相差 ≥ 60°）`, `${gap.toFixed(0)}°`);
+    ok(!('onPlatform' in s), `${tag} 不掛在高台上`);
+  } else if (s.tell === 'high') {
+    // 「高處」＝ 真的躺在一座高台的頂面上，而且那座高台真的比搆得到的門檻高
+    const pf = ScreensP15.PLATFORMS.find((p) => p.id === s.onPlatform);
+    ok(Boolean(pf), `${tag} onPlatform 指得到一座真的高台`, String(s.onPlatform));
+    if (pf) {
+      eq(pf.at[0], s.at[0], `${tag} 與那座高台同一個 x`);
+      eq(pf.at[1], s.at[1], `${tag} 與那座高台同一個 z`);
+      eq(pf.reveals, s.id, `${tag} 那座高台也指回這一處（兩邊對得上）`);
+      ok(
+        pf.height > Reactive.SECRET_HIGH_REACH,
+        `${tag} 那座高台比「搆得到」的門檻高（站上去才拿得到）`,
+        `${pf.height} > ${Reactive.SECRET_HIGH_REACH}`
+      );
+    }
+    ok(!('oddAccent' in s), `${tag} 高處的 tell 不靠顏色`);
+  } else {
+    ok(!('onPlatform' in s) && !('oddAccent' in s), `${tag} sound 的 tell 不靠顏色也不靠高台`);
+  }
+}
+/* 每一座掛了 `reveals` 的高台，都要指得到一處真的 `tell: "high"` 祕密（反向也對得上）。 */
+for (const pf of ScreensP15.PLATFORMS) {
+  if (!pf.reveals) continue;
+  const sc = secrets.find((x) => x.id === pf.reveals);
+  ok(Boolean(sc), `[platform:${pf.id}] reveals 指得到一處真的祕密`, String(pf.reveals));
+  if (sc) eq(sc.tell, 'high', `[platform:${pf.id}] 它指的那一處是「高處」的 tell`);
+}
+{
+  // 12 片土地裡有幾片藏得住東西 —— 只准變多（護欄 7）
+  const covered = new Set(secrets.map((sc) => sc.region));
+  ok(covered.size >= EXPECT.secrets.minRegions, `祕密散在至少 ${EXPECT.secrets.minRegions} 片土地上`, String(covered.size));
+  // 兩處祕密之間不要擠在一起（走一步同時找到兩處就不叫「藏起來的地方」）
+  for (let i = 0; i < secrets.length; i += 1) {
+    for (let j = i + 1; j < secrets.length; j += 1) {
+      const a = secrets[i];
+      const b = secrets[j];
+      ok(
+        Math.hypot(a.at[0] - b.at[0], a.at[1] - b.at[1]) >= 12,
+        `祕密 ${a.id} / ${b.id} 離得夠開`,
+        Math.hypot(a.at[0] - b.at[0], a.at[1] - b.at[1]).toFixed(1)
+      );
+    }
+  }
 }
 
 /* --- 會回應的東西：擺法與效能相關的規則 ------------------------------ */
@@ -5409,7 +5517,7 @@ for (const kindMeta of Object.values(handleFile.kinds || {})) {
     ok(toTablet >= 7, `${tag} 不壓在世界觀石碑上（不搶 E）`, toTablet.toFixed(1));
     const toLandmark = Math.min(...LANDMARKS.map((l) => Math.hypot(x - l.at[0], z - l.at[1])));
     ok(toLandmark >= 14, `${tag} 沒有站進地標的留白圈`, toLandmark.toFixed(1));
-    const toSecret = Math.min(...secrets.map((s) => Math.hypot(x - s.at[0], z - s.at[1])));
+    const toSecret = Math.min(...groundSecrets.map((s) => Math.hypot(x - s.at[0], z - s.at[1])));
     ok(toSecret >= 9, `${tag} 不壓在藏起來的地方上`, toSecret.toFixed(1));
   }
   for (let i = 0; i < handles.length; i += 1) {
@@ -5491,7 +5599,7 @@ for (const kindMeta of Object.values(handleFile.kinds || {})) {
     ok(toTablet2 >= 10.1, `${tag} 離世界觀石碑 ≥ 10.1m`, toTablet2.toFixed(1));
     const toIns2 = Math.min(...inscriptions.map((i) => Math.hypot(x - i.at[0], z - i.at[1])));
     ok(toIns2 >= 9.3, `${tag} 離刻文小語 ≥ 9.3m`, toIns2.toFixed(1));
-    const toSecret2 = Math.min(...secrets.map((sc) => Math.hypot(x - sc.at[0], z - sc.at[1])));
+    const toSecret2 = Math.min(...groundSecrets.map((sc) => Math.hypot(x - sc.at[0], z - sc.at[1])));
     ok(toSecret2 >= 9, `${tag} 離藏起來的地方 ≥ 9m`, toSecret2.toFixed(1));
     const toLandmark2 = Math.min(...LANDMARKS.map((l) => Math.hypot(x - l.at[0], z - l.at[1])));
     ok(toLandmark2 >= 14, `${tag} 沒有站進地標的留白圈`, toLandmark2.toFixed(1));
@@ -5701,7 +5809,7 @@ for (const l of letters) {
     );
     ok(toReactP07 >= 8.2, `${tag} 離會回應的東西 ≥ 8.2m`, toReactP07.toFixed(1));
     const toSecretP07 = nearestOf(
-      secrets.map((s) => s.at),
+      groundSecrets.map((s) => s.at),
       x,
       z
     );
@@ -15184,7 +15292,7 @@ console.log('\n▸ 中觀：遮擋帶與母題（v1.2 · P11）');
     for (const sp of Reactive.REACTIVE_SPOTS) targets.push({ k: 'react', id: sp.id, at: sp.at });
     for (const mk of murkFile.entries) targets.push({ k: 'murk', id: mk.id, at: mk.at });
     for (const t of LORE_TABLETS) targets.push({ k: 'tablet', id: t.id, at: t.at });
-    for (const sc of secrets) targets.push({ k: 'secret', id: sc.id, at: sc.at });
+    for (const sc of groundSecrets) targets.push({ k: 'secret', id: sc.id, at: sc.at });
 
     const laneDistP11 = (x, z) =>
       Math.min(
@@ -15233,8 +15341,9 @@ console.log('\n▸ 中觀：遮擋帶與母題（v1.2 · P11）');
       }
     }
     eq(screenLights, 0, 'P11：中觀層一盞燈都沒加');
-    ok(screenTris < 4000, 'P11：中觀層的三角形很省', `tris=${Math.round(screenTris)}`);
-    ok(screenSolids <= 60, 'P11：中觀層的碰撞體沒有失控', `n=${screenSolids}`);
+    // v1.2 · P15：+7 座高台（一座石鼓 ≈ 270 個三角面、1 顆碰撞圓）→ 上限跟著抬一階
+    ok(screenTris < 6000, 'P11：中觀層的三角形很省', `tris=${Math.round(screenTris)}`);
+    ok(screenSolids <= 72, 'P11：中觀層的碰撞體沒有失控', `n=${screenSolids}`);
 
     // 繞得過去：石脊四周、母題四周
     for (const b of Screens.SCREEN_BANDS) {
@@ -16803,24 +16912,53 @@ console.log('\n▸ 跳躍原型（v1.2 · P14）');
     ok(/1\/120/.test(s31P14), 'WORLD.md §3.1 寫了垂直積分切成 1/120 秒的小步');
   }
 
-  /* --- ② 只有中央高原跳得起來（其餘 11 片是 0 —— 這就是「行為零改變」的根） --- */
+  /*
+   * --- ② 跳得起來的土地與橋（v1.2 · P15 由 1 片長到 4 片 ＋ 1 座橋）
+   *
+   * **「行為零改變」的根在這裡**：沒開的那 8 片土地與 6 座橋，`jumpSpeedFor()` 回 0 →
+   * `stepJumper()` 的第 ② 段直接把那一次按鍵丟掉 → 一路走到第 ④ 段回 `groundY`。
+   * 而且開了哪幾片不是隨手決定的：**開的一定是這一格真的蓋了高台的那幾片**
+   * （不然是蓋裝飾），開的那一座橋**一定是有缺口的那一座**（不然是給人跳出去）。
+   */
   {
-    eq(Jump.JUMP_REGIONS.length, 1, '這一格只開一片土地');
-    eq(Jump.JUMP_REGIONS[0], 'foundations', '開的是中央高原');
+    eq(Jump.JUMP_REGIONS.length, 4, '這一格開四片土地（P16a 才鋪滿 12 片）');
+    ok(Jump.JUMP_REGIONS.includes('foundations'), '中央高原還在（P14 開的那一片沒有被拿掉）');
+    // 開的每一片都真的有高台；有高台的每一片也都跳得起來 —— 兩邊互相對得上
+    const platformRegions = new Set(ScreensP14.PLATFORMS.map((pf) => pf.region));
+    for (const id of Jump.JUMP_REGIONS) {
+      ok(platformRegions.has(id), `[${id}] 跳得起來的土地上真的有高台（不是白開）`);
+    }
+    for (const id of platformRegions) {
+      ok(Jump.JUMP_REGIONS.includes(id), `[${id}] 有高台的土地跳得起來（高台不是裝飾）`);
+    }
     let nonZero = 0;
     for (const site of World.REGION_SITES) {
       const v = Jump.jumpSpeedFor(site.id);
-      if (site.id === 'foundations') {
-        ok(v > 0, '[foundations] 跳得起來', String(v));
+      if (Jump.JUMP_REGIONS.includes(site.id)) {
+        ok(v > 0, `[${site.id}] 跳得起來`, String(v));
+        ok(Jump.jumpApexFor(site.id) > 1.7, `[${site.id}] 跳得上這一片最高的那一座高台`);
         nonZero += 1;
       } else {
         eq(v, 0, `[${site.id}] 跳躍速度是 0（行為與 P14 之前完全相同）`);
         eq(Jump.jumpApexFor(site.id), 0, `[${site.id}] 跳得多高 ＝ 0`);
       }
     }
-    eq(nonZero, 1, '12 片土地裡只有一片非 0');
+    eq(nonZero, 4, '12 片土地裡有四片非 0');
+    eq(World.REGION_SITES.length - nonZero, 8, '其餘 8 片一寸都沒動（P16a 才鋪滿）');
     for (const bad of [null, undefined, '', 'nope', '__proto__', 'constructor', 'toString']) {
       eq(Jump.jumpSpeedFor(bad), 0, `jumpSpeedFor(${JSON.stringify(bad)}) ＝ 0（不會漏原型鍊上的東西）`);
+      eq(Jump.jumpSpeedForBridge(bad), 0, `jumpSpeedForBridge(${JSON.stringify(bad)}) ＝ 0`);
+    }
+    /* 橋：**只有開了缺口的那一座**跳得起來，其餘六座是 0。 */
+    eq(
+      Jump.JUMP_BRIDGES.slice().sort().join(','),
+      World.BRIDGE_GAPS.map((g2) => g2.region).sort().join(','),
+      '跳得起來的橋 ＝ 有缺口的橋（一一對應，不多也不少）'
+    );
+    for (const c of World.CORRIDORS) {
+      const v = Jump.jumpSpeedForBridge(c.region);
+      if (World.BRIDGE_GAPS.some((g2) => g2.region === c.region)) ok(v > 0, `[bridge:${c.region}] 有缺口 → 跳得起來`);
+      else eq(v, 0, `[bridge:${c.region}] 沒有缺口 → 跳躍速度是 0（每一幀與 P14 之前相同）`);
     }
   }
 
@@ -17198,7 +17336,7 @@ console.log('\n▸ 跳躍原型（v1.2 · P14）');
       const tag = `[platform:${pf.id}]`;
       ok(/^[a-z0-9-]+$/.test(pf.id), `${tag} id 是 kebab-case`);
       ok(regionIdSet.has(pf.region), `${tag} region 是真實區域`, pf.region);
-      eq(pf.region, 'foundations', `${tag} 這一格只在跳得起來的那片土地上放高台`);
+      ok(Jump.JUMP_REGIONS.includes(pf.region), `${tag} 蓋在跳得起來的那幾片土地上（不然是裝飾）`, pf.region);
       ok(Jump.jumpSpeedFor(pf.region) > 0, `${tag} 蓋在跳得起來的土地上（不然是一面牆）`);
       ok(ScreensP14.PLATFORM_KIND_IDS.includes(pf.kind), `${tag} 造型是實作得出來的`, pf.kind);
       ok(Array.isArray(pf.at) && pf.at.length === 2 && pf.at.every(Number.isFinite), `${tag} 座標是兩個有限數字`);
@@ -17250,6 +17388,7 @@ console.log('\n▸ 跳躍原型（v1.2 · P14）');
       }
     }
     // 四周繞得過去（P11／P12 那一套）
+    const allAround = [];
     for (const pf of ScreensP14.PLATFORMS) {
       let free = 0;
       const rr = pf.radius + World.PLAYER_RADIUS + 2;
@@ -17257,7 +17396,13 @@ console.log('\n▸ 跳躍原型（v1.2 · P14）');
         const ang = (a / 16) * Math.PI * 2;
         if (!testWorld.solidAt(pf.at[0] + Math.cos(ang) * rr, pf.at[1] + Math.sin(ang) * rr)) free += 1;
       }
-      eq(free, 16, `[${pf.id}] 四周 16 個方向全部繞得過去`, `${free}/16`);
+      /*
+       * 門檻與 `scripts/screen-fit.mjs`（產生這些座標的那一支）**同一個 14/16** ——
+       * 「不另訂一份會分家的門檻」（§4.12 ③）。P14 只有一座、剛好挑到 16/16，
+       * 把 16 寫死會讓資料一長就必紅。下面另外守「至少有一座是全通的」。
+       */
+      ok(free >= 14, `[${pf.id}] 四周 16 個方向裡至少 14 個繞得過去`, `${free}/16`);
+      allAround.push(free);
       // 離走出來的那條路 7–26 公尺（與母題共用同一段門檻）
       const segsP14 = buildPathNetwork(World.REGION_SITES, [...World.CORRIDORS, ...World.ANNEX_LINKS], challenges);
       let best = Infinity;
@@ -17270,6 +17415,28 @@ console.log('\n▸ 跳躍原型（v1.2 · P14）');
       }
       ok(best >= 7 && best <= 26, `[${pf.id}] 離走出來的那條路 7–26 公尺（看得到、走得過去、不擋路）`, best.toFixed(1));
     }
+    ok(allAround.some((n) => n === 16), '至少有一座高台四周 16/16 全通', allAround.join('/'));
+    // 高台彼此至少隔 16 公尺（與母題共用同一條「重複才叫語彙、擠在一起就是雜物」）
+    for (let i = 0; i < ScreensP14.PLATFORMS.length; i += 1) {
+      for (let j = i + 1; j < ScreensP14.PLATFORMS.length; j += 1) {
+        const a = ScreensP14.PLATFORMS[i];
+        const b = ScreensP14.PLATFORMS[j];
+        ok(
+          Math.hypot(a.at[0] - b.at[0], a.at[1] - b.at[1]) >= 16,
+          `高台 ${a.id} / ${b.id} 離得夠開`,
+          Math.hypot(a.at[0] - b.at[0], a.at[1] - b.at[1]).toFixed(1)
+        );
+      }
+    }
+    // 每一片有高台的土地都剛好兩座（契約表；擺不下的土地本來就不擺 —— 見 expected-counts）
+    for (const [regionId, n] of Object.entries(EXPECT.screens.platforms)) {
+      eq(ScreensP14.PLATFORMS.filter((pf) => pf.region === regionId).length, n, `[${regionId}] 高台座數＝契約表`);
+    }
+    eq(
+      Object.values(EXPECT.screens.platforms).reduce((a, b) => a + b, 0),
+      ScreensP14.PLATFORMS.length,
+      '契約表加起來＝高台總數'
+    );
   }
 
   /* --- ⑥ supportAt：接上去的那一條路（含 escapeSolid 那個坑） -------- */
@@ -17383,6 +17550,7 @@ console.log('\n▸ 跳躍原型（v1.2 · P14）');
     let pfTris = 0;
     let pfLights = 0;
     let pfSolids = 0;
+    const platformRegionsP14 = new Set(ScreensP14.PLATFORMS.map((pf) => pf.region));
     for (const layer of testWorld.screens) {
       if (layer.id !== 'foundations') continue;
       layer.group.traverse((o) => {
@@ -17398,7 +17566,9 @@ console.log('\n▸ 跳躍原型（v1.2 · P14）');
     ok(pfTris > 0, 'P14：高台真的蓋出來了（三角形不是 0）', `tris=${pfTris}`);
     ok(pfTris < 2000, 'P14：高台的三角形 < 2,000', `tris=${pfTris}`);
     eq(pfLights, 0, 'P14：高台一盞燈都沒加');
-    eq(pfSolids, 1, 'P14：高台只登記一顆碰撞圓');
+    // 中央高原現在有兩座（P15）：一座高台 ＝ 一顆圓、一個名字
+    eq(pfSolids, ScreensP14.PLATFORMS.filter((pf) => pf.region === 'foundations').length, 'P14：一座高台只登記一顆碰撞圓');
+    eq(platformRegionsP14.size, 4, 'P15：高台鋪在四片土地上');
     let lightsP14 = 0;
     testScene.traverse((o) => {
       if (o.isLight) lightsP14 += 1;
@@ -17457,9 +17627,438 @@ console.log('\n▸ 跳躍原型（v1.2 · P14）');
     const jumpRow = walkGroup && walkGroup.rows.find((r2) => r2.keys.includes('J'));
     ok(Boolean(jumpRow), '操作一覽的走路那一組有 J');
     ok(jumpRow && /跳/.test(jumpRow.what), '操作一覽說得出 J 是跳', jumpRow ? jumpRow.what : '');
-    ok(jumpRow && /中央高原/.test(jumpRow.what), '操作一覽誠實標明只有中央高原跳得起來');
+    ok(jumpRow && /高台/.test(jumpRow.what), '操作一覽誠實標明「有高台的土地」才跳得起來（不是每一片）');
     const introSrc = readFileSync(resolve(root, 'src/ui/intro.js'), 'utf8');
     ok(/<kbd>J<\/kbd>/.test(introSrc), '首次進入的教學卡也列了 J');
+  }
+}
+
+/* ================================================================== *
+ * 高台語法 ＋ 高處的祕密 ＋ 橋缺口（v1.2 · P15）
+ * ================================================================== *
+ *
+ * 這一格要證明三件事，而且每一件都要**量得出來、也紅得出來**：
+ *   ① 高台不是裝飾 —— 站上去搆得到一件站在地上搆不到的東西（把高台壓矮就紅）。
+ *   ② 三種 tell 真的是三種 —— 顏色不對的那一塊真的不對、聲音先到真的先到、
+ *      高處真的只有高處搆得到。
+ *   ③ **不倒退**：不按 `J`，每一座橋走得完、每一個互動點到得了。
+ */
+console.log('\n▸ 高台語法 ＋ 高處的祕密 ＋ 橋缺口（v1.2 · P15）');
+{
+  const Screens15 = await import('../src/world/screens.js');
+  const Jump15 = await import('../src/player/jump.js');
+  const Reactive15 = await import('../src/world/reactive.js');
+
+  /* --- ① 高台：跳得上去，而且還留得下餘裕 --------------------------- */
+  {
+    const dts = [1 / 240, 1 / 120, 1 / 60, 1 / 30, 0.2];
+    const worst = Math.min(...dts.map((dt) => Jump15.simulateApex(Jump15.JUMP_SPEED, dt)));
+    for (const pf of Screens15.PLATFORMS) {
+      /*
+       * findings：「`Math.min` 寫的『全程都…』是假斷言」—— 所以這裡量的是
+       * **最差的那一種幀時間**，不是紙上的連續解。0.3 公尺的餘裕是契約：
+       * 剛好跳得上等於跳不上（玩家不會每次都從最平的那一點起跳）。
+       */
+      ok(
+        worst > pf.height + 0.3,
+        `[platform:${pf.id}] 最差幀率下仍然跳得上（還有 0.3 公尺餘裕）`,
+        `${worst.toFixed(2)} > ${pf.height} + 0.3`
+      );
+      ok(pf.height > Screens15.EYE_HEIGHT - 0.001, `[platform:${pf.id}] 頂面不低於眼睛高度（站在地上看不完它）`, String(pf.height));
+    }
+  }
+
+  /* --- ② 站上去才搆得到：高台 ↔ 高處的祕密（含把它壓矮的反例） ------ */
+  {
+    const kit = kitFor('#8aa0b4');
+    const withPlatforms = (list) =>
+      Reactive15.createReactiveField({
+        spots: [],
+        secrets,
+        platforms: list,
+        kitOf: () => kit,
+        terrainHeight: World.terrainHeight,
+      });
+    /** 走到那一點、腳在 `feetY`，找得到嗎。 */
+    const reach = (field, sec, feetY) => {
+      field.markSecretFound('__none__');
+      field.update(1 / 60, 1, sec.at[0], sec.at[1], feetY);
+      return Boolean(field.secret(sec.id) && field.secret(sec.id).found);
+    };
+    const highs = secrets.filter((sc) => sc.tell === 'high');
+    ok(highs.length >= 3, '高處的祕密至少三處', String(highs.length));
+    for (const sec of highs) {
+      const pf = Screens15.PLATFORMS.find((p) => p.id === sec.onPlatform);
+      const ground = World.terrainHeight(sec.at[0], sec.at[1]);
+      // 站在地上：搆不到
+      const onFoot = withPlatforms(Screens15.PLATFORMS);
+      eq(reach(onFoot, sec, ground), false, `[secret:${sec.id}] 站在地上搆不到`);
+      // 站在頂面上：搆得到
+      const onTop = withPlatforms(Screens15.PLATFORMS);
+      eq(reach(onTop, sec, ground + pf.height), true, `[secret:${sec.id}] 站上那一座高台就搆得到`);
+      /*
+       * **反例（這一條就是「先紅」）**：把那座高台壓到 `SECRET_HIGH_REACH` 以下，
+       * 站在它頂上照樣搆不到 —— 門檻是固定的常數，不是「那座高台的高度」，
+       * 所以壓矮／搬走高台會讓上面那條斷言真的紅（findings：斷言要答得出「什麼時候會紅」）。
+       */
+      const squashed = Screens15.PLATFORMS.map((p) =>
+        p.id === pf.id ? { ...p, height: Reactive15.SECRET_HIGH_REACH - 0.2 } : p
+      );
+      const low = withPlatforms(squashed);
+      eq(
+        reach(low, sec, ground + Reactive15.SECRET_HIGH_REACH - 0.2),
+        false,
+        `[secret:${sec.id}][反例] 高台壓矮到門檻以下 → 站上去也搆不到`
+      );
+      // 沒有高台資料時也搆不到（保守：查不到就當它站在地上）
+      const none = withPlatforms([]);
+      eq(reach(none, sec, ground), false, `[secret:${sec.id}][反例] 沒有高台資料 → 搆不到`);
+    }
+  }
+
+  /* --- ③ tell「聲音先到」：外圈真的先響，而且響在找到之前 ----------- */
+  {
+    const kit = kitFor('#8aa0b4');
+    const sounds = secrets.filter((sc) => sc.tell === 'sound');
+    ok(sounds.length >= 3, '「聲音先到」至少三處', String(sounds.length));
+    for (const sec of sounds) {
+      const heard = [];
+      const found = [];
+      const field = Reactive15.createReactiveField({
+        spots: [],
+        secrets: [sec],
+        platforms: Screens15.PLATFORMS,
+        kitOf: () => kit,
+        terrainHeight: World.terrainHeight,
+        onReact: (e) => heard.push(e),
+        onSecret: (id) => found.push(id),
+      });
+      const outer = (sec.radius || Reactive15.SECRET_RADIUS) * Reactive15.SECRET_TELL_RATIO;
+      ok(outer > (sec.radius || 5), `[secret:${sec.id}] 聲音的外圈比發現半徑大`, outer.toFixed(1));
+      // 一步一步走近：先進外圈（聽得到）、再進內圈（找到）
+      let clock = 0;
+      let toldAt = -1;
+      let foundAt = -1;
+      for (let d = outer + 2; d >= 0; d -= 0.4) {
+        clock += 1;
+        field.update(1 / 60, clock, sec.at[0] + d, sec.at[1], World.terrainHeight(sec.at[0] + d, sec.at[1]));
+        if (toldAt < 0 && heard.length) toldAt = d;
+        if (foundAt < 0 && found.length) foundAt = d;
+      }
+      ok(toldAt > 0, `[secret:${sec.id}] 走近的路上真的先響了一聲`, String(toldAt));
+      ok(foundAt >= 0, `[secret:${sec.id}] 再走近就找到了`, String(foundAt));
+      ok(toldAt > foundAt, `[secret:${sec.id}] **聲音先到**（比找到早一段距離）`, `${toldAt} > ${foundAt}`);
+      eq(heard.filter((e) => e.kind === 'secret-tell').length, 1, `[secret:${sec.id}] 那一聲只響一次`);
+    }
+    // 反例：沒有 sound tell 的那幾處，走過去一聲都不響
+    for (const sec of secrets.filter((sc) => sc.tell !== 'sound').slice(0, 3)) {
+      const heard = [];
+      const field = Reactive15.createReactiveField({
+        spots: [],
+        secrets: [sec],
+        platforms: Screens15.PLATFORMS,
+        kitOf: () => kit,
+        terrainHeight: World.terrainHeight,
+        onReact: (e) => heard.push(e),
+      });
+      for (let d = 12; d >= 0; d -= 0.4) {
+        field.update(1 / 60, d, sec.at[0] + d, sec.at[1], World.terrainHeight(sec.at[0], sec.at[1]));
+      }
+      eq(heard.filter((e) => e.kind === 'secret-tell').length, 0, `[secret:${sec.id}][反例] 不是「聲音先到」就不響`);
+    }
+  }
+
+  /* --- ④ tell「不對的東西」：那一塊碎片真的蓋出來了 ------------------ */
+  {
+    const kit = kitFor('#8aa0b4');
+    for (const sec of secrets) {
+      const built = Reactive15.buildSecret(sec, kit, World.terrainHeight, 0);
+      let shard = null;
+      built.group.traverse((o) => {
+        if (o.name === `secret-odd:${sec.id}`) shard = o;
+      });
+      if (sec.tell === 'odd') {
+        ok(Boolean(shard), `[secret:${sec.id}] 場景裡真的有那一塊格格不入的碎片`);
+        ok(
+          shard && `#${shard.material.color.getHexString()}` === sec.oddAccent.toLowerCase(),
+          `[secret:${sec.id}] 碎片用的就是資料寫的那個顏色`,
+          shard ? `#${shard.material.color.getHexString()}` : '?'
+        );
+      } else {
+        eq(shard, null, `[secret:${sec.id}][反例] 不是「不對的東西」就沒有那塊碎片`);
+      }
+    }
+  }
+
+  /* --- ⑤ 橋缺口：資料契約 ＋ 逐點掃過去 ----------------------------- */
+  {
+    eq(World.BRIDGE_GAPS.length, EXPECT.bridgeGaps.value, '橋缺口數量＝契約值', String(World.BRIDGE_GAPS.length));
+    ok(World.BRIDGE_GAPS.length <= EXPECT.bridgeGaps.max, '橋缺口沒有超過上限');
+    for (const gap of World.BRIDGE_GAPS) {
+      const tag = `[gap:${gap.id}]`;
+      ok(/^[a-z0-9-]+$/.test(gap.id), `${tag} id 是 kebab-case`);
+      const corridor = World.CORRIDORS.find((c) => c.region === gap.region);
+      ok(Boolean(corridor), `${tag} region 指得到一座真的橋`, gap.region);
+      if (!corridor) continue;
+      eq(gap.length, 3, `${tag} 缺口寬 3 公尺（跳得過去的那一段）`);
+      // 窄板整條都在主動線之外（§6.4 的例外條件）
+      ok(gap.keepFrom > World.LANE_HALF, `${tag} 窄板起點在主動線之外`, `${gap.keepFrom} > ${World.LANE_HALF}`);
+      ok(gap.keepTo > gap.keepFrom + 1.2, `${tag} 窄板至少 1.2 公尺寬`, `${gap.keepTo - gap.keepFrom}`);
+      // 不壓在閘門上、也不壓在橋的兩端
+      ok(Math.abs(gap.at - corridor.gateAt) >= 8, `${tag} 離閘門 ≥ 8 公尺`, Math.abs(gap.at - corridor.gateAt).toFixed(1));
+      // 在閘門的這一側 → 還沒解鎖的玩家也遇得到（第一次看到缺口不必先過關）
+      ok(gap.at < corridor.gateAt, `${tag} 開在閘門的內側（不必先解鎖就遇得到）`);
+
+      const f = World.gapFrame(gap);
+      const at = (along, lat) => [f.ax + f.ux * along + f.vx * lat, f.az + f.uz * along + f.vz * lat];
+      /*
+       * **逐點掃**（步長 0.1 公尺，遠小於玩家半徑 0.62 —— 掃不到的縫人也塞不進去）：
+       * 缺口那一段裡，只有窄板走得到；窄板整條都走得到。
+       */
+      let blocked = 0;
+      let plank = 0;
+      let plankGaps = 0;
+      // `at()` 的第一個參數是**離缺口中心**的距離（`gapFrame()` 的原點就在中心）
+      for (let d = -gap.length / 2 + 0.05; d <= gap.length / 2; d += 0.1) {
+        for (let lat = -5; lat <= 5.001; lat += 0.1) {
+          const [x, z] = at(d, lat);
+          const side = lat * gap.keepSide;
+          const inPlank = side >= gap.keepFrom + 0.2 && side <= gap.keepTo - 0.2;
+          const walk = testWorld.isWalkable(x, z);
+          if (inPlank) {
+            if (walk) plank += 1;
+            else plankGaps += 1;
+          } else if (!walk) blocked += 1;
+        }
+      }
+      ok(blocked > 0, `${tag} 缺口那一段真的走不過去`, String(blocked));
+      eq(plankGaps, 0, `${tag} **窄板整條走得到**（逐點掃，步長 0.1 公尺）`, String(plankGaps));
+      ok(plank > 200, `${tag} 窄板不是一個點（掃到的可走點夠多）`, String(plank));
+
+      // 缺口正中央：走路的人過不去、腳夠高的人過得去（唯一的例外，形狀同 solidAtAbove）
+      const [cx, cz] = at(0, 0);
+      eq(testWorld.isWalkable(cx, cz), false, `${tag} 正中央走不過去`);
+      eq(testWorld.isClear(cx, cz, World.terrainHeight(cx, cz) + World.GAP_LIP + 0.1), true, `${tag} 腳離地夠高就飛得過去`);
+      eq(
+        testWorld.isClear(cx, cz, World.terrainHeight(cx, cz) + World.GAP_LIP - 0.1),
+        false,
+        `${tag}[反例] 腳離地不夠高照樣過不去`
+      );
+      // 落在缺口裡的人請得出來（不瞬移、不被關住）
+      let p = { x: cx, z: cz };
+      let steps = 0;
+      while (testWorld.gapAt(p.x, p.z) && steps < 40) {
+        const out = testWorld.escapeSolid(p.x, p.z, 0.35, null);
+        ok(Boolean(out), `${tag} 保險絲第 ${steps + 1} 步推得動（不會把人關住）`);
+        if (!out) break;
+        ok(Math.hypot(out.x - p.x, out.z - p.z) <= 0.36, `${tag} 保險絲一步不超過 0.35 公尺（不瞬移）`);
+        p = out;
+        steps += 1;
+      }
+      ok(steps > 0 && steps < 20, `${tag} 幾步之內就被請出缺口`, String(steps));
+      eq(testWorld.gapAt(p.x, p.z), null, `${tag} 請出來之後真的不在缺口裡了`);
+      ok(testWorld.isWalkable(p.x, p.z), `${tag} 請出來的那一點站得住`);
+
+      // 缺口的幾何：0 碰撞體、0 光源（擋人的是 isWalkable，不是石頭）
+      const node = testWorld.gapGroups.find((g2) => g2.name === `bridge-gap:${gap.id}`);
+      ok(Boolean(node), `${tag} 場景圖裡找得到它`);
+      if (node) {
+        let lights = 0;
+        node.traverse((o) => {
+          if (o.isLight) lights += 1;
+        });
+        eq(lights, 0, `${tag} 一盞燈都沒加`);
+        eq(World.collectSolids(node, World.terrainHeight).length, 0, `${tag} 一顆碰撞圓都沒登記`);
+      }
+    }
+    // 沒有缺口的世界：那一點照樣走得到（證明擋住它的真的是缺口這一層）
+    {
+      const restoreG = installCanvasStub();
+      const bare = World.createWorld({
+        engine: { scene: new THREE.Scene(), camera: {}, onUpdate() {} },
+        quality: 'high',
+        ...worldOpts,
+        gaps: [],
+      });
+      restoreG();
+      const f = World.gapFrame(World.BRIDGE_GAPS[0]);
+      ok(bare.isWalkable(f.ax, f.az), '[反例] 拿掉缺口資料，同一點就走得到了');
+      eq(bare.gapAt(f.ax, f.az), null, '[反例] 拿掉缺口資料就沒有缺口');
+      eq(bare.bridgeGaps.length, 0, '[反例] 那個世界真的沒有缺口');
+    }
+  }
+
+  /* --- ⑥ 不按 J 的可達性：全地圖洪水填充 ---------------------------- *
+   *
+   * 護欄 7（不倒退）的硬證據。P13 的全地圖網格證的是「高度一寸沒變」，
+   * 這一條證的是「**路一條都沒斷**」：從出生點出發，只用走的（`isClear` 不給 feetY，
+   * 走的就是 P13 之前那一支），142 座石座、8 隻濁靈、24 頁殘頁、44 件反應物、
+   * 44 件器物、12 座地標、12 塊石碑、12 則刻文、**以及每一座橋的另一端**，
+   * 全部到得了。
+   *
+   * 解析度：格點 0.5 公尺。玩家半徑 0.62 —— 比它寬的縫才走得過去，
+   * 所以 0.5 的格點**不會**讓洪水穿過人過不去的縫；缺口 3 公尺遠大於 0.5，
+   * 也不可能被一步跨過去（findings：取樣式的證明要講清楚自己的解析度）。
+   */
+  {
+    const STEP = 0.5;
+    const R = 172;
+    const N = Math.round((R * 2) / STEP) + 1;
+    const idx = (i, j) => i * N + j;
+    const seen = new Uint8Array(N * N);
+    const toCell = (x, z) => [Math.round((x + R) / STEP), Math.round((z + R) / STEP)];
+    const toWorld = (i, j) => [i * STEP - R, j * STEP - R];
+    // 走路：一律不給 feetY（＝ P14 之前那一支）
+    const walkable = (x, z) => testWorld.isClear(x, z, null);
+    const start = toCell(0, 6);
+    ok(walkable(0, 6), '出生點站得住（洪水的起點不是碰運氣）');
+    const queue = [idx(start[0], start[1])];
+    seen[idx(start[0], start[1])] = 1;
+    let head = 0;
+    let reached = 0;
+    while (head < queue.length) {
+      const cur = queue[head];
+      head += 1;
+      reached += 1;
+      const i = Math.floor(cur / N);
+      const j = cur - i * N;
+      for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const ni = i + di;
+        const nj = j + dj;
+        if (ni < 0 || nj < 0 || ni >= N || nj >= N) continue;
+        const k = idx(ni, nj);
+        if (seen[k]) continue;
+        const [wx, wz] = toWorld(ni, nj);
+        if (!walkable(wx, wz)) continue;
+        seen[k] = 1;
+        queue.push(k);
+      }
+    }
+    ok(reached > 60000, '洪水填充走過整張地圖（不是只淹了出生點附近）', String(reached));
+
+    /**
+     * 這一點**周圍 `reach` 公尺內**有沒有被走到。
+     * 為什麼不是「這一點本身」：互動點的中心常常被它自己的碰撞圓佔住
+     * （高台的圓心、地標的塔身），而「走得到」的意思本來就是「走得進它的互動半徑」。
+     */
+    const near = (x, z, reachM = 2) => {
+      const pad = Math.ceil(reachM / STEP);
+      const [ci, cj] = toCell(x, z);
+      for (let di = -pad; di <= pad; di += 1) {
+        for (let dj = -pad; dj <= pad; dj += 1) {
+          const ni = ci + di;
+          const nj = cj + dj;
+          if (ni < 0 || nj < 0 || ni >= N || nj >= N) continue;
+          if (seen[idx(ni, nj)]) return true;
+        }
+      }
+      return false;
+    };
+
+    /*
+     * `reach`（公尺）＝ 走得到它的互動半徑之內就算數。
+     * 地標與高台的中心被自己的量體佔住，所以用它們自己的尺度：
+     * 地標的留白圈 13–16 公尺 → 12；高台的碰撞半徑 ≤3.2 ＋ 玩家 0.62 → 5。
+     */
+    const layers = [
+      ['石座', challenges.map((c) => [c.position[0], c.position[1], c.id])],
+      ['濁靈', murkFile.entries.map((m) => [m.at[0], m.at[1], m.id])],
+      ['殘頁', letterFile.entries.map((l) => [l.at[0], l.at[1], l.id])],
+      ['反應物', Reactive.REACTIVE_SPOTS.map((r) => [r.at[0], r.at[1], r.id])],
+      ['器物', handles.map((h) => [h.at[0], h.at[1], h.id])],
+      ['地標', LANDMARKS.map((l) => [l.at[0], l.at[1], l.id]), 12],
+      ['石碑', LORE_TABLETS.map((t) => [t.at[0], t.at[1], t.id])],
+      ['刻文', inscriptions.map((i2) => [i2.at[0], i2.at[1], i2.id])],
+      ['祕密', groundSecrets.map((sc) => [sc.at[0], sc.at[1], sc.id])],
+      ['高台', Screens15.PLATFORMS.map((pf) => [pf.at[0], pf.at[1], pf.id]), 5],
+    ];
+    for (const [label, list, reachM] of layers) {
+      let bad = 0;
+      for (const [x, z, id] of list) {
+        if (!near(x, z, reachM || 2)) {
+          bad += 1;
+          ok(false, `[不按 J 的可達性] ${label} ${id} 走得到`, `${x},${z}`);
+        }
+      }
+      eq(bad, 0, `[不按 J 的可達性] ${list.length} 個${label}全部走得到`);
+    }
+
+    /* 每一座橋：兩端與缺口的另一側都走得到（＝「不跳也走得完每一座橋」）。 */
+    for (const c of World.CORRIDORS) {
+      const site = World.REGION_SITES.find((s2) => s2.id === c.region);
+      const pt = (along, lat = 0) => [
+        c.from.x + c.dir.x * along + -c.dir.z * lat,
+        c.from.z + c.dir.z * along + c.dir.x * lat,
+      ];
+      const inner = pt(World.REGION_SITES[0].radius - 4);
+      const outer = pt(c.length - site.radius + 4);
+      ok(near(inner[0], inner[1], 2), `[橋:${c.region}] 高原這一端走得到`);
+      ok(near(outer[0], outer[1], 2), `[橋:${c.region}] 土地那一端走得到`, `${outer[0].toFixed(1)},${outer[1].toFixed(1)}`);
+      const gap = World.BRIDGE_GAPS.find((g2) => g2.region === c.region);
+      if (gap) {
+        const before = pt(gap.at - gap.length / 2 - 2);
+        const after = pt(gap.at + gap.length / 2 + 2);
+        ok(near(before[0], before[1], 1.5), `[橋:${c.region}] 缺口前一段走得到`);
+        ok(near(after[0], after[1], 1.5), `[橋:${c.region}] **缺口後一段也走得到（不跳也走得完）**`);
+        // 而且真的是繞窄板過去的：缺口正中央那一格沒有被走到
+        const mid = pt(gap.at, 0);
+        const [mi, mj] = toCell(mid[0], mid[1]);
+        eq(seen[idx(mi, mj)], 0, `[橋:${c.region}] 走路走不過缺口正中央（繞的是窄板）`);
+      }
+    }
+  }
+
+  /* --- ⑦ isWalkable 只在缺口足跡裡變了（全地圖網格） ----------------- */
+  {
+    const restoreW = installCanvasStub();
+    const bare = World.createWorld({
+      engine: { scene: new THREE.Scene(), camera: {}, onUpdate() {} },
+      quality: 'high',
+      ...worldOpts,
+      gaps: [],
+    });
+    restoreW();
+    let diff = 0;
+    let inGap = 0;
+    for (let x = -170; x <= 170; x += 1) {
+      for (let z = -170; z <= 170; z += 1) {
+        const a = testWorld.isWalkable(x, z);
+        const b = bare.isWalkable(x, z);
+        if (a === b) continue;
+        diff += 1;
+        if (World.gapAt(x, z)) inGap += 1;
+      }
+    }
+    eq(diff - inGap, 0, 'P15：全地圖 341×341 網格上，`isWalkable` **只有缺口足跡裡**變了', `diff=${diff} inGap=${inGap}`);
+    ok(diff > 0, 'P15：缺口足跡裡真的變了（不是一條永遠成立的斷言）', String(diff));
+  }
+
+  /* --- ⑧ 預算 -------------------------------------------------------- */
+  {
+    let tris = 0;
+    let lights = 0;
+    testScene.traverse((o) => {
+      if (o.isLight) lights += 1;
+      if (o.isMesh && o.geometry) {
+        const geo = o.geometry;
+        const n = geo.index ? geo.index.count / 3 : geo.attributes.position ? geo.attributes.position.count / 3 : 0;
+        tris += n * (o.isInstancedMesh ? o.count : 1);
+      }
+    });
+    ok(tris < 226000, 'P15：世界三角形 < 226k', `tris=${Math.round(tris)}`);
+    eq(lights, 37, 'P15：光源數仍然是 37（高台、祕密、缺口一盞都沒加）', String(lights));
+    ok(testWorld.solids.length < 1020, 'P15：碰撞體 < 1,020', String(testWorld.solids.length));
+  }
+
+  /* --- ⑨ WORLD.md 說得出這一格做了什麼 ------------------------------ */
+  {
+    const world15 = readFileSync(resolve(root, 'WORLD.md'), 'utf8');
+    ok(/BRIDGE_GAPS/.test(world15), 'WORLD.md 指得出橋缺口住在哪個常數');
+    ok(/窄板/.test(world15), 'WORLD.md 講得出「旁邊一定留一條窄板」');
+    ok(/SECRET_HIGH_REACH|高處/.test(world15), 'WORLD.md 講得出高處的祕密');
+    const s45 = world15.slice(world15.indexOf('### 4.5'), world15.indexOf('### 4.6'));
+    ok(/12/.test(s45), 'WORLD.md §4.5 的祕密數字是 12（不是舊的 4）');
+    for (const t of ['不對的東西', '聲音先到', '高處']) ok(s45.includes(t), `WORLD.md §4.5 列了 tell「${t}」`);
   }
 }
 

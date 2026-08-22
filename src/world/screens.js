@@ -317,20 +317,29 @@ export const MOTIFS = Object.freeze([
  * P14 把它接到玩家腳下 —— 這一格自己蓋第一座，證明「跳上去、站得住、走下來」整條路成立。
  *
  * `at`      世界座標 [x, z]（用 `npm run screen-fit --kind platform` 搜出來的，不是手挑的）
- * `rot`     繞 Y 的旋轉（弧度）—— 只影響刻線的朝向，圓的形狀本來就沒有正面
- * `kind`    造型（目前只有 `stepStone`：一塊圓的石鼓，頂面是平的）
+ * `rot`     繞 Y 的旋轉（弧度）—— 只影響刻線與裝飾的朝向，圓的頂面本來就沒有正面
+ * `kind`    造型：頂面**一律是圓的**（理由見 `buildStepStone`），變的是裙與外圈的語彙 ——
+ *           `stepStone`（中央高原）素石鼓、`pageStep`（沉書檔案庫）翻過的那一疊、
+ *           `jigStep`（契約鍛冶場）箍了鐵環的墊塊、`maskStep`（面具劇場）裙上一張很淺的面具
  * `height`  頂面離自己腳下的地多高（公尺）
  * `radius`  石鼓的半徑（公尺）＝ 登記的碰撞半徑
+ * `reveals` （選配，v1.2 · P15）**站上來才搆得到的那一件東西**的 id（`src/data/secrets.json`
+ *           裡 `tell: "high"` 的那一處）。有這個欄位的高台就不是裝飾：它是一句
+ *           「上面有東西」的地圖語法，而且量得出來 —— 腳在地上搆不到、腳在頂面才搆得到。
  *
  * 三條它自己的規則（`test:rubric` 與 `screen-fit` 用同一份門檻）：
  *   ① 高度落在 `PLATFORM_HEIGHT_MIN`–`PLATFORM_HEIGHT_MAX`，而且**一定在 `STAND_MIN_H`–`STAND_MAX_H` 之內**
- *      —— 蓋一座跳不上去的高台等於蓋一面牆。
+ *      —— 蓋一座跳不上去的高台等於蓋一面牆。**下限 1.2 → 1.6（v1.2 · P15）**：
+ *      1.6 是 `EYE_HEIGHT`，比它矮的頂面站在地上就看得完，「上面有東西」這句話說不出口。
+ *      上限那一邊真正在守的是**離散彈道的頂點**（`jump.js` 的 `simulateApex()`）——
+ *      `test:rubric` 逐座驗「跳得上去還有 0.3 公尺餘裕」，所以 2.4 只是資料的天花板，
+ *      現行出貨的每一座都在 1.7 以下。
  *   ② 半徑 ≥ `PLATFORM_RADIUS_MIN`：頂面量出來的 `standR` 要 ≥ `PLATFORM_STAND_R_MIN`（1.2），
  *      不然人站上去一動就掉下來。
  *   ③ 其餘擺位規則與母題**共用同一套**（離路網 7–26、離互動圈、離主動線、離閘門、
  *      腳下覆蓋率、四周繞得過去、逐塊貼地）—— 不另訂一份會分家的門檻。
  */
-export const PLATFORM_HEIGHT_MIN = 1.2;
+export const PLATFORM_HEIGHT_MIN = 1.6;
 export const PLATFORM_HEIGHT_MAX = 2.4;
 export const PLATFORM_RADIUS_MIN = 1.4;
 export const PLATFORM_RADIUS_MAX = 3.2;
@@ -359,6 +368,94 @@ export const PLATFORMS = Object.freeze([
     kind: 'stepStone',
     height: 1.6,
     radius: 2.6,
+  },
+  /*
+   * 中央高原 · 第二階（v1.2 · P15）—— **這一座頂上有東西**。
+   *
+   * 第一階教你「這個可以站上去」，第二階回答「站上去換得到什麼」：
+   * 頂面上躺著一件只有站上來才搆得到的東西（`reveals` 指的那一處祕密）。
+   * 從地上看不到它 —— 頂面離地 1.7 公尺，比眼睛（`EYE_HEIGHT` 1.6）還高，
+   * 平躺在上面的東西從下面永遠只看得到石鼓的側面。
+   */
+  {
+    id: 'foundations-second-step',
+    region: 'foundations',
+    at: [-28, -18],
+    rot: 0.4,
+    kind: 'stepStone',
+    height: 1.7,
+    radius: 2,
+    reveals: 'ledger-of-the-unsaid',
+  },
+  /*
+   * 沉書檔案庫（v1.2 · P15）：**讀過的那一疊**——石鼓的裙是一疊翻過的石板書。
+   * 造型語彙照這片土地的母題（`pageStack`，§4.10 ②）：同一個形狀在遠處重複出現，
+   * 走近才發現這一疊是可以站上去的那一疊。
+   */
+  {
+    id: 'grounding-read-step',
+    region: 'grounding',
+    at: [79, -117],
+    rot: 0.9,
+    kind: 'pageStep',
+    height: 1.7,
+    radius: 2,
+    reveals: 'margin-of-the-unread',
+  },
+  {
+    id: 'grounding-shelf-step',
+    region: 'grounding',
+    at: [78, -67],
+    rot: 2.1,
+    kind: 'pageStep',
+    height: 1.7,
+    radius: 1.6,
+  },
+  /*
+   * 契約鍛冶場（v1.2 · P15）：**立起來的墊塊**——石鼓外圈箍了一道金屬環與幾顆鉚頭
+   * （這片土地的語彙：工具、夾具、沒有刻名字的鑰匙）。
+   */
+  {
+    id: 'toolcraft-jig-step',
+    region: 'toolcraft',
+    at: [-145, -22],
+    rot: 0,
+    kind: 'jigStep',
+    height: 1.7,
+    radius: 2,
+  },
+  {
+    id: 'toolcraft-bench-step',
+    region: 'toolcraft',
+    at: [-135, 13],
+    rot: 1.2,
+    kind: 'jigStep',
+    height: 1.7,
+    radius: 2,
+    reveals: 'unstamped-key',
+  },
+  /*
+   * 面具劇場（v1.2 · P15）：**沒有人站的那一階**——石鼓的裙上浮著一張很淺的面具浮雕，
+   * 頂面空著（這片土地的語彙：掛著的空面具、「你不是它」）。
+   */
+  {
+    id: 'config-wing-step',
+    region: 'config',
+    at: [64, 83],
+    rot: 2.6,
+    kind: 'maskStep',
+    height: 1.7,
+    radius: 2,
+    reveals: 'understudy-mark',
+  },
+  {
+    id: 'config-gallery-step',
+    region: 'config',
+    at: [128, 89],
+    rot: 0.6,
+    kind: 'maskStep',
+    height: 1.7,
+    radius: 1.6,
   },
 ]);
 
@@ -523,10 +620,15 @@ export const EYE_HEIGHT = 1.6;
  * @param {{at:number[], height:number}} landmark
  * @param {(x:number,z:number)=>number} heightAt
  * @param {object[]} bands 這一區的遮擋帶
+ * @param {number|null} [eyeAt] **眼睛的世界高度**（不給就是「站在地上」＝ 腳下地形 ＋ `EYE_HEIGHT`）。
+ *   v1.2 · P15 加的：高台的驗收是「**站上去**看得到別的東西」——
+ *   同一個 (x, z)、只有眼睛高了 1.6–2.4 公尺，答案就要從「擋住」翻成「看得到」。
+ *   幾何上一定成立的方向：眼睛抬高 h，地標的仰角只降 h/dLand，
+ *   石脊頂的仰角卻降 h/dBand（dBand < dLand）—— 抬高只會讓遮蔽變少，不會變多。
  * @returns {{hidden:boolean, flat:boolean, by:string|null, need:number, have:number}}
  */
-export function landmarkSight(x, z, landmark, heightAt, bands) {
-  const eyeY = heightAt(x, z) + EYE_HEIGHT;
+export function landmarkSight(x, z, landmark, heightAt, bands, eyeAt = null) {
+  const eyeY = Number.isFinite(eyeAt) ? eyeAt : heightAt(x, z) + EYE_HEIGHT;
   const topY = heightAt(landmark.at[0], landmark.at[1]) + landmark.height;
   const dLand = Math.max(0.001, Math.hypot(landmark.at[0] - x, landmark.at[1] - z));
   const need = (topY - eyeY) / dLand;
@@ -955,7 +1057,7 @@ function buildEmptyMask(motif, kit, heightAt) {
  *   · **頂面的一圈刻線**（自發光、半透明 → 不是可以站的面，量頂面時一律不算）：
  *     夜裡從遠處就看得出那一圈光是平的。**0 新光源。**
  */
-function buildStepStone(spec, kit, heightAt) {
+function buildStepStone(spec, kit, heightAt, decorate = null) {
   const grp = new THREE.Group();
   grp.name = `platform:${spec.id}`;
   const [x, z] = spec.at;
@@ -999,7 +1101,78 @@ function buildStepStone(spec, kit, heightAt) {
   ring.userData.noCollide = true;
   grp.add(ring);
 
+  /*
+   * 該區的語彙（v1.2 · P15）：**只裝飾在裙與外圈，一個字都不寫、一塊都不站人**。
+   * 頂面永遠是同一塊圓的石鼓 —— `standR` 一圈一圈往外量的那件事不因為換皮而改變
+   * （P13 的教訓：頂面的形狀是判定，不是造型）。裝飾一律 `noCollide` ＋ 不標 `hugsGround`
+   * （它們掛在石鼓上，不是自己站在地上）。
+   */
+  if (decorate) decorate(grp, { spec, kit, r, h, sink: SINK });
+
   return grp;
+}
+
+/** 沉書檔案庫：裙上疊著幾片翻過的石板書（母題 `pageStack` 的同一句話）。 */
+function dressPageStep(grp, { spec, kit, r, h }) {
+  const n = 4;
+  for (let i = 0; i < n; i += 1) {
+    const a = spec.rot + (i / n) * Math.PI * 2 + 0.3;
+    const leaf = new THREE.Mesh(box(r * 0.9, 0.16, r * 0.62), stone(kit.dark));
+    leaf.position.set(Math.cos(a) * (r + 0.18), 0.2 + i * 0.13, Math.sin(a) * (r + 0.18));
+    leaf.rotation.set(0.16, -a, 0.1);
+    leaf.userData.noCollide = true;
+    grp.add(leaf);
+  }
+  // 翻開的那一頁：只剩一圈光（枯掉的那幾頁）
+  const page = new THREE.Mesh(box(r * 0.8, 0.05, r * 0.5), glow(kit.light, 0.7));
+  page.position.set(Math.cos(spec.rot) * (r + 0.5), h * 0.72, Math.sin(spec.rot) * (r + 0.5));
+  page.rotation.set(0.5, -spec.rot, 0);
+  page.userData.noCollide = true;
+  grp.add(page);
+}
+
+/** 契約鍛冶場：外圈箍一道環、幾顆鉚頭（母題「一次只吊一小件」的同一種手感）。 */
+function dressJigStep(grp, { spec, kit, r, h }) {
+  const band = new THREE.Mesh(cylinder(r + 0.08, 0.26), stone(kit.light));
+  band.position.y = h - 0.42;
+  band.userData.noCollide = true;
+  grp.add(band);
+  const n = 6;
+  for (let i = 0; i < n; i += 1) {
+    const a = spec.rot + (i / n) * Math.PI * 2;
+    const rivet = new THREE.Mesh(box(0.16, 0.16, 0.16), glow(kit.accent, 0.6));
+    rivet.position.set(Math.cos(a) * (r + 0.12), h - 0.42, Math.sin(a) * (r + 0.12));
+    rivet.rotation.y = -a;
+    rivet.userData.noCollide = true;
+    grp.add(rivet);
+  }
+}
+
+/** 面具劇場：裙上一張很淺的面具浮雕，眼孔只剩光（「你不是它」）。 */
+function dressMaskStep(grp, { spec, kit, r, h }) {
+  const dirX = Math.cos(spec.rot);
+  const dirZ = -Math.sin(spec.rot);
+  /*
+   * 面具刻意壓在 0.8 公尺以下：§6.3 說「露出地面 < 0.9 公尺」跨得過去 ——
+   * 它是貼在裙上的一片浮雕，不是一面牆，所以既不必有碰撞體、穿模稽核也不列它。
+   * （P15 第一版做成 1.8 公尺高，稽核當場紅了兩塊「有份量卻走得過去」。）
+   */
+  const face = new THREE.Mesh(box(r * 0.7, 0.8, 0.12), stone(kit.dark));
+  face.position.set(dirX * (r + 0.05), 0.62, dirZ * (r + 0.05));
+  face.rotation.y = spec.rot;
+  face.userData.noCollide = true;
+  grp.add(face);
+  for (const side of [-1, 1]) {
+    const eye = new THREE.Mesh(box(0.17, 0.1, 0.1), glow(kit.accent, 0.9));
+    eye.position.set(
+      dirX * (r + 0.14) + Math.sin(spec.rot) * 0.14 * side,
+      0.74,
+      dirZ * (r + 0.14) + Math.cos(spec.rot) * 0.14 * side
+    );
+    eye.rotation.y = spec.rot;
+    eye.userData.noCollide = true;
+    grp.add(eye);
+  }
 }
 
 const BAND_KINDS = { stairRidge: buildStairRidge };
@@ -1010,7 +1183,12 @@ const MOTIF_KINDS = {
   emptyMask: buildEmptyMask,
 };
 
-const PLATFORM_KINDS = { stepStone: buildStepStone };
+const PLATFORM_KINDS = {
+  stepStone: buildStepStone,
+  pageStep: (spec, kit, heightAt) => buildStepStone(spec, kit, heightAt, dressPageStep),
+  jigStep: (spec, kit, heightAt) => buildStepStone(spec, kit, heightAt, dressJigStep),
+  maskStep: (spec, kit, heightAt) => buildStepStone(spec, kit, heightAt, dressMaskStep),
+};
 
 /** 已實作的造型 id（測試會檢查資料只用得到這些）。 */
 export const BAND_KIND_IDS = Object.freeze(Object.keys(BAND_KINDS));
@@ -1042,6 +1220,7 @@ export function buildScreens(regionId, kit, heightAt, data = null) {
 
 export default {
   SCREEN_BANDS,
+  EYE_HEIGHT,
   landmarkSight,
   MOTIFS,
   PLATFORMS,

@@ -58,8 +58,12 @@ export const SOLID_COVERAGE_MIN = 0.9;
 export const GROUND_HUG_MAX = 0.35;
 /** 逐塊貼地：底面最多埋這麼深（公尺）—— 再深就是整塊沉進土裡。 */
 export const GROUND_BURY_MAX = 2.2;
-/** 中觀層每一片土地的碰撞體上限（v1.2 · P12：12 區鋪完要離 1,400 的硬上限夠遠）。 */
-export const SOLIDS_PER_REGION_MAX = 20;
+/**
+ * 中觀層每一片土地的碰撞體上限（v1.2 · P12：12 區鋪完要離 1,400 的硬上限夠遠）。
+ * **20 → 22（v1.2 · P15）**：每片土地多了兩座高台、一座一顆圓。
+ * 面具劇場是現在最擠的一片：2 道帶（8）＋ 4 座母題（8）＋ 2 座高台（2）＝ 18。
+ */
+export const SOLIDS_PER_REGION_MAX = 22;
 
 /**
  * 把所有「有互動圈、不准被擋住」的東西列成一張表。
@@ -75,7 +79,14 @@ export function interactionTargets(data) {
   for (const s of data.reactiveSpots || []) out.push({ k: 'react', id: s.id, at: s.at });
   for (const m of data.murks || []) out.push({ k: 'murk', id: m.id, at: m.at });
   for (const t of data.tablets || []) out.push({ k: 'tablet', id: t.id, at: t.at });
-  for (const s of data.secrets || []) out.push({ k: 'secret', id: s.id, at: s.at });
+  /*
+   * v1.2 · P15：`tell: "high"` 的祕密**不進這張表**。
+   * 這張表守的是「走過去的時候不要兩件事同時觸發、也不要被石頭擋住」——
+   * 高處的祕密躺在高台的頂面上，走路的人根本碰不到它（`SECRET_HIGH_REACH`），
+   * 而它腳下那一塊地的淨空由那座高台自己守（高台走的是同一份門檻）。
+   * 留在表裡的話，高台會與自己頂上的東西互相排斥，永遠擺不出來。
+   */
+  for (const s of data.secrets || []) if (s.tell !== 'high') out.push({ k: 'secret', id: s.id, at: s.at });
   return out;
 }
 

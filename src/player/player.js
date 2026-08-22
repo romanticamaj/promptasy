@@ -12,7 +12,7 @@
 import * as THREE from 'three';
 import { terrainHeight as defaultTerrain } from '../world/world.js';
 import { createCharacter } from './character.js';
-import { createJumper, isAloft, jumpSpeedFor, stepJumper } from './jump.js';
+import { createJumper, isAloft, jumpSpeedFor, jumpSpeedForBridge, stepJumper } from './jump.js';
 
 const MOVE_SPEED = 11.5;
 const RUN_MULTIPLIER = 1.75;
@@ -364,7 +364,8 @@ export function createPlayer({
 
     /*
      * 起跳前的兩道護欄（只有真的按了跳才問，不是每幀）：
-     *   ① 這片土地跳得起來嗎 —— 只有中央高原非 0，橋上一律 0
+     *   ① 這片土地跳得起來嗎 —— 四片土地非 0（`JUMP_REGIONS`），
+     *      橋上只有開了缺口的那一座非 0（`JUMP_BRIDGES`）
      *   ② 腳下站不站得穩 —— `isClear()` ＝ 覆蓋率 ＋ 閘門 ＋ 沒有卡在石頭裡。
      *      卡在石頭裡（脫困中）或站在虛空邊緣時**起跳那一刻就被夾住**：不准離地。
      */
@@ -372,7 +373,11 @@ export function createPlayer({
     let canTakeOff = false;
     if (wantJump || jumper.buffer > 0) {
       const here = regionAt(px, pz);
-      jumpSpeed = here && !here.onBridge ? jumpSpeedFor(here.id) : 0;
+      /*
+       * v1.2 · P15：橋上不再一律是 0 —— **開了缺口的那一座橋**跳得起來
+       * （`JUMP_BRIDGES`），其餘六座仍然是 0，每一幀與 P14 之前完全相同。
+       */
+      jumpSpeed = here ? (here.onBridge ? jumpSpeedForBridge(here.id) : jumpSpeedFor(here.id)) : 0;
       canTakeOff = jumpSpeed > 0 && isClear(px, pz, aloft ? group.position.y : null);
     }
 

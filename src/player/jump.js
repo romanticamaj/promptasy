@@ -9,9 +9,11 @@
  * 跳躍會把「站得上去的頂面」變成真的能踩的地方（P13 把它量成了資料）。
  * 一次就把 12 片土地打開，等於一次押上 974 顆碰撞圓裡那 177 顆可站立體
  * ——每一顆都可能是一個「跳上去卡住」或「跳上去看到穿幫」的地方。
- * 所以 P14 只開中央高原（`JUMP_REGIONS`）：一片自己蓋的高台、一條走得完的路，
- * 證明整條路成立之後，其餘 11 片土地由 P16a 逐片放行。
- * **其他土地的跳躍速度是 0**，於是那 11 片的每一幀都與這一格之前完全相同。
+ * 所以 P14 只開中央高原（`JUMP_REGIONS`）：一片自己蓋的高台、一條走得完的路。
+ * **v1.2 · P15 把它加到四片**（中央高原 ＋ 這一格蓋了高台的另外三片），
+ * 並且第一次開了**一座橋**（`JUMP_BRIDGES`：橋上那道缺口要跳得過去）。
+ * 其餘 8 片土地與 6 座橋的跳躍速度仍然是 **0**，每一幀與 P14 之前完全相同；
+ * P16a 一次鋪滿 12 區。
  *
  * ## 手感的三個業界標配（WORLD.md §3.1）
  *   · **coyote time**（`COYOTE_TIME` 100ms）：走出邊緣之後還有 100 毫秒能起跳 ——
@@ -52,10 +54,28 @@ export const MAX_STEP = 1 / 120;
 /** 下墜的終端速度（m/s）—— 一幀 0.2 秒也不會一次穿過一整座高台。 */
 export const MAX_FALL = 34;
 /**
- * 跳得起來的土地。**只有中央高原**（理由見檔頭）。
- * P16a 會逐片加進來；在那之前，其餘 11 片的 `jumpSpeedFor()` 一律回 0。
+ * 跳得起來的土地。
+ *
+ * **P14 只開中央高原**（一片土地、一座高台，證明整條路成立）。
+ * **v1.2 · P15 加開三片**：沉書檔案庫、契約鍛冶場、面具劇場 ——
+ * 就是這一格蓋了高台的那三片。理由很直接：
+ * 高台上有只有站上去才搆得到的東西（`screens.js` 的 `reveals`），
+ * 在跳不起來的土地上蓋高台等於蓋裝飾，而這一格的整個題目就是
+ * 「**高台不是裝飾**」。剩下的 **8 片仍然是 0**，由 P16a 一次鋪滿 ——
+ * 那 8 片的每一幀與這一格之前完全相同。
  */
-export const JUMP_REGIONS = Object.freeze(['foundations']);
+export const JUMP_REGIONS = Object.freeze(['foundations', 'grounding', 'toolcraft', 'config']);
+
+/**
+ * 跳得起來的**橋**（v1.2 · P15）。
+ *
+ * 橋在 P14 一律不准跳（`player.js` 問的是 `here.onBridge`）——
+ * 橋是唯一的必經之路，在上面亂跳只會製造「跳一跳掉出去」的機會。
+ * 這一格開了一道**缺口**（`world.js` 的 `BRIDGE_GAPS`），缺口要跳得過去，
+ * 所以**開缺口的那一座橋**、也只有那一座，跳得起來。
+ * 沒有缺口的橋一律 0 —— 這張表與 `BRIDGE_GAPS` 的 `region` 一一對應，`test:rubric` 逐條比對。
+ */
+export const JUMP_BRIDGES = Object.freeze(['grounding']);
 
 /**
  * 這一片土地的起跳速度（m/s）。0 ＝ 這裡跳不起來。
@@ -64,6 +84,15 @@ export const JUMP_REGIONS = Object.freeze(['foundations']);
  */
 export function jumpSpeedFor(regionId) {
   return regionId && JUMP_REGIONS.includes(regionId) ? JUMP_SPEED : 0;
+}
+
+/**
+ * **站在橋上**時的起跳速度（m/s）。0 ＝ 這座橋跳不起來。
+ * @param {string|null|undefined} regionId 這座橋通往哪一片土地
+ * @returns {number}
+ */
+export function jumpSpeedForBridge(regionId) {
+  return regionId && JUMP_BRIDGES.includes(regionId) ? JUMP_SPEED : 0;
 }
 
 /**
@@ -288,7 +317,9 @@ export default {
   MAX_STEP,
   MAX_FALL,
   JUMP_REGIONS,
+  JUMP_BRIDGES,
   jumpSpeedFor,
+  jumpSpeedForBridge,
   apexOf,
   jumpApexFor,
   simulateApex,

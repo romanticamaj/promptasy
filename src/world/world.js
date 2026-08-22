@@ -281,6 +281,121 @@ export const BRIDGE_SPANS = Object.freeze([
 
 /** 主動線的淨空半寬（公尺）。 */
 export const LANE_HALF = 3.2;
+
+/* ------------------------------------------------------------------ *
+ * 橋上的缺口（v1.2 · P15）
+ * ------------------------------------------------------------------ *
+ *
+ * **這是 WORLD.md §6.4「四條橋的主動線 ±3.2 絕對不准被擋住」的唯一登記例外。**
+ * 例外成立的條件寫死在資料裡、也寫死在測試裡：**同一段一定要留一條窄板**
+ * （`keepFrom`–`keepTo`，全在 `LANE_HALF` 之外），不用跳就走得過去。
+ * 缺口是**可選的捷徑**，不是關卡 —— 護欄 7（不倒退）在這裡的意思是
+ * 「142 座石座、8 隻濁靈、24 頁殘頁、44 反應物、44 器物、12 座地標，
+ *   一個都不必按 `J` 也到得了」，`test:rubric` 用全地圖網格的洪水填充逐點證明。
+ *
+ * 三件事刻意**不做**：
+ *   ① **不動高度場**。`terrainHeight()` 與 `coverage()` 一個位元組都沒改 ——
+ *      地形網格一格 1.7 公尺，一道 3 公尺的洞根本刻不出來，硬刻只會做出一團爛泥；
+ *      而且「掉進虛空」這件事在這個世界從來沒有發生過，不該從一座橋開始。
+ *      缺口擋人的方式與閘門同一套：`isWalkable()` 說這一點走不到。
+ *   ② **不放寬邊界護欄**。`isWalkable()` 對走路的人一寸都沒鬆；
+ *      放行的是另一支 —— 腳已經離地夠高（`GAP_LIP`）的人才飛得過去，
+ *      與「腳站到頂面以上的可站立體不擋人」（`solidAtAbove()`）是同一個形狀的例外。
+ *   ③ **不把人關住**。落在缺口裡的人由 `escapeSolid()` 的同一條保險絲請回最近的邊
+ *      （不瞬移、一步一步走），與「卡在石頭裡」走同一條路。
+ */
+/** 腳要離地面多高才飛得過缺口（公尺）—— 走路的人腳就在地面上，永遠過不了。 */
+export const GAP_LIP = 0.35;
+
+export const BRIDGE_GAPS = Object.freeze([
+  /*
+   * 東北那座橋（通往沉書檔案庫）· 塌掉的那一段
+   *
+   * `at` 66 ＝ 沿橋 66 公尺處（橋面從中央高原的邊緣 62 開始、閘門在 75.2）——
+   * 離閘門 9.2 公尺、離高原邊緣 4 公尺，而且**在閘門的這一側**：
+   * 檔案庫還沒解鎖的玩家也走得到它，所以「第一次遇到缺口」不必先過關。
+   *
+   * 甲板在 |s| ≤ 5.0 是平的（1.80 公尺），再往外急墜；窄板取 3.5–5.2 那一條，
+   * 整條都在 `LANE_HALF`（3.2）之外 —— 主動線讓出來了，但路沒有斷。
+   */
+  Object.freeze({
+    id: 'grounding-broken-span',
+    region: 'grounding',
+    at: 66,
+    length: 3,
+    keepSide: 1,
+    keepFrom: 3.5,
+    keepTo: 5.2,
+  }),
+]);
+
+const GAP_CORRIDOR = new Map();
+/** 這道缺口開在哪一條橋上（查一次就記著；`CORRIDORS` 是凍結的常數）。 */
+function gapCorridor(gap) {
+  let c = GAP_CORRIDOR.get(gap.id);
+  if (c === undefined) {
+    c = CORRIDORS.find((co) => co.region === gap.region) || null;
+    GAP_CORRIDOR.set(gap.id, c);
+  }
+  return c;
+}
+
+/**
+ * 把一個世界座標換算成某道缺口的橋上座標。
+ * @returns {null|{along:number, lat:number}} `along` ＝ 沿橋距離（從高原中心量起）、
+ *   `lat` ＝ 側向有號距離（正 ＝ 前進方向的左手邊）
+ */
+export function gapLocal(gap, x, z) {
+  const c = gapCorridor(gap);
+  if (!c) return null;
+  const dx = x - c.from.x;
+  const dz = z - c.from.z;
+  return { along: dx * c.dir.x + dz * c.dir.z, lat: dx * -c.dir.z + dz * c.dir.x };
+}
+
+/**
+ * 這一點掉在哪一道缺口裡（＝甲板斷掉的那一塊）。窄板上不算。
+ * **純函式**：不碰場景、不配置（回的是資料層那個凍結物件本身）。
+ * @returns {null|object} 那一道缺口
+ */
+export function gapAt(x, z, gaps = BRIDGE_GAPS) {
+  for (let i = 0; i < gaps.length; i += 1) {
+    const gap = gaps[i];
+    const p = gapLocal(gap, x, z);
+    if (!p) continue;
+    if (Math.abs(p.along - gap.at) > gap.length / 2) continue;
+    /*
+     * **側向也要收邊。** 橋的局部座標是一條無限長的軸 —— 少了這一行，
+     * 「沿橋 66 公尺、旁邊 68 公尺」那種完全不在橋上的點也會被判成掉在缺口裡
+     * （實測：分歧之廳的一排音石與觀象臺的光菇圈整組變成走不到）。
+     * 收在橋自己的半寬 `corridor.half` 上：再外面本來就是虛空，覆蓋率那一關會擋。
+     */
+    const c = gapCorridor(gap);
+    if (!c || Math.abs(p.lat) > c.half) continue;
+    const side = p.lat * gap.keepSide;
+    if (side >= gap.keepFrom && side <= gap.keepTo) continue; // 窄板：走得過去
+    return gap;
+  }
+  return null;
+}
+
+/**
+ * 缺口的四個角（世界座標，順時針）—— 幾何、稽核與測試共用同一份足跡。
+ * @returns {null|{corridor:object, ax:number, az:number, ux:number, uz:number, vx:number, vz:number}}
+ */
+export function gapFrame(gap) {
+  const c = gapCorridor(gap);
+  if (!c) return null;
+  return {
+    corridor: c,
+    ax: c.from.x + c.dir.x * gap.at,
+    az: c.from.z + c.dir.z * gap.at,
+    ux: c.dir.x,
+    uz: c.dir.z,
+    vx: -c.dir.z,
+    vz: c.dir.x,
+  };
+}
 /** 石座周圍的淨空半徑：走得到、繞得過去、按得到 E。 */
 export const PEDESTAL_CLEAR = 5.6;
 /** 出生點的淨空半徑。 */
@@ -1483,6 +1598,102 @@ function buildTerrain(quality, colorOf, pathSegs = [], toneOf = null) {
   mesh.receiveShadow = quality === 'high';
   mesh.name = 'terrain';
   return mesh;
+}
+
+/* ------------------------------------------------------------------ *
+ * 橋上的缺口：塌掉的那一段（v1.2 · P15）
+ * ------------------------------------------------------------------ */
+/**
+ * 蓋出一道缺口的樣子。**沒有任何一塊登記碰撞體**（擋人的是 `isWalkable()`，
+ * 不是石頭）：兩道斷口的矮唇露出地面只有 0.34 公尺、碎樑更矮 ——
+ * WORLD.md §6.3 第 2 條說它們跨得過去，穿模稽核也因此不列它們。
+ * **0 新光源**：斷面那一線是自發光，窄板那一側的導引線也是。
+ *
+ * @param {object} gap `BRIDGE_GAPS` 的一筆
+ * @param {{accent:number, light:number, mid:number, dark:number}} kit 那一區的四階色
+ * @returns {THREE.Group}
+ */
+function buildBridgeGap(gap, kit) {
+  const f = gapFrame(gap);
+  const grp = new THREE.Group();
+  grp.name = `bridge-gap:${gap.id}`;
+  if (!f) return grp;
+  const half = gap.length / 2;
+  // 甲板剩下的寬度：從窄板的內緣一路到另一側的邊
+  const inner = gap.keepFrom;
+  const outer = -5.2;
+  const width = inner - outer;
+  const mid = (inner + outer) / 2;
+
+  const at = (along, lat) => [f.ax + f.ux * along + f.vx * lat, f.az + f.uz * along + f.vz * lat];
+  const yaw = Math.atan2(f.ux, f.uz);
+
+  /*
+   * 洞：一塊沉下去的暗色板（頂面壓在甲板下 0.22 公尺）。
+   * 為什麼不是真的把高度場挖開：地形網格一格 1.7 公尺，3 公尺的洞刻不出來
+   * （見 `BRIDGE_GAPS` 的檔頭）。夜裡從橋上看下去，這一塊就是「橋斷在這裡」。
+   */
+  {
+    const [cx, cz] = at(0, mid);
+    const y = terrainHeight(cx, cz);
+    const pit = new THREE.Mesh(new THREE.BoxGeometry(width, 1.2, gap.length), new THREE.MeshStandardMaterial({ color: 0x0a0e13, roughness: 1, flatShading: true }));
+    pit.position.set(cx, y - 0.82, cz);
+    pit.rotation.y = yaw;
+    pit.userData.noCollide = true;
+    grp.add(pit);
+  }
+
+  // 兩道斷口的矮唇 ＋ 斷面那一線光
+  for (const sgn of [-1, 1]) {
+    const [cx, cz] = at(sgn * (half + 0.16), mid);
+    const y = terrainHeight(cx, cz);
+    const lip = new THREE.Mesh(new THREE.BoxGeometry(width, 0.9, 0.32), new THREE.MeshStandardMaterial({ color: kit.dark, roughness: 0.95, flatShading: true }));
+    lip.position.set(cx, y - 0.28, cz);
+    lip.rotation.y = yaw;
+    lip.userData.noCollide = true;
+    grp.add(lip);
+
+    const seam = new THREE.Mesh(
+      new THREE.BoxGeometry(width, 0.05, 0.06),
+      new THREE.MeshBasicMaterial({ color: kit.accent, transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending, depthWrite: false })
+    );
+    const [sx, sz] = at(sgn * (half + 0.02), mid);
+    seam.position.set(sx, terrainHeight(sx, sz) + 0.2, sz);
+    seam.rotation.y = yaw;
+    seam.userData.noCollide = true;
+    grp.add(seam);
+
+    // 斷掉的樑：從斷口往洞裡伸出去兩截（形狀自己說「這裡塌過」）
+    for (let i = 0; i < 2; i += 1) {
+      const lat = outer + width * (0.28 + i * 0.4);
+      const [bx, bz] = at(sgn * (half - 0.35), lat);
+      const by = terrainHeight(bx, bz);
+      const beam = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.26, 1.5), new THREE.MeshStandardMaterial({ color: kit.mid, roughness: 0.94, flatShading: true }));
+      beam.position.set(bx, by - 0.34, bz);
+      beam.rotation.set(0, yaw, sgn * -0.22);
+      beam.userData.noCollide = true;
+      grp.add(beam);
+    }
+  }
+
+  /*
+   * 窄板那一側的導引線：一條沿著窄板中線的細光。
+   * 它不寫字、不擋人 —— 只是把「這裡還走得過去」講清楚（WORLD.md §4.3：路是被走出來的）。
+   */
+  {
+    const lane = ((gap.keepFrom + gap.keepTo) / 2) * gap.keepSide;
+    const [lx, lz] = at(0, lane);
+    const line = new THREE.Mesh(
+      new THREE.BoxGeometry(0.14, 0.04, gap.length + 2.4),
+      new THREE.MeshBasicMaterial({ color: kit.light, transparent: true, opacity: 0.34, blending: THREE.AdditiveBlending, depthWrite: false })
+    );
+    line.position.set(lx, terrainHeight(lx, lz) + 0.06, lz);
+    line.rotation.y = yaw;
+    line.userData.noCollide = true;
+    grp.add(line);
+  }
+
+  return grp;
 }
 
 /* ------------------------------------------------------------------ *
@@ -3339,6 +3550,11 @@ export function createWorld({
    */
   regions = null,
   quality = 'high',
+  /**
+   * v1.2 · P15：橋上的缺口（預設就是 `BRIDGE_GAPS`）。
+   * 只有測試會換掉它 —— 「拿掉缺口再蓋一次」是那幾條斷言的反例。
+   */
+  gaps = null,
   shrine = null,
   /** Phase 22：刻文小語（inscriptions.json 的 entries）。沒給就不蓋，世界照樣成立。 */
   inscriptions = [],
@@ -3399,6 +3615,11 @@ export function createWorld({
   // v1.2 · P14：高台（站得上去的那一階）——與遮擋帶／母題同一個注入點
   const screenPlatforms = (screens && screens.platforms) || PLATFORMS;
   const screenBends = (screens && screens.bends) || undefined;
+  /**
+   * v1.2 · P15：橋上的缺口。與 `screens` 同一個模式 —— 只有測試與稽核腳本會換掉它，
+   * 遊戲一律走出貨的那一份。給空陣列就等於「這個世界沒有缺口」（`isWalkable()` 那一段整段跳過）。
+   */
+  const bridgeGaps = Array.isArray(gaps) ? gaps : BRIDGE_GAPS;
 
   // 走出來的路（只染地面顏色，不動高度場）
   const pathSegs = buildPathNetwork(REGION_SITES, [...CORRIDORS, ...ANNEX_LINKS], challenges, screenBends);
@@ -3545,6 +3766,8 @@ export function createWorld({
   const reactive = createReactiveField({
     spots: REACTIVE_SPOTS,
     secrets,
+    // v1.2 · P15：高處的祕密躺在高台頂面上 —— 它要查得到那一座有多高
+    platforms: screenPlatforms,
     kitOf: (regionId) => kits.get(regionId) || kits.get('foundations'),
     terrainHeight,
     onReact,
@@ -3553,6 +3776,13 @@ export function createWorld({
     reducedMotion,
   });
   root.add(reactive.group);
+
+  /* --- v1.2 · P15：橋上的缺口（塌掉的那一段 ＋ 旁邊那條窄板） --- */
+  const gapGroups = bridgeGaps.map((gap) => {
+    const grp = buildBridgeGap(gap, kits.get(gap.region) || kits.get('foundations'));
+    root.add(grp);
+    return grp;
+  });
   for (const spec of secrets) {
     if (progression.hasFoundSecret && progression.hasFoundSecret(spec.id)) reactive.markSecretFound(spec.id);
   }
@@ -3706,9 +3936,20 @@ export function createWorld({
   // 建構完先把三態套上（不重做標籤：標籤在 buildGate 時已照 status.text 做好）
   refreshVisualStates();
 
-  /** 這個點現在走得到嗎（含虛空與尚未開啟的閘門）。 */
-  function isWalkable(x, z) {
+  /**
+   * 這個點現在走得到嗎（含虛空、尚未開啟的閘門，以及橋上的缺口）。
+   *
+   * v1.2 · P15 的 `feetY`：**唯一被放行的是「腳已經離地夠高」的缺口**
+   * （`GAP_LIP`）——與 `solidAtAbove()`「腳站到頂面以上的那一顆不擋人」是同一個形狀。
+   * 虛空與閘門那兩條**一寸都沒鬆**：不管腳在多高，它們照樣擋。
+   * 貼著地形走的人一律不給 `feetY`（`null`）→ 走的是 P15 之前那一支，一個位元組沒動。
+   */
+  function isWalkable(x, z, feetY = null) {
     if (coverage(x, z) < 0.45) return false;
+    if (bridgeGaps.length) {
+      const gap = gapAt(x, z, bridgeGaps);
+      if (gap && !(feetY !== null && feetY >= terrainHeight(x, z) + GAP_LIP)) return false;
+    }
     for (const c of CORRIDORS) {
       if (isUnlocked(c.region)) continue;
       const site = SITE_BY_ID.get(c.region);
@@ -3774,7 +4015,7 @@ export function createWorld({
   const hitSolid = (x, z, feetY = null) =>
     feetY === null ? solidAt(x, z, solids) : solidAtAbove(x, z, solids, feetY);
   /** 走得到嗎：地形 ＋ 閘門 ＋ 實體道具都要過。 */
-  const isClear = (x, z, feetY = null) => isWalkable(x, z) && !hitSolid(x, z, feetY);
+  const isClear = (x, z, feetY = null) => isWalkable(x, z, feetY) && !hitSolid(x, z, feetY);
 
   const motePhases = motes.userData.phases;
   const moteBaseY = motes.userData.baseY;
@@ -3976,6 +4217,12 @@ export function createWorld({
     motifs: screenMotifs,
     /** v1.2 · P14：資料層的高台（唯讀，測試與稽核用）。 */
     platforms: screenPlatforms,
+    /** v1.2 · P15：這個世界真的開了哪幾道橋缺口（唯讀，測試與稽核用）。 */
+    bridgeGaps,
+    /** 這一點掉在哪一道缺口裡（`null` ＝ 沒有）—— e2e 與稽核問的是這一支。 */
+    gapAt: (x, z) => gapAt(x, z, bridgeGaps),
+    /** 缺口的場景節點（測試用）。 */
+    gapGroups,
     /**
      * 站在 (x, z) 那一區的地標被遮擋帶擋住了嗎？
      * 走的是 `screens.js` 的 `landmarkSight()` —— `scripts/sightline-audit.mjs` 問的是同一支。
@@ -4082,6 +4329,48 @@ export function createWorld({
      * @returns {{x:number,z:number}|null} 不需要脫困時回傳 null
      */
     escapeSolid(x, z, step = 0.35, feetY = null) {
+      /*
+       * v1.2 · P15：**掉在缺口裡的人也要被請出去。**
+       * 缺口裡的地形高度就是甲板高度（高度場一個位元組都沒動），所以人是「站在斷掉的
+       * 那一段上」而不是掉進虛空 —— 可是那一塊走不到（`isWalkable()` 說的），
+       * 沒有這一條他會被 `clampPosition()` 永遠鎖在原地（「絕不能把玩家關住」）。
+       * 三個出口（往回、往前、往窄板）挑最近的那一個，一步一步走，不瞬移。
+       */
+      if (bridgeGaps.length && !(feetY !== null && feetY >= terrainHeight(x, z) + GAP_LIP)) {
+        const gap = gapAt(x, z, bridgeGaps);
+        if (gap) {
+          const f = gapFrame(gap);
+          const p = gapLocal(gap, x, z);
+          if (f && p) {
+            const back = p.along - (gap.at - gap.length / 2 - 0.05);
+            const fwd = gap.at + gap.length / 2 + 0.05 - p.along;
+            const side = (gap.keepFrom + gap.keepTo) / 2 - p.lat * gap.keepSide;
+            let dx = 0;
+            let dz = 0;
+            const move = Math.min(step, Math.min(back, fwd, Math.abs(side)));
+            if (Math.abs(side) <= Math.min(back, fwd)) {
+              const sgn = side >= 0 ? gap.keepSide : -gap.keepSide;
+              dx = f.vx * sgn * move;
+              dz = f.vz * sgn * move;
+            } else if (back <= fwd) {
+              dx = -f.ux * move;
+              dz = -f.uz * move;
+            } else {
+              dx = f.ux * move;
+              dz = f.uz * move;
+            }
+            const nx = x + dx;
+            const nz = z + dz;
+            /*
+             * 推出去的那一步自己也要站得住 —— 但**「還在缺口裡」不算站不住**
+             * （一步 0.35 公尺，走出 3 公尺的缺口本來就要好幾步；
+             * 拿含缺口的那一支去判，第一步就會被自己否決、人就真的被關住了）。
+             * `feetY = Infinity` ＝ 只問虛空與閘門，那兩條一寸都沒鬆。
+             */
+            return isWalkable(nx, nz, Infinity) ? { x: nx, z: nz } : null;
+          }
+        }
+      }
       const hit = hitSolid(x, z, feetY);
       if (!hit) return null;
       const dx = x - hit.x;
@@ -4214,9 +4503,13 @@ export function createWorld({
       return Boolean(ins);
     },
 
-    /** 每幀更新反應場（玩家座標）。面板打開時由 isBusy 自己停手。 */
-    updateReactions(dt, t, x, z) {
-      reactive.update(dt, t, x, z);
+    /**
+     * 每幀更新反應場（玩家座標）。面板打開時由 isBusy 自己停手。
+     * @param {number} [y] 玩家**腳**的世界高度（v1.2 · P15：高處的祕密要問它；
+     *   沒給就當作站在地上 —— 那幾處於是搆不到）。
+     */
+    updateReactions(dt, t, x, z, y = -Infinity) {
+      reactive.update(dt, t, x, z, y);
       handleField.update(dt, t, x, z);
       murkField.update(dt, t, x, z);
       // v1.2 · P09：石座演出（面板開著也照播 —— 玩家正看著結果面，世界在背景）
