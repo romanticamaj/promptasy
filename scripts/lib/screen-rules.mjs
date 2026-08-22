@@ -62,6 +62,19 @@ export const MOTIF_GAP = 16;
 export const PLATFORM_MOTIF_GAP = 12;
 /** 兩道遮擋帶之間要留得下的缺口（公尺）。 */
 export const BAND_GAP = 8;
+/**
+ * 母題／高台離**遮擋帶核心矩形**至少要留這麼寬（公尺，**再加上自己的碰撞半徑**）。
+ *
+ * v1.2 · P16a 補的那一條：母題與高台一路只跟彼此比距離（`MOTIF_GAP`／`PLATFORM_MOTIF_GAP`），
+ * 跟遮擋帶之間一條規則都沒有 —— 先擺帶、再搜高台，搜尋器會把高台放在
+ * 離石脊 0.45 公尺的地方（P16a 實測），兩顆碰撞圓疊在一起、人從那一側走不過去。
+ * 中心距不管用：帶是長條，中心離得遠不代表端點離得遠 → 量的是離核心矩形的距離
+ * （`screens.js` 的 `bandCoreDistance()`，搜尋器／`--verify`／`test:rubric` 共用同一支）。
+ *
+ * 2.64 ＝ 玩家直徑 1.24 ＋ 走得順的餘裕 1.4。加上高台半徑 1.4 之後是 4.04 公尺，
+ * 現行出貨最擠的那一對（`reasoning-second-spine` ↔ `reasoning-twice-01`）量到 5.37。
+ */
+export const BAND_CLEAR = 2.64;
 /** 母題每一塊腳下的覆蓋率下限（不准踩在崩掉的區緣上）。 */
 export const MOTIF_COVERAGE_MIN = 0.96;
 /** 母題各塊之間的地形落差上限（公尺）—— 讀得出是同一組東西，不是一半埋在山坡裡。 */
@@ -199,6 +212,7 @@ export default {
   MOTIF_PATH_MAX,
   MOTIF_GAP,
   BAND_GAP,
+  BAND_CLEAR,
   MOTIF_COVERAGE_MIN,
   MOTIF_STEP_DROP_MAX,
   SOLID_COVERAGE_MIN,

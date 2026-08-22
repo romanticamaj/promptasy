@@ -194,6 +194,18 @@ async function verifyInWorld({ regionId, bands, motifs, platforms = [], bends, f
       if (!focusIds.includes(mo.id)) continue;
       const d = pathDistance(segs, mo.at[0], mo.at[1]);
       if (d < MOTIF_PATH_MIN || d > MOTIF_PATH_MAX) problems.push(`${mo.id} 離路網 ${d.toFixed(1)}m（要 ${MOTIF_PATH_MIN}–${MOTIF_PATH_MAX}）`);
+      /*
+       * v1.2 · P16a：也要離**遮擋帶**夠遠。這一條放在重建這一段是有意的 ——
+       * `--verify` 會因此把**現行出貨的每一座**再驗一次（先紅的來源）。
+       */
+      const own = mo.radius || Math.max(1.0, (mo.height / 3.4) * 0.78);
+      for (const b of bands) {
+        if (b.region !== mo.region) continue;
+        const d2 = Screens.bandCoreDistance(b, mo.at[0], mo.at[1]);
+        if (d2 < Rules.BAND_CLEAR + own) {
+          problems.push(`${mo.id} 貼著石脊 ${b.id}（離核心矩形 ${d2.toFixed(2)} < ${(Rules.BAND_CLEAR + own).toFixed(2)}）`);
+        }
+      }
     }
   }
 
@@ -345,7 +357,7 @@ async function main() {
    * 被哪一條規則擋掉的統計 —— 一片土地擠到只剩兩個格點時，這一欄才說得出「擠在哪裡」
    * （orchestration 有 13 座石座，光是石座的淨空就吃掉整片內圈）。
    */
-  const why = { 區域: 0, 覆蓋: 0, 主動線: 0, 閘門: 0, 地標留白: 0, 互動圈: 0, 離路網: 0, 太靠近同伴: 0 };
+  const why = { 區域: 0, 覆蓋: 0, 主動線: 0, 閘門: 0, 地標留白: 0, 互動圈: 0, 離路網: 0, 太靠近同伴: 0, 貼著石脊: 0 };
   const cands = [];
   for (let x = site.x - site.radius; x <= site.x + site.radius; x += grid) {
     for (let z = site.z - site.radius; z <= site.z + site.radius; z += grid) {
@@ -392,15 +404,28 @@ async function main() {
         }
         /*
          * 高台與**母題**之間守的是另一條（`PLATFORM_MOTIF_GAP` 12）——
-         * 兩種不同的東西不會糊成一團，只會擋路。高台與**高台**之間仍然是 16。
+         * 兩種不同的東西不會糊成一團，只會擋路。同類之間（台對台、母題對母題）仍然是 16。
+         *
+         * v1.2 · P16a：**這一條要兩邊都寫。** 原本只有「找高台時避開母題」那半邊，
+         * 找母題時完全看不到高台 —— 於是先放高台、再搜母題，就會把母題搜到高台旁邊
+         * 12 公尺以內（同一條規矩，兩個答案）。這一格正好是那個順序。
          */
         const tooClose =
           kind === 'platform'
             ? existingPlatforms.some((m) => Math.hypot(x - m.at[0], z - m.at[1]) < MOTIF_GAP) ||
               existingMotifs.some((m) => Math.hypot(x - m.at[0], z - m.at[1]) < Rules.PLATFORM_MOTIF_GAP)
-            : existingMotifs.some((m) => Math.hypot(x - m.at[0], z - m.at[1]) < MOTIF_GAP);
+            : existingMotifs.some((m) => Math.hypot(x - m.at[0], z - m.at[1]) < MOTIF_GAP) ||
+              existingPlatforms.some((m) => Math.hypot(x - m.at[0], z - m.at[1]) < Rules.PLATFORM_MOTIF_GAP);
         if (tooClose) {
           why['太靠近同伴'] += 1;
+          continue;
+        }
+        /*
+         * v1.2 · P16a：離**遮擋帶**也要留得下人走過去（`BAND_CLEAR`）。
+         * 中心距不管用 —— 帶是長條，量的是離核心矩形的距離。
+         */
+        if (existingBands.some((b) => Screens.bandCoreDistance(b, x, z) < Rules.BAND_CLEAR + estR)) {
+          why['貼著石脊'] += 1;
           continue;
         }
       } else if (existingBands.some((b) => Math.hypot(x - b.at[0], z - b.at[1]) < BAND_GAP)) {
@@ -430,6 +455,16 @@ async function main() {
       console.error(`${regionId} 沒有地標或沒有遮擋帶，--reveal landmark 無從量起`);
       process.exit(2);
     }
+    /*
+     * v1.2 · P16a：**「0 個候選」要說得出是被哪一條擋掉的。**
+     * 上面那份 `why` 只統計得到與母題共用的那幾條；高台自己的三條（腳下覆蓋、
+     * 腳下落差、四周跳不跳得上去）以前一律沉默 —— 於是「這片土地擺不下高台」
+     * 這句結論說不出理由，也就無從判斷「換小一點的半徑會不會就擺得下」。
+     * `riseWorst` 記的是**被跳躍門檻擋掉的那些點裡最好的那一個**：
+     * 它離 `need` 差多少，就是「這片土地離擺得下還差多遠」。
+     */
+    const whyP = { 腳下覆蓋: 0, 腳下落差: 0, 起跳點太少: 0, 跳不上去: 0 };
+    let riseBest = Infinity;
     for (const c of cands) {
       let drop = 0;
       let cover = 1;
@@ -441,8 +476,14 @@ async function main() {
         drop = Math.max(drop, Math.abs(World.terrainHeight(px, pz) - h0));
         cover = Math.min(cover, World.coverage(px, pz));
       }
-      if (cover < MOTIF_COVERAGE_MIN) continue;
-      if (drop > MOTIF_STEP_DROP_MAX) continue;
+      if (cover < MOTIF_COVERAGE_MIN) {
+        whyP['腳下覆蓋'] += 1;
+        continue;
+      }
+      if (drop > MOTIF_STEP_DROP_MAX) {
+        whyP['腳下落差'] += 1;
+        continue;
+      }
       /*
        * **四周每一個方向都要跳得上去**（離線用「腳下地形 ＋ 設計高度」近似頂面高度；
        * 真正的門檻仍由重建那一段拿真的 `standTop` 再驗一次）。
@@ -454,8 +495,15 @@ async function main() {
         World.terrainHeight,
         (x, z) => World.coverage(x, z) >= 0.45
       );
-      if (!(riseOff.samples >= 6)) continue;
-      if (riseOff.worst > JUMP_APEX - Screens.PLATFORM_JUMP_MARGIN) continue;
+      if (!(riseOff.samples >= 6)) {
+        whyP['起跳點太少'] += 1;
+        continue;
+      }
+      if (riseOff.worst > JUMP_APEX - Screens.PLATFORM_JUMP_MARGIN) {
+        whyP['跳不上去'] += 1;
+        if (riseOff.worst < riseBest) riseBest = riseOff.worst;
+        continue;
+      }
       let margin = 0;
       if (wantReveal) {
         const foot = Screens.landmarkSight(c.x, c.z, landmark, World.terrainHeight, revealBands);
@@ -476,6 +524,12 @@ async function main() {
       const score = -Math.abs(c.dPath - 12) * 0.6 - drop * 8 + margin * 6 - riseOff.worst * 3;
       scored.push({ ...c, rot: 0, drop, margin, rise: Number(riseOff.worst.toFixed(2)), score });
     }
+    console.log(
+      `高台自己那三條擋掉的：${Object.entries(whyP).map(([k, v]) => `${k} ${v}`).join('、')}` +
+        (Number.isFinite(riseBest)
+          ? `；被跳躍門檻擋掉的那些點裡最好的要爬 ${riseBest.toFixed(2)}m（門檻 ${(JUMP_APEX - Screens.PLATFORM_JUMP_MARGIN).toFixed(2)}）`
+          : '')
+    );
   } else if (kind === 'motif') {
     for (const c of cands) {
       let bestRot = null;

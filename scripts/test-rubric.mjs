@@ -15128,7 +15128,7 @@ console.log('\n▸ 四宿星圖 ＋ 反應式回聲 ＋ 傳說鉤（v1.2 · P08�
 /*     —— 逐個碰撞體對每一件互動物、主動線、閘門、地標留白量距離           */
 /*   · 揭露：sightline-audit 的硬斷言（前 12m 看不到、25m 內揭露）        */
 /*   · 節奏：pacing-audit 三口徑死區不得增加                             */
-/*   · 預算：三角 < 232k、光源 37 不變、碰撞體 < 1,000、穿模 0、0 每幀工作 */
+/*   · 預算：三角 < 232k、光源 37 不變、碰撞體 < 1,040、穿模 0、0 每幀工作 */
 /* ================================================================== */
 console.log('\n▸ 中觀：遮擋帶與母題（v1.2 · P11）');
 {
@@ -15341,9 +15341,13 @@ console.log('\n▸ 中觀：遮擋帶與母題（v1.2 · P11）');
       }
     }
     eq(screenLights, 0, 'P11：中觀層一盞燈都沒加');
-    // v1.2 · P15：+7 座高台（一座石鼓 ≈ 270 個三角面、1 顆碰撞圓）→ 上限跟著抬一階
-    ok(screenTris < 6000, 'P11：中觀層的三角形很省', `tris=${Math.round(screenTris)}`);
-    ok(screenSolids <= 72, 'P11：中觀層的碰撞體沒有失控', `n=${screenSolids}`);
+    /*
+     * v1.2 · P16a：中觀層一次長了 6 座高台、4 座母題、2 道遮擋帶 —— 上限跟著抬一階。
+     * 門檻要比現況嚴一格（findings：斷言的門檻要比產生它的那段程式更嚴一格）：
+     * 現況三角 6,288／碰撞體 84，所以守 7,000 與 96（＝再多鋪滿一片土地還在框內）。
+     */
+    ok(screenTris < 7000, 'P11：中觀層的三角形很省', `tris=${Math.round(screenTris)}`);
+    ok(screenSolids <= 96, 'P11：中觀層的碰撞體沒有失控', `n=${screenSolids}`);
 
     // 繞得過去：石脊四周、母題四周
     for (const b of Screens.SCREEN_BANDS) {
@@ -15472,7 +15476,8 @@ console.log('\n▸ 中觀：遮擋帶與母題（v1.2 · P11）');
     });
     ok(tris < 232000, 'P11：世界三角形 < 232k', `tris=${Math.round(tris)}`);
     eq(lights, 37, 'P11：光源數不變（中觀層一盞燈都不加）', `lights=${lights}`);
-    ok(testWorld.solids.length < 1000, 'P11：碰撞體 < 1,000', `n=${testWorld.solids.length}`);
+    // v1.2 · P16a：+6 座高台 ＋ 4 座母題 ＋ 2 道遮擋帶 → 974 → 992（這一格的預算 <1,100；§6.1 的硬上限仍是 1,400）
+    ok(testWorld.solids.length < 1040, 'P11：碰撞體 < 1,040', `n=${testWorld.solids.length}`);
     const Audit11 = await import('./collision-audit.mjs');
     for (const layer of testWorld.screens) {
       const res = Audit11.auditCoverage(layer.group, World.solidAt, testWorld.solids, World.terrainHeight);
@@ -16314,7 +16319,7 @@ console.log('\n▸ 解法百分位與最少技巧達成（v1.2 · P10b）');
 /*   · 粒子：一區恰好 1 個 Points、12 區共用同一個材質、0 光源、        */
 /*     低畫質整層關、reducedMotion 不動、每幀零配置                     */
 /*   · 中觀：新三區吃同一套擺位斷言、逐塊貼地、每區碰撞體 ≤ 20          */
-/*   · 預算：三角 < 225k、光源 37、碰撞體 < 1,050                       */
+/*   · 預算：三角 < 228k、光源 37、碰撞體 < 1,050                       */
 /* ================================================================== */
 console.log('\n▸ 地面材質語言 ＋ 每區粒子（v1.2 · P12）');
 {
@@ -16854,7 +16859,7 @@ console.log('\n▸ 地面材質語言 ＋ 每區粒子（v1.2 · P12）');
         tris12 += n * (o.isInstancedMesh ? o.count : 1);
       }
     });
-    ok(tris12 < 225000, 'P12：世界三角形 < 225k', `tris=${Math.round(tris12)}`);
+    ok(tris12 < 228000, 'P12：世界三角形 < 228k', `tris=${Math.round(tris12)}`);
     eq(lights12, 37, 'P12：光源數不變（地面／粒子／中觀一盞燈都不加）', `lights=${lights12}`);
     ok(testWorld.solids.length < 1050, 'P12：碰撞體 < 1,050', `n=${testWorld.solids.length}`);
     /*
@@ -16921,8 +16926,25 @@ console.log('\n▸ 跳躍原型（v1.2 · P14）');
    * （不然是蓋裝飾），開的那一座橋**一定是有缺口的那一座**（不然是給人跳出去）。
    */
   {
-    eq(Jump.JUMP_REGIONS.length, 4, '這一格開四片土地（P16a 才鋪滿 12 片）');
+    /*
+     * v1.2 · P16a：**這張表不再寫死一個數字，而是「與真的有高台的土地逐項相等」。**
+     * 寫死 4（或 8）只是在記錄快照；要守的規矩是「開的一定是蓋得出高台的那幾片」——
+     * 多開一片沒有高台的、或蓋了高台卻忘了開，兩種錯法都要紅。
+     */
+    const jumpSorted = Jump.JUMP_REGIONS.slice().sort().join(',');
+    const withPlatform = [...new Set(ScreensP14.PLATFORMS.map((pf) => pf.region))].sort().join(',');
+    eq(jumpSorted, withPlatform, '跳得起來的土地 ＝ 真的有高台的土地（逐項相等，不多也不少）');
+    ok(Jump.JUMP_REGIONS.length >= 8, '這一格鋪到至少八片土地（P16a：先量再放）', String(Jump.JUMP_REGIONS.length));
     ok(Jump.JUMP_REGIONS.includes('foundations'), '中央高原還在（P14 開的那一片沒有被拿掉）');
+    // 量出來一個合法落點都沒有的那四片：**不准**偷偷開（開了也沒有東西跳得上去）
+    for (const id of ['toolcraft', 'sight', 'divergence', 'wards']) {
+      eq(
+        ScreensP14.PLATFORMS.some((pf) => pf.region === id),
+        false,
+        `[${id}] 量出來擺不下高台（WORLD.md §4.12 的表）`
+      );
+      eq(Jump.jumpSpeedFor(id), 0, `[${id}] 沒有高台就不開跳躍（按了 J 什麼都不會發生）`);
+    }
     // 開的每一片都真的有高台；有高台的每一片也都跳得起來 —— 兩邊互相對得上
     const platformRegions = new Set(ScreensP14.PLATFORMS.map((pf) => pf.region));
     for (const id of Jump.JUMP_REGIONS) {
@@ -16943,8 +16965,13 @@ console.log('\n▸ 跳躍原型（v1.2 · P14）');
         eq(Jump.jumpApexFor(site.id), 0, `[${site.id}] 跳得多高 ＝ 0`);
       }
     }
-    eq(nonZero, 4, '12 片土地裡有四片非 0');
-    eq(World.REGION_SITES.length - nonZero, 8, '其餘 8 片一寸都沒動（P16a 才鋪滿）');
+    eq(nonZero, Jump.JUMP_REGIONS.length, `12 片土地裡有 ${Jump.JUMP_REGIONS.length} 片非 0`);
+    eq(
+      World.REGION_SITES.length - nonZero,
+      World.REGION_SITES.length - Jump.JUMP_REGIONS.length,
+      '其餘那幾片一寸都沒動（每一幀與 P14 之前完全相同）'
+    );
+    ok(World.REGION_SITES.length - nonZero > 0, '而且真的還有「跳不起來」的土地（反例還在，這一段不是空過的）');
     for (const bad of [null, undefined, '', 'nope', '__proto__', 'constructor', 'toString']) {
       eq(Jump.jumpSpeedFor(bad), 0, `jumpSpeedFor(${JSON.stringify(bad)}) ＝ 0（不會漏原型鍊上的東西）`);
       eq(Jump.jumpSpeedForBridge(bad), 0, `jumpSpeedForBridge(${JSON.stringify(bad)}) ＝ 0`);
@@ -17382,7 +17409,19 @@ console.log('\n▸ 跳躍原型（v1.2 · P14）');
           `[${label}][${pf.id}] 頂面量過是平的那一段 ≥ ${ScreensP14.PLATFORM_STAND_R_MIN} 公尺`,
           c.standR.toFixed(2)
         );
-        ok(c.standR > pf.radius * 0.9, `[${label}][${pf.id}] 圓的頂面「量到多遠都是平的」（不像方的會停在七成）`, c.standR.toFixed(2));
+        /*
+         * 「量到多遠都是平的」要用**這支量法自己的解析度**去講（findings：取樣式的證明
+         * 要說得出自己量不到什麼）。`standR` 是一圈一圈往外長的階梯（`STAND_RING_STEP`
+         * 0.15），最外那一圈落在半徑上就停 —— 所以能保證的上界是「差最多一個步長」。
+         * 舊的 `radius * 0.9` 是個比例，半徑一小（1.4 → 1.26）就比階梯還嚴，
+         * 而且半徑一大（2.6 → 2.34）反而比實際的 2.45 鬆。方的頂面照樣紅：
+         * 同樣半徑 2.6 的方臺量出來只有 1.8，離 2.45 還差得遠。
+         */
+        ok(
+          c.standR >= pf.radius - World.STAND_RING_STEP - 1e-9,
+          `[${label}][${pf.id}] 圓的頂面「量到多遠都是平的」（差最多一個取樣步長 ${World.STAND_RING_STEP}；方的會停在七成）`,
+          `${c.standR.toFixed(2)} / r=${pf.radius}`
+        );
         // 擋得住人：從外面走不進去
         ok(Boolean(w.solidAt(c.x, c.z)), `[${label}][${pf.id}] 擋得住人（走不進石頭裡）`);
         eq(w.isClear(c.x, c.z), false, `[${label}][${pf.id}] 腳在地上時那一點走不到`);
@@ -17574,13 +17613,18 @@ console.log('\n▸ 跳躍原型（v1.2 · P14）');
     eq(pfLights, 0, 'P14：高台一盞燈都沒加');
     // 中央高原現在有兩座（P15）：一座高台 ＝ 一顆圓、一個名字
     eq(pfSolids, ScreensP14.PLATFORMS.filter((pf) => pf.region === 'foundations').length, 'P14：一座高台只登記一顆碰撞圓');
-    eq(platformRegionsP14.size, 4, 'P15：高台鋪在四片土地上');
+    eq(
+      platformRegionsP14.size,
+      Object.keys(EXPECT.screens.platforms).length,
+      'P16a：高台鋪在契約表登記的那幾片土地上（多一片少一片都要紅）'
+    );
+    ok(platformRegionsP14.size >= 8, 'P16a：高台至少鋪到八片土地', String(platformRegionsP14.size));
     let lightsP14 = 0;
     testScene.traverse((o) => {
       if (o.isLight) lightsP14 += 1;
     });
     eq(lightsP14, 37, 'P14：世界光源數仍然是 37', String(lightsP14));
-    ok(testWorld.solids.length < 1000, 'P14：碰撞體 < 1,000', String(testWorld.solids.length));
+    ok(testWorld.solids.length < 1040, 'P14：碰撞體 < 1,040', String(testWorld.solids.length));
 
     // 靜態掃描：跳躍的那兩段程式在 tick 裡不 new、不 map/filter、不建閉包
     const jumpSrc = readFileSync(resolve(root, 'src/player/jump.js'), 'utf8');
@@ -18173,9 +18217,9 @@ console.log('\n▸ 高台語法 ＋ 高處的祕密 ＋ 橋缺口（v1.2 · P15�
         tris += n * (o.isInstancedMesh ? o.count : 1);
       }
     });
-    ok(tris < 226000, 'P15：世界三角形 < 226k', `tris=${Math.round(tris)}`);
+    ok(tris < 228000, 'P15：世界三角形 < 228k', `tris=${Math.round(tris)}`);
     eq(lights, 37, 'P15：光源數仍然是 37（高台、祕密、缺口一盞都沒加）', String(lights));
-    ok(testWorld.solids.length < 1020, 'P15：碰撞體 < 1,020', String(testWorld.solids.length));
+    ok(testWorld.solids.length < 1040, 'P15：碰撞體 < 1,040', String(testWorld.solids.length));
   }
 
   /* --- ⑨ WORLD.md 說得出這一格做了什麼 ------------------------------ */
@@ -18187,6 +18231,190 @@ console.log('\n▸ 高台語法 ＋ 高處的祕密 ＋ 橋缺口（v1.2 · P15�
     const s45 = world15.slice(world15.indexOf('### 4.5'), world15.indexOf('### 4.6'));
     ok(/12/.test(s45), 'WORLD.md §4.5 的祕密數字是 12（不是舊的 4）');
     for (const t of ['不對的東西', '聲音先到', '高處']) ok(s45.includes(t), `WORLD.md §4.5 列了 tell「${t}」`);
+  }
+}
+
+/* ================================================================== *
+ * 跳躍鋪區 ＋ 中景補四區（v1.2 · P16a）
+ * ================================================================== *
+ *
+ * 這一格的題目是「**先量再放**」，所以斷言也照著量出來的那張表寫：
+ *   ① 母題／高台與**遮擋帶**之間也要走得過去（P16a 新補的 `BAND_CLEAR`，
+ *      先紅實測：示範與推理的高台第一版被搜到離石脊 0.45 公尺）。
+ *   ② 「重複才叫語彙」那幾條**每一片土地都要驗**（P11 只驗了階梯迴廊那一片）。
+ *   ③ 造型與土地一一對應：一片土地一種母題造型、一種高台造型。
+ *   ④ 文件與資料是同一份（WORLD.md §4.12 的表列得出「擺不下」的那幾片）。
+ */
+console.log('\n▸ 跳躍鋪區 ＋ 中景補四區（v1.2 · P16a）');
+{
+  const S16 = await import('../src/world/screens.js');
+  const Jump16 = await import('../src/player/jump.js');
+  const Rules16 = (await import('./lib/screen-rules.mjs')).default;
+  const world16 = readFileSync(resolve(root, 'WORLD.md'), 'utf8');
+
+  /* --- ① 離遮擋帶要留得下人（新門檻） ------------------------------- */
+  {
+    ok(typeof S16.bandCoreDistance === 'function', '`bandCoreDistance()` 是共用的那一支（工具與測試同一份）');
+    ok(Rules16.BAND_CLEAR > World.PLAYER_RADIUS * 2, 'BAND_CLEAR 至少留得下一個人的直徑', String(Rules16.BAND_CLEAR));
+    let pairs = 0;
+    for (const item of [...S16.MOTIFS, ...S16.PLATFORMS]) {
+      const own = item.radius || Math.max(1.0, (item.height / 3.4) * 0.78);
+      for (const b of S16.SCREEN_BANDS) {
+        if (b.region !== item.region) continue;
+        pairs += 1;
+        const d = S16.bandCoreDistance(b, item.at[0], item.at[1]);
+        ok(
+          d >= Rules16.BAND_CLEAR + own,
+          `[${item.id}] 離石脊 ${b.id} 的核心矩形夠遠（要 ≥ ${(Rules16.BAND_CLEAR + own).toFixed(2)}）`,
+          d.toFixed(2)
+        );
+      }
+    }
+    ok(pairs >= 12, '真的有那麼多對要驗（不然這一段是空過的）', String(pairs));
+    /*
+     * 反例：把一件東西搬到石脊的正中央，同一支判定就要回 0 ——
+     * 證明上面那一圈不是「怎麼擺都成立」（findings：寫得出來的斷言不等於抓得到東西）。
+     */
+    const anyBand = S16.SCREEN_BANDS[0];
+    ok(Boolean(anyBand), '找得到一道遮擋帶（不然反例是空的）');
+    if (anyBand) {
+      eq(S16.bandCoreDistance(anyBand, anyBand.at[0], anyBand.at[1]), 0, '[反例] 站在石脊正中央 → 離核心矩形 0');
+      const f16 = S16.bandFootprint(anyBand);
+      const off = f16.halfDepth + 1.0;
+      ok(
+        S16.bandCoreDistance(anyBand, anyBand.at[0] + f16.vx * off, anyBand.at[1] + f16.vz * off) < Rules16.BAND_CLEAR,
+        '[反例] 貼著石脊側面 1 公尺 → 這條門檻擋得下來'
+      );
+    }
+  }
+
+  /* --- ② 「重複才叫語彙」逐片土地都驗（不只階梯迴廊那一片） ---------- */
+  {
+    let checkedRegions = 0;
+    for (const site of World.REGION_SITES) {
+      const mo = S16.MOTIFS.filter((m) => m.region === site.id);
+      const bd = S16.SCREEN_BANDS.filter((b) => b.region === site.id);
+      const pf = S16.PLATFORMS.filter((p) => p.region === site.id);
+      if (mo.length) {
+        checkedRegions += 1;
+        eq(new Set(mo.map((m) => m.kind)).size, 1, `[${site.id}] 母題是同一個形狀重複出現`);
+        for (let i = 0; i < mo.length; i += 1) {
+          for (let j = i + 1; j < mo.length; j += 1) {
+            const d = Math.hypot(mo[i].at[0] - mo[j].at[0], mo[i].at[1] - mo[j].at[1]);
+            ok(d >= Rules16.MOTIF_GAP, `[${site.id}] 母題 ${mo[i].id} / ${mo[j].id} 散得夠開`, d.toFixed(1));
+          }
+        }
+      }
+      for (let i = 0; i < bd.length; i += 1) {
+        for (let j = i + 1; j < bd.length; j += 1) {
+          const d = Math.hypot(bd[i].at[0] - bd[j].at[0], bd[i].at[1] - bd[j].at[1]);
+          ok(d >= Rules16.BAND_GAP, `[${site.id}] 石脊 ${bd[i].id} / ${bd[j].id} 之間留得下缺口`, d.toFixed(1));
+        }
+      }
+      if (pf.length) {
+        eq(new Set(pf.map((p) => p.kind)).size, 1, `[${site.id}] 高台也是一片土地一種造型`);
+        for (const p of pf) {
+          for (const m of mo) {
+            const d = Math.hypot(p.at[0] - m.at[0], p.at[1] - m.at[1]);
+            ok(d >= Rules16.PLATFORM_MOTIF_GAP, `[${site.id}] 高台 ${p.id} 離母題 ${m.id} 夠開`, d.toFixed(1));
+          }
+        }
+      }
+    }
+    ok(checkedRegions >= 5, '真的有五片以上的土地有母題（不然這一圈是空過的）', String(checkedRegions));
+  }
+
+  /* --- ③ 造型不留孤兒：實作出來的每一種都真的有土地在用 -------------- */
+  {
+    for (const kind of S16.PLATFORM_KIND_IDS) {
+      ok(S16.PLATFORMS.some((p) => p.kind === kind), `高台造型 ${kind} 真的有土地在用（不留死程式）`);
+    }
+    for (const kind of S16.MOTIF_KIND_IDS) {
+      ok(S16.MOTIFS.some((m) => m.kind === kind), `母題造型 ${kind} 真的有土地在用`);
+    }
+    // 一種造型只屬於一片土地（換皮是「這是哪」的語彙，不是隨機貼圖）
+    for (const kind of S16.PLATFORM_KIND_IDS) {
+      const regions = new Set(S16.PLATFORMS.filter((p) => p.kind === kind).map((p) => p.region));
+      eq(regions.size, 1, `高台造型 ${kind} 只屬於一片土地`, [...regions].join(','));
+    }
+  }
+
+  /* --- ④ 新蓋的那幾座：裝飾不擋人、不加燈 --------------------------- */
+  {
+    const fresh = ['reasoning-third-step', 'orchestration-hoist-step', 'frugality-emptied-step',
+      'refinery-first-mirror-step', 'refinery-second-mirror-step', 'forms-second-gauge-step'];
+    for (const id of fresh) {
+      const spec = S16.PLATFORMS.find((p) => p.id === id);
+      ok(Boolean(spec), `[${id}] 資料裡找得到（不然下面幾條是空過的）`);
+      if (!spec) continue;
+      const layer = testWorld.screens.find((l) => l.id === spec.region);
+      ok(Boolean(layer), `[${id}] 這片土地蓋出了中觀層`);
+      if (!layer) continue;
+      const node = layer.group.children.find((c) => c.name === `platform:${id}`);
+      ok(Boolean(node), `[${id}] 場景圖裡蓋出來了`);
+      if (!node) continue;
+      let lights = 0;
+      let solidsHere = 0;
+      let standIds = 0;
+      node.traverse((o) => {
+        if (o.isLight) lights += 1;
+        if (o.isMesh && (o.userData.solidRadius || o.userData.solidSpan)) solidsHere += 1;
+        if (o.userData && o.userData.standId) standIds += 1;
+      });
+      eq(lights, 0, `[${id}] 一盞燈都沒加`);
+      eq(solidsHere, 1, `[${id}] 只有石鼓本身擋人（裙與裝飾一律 noCollide）`);
+      eq(standIds, 1, `[${id}] 只有一塊登記得出名字（站上去回的就是它）`);
+      // 裝飾一律不進穿模稽核：實測 collectSolids 只交得出那一顆圓
+      eq(World.collectSolids(node, World.terrainHeight).length, 1, `[${id}] collectSolids 只認得那一顆圓`);
+    }
+  }
+
+  /* --- ④b 預算：這一格花了多少 --------------------------------------- */
+  {
+    let tris16 = 0;
+    let lights16 = 0;
+    testScene.traverse((o) => {
+      if (o.isLight) lights16 += 1;
+      if (o.isMesh && o.geometry) {
+        const g16 = o.geometry;
+        const n16 = g16.index ? g16.index.count / 3 : g16.attributes.position.count / 3;
+        tris16 += n16 * (o.isInstancedMesh ? o.count : 1);
+      }
+    });
+    // 這一格量到 224,946／37／992；門檻是這一格自己宣告的預算（比實測嚴一格）
+    ok(tris16 < 232000, 'P16a：世界三角形 < 232k', `tris=${Math.round(tris16)}`);
+    eq(lights16, 37, 'P16a：光源數仍然是 37（中觀層一盞都不加）', `lights=${lights16}`);
+    ok(testWorld.solids.length < 1100, 'P16a：碰撞體 < 1,100', String(testWorld.solids.length));
+    // 每一片土地的中觀碰撞體上限（§4.10 ②）—— 新鋪的兩片也要在框內
+    for (const site of World.REGION_SITES) {
+      const layer = testWorld.screens.find((l) => l.id === site.id);
+      if (!layer) continue;
+      const n = World.collectSolids(layer.group, World.terrainHeight).length;
+      ok(n <= Rules16.SOLIDS_PER_REGION_MAX, `[${site.id}] 中觀層碰撞體 ≤ ${Rules16.SOLIDS_PER_REGION_MAX}`, String(n));
+    }
+  }
+
+  /* --- ⑤ 文件與資料是同一份 ------------------------------------------ */
+  {
+    const s412 = world16.slice(world16.indexOf('### 4.12'), world16.indexOf('### 4.13'));
+    ok(s412.length > 800, 'WORLD.md §4.12 抓得到（不然下面幾條是空過的）', String(s412.length));
+    ok(/screen-fit/.test(s412), 'WORLD.md §4.12 說得出落點是哪一支工具搜出來的');
+    ok(/BAND_CLEAR|石脊/.test(s412), 'WORLD.md §4.12 寫了「離遮擋帶也要留得下人」那一條');
+    // 12 片土地每一片都要在那張表裡出現（有沒有高台、為什麼）
+    for (const site of World.REGION_SITES) {
+      ok(s412.includes(`\`${site.id}\``), `WORLD.md §4.12 的表列了 ${site.id}`);
+    }
+    // 擺不下的那四片：文件要寫得出它們**沒有**高台
+    for (const id of ['toolcraft', 'sight', 'divergence', 'wards']) {
+      eq(S16.PLATFORMS.some((p) => p.region === id), false, `[${id}] 資料上真的沒有高台`);
+    }
+    const s31 = world16.slice(world16.indexOf('### 3.1'), world16.indexOf('### 3.2'));
+    ok(s31.includes('P16a'), 'WORLD.md §3.1 記得這一格把跳躍鋪到哪裡');
+    // keyhelp 不准把片數寫死（資料一長，寫死的數字就自打嘴巴）
+    const keyhelpSrc = readFileSync(resolve(root, 'src/ui/keyhelp.js'), 'utf8');
+    const jumpLine = keyhelpSrc.split('\n').find((l) => l.includes("keys: ['J']")) || '';
+    ok(jumpLine.length > 0, 'keyhelp 找得到 J 那一行');
+    ok(!/[一二三四五六七八九十]片/.test(jumpLine), 'keyhelp 的 J 那一行沒有把片數寫死', jumpLine.trim());
   }
 }
 

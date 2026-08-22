@@ -241,6 +241,41 @@ export const SCREEN_BANDS = Object.freeze([
     height: 8,
     faceSign: 1,
   },
+  /*
+   * 量器坊 · 第一道：「立起來的那一階刻度」（v1.2 · P16a）
+   *
+   * 量器坊的地形本身就是一把躺著的尺（由北往南一階一階降下去），
+   * 所以「刻度之柱」從橋頭第一步就看得到底 —— 一片沒有厚度的土地。
+   * 這一道橫在離橋頭 15 公尺處：`screen-fit` 掃過 2,628 個格點，
+   * **整片土地只有這一種合法擺法**（其餘不是踩進地標留白就是站在階地的落差上）。
+   */
+  {
+    id: 'forms-first-tick',
+    region: 'forms',
+    at: [-3, 98],
+    rot: 2.8798,
+    kind: 'stairRidge',
+    length: 7,
+    depth: 2.4,
+    height: 12,
+    faceSign: 1,
+  },
+  /*
+   * 量器坊 · 第二道：「另一邊那一階」
+   * 與第一道一西一東夾出入口的那道缺口（同階梯迴廊、面具劇場的作法）：
+   * 它不負責擋視線，負責的是「走下橋時左右各有一階掠過」。矮一階（8 公尺）。
+   */
+  {
+    id: 'forms-second-tick',
+    region: 'forms',
+    at: [8, 102],
+    rot: 0,
+    kind: 'stairRidge',
+    length: 7,
+    depth: 2.4,
+    height: 8,
+    faceSign: 1,
+  },
 ]);
 
 /**
@@ -250,7 +285,8 @@ export const SCREEN_BANDS = Object.freeze([
  * `rot`    繞 Y 的旋轉（弧度）
  * `kind`   造型（一片土地只准一種）：
  *          `twiceShown`（階梯迴廊）示範了兩遍的階梯、`pageStack`（沉書檔案庫）讀過的那一疊、
- *          `oneSmallPiece`（齒輪工坊）一次只吊一小件、`emptyMask`（面具劇場）掛著的空面具
+ *          `oneSmallPiece`（齒輪工坊）一次只吊一小件、`emptyMask`（面具劇場）掛著的空面具、
+ *          `unnamedTool`（契約鍛冶場）未命名的工具
  * `height` 整座的高度（公尺，中景階 3–8）
  *
  * 擺位規則（量得出來的三條，`scripts/screen-fit.mjs` 與 `test:rubric` 用同一份門檻）：
@@ -307,6 +343,16 @@ export const MOTIFS = Object.freeze([
   { id: 'config-mask-02', region: 'config', at: [110, 86], rot: 0, kind: 'emptyMask', height: 4.6 },
   { id: 'config-mask-03', region: 'config', at: [115, 124], rot: 3.67, kind: 'emptyMask', height: 5.0 },
   { id: 'config-mask-04', region: 'config', at: [83, 128], rot: 2.62, kind: 'emptyMask', height: 4.2 },
+  /*
+   * 契約鍛冶場（v1.2 · P16a）：「未命名的工具」——矮鍛台上立著一把工具的柄，
+   * 該刻名字的那一格是空的，刃只剩光。這片土地 P12 就有兩道遮擋帶，
+   * 卻一直沒有母題（走進去只有入口有厚度、內圈是空的）；
+   * `screen-fit` 掃出 75 個合法擺法，選的是四周 16/16、彼此都散得開的那四個。
+   */
+  { id: 'toolcraft-unnamed-01', region: 'toolcraft', at: [-122, -16], rot: 3.67, kind: 'unnamedTool', height: 5.2 },
+  { id: 'toolcraft-unnamed-02', region: 'toolcraft', at: [-149, -22], rot: 1.05, kind: 'unnamedTool', height: 4.6 },
+  { id: 'toolcraft-unnamed-03', region: 'toolcraft', at: [-135.5, 11.5], rot: 1.57, kind: 'unnamedTool', height: 4.8 },
+  { id: 'toolcraft-unnamed-04', region: 'toolcraft', at: [-117, 15], rot: 1.05, kind: 'unnamedTool', height: 4.2 },
 ]);
 
 /**
@@ -320,7 +366,9 @@ export const MOTIFS = Object.freeze([
  * `rot`     繞 Y 的旋轉（弧度）—— 只影響刻線與裝飾的朝向，圓的頂面本來就沒有正面
  * `kind`    造型：頂面**一律是圓的**（理由見 `buildStepStone`），變的是裙與外圈的語彙 ——
  *           `stepStone`（中央高原）素石鼓、`pageStep`（沉書檔案庫）翻過的那一疊、
- *           `maskStep`（面具劇場）裙上一張很淺的面具、`gaugeStep`（量器坊）外圈一圈刻度
+ *           `maskStep`（面具劇場）裙上一張很淺的面具、`gaugeStep`（量器坊）外圈一圈刻度、
+ *           `twiceStep`（示範與推理）兩級小階＋第三級只剩光、`hoistStep`（齒輪工坊）吊著一小件、
+ *           `takenStep`（減法之庭）只剩四個空托座、`mirrorStep`（校驗場）一圈磨過的鏡面
  * `height`  頂面離自己腳下的地多高（公尺）
  * `radius`  石鼓的半徑（公尺）＝ 登記的碰撞半徑
  * `reveals` （選配，v1.2 · P15）**站上來才搆得到的那一件東西**的 id（`src/data/secrets.json`
@@ -474,6 +522,94 @@ export const PLATFORMS = Object.freeze([
     radius: 1.6,
     reveals: 'zeroless-rule',
   },
+  /*
+   * 量器坊 · 第二階（v1.2 · P16a）：同一片土地的第二格刻度。
+   * 母題「同一個形狀重複出現」那條規矩對高台一樣成立 —— 一片土地一種造型，
+   * 所以它與第一階同為 `gaugeStep`：遠看認得出是同一把尺上的兩格。
+   */
+  {
+    id: 'forms-second-gauge-step',
+    region: 'forms',
+    at: [-4, 140],
+    rot: 0.62,
+    kind: 'gaugeStep',
+    height: 1.6,
+    radius: 1.4,
+  },
+  /*
+   * 示範與推理（v1.2 · P16a）：**示範了兩遍的那一階**——裙上貼著兩級很淺的小階，
+   * 第三級抬起來、只剩一圈光（母題 `twiceShown` 的同一句話：
+   * 「師傅只示範兩遍，第三遍要你自己踏出來」）。真的踏得上去的是石鼓本身。
+   */
+  /*
+   * 示範與推理（v1.2 · P16a）：**示範了兩遍的那一階**——裙上貼著兩級很淺的小階，
+   * 第三級抬起來、只剩一圈光（母題 `twiceShown` 的同一句話：
+   * 「師傅只示範兩遍，第三遍要你自己踏出來」）。真的踏得上去的是石鼓本身。
+   *
+   * **整片土地只有這一個落點**：格點掃到 0.25 公尺才找得到它
+   * （2 公尺的格點掃出 0 個，0.5 公尺掃出的那一個「四周繞不過去」）。
+   * 這一片是全場最擠的 —— 三座母題 ＋ 兩道石脊 ＋ 石座的淨空圈幾乎鋪滿內圈。
+   */
+  {
+    id: 'reasoning-third-step',
+    region: 'reasoning',
+    at: [-112.75, -107.25],
+    rot: 2.15,
+    kind: 'twiceStep',
+    height: 1.6,
+    radius: 1.4,
+  },
+  /*
+   * 齒輪工坊（v1.2 · P16a）：**吊上來的那一階**——裙邊伸出一截短臂，
+   * 臂端吊著一小件；再往前那一節只剩光（母題 `oneSmallPiece` 的同一句話）。
+   */
+  {
+    id: 'orchestration-hoist-step',
+    region: 'orchestration',
+    at: [-74, 85],
+    rot: 0.9,
+    kind: 'hoistStep',
+    height: 1.6,
+    radius: 1.4,
+  },
+  /*
+   * 減法之庭（v1.2 · P16a）：**被搬空的那一座**——鼓身外圈只留四個空托座，
+   * 被拿走的那件東西只剩一圈懸在半空的光（地標「空的基座」的同一句話：學會拿掉）。
+   * 這片土地的規矩與別區相反 —— 東西要少，所以裙上一個字、一件雜物都沒有。
+   */
+  {
+    id: 'frugality-emptied-step',
+    region: 'frugality',
+    at: [9, -69.5],
+    rot: 0.3,
+    kind: 'takenStep',
+    height: 1.6,
+    radius: 1.4,
+  },
+  /*
+   * 校驗場 · 兩面互相照著的那兩階（v1.2 · P16a）。
+   * 這片土地的地貌就是「一條淺谷把院子分成幾乎一樣高的兩半」——
+   * 所以它是第一片**刻意擺兩座**的加建：谷的兩邊各一座，
+   * 裙上都嵌著一圈被磨過的鏡面，站在其中一座上看得到另一座（改自己寫過的字）。
+   */
+  {
+    id: 'refinery-first-mirror-step',
+    region: 'refinery',
+    at: [-138, 156.5],
+    rot: 1.2,
+    kind: 'mirrorStep',
+    height: 1.6,
+    radius: 1.4,
+  },
+  {
+    id: 'refinery-second-mirror-step',
+    region: 'refinery',
+    at: [-153.5, 109],
+    rot: 4.3,
+    kind: 'mirrorStep',
+    height: 1.6,
+    radius: 1.4,
+  },
 ]);
 
 /**
@@ -499,6 +635,14 @@ export const PATH_BENDS = Object.freeze({
     [-110.38, 7.34],
     [-114.18, 0.76],
     [-117.13, 0.53],
+  ]),
+  // 量器坊：繞過「立起來的那一階刻度」的西端（v1.2 · P16a，`screen-fit` 產生、重建驗過）
+  forms: Object.freeze([
+    [0, 88], // 橋頭
+    [-2.02, 94.33], // 走到那一道正面前 —— 刻度之柱還在它背後
+    [-7.91, 92.75], // 貼著那一面滑到西端
+    [-9.88, 100.09], // 繞過端點 —— 柱在這裡揭露
+    [-6.91, 107.26],
   ]),
   reasoning: Object.freeze([
     [-68.13, -68.13], // 橋頭：主動線的內端（區界再往裡 8 公尺）
@@ -573,6 +717,30 @@ export function bandSolidCircles(band) {
 }
 
 /** 這個點在不在某一道遮擋帶的足跡裡（可加外擴，例如玩家半徑）。 */
+/**
+ * 一個點離一道遮擋帶的**核心矩形**多遠（公尺，在矩形裡就是 0）。
+ *
+ * 為什麼要有這一支（v1.2 · P16a）：母題與高台的擺位規則一路只跟**彼此**比距離
+ * （`MOTIF_GAP`／`PLATFORM_MOTIF_GAP`），跟**遮擋帶**之間一條都沒有 ——
+ * 於是先擺帶、再搜高台，搜尋器會理直氣壯地把高台放在離石脊 0.45 公尺的地方
+ * （P16a 實測：`reasoning-third-step` 第一版就是這樣被搜出來的），
+ * 兩顆碰撞圓直接疊在一起。中心距不夠用（帶是長條，中心離得遠不代表端點離得遠），
+ * 所以量的是離**核心矩形**的距離。搜尋器、`--verify` 與 `test:rubric` 共用這一支。
+ *
+ * @param {object} band
+ * @param {number} x
+ * @param {number} z
+ * @returns {number}
+ */
+export function bandCoreDistance(band, x, z) {
+  const f = bandFootprint(band);
+  const dx = x - f.cx;
+  const dz = z - f.cz;
+  const a = Math.max(0, Math.abs(dx * f.ux + dz * f.uz) - f.halfLen);
+  const b = Math.max(0, Math.abs(dx * f.vx + dz * f.vz) - f.halfDepth);
+  return Math.hypot(a, b);
+}
+
 export function pointInBand(band, x, z, pad = 0) {
   const f = bandFootprint(band);
   const dx = x - f.cx;
@@ -818,6 +986,14 @@ export function motifBlocks(motif) {
         { off: w * 0.06, w: w * 0.62, d: w * 0.62, top: h * 0.88 },
       ];
     }
+    case 'unnamedTool': {
+      const w = Math.max(2.0, h * 0.42);
+      return [
+        // 矮鍛台與立在台上的柄（刃只剩光 —— 沒有人寫得出「什麼時候該用我」）
+        { off: -w * 0.3, w: w * 1.2, d: w * 1.0, top: h * 0.3 },
+        { off: w * 0.32, w: w * 0.5, d: w * 0.5, top: h * 0.82 },
+      ];
+    }
     default: {
       // twiceShown：三階（第三階是空的）＋一點底座；幾何**以 at 為中心**排
       // （不然「往前長」的那兩階會偷偷伸進別人的淨空圈）
@@ -1058,6 +1234,40 @@ function buildEmptyMask(motif, kit, heightAt) {
   return grp;
 }
 
+
+/**
+ * 契約鍛冶場的母題：**未命名的工具**（v1.2 · P16a）。
+ *
+ * 一座矮鍛台上立著一把工具的柄（兩塊實體），刃只剩懸在半空的光；
+ * 柄上該刻名字的那一格是空的 ——「每一把都沒有刻名字，沒有人寫得出
+ * 『什麼時候該用我』」（WORLD.md §1.4 的傳說鉤）。
+ */
+function buildUnnamedTool(motif, kit, heightAt) {
+  const grp = new THREE.Group();
+  grp.name = `motif:${motif.id}`;
+  const [x, z] = motif.at;
+  const h = motif.height;
+  const w = Math.max(2.0, h * 0.42);
+  const dirX = Math.cos(motif.rot);
+  const dirZ = -Math.sin(motif.rot);
+  const rig = solidBlocks(motif, heightAt, stone(kit.mid), motifBlocks(motif));
+  grp.add(rig);
+  const base = rig.userData.motifBase;
+
+  // 該刻名字的那一格：柄腰上一圈很淺的凹槽，裡面什麼都沒有（暗，不發光）
+  const collar = new THREE.Mesh(box(w * 0.62, 0.34, 0.14), stone(kit.dark));
+  collar.position.set(x + dirX * w * 0.32, base + h * 0.56, z + dirZ * w * 0.32);
+  collar.rotation.y = motif.rot + Math.PI / 2;
+  collar.userData.noCollide = true;
+  grp.add(collar);
+  // 刃：只剩光，從柄頂斜著往上（沒打完的那一把）
+  ghostPlate(grp, kit, x + dirX * w * 0.5, base + h * 1.04, z + dirZ * w * 0.5, motif.rot, w * 0.28, w * 0.9, 1.2);
+
+  return grp;
+}
+
+
+
 /**
  * 高台：**一塊圓的石鼓**（v1.2 · P14）。
  *
@@ -1201,12 +1411,120 @@ function dressMaskStep(grp, { spec, kit, r, h }) {
   }
 }
 
+/**
+ * 示範與推理：裙上兩級很淺的小階，第三級抬起來、只剩一圈光（母題 `twiceShown` 的同一句話）。
+ *
+ * 兩級都壓在 0.62 公尺以下（§6.3：露出地面 < 0.9 公尺跨得過去 → 不必也不該有碰撞體），
+ * 而且**厚的那一維只有 0.28** —— 穿模稽核的 `PLATE_MIN`（0.9）看它是薄片，不是牆。
+ * 真的踏得上去的仍然只有石鼓本身：這兩級是一句話，不是路。
+ */
+function dressTwiceStep(grp, { spec, kit, r }) {
+  const dirX = Math.cos(spec.rot);
+  const dirZ = -Math.sin(spec.rot);
+  for (let i = 0; i < 2; i += 1) {
+    const step = new THREE.Mesh(box(r * 0.9, 0.24 + i * 0.2, 0.28), stone(kit.dark));
+    step.position.set(dirX * (r + 0.5 - i * 0.26), 0.12 + i * 0.1, dirZ * (r + 0.5 - i * 0.26));
+    // 寬邊要沿著切線（P15 審查 · 第 4 條：`rotation.y = θ` 轉的是局部 +X ＝ 徑向）
+    step.rotation.y = spec.rot + Math.PI / 2;
+    step.userData.noCollide = true;
+    grp.add(step);
+  }
+  // 第三級：抬起來、只剩一圈光（不是物質 —— 站不上去，也擋不住人）
+  const ghost = new THREE.Mesh(box(r * 0.9, 0.08, 0.3), glow(kit.accent, 0.9));
+  ghost.position.set(dirX * (r + 0.86), 0.82, dirZ * (r + 0.86));
+  ghost.rotation.y = spec.rot + Math.PI / 2;
+  ghost.userData.noCollide = true;
+  grp.add(ghost);
+}
+
+/**
+ * 齒輪工坊：裙邊伸出一截短臂，臂端吊著一小件；再往前那一節只剩光
+ * （母題 `oneSmallPiece` 的同一句話：一次只吊一小件）。
+ *
+ * 臂是**沿著半徑**伸出去的 —— 這一次寬邊本來就該指著外面，所以不加 90°
+ * （不是每一片裝飾都要轉，要問的是「這東西的長邊該朝哪」）。
+ * 截面 0.24 × 0.24 → 稽核當它是細桿；吊著的那一小件邊長 0.42，也在 `PLATE_MIN` 之下。
+ */
+function dressHoistStep(grp, { spec, kit, r, h }) {
+  const dirX = Math.cos(spec.rot);
+  const dirZ = -Math.sin(spec.rot);
+  const boom = new THREE.Mesh(box(r * 1.1, 0.24, 0.24), stone(kit.dark));
+  boom.position.set(dirX * (r + 0.34), h - 0.22, dirZ * (r + 0.34));
+  boom.rotation.y = spec.rot;
+  boom.rotation.z = -0.14;
+  boom.userData.noCollide = true;
+  grp.add(boom);
+  const load = new THREE.Mesh(box(0.42, 0.42, 0.42), stone(kit.dark));
+  load.position.set(dirX * (r + 0.78), h - 0.72, dirZ * (r + 0.78));
+  load.rotation.y = spec.rot + 0.35;
+  load.userData.noCollide = true;
+  grp.add(load);
+  // 斷掉的下一節：只剩光（「一整件事」那一次留下來的）
+  const ghost = new THREE.Mesh(box(r * 0.7, 0.1, 0.22), glow(kit.accent, 1.0));
+  ghost.position.set(dirX * (r + 1.3), h - 0.16, dirZ * (r + 1.3));
+  ghost.rotation.y = spec.rot;
+  ghost.userData.noCollide = true;
+  grp.add(ghost);
+}
+
+/**
+ * 減法之庭：**被搬空的那一座**——外圈只剩四個空托座，被拿走的那件只剩一圈懸空的光。
+ *
+ * 這片土地的造景規則跟其他十一片相反（§1.4：東西要少），
+ * 所以裙上一件雜物都沒有：四個矮托座 ＋ 一圈光，就這樣。
+ */
+function dressTakenStep(grp, { spec, kit, r, h }) {
+  for (let i = 0; i < 4; i += 1) {
+    const a = spec.rot + (i / 4) * Math.PI * 2;
+    const socket = new THREE.Mesh(box(0.46, 0.3, 0.46), stone(kit.dark));
+    socket.position.set(Math.cos(a) * (r + 0.34), 0.15, Math.sin(a) * (r + 0.34));
+    socket.rotation.y = -a;
+    socket.userData.noCollide = true;
+    grp.add(socket);
+  }
+  // 被拿走的那一件：只剩一圈懸在頂面上方的光輪廓（地標「空的基座」的同一句話）
+  const outline = new THREE.Mesh(flatRing(r * 0.3, r * 0.36), glow(kit.light, 0.9));
+  outline.rotation.x = -Math.PI / 2;
+  outline.position.y = h + 0.62;
+  outline.userData.noCollide = true;
+  grp.add(outline);
+}
+
+/**
+ * 校驗場：裙上嵌著一圈被磨過的鏡面，鼓身腰上兩道刻線 ——
+ * 一道是原本寫的、一道是改過的（地標「會回頭照自己的鏡」的同一句話）。
+ */
+function dressMirrorStep(grp, { spec, kit, r, h }) {
+  const n = 6;
+  for (let i = 0; i < n; i += 1) {
+    const a = spec.rot + (i / n) * Math.PI * 2;
+    const pane = new THREE.Mesh(box(r * 0.62, 0.5, 0.1), glow(kit.light, i === 0 ? 0.9 : 0.45));
+    pane.position.set(Math.cos(a) * (r + 0.52), 0.36, Math.sin(a) * (r + 0.52));
+    // 鏡面要正對外面 → 寬邊沿切線（同 `dressMaskStep` 的那一條）
+    pane.rotation.y = -a + Math.PI / 2;
+    pane.userData.noCollide = true;
+    grp.add(pane);
+  }
+  // 兩道刻線：下面那一道是原本寫的，上面那一道是改過的（後者亮、也短一截）
+  for (const [y, len, lit] of [
+    [h - 0.54, 0.9, 0.4],
+    [h - 0.3, 0.64, 1.1],
+  ]) {
+    const mark = new THREE.Mesh(box(0.06, 0.06, r * len), glow(kit.accent, lit));
+    mark.position.set(Math.cos(spec.rot) * (r + 0.03), y, Math.sin(spec.rot) * (r + 0.03));
+    mark.rotation.y = -spec.rot;
+    mark.userData.noCollide = true;
+    grp.add(mark);
+  }
+}
+
 const BAND_KINDS = { stairRidge: buildStairRidge };
 const MOTIF_KINDS = {
   twiceShown: buildTwiceShown,
   pageStack: buildPageStack,
   oneSmallPiece: buildOneSmallPiece,
   emptyMask: buildEmptyMask,
+  unnamedTool: buildUnnamedTool,
 };
 
 const PLATFORM_KINDS = {
@@ -1214,6 +1532,10 @@ const PLATFORM_KINDS = {
   pageStep: (spec, kit, heightAt) => buildStepStone(spec, kit, heightAt, dressPageStep),
   gaugeStep: (spec, kit, heightAt) => buildStepStone(spec, kit, heightAt, dressGaugeStep),
   maskStep: (spec, kit, heightAt) => buildStepStone(spec, kit, heightAt, dressMaskStep),
+  twiceStep: (spec, kit, heightAt) => buildStepStone(spec, kit, heightAt, dressTwiceStep),
+  hoistStep: (spec, kit, heightAt) => buildStepStone(spec, kit, heightAt, dressHoistStep),
+  takenStep: (spec, kit, heightAt) => buildStepStone(spec, kit, heightAt, dressTakenStep),
+  mirrorStep: (spec, kit, heightAt) => buildStepStone(spec, kit, heightAt, dressMirrorStep),
 };
 
 /** 已實作的造型 id（測試會檢查資料只用得到這些）。 */
@@ -1255,6 +1577,7 @@ export default {
   PATH_BENDS,
   corridorPolyline,
   bandFootprint,
+  bandCoreDistance,
   pointInBand,
   segmentCrossesBand,
   buildScreens,
