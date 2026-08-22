@@ -17648,6 +17648,7 @@ console.log('\n▸ 高台語法 ＋ 高處的祕密 ＋ 橋缺口（v1.2 · P15�
   const Screens15 = await import('../src/world/screens.js');
   const Jump15 = await import('../src/player/jump.js');
   const Reactive15 = await import('../src/world/reactive.js');
+  const AudioP15 = await import('../src/audio/audio.js');
 
   /* --- ① 高台：跳得上去，而且還留得下餘裕 --------------------------- */
   {
@@ -17749,6 +17750,17 @@ console.log('\n▸ 高台語法 ＋ 高處的祕密 ＋ 橋缺口（v1.2 · P15�
       ok(foundAt >= 0, `[secret:${sec.id}] 再走近就找到了`, String(foundAt));
       ok(toldAt > foundAt, `[secret:${sec.id}] **聲音先到**（比找到早一段距離）`, `${toldAt} > ${foundAt}`);
       eq(heard.filter((e) => e.kind === 'secret-tell').length, 1, `[secret:${sec.id}] 那一聲只響一次`);
+      /*
+       * **那個音名要真的存在。** `audio.cue()` 對不認得的名字是「靜靜地回 false」——
+       * 打錯字的後果是「這個 tell 永遠沒有聲音」，而其他每一條斷言都照樣綠
+       * （P15 第一版寫成 `chime`，世界上根本沒有這支音）。
+       */
+      const tellEvt = heard.find((e) => e.kind === 'secret-tell');
+      ok(
+        tellEvt && (tellEvt.sound in AudioP15.SFX || tellEvt.sound in AudioP15.SFX_FILES),
+        `[secret:${sec.id}] 那一聲用的是音效表裡真的有的名字`,
+        tellEvt ? tellEvt.sound : '?'
+      );
     }
     // 反例：沒有 sound tell 的那幾處，走過去一聲都不響
     for (const sec of secrets.filter((sc) => sc.tell !== 'sound').slice(0, 3)) {

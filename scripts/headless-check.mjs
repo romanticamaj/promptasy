@@ -33,6 +33,8 @@ const CATALOG = createCatalog({
 });
 const EXPECT = readData('scripts/expected-counts.json').contract;
 const TECHNIQUE_TOTAL = CATALOG.counts.techniques;
+/** v1.2 · P15：藏起來的地方有幾處（圖鑑的「秘境」那一章要列滿）。 */
+const SECRET_TOTAL = readData('src/data/secrets.json').entries.length;
 
 const DEV_PORT = Number(process.env.PA_PORT || 5199);
 const CDP_PORT = Number(process.env.PA_CDP_PORT || 9333);
@@ -2050,7 +2052,10 @@ async function main() {
        */
       let bridgePt = null;
       const lanes = [...(w.corridors || []), ...(w.annexLinks || [])];
+      // v1.2 · P15：開了缺口的那一座橋**是**跳得起來的 —— 這一段要驗的是「沒有缺口的橋」
+      const gapRegions = new Set((w.bridgeGaps || []).map((gp) => gp.region));
       for (const c of lanes) {
+        if (gapRegions.has(c.region)) continue;
         const len = c.length || Math.hypot(c.to.x - c.from.x, c.to.z - c.from.z);
         for (let t = 2; t < len && !bridgePt; t += 0.5) {
           const x = c.from.x + c.dir.x * t;
@@ -4352,8 +4357,14 @@ async function main() {
     const g = window.__promptasy;
     return {
       open: g.codex.isOpen,
-      techs: document.querySelectorAll('#codex .tech').length,
-      locked: document.querySelectorAll('#codex .tech--locked').length,
+      /*
+       * v1.2 · P15：圖鑑多了一章「秘境」，它也用 .tech 的版型（方向鍵才走得進去）——
+       * 所以這兩條要**限定在技巧那一疊裡**（div.codex 是區域卡那一塊）。
+       * 不限定的話，數的會是「技巧 ＋ 祕密」，那一條就講錯了自己在量什麼。
+       */
+      techs: document.querySelectorAll('#codex .codex .tech').length,
+      locked: document.querySelectorAll('#codex .codex .tech--locked').length,
+      secretRows: document.querySelectorAll('#codex .finds .tech').length,
       collected: g.progression.state.collected.length,
       total: g.content.curriculum.techniques.length,
       inPanel: document.querySelector('#codex .panel').contains(document.activeElement),
@@ -4379,6 +4390,7 @@ async function main() {
     '未收集的技巧與技法都顯示為 ???'
   );
   eq(codex.inPanel, true, '圖鑑開啟時焦點在面板內（M6 無障礙）');
+  eq(codex.secretRows, SECRET_TOTAL, `圖鑑的「秘境」章節列出 ${SECRET_TOTAL} 處`, String(codex.secretRows));
   await key('Escape', 'Escape', { vk: 27 });
   await sleep(250);
 
@@ -18143,6 +18155,426 @@ async function main() {
     // 收尾：回到高原，後面的檢查從乾淨的位置繼續
     await evaluate(`window.__promptasy.player.teleport(0, 6); return 1;`);
     await sleep(240);
+  }
+
+  /* ================================================================ */
+  console.log('\n▸ 高台語法 ＋ 高處的祕密 ＋ 橋缺口（v1.2 · P15）');
+  /* --- v1.2 · P15：高台語法 ＋ 高處的祕密 ＋ 橋缺口 -------------------
+   *
+   * 三件事，全部用**真的按鍵**做（不對唯讀 getter 指派、不用固定 sleep 對齊牆鐘）：
+   *   ① 跳上兩座高台；其中一座頂上有東西 —— 站在它腳下**撿不到**，跳上去才撿得到
+   *   ② 圖鑑的「秘境」章節看得到剛剛撿到的那一處
+   *   ③ 橋上那道缺口：**完全不按 J** 沿窄板走得過去；缺口正中央跳過去也成立
+   *
+   * **拆成五段短的 evaluate**：一次 `Runtime.evaluate` 有 90 秒的 CDP 上限，
+   * 而這台機器是軟體渲染（一幀可能 0.2 秒）—— 一整段跑下來一定超時
+   * （第一版就是這樣中斷的）。每一段都自己把鍵放掉、自己輪詢到條件成立。
+   */
+  const P15_PRELUDE = `
+    const g = window.__promptasy;
+    const w = g.world;
+    const P = () => g.player.position;
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    /*
+     * 遊戲時鐘（window.__gt）是「移動與鏡頭手感」那一節裝上去的，可是**入場門那一節
+     * 會重新載入整頁**——重載之後它就不見了（這一節搬到檔案最後之後第一次跑就是這樣中斷的）。
+     * 所以這裡自己補裝一次：沒有才裝，已經有就沿用同一個時鐘（不會重複註冊 onUpdate）。
+     */
+    if (!window.__gt) {
+      window.__gt = { t: 0 };
+      g.engine.onUpdate((dt) => { window.__gt.t += dt; });
+    }
+    const waitGame = async (seconds) => {
+      const until = window.__gt.t + seconds;
+      const bail = performance.now() + seconds * 8000 + 4000;
+      while (window.__gt.t < until && performance.now() < bail) await new Promise((r) => setTimeout(r, 30));
+    };
+    const press = (code) => window.dispatchEvent(new KeyboardEvent('keydown', { code }));
+    const release = (code) => window.dispatchEvent(new KeyboardEvent('keyup', { code }));
+    const releaseAll = () => { for (const c of ['KeyW', 'KeyJ', 'ArrowLeft', 'ArrowRight']) release(c); };
+    const wrap = (d) => { while (d > Math.PI) d -= Math.PI * 2; while (d < -Math.PI) d += Math.PI * 2; return d; };
+    /** 轉向：一律按真的方向鍵、輪詢到位（cameraYaw 是唯讀 getter，指派是空包彈）。 */
+    const faceToward = async (tx, tz) => {
+      const want = () => Math.atan2(tx - P().x, tz - P().z);
+      const diff = () => wrap(want() - g.player.cameraYaw);
+      const sign0 = Math.sign(diff());
+      if (sign0 === 0) return 0;
+      const dir = sign0 > 0 ? 'ArrowLeft' : 'ArrowRight';
+      press(dir);
+      const bail = performance.now() + 12000;
+      while (performance.now() < bail) {
+        const d = diff();
+        if (Math.abs(d) < 0.14 || Math.sign(d) !== sign0) break;
+        await sleep(20);
+      }
+      release(dir);
+      await waitGame(0.1);
+      return Math.abs(diff());
+    };
+    const gapSpec = () => (w.bridgeGaps || [])[0] || null;
+    const gapPt = (along, lat) => {
+      const gp = gapSpec();
+      const c = (w.corridors || []).find((co) => co.region === gp.region);
+      return {
+        x: c.from.x + c.dir.x * along + -c.dir.z * lat,
+        z: c.from.z + c.dir.z * along + c.dir.x * lat,
+      };
+    };
+    const alongOf = (x, z) => {
+      const gp = gapSpec();
+      const c = (w.corridors || []).find((co) => co.region === gp.region);
+      return (x - c.from.x) * c.dir.x + (z - c.from.z) * c.dir.z;
+    };
+    if (g.gateAsk.isOpen) g.gateAsk.close({ silent: true });
+    if (g.codex.isOpen) g.codex.close();
+    releaseAll();
+  `;
+
+  /* ① 一座高台一段：走過去 → 跳上去 → （有 reveals 的）撿到頂上那件東西 → 走下來 */
+  const p15Ids = await evaluate(`
+    const w = window.__promptasy.world;
+    return (w.platforms || []).filter((pf) => pf.region === 'foundations').map((pf) => pf.id);
+  `);
+  const p15Steps = [];
+  for (const id of p15Ids) {
+    // eslint-disable-next-line no-await-in-loop
+    const step = await evaluate(`
+      ${P15_PRELUDE}
+      await waitGame(0.2);
+      const pf = (w.platforms || []).find((x) => x.id === ${JSON.stringify(id)});
+      const solid = w.solids.find((c) => c.id === ${JSON.stringify(id)});
+      const step = { id: ${JSON.stringify(id)}, found: Boolean(solid), reveals: (pf && pf.reveals) || null };
+      if (!solid) return step;
+      // 旁邊一點點、但站得住的落腳點（同 P14：從 r+2.2 往外找第一個清的點）
+      let start = null;
+      for (let d = solid.r + 2.2; d < solid.r + 7 && !start; d += 0.4) {
+        for (let a = 0; a < 24 && !start; a += 1) {
+          const t = (a / 24) * Math.PI * 2;
+          const x = solid.x + Math.cos(t) * d;
+          const z = solid.z + Math.sin(t) * d;
+          if (w.isClear(x, z)) start = { x, z };
+        }
+      }
+      step.start = start;
+      if (!start) return step;
+      g.player.teleport(start.x, start.z);
+      await waitGame(0.5);
+      if (step.reveals) {
+        // 站在腳下、腳在地上：那一處祕密還撿不到（高處的 tell 就是這件事）
+        step.foundBefore = g.progression.hasFoundSecret(step.reveals);
+        await waitGame(0.8);
+        step.footLevelFound = g.progression.hasFoundSecret(step.reveals);
+        step.footY = Math.abs(P().y - w.terrainHeight(P().x, P().z));
+      }
+      /*
+       * **J 要按著不放**（同 P14）：一幀 0.2 秒時 keydown/keyup 可能整組落在兩幀之間，
+       * held 於是永遠是 false ——「鬆手提前下落」會把每一跳都砍成半高（0.52 公尺），
+       * 那樣**永遠跳不上 1.7 公尺的高台**。落地那一刻才放開 J 與 W。
+       */
+      /*
+       * **先走到貼著它，再原地 W ＋ J**（同 P14 的 approach）：
+       * 從兩公尺外衝過去的話，撞上石鼓那一幀 clampPosition() 會把水平速度砍到 20%，
+       * 人升上去的時候已經沒有前進的力氣、又落回原地（第一版就是這樣四次都沒上去）。
+       */
+      const approach = async (tx, tz, stopAt) => {
+        await faceToward(tx, tz);
+        press('KeyW');
+        const bail = performance.now() + 12000;
+        while (performance.now() < bail) {
+          if (Math.hypot(P().x - tx, P().z - tz) <= stopAt) break;
+          await sleep(35);
+        }
+        release('KeyW');
+        const restBail = performance.now() + 4000;
+        while (g.player.speed > 0.05 && performance.now() < restBail) await sleep(40);
+        await waitGame(0.2);
+        return Math.hypot(P().x - tx, P().z - tz);
+      };
+      step.approached = await approach(solid.x, solid.z, solid.r + 0.62 + 0.45);
+      let landed = false;
+      let tries = 0;
+      for (; tries < 6 && !landed; tries += 1) {
+        await faceToward(solid.x, solid.z);
+        press('KeyW');
+        const before = g.player.jump.jumps;
+        press('KeyJ');
+        const bail = performance.now() + 10000;
+        while (performance.now() < bail) {
+          if (g.player.standingOn === step.id) { landed = true; break; }
+          if (g.player.jump.jumps > before && !g.player.jump.airborne) break;
+          await sleep(35);
+        }
+        release('KeyJ');
+        release('KeyW');
+        // 等殘餘速度停下來再判生死（落地時還會滑一小段）
+        const restBail = performance.now() + 5000;
+        while (g.player.speed > 0.05 && performance.now() < restBail) await sleep(40);
+        await waitGame(0.3);
+        if (g.player.standingOn === step.id) landed = true;
+        if (!landed) { g.player.teleport(start.x, start.z); await waitGame(0.3); await approach(solid.x, solid.z, solid.r + 0.62 + 0.45); }
+      }
+      step.tries = tries;
+      step.standing = g.player.standingOn;
+      step.landed = landed;
+      if (landed) {
+        const p = P();
+        step.footAbove = p.y - w.terrainHeight(p.x, p.z);
+        if (step.reveals) {
+          const bail = performance.now() + 9000;
+          while (performance.now() < bail) {
+            if (g.progression.hasFoundSecret(step.reveals)) break;
+            await sleep(60);
+          }
+          step.foundOnTop = g.progression.hasFoundSecret(step.reveals);
+        }
+        press('KeyW');
+        const bail2 = performance.now() + 9000;
+        let left = false;
+        while (performance.now() < bail2) {
+          if (!left && g.player.standingOn === null) left = true;
+          if (left && !g.player.jump.airborne) break;
+          await sleep(35);
+        }
+        release('KeyW');
+        await waitGame(0.5);
+        step.afterFoot = Math.abs(P().y - w.terrainHeight(P().x, P().z));
+        step.afterStanding = g.player.standingOn;
+      }
+      releaseAll();
+      return step;
+    `);
+    p15Steps.push(step);
+  }
+
+  {
+    eq(p15Ids.length, 2, 'P15：中央高原上有兩座高台', p15Ids.join(','));
+    for (const st of p15Steps) {
+      eq(st.found, true, `P15：世界裡找得到 ${st.id} 那一顆碰撞圓`);
+      ok(Boolean(st.start), `P15：${st.id} 旁邊找得到落腳點`, JSON.stringify(st.start));
+      eq(st.landed, true, `P15：跳上了 ${st.id}（player.standingOn 說得出是誰）`, String(st.standing));
+      ok(st.tries < 6, `P15：跳上 ${st.id} 不用把重試次數用光（真的跳上去了才停）`, `tries=${st.tries}`);
+      ok(st.approached < 5, `P15：真的貼著 ${st.id}（不是在遠處跳）`, `d=${(st.approached || 0).toFixed(2)}`);
+      ok(st.footAbove > 1.4, `P15：${st.id} 站上去之後腳真的被抬高`, `+${(st.footAbove || 0).toFixed(2)}m`);
+      eq(st.afterStanding, null, `P15：從 ${st.id} 走下來之後就不再站在它上面`);
+      ok(st.afterFoot < 1e-6, `P15：從 ${st.id} 走下來之後貼回地形`, `d=${st.afterFoot}`);
+    }
+    const withSecret = p15Steps.filter((st) => st.reveals);
+    eq(withSecret.length, 1, 'P15：兩座裡剛好一座頂上有東西');
+    for (const st of withSecret) {
+      eq(st.foundBefore, false, `P15：跑之前那一處祕密還沒被找到（${st.reveals}）`);
+      ok(st.footY < 1e-6, 'P15：站在高台腳下時腳就在地形上', `d=${st.footY}`);
+      eq(st.footLevelFound, false, 'P15：**站在腳下等一整拍也撿不到**（高處的 tell 就是這件事）');
+      eq(st.foundOnTop, true, 'P15：跳上去之後那一處祕密就被撿到了');
+    }
+  }
+
+  /* ② 圖鑑的「秘境」章節看得到剛剛撿到的那一處 */
+  {
+    const secretId = (p15Steps.find((st) => st.reveals) || {}).reveals || null;
+    const cx = await evaluate(`
+      ${P15_PRELUDE}
+      await waitGame(0.2);
+      const sec = (g.secretData.entries || []).find((e) => e.id === ${JSON.stringify(secretId)}) || null;
+      g.codex.open();
+      const bail = performance.now() + 9000;
+      while (performance.now() < bail && !g.codex.isOpen) await sleep(60);
+      const root = g.codex.root;
+      const text = root ? root.textContent : '';
+      const out = {
+        open: g.codex.isOpen,
+        title: sec ? sec.title : null,
+        tell: sec ? sec.tell : null,
+        hasChapter: text.includes('秘境'),
+        hasTitle: Boolean(sec) && text.includes(sec.title),
+        hasTellLabel: text.includes('高處'),
+        locked: (root ? root.querySelectorAll('.tech--locked').length : 0) > 0,
+      };
+      g.codex.close();
+      const bail2 = performance.now() + 9000;
+      while (performance.now() < bail2 && g.codex.isOpen) await sleep(60);
+      out.closed = !g.codex.isOpen;
+      await waitGame(0.3);
+      return out;
+    `);
+    eq(cx.open, true, 'P15：圖鑑打得開');
+    eq(cx.hasChapter, true, 'P15：圖鑑有「秘境」這一章');
+    ok(Boolean(cx.title), 'P15：剛剛撿到的那一處有標題', String(cx.title));
+    eq(cx.tell, 'high', 'P15：撿到的那一處就是「高處」的 tell');
+    eq(cx.hasTitle, true, `P15：秘境章節列出了剛撿到的「${cx.title}」`);
+    eq(cx.hasTellLabel, true, 'P15：秘境章節看得到 tell 的說法');
+    eq(cx.locked, true, 'P15：還沒找到的那幾處只留剪影（收集本身就是動力）');
+    eq(cx.closed, true, 'P15：圖鑑關得掉');
+  }
+
+  /* ③a 完全不按 J：沿窄板一段一段走過缺口 */
+  {
+    const wlk = await evaluate(`
+      ${P15_PRELUDE}
+      const gp = gapSpec();
+      if (!gp) return { spec: null };
+      const plank = ((gp.keepFrom + gp.keepTo) / 2) * gp.keepSide;
+      const from = gapPt(gp.at - 5, plank);
+      g.player.teleport(from.x, from.z);
+      await waitGame(0.8);
+      if (g.gateAsk.isOpen) g.gateAsk.close({ silent: true });
+      const jumpsBefore = g.player.jump.jumps;
+      const worst = { cover: 1, inGap: 0, offGround: 0, samples: 0 };
+      // 一公尺一個路點：每一段先轉向再走，輪詢到接近才放手（不用固定 sleep）
+      // 只走到缺口後 3 公尺就好：再往前就踏進閘門的詢問圈（7.5 公尺），面板一開就走不動了
+      for (let d = -3; d <= 3; d += 1) {
+        const wp = gapPt(gp.at + d, plank);
+        await faceToward(wp.x, wp.z);
+        press('KeyW');
+        const bail = performance.now() + 7000;
+        while (performance.now() < bail) {
+          const p = P();
+          worst.samples += 1;
+          worst.cover = Math.min(worst.cover, w.coverage(p.x, p.z));
+          if (w.gapAt(p.x, p.z)) worst.inGap += 1;
+          worst.offGround = Math.max(worst.offGround, Math.abs(p.y - w.terrainHeight(p.x, p.z)));
+          if (Math.hypot(p.x - wp.x, p.z - wp.z) < 0.7) break;
+          await sleep(35);
+        }
+        release('KeyW');
+        await waitGame(0.1);
+      }
+      releaseAll();
+      await waitGame(0.4);
+      const p = P();
+      return {
+        spec: gp,
+        jumpsDelta: g.player.jump.jumps - jumpsBefore,
+        along: alongOf(p.x, p.z),
+        crossed: alongOf(p.x, p.z) > gp.at + gp.length / 2,
+        worstCover: worst.cover,
+        inGapSamples: worst.inGap,
+        samples: worst.samples,
+        worstOffGround: worst.offGround,
+        airborne: g.player.jump.airborne,
+      };
+    `);
+    ok(Boolean(wlk.spec), 'P15：世界裡真的有一道橋缺口', JSON.stringify(wlk.spec));
+    ok(wlk.samples > 20, 'P15：窄板那一段真的取樣到了（不是空過）', String(wlk.samples));
+    eq(wlk.jumpsDelta, 0, 'P15：**全程一次 J 都沒按**（走窄板不需要跳）');
+    eq(wlk.crossed, true, 'P15：不按 J 也走得完這一座橋（繞窄板過去了）', `along=${(wlk.along || 0).toFixed(1)}`);
+    eq(wlk.inGapSamples, 0, 'P15：整段路一次都沒有踩進缺口裡');
+    ok(wlk.worstCover >= 0.45, 'P15：**最糟的那一個取樣點**仍然踩得到地', `worst=${wlk.worstCover.toFixed(2)}`);
+    ok(wlk.worstOffGround < 1e-6, 'P15：走窄板的整段時間腳下都精確等於地形高度', `worst=${wlk.worstOffGround}`);
+    eq(wlk.airborne, false, 'P15：走完之後沒有離地');
+  }
+
+  /* ③b 缺口正中央：跑起來跳過去 */
+  {
+    const jmp = await evaluate(`
+      ${P15_PRELUDE}
+      const gp = gapSpec();
+      /*
+       * 起跑點刻意退到缺口前 7 公尺：**要在踏上斷口之前就離地**。
+       * 水平位移是在 updateVertical() **之前**算的，所以起跳那一幀腳還在地上
+       * （feetY === null）—— 那一幀撞上斷口就會被夾住、水平速度被砍到 20%，
+       * 於是「站在斷口邊上起跳」永遠差一點。退遠一點、早一點起跳就沒有這個問題。
+       * J 一樣**按著不放**（鬆手會把跳躍砍成半高）。
+       */
+      const from = gapPt(gp.at - 7, 0);
+      const target = gapPt(gp.at + 8, 0);
+      g.player.teleport(from.x, from.z);
+      await waitGame(0.8);
+      if (g.gateAsk.isOpen) g.gateAsk.close({ silent: true });
+      const out = { startAlong: alongOf(P().x, P().z), startClear: w.isClear(P().x, P().z) };
+      const before = g.player.jump.jumps;
+      let crossed = false;
+      let tries = 0;
+      for (; tries < 4 && !crossed; tries += 1) {
+        await faceToward(target.x, target.z);
+        press('KeyW');
+        // 跑到離斷口還有 3 公尺左右就起跳（不是等速度，也不是等牆鐘）
+        const runBail = performance.now() + 6000;
+        while (performance.now() < runBail && alongOf(P().x, P().z) < gp.at - 4.2) await sleep(30);
+        press('KeyJ');
+        const bail = performance.now() + 9000;
+        while (performance.now() < bail) {
+          const p = P();
+          if (alongOf(p.x, p.z) > gp.at + gp.length / 2 + 0.4) { crossed = true; break; }
+          if (g.player.jump.jumps > before && !g.player.jump.airborne) break;
+          await sleep(30);
+        }
+        release('KeyJ');
+        release('KeyW');
+        await waitGame(0.4);
+        if (!crossed) {
+          g.player.teleport(from.x, from.z);
+          await waitGame(0.4);
+        }
+      }
+      out.tries = tries;
+      releaseAll();
+      await waitGame(0.5);
+      const p = P();
+      out.jumpsDelta = g.player.jump.jumps - before;
+      out.crossed = crossed;
+      out.along = alongOf(p.x, p.z);
+      out.inGap = Boolean(w.gapAt(p.x, p.z));
+      out.foot = Math.abs(p.y - w.terrainHeight(p.x, p.z));
+      out.cover = w.coverage(p.x, p.z);
+      return out;
+    `);
+    eq(jmp.startClear, true, 'P15：缺口前那一步站得住（起點不是碰運氣）');
+    ok(jmp.jumpsDelta >= 1, 'P15：缺口那一座橋上按 J 真的跳得起來', `jumps+${jmp.jumpsDelta}`);
+    eq(jmp.crossed, true, 'P15：從缺口正中央跳過去了', `along=${(jmp.along || 0).toFixed(1)}`);
+    eq(jmp.inGap, false, 'P15：落點不在缺口裡');
+    ok(jmp.cover >= 0.45, 'P15：落點踩得到地', `cover=${(jmp.cover || 0).toFixed(2)}`);
+    ok(jmp.foot < 1e-6, 'P15：跳過去之後貼回地形', `d=${jmp.foot}`);
+  }
+
+  /* ③c 站在缺口正中央：保險絲一步一步把人請出去（不瞬移、不被關住） */
+  {
+    const fuse = await evaluate(`
+      ${P15_PRELUDE}
+      const gp = gapSpec();
+      const mid = gapPt(gp.at, 0);
+      g.player.teleport(mid.x, mid.z);
+      await waitGame(0.15);
+      const startIn = Boolean(w.gapAt(P().x, P().z));
+      let biggest = 0;
+      let prev = { x: P().x, z: P().z };
+      const bail = performance.now() + 10000;
+      while (performance.now() < bail) {
+        const p = P();
+        biggest = Math.max(biggest, Math.hypot(p.x - prev.x, p.z - prev.z));
+        prev = { x: p.x, z: p.z };
+        if (!w.gapAt(p.x, p.z)) break;
+        await sleep(45);
+      }
+      const out = {
+        startIn,
+        escaped: !w.gapAt(P().x, P().z),
+        biggestStep: biggest,
+        walkable: w.isWalkable(P().x, P().z),
+        foot: Math.abs(P().y - w.terrainHeight(P().x, P().z)),
+      };
+      // 收尾：回中央高原，等進區演出過去
+      releaseAll();
+      g.player.teleport(0, 6);
+      await waitGame(0.8);
+      const homeBail = performance.now() + 9000;
+      while (performance.now() < homeBail) {
+        const here = w.regionAt(P().x, P().z);
+        if (here && here.id === 'foundations' && !here.onBridge) break;
+        await sleep(100);
+      }
+      if (g.gateAsk.isOpen) g.gateAsk.close({ silent: true });
+      await waitGame(0.4);
+      out.home = (w.regionAt(P().x, P().z) || {}).id || null;
+      out.finalFoot = Math.abs(P().y - w.terrainHeight(P().x, P().z));
+      return out;
+    `);
+    eq(fuse.startIn, true, 'P15：被放到缺口正中央時，人真的在缺口裡');
+    eq(fuse.escaped, true, 'P15：保險絲把人請出缺口了（不會被關住）');
+    ok(fuse.biggestStep < 1.2, 'P15：請出去是一步一步走的（不瞬移）', `max=${(fuse.biggestStep || 0).toFixed(2)}m`);
+    eq(fuse.walkable, true, 'P15：被請到的那一點站得住');
+    ok(fuse.foot < 1e-6, 'P15：被請出來之後腳下就是地形高度', `d=${fuse.foot}`);
+    eq(fuse.home, 'foundations', 'P15：這一節結束時回到中央高原');
+    ok(fuse.finalFoot < 1e-6, 'P15：這一節結束時玩家貼回地形');
   }
 
   /* ================================================================ */

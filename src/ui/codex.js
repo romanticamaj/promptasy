@@ -363,7 +363,12 @@ export function createCodex({
     const legend = SECRET_TELL_ORDER.filter((k) => secrets.some((sc) => sc.tell === k))
       .map((k) => `<b>${esc(TELL_LABEL[k])}</b>：${esc(secretTells[k] || '')}`)
       .join('<br>');
-    return `<div class="seals">
+    /*
+     * 版型借技巧那一疊的 `.tech`（方向鍵才走得進去、樣式也一致），
+     * 但外面包一層 `.finds` —— 「這一疊不是技巧」在選擇器上就分得開
+     * （e2e 數技巧條數時限定在 `.codex .tech` 裡）。
+     */
+    return `<div class="seals finds">
       <div class="meta-rule"><h4><span class="zh">秘境</span><span class="en">Hidden Places</span></h4></div>
       <p class="muted" style="margin:0 0 var(--s4);font-size:var(--t-micro)">走進去就算找到，不用按鍵。它們不教任何技巧 —— 只是這個世界自己的事（${found} / ${secrets.length}）。</p>
       <ul class="techs">${secrets.map((sc) => secretCard(sc, names.get(sc.region) || sc.region)).join('')}</ul>

@@ -684,6 +684,15 @@ export const SECRET_TELLS = Object.freeze(['odd', 'sound', 'high']);
 /** 「聲音先到」的外圈是發現半徑的幾倍。 */
 export const SECRET_TELL_RATIO = 1.8;
 /**
+ * 「聲音先到」放的是哪一支音（風鈴那一支很細的合成音）。
+ *
+ * **一定要是 `audio.js` 的音效表裡真的有的名字。** `audio.cue()` 對不認得的名字是
+ * 「靜靜地回 false」——不報錯、不丟例外，所以打錯字的後果是「這個 tell 永遠沒有聲音」，
+ * 而其他每一條斷言都照樣綠（P15 第一版寫成 `chime`，世界上根本沒有這一支）。
+ * `test:rubric` 因此逐處比對這個名字真的在音效表裡。
+ */
+export const SECRET_TELL_SOUND = 'chimeSoft';
+/**
  * 「高處」搆得到的門檻：腳離自己腳下的地至少這麼高（公尺）。
  *
  * **刻意是一個固定的常數，不是「那座高台的頂面」**：門檻若跟著高台走，
@@ -1008,7 +1017,7 @@ export function createReactiveField({
           s.told = true;
           if (onReact && clock - lastSoundAt >= SOUND_COOLDOWN) {
             lastSoundAt = clock;
-            onReact({ id: s.id, kind: 'secret-tell', sound: 'chime', note: PENTATONIC[0], baseScale: semitone(19) });
+            onReact({ id: s.id, kind: 'secret-tell', sound: SECRET_TELL_SOUND, note: PENTATONIC[0], baseScale: semitone(19) });
           }
         }
         const r = (s.spec.radius || SECRET_RADIUS) ** 2;
@@ -1033,6 +1042,7 @@ export default {
   SECRET_RADIUS,
   SECRET_TELLS,
   SECRET_TELL_RATIO,
+  SECRET_TELL_SOUND,
   SECRET_HIGH_REACH,
   buildReaction,
   buildSecret,

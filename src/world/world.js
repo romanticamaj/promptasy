@@ -380,7 +380,8 @@ export function gapAt(x, z, gaps = BRIDGE_GAPS) {
 }
 
 /**
- * 缺口的四個角（世界座標，順時針）—— 幾何、稽核與測試共用同一份足跡。
+ * 缺口的**局部座標系**（世界座標）：原點在缺口正中央、`u` 沿橋、`v` 朝左手邊。
+ * 幾何、e2e 與測試共用同一支 —— 「沿橋 d 公尺、旁邊 s 公尺」在三個地方是同一個意思。
  * @returns {null|{corridor:object, ax:number, az:number, ux:number, uz:number, vx:number, vz:number}}
  */
 export function gapFrame(gap) {
