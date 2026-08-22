@@ -1176,9 +1176,16 @@ function dressMaskStep(grp, { spec, kit, r, h }) {
    * 它是貼在裙上的一片浮雕，不是一面牆，所以既不必有碰撞體、穿模稽核也不列它。
    * （P15 第一版做成 1.8 公尺高，稽核當場紅了兩塊「有份量卻走得過去」。）
    */
+  /*
+   * 轉向要**讓薄的那一邊朝外**：`rotation.y = θ` 把局部 +X 轉到 (cosθ, −sinθ)，
+   * 也就是徑向 —— 直接用 `spec.rot` 會讓 1.12 公尺寬的那一邊**指向外面**，
+   * 變成一片從石鼓側面伸出去 0.56 公尺的鰭（人還會直接穿過去），
+   * 而不是貼在裙上的浮雕（P15 審查 · 第 4 條）。加 90° 之後寬邊沿著切線、
+   * 0.12 的厚度朝外，才是「一片很淺的浮雕」。
+   */
   const face = new THREE.Mesh(box(r * 0.7, 0.8, 0.12), stone(kit.dark));
   face.position.set(dirX * (r + 0.05), 0.62, dirZ * (r + 0.05));
-  face.rotation.y = spec.rot;
+  face.rotation.y = spec.rot + Math.PI / 2;
   face.userData.noCollide = true;
   grp.add(face);
   for (const side of [-1, 1]) {
@@ -1188,7 +1195,7 @@ function dressMaskStep(grp, { spec, kit, r, h }) {
       0.74,
       dirZ * (r + 0.14) + Math.cos(spec.rot) * 0.14 * side
     );
-    eye.rotation.y = spec.rot;
+    eye.rotation.y = spec.rot + Math.PI / 2;
     eye.userData.noCollide = true;
     grp.add(eye);
   }

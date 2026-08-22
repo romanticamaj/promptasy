@@ -722,6 +722,8 @@ export function buildSecret(spec, kit, terrainHeight, lift = 0) {
   grp.rotation.y = Number.isFinite(spec.rot) ? spec.rot : 0;
   grp.name = `secret:${spec.id}`;
   grp.add(built.group);
+  // 記下「起伏之前」的高度：每一種造型的那一件東西各自被擺在不同的地方
+  if (built.stars && !built.stars.isPoints) built.stars.userData.baseY = built.stars.position.y;
   /*
    * tell「不對的東西」：一小塊顏色與這片土地格格不入的碎片（`oddAccent`）。
    * 它是**加在造型之外**的一件東西 —— 三種 tell 於是可以套在任何一種造型上，
@@ -754,7 +756,13 @@ export function buildSecret(spec, kit, terrainHeight, lift = 0) {
       if (built.spin) built.spin.rotation.z = t * 0.08;
       if (built.stars) {
         if (built.stars.isPoints) built.stars.rotation.y = t * 0.045;
-        else built.stars.position.y = 0.62 + Math.sin(t * 1.4) * 0.05 * kinetic;
+        /*
+         * 起伏要繞著**它自己被擺在哪裡**擺，不是繞著一個寫死的 0.62 ——
+         * 那會把掛在柱子頂端的風片（y=1.9）整組拉到柱腳、
+         * 把刻意平躺在石鼓面上的記號抬到 2.27 公尺（高處的 tell 就從地上看得到了）。
+         * 基準在蓋出來的那一刻就記在 `userData.baseY` 上（P15 審查 · 第 2／3 條）。
+         */
+        else built.stars.position.y = built.stars.userData.baseY + Math.sin(t * 1.4) * 0.05 * kinetic;
       }
     },
   };
@@ -1014,10 +1022,17 @@ export function createReactiveField({
          * 同一條全域聲音冷卻，不會跟旁邊的風鈴糊在一起。
          */
         if (s.tellRadius > 0 && !s.told && d2 <= s.tellRadius * s.tellRadius) {
-          s.told = true;
+          /*
+           * **響了才算說過**（P15 審查 · 第 5 條）：`told` 原本在冷卻判斷之前就記上，
+           * 所以只要進圈的那一刻剛好撞上別的反應音的 90 毫秒冷卻，這一聲就被丟掉、
+           * 而且這一處**整場再也不會響**。冷卻中就先不記，下一幀還在圈裡會再試一次。
+           */
           if (onReact && clock - lastSoundAt >= SOUND_COOLDOWN) {
+            s.told = true;
             lastSoundAt = clock;
             onReact({ id: s.id, kind: 'secret-tell', sound: SECRET_TELL_SOUND, note: PENTATONIC[0], baseScale: semitone(19) });
+          } else if (!onReact) {
+            s.told = true; // 沒有接聲音的呼叫端（測試替身）：照舊只算一次
           }
         }
         const r = (s.spec.radius || SECRET_RADIUS) ** 2;

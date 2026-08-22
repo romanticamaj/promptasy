@@ -17843,6 +17843,76 @@ console.log('\n▸ 高台語法 ＋ 高處的祕密 ＋ 橋缺口（v1.2 · P15�
     }
   }
 
+  /* --- ④b 起伏要繞著自己被擺的地方擺（P15 審查 · 第 2／3 條） --------- */
+  {
+    const kit = kitFor('#8aa0b4');
+    for (const sec of secrets) {
+      const built = Reactive15.buildSecret(sec, kit, World.terrainHeight, 0);
+      const stars = built.group.getObjectByName(`secret:${sec.id}`)
+        ? null
+        : null;
+      // `stars` 是造型自己挑的那一件（風片、記號…）；從 update 前後的差看得出來
+      const before = [];
+      built.group.traverse((o) => {
+        if (o.isMesh || o.isGroup) before.push([o, o.position.y]);
+      });
+      built.update(1 / 60, 0.0, 1);
+      let worst = 0;
+      let worstName = '';
+      for (const [o, y0] of before) {
+        const d = Math.abs(o.position.y - y0);
+        if (d > worst) {
+          worst = d;
+          worstName = o.name || '(unnamed)';
+        }
+      }
+      /*
+       * 起伏的振幅是 0.05 —— 任何一件東西被搬動超過 0.2 公尺，就是被
+       * 「繞著一個寫死的高度擺」搬走了（審查實測：掛在柱頂的風片 1.90 → 0.67）。
+       */
+      ok(worst < 0.2, `[secret:${sec.id}] 起伏沒有把東西整個搬走（最多動 ${worst.toFixed(3)}m｜${worstName}）`, worst.toFixed(3));
+      void stars;
+    }
+  }
+
+  /* --- ④c 面具浮雕貼在裙上，不是一片伸出去的鰭（P15 審查 · 第 4 條） -- */
+  {
+    const kit = kitFor('#8aa0b4');
+    const maskSpec = ScreensP15.PLATFORMS.find((pl) => pl.kind === 'maskStep');
+    ok(Boolean(maskSpec), '（前提）有一座面具劇場的高台');
+    if (maskSpec) {
+      const built15 = ScreensP15.buildScreens(maskSpec.region, kit, World.terrainHeight, {
+        bands: [],
+        motifs: [],
+        platforms: [maskSpec],
+      });
+      const grp = built15 ? built15.group : null;
+      ok(Boolean(grp), '（前提）蓋得出那一座高台');
+      if (grp) grp.updateMatrixWorld(true);
+      const cx = maskSpec.at[0];
+      const cz = maskSpec.at[1];
+      let face = null;
+      if (grp) grp.traverse((o) => {
+        if (!o.isMesh || !o.geometry || !o.geometry.parameters) return;
+        const pr = o.geometry.parameters;
+        // 浮雕：寬 ≈ r*0.7、厚 0.12 的那一片
+        if (Math.abs(pr.depth - 0.12) < 1e-6 && pr.width > 0.8) face = o;
+      });
+      ok(Boolean(face), '（前提）找得到那一片浮雕');
+      if (face) {
+        const n = new THREE.Vector3(0, 0, 1).applyQuaternion(face.getWorldQuaternion(new THREE.Quaternion())).normalize();
+        const p = face.getWorldPosition(new THREE.Vector3());
+        const radial = new THREE.Vector3(p.x - cx, 0, p.z - cz).normalize();
+        const dot = Math.abs(n.dot(radial));
+        /*
+         * 浮雕的**法線**要朝外（貼在裙上），不是它的寬邊朝外 ——
+         * 審查前實測 dot = 0.000，那是一片從側面伸出去半公尺的鰭。
+         */
+        ok(dot > 0.9, '面具浮雕的正面朝外（不是側著插出去）', dot.toFixed(3));
+      }
+    }
+  }
+
   /* --- ⑤ 橋缺口：資料契約 ＋ 逐點掃過去 ----------------------------- */
   {
     eq(World.BRIDGE_GAPS.length, EXPECT.bridgeGaps.value, '橋缺口數量＝契約值', String(World.BRIDGE_GAPS.length));
@@ -17877,7 +17947,12 @@ console.log('\n▸ 高台語法 ＋ 高處的祕密 ＋ 橋缺口（v1.2 · P15�
           const [x, z] = at(d, lat);
           const side = lat * gap.keepSide;
           const inPlank = side >= gap.keepFrom + 0.2 && side <= gap.keepTo - 0.2;
-          const walk = testWorld.isWalkable(x, z);
+          /*
+           * 窄板要用 `isClear()` 問（＝ `isWalkable` **再加上道具的碰撞體**）——
+           * 只問 `isWalkable` 的話，哪天有人把一塊石頭擺在窄板上，
+           * 這一條還是綠的（P15 審查 · 第 8 條：斷言要說得出自己在講什麼）。
+           */
+          const walk = inPlank ? testWorld.isClear(x, z) : testWorld.isWalkable(x, z);
           if (inPlank) {
             if (walk) plank += 1;
             else plankGaps += 1;

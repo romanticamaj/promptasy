@@ -1034,7 +1034,8 @@ function boot() {
     const total = (secretFile.entries || []).length;
     const found = progression.secretCount();
     if (found >= total) {
-      hud.toast(`✦ 四個藏起來的地方，你全都找到了（${found} / ${total}）`, 'good');
+      // 數量寫在資料裡，不要寫死在句子裡（P15 把 4 處變成 12 處，這句就自打嘴巴了）
+      hud.toast(`✦ 藏起來的地方，你全都找到了（${found} / ${total}）`, 'good');
       progression.setFlag('allSecretsFound', true);
       nudge.echo('collectionFull', { what: '藏起來的地方' });
     } else {

@@ -1620,10 +1620,16 @@ function buildBridgeGap(gap, kit) {
   grp.name = `bridge-gap:${gap.id}`;
   if (!f) return grp;
   const half = gap.length / 2;
-  // 甲板剩下的寬度：從窄板的內緣一路到另一側的邊
-  const inner = gap.keepFrom;
-  const outer = -5.2;
-  const width = inner - outer;
+  /*
+   * 甲板剩下的寬度：從窄板的**內緣**一路到另一側的邊。
+   * 兩個數字都要照 `keepSide` 鏡射 —— 寫死 `outer = -5.2` 的話，
+   * `keepSide: -1` 的缺口會把洞畫在窄板上面、真正的缺口反而沒有東西
+   * （`gapAt()` 那邊本來就吃 keepSide，只有幾何體沒吃）（P15 審查 · 第 6 條）。
+   */
+  const side = gap.keepSide < 0 ? -1 : 1;
+  const inner = side * gap.keepFrom;
+  const outer = side * -5.2;
+  const width = Math.abs(inner - outer);
   const mid = (inner + outer) / 2;
 
   const at = (along, lat) => [f.ax + f.ux * along + f.vx * lat, f.az + f.uz * along + f.vz * lat];
