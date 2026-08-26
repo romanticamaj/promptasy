@@ -100,7 +100,7 @@
     "src/world/watchmen.js",
     "src/world/world.js"
   ],
-  "corpusHash": "9398ac89c5d88258",
+  "corpusHash": "ac008fc5a3eacf87",
   "coverage": {
     "latin": [
       32,
@@ -565,6 +565,7 @@
       21066,
       21069,
       21070,
+      21078,
       21083,
       21085,
       21097,
@@ -1491,6 +1492,7 @@
       29289,
       29300,
       29305,
+      29313,
       29359,
       29376,
       29399,
@@ -1678,6 +1680,7 @@
       31840,
       31844,
       31852,
+      31859,
       31881,
       31890,
       31895,
@@ -1742,6 +1745,7 @@
       32350,
       32361,
       32362,
+      32363,
       32371,
       32380,
       32396,
@@ -2686,7 +2690,7 @@
       "id": "serif-tc",
       "family": "Arcade Serif TC",
       "file": "arcade-serif-tc.woff2",
-      "bytes": 703684,
+      "bytes": 705300,
       "role": "cjk",
       "variable": true,
       "weight": null,
@@ -2697,7 +2701,7 @@
           "default": 400
         }
       },
-      "requested": 1945,
+      "requested": 1949,
       "missing": 0,
       "source": "NotoSerifTC.ttf",
       "author": "Google (Noto Project)",
@@ -2709,7 +2713,7 @@
       "id": "sans-tc",
       "family": "Arcade Sans TC",
       "file": "arcade-sans-tc.woff2",
-      "bytes": 536024,
+      "bytes": 537556,
       "role": "cjk",
       "variable": true,
       "weight": null,
@@ -2720,7 +2724,7 @@
           "default": 400
         }
       },
-      "requested": 1945,
+      "requested": 1949,
       "missing": 0,
       "source": "NotoSansTC.ttf",
       "author": "Google (Noto Project)",
@@ -2729,5 +2733,5 @@
       "url": "https://github.com/google/fonts/tree/main/ofl/notosanstc"
     }
   ],
-  "totalBytes": 1564296
+  "totalBytes": 1567444
 }

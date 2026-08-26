@@ -433,6 +433,29 @@ function buildSpirit(kit) {
   };
 }
 
+/* ------------------------------------------------------------------ *
+ * 外交式導向（v1.2 · P19）
+ * ------------------------------------------------------------------ *
+ *
+ * 世界一直有一個「下一個建議去處」（指南針的針、守望石的光、HUD 的那一行），
+ * 可是**站在世界裡的東西**從來沒有指過路。這一格讓已經到處都是的螢火群
+ * 整體偏向那個方向 —— 不是箭頭，是一群東西剛好都往那邊飄。
+ *
+ * 兩段疊起來，而且**分得開**：
+ *   · `MOTH_GUIDE_LEAN`  **靜態的那一段**：整團的家往目標側挪這麼多公尺。
+ *     `prefers-reduced-motion` 留的就是它 —— 拿掉的是動，不是資訊（§2.4）。
+ *   · `MOTH_GUIDE_SPAN`  **會動的那一段**：一批螢火沿著同一個方向前後流，
+ *     平均值是 0（所以它改變的是「看起來在流」，不是重心），而且乘上 `kinetic`。
+ *
+ * 關掉導向（設定頁）→ 偏向量是 0 → 每一幀與 P19 之前**逐值相同**。
+ */
+/** 整團往目標側挪幾公尺（螢火群的散佈半徑是 2.2，所以這是看得出來的一段）。 */
+export const MOTH_GUIDE_LEAN = 0.9;
+/** 沿著同一個方向前後流的幅度（公尺）。 */
+export const MOTH_GUIDE_SPAN = 1.5;
+/** 流一圈要幾秒的倒數（每秒走完幾圈）。 */
+export const MOTH_GUIDE_RATE = 0.22;
+
 /** ⑥ 螢火群（moths）：走進去 → 往外散開，站著不動 → 慢慢又聚回來。 */
 function buildMoths(kit, opts = {}) {
   const n = opts.count || 16;
@@ -476,17 +499,32 @@ function buildMoths(kit, opts = {}) {
       this.scatter = 1;
       return { sound: 'flutter', note: 19 };
     },
-    update(dt, t, kinetic, near, toPlayerX, toPlayerZ) {
+    /**
+     * @param {number} [gx] 導向的單位向量（v1.2 · P19；`0, 0` ＝ 沒有導向，
+     *   走的就是 P19 之前那一條路）
+     * @param {number} [gz]
+     */
+    update(dt, t, kinetic, near, toPlayerX, toPlayerZ, gx = 0, gz = 0) {
       this.scatter = Math.max(0, this.scatter - dt * 0.5);
       const arr = this.points.geometry.attributes.position.array;
       const push = this.scatter * 2.6 * kinetic;
       const len = Math.hypot(toPlayerX, toPlayerZ) || 1;
       const ax = -toPlayerX / len;
       const az = -toPlayerZ / len;
+      const guided = gx !== 0 || gz !== 0;
       for (let i = 0; i < this.n; i += 1) {
-        const hx = this.home[i * 3] + ax * push * (0.5 + (i % 4) * 0.2);
+        /*
+         * 導向：靜態的一段（`LEAN`）＋ 平均值為 0 的一段（`SPAN`，吃 `kinetic`）。
+         * 沒有導向時 `lean` 是 0，下面三行與 P19 之前逐值相同。
+         */
+        let lean = 0;
+        if (guided) {
+          const phase = (t * MOTH_GUIDE_RATE + i / this.n) % 1;
+          lean = MOTH_GUIDE_LEAN + kinetic * (phase - 0.5) * MOTH_GUIDE_SPAN;
+        }
+        const hx = this.home[i * 3] + gx * lean + ax * push * (0.5 + (i % 4) * 0.2);
         const hy = this.home[i * 3 + 1] + this.scatter * 0.7 * kinetic;
-        const hz = this.home[i * 3 + 2] + az * push * (0.5 + (i % 4) * 0.2);
+        const hz = this.home[i * 3 + 2] + gz * lean + az * push * (0.5 + (i % 4) * 0.2);
         const k = Math.min(1, dt * 2.4);
         arr[i * 3] += (hx - arr[i * 3]) * k;
         arr[i * 3 + 1] += (hy + Math.sin(t * 0.9 + i * 1.3) * 0.14 * kinetic - arr[i * 3 + 1]) * k;
@@ -919,6 +957,17 @@ export function createReactiveField({
   onSecret = null,
   isBusy = null,
   reducedMotion = false,
+  /**
+   * v1.2 · P19：外交式導向的單位向量 `{ on, x, z }`。
+   * **同一個物件**每幀被讀（不重建 → 零配置）；`on` 為假就整層當作沒有導向，
+   * 螢火群走的是 P19 之前那一條路。沒給就等於「這個世界沒有導向」。
+   */
+  guide = null,
+  /**
+   * 現在是什麼畫質（**當下**問的，玩家在設定裡切畫質不必重建世界）。
+   * 低畫質整層關掉導向 —— 同石座演出（`rubric-fx.js`）的作法。
+   */
+  qualityOf = null,
 } = {}) {
   const group = new THREE.Group();
   group.name = 'reactive';
@@ -1083,6 +1132,18 @@ export function createReactiveField({
         }
       }
 
+      /*
+       * v1.2 · P19：這一幀的導向向量。**一幀只問一次**（不是每一團問一次），
+       * 而且是兩個純量 —— tick 裡不配置任何東西。
+       * 低畫質整層關掉；`guide.on` 為假時是 0，螢火群走 P19 之前那一條路。
+       */
+      let gx = 0;
+      let gz = 0;
+      if (guide && guide.on && (!qualityOf || qualityOf() !== 'low')) {
+        gx = guide.x;
+        gz = guide.z;
+      }
+
       /* --- 動畫層：只更新玩家附近的（遠的東西動不動沒人看得到） --- */
       for (let i = 0; i < objects.length; i += 1) {
         const o = objects[i];
@@ -1093,7 +1154,7 @@ export function createReactiveField({
         if (d2 > NEAR_SQ && (i + frame) % 3 !== 0) continue;
         const reach = o.triggers[0].enter * 2.2;
         const near = Math.max(0, 1 - Math.sqrt(d2) / reach);
-        o.update(dt, t, kinetic, near, dx, dz);
+        o.update(dt, t, kinetic, near, dx, dz, gx, gz);
       }
 
       /* --- 祕密：走進去就算找到（不用按 E） --- */

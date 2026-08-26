@@ -1386,6 +1386,40 @@ export function createProgression({
       };
     },
 
+    /* ---------------------------------------------------------------- *
+     * v1.2 · P19：相鄰區捷徑（`world.js` 的 `SHORTCUTS`）
+     *
+     * 跟祕密、器物同一層護欄：**純加法**。不給 XP、不進圖鑑、不算徽章、
+     * 不寫 `bestGrades`、不算區域解鎖的通關數（`refreshUnlocks()` 沒讀過它）。
+     * 它只記一件事：那道門推開了沒有。
+     * ---------------------------------------------------------------- */
+
+    /** 這條捷徑推開了嗎。 */
+    isShortcutOpen(id) {
+      return Boolean(state.shortcuts && state.shortcuts[id] === true);
+    },
+
+    /** 推開了幾條捷徑。 */
+    shortcutCount() {
+      return state.shortcuts && typeof state.shortcuts === 'object' ? Object.keys(state.shortcuts).length : 0;
+    },
+
+    /**
+     * 推開一條捷徑。冪等 —— 已經開的再推一次什麼都不會發生（也不會關回去）。
+     * @param {string} id
+     * @returns {{opened:boolean, alreadyOpen:boolean}}
+     */
+    openShortcut(id) {
+      if (!state.shortcuts || typeof state.shortcuts !== 'object' || Array.isArray(state.shortcuts)) {
+        state.shortcuts = {};
+      }
+      if (typeof id !== 'string' || !id) return { opened: false, alreadyOpen: false };
+      if (state.shortcuts[id] === true) return { opened: false, alreadyOpen: true };
+      state.shortcuts[id] = true;
+      persist();
+      return { opened: true, alreadyOpen: false };
+    },
+
     /** 這塊世界觀石碑讀過了嗎。 */
     hasReadLore(id) {
       return Array.isArray(state.loreRead) && state.loreRead.includes(id);

@@ -553,6 +553,8 @@ function boot() {
       world.watchmen?.reset?.();
       // v1.2 · P18：守門者胸前那塊板也跟著歸零（存檔清了，世界要跟著清）
       world.guardians?.reset?.();
+      // v1.2 · P19：推開的捷徑也關回去（存檔清了，那道門就該重新擋著）
+      world.resetShortcuts?.();
       // v1.2 · P09：石座演出也歸零（借走的光柱還回去、粒子池清空；WORLD §8 G24b）
       world.rubricFx?.reset?.();
       // v1.2 · P06：閘門標籤／三態與石座三態也跟著歸零（先行前往過的門回到琥珀、它的石座回到暗）
@@ -578,6 +580,11 @@ function boot() {
     },
     onPerfMonitorChange: (on) => {
       perfmon.setEnabled(on);
+    },
+    // v1.2 · P19：螢火指路。馬上生效 —— 關掉的下一幀螢火群就回到原本的聚散
+    onGuidesChange: (on) => {
+      world.setGuidance?.(on);
+      hud.toast(on ? '螢火會往下一個建議去處那一側飄。' : '螢火不再指路 —— 路自己找。', 'info');
     },
     // 操作一覽疊在設定上面開，收起來之後設定還在原地
     onOpenKeyHelp: () => {
@@ -957,6 +964,11 @@ function boot() {
   /** v1.2 · P18：走近的守門者（第 ⑨ 層：石座 > 濁靈 > 守夜人 > **守門者** > 石碑 > …）。 */
   let nearGuardian = null;
   /**
+   * v1.2 · P19：走近的絞盤（捷徑那道門的機關）。半徑 3.2 —— 與器物同一階，
+   * 仲裁排在器物之後、閘門之前。它**不是器物**：不進圖鑑、不算 22 件、不寫 `handlesUsed`。
+   */
+  let nearWinch = null;
+  /**
    * Phase 29：剛剛選了「先留下修行」的那道門。
    * 走遠一點（離開互動半徑）再回來才會重新問一次 —— 站在門口不會被連問。
    */
@@ -1312,6 +1324,41 @@ function boot() {
   }
 
   /**
+   * 推一下捷徑的絞盤（v1.2 · P19）。
+   *
+   * 三種結局，都不叫失敗（§3.5）：推得動就推、推滿三下門就放下來、
+   * 推不動的那一頭只是說一句「索在另一邊」。**推到一半走開不會失敗**，
+   * 只是回到原地重來（與器物層的絞盤同一條規矩，也同樣不寫存檔）。
+   */
+  function pushWinch(winch) {
+    const built = winch.shortcut; // 世界端那道門；`built.shortcut` 才是資料層那一筆
+    const name = built.shortcut.name;
+    const res = world.pushWinch(winch);
+    if (res.already) {
+      audio.cue('ratchet');
+      hud.toast(`${name}：吊板已經放下來了。`, 'info');
+      return;
+    }
+    if (res.stuck) {
+      // 推不動：那一頭只有一只沒有推桿的鼓
+      audio.cue('ratchet');
+      hud.toast(`${name}：這一只鼓沒有推桿 —— 索繫在工坊那一頭。`, 'warn');
+      return;
+    }
+    if (!res.complete) {
+      audio.cue('ratchet');
+      engine.pulse(0.18);
+      hud.toast(`絞盤咬進去一格。還要再推 ${res.left} 下。`, 'info');
+      return;
+    }
+    audio.cue('unseal');
+    engine.pulse(0.42);
+    progression.openShortcut(built.id);
+    world.markShortcutOpen(built.id);
+    hud.toast(`${name}放下來了 —— 從這裡直接走得到量器坊。`, 'good');
+  }
+
+  /**
    * 動一件器物（Phase 25）。
    *
    * 純風味（護欄 2）：不進圖鑑、不算徽章、不寫關卡評價 ——
@@ -1457,6 +1504,7 @@ function boot() {
       nearMurk = null;
       nearWatchman = null;
       nearGuardian = null;
+      nearWinch = null;
       nearGate = null;
       return;
     }
@@ -1491,7 +1539,9 @@ function boot() {
     const blocked = Boolean(
       hitMarker || hitMurk || hitWatchman || hitGuardian || hitTablet || hitInscription || hitLetter
     );
-    const hitGate = blocked || hitHandle ? null : world.nearestGate(player.position);
+    // v1.2 · P19：捷徑的絞盤（半徑 3.2）—— 器物讓不出 E 的時候它就不出現
+    const hitWinch = blocked || hitHandle ? null : world.nearestShortcutWinch?.(player.position);
+    const hitGate = blocked || hitHandle || hitWinch ? null : world.nearestGate(player.position);
     nearMarker = hitMarker ? hitMarker.marker : null;
     nearMurk = !hitMarker && hitMurk ? hitMurk.murk : null;
     nearWatchman = !hitMarker && !hitMurk && hitWatchman ? hitWatchman.watchman : null;
@@ -1506,6 +1556,7 @@ function boot() {
         ? hitLetter.letter
         : null;
     nearHandle = !blocked && hitHandle ? hitHandle.handle : null;
+    nearWinch = hitWinch ? hitWinch.winch : null;
     nearGate = hitGate ? hitGate.gate : null;
 
     /*
@@ -1592,6 +1643,22 @@ function boot() {
       const verb = sitting ? '起身' : done ? HANDLE_VERBS_USED[nearHandle.kind] : HANDLE_VERBS[nearHandle.kind];
       hud.setInteract(
         `<b>${nearHandle.spec.title}</b><span>${status || HANDLE_KINDS[nearHandle.kind] || ''}</span><kbd>E</kbd> ${verb}`
+      );
+    } else if (nearWinch) {
+      // 標題 ＋ 一句狀態 ＋ E ＋ 一個動詞（WORLD.md §3.1）
+      const built = nearWinch.shortcut; // 世界端那道門；`built.shortcut` 才是資料層那一筆
+      const open = built.isOpen;
+      const status = open
+        ? '吊板已經放下來了 —— 走過去'
+        : nearWinch.canOpen
+          ? built.remaining < CAPSTAN_TURNS
+            ? `還要再推 ${built.remaining} 下`
+            : '索繫在這一頭，推得動'
+          : '索繫在工坊那一頭 —— 從這裡推不動';
+      hud.setInteract(
+        `<b>${esc(built.shortcut.name)}</b><span>${status}</span><kbd>E</kbd> ${
+          open || !nearWinch.canOpen ? '看一眼' : '推動'
+        }`
       );
     } else if (nearGate) {
       const status = progression.gateStatus(nearGate.meta.id);
@@ -1680,6 +1747,9 @@ function boot() {
     } else if (e.code === 'KeyE' && nearHandle) {
       e.preventDefault();
       useHandle(nearHandle);
+    } else if (e.code === 'KeyE' && nearWinch) {
+      e.preventDefault();
+      pushWinch(nearWinch);
     } else if (e.code === 'KeyE' && nearGate) {
       e.preventDefault();
       const status = progression.gateStatus(nearGate.meta.id);
@@ -1694,6 +1764,8 @@ function boot() {
   });
 
   /* --- 啟動 --- */
+  // v1.2 · P19：螢火指路照存檔開機（舊存檔沒有這一欄 → 預設開著）
+  world.setGuidance?.(progression.state.settings.guides !== false);
   hud.refresh();
   engine.start();
   player.setInputEnabled(false);

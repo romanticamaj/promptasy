@@ -141,6 +141,16 @@ export function defaultSave() {
      */
     guardians: {},
     /**
+     * v1.2 · P19：推開了哪幾條**相鄰區捷徑**（`world.js` 的 `SHORTCUTS`）——
+     * **單一物件欄** `{ [shortcutId]: true }`。
+     *
+     * 純加法，而且**只往開的方向走**：推開了就不會再關上（`normalize()` 只留 `true`，
+     * 所以壞值與 `false` 一律等於「還沒推開」）。它不給 XP、不進圖鑑、不算徽章、
+     * 不是任何東西的解鎖條件（`refreshUnlocks()` 從頭到尾沒讀過它）——
+     * 它只決定「那道門底下那 2.4 公尺走不走得過去」。
+     */
+    shortcuts: {},
+    /**
      * v1.2 · P07：玩家在**序章**送出的第一段 prompt（原文，去頭尾空白、≤ 280 字）。
      *
      * 「第一句就是第一句」—— 寫進去之後永不覆寫（`captureFirstPrompt()` 只寫一次）。
@@ -159,6 +169,8 @@ export function defaultSave() {
       promptMode: 'guided',
       // Phase 17：效能監視器（右上角的即時數字）。預設關閉 —— 它是給想看的人用的診斷面板
       perfMonitor: false,
+      // v1.2 · P19：螢火指路（螢火群整體流向下一個建議去處）。預設開啟 —— 它是導覽，不是特效
+      guides: true,
     },
     flags: { introSeen: false, prologueDone: false },
   };
@@ -281,6 +293,19 @@ export function normalize(raw) {
     }
   }
 
+  /*
+   * v1.2 · P19：捷徑。逐鍵驗形 —— 只留**明明白白是 `true`** 的那幾條；
+   * 其餘（`false`、字串、物件、壞鍵）一律當成「還沒推開」而直接不收。
+   * 這一欄沒有任何一條路可以把已經開的門關回去（同濁靈／守門者的聯集規矩）。
+   */
+  const shortcuts = {};
+  if (d.shortcuts && typeof d.shortcuts === 'object' && !Array.isArray(d.shortcuts)) {
+    for (const [k, v] of Object.entries(d.shortcuts)) {
+      if (typeof k !== 'string' || !k || k.length > 64) continue;
+      if (v === true) shortcuts[k] = true;
+    }
+  }
+
   const settings = { ...base.settings };
   if (d.settings && typeof d.settings === 'object') {
     if (typeof d.settings.music === 'string') settings.music = d.settings.music;
@@ -293,6 +318,8 @@ export function normalize(raw) {
     settings.promptMode = d.settings.promptMode === 'free' ? 'free' : 'guided';
     // Phase 17：效能監視器。舊存檔沒有這個欄位 → 預設關閉。
     settings.perfMonitor = d.settings.perfMonitor === true;
+    // v1.2 · P19：螢火指路。舊存檔沒有這個欄位 → 預設開啟；**只認得明寫的 false**。
+    settings.guides = d.settings.guides !== false;
   }
 
   // flags 一律存布林值；未知的旗標也保留（例如 finaleSeen、各區精通提示）
@@ -356,6 +383,8 @@ export function normalize(raw) {
     struggles,
     // v1.2 · P18：舊存檔沒有 guardians → 空物件（純加法，不影響任何既有欄位）
     guardians,
+    // v1.2 · P19：舊存檔沒有 shortcuts → 空物件（純加法；一條都沒推開）
+    shortcuts,
     // v1.2 · P07：舊存檔沒有 firstPrompt → 空字串（純加法）。壞值一律落成空字串。
     firstPrompt: firstPrompt(d.firstPrompt),
     bestGrades,

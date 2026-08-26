@@ -27,7 +27,7 @@ import {
 import { buildInscription, INSCRIPTION_RADIUS } from './inscriptions.js';
 import { buildLetter, LETTER_RADIUS } from './letters.js';
 import { createReactiveField, REACTIVE_SPOTS } from './reactive.js';
-import { createHandleField, HANDLE_RADIUS } from './handles.js';
+import { createHandleField, HANDLE_RADIUS, CAPSTAN_TURNS } from './handles.js';
 import { createMurkField, isGreatMurk } from './murks.js';
 import { createWatchmanField, WATCHMAN_RADIUS } from './watchmen.js';
 import { createGuardianField, GUARDIAN_RADIUS } from './guardian.js';
@@ -166,6 +166,9 @@ export const REGION_SITES = Object.freeze([
 const SITE_BY_ID = new Map(REGION_SITES.map((s) => [s.id, s]));
 const HUB = REGION_SITES[0];
 
+/** 12 片土地的順序（`objectiveTarget()` 每半秒問一次 —— 這張表不必每次重建）。 */
+const REGION_ORDER = Object.freeze(REGION_SITES.map((s) => s.id));
+
 /** 加建的院落（沒有自己的橋，接在母土地上）。 */
 export const ANNEX_SITES = Object.freeze(REGION_SITES.filter((s) => s.annexOf));
 
@@ -187,6 +190,15 @@ export const CORRIDORS = Object.freeze(
       length: len,
       half: 9,
       flat: 5,
+      /*
+       * v1.2 · P19：甲板的高度剖面（`corridorHeight()` 讀這三個數字）。
+       * 1.1 / 1.1 / 0.7 就是 P19 之前那一行寫死的 `1.1 + sin(πt) * 0.7`——
+       * 七座橋逐點與 P19 之前**逐位元組相同**（`test:rubric` 是硬斷言）。
+       * 抽成欄位是為了讓捷徑走廊用**同一支函式**接上自己兩端的地。
+       */
+      deckA: 1.1,
+      deckB: 1.1,
+      rise: 0.7,
       gateAt,
       gate: { x: HUB.x + dir.x * gateAt, z: HUB.z + dir.z * gateAt },
     };
@@ -195,6 +207,153 @@ export const CORRIDORS = Object.freeze(
 
 /** 地圖最外緣（給地形平面與相機用）。 */
 export const WORLD_RADIUS = 150;
+
+/* ------------------------------------------------------------------ *
+ * 相鄰兩片土地之間的捷徑（v1.2 · P19）
+ * ------------------------------------------------------------------ *
+ *
+ * P19 之前，12 片土地**沒有任何兩片直接相通**：每一次換區都要回中央高原轉車。
+ * 這裡開第一條（也是目前唯一一條）橫向的路 —— 南弧：齒輪工坊 ↔ 量器坊。
+ *
+ * **為什麼是這兩片，而不是 roadmap 原本寫的「齒輪工坊 ↔ 面具劇場」**：
+ * 那兩片相距 190 公尺，中間**整片站著量器坊**（中心 (0,124) 半徑 44）與正南那條橋
+ * （x = 0，半寬 9）。直線一定穿過其中一個；往北繞開量器坊的圓盤就一定跨過正南那條橋，
+ * 而往南繞會掉出 `buildTerrain()` 的 ±170 網格。也就是說「東南 ↔ 西南直通」在這張地圖上
+ * **擺不下**，硬做出來的東西是「借道第三片土地」，不是捷徑。
+ * 南弧上真正相鄰的兩對是**齒輪工坊 ↔ 量器坊**與**量器坊 ↔ 面具劇場**（圓盤相距各 9.3 公尺）。
+ * 取前者，因為齒輪工坊是**先解鎖的那一片**（等級 5 ＋ 脈絡與長文四座；量器坊要先會
+ * `clear-specific` ＋ 角色與參數一座），單側解鎖才有「已解鎖那一側」可言。
+ *
+ * **地形走的是與 `CORRIDORS` 完全同一套**（§6.3「走不走得到」）：
+ * 同一個 `groundAt()`、同一個 `coverage()`、同一條 `rimDrop()` 崖唇。
+ * 差別只有三個數字：`half` 4（橋是 9）、`flat` 2（橋是 5）、
+ * 以及甲板兩端的高度接的是**它自己那兩片土地的地**（`deckA` / `deckB`，見下）。
+ *
+ * **兩端刻意不落在土地中心**（橋是中心到中心）：那會把一條 8 公尺寬的走廊
+ * 犁過兩片土地的核心，142 座石座裡有好幾座的腳下會跟著動。
+ * 這條走廊只從**兩片土地各自的可站立圈裡面一點點**長出去
+ * （齒輪工坊 37.8 < 40.40、量器坊 35.9 < 38.40），中間 21.9 公尺是自己的甲板。
+ *
+ * **單側解鎖**：門立在**量器坊自己那道區鎖的圈上**（`REGION_LOCK_PAD`）——
+ * 兩道鎖疊在同一步，走過去只會被擋一次。門的兩側各站一座絞盤（`capstan` 文法：按三次 `E`），
+ * 但**只有齒輪工坊那一側推得動**：索繫在工坊的吊車上，另一頭只有一只沒有推桿的鼓。
+ * 擋人的方式與橋上的缺口同一套：**沒有碰撞體，是 `isWalkable()` 說這一段走不到**。
+ */
+
+/** 區鎖那一圈比土地半徑多幾公尺（`isWalkable()` 與捷徑的門共用這一個數字）。 */
+export const REGION_LOCK_PAD = 4;
+/** 擋住去路的那一段有多長（公尺，沿走廊；0.5 公尺的洪水填充跨不過去）。 */
+export const SHORTCUT_BLOCK = 2.4;
+/** 絞盤站在門前後幾公尺。 */
+export const WINCH_ALONG = 3.4;
+/** 絞盤偏出走廊中線幾公尺（中間要留得出人走的路）。 */
+export const WINCH_LATERAL = 2.6;
+/**
+ * 門的兩根柱站在中線外幾公尺。
+ *
+ * **3.6 是量出來的，而且它同時決定了「柱子擋不擋人」**：
+ * 甲板走得到的那一圈是 3.07（`half` 4、`flat` 2 換算），柱子最粗的地方半徑 0.42 ——
+ * 3.6 − 0.42 ＝ 3.18 > 3.07，**人根本走不到它腳下**。
+ * 所以它做成細桿（外接盒 0.84 < `SOLID_PLATE_MIN` 0.9 → 穿模稽核不列、也不登記碰撞圓）。
+ *
+ * 這不是省一顆圓，是護欄「**絕不能把玩家關住**」：門底下那 2.4 公尺
+ * 沿走廊的兩個方向都是擋著的，柱子的碰撞圓只要伸進走得到的地裡，
+ * 卡在裡面的人**四面八方都推不出去**（第一版是半徑 0.58 的實心柱，
+ * `escapeSolid()` 當場多出 56 個死角 —— 那條斷言是這樣紅的）。
+ */
+export const SHORTCUT_POST_LAT = 3.6;
+/** 走近絞盤的互動半徑（與器物同一階：3.2）。 */
+export const WINCH_RADIUS = 3.2;
+/** 捷徑走廊上不放任何程序化道具的半寬（＝整條走廊）。 */
+export const SHORTCUT_CLEAR = 4;
+
+const SHORTCUT_DATA = Object.freeze([
+  Object.freeze({
+    id: 'south-arc',
+    name: '南弧的吊板',
+    fromRegion: 'orchestration',
+    toRegion: 'forms',
+    /** 推得動的是哪一側（另一側看得到、推不開）。 */
+    unlockFrom: 'orchestration',
+    from: Object.freeze({ x: -60.5, z: 110.5 }),
+    to: Object.freeze({ x: -35.8, z: 121.4 }),
+    half: 4,
+    flat: 2,
+    /** 甲板中段拱起多少（橋是 0.7；這一條只有 27 公尺，拱得淺一點）。 */
+    rise: 0.45,
+  }),
+]);
+
+/**
+ * 捷徑走廊（形狀與 `CORRIDORS` 一樣，所以 `groundAt()` / `coverage()` /
+ * `corridorHeight()` 一行都不必分岔）。
+ *
+ * `deckA` / `deckB` 在檔案下方「甲板接上兩端的地」那一段補上 —— 它們要問
+ * **沒有這條走廊時**那兩點的地有多高，而那需要高度場的常數先就位。
+ */
+export const SHORTCUTS = SHORTCUT_DATA.map((spec) => {
+  const dx = spec.to.x - spec.from.x;
+  const dz = spec.to.z - spec.from.z;
+  const length = Math.hypot(dx, dz);
+  const dir = { x: dx / length, z: dz / length };
+  /*
+   * 門的位置：沿走廊往前走，**第一次踏進另一片土地那道區鎖的圈**（半徑 + 4）的那一步。
+   * 解二次式 |from + s·dir − centre|² = (radius + pad)²，取較小的正根。
+   */
+  const site = SITE_BY_ID.get(spec.toRegion);
+  const wx = spec.from.x - site.x;
+  const wz = spec.from.z - site.z;
+  const b = wx * dir.x + wz * dir.z;
+  const rr = site.radius + REGION_LOCK_PAD;
+  const disc = b * b - (wx * wx + wz * wz) + rr * rr;
+  const gateAt = -b - Math.sqrt(Math.max(0, disc));
+  const at = (along, lat) => ({
+    x: spec.from.x + dir.x * along + -dir.z * lat,
+    z: spec.from.z + dir.z * along + dir.x * lat,
+  });
+  return {
+    ...spec,
+    /** 與 `CORRIDORS` 同名同義：走廊的兩端（不是土地中心）。 */
+    dir,
+    length,
+    gateAt,
+    gate: at(gateAt, 0),
+    /** 兩座絞盤：門前（`unlockFrom` 那一側）與門後，都偏在同一邊。 */
+    winchFrom: at(gateAt - WINCH_ALONG, WINCH_LATERAL),
+    winchTo: at(gateAt + WINCH_ALONG, WINCH_LATERAL),
+    deckA: 0,
+    deckB: 0,
+  };
+});
+
+/** 橋 ＋ 捷徑：高度場與覆蓋率認得的所有走廊（**橋一定排在前面**，見 `groundAt()`）。 */
+export const LANES = Object.freeze([...CORRIDORS, ...SHORTCUTS]);
+
+/**
+ * 把一個世界座標換算成某條走廊的局部座標（沿走廊 / 側向）。
+ * **零配置**：兩個數字寫進呼叫端給的暫存。
+ * @param {{along:number, lat:number}} out
+ */
+export function laneLocal(lane, x, z, out) {
+  const dx = x - lane.from.x;
+  const dz = z - lane.from.z;
+  out.along = dx * lane.dir.x + dz * lane.dir.z;
+  out.lat = dx * -lane.dir.z + dz * lane.dir.x;
+  return out;
+}
+
+const _blockLocal = { along: 0, lat: 0 };
+/** `escapeSolid()` 自己的暫存 —— **不讀上一支函式留在模組層的那一份**（P16e 的教訓）。 */
+const _escapeLocal = { along: 0, lat: 0 };
+/**
+ * 這一點落在某條捷徑「擋住去路的那一段」裡嗎（＝門底下那 2.4 公尺）。
+ * **純函式、零配置**；擋人的是這一段，不是石頭（同 `BRIDGE_GAPS` 的作法）。
+ */
+export function onShortcutBlock(sc, x, z) {
+  laneLocal(sc, x, z, _blockLocal);
+  if (Math.abs(_blockLocal.along - sc.gateAt) > SHORTCUT_BLOCK / 2) return false;
+  return Math.abs(_blockLocal.lat) <= sc.half;
+}
 
 /**
  * 橋面的「主動線」：從中央高原的邊緣到各片土地的邊緣。
@@ -278,6 +437,27 @@ export const BRIDGE_SPANS = Object.freeze([
       bz: l.to.z,
       aR: host.radius,
       bR: site.radius,
+    });
+  }),
+  /*
+   * v1.2 · P19：捷徑也要登記一段跨距，不然那條甲板不屬於任何一片土地，
+   * `groundBlend()` 回空陣列 → 它會拿**中央高原**那一組顏色當底，
+   * 於是甲板的兩端各留一條看得見的硬邊（P12 審查抓過同一件事）。
+   * 跨距量的是**兩片土地中心之間**那一段（與橋同一個形狀），走廊本身
+   * 最多偏離那條中線 6.4 公尺 —— 在 `SPAN_HALF_W`（14）之內，蓋得到。
+   */
+  ...SHORTCUTS.map((sc) => {
+    const a = SITE_BY_ID.get(sc.fromRegion);
+    const b = SITE_BY_ID.get(sc.toRegion);
+    return Object.freeze({
+      fromId: sc.fromRegion,
+      toId: sc.toRegion,
+      ax: a.x,
+      az: a.z,
+      bx: b.x,
+      bz: b.z,
+      aR: a.radius,
+      bR: b.radius,
     });
   }),
 ]);
@@ -576,8 +756,15 @@ function distToSegment(px, pz, ax, az, bx, bz) {
  * 這樣石頭留在原地也擋得住人，而橋照樣走得通。
  */
 export function inCorridor(x, z, pad = 0) {
-  return BRIDGE_LANES.some(
-    (l) => distToSegment(x, z, l.ax, l.az, l.bx, l.bz) < LANE_HALF + pad
+  /*
+   * v1.2 · P19：捷徑走廊也算動線 —— 而且是**整條**（`SHORTCUT_CLEAR` ＝ 走廊的半寬 4），
+   * 不是只有中間 ±3.2。理由是它只有 8 公尺寬（橋是 18）：一顆半徑 1.5 的石頭
+   * 擺在 lat 3 的地方就把剩下的路夾到走不過去。
+   * 走廊上唯一站著的東西是那兩座絞盤（由 `buildShortcut()` 擺，偏出中線 2.6 公尺）。
+   */
+  return (
+    BRIDGE_LANES.some((l) => distToSegment(x, z, l.ax, l.az, l.bx, l.bz) < LANE_HALF + pad) ||
+    SHORTCUTS.some((sc) => distToSegment(x, z, sc.from.x, sc.from.z, sc.to.x, sc.to.z) < SHORTCUT_CLEAR + pad)
   );
 }
 
@@ -703,13 +890,19 @@ function detailFor(site, x, z) {
   }
 }
 
-/** 連接橋的高度（中段微微拱起）。 */
+/**
+ * 走廊甲板的高度（中段微微拱起）。
+ *
+ * v1.2 · P19：兩端的高度改由走廊自己帶（`deckA` / `deckB`），中段的拱是 `rise`。
+ * 七座橋帶的是 1.1 / 1.1 / 0.7 —— 展開就是 P19 之前寫死的那一行，逐點相同。
+ * 捷徑走廊帶的是**它自己兩端那兩片土地的地**，所以走出土地、踏上甲板不會有一階。
+ */
 function corridorHeight(corridor, x, z) {
   const t = Math.max(
     0,
     Math.min(1, ((x - corridor.from.x) * corridor.dir.x + (z - corridor.from.z) * corridor.dir.z) / corridor.length)
   );
-  return 1.1 + Math.sin(Math.PI * t) * 0.7;
+  return corridor.deckA + (corridor.deckB - corridor.deckA) * t + Math.sin(Math.PI * t) * corridor.rise;
 }
 
 /**
@@ -746,7 +939,8 @@ const COVER_RIM_T = inverseSmoothstep(STAND_COVER_MIN);
  * 但**距離**問得出覆蓋率問不出的那句話：「這裡離邊界還有幾公尺」。
  */
 const SITE_RIM = REGION_SITES.map((s) => s.radius - COVER_RIM_T * (s.radius - s.flat));
-const CORRIDOR_RIM = CORRIDORS.map((c) => c.half - COVER_RIM_T * (c.half - c.flat));
+/** 每一條走廊（橋 ＋ 捷徑）走得到的那一圈。索引與 `LANES` 一一對應。 */
+const LANE_RIM = LANES.map((c) => c.half - COVER_RIM_T * (c.half - c.flat));
 
 /**
  * 崖唇的「肩」有多寬（公尺）—— 邊界外這一段的曲率壓在 `RIM_CURVE` 之內。
@@ -785,7 +979,7 @@ const RIM_EXT = 10;
  */
 const RIM_EDGE_EPS = 0.02;
 /** 崖面接出去時，每一片土地／橋離自己的邊幾公尺（同一趟迴圈填好，零配置）。 */
-const _outDist = new Float64Array(REGION_SITES.length + CORRIDORS.length);
+const _outDist = new Float64Array(REGION_SITES.length + LANES.length);
 
 /**
  * 離開「走得到的那一圈」`s` 公尺之後，地面往下崩了幾公尺。
@@ -817,8 +1011,12 @@ const _rimOut = { h: 0, rim: 0 };
 
 /**
  * @param {{h:number, rim:number}} out 呼叫端自己的暫存（零配置；用完就讀）
+ * @param {number} [laneCount] 只算 `LANES` 的前幾條。**唯一的用途**是在補上
+ *   捷徑甲板兩端的高度之前問一次「沒有捷徑時這裡的地有多高」——
+ *   給 `CORRIDORS.length` ＝ 只有七座橋。傳數字（不是傳陣列）才不會把
+ *   `SITE_RIM` / `LANE_RIM` 的索引錯開。
  */
-function groundAt(x, z, out) {
+function groundAt(x, z, out, laneCount = LANES.length) {
   let wsum = 0;
   let hsum = 0;
   let rim = Infinity;
@@ -836,10 +1034,10 @@ function groundAt(x, z, out) {
     wsum += m;
   }
 
-  for (let i = 0; i < CORRIDORS.length; i += 1) {
-    const c = CORRIDORS[i];
+  for (let i = 0; i < laneCount; i += 1) {
+    const c = LANES[i];
     const d = distToSegment(x, z, c.from.x, c.from.z, c.to.x, c.to.z);
-    const e = d - CORRIDOR_RIM[i];
+    const e = d - LANE_RIM[i];
     if (e < rim) rim = e;
     _outDist[REGION_SITES.length + i] = d - c.half;
     if (d > c.half) continue;
@@ -871,11 +1069,11 @@ function groundAt(x, z, out) {
     hs += w * detailFor(REGION_SITES[i], x, z);
     ws += w;
   }
-  for (let i = 0; i < CORRIDORS.length; i += 1) {
+  for (let i = 0; i < laneCount; i += 1) {
     const e = _outDist[REGION_SITES.length + i];
     if (e > RIM_EXT) continue;
     const w = 1 / ((e > 0 ? e : 0) + RIM_EDGE_EPS);
-    hs += w * corridorHeight(CORRIDORS[i], x, z);
+    hs += w * corridorHeight(LANES[i], x, z);
     ws += w;
   }
   out.h = ws > 0 ? hs / ws : 0;
@@ -905,6 +1103,28 @@ export function terrainRelief(x, z) {
   return groundAt(x, z, _reliefOut).h;
 }
 
+/* ------------------------------------------------------------------ *
+ * 捷徑的甲板接上兩端的地（v1.2 · P19；開檔時各算一次）
+ * ------------------------------------------------------------------ *
+ *
+ * 甲板兩端的高度**不是手打的數字**，是問出來的：「**沒有這條走廊時**，
+ * 這一點的地有多高」（`groundAt(..., CORRIDORS.length)`）。
+ *
+ * 這樣接出來有一個可以逐點驗的性質：**走廊的兩個端點上，地一毫米都沒有動**。
+ * 端點只有母土地與走廊兩份權重，而走廊帶的正好就是母土地那個高度，
+ * 混出來還是同一個數（`test:rubric` 是硬斷言）。
+ * 手打常數做不到這件事：地貌函式一改，那兩點就會多出一階。
+ */
+{
+  const anchor = { h: 0, rim: 0 };
+  for (const sc of SHORTCUTS) {
+    sc.deckA = groundAt(sc.from.x, sc.from.z, anchor, CORRIDORS.length).h;
+    sc.deckB = groundAt(sc.to.x, sc.to.z, anchor, CORRIDORS.length).h;
+    Object.freeze(sc);
+  }
+  Object.freeze(SHORTCUTS);
+}
+
 /**
  * 離「走得到的那一圈」還有幾公尺（≤ 0 ＝ 在裡面，正數 ＝ 已經在崖唇外）。
  * 與 `coverage(x, z) >= STAND_COVER_MIN` 逐點等價，但它答得出距離。
@@ -913,18 +1133,28 @@ export function rimDistance(x, z) {
   return groundAt(x, z, _rimOut).rim;
 }
 
-/** 這個點被土地／橋覆蓋的程度（0 = 虛空、1 = 完全在陸地上）。 */
-export function coverage(x, z) {
+/**
+ * 這個點被土地／走廊覆蓋的程度（0 = 虛空、1 = 完全在陸地上）。
+ * @param {number} [laneCount] 只算 `LANES` 的前幾條（同 `groundAt()`：
+ *   給 `CORRIDORS.length` ＝ 問「沒有捷徑時這裡有沒有地」）。
+ */
+export function coverage(x, z, laneCount = LANES.length) {
   let cover = 0;
   for (const site of REGION_SITES) {
     const d = Math.hypot(x - site.x, z - site.z);
     if (d <= site.radius) cover = Math.max(cover, smoothstep(site.radius, site.flat, d));
   }
-  for (const c of CORRIDORS) {
+  for (let i = 0; i < laneCount; i += 1) {
+    const c = LANES[i];
     const d = distToSegment(x, z, c.from.x, c.from.z, c.to.x, c.to.z);
     if (d <= c.half) cover = Math.max(cover, smoothstep(c.half, c.flat, d));
   }
   return cover;
+}
+
+/** 這一點的地是**捷徑自己鋪出來的**嗎（沒有捷徑就是虛空）。 */
+export function onlyByShortcut(x, z) {
+  return coverage(x, z) >= STAND_COVER_MIN && coverage(x, z, CORRIDORS.length) < STAND_COVER_MIN;
 }
 
 /**
@@ -1002,11 +1232,19 @@ export function regionAt(x, z) {
   }
   let best = null;
   let bestD = Infinity;
-  for (const c of CORRIDORS) {
+  for (const c of LANES) {
     const d = distToSegment(x, z, c.from.x, c.from.z, c.to.x, c.to.z);
-    if (d <= c.half && d < bestD) {
-      bestD = d;
-      best = { id: c.region, onBridge: true };
+    if (d > c.half || d >= bestD) continue;
+    bestD = d;
+    /*
+     * v1.2 · P19：捷徑走廊沒有「目的地」—— 它兩頭各是一片土地。
+     * 門就是地界：門之前算齒輪工坊、門之後算量器坊
+     * （與加建院落「人被擋下來的那一步正好在門底下」是同一句話）。
+     */
+    if (c.region) best = { id: c.region, onBridge: true };
+    else {
+      const along = (x - c.from.x) * c.dir.x + (z - c.from.z) * c.dir.z;
+      best = { id: along < c.gateAt ? c.fromRegion : c.toRegion, onBridge: true };
     }
   }
   /*
@@ -1934,6 +2172,195 @@ function buildBridgeGap(gap, kit) {
   }
 
   return grp;
+}
+
+/* ------------------------------------------------------------------ *
+ * 捷徑：門 ＋ 兩座絞盤（v1.2 · P19）
+ * ------------------------------------------------------------------ */
+/**
+ * 蓋出一條捷徑上「看得見的那三件東西」：擋路的門、推得動的絞盤、推不動的那只鼓。
+ *
+ * **0 新光源**（§6.1）：門閂上那一線、絞盤旁的地環全部是自發光／加色光暈片。
+ * **擋人的不是石頭**：門閂只有 0.26 × 0.72 公尺厚（穿模稽核的「有份量」門檻是 0.9），
+ * 真正把人擋下來的是 `isWalkable()` 的 `onShortcutBlock()` —— 與橋上的缺口同一套。
+ * **整條走廊只登記兩顆碰撞圓**（兩座絞盤）：門的兩根柱是細桿，而且立在走得到的
+ * 那一圈之外，人根本走不到它腳下（理由與量出來的數字在 `SHORTCUT_POST_LAT` 上頭）。
+ *
+ * @param {object} sc `SHORTCUTS` 的一筆
+ * @param {{accent:number, light:number, mid:number, dark:number}} kit 起點那一區的四階色
+ * @param {boolean} open 建好時就是開的嗎（存檔說了算）
+ */
+function buildShortcut(sc, kit, open) {
+  const grp = new THREE.Group();
+  grp.name = `shortcut:${sc.id}`;
+  const yaw = Math.atan2(sc.dir.x, sc.dir.z);
+  const at = (along, lat) => [
+    sc.from.x + sc.dir.x * along + -sc.dir.z * lat,
+    sc.from.z + sc.dir.z * along + sc.dir.x * lat,
+  ];
+
+  const stoneMat = new THREE.MeshStandardMaterial({ color: kit.dark, roughness: 0.93, flatShading: true });
+  const ironMat = new THREE.MeshStandardMaterial({ color: kit.mid, roughness: 0.42, metalness: 0.55, flatShading: true });
+
+  /* --- 門的兩根柱（細桿；立在甲板走得到的那一圈之外） --- */
+  const gy = terrainHeight(sc.gate.x, sc.gate.z);
+  for (const side of [-1, 1]) {
+    const [px, pz] = at(sc.gateAt, side * SHORTCUT_POST_LAT);
+    // 細桿（外接盒 0.84 < 0.9）：不登記碰撞圓，理由寫在 `SHORTCUT_POST_LAT` 上頭
+    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.42, 2.7, 6), stoneMat);
+    post.position.set(px, terrainHeight(px, pz) + 1.35, pz);
+    post.rotation.y = yaw + side * 0.2;
+    post.userData.blocksCamera = true;
+    grp.add(post);
+  }
+
+  /* --- 門閂：橫在兩根柱之間的一塊板（推開 → 沉進甲板裡） --- */
+  const barPivot = new THREE.Object3D();
+  barPivot.position.set(sc.gate.x, gy, sc.gate.z);
+  barPivot.rotation.y = yaw;
+  grp.add(barPivot);
+  const bar = new THREE.Mesh(new THREE.BoxGeometry(SHORTCUT_POST_LAT * 2, 0.72, 0.26), ironMat);
+  bar.position.y = 1.32;
+  bar.userData.noCollide = true;
+  barPivot.add(bar);
+  const barSeam = new THREE.Mesh(
+    new THREE.BoxGeometry(SHORTCUT_POST_LAT * 2 - 0.2, 0.05, 0.3),
+    new THREE.MeshBasicMaterial({ color: kit.accent, transparent: true, opacity: 0.55, blending: THREE.AdditiveBlending, depthWrite: false })
+  );
+  barSeam.position.y = 1.32;
+  barSeam.userData.noCollide = true;
+  barPivot.add(barSeam);
+
+  /* --- 關著的時候門口那一片幕（與閘門同一種語彙：加色混合、不擋光） --- */
+  const veil = new THREE.Mesh(
+    new THREE.PlaneGeometry(SHORTCUT_POST_LAT * 2, 2.6, 1, 1),
+    new THREE.MeshBasicMaterial({
+      color: kit.light,
+      transparent: true,
+      opacity: 0.16,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    })
+  );
+  veil.position.set(sc.gate.x, gy + 1.3, sc.gate.z);
+  veil.rotation.y = yaw + Math.PI / 2;
+  veil.userData.noCollide = true;
+  grp.add(veil);
+
+  /**
+   * 一座絞盤。`cranked` ＝ 有推桿（推得動的那一座）；沒有推桿的那一只只剩鼓與索。
+   * 造型與器物層的絞盤同一個語彙（`handles.js` 的 `buildCapstan`），
+   * 但它**不是器物**：不進圖鑑、不算 22 件、不寫 `handlesUsed`。
+   */
+  const makeWinch = (point, cranked) => {
+    const w = new THREE.Group();
+    const y = terrainHeight(point.x, point.z);
+    w.position.set(point.x, y, point.z);
+    w.rotation.y = yaw;
+    w.name = `winch:${sc.id}:${cranked ? 'from' : 'to'}`;
+    const base = new THREE.Mesh(new THREE.CylinderGeometry(0.82, 0.92, 0.24, 10), stoneMat);
+    base.position.y = 0.12;
+    w.add(base);
+    const drum = new THREE.Object3D();
+    drum.position.y = 0.24;
+    w.add(drum);
+    const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.56, 0.84, 9), ironMat);
+    barrel.position.y = 0.42;
+    drum.add(barrel);
+    for (const ry of [0.22, 0.68]) {
+      const ring = new THREE.Mesh(new THREE.TorusGeometry(0.54, 0.06, 4, 14), ironMat);
+      ring.position.y = ry;
+      ring.rotation.x = -Math.PI / 2;
+      drum.add(ring);
+    }
+    if (cranked) {
+      for (let i = 0; i < 4; i += 1) {
+        const a = (i / 4) * Math.PI * 2;
+        const armMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.07, 1.3, 5), stoneMat);
+        armMesh.position.set(Math.cos(a) * 0.7, 0.64, Math.sin(a) * 0.7);
+        armMesh.rotation.set(0, -a, Math.PI / 2);
+        drum.add(armMesh);
+      }
+    }
+    // 地上那一圈（走近會亮一點）—— 加色光暈片，0 光源
+    const ring = new THREE.Mesh(
+      new THREE.RingGeometry(1.0, 1.28, 20),
+      new THREE.MeshBasicMaterial({ color: kit.light, transparent: true, opacity: 0.1, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending })
+    );
+    ring.position.y = 0.05;
+    ring.rotation.x = -Math.PI / 2;
+    w.add(ring);
+    w.userData.solidRadius = 0.95;
+    w.userData.keepSolid = true;
+    grp.add(w);
+    return { group: w, drum, ring };
+  };
+
+  const fromWinch = makeWinch(sc.winchFrom, true);
+  const toWinch = makeWinch(sc.winchTo, false);
+
+  let opened = open ? 1 : 0;
+  let spin = open ? Math.PI * 2 : 0;
+  let jolt = 0;
+  const api = {
+    id: sc.id,
+    shortcut: sc,
+    group: grp,
+    bar,
+    veil,
+    fromWinch,
+    toWinch,
+    /** 已經推了幾下（不寫存檔：走開就從頭來 —— 與器物層的絞盤同一條規矩）。 */
+    turns: open ? CAPSTAN_TURNS : 0,
+    /**
+     * 門開了嗎 —— 問的是**狀態**，不是動畫。
+     * （`opened` 是門閂沉下去的過程；推滿三下的那一瞬間門就是開的，
+     * `isWalkable()` 也是那一刻就放行 —— 不能讓人卡在「門正在放下來」的半秒裡。）
+     */
+    get isOpen() {
+      return target > 0.5;
+    },
+    /** 推一下。回傳這一下發生了什麼（給 main.js 決定要放哪一聲、寫不寫存檔）。 */
+    push() {
+      if (this.turns >= CAPSTAN_TURNS) return { already: true, complete: true, left: 0 };
+      this.turns += 1;
+      jolt = 1;
+      spin += (Math.PI * 2) / CAPSTAN_TURNS;
+      const full = this.turns >= CAPSTAN_TURNS;
+      return { already: false, complete: full, left: Math.max(0, CAPSTAN_TURNS - this.turns) };
+    },
+    /** 還要推幾下。 */
+    get remaining() {
+      return Math.max(0, CAPSTAN_TURNS - this.turns);
+    },
+    /** 開／關（載入存檔、推開的那一刻，以及「重置進度」時呼叫）。 */
+    setOpen(v) {
+      this.turns = v ? CAPSTAN_TURNS : 0;
+      if (v) spin = Math.max(spin, Math.PI * 2);
+      else spin = 0;
+      target = v ? 1 : 0;
+    },
+    /** 走近哪一座（給地環一點餘溫）。 */
+    setNear(side) {
+      fromWinch.ring.material.opacity = side === 'from' ? 0.3 : 0.1;
+      toWinch.ring.material.opacity = side === 'to' ? 0.3 : 0.1;
+    },
+    update(dt, t, kinetic = 1) {
+      jolt = Math.max(0, jolt - dt * 1.6);
+      opened += (target - opened) * Math.min(1, dt * 2.2);
+      fromWinch.drum.rotation.y += (spin - fromWinch.drum.rotation.y) * Math.min(1, dt * 3.6);
+      fromWinch.drum.position.y = 0.24 - jolt * 0.03 * kinetic;
+      // 門閂沉進甲板：開到底就整塊藏起來（不留一條看得見的線）
+      barPivot.position.y = gy - opened * 1.9;
+      veil.material.opacity = (1 - opened) * (0.16 + Math.sin(t * 0.8) * 0.02 * kinetic);
+      veil.visible = opened < 0.98;
+      barSeam.material.opacity = (1 - opened) * 0.55;
+    },
+  };
+  let target = open ? 1 : 0;
+  api.update(1, 0, 1);
+  return api;
 }
 
 /* ------------------------------------------------------------------ *
@@ -4021,6 +4448,13 @@ export function createWorld({
   });
   const letterById = new Map(letterObjs.map((l) => [l.id, l]));
 
+  /*
+   * v1.2 · P19：外交式導向的那兩個數字（單位向量）。
+   * 宣告在這裡是因為粒子那一層要拿到**同一個物件**（每幀只讀、不重建 → 零配置）；
+   * 誰去重算它、什麼時候重算，在下面「外交式導向」那一段。
+   */
+  const guide = { on: false, x: 0, z: 0 };
+
   /* --- Phase 22：會回應的東西 ＋ 藏起來的地方 --- */
   const reactive = createReactiveField({
     spots: REACTIVE_SPOTS,
@@ -4033,6 +4467,9 @@ export function createWorld({
     onSecret,
     isBusy,
     reducedMotion,
+    // v1.2 · P19：外交式導向。低畫質整層關掉（畫質是**當下**問的，切換不必重建世界）
+    guide,
+    qualityOf: () => (engine && engine.quality) || quality,
   });
   root.add(reactive.group);
 
@@ -4184,6 +4621,123 @@ export function createWorld({
   const gateById = new Map(gates.map((g) => [g.id, g]));
 
   const isUnlocked = (regionId) => progression.isRegionUnlocked(regionId);
+  /**
+   * 這條捷徑推開了嗎（v1.2 · P19）。
+   * 舊的進度替身（測試 / 早期存檔）沒有這一支 → **一律當成沒推開**：
+   * 保守的那一邊是「路還是斷的」，不是「白送一條路」。
+   */
+  const isShortcutOpen = (id) =>
+    typeof progression.isShortcutOpen === 'function' ? Boolean(progression.isShortcutOpen(id)) : false;
+
+  /* --- v1.2 · P19：相鄰兩片土地之間的捷徑（門 ＋ 兩座絞盤） --- */
+  const shortcutObjs = SHORTCUTS.map((sc) => {
+    const built = buildShortcut(sc, kits.get(sc.fromRegion) || kits.get('foundations'), isShortcutOpen(sc.id));
+    root.add(built.group);
+    return built;
+  });
+  const shortcutById = new Map(shortcutObjs.map((s) => [s.id, s]));
+  /**
+   * 兩座絞盤攤平成一張表（走近判定用；`side` 就是「你站在哪一頭」）。
+   * `canOpen` **只看資料**：索繫在 `unlockFrom` 那一側 —— 另一頭永遠推不動。
+   */
+  const winches = shortcutObjs.flatMap((built) =>
+    ['from', 'to'].map((side) => {
+      const point = side === 'from' ? built.shortcut.winchFrom : built.shortcut.winchTo;
+      return {
+        id: `${built.id}:${side}`,
+        shortcut: built,
+        side,
+        regionId: side === 'from' ? built.shortcut.fromRegion : built.shortcut.toRegion,
+        x: point.x,
+        z: point.z,
+        /**
+         * 推得動嗎。兩個條件：**索繫在這一側**（`unlockFrom`），而且**這一側的土地已經解鎖**。
+         * 另一頭只有一只沒有推桿的鼓 —— 看得到、推不開。
+         */
+        get canOpen() {
+          return side === 'from' && isUnlocked(built.shortcut.unlockFrom);
+        },
+      };
+    })
+  );
+
+  /* ------------------------------------------------------------------ *
+   * v1.2 · P19：外交式導向（螢火群整體流向「下一個建議去處」）
+   * ------------------------------------------------------------------ *
+   *
+   * 它**不是第七種反應物**，也不是新的一層 —— 是既有螢火群（`moths`）的
+   * 一個偏向量。0 新光源、0 新粒子、0 新碰撞體：
+   * 每一團螢火的「家」整體往目標那一側挪 `MOTH_GUIDE_LEAN` 公尺，再讓一批
+   * 沿著那個方向來回流（來回的部分吃 `kinetic`，所以 `reducedMotion` 只留靜態的那一段）。
+   *
+   * **可以關掉**（設定頁的「螢火指路」）：關掉時 `guide.on` 為 false，
+   * 粒子那一層讀到的偏向量是 0，每一幀與 P19 之前逐值相同。
+   */
+  /** 導向多久重算一次目標（秒）—— 與指南針同一個節拍。 */
+  const GUIDE_RESCAN = 0.5;
+  let guideOn = true;
+  let guideClock = GUIDE_RESCAN;
+
+  /**
+   * 下一個目標在哪（指南針、守望石與導向共用這一支）。
+   * 本區未通關的第一關 → 下一個已解鎖區域；全破時改指向還沒開的那道閘門。
+   */
+  function objectiveTargetFor(regionId) {
+    const start = Math.max(0, REGION_ORDER.indexOf(regionId));
+    for (let i = 0; i < REGION_ORDER.length; i += 1) {
+      const id = REGION_ORDER[(start + i) % REGION_ORDER.length];
+      if (!progression.isRegionUnlocked(id)) continue;
+      const m = markers.find((mk) => mk.region === id && !progression.isCleared(mk.challenge.id));
+      if (m) {
+        return { kind: 'marker', id: m.id, region: id, name: m.challenge.title, x: m.position.x, z: m.position.z };
+      }
+    }
+    for (const g of gates) {
+      if (progression.isRegionUnlocked(g.corridor.region)) continue;
+      return {
+        kind: 'gate',
+        id: g.id,
+        region: g.corridor.region,
+        name: `${g.meta.name}的閘門`,
+        x: g.position.x,
+        z: g.position.z,
+      };
+    }
+    return null;
+  }
+
+  /**
+   * 重算導向：從玩家站的地方看出去，下一個建議去處在哪個方向（單位向量）。
+   * 玩家已經站在目標上（距離 < 1 公尺）時不指 —— 指著腳下沒有意義。
+   */
+  function refreshGuide(px, pz) {
+    if (!guideOn) {
+      guide.on = false;
+      guide.x = 0;
+      guide.z = 0;
+      return;
+    }
+    const here = regionAt(px, pz);
+    const target = objectiveTargetFor(here ? here.id : 'foundations');
+    if (!target) {
+      guide.on = false;
+      guide.x = 0;
+      guide.z = 0;
+      return;
+    }
+    const dx = target.x - px;
+    const dz = target.z - pz;
+    const len = Math.hypot(dx, dz);
+    if (len < 1) {
+      guide.on = false;
+      guide.x = 0;
+      guide.z = 0;
+      return;
+    }
+    guide.on = true;
+    guide.x = dx / len;
+    guide.z = dz / len;
+  }
 
   /* --- v1.2 · P06：軟門檻三態（閘門＋石座）。解鎖／跳門／進區時由 main.js 叫；建構完先套一次 --- */
   const gateStatusOf = (regionId) =>
@@ -4253,10 +4807,21 @@ export function createWorld({
     for (const c of CORRIDORS) {
       if (isUnlocked(c.region)) continue;
       const site = SITE_BY_ID.get(c.region);
-      if (site && Math.hypot(x - site.x, z - site.z) < site.radius + 4) return false;
+      if (site && Math.hypot(x - site.x, z - site.z) < site.radius + REGION_LOCK_PAD) return false;
       const along = (x - c.from.x) * c.dir.x + (z - c.from.z) * c.dir.z;
       const lateral = distToSegment(x, z, c.from.x, c.from.z, c.to.x, c.to.z);
       if (along > c.gateAt - 1.4 && lateral < c.half + 4) return false;
+    }
+    /*
+     * v1.2 · P19：還沒推開的捷徑。擋的只有**門底下那 2.4 公尺**（`SHORTCUT_BLOCK`），
+     * 不是整條走廊 —— 兩側都走得到門前，才看得見自己被什麼擋住
+     * （「換一個看不見的牆不算修好」，§6.3）。
+     * 與虛空、閘門同一條規矩：**不管腳在多高都擋**。
+     */
+    for (let i = 0; i < SHORTCUTS.length; i += 1) {
+      const sc = SHORTCUTS[i];
+      if (isShortcutOpen(sc.id)) continue;
+      if (onShortcutBlock(sc, x, z)) return false;
     }
     /*
      * 加建的院落（課程 v2 · Phase F）：沒有橋，所以擋的不是一條線，而是**地界**。
@@ -4643,6 +5208,24 @@ export function createWorld({
        * 沒有這一條他會被 `clampPosition()` 永遠鎖在原地（「絕不能把玩家關住」）。
        * 三個出口（往回、往前、往窄板）挑最近的那一個，一步一步走，不瞬移。
        */
+      /*
+       * v1.2 · P19：**站在還沒推開的那道門底下的人也要被請出去。**
+       * 門底下那 2.4 公尺的地形是平的（高度場一個位元組都沒動），所以人是站在甲板上，
+       * 可是那一塊走不到 —— 沒有這一條，「重置進度」那一刻剛好站在門底下的人
+       * 會被 `clampPosition()` 永遠鎖在原地（護欄：**絕不能把玩家關住**）。
+       * 兩個出口（往回、往前）挑最近的那一個，一步一步走，不瞬移。
+       */
+      for (let i = 0; i < SHORTCUTS.length; i += 1) {
+        const sc = SHORTCUTS[i];
+        if (isShortcutOpen(sc.id)) continue;
+        if (!onShortcutBlock(sc, x, z)) continue;
+        laneLocal(sc, x, z, _escapeLocal);
+        const back = _escapeLocal.along - (sc.gateAt - SHORTCUT_BLOCK / 2 - 0.05);
+        const fwd = sc.gateAt + SHORTCUT_BLOCK / 2 + 0.05 - _escapeLocal.along;
+        const sign = back <= fwd ? -1 : 1;
+        const move = Math.max(0.02, Math.min(step, Math.min(back, fwd)));
+        return { x: x + sc.dir.x * sign * move, z: z + sc.dir.z * sign * move };
+      }
       if (bridgeGaps.length && !(feetY !== null && feetY >= terrainHeight(x, z) + GAP_LIP)) {
         const gap = gapAt(x, z, bridgeGaps);
         if (gap) {
@@ -4836,6 +5419,17 @@ export function createWorld({
      *   沒給就當作站在地上 —— 那幾處於是搆不到）。
      */
     updateReactions(dt, t, x, z, y = -Infinity) {
+      /*
+       * v1.2 · P19：外交式導向 —— 螢火群整體流向「下一個建議去處」。
+       * 目標很少變（通關 / 跨區才會），所以與指南針同一個節拍：每 `GUIDE_RESCAN`
+       * 秒重算一次，其餘的幀只讀那兩個數字（**零每幀配置**）。
+       */
+      guideClock += dt;
+      if (guideClock >= GUIDE_RESCAN) {
+        guideClock = 0;
+        refreshGuide(x, z);
+      }
+      for (const built of shortcutObjs) built.update(dt, t, reducedMotion ? 0.12 : 1);
       reactive.update(dt, t, x, z, y);
       handleField.update(dt, t, x, z);
       murkField.update(dt, t, x, z);
@@ -4954,35 +5548,82 @@ export function createWorld({
      * 已解鎖的關全破時改指向還沒開的那道閘門 —— 永遠指得出一個方向。
      */
     objectiveTarget(regionId) {
-      const order = REGION_SITES.map((s) => s.id);
-      const start = Math.max(0, order.indexOf(regionId));
-      for (let i = 0; i < order.length; i += 1) {
-        const id = order[(start + i) % order.length];
-        if (!progression.isRegionUnlocked(id)) continue;
-        const m = markers.find((mk) => mk.region === id && !progression.isCleared(mk.challenge.id));
-        if (m) {
-          return {
-            kind: 'marker',
-            id: m.id,
-            region: id,
-            name: m.challenge.title,
-            x: m.position.x,
-            z: m.position.z,
-          };
-        }
+      return objectiveTargetFor(regionId);
+    },
+
+    /* ---------------------------------------------------------------- *
+     * v1.2 · P19：相鄰區捷徑
+     * ---------------------------------------------------------------- */
+
+    /** 資料層的捷徑表（測試與 e2e 用）。 */
+    shortcuts: SHORTCUTS,
+    /** 世界層的捷徑（門 ＋ 兩座絞盤）。 */
+    shortcutObjects: shortcutObjs,
+    /** 這條捷徑推開了嗎（問的是進度，不是畫面）。 */
+    isShortcutOpen,
+
+    /**
+     * 走近的絞盤（v1.2 · P19）。半徑 3.2 —— 與器物同一階，排在器物之後、閘門之前。
+     * @param {THREE.Vector3} position
+     * @param {number} [maxDistance]
+     * @returns {null|{winch:object, distance:number}}
+     */
+    nearestShortcutWinch(position, maxDistance = WINCH_RADIUS) {
+      let best = null;
+      let bestDist = maxDistance;
+      for (const w of winches) {
+        const d = Math.hypot(position.x - w.x, position.z - w.z);
+        if (d > bestDist) continue;
+        bestDist = d;
+        best = w;
       }
-      for (const g of gates) {
-        if (progression.isRegionUnlocked(g.corridor.region)) continue;
-        return {
-          kind: 'gate',
-          id: g.id,
-          region: g.corridor.region,
-          name: `${g.meta.name}的閘門`,
-          x: g.position.x,
-          z: g.position.z,
-        };
+      if (best) best.shortcut.setNear(best.side);
+      else for (const built of shortcutObjs) built.setNear(null);
+      return best ? { winch: best, distance: bestDist } : null;
+    },
+
+    /**
+     * 推一下絞盤。**只回報發生了什麼**——寫存檔、放聲音、說一句話都由 main.js 決定
+     * （同器物層與祕密的作法）。
+     * @param {object} winch `nearestShortcutWinch()` 給的那一筆
+     */
+    pushWinch(winch) {
+      if (!winch || !winch.shortcut) return { pushed: false, complete: false, left: 0, stuck: true };
+      if (winch.shortcut.isOpen) return { pushed: false, complete: true, left: 0, stuck: false, already: true };
+      if (!winch.canOpen) return { pushed: false, complete: false, left: winch.shortcut.remaining, stuck: true };
+      const res = winch.shortcut.push();
+      if (res.complete) winch.shortcut.setOpen(true);
+      return { pushed: true, complete: res.complete, left: res.left, stuck: false };
+    },
+
+    /** 把某條捷徑設成已推開（載入存檔／推完那一刻的世界端變化）。 */
+    markShortcutOpen(id) {
+      const built = shortcutById.get(id);
+      if (built) built.setOpen(true);
+      return Boolean(built);
+    },
+
+    /** 「重置進度」時把每一道門關回去（不重載也不會演出失聯）。 */
+    resetShortcuts() {
+      for (const built of shortcutObjs) built.setOpen(false);
+    },
+
+    /**
+     * 外交式導向的開關（v1.2 · P19）。關掉之後螢火群的流向**真的變回原樣**——
+     * 這一支把導向向量歸零，粒子那一層讀到 0 就走 P19 之前那一條路。
+     */
+    setGuidance(on) {
+      guideOn = Boolean(on);
+      if (!guideOn) {
+        guide.on = false;
+        guide.x = 0;
+        guide.z = 0;
       }
-      return null;
+      guideClock = GUIDE_RESCAN; // 下一幀就重算，不必等半秒
+    },
+    /** 導向現在指著哪裡（測試與除錯用；關掉時是 `null`）。 */
+    guidance() {
+      return guide.on ? { x: guide.x, z: guide.z } : null;
     },
   };
 }
