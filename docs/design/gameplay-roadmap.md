@@ -138,7 +138,7 @@ CLAUDE.md 的五個方向與七條護欄仍是最高準則。本 roadmap 只回�
   - 依賴：P17。方案：1-D。
   - DoD：離線腳本可獨立通關；e2e 走離線路徑；線上模式關閉時零 console error。
 
-- [~] **P19 · 相鄰區捷徑（一條）＋ 外交式導向**（滑翔已裁決不做，理由見 task_plan §P19）（M）— `SHORTCUTS[]` 資料、窄走廊地形（half 4／flat 2，`coverage()` 逐點驗、不出 ±168）、單側解鎖（既有 `capstan` 文法）、存檔 `shortcuts:{id:bool}`；先做 orchestration↔config 南弧；外交式導向：螢火群整體流向「下一個建議去處」（可在設定關閉）；**phase 開頭 `/codex consult` 決定滑翔做不做**（若做，起飛台＝地標平台、落點＝捷徑另一端，排入 P24 前一格）。
+- [x] **P19 · 相鄰區捷徑（一條）＋ 外交式導向**（滑翔已裁決不做，理由見 task_plan §P19）（M）— `SHORTCUTS[]` 資料、窄走廊地形（half 4／flat 2，`coverage()` 逐點驗、不出 ±168）、單側解鎖（既有 `capstan` 文法）、存檔 `shortcuts:{id:bool}`；先做 orchestration↔config 南弧；外交式導向：螢火群整體流向「下一個建議去處」（可在設定關閉）；**phase 開頭 `/codex consult` 決定滑翔做不做**（若做，起飛台＝地標平台、落點＝捷徑另一端，排入 P24 前一格）。
   - 依賴：P16。方案：M2、M4、M6（決策）。
   - DoD：未解鎖真的走不過（e2e）；守望石仍在；WORLD.md §4.4 加導向規則。
 
