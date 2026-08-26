@@ -711,9 +711,25 @@ function corridorHeight(corridor, x, z) {
 
 /**
  * 地形高度場 —— 玩家貼地與物件擺放共用同一個函式，才不會浮空或陷地。
- * 五片土地與四條橋各自算高度，再依覆蓋權重混出來；沒有覆蓋的地方塌成虛空。
+ * 土地與橋各自算高度、依覆蓋權重混出來（`terrainRelief()`），
+ * 再減掉虛空那一崩（`voidDrop()`）。
  */
 export function terrainHeight(x, z) {
+  const h = terrainRelief(x, z);
+  return h - voidDrop(_reliefCover) * VOID_DEPTH;
+}
+
+/** `terrainRelief()` 上一次算到的覆蓋率（模組層的暫存 —— 零配置）。 */
+let _reliefCover = 0;
+
+/**
+ * **地本身的起伏**（不含虛空那一崩）—— 土地與橋依覆蓋權重混出來的那一面。
+ *
+ * 分成兩支是為了說得出 P16d 那句話：**走得到的每一點，`terrainHeight()` 與
+ * `terrainRelief()` 逐點相同**（＝一寸都沒有往下崩）。`test:rubric` 拿它當硬斷言；
+ * P16d 之前同一條斷言會在中央高原邊緣抓到 18.9 公尺的差。
+ */
+export function terrainRelief(x, z) {
   let wsum = 0;
   let hsum = 0;
   let cover = 0;
@@ -738,8 +754,44 @@ export function terrainHeight(x, z) {
     if (m > cover) cover = m;
   }
 
-  const h = wsum > 0 ? hsum / wsum : 0;
-  return h - (1 - cover) * 34;
+  _reliefCover = cover;
+  return wsum > 0 ? hsum / wsum : 0;
+}
+
+/** 虛空的深度（公尺）—— 覆蓋率 0 的地方就是這個高度。 */
+export const VOID_DEPTH = 34;
+
+/**
+ * 覆蓋率 → 往下崩多少（0 = 不崩、1 = 整整 `VOID_DEPTH`）。
+ *
+ * **v1.2 · P16d：這是站長「會走出土地邊緣、往下走 19 公尺再走回來」的根因修復。**
+ *
+ * P16d 之前是 `1 - cover`（一條直線）：覆蓋率一離開 1，地面就開始沉 ——
+ * 而「走得到」問的是 `coverage ≥ 0.45`。兩件事各說各話，於是**走得到的邊界
+ * 落在崖面的半山腰**：實測玩家走得出中央高原邊緣 5.5 公尺、往下走 18.9 公尺
+ * （最糟的校驗場 21.22 公尺），撞到看不見的牆，再走回來。
+ * 副作用不只難看：整個「崖肩」（覆蓋率 0.45–0.99）**是走得到的斜坡**，
+ * 24 件器物、2 座石座、59 個互動圈方向的擺位都落在上面。
+ *
+ * 現在兩者講同一件事：**覆蓋率 ≥ `STAND_COVER_MIN` 的地方是平地，低於它才開始崩。**
+ *   · 崖肩變回平地 → 那些器物與石座站在實地上（擺位規則一條都不用放寬）
+ *   · 崖面壓縮到覆蓋率 0.45→0 那一小段（中央高原 5.75 公尺落 34 公尺，均 80°）
+ *     —— 浮空島的邊緣是**斷崖**，不是坍下去的肩膀
+ *   · 走得到的範圍幾乎沒有變（邊界仍然是覆蓋率 0.45），所以護欄 7 不倒退
+ *   · 加建院落的頸口那道 6.6 公尺深的凹溝（覆蓋率只掉到 0.805）**直接消失**，
+ *     不必替它們另外登記走道
+ *
+ * 曲線用 **t²**（t ＝ 離門檻還有多遠，0–1）是量出來的：
+ *   · t¹（直線）在崖唇上是一道摺線 —— 地形網格一格 1.7 公尺插不出來，
+ *     站在唇上的人會浮在算出來的高度上、腳下的網格已經掉下去了。
+ *   · t³ 起手太軟：崖唇外**還是平地、卻走不過去**的那一段長到 5.1 公尺（護欄崗實測），
+ *     那等於把同一個「看不見的牆」搬到外面一點而已。
+ *   · t² 兩邊都收得住：起手平順（一階可微）、崖唇外那一段實測 **0.3–1.8 公尺**。
+ */
+function voidDrop(cover) {
+  if (cover >= STAND_COVER_MIN) return 0;
+  const t = (STAND_COVER_MIN - cover) / STAND_COVER_MIN;
+  return t * t;
 }
 
 /** 這個點被土地／橋覆蓋的程度（0 = 虛空、1 = 完全在陸地上）。 */
@@ -754,6 +806,51 @@ export function coverage(x, z) {
     if (d <= c.half) cover = Math.max(cover, smoothstep(c.half, c.flat, d));
   }
   return cover;
+}
+
+/**
+ * 走路走得上去的最大斜度（度）—— 站長那個 bug 的第二道鎖。
+ *
+ * 第一道是高度場（`voidDrop()`：走得到的地方一寸都不崩）；這一道管的是
+ * **地本身的起伏**：橋的甲板邊、加建院子的崖唇、地貌自己的坎。
+ *
+ * **45 是量出來的，不是拍的**：
+ *   · 橋的甲板（平段 |s| ≤ 5）最陡 **13.6°**、主動線（|s| ≤ 3.2）**12.9°**、
+ *     P15 的窄板（3.5–5.2）**3.8°** —— 橋與缺口一寸都沒動。
+ *   · 四片加建院落的頸口中線：護欄崗 12.3°、校驗場 19.9°、減法之庭 6.7°、分歧之廳 11.9°。
+ *   · 設計**已經把人擺在坡邊上**：12 位守夜人四面八方 1.7／2.6／3.5 公尺那 288 個點裡，
+ *     最陡的是 `watch-nameless-tool` 東北 2.6 公尺的 **41.9°**（`watchmen.json` 是內容紅線，
+ *     搬不了人）。訂 35° 會把兩位守夜人的四面八方切掉 —— 實測 7 條斷言當場紅。
+ *   · 走得到的取樣點照斜度分桶（0.5 公尺格）：35–40° 有 585 個、40–45° 有 228、
+ *     **45–50° 只剩 97、50–55° 只剩 49**，接著 55–60° 又跳回 613 —— 那 613 個是
+ *     崖唇前一步那一圈。45 正好落在「地貌自己的坎」與「崖唇」之間那道谷裡。
+ * 實測只擋掉覆蓋率過關的取樣點的 **0.42%**（925 / 222,758），一個互動點都沒少。
+ */
+export const WALK_SLOPE_MAX = 45;
+/**
+ * 量斜度用的取樣距離（公尺，中央差分 → **一次 4 個高度取樣**、零配置）。
+ *
+ * 0.35 ＝ 玩家半徑（0.62）的一半多一點，也是保險絲 `escapeSolid()` 一步的距離。
+ * 量出來的：再大（0.5）會把半公尺外的崖唇算到腳下這一點頭上 ——
+ * `wrd-signpost-coldpost` 東邊 3 公尺那一點地是平的（覆蓋率 0.456），
+ * 0.5 的探針把它讀成 53.2°，整條「器物東西各 3 公尺是實地」當場紅。
+ * 再小（0.2）量到的是高度場的解析解，比地形網格（一格 1.7 公尺）還細。
+ */
+export const SLOPE_PROBE = 0.35;
+const WALK_SLOPE_TAN = Math.tan((WALK_SLOPE_MAX * Math.PI) / 180);
+
+/**
+ * 這一點的地形陡到走不上去嗎（中央差分，4 個高度取樣、不配置任何物件）。
+ *
+ * 這是第二道鎖。第一道（`voidDrop()`）保證走得到的地方一寸都不崩，
+ * 所以這一支量到的幾乎都是**地本身的起伏**；它另外把崖唇前那一步也收掉
+ * （地形網格一格 1.7 公尺，站在唇上的人會浮在網格上方）。
+ */
+export function tooSteep(x, z) {
+  const h = SLOPE_PROBE;
+  const gx = (terrainHeight(x + h, z) - terrainHeight(x - h, z)) / (2 * h);
+  const gz = (terrainHeight(x, z + h) - terrainHeight(x, z - h)) / (2 * h);
+  return gx * gx + gz * gz > WALK_SLOPE_TAN * WALK_SLOPE_TAN;
 }
 
 /**
@@ -3978,7 +4075,17 @@ export function createWorld({
    * 貼著地形走的人一律不給 `feetY`（`null`）→ 走的是 P15 之前那一支，一個位元組沒動。
    */
   function isWalkable(x, z, feetY = null) {
-    if (coverage(x, z) < 0.45) return false;
+    /*
+     * v1.2 · P16d：這條門檻與高度場的 `voidDrop()` 用**同一個常數** ——
+     * 「走得到」與「地面沒有往下崩」從此是同一句話（`test:rubric` 逐點驗）。
+     */
+    if (coverage(x, z) < STAND_COVER_MIN) return false;
+    /*
+     * v1.2 · P16d：**走不走得到還要看坡度。**
+     * 覆蓋率那一條只說「這裡有地」，不說「這塊地站不站得住」。
+     * 跟虛空與閘門一樣：**不管腳在多高都擋**（跳到一半也不准落在崖面上）。
+     */
+    if (tooSteep(x, z)) return false;
     if (bridgeGaps.length) {
       const gap = gapAt(x, z, bridgeGaps);
       if (gap && !(feetY !== null && feetY >= terrainHeight(x, z) + GAP_LIP)) return false;
@@ -4243,6 +4350,8 @@ export function createWorld({
     /** 橋與加建的頸口（測試與除錯用）。 */
     corridors: CORRIDORS,
     annexLinks: ANNEX_LINKS,
+    /** 每片土地的中心／半徑／內圈（唯讀，測試與除錯用）。 */
+    sites: REGION_SITES,
 
     /* --- v1.2 · P11：中觀（遮擋帶與母題） --- */
     /** 這個世界蓋出來的中觀層（每一區一筆：group / bands / motifs）。 */

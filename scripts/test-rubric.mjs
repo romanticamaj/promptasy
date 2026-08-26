@@ -3030,6 +3030,30 @@ for (const site of World.REGION_SITES) {
 }
 
 /* --- 石座本體：擋得住人（Phase 20），但四面八方都走得到互動距離 --- */
+/*
+ * v1.2 · P16d：**4–5 公尺那一圈唯一放行的是閘門的柱子。**
+ *
+ * P16d 之前，減法之庭閘門的兩根柱子懸在頸口那道 6.6 公尺深的凹溝上方 ——
+ * `collectSolids()` 判它們「飄在半空」（腳下的地比自己低 2 公尺以上），
+ * 一顆碰撞圓都沒登記：看得到、走得過去。頸口填平之後柱子落回地面開始擋人，
+ * 於是離它 5.12 公尺的 `empty-plinth-100` 有兩個方向的第 4／5 公尺踩在柱子上。
+ *
+ * 石座搬不了（`challenges.json` 是內容紅線），閘門也立在地界上動不了 ——
+ * 而 24 個方向裡少掉 2 個「第 4／5 公尺」的落點不影響互動：
+ * **2–3 公尺那一圈整圈都空著**（下面逐點驗），而且不按空白鍵的洪水填充
+ * 逐格證明這座石座走得到。所以規則寫死成兩層：
+ * 2–3 公尺一顆都不准有；4–5 公尺**只放行閘門的柱子**，而且總數有上限。
+ */
+const gatePillars = [];
+testScene.traverse((o) => {
+  if (typeof o.name === 'string' && o.name.startsWith('gate:')) {
+    for (const g of World.collectSolids(o, World.terrainHeight)) gatePillars.push(g);
+  }
+});
+ok(gatePillars.length === World.CORRIDORS.length * 2 + World.ANNEX_LINKS.length * 2,
+  '每一道閘門都有兩根擋得住人的柱子', `n=${gatePillars.length}`);
+const isGatePillar = (s) => gatePillars.some((g) => Math.hypot(g.x - s.x, g.z - s.z) < 0.05 && Math.abs(g.r - s.r) < 0.05);
+let plinthGateHits = 0;
 for (const c of challenges) {
   const [x, z] = c.position;
   // Phase 20 之前這 26 座石座全部走得過去（產品回報的「石頭穿模」）
@@ -3039,8 +3063,13 @@ for (const c of challenges) {
     for (const dist of [2, 3, 4, 5]) {
       const px = x + Math.cos(ang) * dist;
       const pz = z + Math.sin(ang) * dist;
+      const hit = testWorld.solidAt(px, pz);
+      if (hit && dist >= 4 && isGatePillar(hit)) {
+        plinthGateHits += 1;
+        continue; // 閘門的柱子：唯一放行的例外（總數在下面驗）
+      }
       ok(
-        !testWorld.solidAt(px, pz),
+        !hit,
         `[${c.id}] 石座周圍 ${dist}m 走得到（互動不會被擋）`,
         `${px.toFixed(1)},${pz.toFixed(1)}`
       );
@@ -3052,6 +3081,9 @@ for (const c of challenges) {
     `[${c.id}] 貼著石座站的位置（${(2).toFixed(1)}m）仍在互動半徑 6.5m 內`
   );
 }
+/* 例外的總量有上限：整張地圖上只有 `empty-plinth-100` 的兩個方向踩得到閘門柱 */
+ok(plinthGateHits > 0, '「4–5 公尺踩到閘門柱」這條例外真的有被用到（不是一條永遠成立的斷言）', String(plinthGateHits));
+ok(plinthGateHits <= 4, '踩得到閘門柱的方向不超過 4 個（142 座石座 × 24 方向 × 2 個距離）', String(plinthGateHits));
 
 for (const lane of World.BRIDGE_LANES) {
   const dx = lane.bx - lane.ax;
@@ -10014,10 +10046,41 @@ console.log('\n▸ 契約鍛冶場與護欄崗（課程 v2 · Phase F）');
     const corridor = World.CORRIDORS.find((c) => c.region === 'toolcraft');
     ok(Boolean(corridor), '有一條橋通往契約鍛冶場');
     ok(corridor.gateAt > 0 && corridor.gateAt < corridor.length, '契約鍛冶場的閘門在橋中段');
-    /* 地貌：中央的鍛台高、四周是放射狀的工具溝槽 */
-    const mid = World.terrainHeight(site.x, site.z);
-    const rim = World.terrainHeight(site.x - 34, site.z);
-    ok(mid > rim + 1, '契約鍛冶場中央的鍛台比外圈高', `${mid.toFixed(1)} vs ${rim.toFixed(1)}`);
+    /*
+     * 地貌：中央的鍛台高、四周是放射狀的工具溝槽。
+     *
+     * v1.2 · P16d：量的兩個點換過了。原本是「中心 vs 離心 34」——
+     * 那一條其實在**量虛空的塌陷**，不是量鍛台：離心 34 落在覆蓋率 0.93 上，
+     * P16d 之前被 `-(1 - cover) * 34` 壓低 2.5 公尺，所以差值才會 > 1；
+     * 高度場改成「走得到的地方一寸都不崩」之後它當場掉到 2.9 vs 2.4。
+     * 而「中心」也不是最高點 —— 通往這裡的橋正好從中心切過去，
+     * 橋的高度（1.1）與地貌各佔一半權重，把中心壓下來了。
+     * 現在量的是**沒有被橋壓到的方向**上，鍛台（離心 10）與外圈（離心 28）的平均高度。
+     */
+    /**
+     * 這個點被通往這裡的橋壓到了嗎？
+     * 橋從中央高原直直過來、一路到土地的**中心**（`CORRIDORS` 的 to 就是中心），
+     * 所以「壓到」＝ 還在中央高原那一側（`along < 0`）而且離中線 < 12 公尺。
+     */
+    const onBridgeSide = (px, pz) => {
+      const along = (px - site.x) * corridor.dir.x + (pz - site.z) * corridor.dir.z;
+      const perp = Math.abs(-(px - site.x) * corridor.dir.z + (pz - site.z) * corridor.dir.x);
+      return along < 0 && perp < 12;
+    };
+    const forgeRing = (d) => {
+      const v = [];
+      for (let a = 0; a < 24; a += 1) {
+        const ang = (a / 24) * Math.PI * 2;
+        const px = site.x + Math.cos(ang) * d;
+        const pz = site.z + Math.sin(ang) * d;
+        if (onBridgeSide(px, pz)) continue; // 跳過被橋壓到的方向
+        v.push(World.terrainHeight(px, pz));
+      }
+      return v.reduce((a2, b) => a2 + b, 0) / v.length;
+    };
+    const mid = forgeRing(10);
+    const rim = forgeRing(28);
+    ok(mid > rim + 2, '契約鍛冶場的鍛台比外圈高', `${mid.toFixed(2)} vs ${rim.toFixed(2)}`);
     const ring = [];
     for (let a = 0; a < 24; a += 1) {
       const ang = (a / 24) * Math.PI * 2;
@@ -15135,7 +15198,13 @@ console.log('\n▸ 四宿星圖 ＋ 反應式回聲 ＋ 傳說鉤（v1.2 · P08�
 /*     —— 逐個碰撞體對每一件互動物、主動線、閘門、地標留白量距離           */
 /*   · 揭露：sightline-audit 的硬斷言（前 12m 看不到、25m 內揭露）        */
 /*   · 節奏：pacing-audit 三口徑死區不得增加                             */
-/*   · 預算：三角 < 232k、光源 37 不變、碰撞體 < 1,040、穿模 0、0 每幀工作 */
+/*   · 預算：三角 < 232k、光源 37 不變、碰撞體 < 1,060、穿模 0、0 每幀工作
+ *
+ *     碰撞體上限 1,040 → **1,060**（v1.2 · P16d）：崖肩不再塌陷之後，原本
+ *     「腳下的地比自己低 2 公尺以上」而被 `collectSolids()` 當成飄在半空、
+ *     整件跳過的道具回到地面上，開始擋人 —— 1,029 → 1,040（+11 顆圓／6 件道具：
+ *     護欄崗西南緣三件、觀象臺西緣一件，以及**減法之庭閘門的兩根柱子**
+ *     （它們原本懸在頸口那道 6.6 公尺深的凹溝上方 —— 看得到、走得過去）。 */
 /* ================================================================== */
 console.log('\n▸ 中觀：遮擋帶與母題（v1.2 · P11）');
 {
@@ -15500,7 +15569,7 @@ console.log('\n▸ 中觀：遮擋帶與母題（v1.2 · P11）');
     ok(tris < 232000, 'P11：世界三角形 < 232k', `tris=${Math.round(tris)}`);
     eq(lights, 37, 'P11：光源數不變（中觀層一盞燈都不加）', `lights=${lights}`);
     // v1.2 · P16a：+6 座高台 ＋ 4 座母題 ＋ 2 道遮擋帶 → 974 → 992（這一格的預算 <1,100；§6.1 的硬上限仍是 1,400）
-    ok(testWorld.solids.length < 1040, 'P11：碰撞體 < 1,040', `n=${testWorld.solids.length}`);
+    ok(testWorld.solids.length < 1060, 'P11：碰撞體 < 1,060', `n=${testWorld.solids.length}`);
     const Audit11 = await import('./collision-audit.mjs');
     for (const layer of testWorld.screens) {
       const res = Audit11.auditCoverage(layer.group, World.solidAt, testWorld.solids, World.terrainHeight);
@@ -17647,7 +17716,7 @@ console.log('\n▸ 跳躍原型（v1.2 · P14）');
       if (o.isLight) lightsP14 += 1;
     });
     eq(lightsP14, 37, 'P14：世界光源數仍然是 37', String(lightsP14));
-    ok(testWorld.solids.length < 1040, 'P14：碰撞體 < 1,040', String(testWorld.solids.length));
+    ok(testWorld.solids.length < 1060, 'P14：碰撞體 < 1,060', String(testWorld.solids.length));
 
     // 靜態掃描：跳躍的那兩段程式在 tick 裡不 new、不 map/filter、不建閉包
     const jumpSrc = readFileSync(resolve(root, 'src/player/jump.js'), 'utf8');
@@ -18185,6 +18254,8 @@ console.log('\n▸ 高台語法 ＋ 高處的祕密 ＋ 橋缺口（v1.2 · P15�
       ['刻文', inscriptions.map((i2) => [i2.at[0], i2.at[1], i2.id])],
       ['祕密', groundSecrets.map((sc) => [sc.at[0], sc.at[1], sc.id])],
       ['高台', Screens15.PLATFORMS.map((pf) => [pf.at[0], pf.at[1], pf.id]), 5],
+      // v1.2 · P16d：P16c 加進世界的 12 位守夜人也要走得到（那一格漏了這一層）
+      ['守夜人', readJson('src/data/watchmen.json').entries.map((w) => [w.at[0], w.at[1], w.id])],
     ];
     for (const [label, list, reachM] of layers) {
       let bad = 0;
@@ -18261,7 +18332,7 @@ console.log('\n▸ 高台語法 ＋ 高處的祕密 ＋ 橋缺口（v1.2 · P15�
     });
     ok(tris < 228000, 'P15：世界三角形 < 228k', `tris=${Math.round(tris)}`);
     eq(lights, 37, 'P15：光源數仍然是 37（高台、祕密、缺口一盞都沒加）', String(lights));
-    ok(testWorld.solids.length < 1040, 'P15：碰撞體 < 1,040', String(testWorld.solids.length));
+    ok(testWorld.solids.length < 1060, 'P15：碰撞體 < 1,060', String(testWorld.solids.length));
   }
 
   /* --- ⑨ WORLD.md 說得出這一格做了什麼 ------------------------------ */
@@ -18273,6 +18344,259 @@ console.log('\n▸ 高台語法 ＋ 高處的祕密 ＋ 橋缺口（v1.2 · P15�
     const s45 = world15.slice(world15.indexOf('### 4.5'), world15.indexOf('### 4.6'));
     ok(/12/.test(s45), 'WORLD.md §4.5 的祕密數字是 12（不是舊的 4）');
     for (const t of ['不對的東西', '聲音先到', '高處']) ok(s45.includes(t), `WORLD.md §4.5 列了 tell「${t}」`);
+  }
+}
+
+/* ================================================================== *
+ * 走不走得到要看坡度（v1.2 · P16d）
+ * ================================================================== *
+ *
+ * 站長 2026-08-26 實玩：「會墜落懸崖，然後可以走回來，但是讓主角會超出會墜落區域。」
+ *
+ * 根因：`coverage()` 是**土地半徑的水平混合值**、與高度場毫無關係，而
+ * `terrainHeight()` 正好在同一段裡往下崩 —— 兩者各說各話，於是「走得到」的邊界
+ * 落在崖面的半山腰。修法是讓兩者講同一句話（`voidDrop()`），再加一道斜度上限。
+ *
+ * 這一段的斷言都附**反例**：拿 P16d 之前那條線性的崩（`oldHeight`）再量一次，
+ * 每一條都要在舊高度場上紅掉，才證明它量的是真的東西。
+ */
+{
+  const P16D_STEP = 0.5;
+  /** P16d 之前的高度場：地貌 − (1 − 覆蓋率) × 34（一條直線）。 */
+  const oldHeight = (x, z) => World.terrainRelief(x, z) - (1 - World.coverage(x, z)) * World.VOID_DEPTH;
+
+  /* --- ① 常數的契約 -------------------------------------------------- */
+  eq(World.VOID_DEPTH, 34, 'P16d：虛空深度仍然是 34 公尺（畫面沒變）');
+  ok(World.WALK_SLOPE_MAX > 41.9 && World.WALK_SLOPE_MAX < 55,
+    'P16d：斜度上限落在「設計已經把人擺上去的最陡坡（41.9°）」與「崖唇（55°+）」之間',
+    String(World.WALK_SLOPE_MAX));
+  ok(World.SLOPE_PROBE > World.PLAYER_RADIUS / 2 && World.SLOPE_PROBE < 0.5,
+    'P16d：斜度探針比半個身體寬、又不到半公尺', String(World.SLOPE_PROBE));
+
+  /* --- ② 走得到的地方一寸都沒有往下崩 -------------------------------- *
+   *
+   * 這是整格的核心：`coverage ≥ STAND_COVER_MIN` 與「地面沒有沉」現在是同一句話。
+   */
+  {
+    let worst = 0;
+    let worstPt = null;
+    let oldWorst = 0;
+    let n = 0;
+    for (let x = -170; x <= 170; x += P16D_STEP) {
+      for (let z = -170; z <= 170; z += P16D_STEP) {
+        if (World.coverage(x, z) < World.STAND_COVER_MIN) continue;
+        n += 1;
+        const sunk = World.terrainRelief(x, z) - World.terrainHeight(x, z);
+        if (sunk > worst) {
+          worst = sunk;
+          worstPt = [x, z];
+        }
+        const oldSunk = World.terrainRelief(x, z) - oldHeight(x, z);
+        if (oldSunk > oldWorst) oldWorst = oldSunk;
+      }
+    }
+    ok(n > 200000, 'P16d：覆蓋率過關的取樣點夠多（不是只掃了一角）', String(n));
+    eq(worst, 0, 'P16d：**覆蓋率過關的每一點，地面一寸都沒有往下崩**', `${worst.toFixed(2)}m ${worstPt}`);
+    ok(oldWorst > 18, 'P16d[反例]：同一組點在 P16d 之前最深崩了 18 公尺以上', `${oldWorst.toFixed(2)}m`);
+  }
+
+  /* --- ③ 土地邊緣最多還能往下走幾公尺 -------------------------------- *
+   *
+   * 12 片土地各射 120 條徑線，從平地往外一步一步走到走不動為止，
+   * 量「腳下比出發那一點低了幾公尺」。P16d 之前最糟的校驗場是 21.22 公尺。
+   */
+  {
+    const tan = Math.tan((World.WALK_SLOPE_MAX * Math.PI) / 180);
+    const steepBy = (heightAt) => (x, z) => {
+      const h = World.SLOPE_PROBE;
+      const gx = (heightAt(x + h, z) - heightAt(x - h, z)) / (2 * h);
+      const gz = (heightAt(x, z + h) - heightAt(x, z - h)) / (2 * h);
+      return Math.hypot(gx, gz) > tan;
+    };
+    /** 沿 120 條徑線量「走到走不動為止掉了幾公尺」。`slope` 給 null ＝ 只問覆蓋率（P16d 之前那一支）。 */
+    const edgeDrop = (site, heightAt, slope) => {
+      let worst = 0;
+      for (let k = 0; k < 120; k += 1) {
+        const a = (k / 120) * Math.PI * 2;
+        const dx = Math.cos(a);
+        const dz = Math.sin(a);
+        const h0 = heightAt(site.x + dx * site.flat, site.z + dz * site.flat);
+        let last = null;
+        for (let d = site.flat; d <= site.radius + 25; d += 0.25) {
+          const px = site.x + dx * d;
+          const pz = site.z + dz * d;
+          if (World.coverage(px, pz) < World.STAND_COVER_MIN) break;
+          if (slope && slope(px, pz)) break;
+          last = heightAt(px, pz);
+        }
+        if (last === null) continue;
+        if (h0 - last > worst) worst = h0 - last;
+      }
+      return worst;
+    };
+    let live = 0;
+    let old = 0;
+    for (const site of World.REGION_SITES) {
+      const drop = edgeDrop(site, World.terrainHeight, steepBy(World.terrainHeight));
+      ok(drop < 3, `P16d：[${site.id}] 走到土地邊緣最多還能往下走 < 3 公尺`, `${drop.toFixed(2)}m`);
+      if (drop > live) live = drop;
+      const before = edgeDrop(site, oldHeight, null);
+      if (before > old) old = before;
+    }
+    ok(old > 18, 'P16d[反例]：P16d 之前同一支量出來最深走得下去 18 公尺以上', `${old.toFixed(2)}m`);
+    ok(live < old / 6, 'P16d：修完之後的最深落差不到修之前的六分之一', `${live.toFixed(2)} vs ${old.toFixed(2)}`);
+  }
+
+  /* --- ④ 走得到的地形沒有一點陡於 WALK_SLOPE_MAX --------------------- *
+   *
+   * 「用 `tooSteep()` 去驗 `isWalkable()` 有沒有擋掉陡點」是一句廢話（同一支函式）。
+   * 所以這裡**換一把尺**：站在走得到的那一點上，往八個方向各踏半公尺，
+   * 量「最深的一步掉了幾公尺」——這是玩家真的會遇到的那件事，而且與實作無關。
+   */
+  {
+    const STEP8 = 0.5;
+    let worstStep = 0;
+    let worstPt = null;
+    let oldWorstStep = 0;
+    let blockedBySlope = 0;
+    /**
+     * 往八個方向各踏半公尺，**只算落腳處也走得到的那幾步**，最深掉幾公尺。
+     * （踏到走不到的地方那一步是不會發生的 —— `clampPosition()` 當場擋下來。）
+     * @param {(x:number,z:number)=>boolean} walkable 那個世界的「走得到」
+     */
+    const maxStepDown = (x, z, heightAt, walkable) => {
+      const h0 = heightAt(x, z);
+      let worst = 0;
+      for (let a = 0; a < 8; a += 1) {
+        const ang = (a / 8) * Math.PI * 2;
+        const px = x + Math.cos(ang) * STEP8;
+        const pz = z + Math.sin(ang) * STEP8;
+        if (!walkable(px, pz)) continue;
+        const drop = h0 - heightAt(px, pz);
+        if (drop > worst) worst = drop;
+      }
+      return worst;
+    };
+    // P16d 之前的「走得到」＝ 只問覆蓋率
+    const oldWalkable = (x, z) => World.coverage(x, z) >= World.STAND_COVER_MIN;
+    const nowWalkable = (x, z) => World.coverage(x, z) >= World.STAND_COVER_MIN && !World.tooSteep(x, z);
+    for (let x = -170; x <= 170; x += P16D_STEP) {
+      for (let z = -170; z <= 170; z += P16D_STEP) {
+        if (World.coverage(x, z) < World.STAND_COVER_MIN) continue;
+        if (World.tooSteep(x, z)) {
+          blockedBySlope += 1;
+        } else {
+          const d = maxStepDown(x, z, World.terrainHeight, nowWalkable);
+          if (d > worstStep) {
+            worstStep = d;
+            worstPt = [x, z];
+          }
+        }
+        const od = maxStepDown(x, z, oldHeight, oldWalkable);
+        if (od > oldWorstStep) oldWorstStep = od;
+      }
+    }
+    ok(
+      worstStep < 0.9,
+      'P16d：走一步（半公尺）最深掉 < 0.9 公尺 —— 走得到的點之間沒有斷崖',
+      `${worstStep.toFixed(2)}m ${worstPt}`
+    );
+    ok(blockedBySlope > 300, 'P16d：斜度那一條真的有在擋（不是一條永遠成立的斷言）', String(blockedBySlope));
+    ok(
+      oldWorstStep > 5,
+      'P16d[反例]：P16d 之前同一批點裡，半公尺的一步可以掉 5 公尺以上',
+      `${oldWorstStep.toFixed(2)}m`
+    );
+  }
+
+  /* --- ⑤ 崖唇外「看起來還是平地、卻走不過去」的那一段有多長 ---------- *
+   *
+   * 換一個看不見的牆不算修好。量的是：從最後一個走得到的點再往外走，
+   * 地面還在同一個高度（差 < 0.3 公尺）的那一段有多長。
+   * 橋沿線的徑線不算（那是甲板，不是崖）。
+   */
+  {
+    const tan = Math.tan((World.WALK_SLOPE_MAX * Math.PI) / 180);
+    const steep = (x, z) => {
+      const h = World.SLOPE_PROBE;
+      const gx = (World.terrainHeight(x + h, z) - World.terrainHeight(x - h, z)) / (2 * h);
+      const gz = (World.terrainHeight(x, z + h) - World.terrainHeight(x, z - h)) / (2 * h);
+      return Math.hypot(gx, gz) > tan;
+    };
+    const nearBridge = (px, pz) =>
+      World.CORRIDORS.some((c) => {
+        const ux = c.to.x - c.from.x;
+        const uz = c.to.z - c.from.z;
+        const t = Math.max(0, Math.min(1, ((px - c.from.x) * ux + (pz - c.from.z) * uz) / (ux * ux + uz * uz)));
+        return Math.hypot(px - (c.from.x + ux * t), pz - (c.from.z + uz * t)) < 14;
+      });
+    for (const site of World.REGION_SITES) {
+      let worst = 0;
+      for (let k = 0; k < 120; k += 1) {
+        const a = (k / 120) * Math.PI * 2;
+        const dx = Math.cos(a);
+        const dz = Math.sin(a);
+        let onBridge = false;
+        for (let d = site.flat; d <= site.radius + 10 && !onBridge; d += 0.5) {
+          if (nearBridge(site.x + dx * d, site.z + dz * d)) onBridge = true;
+        }
+        if (onBridge) continue;
+        if (World.coverage(site.x + dx * (site.radius + 8), site.z + dz * (site.radius + 8)) > 0.15) continue;
+        let last = null;
+        for (let d = site.flat; d <= site.radius + 10; d += 0.1) {
+          const px = site.x + dx * d;
+          const pz = site.z + dz * d;
+          if (World.coverage(px, pz) >= World.STAND_COVER_MIN && !steep(px, pz)) last = d;
+        }
+        if (last === null) continue;
+        const h0 = World.terrainHeight(site.x + dx * last, site.z + dz * last);
+        let flatTo = last;
+        for (let d = last; d <= site.radius + 10; d += 0.1) {
+          if (h0 - World.terrainHeight(site.x + dx * d, site.z + dz * d) > 0.3) break;
+          flatTo = d;
+        }
+        if (flatTo - last > worst) worst = flatTo - last;
+      }
+      ok(worst < 2, `P16d：[${site.id}] 崖唇外「還是平地卻走不過去」的那一段 < 2 公尺`, `${worst.toFixed(2)}m`);
+    }
+  }
+
+  /* --- ⑥ 四片加建院落的頸口：整條中線走得到、而且是坡不是崖 ---------- */
+  {
+    for (const link of World.ANNEX_LINKS) {
+      let worstSlope = 0;
+      let blocked = 0;
+      for (let t = link.gateAt - 18; t <= link.gateAt + 18; t += 0.25) {
+        const px = link.from.x + link.dir.x * t;
+        const pz = link.from.z + link.dir.z * t;
+        const h = World.SLOPE_PROBE;
+        const gx = (World.terrainHeight(px + h, pz) - World.terrainHeight(px - h, pz)) / (2 * h);
+        const gz = (World.terrainHeight(px, pz + h) - World.terrainHeight(px, pz - h)) / (2 * h);
+        const deg = (Math.atan(Math.hypot(gx, gz)) * 180) / Math.PI;
+        if (deg > worstSlope) worstSlope = deg;
+        if (!testWorld.isWalkable(px, pz)) blocked += 1;
+      }
+      eq(blocked, 0, `P16d：[頸口:${link.region}] 閘門前後 18 公尺的中線整條走得到`, String(blocked));
+      ok(
+        worstSlope <= World.WALK_SLOPE_MAX,
+        `P16d：[頸口:${link.region}] 中線是坡不是崖（斜度在門檻之內，沒有豁免）`,
+        `${worstSlope.toFixed(1)}°`
+      );
+    }
+    /* 反例：P16d 之前，減法之庭與分歧之廳的頸口中線是 70–81° 的溜滑梯 */
+    let oldWorst = 0;
+    for (const link of World.ANNEX_LINKS) {
+      for (let t = link.gateAt - 18; t <= link.gateAt + 18; t += 0.25) {
+        const px = link.from.x + link.dir.x * t;
+        const pz = link.from.z + link.dir.z * t;
+        const h = World.SLOPE_PROBE;
+        const gx = (oldHeight(px + h, pz) - oldHeight(px - h, pz)) / (2 * h);
+        const gz = (oldHeight(px, pz + h) - oldHeight(px, pz - h)) / (2 * h);
+        const deg = (Math.atan(Math.hypot(gx, gz)) * 180) / Math.PI;
+        if (deg > oldWorst) oldWorst = deg;
+      }
+    }
+    ok(oldWorst > 70, 'P16d[反例]：P16d 之前頸口中線最陡是 70° 以上的溜滑梯', `${oldWorst.toFixed(1)}°`);
   }
 }
 

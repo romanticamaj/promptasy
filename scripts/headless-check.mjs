@@ -5242,7 +5242,12 @@ async function main() {
   ok(fonts.serifCovers, '中文襯線子集涵蓋 UI 用字');
   ok(fonts.sansCovers, '中文黑體子集涵蓋 UI 用字');
   ok(
-    fonts.serifBytes > 100_000 && fonts.serifBytes < 700_000,
+    /*
+     * 上限 700 KB → **760 KB**（v1.2 · P16d）：語料掃的是整個 `src/**`（含註解），
+     * P16d 在 `world.js` 寫了一長段「為什麼高度場要這樣改」的理由，
+     * 撐出 5 個新字、+1.2 KB。這條守的是「還是子集」（完整版 16 MB），不是「不准長」。
+     */
+    fonts.serifBytes > 100_000 && fonts.serifBytes < 760_000,
     '中文襯線是子集而非完整字型（完整版 16 MB）',
     `${(fonts.serifBytes / 1024).toFixed(0)} KB`
   );
@@ -19417,6 +19422,223 @@ async function main() {
   ok(watchReload.seen && watchReload.seen.seen.length >= 1, '問過的情報也還在', JSON.stringify(watchReload.seen));
   eq(watchReload.worldMet, true, '世界端也記得（腳下那一圈留了一點餘溫）');
   ok(watchReload.struggles >= 1, '卡關紀錄也留在存檔裡', String(watchReload.struggles));
+
+  /* ================================================================ */
+  console.log('\n▸ 走不走得到要看坡度（v1.2 · P16d）');
+  /* --- v1.2 · P16d：走到土地邊緣被擋下來的那一刻，人站在上緣 ----------
+   *
+   * 站長回報的是「會超出會墜落區域」——所以這裡驗的就是那一步：
+   *   ① 挑一條**沒有橋、沒有院子、路上沒有石頭**的徑線（在頁面裡掃出來，不寫死）
+   *   ② 按住 W 一直走到走不動為止（輪詢位置，不用固定 sleep 對齊牆鐘）
+   *   ③ 停下來的那一點，腳下的高度**離出發時的平地不到 3 公尺**
+   *   ④ 再往外 1.5 公尺是走不到的（證明擋住他的是地形邊緣，不是一顆石頭）
+   *
+   * 然後不按空白鍵走進四片加建院落的頸口 —— 那四段以前是 6.6 公尺深的溝。
+   */
+  const P16D_PRELUDE = `
+    const g = window.__promptasy;
+    const w = g.world;
+    const P = () => g.player.position;
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    if (!window.__gt) {
+      window.__gt = { t: 0 };
+      g.engine.onUpdate((dt) => { window.__gt.t += dt; });
+    }
+    const waitGame = async (seconds) => {
+      const until = window.__gt.t + seconds;
+      const bail = performance.now() + seconds * 8000 + 4000;
+      while (window.__gt.t < until && performance.now() < bail) await new Promise((r) => setTimeout(r, 30));
+    };
+    const press = (code) => window.dispatchEvent(new KeyboardEvent('keydown', { code }));
+    const release = (code) => window.dispatchEvent(new KeyboardEvent('keyup', { code }));
+    const releaseAll = () => { for (const c of ['KeyW', 'Space', 'ArrowLeft', 'ArrowRight']) release(c); };
+    const wrap = (d) => { while (d > Math.PI) d -= Math.PI * 2; while (d < -Math.PI) d += Math.PI * 2; return d; };
+    const faceToward = async (tx, tz) => {
+      const want = () => Math.atan2(tx - P().x, tz - P().z);
+      const diff = () => wrap(want() - g.player.cameraYaw);
+      const sign0 = Math.sign(diff());
+      if (sign0 === 0) return 0;
+      const dir = sign0 > 0 ? 'ArrowLeft' : 'ArrowRight';
+      press(dir);
+      const bail = performance.now() + 12000;
+      while (performance.now() < bail) {
+        const d = diff();
+        if (Math.abs(d) < 0.1 || Math.sign(d) !== sign0) break;
+        await sleep(20);
+      }
+      release(dir);
+      await waitGame(0.1);
+      return Math.abs(diff());
+    };
+    /** 按住 W 直到位置不再變（回傳走了多久、停在哪）。 */
+    const walkUntilStuck = async (budget) => {
+      press('KeyW');
+      let still = 0;
+      let prev = { x: P().x, z: P().z };
+      const bail = performance.now() + budget;
+      while (performance.now() < bail) {
+        await sleep(80);
+        const p = P();
+        const moved = Math.hypot(p.x - prev.x, p.z - prev.z);
+        prev = { x: p.x, z: p.z };
+        /* 軟體渲染一幀 ~200ms —— 連續 10 次（0.8 秒）沒動才算真的停了 */
+        still = moved < 0.01 ? still + 1 : 0;
+        if (still >= 10) break;
+      }
+      release('KeyW');
+      await waitGame(0.15);
+      return { x: P().x, z: P().z };
+    };
+    const openRegion = (id) => {
+      const st = g.progression.state;
+      const had = st.unlockedRegions.includes(id);
+      if (!had) st.unlockedRegions.push(id);
+      w.refreshGates();
+      return had;
+    };
+    const closeRegion = (id, had) => {
+      const st = g.progression.state;
+      if (!had && st.unlockedRegions.includes(id)) st.unlockedRegions.splice(st.unlockedRegions.indexOf(id), 1);
+      w.refreshGates();
+    };
+    if (g.gateAsk.isOpen) g.gateAsk.close({ silent: true });
+    if (g.codex.isOpen) g.codex.close();
+    releaseAll();
+  `;
+
+  const edgeWalk = await evaluate(`
+    ${P16D_PRELUDE}
+    const hub = w.sites.find((s) => s.id === 'foundations');
+    /* 掃一條乾淨的徑線：不擦到任何橋 / 院子的地界，而且路上 1.2 公尺內沒有碰撞體 */
+    let pick = null;
+    for (let k = 0; k < 360 && !pick; k += 1) {
+      const a = (k / 360) * Math.PI * 2;
+      const dx = Math.cos(a);
+      const dz = Math.sin(a);
+      let clean = true;
+      for (let d = 30; d <= hub.radius + 6 && clean; d += 0.5) {
+        const px = hub.x + dx * d;
+        const pz = hub.z + dz * d;
+        const here = w.regionAt(px, pz);
+        if (here && (here.onBridge || here.id !== 'foundations')) clean = false;
+        for (const s of w.solids) {
+          if (Math.hypot(s.x - px, s.z - pz) < s.r + 1.4) { clean = false; break; }
+        }
+      }
+      if (clean) pick = { a, dx, dz };
+    }
+    if (!pick) return { picked: false };
+    const startD = hub.flat - 16;
+    const sx = hub.x + pick.dx * startD;
+    const sz = hub.z + pick.dz * startD;
+    g.player.teleport(sx, sz);
+    await waitGame(0.4);
+    /* 基準是「平地的邊緣」那一點（與 test:rubric 的 12 片 × 120 徑線量同一件事） */
+    const flatY = w.terrainHeight(hub.x + pick.dx * hub.flat, hub.z + pick.dz * hub.flat);
+    await faceToward(hub.x + pick.dx * 200, hub.z + pick.dz * 200);
+    const stop = await walkUntilStuck(30000);
+    const out = {
+      picked: true,
+      angle: Math.round((pick.a * 180) / Math.PI),
+      startD,
+      walked: Math.hypot(stop.x - sx, stop.z - sz),
+      dropFromFlat: flatY - w.terrainHeight(stop.x, stop.z),
+      coverAtStop: w.coverage ? w.coverage(stop.x, stop.z) : null,
+      footGap: Math.abs(P().y - w.terrainHeight(stop.x, stop.z)),
+      aheadWalkable: w.isWalkable(stop.x + pick.dx * 1.5, stop.z + pick.dz * 1.5),
+      aheadDrop: w.terrainHeight(stop.x, stop.z) - w.terrainHeight(stop.x + pick.dx * 4, stop.z + pick.dz * 4),
+    };
+    releaseAll();
+    g.player.teleport(0, 6);
+    await waitGame(0.5);
+    return out;
+  `);
+  eq(edgeWalk.picked, true, 'P16d：掃得出一條沒有橋、沒有院子、路上沒有石頭的徑線');
+  ok(edgeWalk.walked > 14, 'P16d：真的往邊緣走了一段（不是原地被卡住）', `${(edgeWalk.walked || 0).toFixed(1)}m`);
+  ok(
+    edgeWalk.dropFromFlat < 3,
+    'P16d：**被擋下來的那一刻，腳下離平地不到 3 公尺**（停在上緣，不是半山腰）',
+    `${(edgeWalk.dropFromFlat || 0).toFixed(2)}m`
+  );
+  ok(edgeWalk.footGap < 1e-6, 'P16d：停下來的時候人是貼著地形的', String(edgeWalk.footGap));
+  eq(edgeWalk.aheadWalkable, false, 'P16d：再往外 1.5 公尺走不到（擋住他的是地形邊緣）');
+  ok(edgeWalk.aheadDrop > 3, 'P16d：而那個方向 4 公尺外真的是崖（掉下去 3 公尺以上）', `${(edgeWalk.aheadDrop || 0).toFixed(1)}m`);
+
+  /* --- 不按空白鍵，走過四片加建院落的頸口 --- */
+  const necks = await evaluate(`
+    ${P16D_PRELUDE}
+    const out = [];
+    for (const link of (w.annexLinks || [])) {
+      const had = openRegion(link.region);
+      const hadHost = openRegion(link.host);
+      await waitGame(0.2);
+      /*
+       * 頸口裡是有東西的（地標的臺座、閘門的兩根柱子、擺出來的道具）——
+       * 「一條直線走進去」本來就會撞到，那是繞路，不是這一格要驗的事。
+       * 所以先在頁面裡掃出一條**整條都清的**平行線（離中線 ±6 公尺內），
+       * 再沿著它從閘門前 8 公尺走到閘門後 1 公尺 —— 那一段正是以前的凹溝。
+       */
+      const at = (t, o) => [
+        link.from.x + link.dir.x * t - link.dir.z * o,
+        link.from.z + link.dir.z * t + link.dir.x * o,
+      ];
+      const T0 = link.gateAt - 8;
+      const T1 = link.gateAt + 1;
+      let lane = null;
+      for (let o = -6; o <= 6 && lane === null; o += 0.5) {
+        let clear = true;
+        for (let t = T0; t <= T1 && clear; t += 0.25) {
+          const [px, pz] = at(t, o);
+          if (!w.isClear(px, pz)) clear = false;
+        }
+        if (clear) lane = o;
+      }
+      if (lane === null) {
+        out.push({ region: link.region, lane: null, arrived: false, lowest: 0, jumped: false });
+        closeRegion(link.region, had);
+        closeRegion(link.host, hadHost);
+        continue;
+      }
+      const [sx, sz] = at(T0, lane);
+      const [ex, ez] = at(T1 + 3, lane);
+      g.player.teleport(sx, sz);
+      await waitGame(0.4);
+      const flatY = w.terrainHeight(sx, sz);
+      await faceToward(ex, ez);
+      press('KeyW');
+      let lowest = 0;
+      let jumped = false;
+      let arrived = false;
+      const bail = performance.now() + 30000;
+      while (performance.now() < bail) {
+        await sleep(60);
+        const p = P();
+        const dip = flatY - w.terrainHeight(p.x, p.z);
+        if (dip > lowest) lowest = dip;
+        if (Math.abs(p.y - w.terrainHeight(p.x, p.z)) > 0.2) jumped = true;
+        const here = w.regionAt(p.x, p.z);
+        if (here && here.id === link.region) { arrived = true; break; }
+      }
+      release('KeyW');
+      await waitGame(0.2);
+      out.push({ region: link.region, lane, arrived, lowest, jumped });
+      releaseAll();
+      g.player.teleport(0, 6);
+      await waitGame(0.4);
+      closeRegion(link.region, had);
+      closeRegion(link.host, hadHost);
+    }
+    if (g.gateAsk.isOpen) g.gateAsk.close({ silent: true });
+    await waitGame(0.3);
+    return out;
+  `);
+  eq(necks.length, 4, 'P16d：四片加建院落都走過了', String(necks.length));
+  for (const n of necks) {
+    ok(n.lane !== null, `P16d：[頸口:${n.region}] 掃得出一條整條都清的路`, String(n.lane));
+    eq(n.arrived, true, `P16d：[頸口:${n.region}] 不按空白鍵就走得進去`);
+    ok(n.lowest < 3, `P16d：[頸口:${n.region}] 整段路腳下離平地不到 3 公尺（是坡不是溝）`, `${(n.lowest || 0).toFixed(2)}m`);
+    eq(n.jumped, false, `P16d：[頸口:${n.region}] 全程貼著地形（沒有跳）`);
+  }
 
   /* ================================================================ */
   await sleep(600);
