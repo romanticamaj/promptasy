@@ -1578,3 +1578,40 @@ Exit criteria：
 **驗證**：rubric **153,987**／playtest 2,533／build ✓／pacing 12 片死區 0／
 sightline 6 通過／screen-fit 12 片全 ✓／e2e **4,350** 零 console error。
 預算：三角 227,586（< 233,000）、光源 **37**、碰撞體 1,041（< 1,080）。
+
+### P17 — 大濁靈（累積理解式）＋ 濁言圖鑑分層（2026-08-26 開工）
+
+狀態：`in progress`（里程碑 D 第一格）
+
+**現狀**：小濁靈 8 隻（`src/data/murks.json`，前四區各 2）。契約在 P02／P03 定死並且一路沿用到現在：
+- **沒有回合、沒有勝負、進度只累積**：`recordMurk()` 把新命中的檢查器寫進**跨次聯集** `murks:{[id]:{hits,grade}}`，**永不清零**；「這一次判過」或「累積權重 ≥ pass」就算安撫。
+- **演出契約**：主控台的 `onRubricHits({ challenge, passedIndices, newlyPassedIndices, total })` 只對 `newlyPassedIndices` 剝殼；重開面板時殼數 ＝ 存檔 hits 數（不重播）。
+- **選項式作答**（P06b，站長裁決）：每隻自帶 `flow.slots`，**slot 數 ＝ rubric 條數 ＝ 殼數**，正解串起來 ＝ 該隻的 `sample`。
+- 用語鐵則（§1.6）：不說「怪物／敵人／打敗／傷害／血量」；沒聽懂**不是失敗**，殼還在而已。
+- 圖鑑第四列「濁言與正言 n/8」已經在了。
+
+**目標**：每片土地一隻**大濁靈**——體積大、殼多（rubric 6–8 條）、原地不動，把「一句話缺很多件事」講成一個看得見的量體。同時把圖鑑的濁言條目**分層**：安撫開濁言、拿 A 開抄寫人眉批、拿 S 開一句來歷。
+
+**範圍**
+1. **資料**：`murks.json` 新增 12 隻大濁靈（`kind: "great"` 或等價欄位，**與現有 8 隻共存、不動它們一個位元組**）。每隻 rubric **6–8 條**、**只引用既有的 checks**（護欄 2：不新增技巧、不改課程資料；`source` 必在既有 anchors 表內）。每隻自帶 `flow.slots`（slot 數 ＝ rubric 條數 ＝ 殼數，同 P06b）。
+2. **規則疊加**（研究案 W-5）：每剝掉一層殼**揭示下一條限制**（Password Game 式），但**已剝的殼不會回來**——這是與 Password Game 最大的差別，也是鐵則「進度只累積」的具體形。UI 上是「下一層寫著什麼」逐步露出來，不是把前面的作廢。
+3. **世界端**：沿用 `createMurkField` 的樣板（距離分帶、零每幀配置、`murk:<id>` 命名、0 光源）。大濁靈**體積大**但仍然：不移動、不靠近、不跟隨；會動的只有頭、光、霧、殼。
+4. **圖鑑分層**：同一個條目三層——安撫 → 濁言原文；最佳評價 A → 抄寫人眉批（`authored: "game"` 的自撰註解）；S → 一句來歷（純風味、**不掛 source**）。未達那一層只顯示鎖著的剪影，不劇透。
+5. **擺位**：大濁靈有互動半徑（沿用 5.5 或更大，理由寫下來）。**P16b／P16c 的警告**：世界已經很擠，觀象臺／分歧之廳／護欄崗的中觀層落點只剩 0–8 種——**加了互動圈之後 `screen-fit -- --verify` 仍要 12 片全 ✓**。落點用工具搜，不要手挑。
+
+**不做**：護欄崗守門者（P18）、捷徑（P19）、傳聞頁與檔案廊（P20a／P20b）、終局（P22）。
+
+**受影響檔案**：`src/data/murks.json`（**本 phase 授權動它，但既有 8 隻一個位元組都不准改**）、`src/world/murks.js`、`src/prompt/console.js`、`src/progression/progression.js`、`src/ui/codex.js`、`src/main.js`、`scripts/test-rubric.mjs`、`scripts/headless-check.mjs`、`scripts/expected-counts.json`、`WORLD.md`。
+
+**預算**：三角 227,586 → **<234,000**（大濁靈整層增量 **<6,000**）；**光源 37 不變**；碰撞體 1,041 → **<1,100**；collision-audit 未涵蓋 **0**；可站立體稽核 **0**；`audit:pacing` 12 片死區 **0**；`screen-fit -- --verify` 12 片全 ✓。
+
+**Acceptance tests（先紅後綠）**
+- rubric：12 隻的資料契約（rubric 6–8 條、只引用既有 checks、source 在 anchors 表內、slot 數 ＝ rubric 條數 ＝ 殼數、既有 8 隻逐位元組不變）；**沒有任何清零／勝負文案**（禁字表逐句掃）；累積契約（分兩次各命中一半 → 仍然安撫；重開面板不重播）；圖鑑三層各自的解鎖條件與**未達時不劇透**；擺位吃既有那一整套；預算實測。
+- e2e：走到一隻大濁靈前面 → 選項式作答兩次（第一次剝掉幾層、第二次補完）→ 安撫；圖鑑看得到三層的狀態；零 console error。
+
+**禁區**：`curriculum.json`、`challenges.json`、`flows.json`、`letters.json`、`color-script.json`、`solution-stats.json`、`secrets.json`、`watchmen.json`、`vite.config.js`、`CLAUDE.md`、`CHANGELOG.md`、`gameplay-roadmap.md`、三件組、dev server 5173／5174／5175。
+
+Exit criteria：
+- [ ] 12 隻大濁靈站在地圖上，選項式作答、分兩次也安撫得了；沒有任何勝負文案。
+- [ ] 圖鑑三層（濁言／眉批／來歷）各自解鎖得了，未達時不劇透。
+- [ ] 中觀層一片都沒有被互動圈清零；rubric／playtest／build／e2e 全綠、console error 0；預算在框內。
