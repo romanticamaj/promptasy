@@ -6803,7 +6803,16 @@ const distToSeg = (px, pz, ax, az, bx, bz) => {
     ok(sd && sd.standable !== true, `[${m.id}] 底座站不上去（可站立體稽核 0）`);
   }
   ok(testWorld.solids.length < 1400, '加了濁靈之後碰撞體仍在預算內', `n=${testWorld.solids.length}`);
-  ok(testWorld.solids.length - baselineWorld.solids.length <= 16, '濁靈只多了少數幾個碰撞體', `Δ=${testWorld.solids.length - baselineWorld.solids.length}`);
+  /*
+   * 每一隻濁靈只多一顆底座（20 顆）；差額會**上下浮動**，因為牠們進了 `keepClear`，
+   * 程序化道具會重擲一次（findings「P06c 的發現」）。門檻用「隻數 ＋ 4」表達這件事，
+   * 不是寫死一個數字 —— 寫死的那個會在下一次加濁靈時假紅。
+   */
+  ok(
+    testWorld.solids.length - baselineWorld.solids.length <= murks.length + 4,
+    `濁靈只多了少數幾個碰撞體（≤ 隻數 ${murks.length} ＋ 4）`,
+    `Δ=${testWorld.solids.length - baselineWorld.solids.length}`
+  );
   {
     let lights = 0;
     let tris = 0;
