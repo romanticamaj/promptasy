@@ -1639,3 +1639,40 @@ Exit criteria：
 石碑**一開就是刻滿的**（每一段都標成「已經散掉的層」，整段文字逐字等於牠的正言），
 封印那一聲當場響 → 第二幕（指引）照樣翻得到 → 走到第三幕時**沒有一段可以刻**，
 所以直接進第四幕：問句區收起來、手掌印在那裡，按下去就能再呈一次拿更高評價。
+
+### P18 — 護欄崗守門者（離線腳本）（2026-08-26 開工）
+
+狀態：`in progress`（里程碑 D 第二格）
+
+**現狀**：護欄崗（wards）已經有 6 關在教注入防禦：`speaking-letter-75`（會說話的來信：`hasDelimiters`＋`assignsTask`）、`two-slots-76`（兩道口：`usesRareDelimiter`）、`reshaped-order-77`（改了形狀的委託：`reshapesToLowRisk`）、`unclosing-door-78`（不會關上的門：`requiresConfirmation`）、`guest-in-disguise-79`（假扮成客人的人：`includesAdversarialCase`）、`letters-in-disguise-131`（試煉）。地標是「不會關上的門」。P17 的大濁靈已經把**規則疊加**的骨架做出來（一層一層揭示、已剝的殼不會回來），可以直接長成守門者的分支腳本。
+
+**目標**：護欄崗多一位**守門者**——「一個有 system prompt 的守衛」。玩家要說服他放行，而他身上帶著一份**你看得到的指令**（那就是教材本身：指令階層、界定符、不執行資料裡的命令、動作前確認）。**離線腳本狀態機**，≥12 條分支，對「你用了哪一種技巧」做出不同反應。**沒有失敗態**：守衛只是「還沒被說服」。
+
+**關於選配的 LLM 模式（本 phase 的裁決：不做，寫下理由）**
+roadmap 原本寫「線上 LLM 模式僅選配（**既有 API key 設定**）」——查證後**那個設定不存在**（`src/` 裡沒有任何 apiKey／網路呼叫的線）。要做就得從零長出：設定頁的金鑰輸入、把使用者的密鑰存進 localStorage、對外的網路呼叫、CSP 與錯誤處理、以及它們各自的測試。那是**與這個遊戲其他部分性質完全不同的風險面**（第一次對外送資料、第一次保管使用者的祕密），CLAUDE.md 護欄 3 也明寫它「只能是加分模組，不是前提」。
+→ **這一格只做離線腳本**，但留下**接得上去的縫**：守門者的判定走一個 `guard` 介面（`decide(state, prompt, evaluation) → 反應`），離線腳本是**已註冊的預設實作**。哪天要接 LLM，是新增一個實作＋一個設定，不必動守門者本身。
+**不准**用「線上模式沒做所以那條 DoD 自動通過」來交差——要有斷言證明**離線那條路是完整且預設的**。
+
+**範圍**
+1. **資料** 新 `src/data/guardian.json`（`authored: "game"`）：守門者的 system prompt（玩家看得到的那份「他被交代了什麼」）、≥12 條分支（每條綁一個**既有的** check：`hasDelimiters`／`usesRareDelimiter`／`reshapesToLowRisk`／`requiresConfirmation`／`includesAdversarialCase`／`assignsTask`…）、每條的反應文字、以及「還沒被說服」時他會說什麼。**不新增技巧、不改課程資料、出處只引用既有的**。
+2. **狀態機** `src/challenges/guardian.js`（純函式、可離線、零相依）：讀 `evaluation` 的命中結果 → 決定他的下一句與狀態。**進度只累積**（同濁靈：說服過的點不會退回）。
+3. **世界端**：守門者站在護欄崗那道「不會關上的門」旁邊，**不走、不跟隨**、0 新光源。⚠️ 護欄崗**極擠**（P17 交接：大濁靈在那裡的合法格點只剩 7 個）——落點用 `npm run murk-fit`／`screen-fit` 那一套量，**不准把中觀層或大濁靈的落點清零**。
+4. **UI**：沿用既有面板文法與**選項式作答**（站長裁決）；`E` 是唯一互動鍵；`Esc` 收起。
+5. **沒有失敗態**：不准出現「失敗／被拒絕／再試一次」這一類字；他只是**還沒被說服**（同 §1.6 濁靈的用語鐵則）。
+
+**不做**：LLM 模式（理由如上）、捷徑（P19）、傳聞頁與檔案廊（P20a／P20b）。
+
+**受影響檔案**：新 `src/data/guardian.json`、新 `src/challenges/guardian.js`、新（或併入既有）`src/world/*`／`src/ui/*`、`src/main.js`、`src/progression/progression.js`、`scripts/lib/screen-rules.mjs`、`scripts/test-rubric.mjs`、`scripts/headless-check.mjs`、`scripts/expected-counts.json`、`WORLD.md`。
+
+**預算**：三角 231,230 → **<236,000**；**光源 37 不變**；碰撞體 1,052 → **<1,100**；collision-audit 未涵蓋 **0**；可站立體稽核 **0**；`audit:pacing` 12 片死區 **0**；`screen-fit -- --verify` 12 片全 ✓；`murk-fit -- --verify` 12 ✓。
+
+**Acceptance tests（先紅後綠）**
+- rubric：≥12 條分支且**每一條都綁既有的 check**；狀態機是純函式（餵存檔就問得出下一句）；**進度只累積**（分兩次說服也成立）；**沒有失敗態**（禁字表逐句掃）；`guard` 介面的預設實作是離線腳本，而且**離線那條路自己走得完**（先紅：把離線實作拔掉就要紅）；擺位吃既有那一整套且沒有把護欄崗清零；預算實測。
+- e2e：走到守門者面前 `E` → 選項式對話 → 用對技巧他讓一步 → 分兩次說服完 → 放行；全程零「失敗」字樣；零 console error。
+
+**禁區**：`curriculum.json`、`challenges.json`、`flows.json`、`murks.json`、`letters.json`、`color-script.json`、`solution-stats.json`、`secrets.json`、`watchmen.json`、`vite.config.js`、`CLAUDE.md`、`CHANGELOG.md`、`gameplay-roadmap.md`、三件組、dev server 5173／5174／5175。
+
+Exit criteria：
+- [ ] 守門者站在那道門旁邊，說服得了（分兩次也行），全程沒有失敗態。
+- [ ] 離線那條路完整且預設；`guard` 介面留得住未來的 LLM 實作。
+- [ ] 護欄崗的中觀層與大濁靈落點都沒被清零；rubric／playtest／build／e2e 全綠、console error 0；預算在框內。
