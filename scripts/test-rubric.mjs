@@ -21120,11 +21120,114 @@ console.log('\n▸ 守門者：帶著交辦站在門邊的人（v1.2 · P18）')
       eq(rows.length, guardianFile.latches.length, '交辦有幾行就畫幾行');
       eq(rows.filter((r) => r.open).length, 1, '對上的那一行是 open');
       for (const r of rows) ok(typeof r.waiting === 'string' && r.waiting.length > 0, `[${r.id}] 沒對上時說得出「還在等什麼」`);
-      const html = GuardUI.chargeHtml(guardianFile.charge, rows, { open: 1, need: guardianFile.pass, total: rows.length, convinced: false });
+      const st1 = { hits: ['frame'], turns: 1, convinced: false };
+      const tally1 = {
+        open: Guard.openWeight(guardianFile, st1),
+        need: Guard.passMark(guardianFile),
+        total: Guard.totalWeight(guardianFile),
+        lines: rows.length,
+        openLines: 1,
+        toGo: Guard.linesToGo(guardianFile, st1),
+        convinced: false,
+      };
+      const html = GuardUI.chargeHtml(guardianFile.charge, rows, tally1);
       ok(html.includes('is-open'), '畫出來的交辦標得出哪一行對上了');
       ok(html.includes(rows[0].clause) || html.includes(rows[1].clause), '交辦的原文真的畫在畫面上（那份 system prompt 玩家看得見）');
       ok(GuardUI.saidHtml('框起來').includes('框起來'), '「你剛剛說的那一句」真的畫得出來');
+
+      /*
+       * **權重不是行數**（P18 審查 · 第 6 條）。
+       * 畫面上說「行」的地方餵的必須是行數；`open`／`need`／`total` 是門檻在算的權重。
+       * 今天每條門閂都 `weight: 1`，所以兩者剛好一樣 —— 反例把其中一條調成 2，
+       * 舊寫法會當場把「對上了 1 行」印成「對上了 2 行」。
+       */
+      ok(GuardUI.tallyLine(tally1).includes(`對上了 1 / ${rows.length} 行`), '那一句說的是「幾行 / 共幾行」', GuardUI.tallyLine(tally1));
+      {
+        const heavy = {
+          ...guardianFile,
+          latches: guardianFile.latches.map((l, i) => (i === 0 ? { ...l, weight: 2 } : l)),
+        };
+        const stH = { hits: [heavy.latches[0].id], turns: 1, convinced: false };
+        eq(Guard.openWeight(heavy, stH), 2, '反例：那一條的權重是 2');
+        eq(Guard.worldStateOf(heavy, stH).open.length, 1, '但畫面上只亮了 1 行（同一份存檔）');
+        const lineH = GuardUI.tallyLine({
+          lines: heavy.latches.length,
+          openLines: Guard.worldStateOf(heavy, stH).open.length,
+          toGo: Guard.linesToGo(heavy, stH),
+          convinced: false,
+        });
+        ok(lineH.includes(`對上了 1 / ${heavy.latches.length} 行`), '有一條 weight 2 時，畫面上仍然說「1 行」', lineH);
+        eq(lineH.includes('對上了 2'), false, '**不會把權重 2 印成 2 行**（這就是那一條 bug 的樣子）', lineH);
+        // 「還差幾行」也是行數：門檻差 3 → 剩下的都是 1，就是 3 行
+        eq(Guard.linesToGo(heavy, stH), heavy.pass - 2, '「還差幾行」算的是補得上門檻要幾行', String(Guard.linesToGo(heavy, stH)));
+        eq(Guard.linesToGo(guardianFile, { hits: guardianFile.latches.map((l) => l.id), turns: 9, convinced: true }), 0, '全開了就是 0 行');
+      }
+      // 畫面那一層不准再拿權重當行數印
+      eq(/tally\.open\b|tally\.total\b|tally\.need\b/.test(guardUiSrc), false, 'ui/guardian.js 沒有任何一處把權重印成「行」');
+      ok(/openLines: rows\.filter/.test(mainSrc18) && /toGo: Guard\.linesToGo/.test(mainSrc18), 'main.js 真的把行數與「還差幾行」餵進去');
     }
+  }
+
+  /* --- ③b 存檔 → 世界端那塊板：**重載那條路** --------------------- */
+  {
+    /*
+     * P18 審查 · 第 1 條（真 bug）：`createGuardianField({ stateOf })` 要的是
+     * 「板上亮第幾行」（`{open: number[], convinced}`），而存檔存的是門閂 id
+     * （`{hits, turns, convinced}`）—— 之前 `main.js` 把存檔原樣交過去，
+     * `st.open` 是 `undefined` → `setOpen([])` → **重新整理之後一行都不亮**。
+     * 再說一句就會自己痊癒（`say()` 送的是完整的索引集合），所以更難發現；
+     * 而 rubric 直接呼叫 `setOpen([0,2])`、e2e 只在同一個 session 內收合／重開，
+     * **兩邊都沒有走過重載那條路**。換算現在只寫一份（`worldStateOf()`）。
+     */
+    const half18 = guardianFile.latches.slice(0, 4).map((l) => l.id);
+    const saved18 = { hits: half18, turns: 2, convinced: false };
+    eq(saved18.open, undefined, '存檔那一欄本來就沒有 open 這個鍵（所以不能原樣交給世界端）');
+    const ws18 = Guard.worldStateOf(guardianFile, saved18);
+    eq(JSON.stringify(ws18.open), JSON.stringify([0, 1, 2, 3]), '門閂 id 換算成板上的第幾行');
+    eq(ws18.convinced, false, '還沒說服就是還沒說服');
+    eq(JSON.stringify(Guard.worldStateOf(guardianFile, null).open), '[]', '反例：沒有存檔 → 一行都不亮（同一支換算）');
+    eq(
+      JSON.stringify(Guard.worldStateOf(guardianFile, { hits: ['not-a-latch'], turns: 1, convinced: false }).open),
+      '[]',
+      '反例：存檔裡的壞值換算不出任何一行'
+    );
+    // 開機還原與「說完一句之後」走的是同一支換算
+    ok(
+      /guardianStateOf: \(id\) => Guard\.worldStateOf\(guardianFile, progression\.guardianState\(id\)\)/.test(mainSrc18),
+      'main.js 的開機還原走 worldStateOf()（交給世界端的是「第幾行」）'
+    );
+    ok(
+      /return Guard\.worldStateOf\(guardianFile, guardianState\(id\)\)\.open;/.test(mainSrc18),
+      '說完一句之後的更新走的是同一支換算（兩條路做同一件事）'
+    );
+
+    /*
+     * **重載那條路真的走一遍**：拿一份「開了 4 行」的存檔重新蓋一次世界，
+     * 板上就要亮 4 行，而且是終態（重訪不播剝殼動畫）。
+     */
+    // 蓋世界要 canvas 替身（文字／光暈貼圖）——用完就還回去
+    const restore18 = installCanvasStub();
+    const reloadWorld18 = World.createWorld({
+      engine: { scene: new THREE.Scene(), camera: {}, onUpdate() {} },
+      quality: 'high',
+      ...worldOpts,
+      guardianStateOf: (id) => Guard.worldStateOf(guardianFile, id === guardianFile.id ? saved18 : null),
+    });
+    const back18 = reloadWorld18.guardians.byId(guardianFile.id);
+    ok(Boolean(back18), '重新蓋出來的世界找得到他');
+    const backOpen18 = back18 ? back18.open : -1;
+    eq(backOpen18, half18.length, '**重載之後，先前對上的那幾行還亮著**', `${backOpen18} / ${half18.length}`);
+    eq(back18 ? back18.marks.filter((m) => m.open && m.amt >= 0.99).length : -1, half18.length, '而且是終態（不播剝殼動畫）');
+    eq(back18 ? back18.convinced : true, false, '那份存檔還沒說服他');
+    // 反例（**呼叫的是同一支**）：世界端拿不到索引集合就一行都不亮 —— 那正是修掉的那個 bug
+    const blind18 = World.createWorld({
+      engine: { scene: new THREE.Scene(), camera: {}, onUpdate() {} },
+      quality: 'high',
+      ...worldOpts,
+      guardianStateOf: () => ({ convinced: false }),
+    });
+    eq(blind18.guardians.byId(guardianFile.id).open, 0, '反例：沒有 open 這個鍵 → 板上一行都不亮');
+    restore18();
   }
 
   /* --- ④ guard 介面：離線腳本是已註冊的預設，而且那條路自己走得完 --- */
@@ -21231,6 +21334,66 @@ console.log('\n▸ 守門者：帶著交辦站在門邊的人（v1.2 · P18）')
       const fake = [c0.position[0] + 3, c0.position[1]];
       ok(overlaps18(fake).length > 0, '反例：站在石座旁邊 3 公尺 → 圈疊上去（同一支判定）', overlaps18(fake)[0]);
     }
+    /*
+     * **餘裕只剩幾公分 —— 那就把它印進斷言訊息裡**（P18 審查 · 第 2 條）。
+     * `GUARDIAN_NO_OVERLAP_MARGIN` 是 0，而且訂不出比 0 更大的值：
+     * 最緊的那一對只剩 0.03 公尺。註解不准承諾一個出貨點滿足不了的餘裕，
+     * 所以這裡逐值比對契約記的那個數字，並把它印出來給下一個動座標的人看。
+     */
+    {
+      let tight18 = null;
+      for (const t of targets18) {
+        const bare = Rules18.GUARDIAN_R + Rules18.interactRingRadius(t);
+        const slack = Math.hypot(gx - t.at[0], gz - t.at[1]) - bare;
+        if (!tight18 || slack < tight18.slack) tight18 = { k: t.k, id: t.id, bare, slack };
+      }
+      ok(Boolean(tight18), '量得到最緊的那一對（不然這一段是空過的）');
+      const tight = tight18 || { k: '?', id: '?', bare: NaN, slack: NaN };
+      ok(tight.slack >= 0, `圈不重疊：最緊的一對是 ${tight.k}:${tight.id}`, `還剩 ${tight.slack.toFixed(3)}m（要 ${tight.bare.toFixed(2)}）`);
+      ok(
+        Math.abs(tight.slack - EX18.overlapSlack) < 0.005,
+        '契約記的餘裕就是現在量到的那一個',
+        `${tight.slack.toFixed(3)} vs ${EX18.overlapSlack}`
+      );
+      ok(
+        Rules18.GUARDIAN_NO_OVERLAP_MARGIN <= tight.slack,
+        '餘裕門檻不能大於出貨的落點滿足得了的那一個',
+        `margin=${Rules18.GUARDIAN_NO_OVERLAP_MARGIN} ≤ ${tight.slack.toFixed(3)}`
+      );
+      console.log(
+        `    ↳ 守門者：圈不重疊最緊的一對 ${tight.k}:${tight.id} 還剩 ${tight.slack.toFixed(3)}m` +
+          `（餘裕門檻 ${Rules18.GUARDIAN_NO_OVERLAP_MARGIN}）`
+      );
+    }
+    /*
+     * **換半徑調查時的門檻是重算的，不是把出貨半徑那一次的輸出平移**（P18 審查 · 第 5 條）。
+     * `GUARDIAN_RADIUS = 3.2` 的理由來自 `guardian-fit -- --survey`，而它就是靠這一支換半徑；
+     * 舊寫法 `needFrom(t) - GUARDIAN_R + radius` 會把「不搶 E 的那一層」那個**常數**也平移掉。
+     */
+    {
+      const react18 = { k: 'react', id: 'fake-react', at: [0, 0] };
+      const watch18 = { k: 'watchman', id: 'fake-watchman', at: [0, 0] };
+      const marker18 = { k: 'marker', id: 'fake-marker', at: [0, 0] };
+      eq(Rules18.guardianNeedFrom(react18), Rules18.GUARDIAN_AUTO_MIN, '不搶 E 的那一層：門檻是個常數');
+      eq(Rules18.guardianNeedFrom(react18, 2.8), Rules18.GUARDIAN_AUTO_MIN, '**收小也還是同一個常數**（它不隨互動圈變）');
+      eq(Rules18.guardianNeedFrom(react18, 4.6), Rules18.GUARDIAN_AUTO_MIN, '放大也一樣');
+      eq(Rules18.guardianNeedFrom({ k: 'secret', id: 'f', at: [0, 0] }, 4.6), Rules18.GUARDIAN_AUTO_MIN, '祕密那一層同理');
+      eq(Rules18.guardianNeedFrom(watch18, 2.8), 2.8 + Rules18.WATCHMAN_R, '圈不重疊那一層：換半徑就照那個半徑重算');
+      eq(Rules18.guardianNeedFrom(watch18, 4.6), 4.6 + Rules18.WATCHMAN_R, '放大也是重算');
+      eq(Rules18.guardianNeedFrom(marker18, 0.5), Rules18.GUARDIAN_ABOVE_MIN.marker, '石座那一層有一個與圈無關的下限（不准站進人家的地盤）');
+      eq(Rules18.guardianNeedFrom(marker18), Rules18.GUARDIAN_R + Rules18.MARKER_R, '圈夠大時，勝出的是「圈不重疊」那一條');
+      for (const t of targets18) {
+        if (t.k === 'react' || t.k === 'secret' || t.k === 'marker') continue;
+        eq(
+          Rules18.guardianNeedFrom(t),
+          Rules18.GUARDIAN_R + Rules18.interactRingRadius(t) + Rules18.GUARDIAN_NO_OVERLAP_MARGIN,
+          `[${t.k}:${t.id}] 出貨半徑之下就是「圈不重疊」（與擺位斷言同一條式子）`
+        );
+      }
+      const fitSrc18 = readFileSync(resolve(root, 'scripts/guardian-fit.mjs'), 'utf8');
+      ok(/guardianNeedFrom\(t, radius\)/.test(fitSrc18), 'guardian-fit 用調查的那個半徑重新算門檻');
+      eq(/- GUARDIAN_R \+ radius/.test(fitSrc18), false, '而且沒有把出貨半徑那一次的輸出線性平移');
+    }
     // 比他高階的那幾層另外再守一次「不准站進人家的地盤」（兩條都要過）
     for (const c of challenges) {
       const d = Math.hypot(gx - c.position[0], gz - c.position[1]);
@@ -21334,6 +21497,18 @@ console.log('\n▸ 守門者：帶著交辦站在門邊的人（v1.2 · P18）')
       const free = standableDirs18(guardianFile.at);
       ok(free >= Rules18.GUARDIAN_WINNABLE_MIN, `互動圈上至少 ${Rules18.GUARDIAN_WINNABLE_MIN} 個方向站得住`, `${free}/24`);
       ok(free <= EX18.winnableCeiling, '契約記的上限沒有低於實測（記錄用的數字要是真的）', `${free} ≤ ${EX18.winnableCeiling}`);
+      /*
+       * **貼著現行資料**（findings：「包住式」的區間斷言放寬也不會紅）——
+       * 上限那一格記的就是現行落點量到的那個數字，把它調到 24 就要紅。
+       * `GUARDIAN_WINNABLE_MIN` 的註解一度把這裡寫成 24/24（那是「貼身」3 圈 × 8 個方向
+       * 的數字，不是這一條），P18 審查 · 第 3 條訂正過。
+       */
+      eq(free, EX18.winnableCeiling, '契約記的上限就是現行落點量到的那一個（不是包住式的門檻）', `${free} vs ${EX18.winnableCeiling}`);
+      ok(
+        Rules18.GUARDIAN_WINNABLE_MIN < free,
+        '門檻真的比實測嚴一格以上（留得出餘裕）',
+        `${Rules18.GUARDIAN_WINNABLE_MIN} < ${free}`
+      );
       console.log(`    ↳ 守門者：互動圈上 ${free}/${Rules18.GUARDIAN_WINNABLE_DIRS} 個方向站得住（門檻 ${Rules18.GUARDIAN_WINNABLE_MIN}）`);
     }
     {

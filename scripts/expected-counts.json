@@ -338,6 +338,7 @@
       "options": 15,
       "radius": 3.2,
       "bodyRadius": 0.55,
+      "overlapSlack": 0.03,
       "winnableMin": 20,
       "winnableCeiling": 22,
       "winnableDirs": 24,
@@ -348,7 +349,7 @@
         12
       ],
       "defaultGuard": "offline",
-      "why": "v1.2 · P18：護欄崗的守門者 —— 一個**帶著 system prompt 站在門邊的人**。他身上那份「交辦」玩家看得見（那份交辦就是教材：指令階層、規矩排在資料前面、界定符、挑罕見的界定符、把會出事的那一步換個形狀、動作前確認、先替他試過假扮的委託），要說服他就得說出對得上那幾行的話。用選的、不打字；判定是**離線腳本狀態機**（src/challenges/guardian.js，純函式、零相依、不連網），走 guard 介面 decide(state, prompt, evaluation)，離線實作是**已註冊的預設**（defaultGuard）。線上 LLM 模式這一格不做，裁決與理由寫在 docs/history/task_plan.md §P18。\n\n沒有失敗態：他只是還沒被說服（禁字表逐句掃資料層與畫面上的字，同 WORLD.md §1.6 濁靈的用語鐵則）。進度只累積：latches 是聯集，說服過就不會退回，分兩次各說一半也成立。他不是關卡：不進 142 關、不進 bestGrades、不給 XP、不收技巧、不影響解鎖。\n\nbranches 15 條（下限 branchesMin 12），每一條綁一個**既有的**檢查器（checks.js），出處一律引用 challenges.json 裡那一關自己的官方連結（from 欄；test:rubric 驗那一關的 rubric 真的含這個檢查器）—— guardian.json 裡一個網址都沒有。options 15 個，每一個的 text 都是真的送進評分引擎的那一句，test:rubric 逐句餵給 decide()，驗它解到自己宣告的那一條分支。\n\n擺位是量出來的（規則在 scripts/lib/screen-rules.mjs，搜尋器是 npm run guardian-fit）：radius 3.2 —— 護欄崗是 12 片土地裡最擠的一片，照守夜人那一階（4.6）全區只剩 5 個落點而且全部離那道門 21.5 公尺；收到 3.2 才有 6 個門邊的點（離門 8.6–10.3）。他的互動圈與**每一層**都不重疊（連石座也是），所以「半徑跟著仲裁順序遞減」那條慣例要守的事情（不要互相蓋掉）在他身上是用更嚴的方式成立的。\n\nwinnableMin 20：站在他的互動圈上，24 個方向裡有幾個站得住。winnableCeiling 22 是 guardian-fit 逐點掃過整片土地量到的上限（現行落點就是 22/24），門檻留兩格餘裕 —— 同守夜人那一格的作法（門檻 ≤ 上限）。doorMax 12 是「他要站在那道不會關上的門旁邊」的硬規則，doorNow 10.26 是現行落點量到的距離。"
+      "why": "v1.2 · P18：護欄崗的守門者 —— 一個**帶著 system prompt 站在門邊的人**。他身上那份「交辦」玩家看得見（那份交辦就是教材：指令階層、規矩排在資料前面、界定符、挑罕見的界定符、把會出事的那一步換個形狀、動作前確認、先替他試過假扮的委託），要說服他就得說出對得上那幾行的話。用選的、不打字；判定是**離線腳本狀態機**（src/challenges/guardian.js，純函式、零相依、不連網），走 guard 介面 decide(state, prompt, evaluation)，離線實作是**已註冊的預設**（defaultGuard）。線上 LLM 模式這一格不做，裁決與理由寫在 docs/history/task_plan.md §P18。\n\n沒有失敗態：他只是還沒被說服（禁字表逐句掃資料層與畫面上的字，同 WORLD.md §1.6 濁靈的用語鐵則）。進度只累積：latches 是聯集，說服過就不會退回，分兩次各說一半也成立。他不是關卡：不進 142 關、不進 bestGrades、不給 XP、不收技巧、不影響解鎖。\n\nbranches 15 條（下限 branchesMin 12），每一條綁一個**既有的**檢查器（checks.js），出處一律引用 challenges.json 裡那一關自己的官方連結（from 欄；test:rubric 驗那一關的 rubric 真的含這個檢查器）—— guardian.json 裡一個網址都沒有。options 15 個，每一個的 text 都是真的送進評分引擎的那一句，test:rubric 逐句餵給 decide()，驗它解到自己宣告的那一條分支。\n\n擺位是量出來的（規則在 scripts/lib/screen-rules.mjs，搜尋器是 npm run guardian-fit）：radius 3.2 —— 護欄崗是 12 片土地裡最擠的一片，照守夜人那一階（4.6）全區一個落點都不剩（4.0、3.8 也是）；收到 3.2 才有 6 個格點，而且 6 個全部在門邊（離門 8.6–10.0）。現行落點 (102.75, -153) 不落在 0.5 的格子上，是把格點收細之後找到的，也是那一帶唯一通得過重建驗的一個。他的互動圈與**每一層**都不重疊（連石座也是），所以「半徑跟著仲裁順序遞減」那條慣例要守的事情（不要互相蓋掉）在他身上是用更嚴的方式成立的。\n\nwinnableMin 20：站在他的互動圈上，24 個方向裡有幾個站得住。winnableCeiling 22 是 guardian-fit 逐點掃過整片土地量到的上限（現行落點就是 22/24），門檻留兩格餘裕 —— 同守夜人那一格的作法（門檻 ≤ 上限）。doorMax 12 是「他要站在那道不會關上的門旁邊」的硬規則，doorNow 10.26 是現行落點量到的距離。overlapSlack 0.03 是「互動圈與每一層都不重疊」這一條**最緊的那一對**還剩幾公尺（ward-gatekeeper ↔ watchman:watch-unclosing-door，量到 7.83、要 7.80）—— 所以 GUARDIAN_NO_OVERLAP_MARGIN 只能是 0，訂任何更大的餘裕都會讓出貨的落點過不了；test:rubric 逐值比對它並把餘裕印進斷言訊息，下一個動他座標的人會先紅。"
     }
   }
 }

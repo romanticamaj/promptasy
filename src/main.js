@@ -180,7 +180,8 @@ function boot() {
     watchmanMetOf: (id) => progression.hasMetWatchman(id),
     // v1.2 · P18：守門者（帶著一份看得見的交辦站在門邊；走近按 E 用選的說服他）
     guardians: [guardianFile],
-    guardianStateOf: (id) => guardianState(id),
+    // 開機還原：存檔存的是門閂 id，板上亮的是第幾行 —— 換算只有 `worldStateOf()` 一份
+    guardianStateOf: (id) => Guard.worldStateOf(guardianFile, progression.guardianState(id)),
     // v1.2 · P06：色彩腳本（key／rim／particle 建構時套；sky 走 applyMood 的單一入口）
     colorScript: colorScriptFor,
     reducedMotion,
@@ -1182,11 +1183,9 @@ function boot() {
   function guardianState(id) {
     return Guard.normalizeState(progression.guardianState(id), guardianFile);
   }
-  /** 交辦上對上的是第幾行（世界端那塊板照這個亮）。 */
+  /** 交辦上對上的是第幾行（世界端那塊板照這個亮 —— 與開機還原同一支換算）。 */
   function latchIndices(id) {
-    return Guard.latchStatus(guardianFile, guardianState(id))
-      .filter((r) => r.open)
-      .map((r) => r.index);
+    return Guard.worldStateOf(guardianFile, guardianState(id)).open;
   }
   /** 離線判定者（預設實作；`null` 只會在登記表被換掉時發生，那時他就只是站著）。 */
   const guard = Guard.createGuard(guardianFile);
@@ -1211,12 +1210,22 @@ function boot() {
         return st.hits.length ? (lines.waiting || []).slice() : (guardianFile.greet || []).slice();
       },
       latches: () => Guard.latchStatus(guardianFile, guardianState(id)),
+      /**
+       * 畫面上那一句要的數字。**「行」與「權重」分兩組欄位**：
+       * `openLines`／`lines`／`toGo` 是行數（畫面上說的那個單位），
+       * `open`／`need`／`total` 是權重（門檻在算的那個量）——
+       * 每條門閂都 `weight: 1` 的時候兩者剛好一樣，但那是巧合，不是同一件事。
+       */
       tally() {
         const st = guardianState(id);
+        const rows = Guard.latchStatus(guardianFile, st);
         return {
           open: Guard.openWeight(guardianFile, st),
           need: Guard.passMark(guardianFile),
           total: Guard.totalWeight(guardianFile),
+          lines: rows.length,
+          openLines: rows.filter((r) => r.open).length,
+          toGo: Guard.linesToGo(guardianFile, st),
           convinced: st.convinced,
         };
       },

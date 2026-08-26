@@ -31,11 +31,10 @@ import Rules from './lib/screen-rules.mjs';
 
 const {
   GUARDIAN_R,
-  GUARDIAN_ABOVE_MIN,
   GUARDIAN_AUTO_MIN,
   GUARDIAN_LANDMARK_MAX,
   GUARDIAN_LANDMARK_ID,
-  GUARDIAN_NO_OVERLAP_MARGIN,
+  guardianNeedFrom,
   GUARDIAN_PATH_MIN,
   GUARDIAN_PATH_MAX,
   GUARDIAN_BODY_R,
@@ -49,7 +48,6 @@ const {
   LANE_MARGIN,
   GATE_MIN,
   interactionTargets,
-  interactRingRadius,
   pathDistance,
 } = Rules;
 
@@ -89,23 +87,6 @@ function targetsExceptSelf() {
 }
 
 /**
- * 他離某一層要多遠（公尺）。
- *
- * 比他高階的三層（石座／濁靈／守夜人）各有自己的那一格（`GUARDIAN_ABOVE_MIN`）；
- * 不搶 `E` 的（反應物／祕密）只要不站在人家頭上；
- * 其餘每一層守的是**互動圈不重疊** ＝ 兩個互動半徑相加 ＋ 餘裕。
- *
- * ⚠️ 石座那一格（8.0「不准站進人家的地盤」）**比圈不重疊寬**，
- * 所以真的要守的是兩者取大的那一個 —— 一格只寫一種語意，取大在這裡做。
- */
-function needFrom(t) {
-  if (t.k === 'react' || t.k === 'secret') return GUARDIAN_AUTO_MIN;
-  const overlap = GUARDIAN_R + interactRingRadius(t) + GUARDIAN_NO_OVERLAP_MARGIN;
-  const above = GUARDIAN_ABOVE_MIN[t.k];
-  return Number.isFinite(above) ? Math.max(above, overlap) : overlap;
-}
-
-/**
  * 一個候選座標過不過離線篩。回問題清單（空陣列＝過）。
  * @param {number} x
  * @param {number} z
@@ -134,7 +115,12 @@ function problemsAt(x, z, regionId, targets, screens, pathSegs, radius = GUARDIA
   if (World.coverage(x, z) <= MOTIF_COVERAGE_MIN) problems.push(`踩在崩掉的區緣上（coverage ${World.coverage(x, z).toFixed(2)}）`);
 
   for (const t of targets) {
-    const need = radius === GUARDIAN_R ? needFrom(t) : needFrom(t) - GUARDIAN_R + radius;
+    /*
+     * ⚠️ 換半徑調查時**用那個半徑重新算一次**（`guardianNeedFrom(t, radius)`），
+     * 不要拿 `GUARDIAN_R` 的輸出做線性平移 —— 反應物／祕密那一條是常數，
+     * 平移它等於憑空造一個沒有人訂過的門檻（P18 審查 · 第 5 條）。
+     */
+    const need = guardianNeedFrom(t, radius);
     const d = Math.hypot(x - t.at[0], z - t.at[1]);
     if (d < need) problems.push(`太靠近 ${t.k}:${t.id}（${d.toFixed(2)} < ${need.toFixed(2)}）`);
   }
@@ -316,9 +302,11 @@ async function main() {
       const { cands } = scan(r);
       const near = cands.filter((c) => c.door <= GUARDIAN_LANDMARK_MAX);
       const nearest = cands.length ? Math.min(...cands.map((c) => c.door)) : NaN;
+      const farthest = cands.length ? Math.max(...cands.map((c) => c.door)) : NaN;
+      const span = cands.length ? `${nearest.toFixed(1)}–${farthest.toFixed(1)}m` : '—';
       console.log(
         `互動半徑 ${String(r).padEnd(4)} → 合格點 ${String(cands.length).padStart(3)} 個` +
-          `（門邊 ≤${GUARDIAN_LANDMARK_MAX}m 的 ${near.length} 個；離門最近 ${Number.isFinite(nearest) ? nearest.toFixed(1) : '—'}m）`
+          `（門邊 ≤${GUARDIAN_LANDMARK_MAX}m 的 ${near.length} 個；離門 ${span}）`
       );
     }
     return;

@@ -113,6 +113,49 @@ export function isConvinced(data, state) {
 }
 
 /**
+ * 存檔 → **世界端那塊板**的樣子（`createGuardianField({ stateOf })` 要的就是這個形狀）。
+ *
+ * 存檔存的是門閂 id、板上亮的是第幾行 —— 同一件事的兩種說法，換算只寫這一份。
+ * 開機還原與說完一句之後的更新走的都是它（P18 審查 · 第 1 條：兩條路要做同一件事）。
+ *
+ * @param {object} data guardian.json
+ * @param {object} state 存檔那一欄（`{hits, turns, convinced}`）
+ * @returns {{open:number[], convinced:boolean}}
+ */
+export function worldStateOf(data, state) {
+  const st = normalizeState(state, data);
+  return {
+    open: latchStatus(data, st)
+      .filter((r) => r.open)
+      .map((r) => r.index),
+    convinced: st.convinced,
+  };
+}
+
+/**
+ * 還差**幾行**（行數，不是權重）：把還沒對上的門閂由重到輕排，取到補得上門檻為止。
+ *
+ * 畫面上那一句說的是「行」，門檻算的是權重 —— 每條門閂都 `weight: 1` 的時候兩者一樣，
+ * 哪天有一條 2 就會對不起來（P18 審查 · 第 6 條）。所以「行」由這一支回答。
+ */
+export function linesToGo(data, state) {
+  const st = normalizeState(state, data);
+  let gap = passMark(data) - openWeight(data, st);
+  if (gap <= 0) return 0;
+  const rest = ((data && data.latches) || [])
+    .filter((l) => !st.hits.includes(l.id))
+    .map((l) => (Number.isFinite(l.weight) ? l.weight : 1))
+    .sort((a, b) => b - a);
+  let n = 0;
+  for (const w of rest) {
+    gap -= w;
+    n += 1;
+    if (gap <= 0) break;
+  }
+  return n;
+}
+
+/**
  * 這一輪擺哪幾個選項出來（純函式：同一份存檔 ＋ 同一個 turn ＝ 同一批）。
  *
  * 規則：**還開得了門閂的排前面**（那是他在等的），其餘的補滿一輪；
@@ -305,6 +348,8 @@ export default {
   passMark,
   latchStatus,
   isConvinced,
+  worldStateOf,
+  linesToGo,
   pickOptions,
   createOfflineGuard,
   createGuardRegistry,

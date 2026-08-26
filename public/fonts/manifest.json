@@ -100,7 +100,7 @@
     "src/world/watchmen.js",
     "src/world/world.js"
   ],
-  "corpusHash": "e3f6ae88d11768c0",
+  "corpusHash": "9398ac89c5d88258",
   "coverage": {
     "latin": [
       32,
@@ -348,6 +348,7 @@
       9733,
       9734,
       9837,
+      9888,
       9997,
       9998,
       10002,
@@ -364,7 +365,8 @@
       10230,
       11093,
       12539,
-      57498
+      57498,
+      65039
     ],
     "cjk": [
       12288,
@@ -2451,7 +2453,8 @@
       10216,
       10217,
       11093,
-      12539
+      12539,
+      65039
     ],
     "newsreader": [
       949,
@@ -2507,6 +2510,7 @@
       9733,
       9734,
       9837,
+      9888,
       9997,
       9998,
       10002,
@@ -2521,7 +2525,8 @@
       10230,
       11093,
       12539,
-      57498
+      57498,
+      65039
     ],
     "mono": [
       8213,
@@ -2561,7 +2566,8 @@
       10060,
       11093,
       12539,
-      57498
+      57498,
+      65039
     ],
     "serif-tc": [],
     "sans-tc": []
@@ -2601,7 +2607,7 @@
       "id": "inter",
       "family": "Inter UI",
       "file": "inter-ui.woff2",
-      "bytes": 86292,
+      "bytes": 86328,
       "role": "latin",
       "variable": true,
       "weight": null,
@@ -2617,8 +2623,8 @@
           "default": 14
         }
       },
-      "requested": 262,
-      "missing": 27,
+      "requested": 264,
+      "missing": 28,
       "source": "Inter.ttf",
       "author": "Rasmus Andersson",
       "license": "SIL Open Font License 1.1",
@@ -2645,8 +2651,8 @@
           "default": 16
         }
       },
-      "requested": 262,
-      "missing": 68,
+      "requested": 264,
+      "missing": 70,
       "source": "Newsreader.ttf",
       "author": "Production Type (Jean-Baptiste Morizot, Lucas Descroix)",
       "license": "SIL Open Font License 1.1",
@@ -2657,7 +2663,7 @@
       "id": "mono",
       "family": "Arcade Mono",
       "file": "arcade-mono.woff2",
-      "bytes": 29680,
+      "bytes": 29728,
       "role": "latin",
       "variable": true,
       "weight": null,
@@ -2668,8 +2674,8 @@
           "default": 400
         }
       },
-      "requested": 262,
-      "missing": 38,
+      "requested": 264,
+      "missing": 39,
       "source": "JetBrainsMono.ttf",
       "author": "JetBrains (Philipp Nurullin, Konstantin Bulenkov)",
       "license": "SIL Open Font License 1.1",
@@ -2723,5 +2729,5 @@
       "url": "https://github.com/google/fonts/tree/main/ofl/notosanstc"
     }
   ],
-  "totalBytes": 1564212
+  "totalBytes": 1564296
 }

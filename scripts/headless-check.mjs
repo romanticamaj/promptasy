@@ -20448,6 +20448,45 @@ async function main() {
     `${guardTalk2.hintDone}（前一句：${guardTalk2.hintStale}／存檔：${JSON.stringify(guardTalk2.stateAtHint)}）`
   );
 
+  /* --- ④b 重新整理之後，胸前那塊板照存檔亮著（走「重載」那條路） --- */
+  {
+    /*
+     * P18 審查 · 第 1 條（真 bug）：世界端那塊板是**開機時照存檔還原**的
+     * （createGuardianField 的 stateOf）。上面那幾條走的是收合／重開面板，
+     * 那是同一份記憶體 —— 量不到還原那條路。之前交給世界端的是存檔原樣
+     * （只有 hits，沒有「第幾行」），於是重整之後一行都不亮，而且再說一句
+     * 就會自己痊癒，所以更難發現。這裡真的重新載入一次。
+     */
+    const borrowed18 = await evaluate('return (window.__p18Borrowed || []).slice();');
+    const before18 = await evaluate(`
+      const g = window.__promptasy;
+      const saved = JSON.parse(localStorage.getItem('promptasy.v1.save')).guardians[g.guardianData.id];
+      return { hits: saved.hits.length, convinced: saved.convinced === true, marks: g.guardianMarks() };
+    `);
+    await reloadPage('P18：重新載入（板要照存檔亮）');
+    // 借來的解鎖在新的那一頁要接回去（不然這一段結束時還不回去，會漏給後面）
+    await evaluate(`window.__p18Borrowed = ${JSON.stringify(borrowed18)}; return 1;`);
+    const after18 = await evaluate(`
+      const g = window.__promptasy;
+      const saved = JSON.parse(localStorage.getItem('promptasy.v1.save')).guardians[g.guardianData.id];
+      const built = g.world.guardians.byId(g.guardianData.id);
+      return {
+        hits: saved.hits.length,
+        marks: g.guardianMarks(),
+        lit: built ? built.marks.filter((m) => m.open && m.amt >= 0.99).length : -1,
+        convinced: g.guardianState().convinced,
+        rows: g.guardianLatches().filter((r) => r.open).length,
+      };
+    `);
+    ok(before18.hits >= 1, 'P18：重整之前，存檔裡真的有對上的行（不然這一段是空過的）', JSON.stringify(before18));
+    eq(before18.marks, before18.hits, 'P18：重整之前，板上亮的行數與存檔一致');
+    eq(after18.hits, before18.hits, 'P18：重整之後存檔還在');
+    eq(after18.marks, before18.hits, 'P18：**重新整理之後，胸前那塊板照存檔亮著**（不是 0 行）', JSON.stringify(after18));
+    eq(after18.lit, before18.hits, 'P18：而且是終態（重訪不播剝殼動畫）', JSON.stringify(after18));
+    eq(after18.rows, before18.hits, 'P18：交辦那一塊也照存檔標得出來');
+    eq(after18.convinced, before18.convinced, 'P18：說服這件事也跟著回來了');
+  }
+
   /* --- ⑤ 全程零失敗態 --- */
   {
     const BAD18 = ['失敗', '拒絕', '駁回', '不通過', '再試一次', '答錯', '錯誤', '打敗', '扣分', '歸零', '清零'];

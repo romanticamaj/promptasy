@@ -312,9 +312,12 @@ export const GUARDIAN_AUTO_MIN = WATCHMAN_AUTO_MIN;
 /**
  * 離那道「不會關上的門」最多多遠（公尺）—— **他是站在門邊的人**。
  *
- * 12 是量出來的：照這一整套規則逐點掃過護欄崗，全區 11 個合格落點裡有 6 個在門邊，
- * 離門 9.6–12.0 公尺（最鬆的那一個 10.0，就是現行出貨的落點）；
- * 收到 9 就一個都不剩（門的四周不是崩掉的區緣，就是大濁靈與守夜人的地盤）。
+ * 12 是量出來的。`node scripts/guardian-fit.mjs --region wards --why`（0.5 公尺一格）：
+ * 全區**只有 6 個**合格格點，而且**6 個全部在門邊**，離門 8.6–10.0 公尺 ——
+ * 也就是說門檻收到 8.5 才會開始少掉點，訂 12 是替「以後有人挪動那道門」留的餘裕，
+ * 不是替現行的點留的。現行出貨的落點 (102.75, -153) 離門 10.26 公尺，
+ * 是把格點收細之後找到的（它不落在 0.5 的格子上），也是**唯一**通得過重建驗的那一個
+ * ——那 6 個格點全部卡在「貼身三圈繞不過去」（P18 審查 · 第 4 條：這一段的數字原本抄錯了）。
  */
 export const GUARDIAN_LANDMARK_MAX = 12;
 /** 他站在哪一座地標旁邊（護欄崗的地標 ＝ 那道不會關上的門）。 */
@@ -322,11 +325,37 @@ export const GUARDIAN_LANDMARK_ID = 'ajar-doors';
 /**
  * **互動圈與每一層都不重疊**時，還要多留這麼寬（公尺）。
  *
- * 0 就已經是「圈不重疊」；留 0.5 是給下一個動資料的人的餘裕
- * （findings：「餘裕只剩 0.01 的門檻等於沒有門檻」）。
- * 現行出貨最緊的一對：`ward-gatekeeper` ↔ `watch-unclosing-door` 8.25（要 7.8）。
+ * **0 —— 而且訂不出比 0 更大的值。** 護欄崗擠到全區只剩 6 個合格落點，
+ * 現行出貨最緊的一對是 `ward-gatekeeper` ↔ `watchman:watch-unclosing-door`：
+ * 量到 7.83，要 7.80 —— **只剩 0.03**。任何 > 0.03 的餘裕都會讓出貨的落點當場過不了，
+ * 所以這一格就是「圈不重疊」本身，不多留（P18 審查 · 第 2 條：
+ * 不要在註解裡承諾一個出貨點滿足不了的餘裕）。
+ *
+ * 餘裕小到這種程度的補償做法照 findings 那一條：**把它印進斷言訊息裡**——
+ * `test:rubric` 逐層量最緊的那一對、印出剩幾公分，`expected-counts.json`
+ * 的 `overlapSlack` 逐值比對，下一個動他座標的人會先紅、而且一眼看得出為什麼。
  */
 export const GUARDIAN_NO_OVERLAP_MARGIN = 0;
+/**
+ * 守門者離某一層至少多遠（公尺）——**搜尋器與 `test:rubric` 問的是同一支**。
+ *
+ * · 不搶 `E` 的（反應物／祕密）：`GUARDIAN_AUTO_MIN`，**與他的圈多大無關**（是個常數）。
+ * · 石座：`GUARDIAN_ABOVE_MIN.marker` 守的是「不准站進人家的地盤」，也與圈多大無關；
+ *   但「圈不重疊」那一條同時也要成立，所以取兩者大的那一個。
+ * · 其餘每一層：**互動圈不重疊** ＝ 兩個互動半徑相加 ＋ 餘裕（換半徑就要跟著重算）。
+ *
+ * ⚠️ `--survey` 換半徑調查時**一定要重新呼叫這一支**，不要拿 `GUARDIAN_R` 那一次的
+ * 輸出去做線性平移（`out - GUARDIAN_R + radius`）—— 那會把上面兩個常數也一起平移掉，
+ * 憑空造出一個沒有人訂過的門檻（P18 審查 · 第 5 條）。
+ *
+ * @param {{k:string, r?:number}} t `interactionTargets()` 的一列
+ * @param {number} [radius] 要用哪一個互動半徑量
+ */
+export function guardianNeedFrom(t, radius = GUARDIAN_R) {
+  if (t.k === 'react' || t.k === 'secret') return GUARDIAN_AUTO_MIN;
+  const overlap = radius + interactRingRadius(t) + GUARDIAN_NO_OVERLAP_MARGIN;
+  return t.k === 'marker' ? Math.max(GUARDIAN_ABOVE_MIN.marker, overlap) : overlap;
+}
 /** 離「走出來的路」的區間（公尺）：遇得到，但不站在路中間（沿用守夜人那一條）。 */
 export const GUARDIAN_PATH_MIN = WATCHMAN_PATH_MIN;
 export const GUARDIAN_PATH_MAX = WATCHMAN_PATH_MAX;
@@ -340,7 +369,10 @@ export const GUARDIAN_RING_DIRS = 8;
  *
  * 他的圈與每一層都不重疊，所以「是他贏」這件事在幾何上本來就成立 ——
  * 這一條真正在量的是**站不站得住**（腳下是不是崩掉的區緣、有沒有石頭擋著）。
- * 現行出貨量到 24/24；門檻訂在 22（同守夜人：比產生它的搜尋器嚴一格，留兩格餘裕）。
+ * 現行出貨量到 **22/24**（`guardian-fit -- --verify` 印的那個「站得住」），
+ * 門檻訂在 **20**：留兩格餘裕。上限那一份記在 `expected-counts.json` 的
+ * `winnableCeiling`（22），`test:rubric` 逐值比對，實測掉到門檻以下就紅。
+ * （另一個 24/24 是「貼身」：3 圈 × 8 個方向 —— 兩個數字不是同一件事。）
  */
 export const GUARDIAN_WINNABLE_DIRS = 24;
 export const GUARDIAN_WINNABLE_MIN = 20;
@@ -565,6 +597,7 @@ export default {
   GUARDIAN_LANDMARK_MAX,
   GUARDIAN_LANDMARK_ID,
   GUARDIAN_NO_OVERLAP_MARGIN,
+  guardianNeedFrom,
   GUARDIAN_PATH_MIN,
   GUARDIAN_PATH_MAX,
   GUARDIAN_BODY_R,

@@ -22,10 +22,30 @@ import { el, esc, createOverlay, bindInfoTips, rovingList, sourceBook } from './
 export const SOURCE_LABEL = '神諭原典';
 
 /**
+ * 交辦底下那一句「對上了幾行」（**兩處都用這一份**：交辦那一塊、他回話之後）。
+ *
+ * ⚠️ 說「行」的地方一律用**行數**（`openLines`／`lines`／`toGo`）——
+ * `open`／`need`／`total` 是門檻在算的**權重**，兩者只是在每條門閂都 `weight: 1`
+ * 的時候剛好一樣（P18 審查 · 第 6 條：權重不是行數）。
+ *
+ * @param {{lines:number,openLines:number,toGo:number,convinced:boolean}} tally
+ */
+export function tallyLine(tally) {
+  const lines = Number.isFinite(tally.lines) ? tally.lines : 0;
+  const openLines = Number.isFinite(tally.openLines) ? tally.openLines : 0;
+  const toGo = Math.max(0, Number.isFinite(tally.toGo) ? tally.toGo : 0);
+  return tally.convinced
+    ? `交辦上對得起來的都對上了（${openLines} / ${lines} 行）。`
+    : `對上了 ${openLines} / ${lines} 行，還差 ${toGo} 行他就動得了。`;
+}
+
+/**
  * 交辦那一塊的 HTML（抽出來讓 `test:rubric` 直接問它「亮了幾行、有沒有失敗態」）。
+ * 底下那一句走 `tallyLine()`（行數與權重的分工寫在那一支上面）。
+ *
  * @param {object} charge guardian.json 的 `charge`
  * @param {Array} rows `latchStatus()` 的結果
- * @param {{open:number,need:number,total:number,convinced:boolean}} tally
+ * @param {{lines:number,openLines:number,toGo:number,convinced:boolean}} tally
  */
 export function chargeHtml(charge, rows, tally) {
   const items = rows
@@ -37,9 +57,7 @@ export function chargeHtml(charge, rows, tally) {
       </li>`
     )
     .join('');
-  const line = tally.convinced
-    ? `交辦上對得起來的都對上了（${tally.open} / ${tally.total} 行）。`
-    : `對上了 ${tally.open} 行，還差 ${Math.max(0, tally.need - tally.open)} 行他就動得了（${tally.total} 行裡取 ${tally.need}）。`;
+  const line = tallyLine(tally);
   return `<section class="guard__charge" aria-label="他身上那份交辦">
       <p class="meta-label meta-label--star">${esc(charge.title || '他身上那份交辦')}</p>
       <p class="guard__intro">${esc(charge.intro || '')}</p>
@@ -118,11 +136,7 @@ export function createGuardian({ onSay, onClose } = {}) {
     article.innerHTML = `<div class="guard__rule" aria-hidden="true"></div>
       <p class="guard__eyebrow">${esc(res.eyebrow || '')}</p>
       ${saidHtml(said)}${body}${opened}${src}${tail}
-      <p class="guard__tally">${esc(
-        res.convinced
-          ? `交辦上對得起來的都對上了（${tally.open} / ${tally.total} 行）。`
-          : `對上了 ${tally.open} 行，還差 ${Math.max(0, tally.need - tally.open)} 行他就動得了。`
-      )}</p>
+      <p class="guard__tally">${esc(tallyLine(tally))}</p>
       <div class="guard__acts">
         <button class="btn btn--primary" type="button" data-back>再說一句</button>
       </div>
