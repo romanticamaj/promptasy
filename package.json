@@ -30,6 +30,7 @@
     "audit:sightline": "node scripts/sightline-audit.mjs",
     "screen-fit": "node scripts/screen-fit.mjs",
     "murk-fit": "node scripts/murk-fit.mjs",
+    "guardian-fit": "node scripts/guardian-fit.mjs",
     "colors:table": "node scripts/color-script-table.mjs"
   },
   "dependencies": {

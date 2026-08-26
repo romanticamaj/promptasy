@@ -78,6 +78,8 @@ export async function worldOptions() {
     handles: readJson('src/data/handles.json').entries,
     murks: readJson('src/data/murks.json').entries,
     watchmen: readJson('src/data/watchmen.json').entries,
+    // v1.2 · P18：守門者（一位就是一筆 —— 那份資料本身就是他）
+    guardians: [readJson('src/data/guardian.json')],
   };
 }
 

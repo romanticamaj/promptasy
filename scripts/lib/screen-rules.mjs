@@ -35,6 +35,12 @@ export const LAYER_INTERACT_R = Object.freeze({
   murk: 5.5,
   secret: 5.5,
   watchman: 4.6,
+  /*
+   * v1.2 · P18：守門者。這一格**同時是**他的淨空半徑與他的互動圈
+   * （不像石座與大濁靈那樣一分為二）—— 他的擺位規則要求
+   * 「互動圈與每一層都不重疊」，所以沒有「圈比淨空大」的那個問題。
+   */
+  guardian: 3.2,
   tablet: 4.6,
   react: 4.4,
   ins: 3.8,
@@ -67,6 +73,13 @@ export const WATCHMAN_R = 4.6;
  * `test:rubric` 逐值比對兩份（分家就紅）。
  */
 export const GREAT_MURK_R = 6;
+
+/**
+ * v1.2 · P18：守門者的互動半徑（`src/world/guardian.js` 的 `GUARDIAN_RADIUS`）。
+ * 同 `WATCHMAN_R`：這裡重寫一份是為了讓**不 import three.js** 的擺位規則也用得到，
+ * `test:rubric` 逐值比對兩份（分家就紅）。
+ */
+export const GUARDIAN_R = 3.2;
 
 /**
  * 石座的互動半徑（`src/world/world.js` 的 `nearestMarker()` 預設 `maxDistance`）。
@@ -264,6 +277,74 @@ export const WATCHMAN_WINNABLE_EXCEPTIONS = Object.freeze({ wards: 16, divergenc
 export const WATCHMAN_PATH_MIN = 3;
 export const WATCHMAN_PATH_MAX = 12;
 
+/* ------------------------------------------------------------------ *
+ * v1.2 · P18：守門者的擺位
+ *
+ * 他與守夜人是同一種東西（一個站著不動、會回答你的人），所以規則整套沿用，
+ * 只有三處不同，而且三處都是**量出來**的：
+ *   ① 互動半徑 3.2（守夜人 4.6）—— 護欄崗是 12 片土地裡最擠的一片，
+ *      照 4.6 掃全區只剩 5 個落點，而且全部離那道門 21.5 公尺（那就不叫站在門邊）。
+ *   ② 他必須**站在那道「不會關上的門」旁邊**（`GUARDIAN_LANDMARK_MAX`）——
+ *      這是這一格的設計前提，所以寫成一條硬規則，不是「擺完再看看順不順眼」。
+ *   ③ 他的互動圈**與每一層都不重疊**（`GUARDIAN_NO_OVERLAP_MARGIN`）——
+ *      連石座那一層也是。守夜人做不到這件事（142 座石座把 12 片土地填滿了），
+ *      所以他那一邊只好改守「不准站進人家的地盤」；守門者只有一位、只要擺得下一個口袋，
+ *      就該守最嚴的那一條 —— 這也是他半徑比別人小卻不會被誰蓋掉的原因
+ *      （WORLD.md §3.2「半徑跟著仲裁順序遞減」那條慣例，守的正是這件事）。
+ * ------------------------------------------------------------------ */
+
+/**
+ * 守門者與**比他高階的那幾層**之間的距離（公尺）。
+ *
+ * 石座那一格與守夜人是**同一條規矩**（「不准站進人家的地盤」），所以寫成同一條式子
+ * ——`MARKER_R + 1.5`（＝ 8.0，與 `WATCHMAN_ABOVE_MIN.marker` 逐值相同，`test:rubric` 比對）。
+ * 濁靈與守夜人那三格是「互動圈不重疊」，一律寫成兩個半徑相加，不重打字面值
+ * （P17 審查 · 第 1 條：同一件事的門檻要寫成那條式子本身）。
+ */
+export const GUARDIAN_ABOVE_MIN = Object.freeze({
+  marker: MARKER_R + 1.5,
+  murk: 5.5 + GUARDIAN_R,
+  greatmurk: GREAT_MURK_R + GUARDIAN_R,
+  watchman: WATCHMAN_R + GUARDIAN_R,
+});
+/** 離「不搶 `E` 的東西」（反應物、祕密、小景、地標）至少多遠 —— 沿用守夜人那一條的理由與數字。 */
+export const GUARDIAN_AUTO_MIN = WATCHMAN_AUTO_MIN;
+/**
+ * 離那道「不會關上的門」最多多遠（公尺）—— **他是站在門邊的人**。
+ *
+ * 12 是量出來的：照這一整套規則逐點掃過護欄崗，全區 11 個合格落點裡有 6 個在門邊，
+ * 離門 9.6–12.0 公尺（最鬆的那一個 10.0，就是現行出貨的落點）；
+ * 收到 9 就一個都不剩（門的四周不是崩掉的區緣，就是大濁靈與守夜人的地盤）。
+ */
+export const GUARDIAN_LANDMARK_MAX = 12;
+/** 他站在哪一座地標旁邊（護欄崗的地標 ＝ 那道不會關上的門）。 */
+export const GUARDIAN_LANDMARK_ID = 'ajar-doors';
+/**
+ * **互動圈與每一層都不重疊**時，還要多留這麼寬（公尺）。
+ *
+ * 0 就已經是「圈不重疊」；留 0.5 是給下一個動資料的人的餘裕
+ * （findings：「餘裕只剩 0.01 的門檻等於沒有門檻」）。
+ * 現行出貨最緊的一對：`ward-gatekeeper` ↔ `watch-unclosing-door` 8.25（要 7.8）。
+ */
+export const GUARDIAN_NO_OVERLAP_MARGIN = 0;
+/** 離「走出來的路」的區間（公尺）：遇得到，但不站在路中間（沿用守夜人那一條）。 */
+export const GUARDIAN_PATH_MIN = WATCHMAN_PATH_MIN;
+export const GUARDIAN_PATH_MAX = WATCHMAN_PATH_MAX;
+/** 底座碰撞半徑（`guardian.js` 的 `GUARDIAN_BODY_RADIUS`；`test:rubric` 逐值比對）。 */
+export const GUARDIAN_BODY_R = 0.55;
+/** 貼身繞得過去：量哪幾圈、幾個方向（沿用守夜人那一套）。 */
+export const GUARDIAN_RING_RADII = Object.freeze([1.7, 2.6, 3.5]);
+export const GUARDIAN_RING_DIRS = 8;
+/**
+ * **真正要守的東西**：站在他的互動圈上，24 個方向裡有幾個「站得住、而且是他贏」。
+ *
+ * 他的圈與每一層都不重疊，所以「是他贏」這件事在幾何上本來就成立 ——
+ * 這一條真正在量的是**站不站得住**（腳下是不是崩掉的區緣、有沒有石頭擋著）。
+ * 現行出貨量到 24/24；門檻訂在 22（同守夜人：比產生它的搜尋器嚴一格，留兩格餘裕）。
+ */
+export const GUARDIAN_WINNABLE_DIRS = 24;
+export const GUARDIAN_WINNABLE_MIN = 20;
+
 /** 離橋的主動線：`LANE_HALF + LANE_MARGIN`（再扣掉自己的半徑 —— 圓心在外面就夠了）。 */
 export const LANE_MARGIN = 4;
 /** 離閘門（公尺）。 */
@@ -358,6 +439,12 @@ export function interactionTargets(data) {
   for (const m of data.murks || []) out.push({ k: m && m.kind === 'great' ? 'greatmurk' : 'murk', id: m.id, at: m.at });
   // v1.2 · P16c：守夜人（互動半徑 4.6，與石碑同一階）
   for (const w of data.watchmen || []) out.push({ k: 'watchman', id: w.id, at: w.at });
+  /*
+   * v1.2 · P18：守門者（互動半徑 3.2）。**一定要餵進來**：
+   * 沒有這一列，中觀層、大濁靈、下一格要擺的東西都會照一個少了他的世界去算
+   * （P17 交接記下的那條教訓）。
+   */
+  for (const g of data.guardians || []) out.push({ k: 'guardian', id: g.id, at: g.at });
   for (const t of data.tablets || []) out.push({ k: 'tablet', id: t.id, at: t.at });
   /*
    * v1.2 · P15：`tell: "high"` 的祕密**不進這張表**。
@@ -472,6 +559,19 @@ export default {
   WATCHMAN_WINNABLE_EXCEPTIONS,
   WATCHMAN_PATH_MIN,
   WATCHMAN_PATH_MAX,
+  GUARDIAN_R,
+  GUARDIAN_ABOVE_MIN,
+  GUARDIAN_AUTO_MIN,
+  GUARDIAN_LANDMARK_MAX,
+  GUARDIAN_LANDMARK_ID,
+  GUARDIAN_NO_OVERLAP_MARGIN,
+  GUARDIAN_PATH_MIN,
+  GUARDIAN_PATH_MAX,
+  GUARDIAN_BODY_R,
+  GUARDIAN_RING_RADII,
+  GUARDIAN_RING_DIRS,
+  GUARDIAN_WINNABLE_DIRS,
+  GUARDIAN_WINNABLE_MIN,
   PLATFORM_MOTIF_GAP,
   AROUND_RING,
   AROUND_FREE_MIN,
