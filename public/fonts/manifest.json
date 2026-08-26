@@ -11,6 +11,7 @@
     "src/data/dated-notes.json",
     "src/data/flows.json",
     "src/data/glossary.json",
+    "src/data/guardian.json",
     "src/data/handles.json",
     "src/data/inscriptions.json",
     "src/data/letters.json",
@@ -28,6 +29,7 @@
     "src/challenges/catalog.js",
     "src/challenges/checks.js",
     "src/challenges/content.js",
+    "src/challenges/guardian.js",
     "src/challenges/prologue.js",
     "src/challenges/rubric.js",
     "src/challenges/solution-stats.js",
@@ -67,6 +69,7 @@
     "src/ui/entrygate.js",
     "src/ui/gate.js",
     "src/ui/glossary.js",
+    "src/ui/guardian.js",
     "src/ui/handle.js",
     "src/ui/hud.js",
     "src/ui/inscription.js",
@@ -85,6 +88,7 @@
     "src/world/color-script.js",
     "src/world/drifts.js",
     "src/world/ground.js",
+    "src/world/guardian.js",
     "src/world/handles.js",
     "src/world/inscriptions.js",
     "src/world/letters.js",
@@ -96,7 +100,7 @@
     "src/world/watchmen.js",
     "src/world/world.js"
   ],
-  "corpusHash": "d04ff8a73c887f68",
+  "corpusHash": "e3f6ae88d11768c0",
   "coverage": {
     "latin": [
       32,
@@ -320,6 +324,7 @@
       9317,
       9318,
       9319,
+      9320,
       9432,
       9472,
       9474,
@@ -1290,6 +1295,7 @@
       26997,
       27010,
       27051,
+      27054,
       27083,
       27084,
       27133,
@@ -1470,6 +1476,7 @@
       29211,
       29226,
       29228,
+      29229,
       29238,
       29245,
       29246,
@@ -1957,11 +1964,13 @@
       35695,
       35696,
       35703,
+      35709,
       35712,
       35722,
       35731,
       35895,
       35905,
+      35918,
       35920,
       35937,
       35947,
@@ -2474,6 +2483,7 @@
       9317,
       9318,
       9319,
+      9320,
       9432,
       9472,
       9474,
@@ -2529,6 +2539,7 @@
       9317,
       9318,
       9319,
+      9320,
       9432,
       9634,
       9635,
@@ -2590,7 +2601,7 @@
       "id": "inter",
       "family": "Inter UI",
       "file": "inter-ui.woff2",
-      "bytes": 86264,
+      "bytes": 86292,
       "role": "latin",
       "variable": true,
       "weight": null,
@@ -2606,7 +2617,7 @@
           "default": 14
         }
       },
-      "requested": 261,
+      "requested": 262,
       "missing": 27,
       "source": "Inter.ttf",
       "author": "Rasmus Andersson",
@@ -2634,8 +2645,8 @@
           "default": 16
         }
       },
-      "requested": 261,
-      "missing": 67,
+      "requested": 262,
+      "missing": 68,
       "source": "Newsreader.ttf",
       "author": "Production Type (Jean-Baptiste Morizot, Lucas Descroix)",
       "license": "SIL Open Font License 1.1",
@@ -2657,8 +2668,8 @@
           "default": 400
         }
       },
-      "requested": 261,
-      "missing": 37,
+      "requested": 262,
+      "missing": 38,
       "source": "JetBrainsMono.ttf",
       "author": "JetBrains (Philipp Nurullin, Konstantin Bulenkov)",
       "license": "SIL Open Font License 1.1",
@@ -2669,7 +2680,7 @@
       "id": "serif-tc",
       "family": "Arcade Serif TC",
       "file": "arcade-serif-tc.woff2",
-      "bytes": 702112,
+      "bytes": 703684,
       "role": "cjk",
       "variable": true,
       "weight": null,
@@ -2680,7 +2691,7 @@
           "default": 400
         }
       },
-      "requested": 1941,
+      "requested": 1945,
       "missing": 0,
       "source": "NotoSerifTC.ttf",
       "author": "Google (Noto Project)",
@@ -2692,7 +2703,7 @@
       "id": "sans-tc",
       "family": "Arcade Sans TC",
       "file": "arcade-sans-tc.woff2",
-      "bytes": 535136,
+      "bytes": 536024,
       "role": "cjk",
       "variable": true,
       "weight": null,
@@ -2703,7 +2714,7 @@
           "default": 400
         }
       },
-      "requested": 1941,
+      "requested": 1945,
       "missing": 0,
       "source": "NotoSansTC.ttf",
       "author": "Google (Noto Project)",
@@ -2712,5 +2723,5 @@
       "url": "https://github.com/google/fonts/tree/main/ofl/notosanstc"
     }
   ],
-  "totalBytes": 1561724
+  "totalBytes": 1564212
 }

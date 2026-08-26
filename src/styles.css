@@ -4097,6 +4097,164 @@ select option:disabled {
   color: var(--paper-4);
 }
 
+/* ============================================================ 守門者
+   v1.2 · P18：一個帶著 system prompt 站在門邊的人。跟守夜人同一個尺度，
+   多的是最上面那一塊 —— **他身上那份交辦**（玩家看得見的那份指令）。
+   對上的行亮起來、永不暗回去；沒對上的寫的是「還在等什麼」，不是「你錯了」。
+   ============================================================ */
+.overlay--guardian .panel {
+  max-width: 46rem;
+}
+.guard {
+  position: relative;
+  padding: var(--s2) 0;
+}
+.guard__rule {
+  width: 2.4rem;
+  height: 1px;
+  margin: 0 0 var(--s4);
+  background: linear-gradient(90deg, var(--gold), rgba(198, 160, 92, 0));
+}
+.guard__eyebrow {
+  margin: 0 0 var(--s3);
+  font-family: var(--font-ui);
+  font-size: var(--t-micro);
+  letter-spacing: var(--tr-cjk);
+  color: var(--paper-4);
+}
+.guard__line {
+  margin: 0 0 var(--s4);
+  font-family: var(--font-prose);
+  font-size: 1.36rem;
+  line-height: var(--lh-prose);
+  letter-spacing: 0.04em;
+  color: #e7ece2;
+  text-wrap: pretty;
+  animation: reveal-in var(--d-reveal) var(--e-out) both;
+  animation-delay: calc(var(--i, 0) * 80ms);
+}
+.guard__charge {
+  margin: var(--s5) 0 var(--s4);
+  padding: var(--s5) var(--s5) var(--s4);
+  border: 1px solid var(--rule);
+  border-left: 3px solid var(--gold);
+  background: rgba(255, 255, 255, 0.02);
+}
+.guard__intro {
+  margin: var(--s2) 0 var(--s4);
+  font-family: var(--font-prose);
+  font-size: var(--t-body);
+  line-height: var(--lh-prose);
+  color: var(--paper-3);
+}
+.guard__clauses {
+  margin: 0;
+  padding: 0 0 0 var(--s4);
+  list-style: decimal;
+}
+.guard__clause {
+  margin: 0 0 var(--s3);
+  font-family: var(--font-prose);
+  font-size: var(--t-body);
+  line-height: var(--lh-prose);
+  color: var(--paper-3);
+  animation: reveal-in var(--d-reveal) var(--e-out) both;
+  animation-delay: calc(var(--i, 0) * 60ms);
+}
+.guard__clause.is-open {
+  color: var(--paper);
+}
+.guard__seal {
+  display: inline-block;
+  width: 0.5rem;
+  height: 0.5rem;
+  margin: 0 var(--s2) 0 0;
+  border: 1px solid var(--rule);
+  vertical-align: 0.05em;
+}
+.guard__clause.is-open .guard__seal {
+  border-color: var(--gold);
+  background: var(--gold);
+}
+.guard__state {
+  margin: 0 0 0 var(--s2);
+  font-family: var(--font-ui);
+  font-size: var(--t-micro);
+  letter-spacing: var(--tr-cjk);
+  color: var(--paper-4);
+}
+.guard__clause.is-open .guard__state {
+  color: var(--gold);
+}
+.guard__closing,
+.guard__tally {
+  margin: var(--s4) 0 0;
+  font-size: var(--t-meta);
+  color: var(--paper-4);
+}
+.guard__said {
+  margin: 0 0 var(--s4);
+  padding: var(--s4);
+  border: 1px solid var(--rule);
+  border-left: 2px solid rgba(198, 160, 92, 0.45);
+  background: rgba(0, 0, 0, 0.22);
+  font-family: var(--font-mono);
+  font-size: var(--t-meta);
+  line-height: var(--lh-body);
+  color: var(--paper-2);
+  white-space: pre-wrap;
+  overflow-x: auto;
+}
+.guard__opened {
+  margin: 0 0 var(--s4);
+  font-size: var(--t-meta);
+  color: var(--gold);
+}
+.guard__opts {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  margin: var(--s5) 0 0;
+}
+.guard__opt {
+  padding: var(--s3) var(--s4);
+  border: 1px solid var(--rule);
+  border-left: 2px solid rgba(198, 160, 92, 0.45);
+  background: rgba(255, 255, 255, 0.02);
+  font-family: var(--font-prose);
+  font-size: var(--t-body);
+  line-height: var(--lh-body);
+  letter-spacing: 0.03em;
+  color: var(--paper-2);
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--d-fast) var(--e-out), color var(--d-fast) var(--e-out), border-color var(--d-fast) var(--e-out);
+  animation: reveal-in var(--d-reveal) var(--e-out) both;
+  animation-delay: calc(var(--i, 0) * 80ms);
+}
+.guard__opt:hover,
+.guard__opt:focus-visible {
+  border-left-color: var(--gold);
+  background: rgba(230, 199, 155, 0.08);
+  color: var(--paper);
+}
+.guard__acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s3);
+  margin: var(--s5) 0 0;
+}
+.guard__done {
+  margin: var(--s5) 0 0;
+  padding: var(--s4) 0 0;
+  border-top: 1px solid var(--rule);
+}
+.guard__hint {
+  margin: var(--s5) 0 0;
+  font-size: var(--t-meta);
+  color: var(--paper-4);
+}
+
 /* v1.2 · P07 · 圖鑑第五列下面可展開的清單：撿到的看得到內容，沒撿到的只留「還沒找到」。 */
 .letterbook {
   margin: var(--s3) 0 0;

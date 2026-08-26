@@ -842,6 +842,46 @@ export function createProgression({
       return { firstTime };
     },
 
+    /* ---------------------------------------------------------------- *
+     * v1.2 · P18：守門者（guardian.json）—— 說服過的那幾行會被記住
+     *
+     * 與守夜人同一種欄位：**一格都不影響進度**（不給 XP、不寫 `bestGrades`、
+     * 不收技巧、不算徽章、不是任何東西的解鎖條件）。
+     * 唯一的鐵則是**只累積**：`hits` 永遠是聯集，`convinced` 一旦為真就不再落回。
+     * ---------------------------------------------------------------- */
+
+    /** 這一位守門者的存檔狀態（沒說過話 → null）。 */
+    guardianState(id) {
+      const g = state.guardians && typeof state.guardians === 'object' ? state.guardians[id] : null;
+      if (!g || typeof g !== 'object' || !Array.isArray(g.hits)) return null;
+      return { hits: g.hits.slice(), turns: Number(g.turns) || 0, convinced: Boolean(g.convinced) };
+    },
+    /** 說服了沒。 */
+    hasConvincedGuardian(id) {
+      const g = api.guardianState(id);
+      return Boolean(g && g.convinced);
+    },
+    /**
+     * 記一次「跟守門者說了一句」。**聯集寫入**：傳進來的 `hits` 只會讓它變長。
+     * @param {string} id
+     * @param {{hits?:string[], convinced?:boolean}} next 判定回傳的 `after`
+     * @returns {{hits:string[], turns:number, convinced:boolean, firstConvinced:boolean}}
+     */
+    tellGuardian(id, next = {}) {
+      if (typeof id !== 'string' || !id) return { hits: [], turns: 0, convinced: false, firstConvinced: false };
+      if (!state.guardians || typeof state.guardians !== 'object' || Array.isArray(state.guardians)) state.guardians = {};
+      const prev = state.guardians[id];
+      const before = prev && Array.isArray(prev.hits) ? prev.hits : [];
+      const add = Array.isArray(next.hits) ? next.hits.filter((x) => typeof x === 'string' && x) : [];
+      const hits = [...new Set([...before, ...add])].sort();
+      const wasConvinced = Boolean(prev && prev.convinced);
+      const convinced = wasConvinced || Boolean(next.convinced);
+      const turns = (prev && Number.isFinite(prev.turns) ? prev.turns : 0) + 1;
+      state.guardians[id] = { hits, turns, convinced };
+      persist();
+      return { hits: hits.slice(), turns, convinced, firstConvinced: convinced && !wasConvinced };
+    },
+
     /** v1.2 · P16c：這一關卡了幾次、命中過哪幾條（沒卡過 → null）。 */
     struggleOf(challengeId) {
       const st = state.struggles && typeof state.struggles === 'object' ? state.struggles[challengeId] : null;

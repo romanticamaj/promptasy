@@ -128,6 +128,19 @@ export function defaultSave() {
      */
     struggles: {},
     /**
+     * v1.2 · P18：守門者（guardian.json）—— **單一物件欄**
+     * `{ [guardianId]: { hits, turns, convinced } }`。
+     *
+     *   hits       交辦上已經對上的那幾行（門閂 id，去重排序）—— 跨次**累積聯集，永不清零**
+     *   turns      跟他說過幾句（純記帳）
+     *   convinced  說服過了沒（說服過就不會退回去）
+     *
+     * 純加法，而且**一格都不影響進度**：不給 XP、不寫 `bestGrades`、不進 142 關的分母、
+     * 不收技巧、不算徽章、不是任何東西的解鎖條件（`refreshUnlocks()` 從頭到尾沒讀過它）。
+     * 它只決定「他胸前那塊板亮了幾行」與「腳下那一圈要不要留餘溫」。
+     */
+    guardians: {},
+    /**
      * v1.2 · P07：玩家在**序章**送出的第一段 prompt（原文，去頭尾空白、≤ 280 字）。
      *
      * 「第一句就是第一句」—— 寫進去之後永不覆寫（`captureFirstPrompt()` 只寫一次）。
@@ -252,6 +265,22 @@ export function normalize(raw) {
     }
   }
 
+  /*
+   * v1.2 · P18：守門者。逐鍵驗形 —— `hits` 必須是陣列（不是就整筆丟）、裡面只留字串並去重排序；
+   * `turns` 落成非負整數；`convinced` 落成布林。
+   * **只往累積的方向落**：對上過的那幾行是聯集，這裡沒有任何一條路把它變短。
+   */
+  const guardians = {};
+  if (d.guardians && typeof d.guardians === 'object' && !Array.isArray(d.guardians)) {
+    for (const [k, v] of Object.entries(d.guardians)) {
+      if (typeof k !== 'string' || !k || k.length > 64) continue;
+      if (!v || typeof v !== 'object' || !Array.isArray(v.hits)) continue;
+      const hits = [...new Set(v.hits.filter((x) => typeof x === 'string' && x && x.length <= 64))].sort();
+      const turns = Number.isFinite(v.turns) ? Math.max(0, Math.round(v.turns)) : 0;
+      guardians[k] = { hits, turns, convinced: Boolean(v.convinced) };
+    }
+  }
+
   const settings = { ...base.settings };
   if (d.settings && typeof d.settings === 'object') {
     if (typeof d.settings.music === 'string') settings.music = d.settings.music;
@@ -325,6 +354,8 @@ export function normalize(raw) {
     murks,
     watchmen,
     struggles,
+    // v1.2 · P18：舊存檔沒有 guardians → 空物件（純加法，不影響任何既有欄位）
+    guardians,
     // v1.2 · P07：舊存檔沒有 firstPrompt → 空字串（純加法）。壞值一律落成空字串。
     firstPrompt: firstPrompt(d.firstPrompt),
     bestGrades,

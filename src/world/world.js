@@ -30,6 +30,7 @@ import { createReactiveField, REACTIVE_SPOTS } from './reactive.js';
 import { createHandleField, HANDLE_RADIUS } from './handles.js';
 import { createMurkField, isGreatMurk } from './murks.js';
 import { createWatchmanField, WATCHMAN_RADIUS } from './watchmen.js';
+import { createGuardianField, GUARDIAN_RADIUS } from './guardian.js';
 import { createRubricFx } from './rubric-fx.js';
 // v1.2 · P11：中觀那一階（遮擋帶與母題）。screens.js 不 import 這裡，也不 import props.js。
 import { SCREEN_BANDS, MOTIFS, PLATFORMS, buildScreens, landmarkSight, pointInBand } from './screens.js';
@@ -3807,6 +3808,13 @@ export function createWorld({
   murks = [],
   /** v1.2 · P16c：守夜人（watchmen.json 的 entries）。沒給就不蓋，世界照樣成立。 */
   watchmen = [],
+  /** v1.2 · P18：守門者（guardian.json，一位就是一筆）。沒給就不蓋，世界照樣成立。 */
+  guardians = [],
+  /**
+   * v1.2 · P18：開機依存檔還原「交辦上對上了哪幾行、說服了沒」
+   * （`(id) => ({ open:number[], convinced:boolean })`）。沒給就全部原樣（板上全暗）。
+   */
+  guardianStateOf = null,
   /**
    * v1.2 · P16c：開機依存檔還原「聊過了沒」（`(id) => progression.hasMetWatchman(id)`）。
    * 沒給就退回 `progression.hasMetWatchman`（測試世界的 stub 沒有這個方法 → 全部沒聊過）。
@@ -3896,6 +3904,8 @@ export function createWorld({
     ...murks.map((m) => [m.at[0], m.at[1], isGreatMurk(m) ? 7 : 5.5]),
     // v1.2 · P16c：守夜人 —— 一個站著的人被草叢埋到膝蓋就不像有人站在那裡
     ...watchmen.map((w) => [w.at[0], w.at[1], 5.5]),
+    // v1.2 · P18：守門者 —— 同上；他胸前那塊板是要讀的，不能被草叢遮掉
+    ...guardians.map((g) => [g.at[0], g.at[1], 5.5]),
     /*
      * v1.2 · P11：中觀的遮擋帶與母題 —— 它們自己就是石頭，腳下不要再撒碎石與草叢
      * （石脊沿著長邊每 2 公尺登記一個點，圓圈才貼得住一條長條形的東西）。
@@ -4084,6 +4094,17 @@ export function createWorld({
           : null,
   });
   root.add(watchmanField.group);
+
+  /* --- v1.2 · P18：守門者（帶著 system prompt 站在門邊；按 E 開選項式對話） --- */
+  const guardianField = createGuardianField({
+    entries: guardians,
+    kitOf: (regionId) => kits.get(regionId) || kits.get('foundations'),
+    terrainHeight,
+    isBusy,
+    reducedMotion,
+    stateOf: typeof guardianStateOf === 'function' ? guardianStateOf : null,
+  });
+  root.add(guardianField.group);
 
   const motes = buildMotes(quality, colorOf, vignetteAnchors, (id) => scriptColor(id, 'particle'));
   root.add(motes);
@@ -4462,6 +4483,8 @@ export function createWorld({
     murks: murkField,
     /** v1.2 · P16c：守夜人場。 */
     watchmen: watchmanField,
+    /** v1.2 · P18：守門者場。 */
+    guardians: guardianField,
     /** v1.2 · P09：石座演出（rubric 命中 → 石座旁的因果）。 */
     rubricFx,
     /** v1.2 · P06：這一區道具用的四階色（`kitFor()`；色彩腳本的 rim 已覆寫 light）—— 唯讀（測試與稽核用）。 */
@@ -4817,6 +4840,7 @@ export function createWorld({
       handleField.update(dt, t, x, z);
       murkField.update(dt, t, x, z);
       watchmanField.update(dt, t, x, z);
+      guardianField.update(dt, t, x, z);
       // v1.2 · P09：石座演出（面板開著也照播 —— 玩家正看著結果面，世界在背景）
       rubricFx.update(dt, t);
     },
@@ -4859,6 +4883,28 @@ export function createWorld({
     /** 標記某位守夜人聊過了（世界端的視覺變化：腳下那一圈留一點餘溫）。 */
     markWatchmanMet(id) {
       return watchmanField.setMet(id, true);
+    },
+
+    /**
+     * 走近的守門者（v1.2 · P18）。半徑 3.2 —— 量出來的（護欄崗擠到只剩那一個口袋，
+     * 見 `guardian.js` 的 `GUARDIAN_RADIUS`）。他的互動圈**與每一層都不重疊**，
+     * 所以仲裁順序對他不生效；仲裁上他排在守夜人之後、石碑之前（人先於碑）。
+     * @param {THREE.Vector3} position
+     * @param {number} [maxDistance]
+     * @param {{x:number,z:number}|null} [forward] 鏡頭的水平前方向
+     */
+    nearestGuardian(position, maxDistance = GUARDIAN_RADIUS, forward = null) {
+      return guardianField.nearest(position, maxDistance, forward);
+    },
+
+    /**
+     * v1.2 · P18：交辦上哪幾行對上了（世界端：胸前那塊板亮起來；只加不減）。
+     * 找不到那個 id 就回 false —— 一支永遠回 true 的 API 沒有人擋得住打錯字。
+     */
+    markGuardianOpen(id, indices, convinced = false) {
+      if (!guardianField.setOpen(id, indices)) return false;
+      if (convinced) guardianField.setConvinced(id, true);
+      return true;
     },
 
     /** 標記某件器物已經動過（世界端的視覺變化）。 */
