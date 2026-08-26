@@ -23,6 +23,7 @@ import secretFile from './data/secrets.json';
 import handleFile from './data/handles.json';
 import letterFile from './data/letters.json';
 import watchmanFile from './data/watchmen.json';
+import guardianFile from './data/guardian.json';
 import murkFile from './data/murks.json';
 import datedFile from './data/dated-notes.json';
 import sourceAnchorFile from './data/source-anchors.json';
@@ -60,6 +61,8 @@ import { createInscription } from './ui/inscription.js';
 import { createLetter } from './ui/letter.js';
 import { createWatchman, skillNoteHtml } from './ui/watchman.js';
 import Watchtalk from './progression/watchtalk.js';
+import { createGuardian } from './ui/guardian.js';
+import Guard from './challenges/guardian.js';
 import { createGateAsk } from './ui/gate.js';
 import { createHandlePanel } from './ui/handle.js';
 import { HANDLE_VERBS, HANDLE_VERBS_USED, HANDLE_KINDS, CAPSTAN_TURNS } from './world/handles.js';
@@ -175,6 +178,9 @@ function boot() {
     // v1.2 · P16c：守夜人（站著不動的人；走近按 E 聊得起來）
     watchmen: watchmanFile.entries || [],
     watchmanMetOf: (id) => progression.hasMetWatchman(id),
+    // v1.2 · P18：守門者（帶著一份看得見的交辦站在門邊；走近按 E 用選的說服他）
+    guardians: [guardianFile],
+    guardianStateOf: (id) => guardianState(id),
     // v1.2 · P06：色彩腳本（key／rim／particle 建構時套；sky 走 applyMood 的單一入口）
     colorScript: colorScriptFor,
     reducedMotion,
@@ -544,6 +550,8 @@ function boot() {
       world.murks?.reset?.();
       // v1.2 · P16c：守夜人的「聊過了」也跟著歸零（同上，不重載也不會演出失聯）
       world.watchmen?.reset?.();
+      // v1.2 · P18：守門者胸前那塊板也跟著歸零（存檔清了，世界要跟著清）
+      world.guardians?.reset?.();
       // v1.2 · P09：石座演出也歸零（借走的光柱還回去、粒子池清空；WORLD §8 G24b）
       world.rubricFx?.reset?.();
       // v1.2 · P06：閘門標籤／三態與石座三態也跟著歸零（先行前往過的門回到琥珀、它的石座回到暗）
@@ -653,6 +661,23 @@ function boot() {
     },
   });
   ui.appendChild(watchmanPanel.root);
+
+  /* --- v1.2 · P18：守門者的對話小窗（用選的，不打字） --- */
+  const guardianPanel = createGuardian({
+    /*
+     * 這裡只做**呈現面**的事（聲音、HUD）——存檔與世界端那塊板由 `guardianContext().say()`
+     * 一手寫完（那是判定發生的地方）。兩邊各寫一次的話，以後改其中一邊就會有一邊沒改到。
+     */
+    onSay: ({ opened, convinced }) => {
+      audio.cue(convinced ? 'unlock' : 'open');
+      if (opened.length) hud.refresh();
+    },
+    onClose: () => {
+      audio.cue('close');
+      closePanel();
+    },
+  });
+  ui.appendChild(guardianPanel.root);
 
   /* --- Phase 29：橋上的門會問你一句（條件沒到也能先行前往） --- */
   const gateAsk = createGateAsk({
@@ -827,7 +852,8 @@ function boot() {
       panel !== handlePanel &&
       panel !== inscriptionPanel &&
       panel !== letterPanel &&
-      panel !== watchmanPanel
+      panel !== watchmanPanel &&
+      panel !== guardianPanel
     ) {
       audio.cue('open');
     }
@@ -877,6 +903,7 @@ function boot() {
     inscriptionPanel.isOpen ||
     letterPanel.isOpen ||
     watchmanPanel.isOpen ||
+    guardianPanel.isOpen ||
     gateAsk.isOpen ||
     handlePanel.isOpen ||
     practice.isOpen ||
@@ -926,6 +953,8 @@ function boot() {
   let nearMurk = null;
   /** v1.2 · P16c：走近的守夜人（第 ⑧ 層：石座 > 濁靈 > **守夜人** > 石碑 > …）。 */
   let nearWatchman = null;
+  /** v1.2 · P18：走近的守門者（第 ⑨ 層：石座 > 濁靈 > 守夜人 > **守門者** > 石碑 > …）。 */
+  let nearGuardian = null;
   /**
    * Phase 29：剛剛選了「先留下修行」的那道門。
    * 走遠一點（離開互動半徑）再回來才會重新問一次 —— 站在門口不會被連問。
@@ -1140,6 +1169,96 @@ function boot() {
     openPanel(watchmanPanel, w.entry, watchmanContext(w));
   }
 
+  /* ---------------------------------------------------------------- *
+   * v1.2 · P18：守門者 —— 一個帶著 system prompt 站在門邊的人
+   *
+   * 判定全部在 `src/challenges/guardian.js`（純函式、離線、零相依），
+   * 而且走的是 `guard` 介面：`decide(state, prompt, evaluation) → 反應`。
+   * **離線腳本是已註冊的預設實作**（`Guard.createGuard()` 不指定就拿它）——
+   * 哪天要接真的 LLM，是新增一個實作 ＋ 一個設定，不必動這裡任何一行。
+   * ---------------------------------------------------------------- */
+
+  /** 這一位守門者的存檔狀態（形狀由 `normalizeState()` 保證，壞值不會傳進世界端）。 */
+  function guardianState(id) {
+    return Guard.normalizeState(progression.guardianState(id), guardianFile);
+  }
+  /** 交辦上對上的是第幾行（世界端那塊板照這個亮）。 */
+  function latchIndices(id) {
+    return Guard.latchStatus(guardianFile, guardianState(id))
+      .filter((r) => r.open)
+      .map((r) => r.index);
+  }
+  /** 離線判定者（預設實作；`null` 只會在登記表被換掉時發生，那時他就只是站著）。 */
+  const guard = Guard.createGuard(guardianFile);
+
+  /**
+   * 他現在說得出什麼：交辦的每一行、這一輪擺哪幾個選項、挑了一句之後他怎麼回。
+   * **沒有失敗態**：沒對上的行講的是「還在等什麼」；他只是還沒被說服。
+   */
+  function guardianContext(g) {
+    const id = g.id;
+    const lines = guardianFile.lines || {};
+    /** 出處：引用 `challenges.json` 裡那一關自己的官方連結（這裡不編任何網址）。 */
+    const sourceFor = (challengeId) => {
+      const ch = content.challenges.find((c) => c.id === challengeId);
+      return ch && ch.source ? { url: ch.source, name: ch.title } : null;
+    };
+    return {
+      charge: guardianFile.charge || {},
+      greet() {
+        const st = guardianState(id);
+        if (st.convinced) return (lines.again || []).slice();
+        return st.hits.length ? (lines.waiting || []).slice() : (guardianFile.greet || []).slice();
+      },
+      latches: () => Guard.latchStatus(guardianFile, guardianState(id)),
+      tally() {
+        const st = guardianState(id);
+        return {
+          open: Guard.openWeight(guardianFile, st),
+          need: Guard.passMark(guardianFile),
+          total: Guard.totalWeight(guardianFile),
+          convinced: st.convinced,
+        };
+      },
+      options: (turn) => Guard.pickOptions(guardianFile, guardianState(id), turn),
+      /** 玩家挑了一句 → 真的送進評分引擎 → 交給 `guard.decide()`。 */
+      say(optionId) {
+        const opt = (guardianFile.options || []).find((o) => o.id === optionId);
+        if (!opt || !guard) return null;
+        const before = guardianState(id);
+        const res = guard.decide(before, opt.text, Guard.evaluateLine(opt.text, guardianFile));
+        progression.tellGuardian(id, res.after);
+        world.markGuardianOpen(id, latchIndices(id), res.after.convinced);
+        return {
+          said: opt.text,
+          eyebrow: res.eyebrow,
+          say: res.say,
+          branchId: res.branchId,
+          opened: res.opened,
+          openedLine: lines.heard || '',
+          convinced: res.after.convinced,
+          closing: res.justConvinced
+            ? [...(lines.convinced || []), ...(res.full && lines.full ? [lines.full] : [])]
+            : res.after.convinced
+              ? (lines.again || []).slice(0, 1)
+              : [],
+          source: sourceFor(res.from),
+        };
+      },
+    };
+  }
+
+  /**
+   * 走近按 `E`：跟守門者說話。
+   *
+   * 這一層**不給 XP、不寫任何一關的評價、不影響解鎖**（存檔只記「交辦對上了哪幾行」）——
+   * 他讓開的那一步就是報酬。
+   */
+  function talkToGuardian(g) {
+    audio.cue('open');
+    openPanel(guardianPanel, guardianFile, guardianContext(g));
+  }
+
   /**
    * 走進一個藏起來的地方（不用按 E —— 好奇心不該還要學一個鍵）。
    * 純風味：不進圖鑑、不算徽章，只給一點 XP 與一個很小的慶祝。
@@ -1328,6 +1447,7 @@ function boot() {
       nearHandle = null;
       nearMurk = null;
       nearWatchman = null;
+      nearGuardian = null;
       nearGate = null;
       return;
     }
@@ -1353,16 +1473,29 @@ function boot() {
      * 兩位同時在範圍內時照器物那一套用「面向」排名，不是純距離。
      */
     const hitWatchman = world.nearestWatchman(player.position, undefined, camForward);
-    const blocked = Boolean(hitMarker || hitMurk || hitWatchman || hitTablet || hitInscription || hitLetter);
+    /*
+     * v1.2 · P18：守門者（半徑 3.2）—— 排在守夜人之後、石碑之前（人先於碑）。
+     * 他的互動圈與每一層都不重疊（擺位規則逐層量），所以這一階實務上不會與人相爭；
+     * 仲裁順序寫出來是為了「萬一有一天擠進來」時，答案是寫好的，不是碰運氣的。
+     */
+    const hitGuardian = world.nearestGuardian(player.position, undefined, camForward);
+    const blocked = Boolean(
+      hitMarker || hitMurk || hitWatchman || hitGuardian || hitTablet || hitInscription || hitLetter
+    );
     const hitGate = blocked || hitHandle ? null : world.nearestGate(player.position);
     nearMarker = hitMarker ? hitMarker.marker : null;
     nearMurk = !hitMarker && hitMurk ? hitMurk.murk : null;
     nearWatchman = !hitMarker && !hitMurk && hitWatchman ? hitWatchman.watchman : null;
-    nearTablet = !hitMarker && !hitMurk && !hitWatchman && hitTablet ? hitTablet.tablet : null;
+    nearGuardian = !hitMarker && !hitMurk && !hitWatchman && hitGuardian ? hitGuardian.guardian : null;
+    nearTablet = !hitMarker && !hitMurk && !hitWatchman && !hitGuardian && hitTablet ? hitTablet.tablet : null;
     nearInscription =
-      !hitMarker && !hitMurk && !hitWatchman && !hitTablet && hitInscription ? hitInscription.inscription : null;
+      !hitMarker && !hitMurk && !hitWatchman && !hitGuardian && !hitTablet && hitInscription
+        ? hitInscription.inscription
+        : null;
     nearLetter =
-      !hitMarker && !hitMurk && !hitWatchman && !hitTablet && !hitInscription && hitLetter ? hitLetter.letter : null;
+      !hitMarker && !hitMurk && !hitWatchman && !hitGuardian && !hitTablet && !hitInscription && hitLetter
+        ? hitLetter.letter
+        : null;
     nearHandle = !blocked && hitHandle ? hitHandle.handle : null;
     nearGate = hitGate ? hitGate.gate : null;
 
@@ -1401,6 +1534,19 @@ function boot() {
       hud.setInteract(
         `<b>${esc(nearWatchman.entry.name)}</b><span>${
           met ? esc(nearWatchman.entry.post) : '一個提著燈站在那裡的人'
+        }</span><kbd>E</kbd> 說話`
+      );
+    } else if (nearGuardian) {
+      // 標題 ＋ 一句狀態 ＋ E ＋ 動詞（WORLD.md §3.1）。狀態說的是「交辦上對上了幾行」——
+      // 沒說服不是失敗，是還沒；所以這裡永遠只報進度，不報結果
+      const gst = Guard.normalizeState(progression.guardianState(nearGuardian.id), guardianFile);
+      hud.setInteract(
+        `<b>${esc(nearGuardian.entry.name)}</b><span>${
+          gst.convinced
+            ? '他已經讓開一步'
+            : gst.hits.length
+              ? `交辦對上了 ${gst.hits.length} 行`
+              : esc(nearGuardian.entry.post)
         }</span><kbd>E</kbd> 說話`
       );
     } else if (nearTablet) {
@@ -1469,6 +1615,7 @@ function boot() {
       else if (inscriptionPanel.isOpen) inscriptionPanel.close();
       else if (letterPanel.isOpen) letterPanel.close();
       else if (watchmanPanel.isOpen) watchmanPanel.close();
+      else if (guardianPanel.isOpen) guardianPanel.close();
       else if (gateAsk.isOpen) gateAsk.close();
       else if (handlePanel.isOpen) handlePanel.close();
       return;
@@ -1505,6 +1652,9 @@ function boot() {
     } else if (e.code === 'KeyE' && nearWatchman) {
       e.preventDefault();
       talkToWatchman(nearWatchman);
+    } else if (e.code === 'KeyE' && nearGuardian) {
+      e.preventDefault();
+      talkToGuardian(nearGuardian);
     } else if (e.code === 'KeyE' && nearTablet) {
       e.preventDefault();
       readTablet(nearTablet);
@@ -1615,6 +1765,22 @@ function boot() {
         challenges: content.challenges,
         checkLines: watchmanFile.checkLines || {},
       }),
+    /** v1.2 · P18：守門者的小窗與資料（測試 / 除錯用）。 */
+    guardianPanel,
+    guardianData: guardianFile,
+    /** v1.2 · P18：他現在的存檔狀態（測試用：進度只累積）。 */
+    guardianState: () => guardianState(guardianFile.id),
+    /** v1.2 · P18：交辦上每一行現在的樣子（測試用：對上的不會暗回去）。 */
+    guardianLatches: () => Guard.latchStatus(guardianFile, guardianState(guardianFile.id)),
+    /** v1.2 · P18：這一輪擺哪幾個選項（測試用：每一個選項都輪得到）。 */
+    guardianOptions: (turn = 0) => Guard.pickOptions(guardianFile, guardianState(guardianFile.id), turn).map((o) => o.id),
+    /** v1.2 · P18：判定走的是哪一個實作（測試用：離線腳本是預設的那一個）。 */
+    guardianGuard: () => (guard ? { id: guard.id, offline: Boolean(guard.offline) } : null),
+    /** v1.2 · P18：世界端那塊板亮了幾行（測試用）。 */
+    guardianMarks: () => {
+      const g = world.guardians.byId(guardianFile.id);
+      return g ? g.marks.filter((m) => m.open).length : null;
+    },
     gateAsk,
     /** Phase 29：走到門前問一次（測試 / 除錯用）。 */
     askGate: (regionId) => askGate(world.gates.find((g) => g.id === regionId)),
