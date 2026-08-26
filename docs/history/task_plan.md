@@ -1718,3 +1718,33 @@ Exit criteria：
 - [ ] 一條捷徑，單側解鎖、未解鎖真的走不過去、解鎖後記在存檔裡。
 - [ ] 螢火群會指路，而且關得掉。
 - [ ] 可達性一個都沒少；rubric／playtest／build／e2e 全綠、console error 0；預算在框內。
+
+### P20a — 傳聞連線頁 ＋ 回聲重演（小景內）（2026-08-27 開工）
+
+狀態：`in progress`（里程碑 D 第四格）
+
+**現狀**：世界的線索散在很多層——12 座石碑（`LORE_TABLETS`）、13 處刻文、24 頁殘頁（`letters.json`）、12 處祕密（`secrets.json`）、12 位守夜人的舊事、20 隻濁靈的濁言、四宿星圖、12 區的傳說鉤（WORLD §1.4）。**它們彼此之間的關係，玩家腦子裡有、遊戲裡沒有。** 圖鑑目前是分章節的清單，讀得到每一條，但看不出「這一條與那一條講的是同一件事」。小景（`STORY_VIGNETTES`）在 `props.js` 裡，每區都有。
+
+**目標**：① 圖鑑多一頁**傳聞**（Outer Wilds Rumor 式）：把已經找到的線索連成一張圖，**未找到的那一端只畫虛線、不劇透**；② **回聲重演**：每區一處小景旁邊有一團坐著的光，`E` 之後 4–6 秒的 rigless 殘影**在小景範圍內**重演當年發生的事。
+
+**範圍**
+1. **傳聞頁**：新資料檔（`links: [[a, b]]` 純資料，兩端是既有線索的 id——石碑／刻文／殘頁／祕密／守夜人／濁靈）。**不加存檔欄**：一條連線畫不畫得出來，完全由「兩端各自找到了沒」推導（既有的 `hasReadLore`／`hasFoundInscription`／`hasFoundLetter`／`hasFoundSecret`／`hasMetWatchman`／`murks`）。**未找到的一端只畫虛線 ＋ 不透露它的內容**（連名字都不給，只給「還沒讀到的一段」這種佔位）。
+2. **回聲重演**：每區 1 處（12 處），坐在小景旁。`E` → 4–6 秒殘影重演 → 結束回到那團光。**零碰撞、零新光源**；殘影**不准離開小景範圍 6 公尺**；`reducedMotion` **直接顯示結果**（不播過程）；低畫質整層關。
+3. **不倒退**：e2e 舊斷言零改動；`E` 仍是唯一互動鍵；新互動層要餵進 `interactionTargets()`；`screen-fit`／`murk-fit`／`guardian-fit` 的 `--verify` 全部維持。
+
+**不做**：檔案廊與 AI 小知識 24 則（P20b）、中點揭示（P21）、終局（P22）。
+
+**受影響檔案**：新 `src/data/rumors.json`、新（或併入）`src/world/*`／`src/ui/codex.js`、`src/main.js`、`src/progression/progression.js`、`scripts/lib/screen-rules.mjs`、`scripts/test-rubric.mjs`、`scripts/headless-check.mjs`、`scripts/expected-counts.json`、`WORLD.md`。
+
+**預算**：三角 233,560 → **<239,000**；**光源 37 不變**；碰撞體 1,055 → **<1,110**；collision-audit 未涵蓋 **0**；可站立體稽核 **0**；`audit:pacing` 12 片死區 **0**。
+
+**Acceptance tests（先紅後綠）**
+- rubric：每一條連線的兩端都是**真的存在的線索 id**（逐條回查）；**沒有新增存檔欄**（schema 逐鍵比對）；未找到的一端**真的不劇透**（對渲染出來的字串掃它的內容，先紅：把佔位換成真名要紅）；重演**不離開小景 6 公尺**（逐幀量最遠的那一刻）；`reducedMotion` 直接是終態；零新光源、零碰撞；擺位吃既有那一整套。
+- e2e：走到那團光按 `E` → 重演真的動了 → 結束回到原狀；圖鑑傳聞頁看得到已連起來的線與虛線的那一端；**舊斷言零改動**；零 console error。
+
+**禁區**：`curriculum.json`、`challenges.json`、`flows.json`、`murks.json`、`letters.json`、`color-script.json`、`solution-stats.json`、`secrets.json`、`watchmen.json`、`guardian.json`、`vite.config.js`、`CLAUDE.md`、`CHANGELOG.md`、`gameplay-roadmap.md`、三件組、dev server 5173／5174／5175。
+
+Exit criteria：
+- [ ] 傳聞頁把找到的線索連起來，未找到的一端只有虛線、不劇透，而且**沒有新增存檔欄**。
+- [ ] 12 處回聲重演，`E` 播得起來、不離開小景、`reducedMotion` 直接給結果。
+- [ ] rubric／playtest／build／e2e 全綠、console error 0；預算在框內。
