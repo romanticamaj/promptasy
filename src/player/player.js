@@ -24,7 +24,7 @@ const RUN_FOV = 58.5;
 
 /* --- 抬頭看天空（Phase 9） ---------------------------------------------
  * 石碑上寫著「抬頭看看四周」，但原本的鏡頭根本抬不起來 —— 那句話是騙人的。
- * 現在：滑鼠上下拖曳、方向鍵 ↑ ↓、或按住空白鍵，都能真的把視線抬到星空 / 月亮 / 極光。
+ * 現在：滑鼠上下拖曳、方向鍵 ↑ ↓，都能真的把視線抬到星空 / 月亮 / 極光。
  * 一開始移動就會平滑地收回跟隨鏡頭，玩家不會「卡在天上」。
  */
 
@@ -32,8 +32,8 @@ const RUN_FOV = 58.5;
  * 一句話：**WASD 只管走路，方向鍵只管視角。**
  *   · W A S D        移動（方向鍵不再驅動角色）
  *   · ← →            鏡頭左右轉（原本的 Q / R）
- *   · ↑ ↓            抬頭 / 低頭（和滑鼠上下拖曳、空白鍵走同一個仰角）
- *   · 滑鼠拖曳 / 空白鍵 / Shift 一律不變
+ *   · ↑ ↓            抬頭 / 低頭（和滑鼠上下拖曳走同一個仰角）
+ *   · 滑鼠拖曳 / Shift 一律不變
  * Q / R 保留成**不寫在任何說明裡的舊版別名**：老玩家的手指不會突然失靈，
  * 但畫面上（HUD / 教學卡 / 序章 / README）只講方向鍵這一套。
  */
@@ -44,12 +44,7 @@ const PITCH_RATE = 1.2;
 /** 視線俯仰的上下限（弧度）：正 = 抬頭。上限約 68°，看得到月亮與極光。 */
 const PITCH_MAX = 1.2;
 const PITCH_MIN = -0.45;
-/**
- * 按住空白鍵時的目標仰角。
- * 刻意不抬到最高：留一線地平線在畫面下緣，星空 ／ 極光 ／ 月亮 才有對照，
- * 整片只有黑天空反而看不出「這片夜色比你以為的還大」。
- */
-const PITCH_SKY = 0.62;
+
 /** 抬頭時鏡頭同時往下沉一點，角色才不會擋在畫面正中間。 */
 const PITCH_DROP = 2.6;
 
@@ -205,8 +200,8 @@ export function createPlayer({
   /* --- 輸入 --- */
   const keys = new Set();
   let inputEnabled = true;
-  /** 跳躍鍵（WORLD.md §3.1 · P13 定案）。 */
-  const JUMP_KEY = 'KeyJ';
+  /** 跳躍鍵（WORLD.md §3.1）。P13 先定 `J`，站長實玩後改成**空白鍵**（跳躍的通用鍵位）。 */
+  const JUMP_KEY = 'Space';
   /** 這一幀有沒有「按下」跳躍鍵（邊緣觸發，讀完就清）。 */
   let jumpPressed = false;
   /** 這一幀有沒有按著 Shift（序章的「學會奔跑」用得到）。 */
@@ -220,8 +215,20 @@ export function createPlayer({
   let lastPointerX = 0;
   let lastPointerY = 0;
 
+  /*
+   * 焦點在會吃鍵盤的元件上時，世界層一律不收。
+   * 空白鍵當上跳躍鍵之後這件事更要緊：焦點停在一顆按鈕／勾勾上時，
+   * 空白鍵的意思是「按下它」，不是「跳」（設定頁的靜音勾勾就是這樣切的）。
+   */
   const isTypingTarget = (el) =>
-    el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable);
+    el &&
+    (el.tagName === 'INPUT' ||
+      el.tagName === 'TEXTAREA' ||
+      el.tagName === 'BUTTON' ||
+      el.tagName === 'SELECT' ||
+      el.isContentEditable ||
+      el.getAttribute?.('role') === 'button' ||
+      el.hasAttribute?.('tabindex'));
 
   function onKeyDown(e) {
     if (!inputEnabled || isTypingTarget(e.target)) return;
@@ -424,10 +431,13 @@ export function createPlayer({
       // 鏡頭左右轉：← →（KeyQ / KeyR 是不寫在說明裡的舊版別名），或按住滑鼠拖曳
       if (keys.has('ArrowLeft') || keys.has('KeyQ')) cameraYaw += dt * YAW_RATE;
       if (keys.has('ArrowRight') || keys.has('KeyR')) cameraYaw -= dt * YAW_RATE;
-      // 抬頭 / 低頭：↑ ↓，或滑鼠上下拖曳；按住空白鍵直接抬到看得見星空的角度
+      /*
+       * 抬頭 / 低頭：↑ ↓，或滑鼠上下拖曳。
+       * **空白鍵從這裡拿掉了**——它現在是跳躍鍵。原本那個「一口氣抬到看得見星空」
+       * 只是 ↑ 的捷徑（序章本來就同時教 ↑），一個鍵不能同時是跳躍與抬頭。
+       */
       if (keys.has('ArrowUp')) setPitch(cameraPitch + dt * PITCH_RATE);
       if (keys.has('ArrowDown')) setPitch(cameraPitch - dt * PITCH_RATE);
-      if (keys.has('Space')) setPitch(THREE.MathUtils.damp(cameraPitch, PITCH_SKY, 4, dt));
       // 鏡頭拉遠 / 拉近：- 與 =（滾輪之外的那條路，純鍵盤也調得動）
       if (held(ZOOM_OUT_KEYS)) setZoom(cameraDistance + dt * ZOOM_RATE);
       if (held(ZOOM_IN_KEYS)) setZoom(cameraDistance - dt * ZOOM_RATE);
@@ -557,8 +567,8 @@ export function createPlayer({
     lookahead.set(velocity.x, 0, velocity.z).multiplyScalar(0.22);
 
     // 抬頭：站著不動時停在你拉到的角度，一開始移動就平滑地收回跟隨鏡頭。
-    // 但只要玩家還按著視角鍵（↑ ↓ / 空白鍵），就以他為準 —— 邊走邊看天空是合法的。
-    const holdingLook = keys.has('Space') || keys.has('ArrowUp') || keys.has('ArrowDown');
+    // 但只要玩家還按著視角鍵（↑ ↓），就以他為準 —— 邊走邊看天空是合法的。
+    const holdingLook = keys.has('ArrowUp') || keys.has('ArrowDown');
     if (wants && !holdingLook) setPitch(THREE.MathUtils.damp(cameraPitch, 0, 2.6, dt));
     pitchSmooth = THREE.MathUtils.damp(pitchSmooth, cameraPitch, 8, dt);
 

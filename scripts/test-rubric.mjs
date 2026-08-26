@@ -3782,11 +3782,13 @@ console.log('▸ 可站立表面（v1.2 · P13）');
   {
     const worldMd = readFileSync(resolve(root, 'WORLD.md'), 'utf8');
     const s31 = worldMd.slice(worldMd.indexOf('### 3.1'), worldMd.indexOf('### 3.2'));
-    ok(/\| `J` \|/.test(s31), 'WORLD.md §3.1 的世界層按鍵表有 `J`');
+    ok(/\| 空白鍵 \|/.test(s31), 'WORLD.md §3.1 的世界層按鍵表有空白鍵');
+    ok(!/\| `J` \|/.test(s31), 'WORLD.md §3.1 的按鍵表不再有 `J`（跳躍已改成空白鍵）');
     // v1.2 · P14 起跳躍真的接上了鍵盤 —— 「尚未啟用」那句話必須從文件裡消失
     ok(!/尚未啟用/.test(s31), 'WORLD.md §3.1 不再說跳躍尚未啟用（P14 已經接上鍵盤事件）');
     ok(/P24/.test(s31), 'WORLD.md §3.1 把手把／觸控的跳躍鍵留給 P24');
-    ok(/`Space`|空白鍵/.test(s31) && /`Shift`/.test(s31), 'WORLD.md §3.1 說得出為什麼不是 Space／Shift');
+    ok(/`Shift`/.test(s31), 'WORLD.md §3.1 說得出為什麼不是 Shift（跑）');
+    ok(/`↑`/.test(s31), 'WORLD.md §3.1 說得出抬頭看天空搬去哪裡了（↑）');
     const s63 = worldMd.slice(worldMd.indexOf('### 6.3'), worldMd.indexOf('### 6.4'));
     ok(/頂面站不上去/.test(s63), 'WORLD.md §6.3 第 3 條寫了「而且頂面站不上去」');
     for (const key of ['`top`', '`topFace`', '`standable`', '`standR`', 'groundHeightAt']) {
@@ -16895,7 +16897,7 @@ console.log('\n▸ 地面材質語言 ＋ 每區粒子（v1.2 · P12）');
 /* v1.2 · P14：跳躍原型（只在中央高原）                                 */
 /*   · 常數與 WORLD.md §3.1 逐條一致；只有 foundations 跳得起來         */
 /*   · 純函式的彈道：跳得上 1.6、跳不上 3.0（量最差的那一次幀率）        */
-/*   · 狀態機模擬：跳上去 → 站得住 → 走下來；不按 J 逐幀等於地形高度      */
+/*   · 狀態機模擬：跳上去 → 站得住 → 走下來；不按空白鍵 逐幀等於地形高度      */
 /*   · 邊界護欄的正反例（虛空、穿模）；escapeSolid 那條路不會被抬到頂面   */
 /*   · 高台：資料契約 ＋ 世界實體 ＋ 預算；零每幀配置的靜態掃描          */
 /* ================================================================== */
@@ -17056,7 +17058,7 @@ console.log('\n▸ 跳躍原型（v1.2 · P14）');
    * @param {number} o.vx 水平速度（m/s）
    * @param {number} o.dt
    * @param {number} o.frames
-   * @param {(f:number)=>boolean} o.press 第 f 幀有沒有按下 J
+   * @param {(f:number)=>boolean} o.press 第 f 幀有沒有按下空白鍵
    * @param {(f:number)=>boolean} o.hold 第 f 幀 J 還按著嗎
    * @param {number} o.jumpSpeed
    * @param {boolean|((f:number)=>boolean)} o.canTakeOff
@@ -17111,25 +17113,25 @@ console.log('\n▸ 跳躍原型（v1.2 · P14）');
   const step = ScreensP14.PLATFORMS[0];
   const PLAT = { x: 0, standR: 2.45, standTop: step.height, id: step.id };
 
-  /* ④a 不按 J：逐幀等於地形高度（**最差的那一次**也是 0） */
+  /* ④a 不按空白鍵：逐幀等於地形高度（**最差的那一次**也是 0） */
   {
     const r = runSim({
       ground: HILLY, plat: PLAT, x0: 12, vx: -3.5, dt: 1 / 60, frames: 900,
       press: () => false, hold: () => false, jumpSpeed: Jump.JUMP_SPEED, canTakeOff: true,
     });
-    ok(r.trace.length === 900, '不按 J 的模擬真的跑了 900 幀（不是空過）');
+    ok(r.trace.length === 900, '不按空白鍵 的模擬真的跑了 900 幀（不是空過）');
     ok(r.trace.some((t) => Math.abs(t.g) > 1.5), '這條路真的有起有伏（不然這一段是空過的）',
       `最大落差=${Math.max(...r.trace.map((t) => Math.abs(t.g))).toFixed(2)}`);
-    eq(r.worstOffGround, 0, '不按 J：**每一幀**腳的高度都精確等於地形高度（行為零改變）');
-    eq(r.trace.every((t) => t.y === t.g), true, '不按 J：逐幀 === 地形高度（不是「很接近」）');
-    eq(r.st.jumps, 0, '不按 J：一次都沒跳');
-    eq(r.st.airborne, false, '不按 J：從頭到尾沒離過地');
-    eq(r.st.supported, false, '不按 J：從頭到尾沒站到任何東西上（所以走的一定是原本那一行）');
-    eq(r.st.standing, null, '不按 J：從頭到尾沒站到任何東西上（所以走的一定是原本那一行）');
-    // 不按 J 的人走到高台前就被擋下來 —— 上不去，也走不進去
+    eq(r.worstOffGround, 0, '不按空白鍵：**每一幀**腳的高度都精確等於地形高度（行為零改變）');
+    eq(r.trace.every((t) => t.y === t.g), true, '不按空白鍵：逐幀 === 地形高度（不是「很接近」）');
+    eq(r.st.jumps, 0, '不按空白鍵：一次都沒跳');
+    eq(r.st.airborne, false, '不按空白鍵：從頭到尾沒離過地');
+    eq(r.st.supported, false, '不按空白鍵：從頭到尾沒站到任何東西上（所以走的一定是原本那一行）');
+    eq(r.st.standing, null, '不按空白鍵：從頭到尾沒站到任何東西上（所以走的一定是原本那一行）');
+    // 不按空白鍵 的人走到高台前就被擋下來 —— 上不去，也走不進去
     ok(
       Math.abs(Math.abs(r.x - PLAT.x) - (PLAT.standR + World.PLAYER_RADIUS)) < 0.2,
-      '不按 J：走到高台側面就被擋下來（上不去也走不進去）',
+      '不按空白鍵：走到高台側面就被擋下來（上不去也走不進去）',
       `x=${r.x.toFixed(2)} 擋人半徑=${(PLAT.standR + World.PLAYER_RADIUS).toFixed(2)}`
     );
     ok(r.trace.some((t) => t.x > 10), '這一段真的走了一段路（不是原地不動）', r.trace[0].x.toFixed(1));
@@ -17139,7 +17141,7 @@ console.log('\n▸ 跳躍原型（v1.2 · P14）');
   {
     for (const dt of [1 / 240, 1 / 120, 1 / 60, 1 / 30, 0.1]) {
       const start = PLAT.standR + World.PLAYER_RADIUS + 0.4;
-      // 走過去（撞在側面）→ 按 J 並按住 → 飛過邊緣 → 落到頂面
+      // 走過去（撞在側面）→ 按空白鍵 並按住 → 飛過邊緣 → 落到頂面
       const up = runSim({
         // 落到頂面上就停下腳步（不然他會一路走過去再走下來 —— 那是下一段要驗的事）
         ground: FLAT, plat: PLAT, x0: start, vx: (st2) => (st2.standing === PLAT.id ? 0 : -6),
@@ -17255,7 +17257,7 @@ console.log('\n▸ 跳躍原型（v1.2 · P14）');
     ok(Math.abs(r.x - tall.x) > tall.standR, '[3.0m] 連水平方向都被擋在外面（腳從來沒高過頂面）', r.x.toFixed(2));
   }
 
-  /* ④d 別的區按 J：什麼都不會發生 */
+  /* ④d 別的區按空白鍵：什麼都不會發生 */
   {
     const r = runSim({
       ground: HILLY, plat: null, x0: 5, vx: -3, dt: 1 / 60, frames: 300,
@@ -17319,7 +17321,7 @@ console.log('\n▸ 跳躍原型（v1.2 · P14）');
       ok(pressed, `coyote：延遲 ${delaySec}s 的那一次真的按下去了（不然這一條是空過的）`);
       return st.jumps;
     };
-    eq(runCoyote(0.0), 1, 'coyote：走出邊緣的當下按 J 跳得起來');
+    eq(runCoyote(0.0), 1, 'coyote：走出邊緣的當下按空白鍵 跳得起來');
     eq(runCoyote(0.08), 1, 'coyote：走出邊緣後 80 毫秒還跳得起來');
     eq(runCoyote(0.16), 0, 'coyote：走出邊緣後 160 毫秒就跳不起來了（寬限是有限的）');
   }
@@ -17688,12 +17690,18 @@ console.log('\n▸ 跳躍原型（v1.2 · P14）');
     const KeyHelp = await import('../src/ui/keyhelp.js');
     const walkGroup = KeyHelp.KEY_GROUPS.find((g2) => g2.id === 'walk');
     ok(Boolean(walkGroup), '操作一覽有「走路」那一組');
-    const jumpRow = walkGroup && walkGroup.rows.find((r2) => r2.keys.includes('J'));
-    ok(Boolean(jumpRow), '操作一覽的走路那一組有 J');
-    ok(jumpRow && /跳/.test(jumpRow.what), '操作一覽說得出 J 是跳', jumpRow ? jumpRow.what : '');
+    const jumpRow = walkGroup && walkGroup.rows.find((r2) => r2.keys.includes('空白鍵'));
+    ok(Boolean(jumpRow), '操作一覽的走路那一組有空白鍵');
+    ok(jumpRow && /跳/.test(jumpRow.what), '操作一覽說得出空白鍵是跳', jumpRow ? jumpRow.what : '');
     ok(jumpRow && /高台/.test(jumpRow.what), '操作一覽誠實標明「有高台的土地」才跳得起來（不是每一片）');
+    // 空白鍵只能有一個意思：它不准同時還掛在「抬頭看天空」那一行上
+    const camGroup = KeyHelp.KEY_GROUPS.find((g2) => g2.id === 'camera');
+    ok(
+      camGroup && !camGroup.rows.some((r2) => r2.keys.includes('空白鍵')),
+      '操作一覽的鏡頭那一組不再有空白鍵（它現在是跳躍鍵）'
+    );
     const introSrc = readFileSync(resolve(root, 'src/ui/intro.js'), 'utf8');
-    ok(/<kbd>J<\/kbd>/.test(introSrc), '首次進入的教學卡也列了 J');
+    ok(/<kbd>空白鍵<\/kbd>/.test(introSrc), '首次進入的教學卡也列了空白鍵');
   }
 }
 
@@ -18087,7 +18095,7 @@ console.log('\n▸ 高台語法 ＋ 高處的祕密 ＋ 橋缺口（v1.2 · P15�
     }
   }
 
-  /* --- ⑥ 不按 J 的可達性：全地圖洪水填充 ---------------------------- *
+  /* --- ⑥ 不按空白鍵 的可達性：全地圖洪水填充 ---------------------------- *
    *
    * 護欄 7（不倒退）的硬證據。P13 的全地圖網格證的是「高度一寸沒變」，
    * 這一條證的是「**路一條都沒斷**」：從出生點出發，只用走的（`isClear` 不給 feetY，
@@ -18176,10 +18184,10 @@ console.log('\n▸ 高台語法 ＋ 高處的祕密 ＋ 橋缺口（v1.2 · P15�
       for (const [x, z, id] of list) {
         if (!near(x, z, reachM || 2)) {
           bad += 1;
-          ok(false, `[不按 J 的可達性] ${label} ${id} 走得到`, `${x},${z}`);
+          ok(false, `[不按空白鍵 的可達性] ${label} ${id} 走得到`, `${x},${z}`);
         }
       }
-      eq(bad, 0, `[不按 J 的可達性] ${list.length} 個${label}全部走得到`);
+      eq(bad, 0, `[不按空白鍵 的可達性] ${list.length} 個${label}全部走得到`);
     }
 
     /* 每一座橋：兩端與缺口的另一側都走得到（＝「不跳也走得完每一座橋」）。 */
@@ -18566,9 +18574,9 @@ console.log('\n▸ 跳躍鋪區 ＋ 中景補四區（v1.2 · P16a）');
     ok(s31.includes('P16a'), 'WORLD.md §3.1 記得這一格把跳躍鋪到哪裡');
     // keyhelp 不准把片數寫死（資料一長，寫死的數字就自打嘴巴）
     const keyhelpSrc = readFileSync(resolve(root, 'src/ui/keyhelp.js'), 'utf8');
-    const jumpLine = keyhelpSrc.split('\n').find((l) => l.includes("keys: ['J']")) || '';
-    ok(jumpLine.length > 0, 'keyhelp 找得到 J 那一行');
-    ok(!/[一二三四五六七八九十]片/.test(jumpLine), 'keyhelp 的 J 那一行沒有把片數寫死', jumpLine.trim());
+    const jumpLine = keyhelpSrc.split('\n').find((l) => l.includes("keys: ['空白鍵']")) || '';
+    ok(jumpLine.length > 0, 'keyhelp 找得到跳躍那一行');
+    ok(!/[一二三四五六七八九十]片/.test(jumpLine), 'keyhelp 的跳躍那一行沒有把片數寫死', jumpLine.trim());
   }
 }
 

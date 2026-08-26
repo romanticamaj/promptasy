@@ -1800,7 +1800,7 @@ async function main() {
     };
     const press = (code) => window.dispatchEvent(new KeyboardEvent('keydown', { code }));
     const release = (code) => window.dispatchEvent(new KeyboardEvent('keyup', { code }));
-    const releaseAll = () => { for (const c of ['KeyW', 'KeyJ', 'ArrowLeft', 'ArrowRight']) release(c); };
+    const releaseAll = () => { for (const c of ['KeyW', 'Space', 'ArrowLeft', 'ArrowRight']) release(c); };
     if (g.gateAsk.isOpen) g.gateAsk.close({ silent: true });
     releaseAll();
     await waitGame(0.2);
@@ -1855,14 +1855,14 @@ async function main() {
       return false;
     };
     /**
-     * 按住 J 直到落地（**按住**，不是點一下）。
+     * 按住空白鍵直到落地（**按住**，不是點一下）。
      * 一幀 0.2 秒時，keydown/keyup 可能整組落在兩幀之間 —— 那樣 \`held\` 永遠是 false、
      * 「鬆手提前下落」會把每一跳都砍成半高。所以按著不放，等它真的落地再鬆。
      */
     const jumpAndLand = async () => {
       const before = g.player.jump.jumps;
       const samples = [];
-      press('KeyJ');
+      press('Space');
       const bail = performance.now() + 12000;
       while (performance.now() < bail) {
         const p = P();
@@ -1881,7 +1881,7 @@ async function main() {
        * 把人從高台上滑出去 —— 那會讓「站得住」這條斷言變成在賭停在哪裡。
        * 「落地那一刻站在誰身上」在放手之前就先記下來。
        */
-      release('KeyJ');
+      release('Space');
       release('KeyW');
       const j = g.player.jump;
       const touched = g.player.standingOn;
@@ -1898,7 +1898,7 @@ async function main() {
       };
     };
 
-    /* ① 站在中央高原的空地上按 J：真的離地，也真的落回原來的高度 --------- */
+    /* ① 站在中央高原的空地上按空白鍵：真的離地，也真的落回原來的高度 --------- */
     {
       /*
        * 刻意用出生點（半徑 7 公尺的淨空區、一定在中央高原上、一定站得住）——
@@ -2004,7 +2004,7 @@ async function main() {
       }
     }
 
-    /* ③ 虛空邊緣按 J：全程都踩得到地 ------------------------------------- */
+    /* ③ 虛空邊緣按空白鍵：全程都踩得到地 ------------------------------------- */
     {
       releaseAll();
       g.player.teleport(home.x, home.z);
@@ -2041,7 +2041,7 @@ async function main() {
       }
     }
 
-    /* ④ 不是中央高原：橋上按 J 一寸都不會動（**放在最後** —— 這是這一節唯一
+    /* ④ 不是中央高原：橋上按空白鍵一寸都不會動（**放在最後** —— 這是這一節唯一
      *   會踏出中央高原的一步，跑完就立刻回家，不讓進區演出影響後面的斷言）------------------------------ */
     {
       releaseAll();
@@ -2071,13 +2071,13 @@ async function main() {
         await waitGame(0.4);
         const before = { jumps: g.player.jump.jumps, blocked: g.player.jump.blocked };
         const ys = [];
-        press('KeyJ');
+        press('Space');
         for (let i = 0; i < 14; i += 1) {
           await waitGame(0.12);
           const p = P();
           ys.push(Math.abs(p.y - w.terrainHeight(p.x, p.z)));
         }
-        release('KeyJ');
+        release('Space');
         await waitGame(0.3);
         out.offRegion.jumpsDelta = g.player.jump.jumps - before.jumps;
         out.offRegion.blockedDelta = g.player.jump.blocked - before.blocked;
@@ -2116,7 +2116,7 @@ async function main() {
   {
     const r = jumpRun.plain;
     eq(jumpRun.spawnClear, true, 'P14：出生點是站得住的（這一段的起點不是碰運氣）');
-    eq(r.jumped, true, 'P14：在中央高原按 J 真的跳起來了');
+    eq(r.jumped, true, 'P14：在中央高原按空白鍵真的跳起來了');
     ok(r.lastApex > 1.6, 'P14：這一跳的頂點跳得上 1.6 公尺', `apex=${r.lastApex.toFixed(2)}`);
     ok(r.lastApex < 3.0, 'P14：這一跳的頂點跳不上 3.0 公尺', `apex=${r.lastApex.toFixed(2)}`);
     ok(r.lastAirTime > 0.4, 'P14：滯空時間是一段真的時間（不是一幀）', `${r.lastAirTime.toFixed(2)}s`);
@@ -2156,10 +2156,10 @@ async function main() {
   {
     const r = jumpRun.offRegion;
     ok(Boolean(r.at), 'P14：找得到一個橋上的落腳點', JSON.stringify(r.at));
-    eq(r.jumpsDelta, 0, 'P14：不是中央高原（橋上）按 J 一次都跳不起來');
+    eq(r.jumpsDelta, 0, 'P14：不是中央高原（橋上）按空白鍵一次都跳不起來');
     ok(r.blockedDelta >= 1, 'P14：被擋下來這件事有記錄（不是被吞掉）', `blocked+${r.blockedDelta}`);
-    ok(r.worstOffGround < 1e-6, 'P14：橋上按 J 的整段時間，腳下的高度都精確等於地形高度', `worst=${r.worstOffGround}`);
-    eq(r.airborne, false, 'P14：橋上按 J 沒有離地');
+    ok(r.worstOffGround < 1e-6, 'P14：橋上按空白鍵的整段時間，腳下的高度都精確等於地形高度', `worst=${r.worstOffGround}`);
+    eq(r.airborne, false, 'P14：橋上按空白鍵沒有離地');
     eq(r.backHome, 'foundations', 'P14：跑完就回到中央高原（不把進區演出留給後面的斷言）');
   }
 
@@ -2167,7 +2167,7 @@ async function main() {
   {
     const r = jumpRun.edge;
     ok(Boolean(r.at), 'P14：找得到中央高原上「再走一步就是虛空」的邊緣', JSON.stringify(r.at));
-    eq(r.jumped, true, 'P14：在邊緣上按 J 跳得起來（護欄擋的是落點，不是跳這件事）');
+    eq(r.jumped, true, 'P14：在邊緣上按空白鍵跳得起來（護欄擋的是落點，不是跳這件事）');
     ok(r.samples >= 2, 'P14：邊緣那一跳真的取樣到了（不是空過）', String(r.samples));
     ok(r.worstCover >= 0.45, 'P14：整段跳躍**最糟的那一個取樣點**仍然踩得到地', `worst=${r.worstCover.toFixed(2)}`);
     ok(r.finalCover >= 0.45, 'P14：落地的那一點踩得到地（沒有掉進虛空）', `cover=${r.finalCover.toFixed(2)}`);
@@ -2185,7 +2185,7 @@ async function main() {
   /* ⑥ 真的 CDP 鍵盤事件（不是頁面裡合成的那一種）也跳得起來 */
   {
     const before = await evaluate(`return window.__promptasy.player.jump.jumps;`);
-    await keyDown('KeyJ', 'j', { vk: 74 });
+    await keyDown('Space', ' ', { vk: 32 });
     const after = await waitFor(
       async () => {
         const n = await evaluate(`return window.__promptasy.player.jump.jumps;`);
@@ -2193,7 +2193,7 @@ async function main() {
       },
       { label: 'P14：真的鍵盤事件觸發跳躍', every: 120, timeout: 20000 }
     );
-    await keyUp('KeyJ', 'j', { vk: 74 });
+    await keyUp('Space', ' ', { vk: 32 });
     ok(after > before, 'P14：CDP 送進去的真 `J` keydown 也跳得起來', `${before} → ${after}`);
     await waitFor(
       async () => (await evaluate(`return window.__promptasy.player.jump.airborne === false;`)) || null,
@@ -2283,12 +2283,12 @@ async function main() {
     const before = forward();
     const beforeCamY = g.engine.camera.position.y;
 
-    // 1) 按住空白鍵抬頭
-    window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Space' }));
+    // 1) 按住 ↑ 抬頭（空白鍵在站長實玩後改成跳躍鍵，抬頭只剩 ↑ 與滑鼠拖曳）
+    window.dispatchEvent(new KeyboardEvent('keydown', { code: 'ArrowUp' }));
     await waitGame(1.6);
     const holdPitch = g.player.cameraPitch;
     const up = forward();
-    window.dispatchEvent(new KeyboardEvent('keyup', { code: 'Space' }));
+    window.dispatchEvent(new KeyboardEvent('keyup', { code: 'ArrowUp' }));
 
     // 2) 滑鼠往上拖也要能抬頭
     g.player.setCameraPitch(0);
@@ -2332,7 +2332,7 @@ async function main() {
     };
   `);
   ok(lookUp.beforeY < 0.05, '預設鏡頭是略微俯視的', `dirY=${lookUp.beforeY.toFixed(3)}`);
-  ok(lookUp.holdPitch > 0.45, '按住空白鍵真的抬起頭', `pitch=${lookUp.holdPitch.toFixed(2)}`);
+  ok(lookUp.holdPitch > 0.45, '按住 ↑ 真的抬起頭', `pitch=${lookUp.holdPitch.toFixed(2)}`);
   ok(lookUp.upY > 0.3, '抬頭後視線確實朝上（看得到天空）', `dirY=${lookUp.upY.toFixed(3)}`);
   ok(lookUp.dragPitch > 0.3, '滑鼠往上拖也能抬頭', `pitch=${lookUp.dragPitch.toFixed(2)}`);
   ok(lookUp.draggedY > 0.2, '拖曳抬頭後視線朝上', `dirY=${lookUp.draggedY.toFixed(3)}`);
@@ -18164,7 +18164,7 @@ async function main() {
    * 三件事，全部用**真的按鍵**做（不對唯讀 getter 指派、不用固定 sleep 對齊牆鐘）：
    *   ① 跳上兩座高台；其中一座頂上有東西 —— 站在它腳下**撿不到**，跳上去才撿得到
    *   ② 圖鑑的「秘境」章節看得到剛剛撿到的那一處
-   *   ③ 橋上那道缺口：**完全不按 J** 沿窄板走得過去；缺口正中央跳過去也成立
+   *   ③ 橋上那道缺口：**完全不按空白鍵** 沿窄板走得過去；缺口正中央跳過去也成立
    *
    * **拆成五段短的 evaluate**：一次 `Runtime.evaluate` 有 90 秒的 CDP 上限，
    * 而這台機器是軟體渲染（一幀可能 0.2 秒）—— 一整段跑下來一定超時
@@ -18191,7 +18191,7 @@ async function main() {
     };
     const press = (code) => window.dispatchEvent(new KeyboardEvent('keydown', { code }));
     const release = (code) => window.dispatchEvent(new KeyboardEvent('keyup', { code }));
-    const releaseAll = () => { for (const c of ['KeyW', 'KeyJ', 'ArrowLeft', 'ArrowRight']) release(c); };
+    const releaseAll = () => { for (const c of ['KeyW', 'Space', 'ArrowLeft', 'ArrowRight']) release(c); };
     const wrap = (d) => { while (d > Math.PI) d -= Math.PI * 2; while (d < -Math.PI) d += Math.PI * 2; return d; };
     /** 轉向：一律按真的方向鍵、輪詢到位（cameraYaw 是唯讀 getter，指派是空包彈）。 */
     const faceToward = async (tx, tz) => {
@@ -18315,7 +18315,7 @@ async function main() {
         await faceToward(solid.x, solid.z);
         const before = g.player.jump.jumps;
         // ② 原地起跳（**按著不放**：鬆手會把跳躍砍成半高 0.52 公尺）
-        press('KeyJ');
+        press('Space');
         /*
          * ③ **等腳真的高過頂面再往前推。**
          * 腳還在頂面以下時，石鼓是一面實心的牆（solidAtAbove）——
@@ -18344,7 +18344,7 @@ async function main() {
           if (g.player.jump.jumps > before && !g.player.jump.airborne) break;
           await sleep(30);
         }
-        release('KeyJ');
+        release('Space');
         release('KeyW');
         // 等殘餘速度停下來（落地時還會滑一小段），再交給下一步
         const restBail = performance.now() + 5000;
@@ -18450,7 +18450,7 @@ async function main() {
     eq(cx.closed, true, 'P15：圖鑑關得掉');
   }
 
-  /* ③a 完全不按 J：沿窄板一段一段走過缺口 */
+  /* ③a 完全不按空白鍵：沿窄板一段一段走過缺口 */
   {
     const wlk = await evaluate(`
       ${P15_PRELUDE}
@@ -18500,7 +18500,7 @@ async function main() {
     ok(Boolean(wlk.spec), 'P15：世界裡真的有一道橋缺口', JSON.stringify(wlk.spec));
     ok(wlk.samples > 20, 'P15：窄板那一段真的取樣到了（不是空過）', String(wlk.samples));
     eq(wlk.jumpsDelta, 0, 'P15：**全程一次 J 都沒按**（走窄板不需要跳）');
-    eq(wlk.crossed, true, 'P15：不按 J 也走得完這一座橋（繞窄板過去了）', `along=${(wlk.along || 0).toFixed(1)}`);
+    eq(wlk.crossed, true, 'P15：不按空白鍵也走得完這一座橋（繞窄板過去了）', `along=${(wlk.along || 0).toFixed(1)}`);
     eq(wlk.inGapSamples, 0, 'P15：整段路一次都沒有踩進缺口裡');
     ok(wlk.worstCover >= 0.45, 'P15：**最糟的那一個取樣點**仍然踩得到地', `worst=${wlk.worstCover.toFixed(2)}`);
     ok(wlk.worstOffGround < 1e-6, 'P15：走窄板的整段時間腳下都精確等於地形高度', `worst=${wlk.worstOffGround}`);
@@ -18534,7 +18534,7 @@ async function main() {
         // 跑到離斷口還有 3 公尺左右就起跳（不是等速度，也不是等牆鐘）
         const runBail = performance.now() + 6000;
         while (performance.now() < runBail && alongOf(P().x, P().z) < gp.at - 4.2) await sleep(30);
-        press('KeyJ');
+        press('Space');
         const bail = performance.now() + 9000;
         while (performance.now() < bail) {
           const p = P();
@@ -18542,7 +18542,7 @@ async function main() {
           if (g.player.jump.jumps > before && !g.player.jump.airborne) break;
           await sleep(30);
         }
-        release('KeyJ');
+        release('Space');
         release('KeyW');
         await waitGame(0.4);
         if (!crossed) {
@@ -18563,7 +18563,7 @@ async function main() {
       return out;
     `);
     eq(jmp.startClear, true, 'P15：缺口前那一步站得住（起點不是碰運氣）');
-    ok(jmp.jumpsDelta >= 1, 'P15：缺口那一座橋上按 J 真的跳得起來', `jumps+${jmp.jumpsDelta}`);
+    ok(jmp.jumpsDelta >= 1, 'P15：缺口那一座橋上按空白鍵真的跳得起來', `jumps+${jmp.jumpsDelta}`);
     eq(jmp.crossed, true, 'P15：從缺口正中央跳過去了', `along=${(jmp.along || 0).toFixed(1)}`);
     eq(jmp.inGap, false, 'P15：落點不在缺口裡');
     ok(jmp.cover >= 0.45, 'P15：落點踩得到地', `cover=${(jmp.cover || 0).toFixed(2)}`);
@@ -18632,7 +18632,7 @@ async function main() {
    *      —— 這一條就是「按了 J 卻沒有任何東西跳得上去」那個壞結果的反面證據。
    *
    * 兩段都先把區域暫時標成已解鎖（`isWalkable()` 擋的是鎖著的院子），跑完還原。
-   * 上高台的做法沿用 P15 交接的那一套：**走到貼著它 → 停下來 → 原地按住 J →
+   * 上高台的做法沿用 P15 交接的那一套：**走到貼著它 → 停下來 → 原地按住空白鍵→
    * 等腳高過 `standTop` 再按 W**（`sleep` 只用來讓出時間片，不拿來對齊牆鐘）。
    */
   const P16A_PRELUDE = `
@@ -18651,7 +18651,7 @@ async function main() {
     };
     const press = (code) => window.dispatchEvent(new KeyboardEvent('keydown', { code }));
     const release = (code) => window.dispatchEvent(new KeyboardEvent('keyup', { code }));
-    const releaseAll = () => { for (const c of ['KeyW', 'KeyJ', 'ArrowLeft', 'ArrowRight']) release(c); };
+    const releaseAll = () => { for (const c of ['KeyW', 'Space', 'ArrowLeft', 'ArrowRight']) release(c); };
     const wrap = (d) => { while (d > Math.PI) d -= Math.PI * 2; while (d < -Math.PI) d += Math.PI * 2; return d; };
     const faceToward = async (tx, tz) => {
       const want = () => Math.atan2(tx - P().x, tz - P().z);
@@ -18738,7 +18738,7 @@ async function main() {
       await waitGame(0.15);
       await faceToward(solid.x, solid.z);
       const before = g.player.jump.jumps;
-      press('KeyJ');
+      press('Space');
       const upBail = performance.now() + 6000;
       while (performance.now() < upBail && P().y < solid.standTop + 0.02) await sleep(20);
       press('KeyW');
@@ -18755,7 +18755,7 @@ async function main() {
         if (g.player.jump.jumps > before && !g.player.jump.airborne) break;
         await sleep(30);
       }
-      release('KeyJ');
+      release('Space');
       release('KeyW');
       const restBail = performance.now() + 5000;
       while (g.player.speed > 0.05 && performance.now() < restBail) await sleep(40);
@@ -18799,7 +18799,7 @@ async function main() {
     ok(p16Climb.afterFoot < 1e-6, 'P16a：走下來之後貼回地形', `d=${p16Climb.afterFoot}`);
   }
 
-  /* ② 擺不下高台的那一片：按住 J 什麼都不會發生 */
+  /* ② 擺不下高台的那一片：按住空白鍵什麼都不會發生 */
   const p16NoJump = await evaluate(`
     ${P16A_PRELUDE}
     const REGION = 'toolcraft';
@@ -18825,7 +18825,7 @@ async function main() {
     const jumpsBefore = g.player.jump.jumps;
     /*
      * **量最差的那一次**（findings：Math.min 寫的「全程都…」是假斷言）：
-     * 整段按住 J 期間離地最高的那一刻是多少 —— 要的是 0。
+     * 整段按住空白鍵期間離地最高的那一刻是多少 —— 要的是 0。
      */
     let worstLift = 0;
     /*
@@ -18833,7 +18833,7 @@ async function main() {
      * 原本先等 1.6 秒再開始量，等於把要抓的那一段整個跳過去
      * （離地最高的那一刻於是永遠是 0，那條斷言就變成裝飾）（P16a 審查 · 第 5 條）。
      */
-    press('KeyJ');
+    press('Space');
     const bail = performance.now() + 3000;
     while (performance.now() < bail) {
       const p = P();
@@ -18841,7 +18841,7 @@ async function main() {
       if (window.__gt.t > 0 && g.player.jump.jumps > jumpsBefore) break;
       await sleep(30);
     }
-    release('KeyJ');
+    release('Space');
     await waitGame(0.4);
     const p2 = P();
     worstLift = Math.max(worstLift, p2.y - w.terrainHeight(p2.x, p2.z));
@@ -18860,7 +18860,7 @@ async function main() {
     eq(p16NoJump.platforms, 0, 'P16a：契約鍛冶場真的一座高台都沒有（量出來擺不下）');
     ok(Boolean(p16NoJump.spot), 'P16a：契約鍛冶場上找得到站得住的點', JSON.stringify(p16NoJump.spot));
     eq(p16NoJump.regionHere, 'toolcraft', 'P16a：人真的站在契約鍛冶場上（不然下面幾條是空過的）');
-    eq(p16NoJump.jumpsDelta, 0, 'P16a：**按住 J 三秒，一次都沒有跳起來**');
+    eq(p16NoJump.jumpsDelta, 0, 'P16a：**按住空白鍵三秒，一次都沒有跳起來**');
     eq(p16NoJump.airborne, false, 'P16a：整段沒有離地');
     eq(p16NoJump.standing, null, 'P16a：也沒有站到任何東西上');
     ok(p16NoJump.worstLift < 1e-6, 'P16a：整段離地最高的那一刻仍然是 0（量的是最差那一次）', `max=${p16NoJump.worstLift}`);
