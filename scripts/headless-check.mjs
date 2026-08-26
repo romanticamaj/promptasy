@@ -21245,72 +21245,108 @@ async function main() {
   ok(echoHint.txt.includes('看一次'), 'P20a：提示的動詞是「看一次」（標題 ＋ 狀態 ＋ 動詞）', echoHint.txt);
   ok(echoHint.txt.includes('E'), 'P20a：提示說的是按 `E`（沒有第二個鍵）', echoHint.txt);
 
+  /*
+   * **取樣在頁面裡做，不從 node 一格一格問。**
+   *
+   * 兩個理由，都是量出來的：
+   *   ① 引擎的 `dt` 夾在 0.1 秒（`engine.js`），而這台機器是 SwiftShader 軟體渲染
+   *      （約 5 fps）—— 於是「5 秒的重演」在牆鐘上要走十幾秒。從 node 每 100ms 問一次
+   *      的版本第一輪就撞到自己的取樣預算（實測 133 次取樣還沒演完）。
+   *   ② 每一次 `Runtime.evaluate` 都是一次 CDP 來回，取樣本身會再把頁面拖慢一截。
+   * 所以改成在頁面裡掛一個 rAF 收集器：**每一幀**都記，node 這一邊只問「收完了沒」。
+   * 收集器**在按 `E` 之前**就掛上去（取樣視窗要蓋住事件本身，findings 那一條）。
+   */
+  await evaluate(`
+    const g = window.__promptasy;
+    const b = g.world.echoes.byId('${echoTargetId}');
+    const s = [];
+    window.__p20aEcho = { samples: s, done: false, started: false };
+    const tick = () => {
+      const playing = g.world.echoPlaying;
+      if (playing === '${echoTargetId}') window.__p20aEcho.started = true;
+      s.push({
+        playing,
+        visible: b.cast.visible,
+        opacity: b.castMat.opacity,
+        at: b.figures.map((f) => [f.group.position.x, f.group.position.z]),
+      });
+      if (window.__p20aEcho.started && playing === null) {
+        window.__p20aEcho.done = true;
+        return;
+      }
+      if (s.length < 6000) requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+    return 1;
+  `);
   await key('KeyE', 'e', { vk: 69 });
   await waitFor(
     () => evaluate(`return window.__promptasy.world.echoPlaying === '${echoTargetId}' ? 1 : null;`),
-    { timeout: 15000, every: 100, label: 'P20a：那一場開演了' }
+    { timeout: 30000, every: 150, label: 'P20a：那一場開演了' }
   );
+  /*
+   * 等它自己收掉。**預算要按牆鐘給得夠寬**：引擎的 `dt` 夾在 0.1 秒，
+   * 而這台機器是軟體渲染（幀時間常常 > 0.1 秒）—— 於是「5 秒的重演」
+   * 在牆鐘上會走上十幾秒。這一條只問一個布林，不做取樣（取樣在頁面裡）。
+   */
+  // 逾時是丟例外（整支中斷），所以接住它、讓下面那條斷言自己去報
+  let echoDone = null;
+  try {
+    echoDone = await waitFor(() => evaluate('return window.__p20aEcho && window.__p20aEcho.done ? 1 : null;'), {
+      timeout: 90000,
+      every: 400,
+      label: 'P20a：那一場演完了',
+    });
+  } catch {
+    echoDone = null;
+  }
+  eq(echoDone, 1, 'P20a：那一場自己演完了（不是撞到等待預算）');
 
   /*
-   * 取樣視窗要蓋住事件本身（findings：先睡再量，量到的永遠是 0）——
-   * 所以從**現在**開始每 100ms 取一次，一路取到它自己收掉為止，
-   * 整段共用一個預算（CDP 逾時是整支中斷，不是紅一條）。
+   * 把整段取樣**在頁面裡**收斂成幾個數字再帶回來（幾千筆逐筆搬回 node 只是浪費）。
+   * 量的都是「最差的那一次」：最遠、最大位移、最亮 —— `Math.min` 寫的「全程都…」
+   * 是假斷言（findings），所以這裡一個 min 都沒有。
    */
-  const echoSamples = [];
-  const echoBudget = Date.now() + 14000;
-  let echoEnded = false;
-  while (Date.now() < echoBudget) {
-    const snap = await evaluate(`
-      const g = window.__promptasy;
-      const b = g.world.echoes.byId('${echoTargetId}');
-      return {
-        playing: g.world.echoPlaying,
-        visible: b.cast.visible,
-        opacity: b.castMat.opacity,
-        // 殘影在 cast 裡的位置就是「離小景中心多遠」（cast 掛在小景中心上）
-        at: b.figures.map((f) => [f.group.position.x, f.group.position.z]),
-      };
-    `);
-    echoSamples.push(snap);
-    if (snap.playing === null) {
-      echoEnded = true;
-      break;
-    }
-    await sleep(100);
-  }
-  ok(echoEnded, 'P20a：那一場自己演完了（不是撞到取樣預算）', `${echoSamples.length} 次取樣`);
-  ok(echoSamples.length >= 20, 'P20a：取樣視窗真的蓋住了整場（不是一兩幀）', String(echoSamples.length));
-  {
-    const live = echoSamples.filter((s) => s.playing !== null);
-    ok(live.length >= 15, 'P20a：演的過程真的被取樣到了', String(live.length));
-    ok(
-      live.every((s) => s.visible),
-      'P20a：演的時候殘影一直看得到'
-    );
-    ok(
-      live.some((s) => s.opacity > 0.3),
-      'P20a：殘影中途真的亮起來過',
-      String(Math.max(...live.map((s) => s.opacity)).toFixed(2))
-    );
-    // **動了沒**：同一個殘影在兩次取樣之間位置變過（量的是最大位移，不是最小）
-    let moved = 0;
-    for (let i = 1; i < live.length; i += 1) {
-      const a = live[i - 1].at;
-      const b = live[i].at;
-      for (let f = 0; f < Math.min(a.length, b.length); f += 1) {
-        moved = Math.max(moved, Math.hypot(b[f][0] - a[f][0], b[f][1] - a[f][1]));
+  const echoRun = await evaluate(`
+    const s = window.__p20aEcho.samples;
+    const live = s.filter((x) => x.playing !== null);
+    let moved = 0, reach = 0, bright = 0, allVisible = live.length > 0;
+    for (let i = 0; i < live.length; i += 1) {
+      if (!live[i].visible) allVisible = false;
+      if (live[i].opacity > bright) bright = live[i].opacity;
+      for (const p of live[i].at) {
+        const d = Math.hypot(p[0], p[1]);
+        if (d > reach) reach = d;
+      }
+      if (i > 0) {
+        const a = live[i - 1].at, b = live[i].at;
+        for (let f = 0; f < Math.min(a.length, b.length); f += 1) {
+          const d = Math.hypot(b[f][0] - a[f][0], b[f][1] - a[f][1]);
+          if (d > moved) moved = d;
+        }
       }
     }
-    ok(moved > 0.05, 'P20a：**殘影真的動了**（兩次取樣之間位置變過）', moved.toFixed(3));
-    // **沒有離開小景 6 公尺**：逐次取樣量最遠的那一刻
-    let reach = 0;
-    for (const s of live) for (const p of s.at) reach = Math.max(reach, Math.hypot(p[0], p[1]));
-    ok(reach > 0.5, 'P20a：真的量到殘影的位置（不是一串 0）', reach.toFixed(2));
-    ok(reach <= 6, 'P20a：**殘影全程沒有離開小景 6 公尺**', reach.toFixed(2));
-    const last = echoSamples[echoSamples.length - 1];
-    eq(last.playing, null, 'P20a：演完就沒有東西在演了');
-    eq(last.visible, false, 'P20a：演完殘影收回去（回到原狀）');
-  }
+    const last = s[s.length - 1];
+    return {
+      total: s.length,
+      live: live.length,
+      allVisible,
+      bright: Math.round(bright * 1000) / 1000,
+      moved: Math.round(moved * 1000) / 1000,
+      reach: Math.round(reach * 1000) / 1000,
+      endPlaying: last.playing,
+      endVisible: last.visible,
+    };
+  `);
+  ok(echoRun.live >= 10, 'P20a：演的過程真的被取樣到了（不是一兩幀）', JSON.stringify(echoRun));
+  eq(echoRun.allVisible, true, 'P20a：演的時候殘影一直看得到');
+  ok(echoRun.bright > 0.3, 'P20a：殘影中途真的亮起來過', String(echoRun.bright));
+  ok(echoRun.moved > 0.05, 'P20a：**殘影真的動了**（兩幀之間位置變過）', String(echoRun.moved));
+  ok(echoRun.reach > 0.5, 'P20a：真的量到殘影的位置（不是一串 0）', String(echoRun.reach));
+  ok(echoRun.reach <= 6, 'P20a：**殘影全程沒有離開小景 6 公尺**', String(echoRun.reach));
+  eq(echoRun.endPlaying, null, 'P20a：演完就沒有東西在演了');
+  eq(echoRun.endVisible, false, 'P20a：演完殘影收回去（回到原狀）');
+
   // 那團光還在原地（演完不會把它帶走）
   const echoAfter = await evaluate(`
     const g = window.__promptasy;

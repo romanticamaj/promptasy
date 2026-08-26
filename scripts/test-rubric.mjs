@@ -23005,7 +23005,16 @@ console.log('\n▸ 傳聞連線頁 ＋ 回聲重演（v1.2 · P20a）');
         ok(Math.hypot(x - sd.x, z - sd.z) >= need, `${tag} 沒有被中觀層 ${sd.id} 擋住`);
       }
       ok(Rules20.laneDistance(World, x, z) >= World.LANE_HALF + Rules20.LANE_MARGIN, `${tag} 離橋的主動線夠遠`);
-      ok(Rules20.gateDistance(World, x, z) >= Rules20.GATE_MIN, `${tag} 離閘門夠遠（不搶門自己會問的那一下）`);
+      /*
+       * 離閘門：回聲**贏得過閘門**（仲裁排在它前面），所以要證的不是「離得遠」，
+       * 而是「走到門口一定還問得到那道門」——也就是**那道門本身永遠不落在
+       * 任何一處回聲的互動圈裡**。`GATE_MIN`（8）已經遠大於互動半徑（3.2），
+       * 但那是兩個不同的數字：這裡把真正要守的那一條也寫出來，
+       * 免得有一天有人把 `GATE_MIN` 調小卻沒有人紅。
+       */
+      const dGate = Rules20.gateDistance(World, x, z);
+      ok(dGate >= Rules20.GATE_MIN, `${tag} 離閘門夠遠`, dGate.toFixed(2));
+      ok(dGate > Rules20.ECHO_R, `${tag} 那道門本身不在它的互動圈裡（走到門口一定問得到）`, dGate.toFixed(2));
       ok(Rules20.pathDistance(pathSegs20, x, z) >= Rules20.ECHO_PATH_MIN, `${tag} 不坐在路中間`);
       // 離它記得的那一處多遠
       const stage = Props.stageAnchor(e.stage, e.stageKind);
