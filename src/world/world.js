@@ -146,11 +146,13 @@ export const REGION_SITES = Object.freeze([
    *   · 與觀象臺 (134,-18) r34 相距 67.7 → 留得出 4.7 公尺虛空
    *   · 中心離高原 77.9，兩片土地的**可站立範圍**相加遠大於它，整條頸口沒有一步是虛空
    *
-   * **內圈 25（而不是 21）是頸口決定的**：高度是依覆蓋權重混出來的，覆蓋一掉下來
-   * 地面就會沉（`terrainHeight` 的 `-(1 - cover) * 34`）。內圈 21 時閘門正下方
-   * 只有 0.84 的覆蓋 —— 那裡會凹下去 5 公尺，變成一道看得見的溝，
-   * 而且「走到門前」的 3D 距離會被垂直落差吃掉（門就不會問你了）。
-   * 內圈 25 之後閘門底下的覆蓋是 1.0，門就站在平地上。
+   * **內圈 25（而不是 21）是頸口決定的**（Phase J 當時的理由）：那時候高度場一離開
+   * 覆蓋率 1.0 就開始沉（`-(1 - cover) * 34`），內圈 21 時閘門正下方只有 0.84 的覆蓋
+   * —— 那裡會凹下去 5 公尺，變成一道看得見的溝，而且「走到門前」的 3D 距離會被
+   * 垂直落差吃掉（門就不會問你了）。**v1.2 · P16d 之後那個理由已經不成立**：
+   * 覆蓋率 ≥ `STAND_COVER_MIN` 的地方一寸都不沉，0.84 的覆蓋是平地。
+   * 25 留著是因為它同時決定了頸口有多寬、以及母土地被吃掉多少（`regionAt` 逐關驗過），
+   * 動它要重跑的是那兩件事，不是那道溝。
    *
    * 母土地一寸都不能被吃掉（`regionAt` 的正規化距離逐關驗過）：高原 15 座石座
    * 仍然全部屬於中央高原。代價是原本站在頸口正前方的「第一根軌」（`first-rail-10`）
@@ -710,88 +712,204 @@ function corridorHeight(corridor, x, z) {
 }
 
 /**
- * 地形高度場 —— 玩家貼地與物件擺放共用同一個函式，才不會浮空或陷地。
- * 土地與橋各自算高度、依覆蓋權重混出來（`terrainRelief()`），
- * 再減掉虛空那一崩（`voidDrop()`）。
+ * 頂面下方的地要是實地（與 `isWalkable()` 同一條虛空門檻）。
+ *
+ * 擺在這裡（而不是可站立表面那一節）是因為高度場自己要用它：
+ * 「走得到的那一圈」就是這條門檻畫出來的那一圈（見 `SITE_RIM`）。
  */
-export function terrainHeight(x, z) {
-  const h = terrainRelief(x, z);
-  return h - voidDrop(_reliefCover) * VOID_DEPTH;
+export const STAND_COVER_MIN = 0.45;
+
+/** 虛空的深度（公尺）—— 崩到底就是這個高度。 */
+export const VOID_DEPTH = 34;
+
+/** `smoothstep` 的反函式（二分法；開檔時各算一次，不進每幀的路徑）。 */
+function inverseSmoothstep(y) {
+  let lo = 0;
+  let hi = 1;
+  for (let i = 0; i < 60; i += 1) {
+    const m = (lo + hi) / 2;
+    if (m * m * (3 - 2 * m) < y) lo = m;
+    else hi = m;
+  }
+  return (lo + hi) / 2;
 }
 
-/** `terrainRelief()` 上一次算到的覆蓋率（模組層的暫存 —— 零配置）。 */
-let _reliefCover = 0;
+/** 覆蓋率剛好等於 `STAND_COVER_MIN` 的那個 `smoothstep` 參數。 */
+const COVER_RIM_T = inverseSmoothstep(STAND_COVER_MIN);
+/**
+ * **走得到的那一圈**（公尺）—— 每片土地／每座橋各一個半徑。
+ *
+ * `coverage(x, z) >= STAND_COVER_MIN` 這句話，換算成距離就是這一圈：
+ * 離某一片土地的中心近於 `SITE_RIM[i]`（或離某座橋的中線近於 `CORRIDOR_RIM[i]`）。
+ * 兩種寫法逐點等價（`test:rubric` 在全地圖網格上比對過），
+ * 但**距離**問得出覆蓋率問不出的那句話：「這裡離邊界還有幾公尺」。
+ */
+const SITE_RIM = REGION_SITES.map((s) => s.radius - COVER_RIM_T * (s.radius - s.flat));
+const CORRIDOR_RIM = CORRIDORS.map((c) => c.half - COVER_RIM_T * (c.half - c.flat));
 
 /**
- * **地本身的起伏**（不含虛空那一崩）—— 土地與橋依覆蓋權重混出來的那一面。
+ * 崖唇的「肩」有多寬（公尺）—— 邊界外這一段的曲率壓在 `RIM_CURVE` 之內。
  *
- * 分成兩支是為了說得出 P16d 那句話：**走得到的每一點，`terrainHeight()` 與
- * `terrainRelief()` 逐點相同**（＝一寸都沒有往下崩）。`test:rubric` 拿它當硬斷言；
- * P16d 之前同一條斷言會在中央高原邊緣抓到 18.9 公尺的差。
+ * **這個數字是地形網格的格距決定的**（v1.2 · P16e）：畫出來的地面是一張固定格點
+ * （`buildTerrain()`：高畫質 200 段 ＝ 1.70 公尺一格、低畫質 110 段 ＝ 3.09 公尺一格），
+ * 玩家腳下卻是解析式。**格點插不出來的東西，人就會浮在畫面的地面上**：
+ * 站在邊界上的人，腳下那一格的對角頂點最遠在 3.09 × √2 ＝ 4.37 公尺外 ——
+ * 那一點要是已經崩到虛空，整個三角形就被拉下去。
+ * 5 公尺 > 4.37 公尺，所以邊界上的人腳下那一格**四個角都還在肩上**。
  */
-export function terrainRelief(x, z) {
+export const RIM_SHOULDER = 5;
+/**
+ * 肩的曲率（每往外一公尺，斜率增加多少）。
+ *
+ * 兩件事在拉扯，這個數字是量出來的折衷（實測見 WORLD.md §6.3）：
+ *   · 太大 → 格點插不出來，人又浮起來（誤差約 1.4 × `RIM_CURVE`）
+ *   · 太小 → 邊界外「看起來還是平地、卻走不過去」的那一段變長（√(0.6 / `RIM_CURVE`)）
+ */
+export const RIM_CURVE = 0.4;
+/** 肩以外每往外一公尺，斜率再增加多少 —— 收成斷崖用的。 */
+export const RIM_PLUNGE = 4;
+/**
+ * 崖面往外接多遠（公尺，從各自的 `radius`／`half` 起算）—— 超過就一律當虛空。
+ *
+ * 10 是算出來的：最窄的那幾片（`radius − flat = 4`）在 `radius + 10` 的地方
+ * `rimDrop()` 早就崩過 `VOID_DEPTH`，所以接不接得出去已經不影響畫面。
+ */
+const RIM_EXT = 10;
+/**
+ * 崖面接出去時，各片土地／橋的權重是 **1 / (離自己的邊幾公尺 + `RIM_EDGE_EPS`)**。
+ *
+ * 這個 eps 決定「貼著 `radius` 那一圈」的接縫有多平：越小，最靠近的那一片越壓倒性，
+ * 縫就越接得起來（實測 0.02 → 接縫 < 0.02 公尺；直接挑最近的一片則是 4.14 公尺，
+ * 因為中央高原邊上的地貌比旁邊那座橋的甲板高 4 公尺）。
+ */
+const RIM_EDGE_EPS = 0.02;
+/** 崖面接出去時，每一片土地／橋離自己的邊幾公尺（同一趟迴圈填好，零配置）。 */
+const _outDist = new Float64Array(REGION_SITES.length + CORRIDORS.length);
+
+/**
+ * 離開「走得到的那一圈」`s` 公尺之後，地面往下崩了幾公尺。
+ *
+ * `s <= 0`（走得到的每一點）一律回 0 —— 這一條是 P16d 的核心，沒有鬆。
+ * 往外先是一段**肩**（起手斜率 0，曲率 `RIM_CURVE`），再收成斷崖。
+ */
+function rimDrop(s) {
+  if (s <= 0) return 0;
+  if (s <= RIM_SHOULDER) return 0.5 * RIM_CURVE * s * s;
+  const u = s - RIM_SHOULDER;
+  return RIM_CURVE * RIM_SHOULDER * (0.5 * RIM_SHOULDER + u) + 0.5 * RIM_PLUNGE * u * u;
+}
+
+/*
+ * 高度場的共用內核 —— **一趟迴圈同時算出兩件事**：
+ *   · `h`：地本身的起伏（土地與橋依覆蓋權重混出來的那一面）
+ *   · `rim`：離「走得到的那一圈」還有幾公尺（≤ 0 ＝ 在裡面）
+ *
+ * v1.2 · P16e：兩件事**綁在同一趟迴圈裡**是為了不重複算距離（`terrainHeight()`
+ * 是全場最熱的函式之一：`tooSteep()` 一次叫四遍）。但**回傳的東西一律寫進呼叫端
+ * 自己的暫存**，不再讓下一支函式去讀上一支留下來的模組層變數 ——
+ * P16d 曾經那樣寫（`_reliefCover`），代價是「`terrainRelief()` 一旦被記憶化，
+ * `terrainHeight()` 會靜靜地用到別的點的覆蓋率」。
+ */
+const _heightOut = { h: 0, rim: 0 };
+const _reliefOut = { h: 0, rim: 0 };
+const _rimOut = { h: 0, rim: 0 };
+
+/**
+ * @param {{h:number, rim:number}} out 呼叫端自己的暫存（零配置；用完就讀）
+ */
+function groundAt(x, z, out) {
   let wsum = 0;
   let hsum = 0;
-  let cover = 0;
+  let rim = Infinity;
 
-  for (const site of REGION_SITES) {
+  for (let i = 0; i < REGION_SITES.length; i += 1) {
+    const site = REGION_SITES[i];
     const d = Math.hypot(x - site.x, z - site.z);
+    const e = d - SITE_RIM[i];
+    if (e < rim) rim = e;
+    _outDist[i] = d - site.radius;
     if (d > site.radius) continue;
     const m = smoothstep(site.radius, site.flat, d);
     if (m <= 0) continue;
     hsum += m * detailFor(site, x, z);
     wsum += m;
-    if (m > cover) cover = m;
   }
 
-  for (const c of CORRIDORS) {
+  for (let i = 0; i < CORRIDORS.length; i += 1) {
+    const c = CORRIDORS[i];
     const d = distToSegment(x, z, c.from.x, c.from.z, c.to.x, c.to.z);
+    const e = d - CORRIDOR_RIM[i];
+    if (e < rim) rim = e;
+    _outDist[REGION_SITES.length + i] = d - c.half;
     if (d > c.half) continue;
     const m = smoothstep(c.half, c.flat, d);
     if (m <= 0) continue;
     hsum += m * corridorHeight(c, x, z);
     wsum += m;
-    if (m > cover) cover = m;
   }
 
-  _reliefCover = cover;
-  return wsum > 0 ? hsum / wsum : 0;
+  out.rim = rim;
+  if (wsum > 0) {
+    out.h = hsum / wsum;
+    return out;
+  }
+  /*
+   * 混不出東西（離所有土地與橋都超過自己的半徑）時，把地面**接出去**：
+   * 崖面要從甲板／地面的高度長下去，不是從 0 開始（P16e 之前那裡是一道硬邊）。
+   *
+   * 權重是 `1 / (離自己的邊幾公尺 + eps)`：貼著 `radius` 那一圈時最近的那一片
+   * 壓倒性地大，所以**縫接得起來**（`test:rubric` 在 `d = radius` 兩側各取一點驗）；
+   * 往外走則平順地過渡到鄰居，不會在崖面上留下一道折線。
+   */
+  let ws = 0;
+  let hs = 0;
+  for (let i = 0; i < REGION_SITES.length; i += 1) {
+    const e = _outDist[i];
+    if (e > RIM_EXT) continue;
+    const w = 1 / ((e > 0 ? e : 0) + RIM_EDGE_EPS);
+    hs += w * detailFor(REGION_SITES[i], x, z);
+    ws += w;
+  }
+  for (let i = 0; i < CORRIDORS.length; i += 1) {
+    const e = _outDist[REGION_SITES.length + i];
+    if (e > RIM_EXT) continue;
+    const w = 1 / ((e > 0 ? e : 0) + RIM_EDGE_EPS);
+    hs += w * corridorHeight(CORRIDORS[i], x, z);
+    ws += w;
+  }
+  out.h = ws > 0 ? hs / ws : 0;
+  return out;
 }
 
-/** 虛空的深度（公尺）—— 覆蓋率 0 的地方就是這個高度。 */
-export const VOID_DEPTH = 34;
+/**
+ * 地形高度場 —— 玩家貼地與物件擺放共用同一個函式，才不會浮空或陷地。
+ *
+ * 兩層：**地本身的起伏**（`terrainRelief()`）減掉**崖唇那一崩**（`rimDrop()`）。
+ * 走得到的每一點（`rim <= 0`）一寸都不崩 —— 兩件事講的是同一句話。
+ */
+export function terrainHeight(x, z) {
+  const g = groundAt(x, z, _heightOut);
+  if (g.rim <= 0) return g.h;
+  const drop = rimDrop(g.rim);
+  return drop >= g.h + VOID_DEPTH ? -VOID_DEPTH : g.h - drop;
+}
 
 /**
- * 覆蓋率 → 往下崩多少（0 = 不崩、1 = 整整 `VOID_DEPTH`）。
+ * **地本身的起伏**（不含崖唇那一崩）—— 土地與橋依覆蓋權重混出來的那一面。
  *
- * **v1.2 · P16d：這是站長「會走出土地邊緣、往下走 19 公尺再走回來」的根因修復。**
- *
- * P16d 之前是 `1 - cover`（一條直線）：覆蓋率一離開 1，地面就開始沉 ——
- * 而「走得到」問的是 `coverage ≥ 0.45`。兩件事各說各話，於是**走得到的邊界
- * 落在崖面的半山腰**：實測玩家走得出中央高原邊緣 5.5 公尺、往下走 18.9 公尺
- * （最糟的校驗場 21.22 公尺），撞到看不見的牆，再走回來。
- * 副作用不只難看：整個「崖肩」（覆蓋率 0.45–0.99）**是走得到的斜坡**，
- * 24 件器物、2 座石座、59 個互動圈方向的擺位都落在上面。
- *
- * 現在兩者講同一件事：**覆蓋率 ≥ `STAND_COVER_MIN` 的地方是平地，低於它才開始崩。**
- *   · 崖肩變回平地 → 那些器物與石座站在實地上（擺位規則一條都不用放寬）
- *   · 崖面壓縮到覆蓋率 0.45→0 那一小段（中央高原 5.75 公尺落 34 公尺，均 80°）
- *     —— 浮空島的邊緣是**斷崖**，不是坍下去的肩膀
- *   · 走得到的範圍幾乎沒有變（邊界仍然是覆蓋率 0.45），所以護欄 7 不倒退
- *   · 加建院落的頸口那道 6.6 公尺深的凹溝（覆蓋率只掉到 0.805）**直接消失**，
- *     不必替它們另外登記走道
- *
- * 曲線用 **t²**（t ＝ 離門檻還有多遠，0–1）是量出來的：
- *   · t¹（直線）在崖唇上是一道摺線 —— 地形網格一格 1.7 公尺插不出來，
- *     站在唇上的人會浮在算出來的高度上、腳下的網格已經掉下去了。
- *   · t³ 起手太軟：崖唇外**還是平地、卻走不過去**的那一段長到 5.1 公尺（護欄崗實測），
- *     那等於把同一個「看不見的牆」搬到外面一點而已。
- *   · t² 兩邊都收得住：起手平順（一階可微）、崖唇外那一段實測 **0.3–1.8 公尺**。
+ * 分成兩支是為了說得出 P16d 那句話：**走得到的每一點，`terrainHeight()` 與
+ * `terrainRelief()` 逐點相同**（＝一寸都沒有往下崩）。`test:rubric` 拿它當硬斷言。
  */
-function voidDrop(cover) {
-  if (cover >= STAND_COVER_MIN) return 0;
-  const t = (STAND_COVER_MIN - cover) / STAND_COVER_MIN;
-  return t * t;
+export function terrainRelief(x, z) {
+  return groundAt(x, z, _reliefOut).h;
+}
+
+/**
+ * 離「走得到的那一圈」還有幾公尺（≤ 0 ＝ 在裡面，正數 ＝ 已經在崖唇外）。
+ * 與 `coverage(x, z) >= STAND_COVER_MIN` 逐點等價，但它答得出距離。
+ */
+export function rimDistance(x, z) {
+  return groundAt(x, z, _rimOut).rim;
 }
 
 /** 這個點被土地／橋覆蓋的程度（0 = 虛空、1 = 完全在陸地上）。 */
@@ -811,7 +929,7 @@ export function coverage(x, z) {
 /**
  * 走路走得上去的最大斜度（度）—— 站長那個 bug 的第二道鎖。
  *
- * 第一道是高度場（`voidDrop()`：走得到的地方一寸都不崩）；這一道管的是
+ * 第一道是高度場（`rimDrop()`：走得到的地方一寸都不崩）；這一道管的是
  * **地本身的起伏**：橋的甲板邊、加建院子的崖唇、地貌自己的坎。
  *
  * **45 是量出來的，不是拍的**：
@@ -821,20 +939,25 @@ export function coverage(x, z) {
  *   · 設計**已經把人擺在坡邊上**：12 位守夜人四面八方 1.7／2.6／3.5 公尺那 288 個點裡，
  *     最陡的是 `watch-nameless-tool` 東北 2.6 公尺的 **41.9°**（`watchmen.json` 是內容紅線，
  *     搬不了人）。訂 35° 會把兩位守夜人的四面八方切掉 —— 實測 7 條斷言當場紅。
- *   · 走得到的取樣點照斜度分桶（0.5 公尺格）：35–40° 有 585 個、40–45° 有 228、
- *     **45–50° 只剩 97、50–55° 只剩 49**，接著 55–60° 又跳回 613 —— 那 613 個是
- *     崖唇前一步那一圈。45 正好落在「地貌自己的坎」與「崖唇」之間那道谷裡。
- * 實測只擋掉覆蓋率過關的取樣點的 **0.42%**（925 / 222,758），一個互動點都沒少。
+ *   · 走得到的取樣點照斜度分桶（0.5 公尺格）：25–30° 有 3,453 個、30–35° 有 1,069、
+ *     35–40° 有 523、**40–45° 只剩 153**，45° 以上只有 21 個 —— 45 落在
+ *     「地貌自己的坎」漸漸收乾的那一段。
+ *
+ * v1.2 · P16e：被這一條擋掉的點從 925 掉到 **21**（45.1–54.1°，佔 0.01%）。
+ * **少擋不是壞事**：P16d 的崖唇是一道摺線，半公尺的探針一伸出去就讀到虛空，
+ * 於是它兼著把崖唇前那一圈（613 個點）也收掉；崖唇改成一段肩之後那件事歸
+ * 高度場管，剩下的 21 個才是這條規則真正要擋的**地本身的坎**。一個互動點都沒少。
  */
 export const WALK_SLOPE_MAX = 45;
 /**
  * 量斜度用的取樣距離（公尺，中央差分 → **一次 4 個高度取樣**、零配置）。
  *
  * 0.35 ＝ 玩家半徑（0.62）的一半多一點，也是保險絲 `escapeSolid()` 一步的距離。
- * 量出來的：再大（0.5）會把半公尺外的崖唇算到腳下這一點頭上 ——
+ * P16d 訂它的理由是「再大（0.5）會把半公尺外的崖唇算到腳下這一點頭上」——
  * `wrd-signpost-coldpost` 東邊 3 公尺那一點地是平的（覆蓋率 0.456），
- * 0.5 的探針把它讀成 53.2°，整條「器物東西各 3 公尺是實地」當場紅。
- * 再小（0.2）量到的是高度場的解析解，比地形網格（一格 1.7 公尺）還細。
+ * 0.5 的探針把它讀成 53.2°。**v1.2 · P16e 之後那個理由不成立了**：崖唇是一段肩，
+ * 半公尺外讀不到虛空（實測改用 0.5 一個點都不會多擋）。留在 0.35 的理由換成
+ * 上面那兩個尺度；再小（0.2）量到的是高度場的解析解，比地形網格（一格 1.7 公尺）還細。
  */
 export const SLOPE_PROBE = 0.35;
 const WALK_SLOPE_TAN = Math.tan((WALK_SLOPE_MAX * Math.PI) / 180);
@@ -842,9 +965,10 @@ const WALK_SLOPE_TAN = Math.tan((WALK_SLOPE_MAX * Math.PI) / 180);
 /**
  * 這一點的地形陡到走不上去嗎（中央差分，4 個高度取樣、不配置任何物件）。
  *
- * 這是第二道鎖。第一道（`voidDrop()`）保證走得到的地方一寸都不崩，
- * 所以這一支量到的幾乎都是**地本身的起伏**；它另外把崖唇前那一步也收掉
- * （地形網格一格 1.7 公尺，站在唇上的人會浮在網格上方）。
+ * 這是第二道鎖。第一道（`rimDrop()`）保證走得到的地方一寸都不崩，
+ * 所以這一支量到的**只有地本身的起伏**：橋的甲板邊、加建院子的崖唇、地貌自己的坎。
+ * （P16d 它還兼著收崖唇前那一步；P16e 把崖唇改成一段肩之後那件事歸高度場管，
+ * 探針半公尺內再也讀不到虛空。）
  */
 export function tooSteep(x, z) {
   const h = SLOPE_PROBE;
@@ -930,6 +1054,17 @@ export const SOLID_MAX_RADIUS = 3.6;
 export const SOLID_MAX_EXPLICIT = 10;
 /** 玩家身體的半徑。 */
 export const PLAYER_RADIUS = 0.62;
+/**
+ * 脫困那一步試的方向（弧度，相對「離圓心最遠」那個方向）。
+ *
+ * 由近而遠：先照直的推，推不動才偏。最後那一對 ±88° 幾乎是**沿著石頭的邊滑**
+ * （那一步離圓心一樣遠，只是換一個位置）—— 留著是因為實測有 13 個位置
+ * 只剩這一條路：人卡在土地最外緣的一顆石頭裡，往外一步就是虛空。
+ * 再偏下去（> 90°）那一步會往圓心走，等於把人推得更深，所以停在這裡。
+ */
+const ESCAPE_FAN = Object.freeze(
+  [0, 25, -25, 50, -50, 75, -75, 88, -88].map((deg) => (deg * Math.PI) / 180)
+);
 
 /**
  * 「雜物」的半徑上限。
@@ -1000,8 +1135,7 @@ export const STAND_MAX_H = 3.0;
 export const STAND_FLAT_EPS = 0.06;
 /** 上向面：面法線與正上方的夾角 ≤ 10°（寫成 cos 才會真的等於文件上那個角度）。 */
 export const STAND_UP_DOT = Math.cos(Math.PI / 18);
-/** 頂面下方的地要是實地（與 `isWalkable()` 同一條虛空門檻）。 */
-export const STAND_COVER_MIN = 0.45;
+/* 第 5 條的 `STAND_COVER_MIN` 宣告在高度場那一節（高度場自己也要用它）。 */
 /** 一件東西最多攤這麼多三角面出來量；超過就當作量不出來（保守 → 不可站）。 */
 const STAND_TRI_CAP = 2048;
 
@@ -4074,9 +4208,9 @@ export function createWorld({
    * 虛空與閘門那兩條**一寸都沒鬆**：不管腳在多高，它們照樣擋。
    * 貼著地形走的人一律不給 `feetY`（`null`）→ 走的是 P15 之前那一支，一個位元組沒動。
    */
-  function isWalkable(x, z, feetY = null) {
+  function isWalkable(x, z, feetY = null, allowSteep = false) {
     /*
-     * v1.2 · P16d：這條門檻與高度場的 `voidDrop()` 用**同一個常數** ——
+     * v1.2 · P16d：這條門檻與高度場的 `rimDrop()` 用**同一個常數** ——
      * 「走得到」與「地面沒有往下崩」從此是同一句話（`test:rubric` 逐點驗）。
      */
     if (coverage(x, z) < STAND_COVER_MIN) return false;
@@ -4084,8 +4218,12 @@ export function createWorld({
      * v1.2 · P16d：**走不走得到還要看坡度。**
      * 覆蓋率那一條只說「這裡有地」，不說「這塊地站不站得住」。
      * 跟虛空與閘門一樣：**不管腳在多高都擋**（跳到一半也不准落在崖面上）。
+     *
+     * v1.2 · P16e 開了唯一一個例外 `allowSteep`：**脫困的那一步**（`escapeSolid()`）。
+     * 那不是「走過去」，是保險絲把卡在石頭裡的人請出來 —— 護欄是「絕不能把玩家關住」，
+     * 比「別站上陡坡」大。虛空與閘門那兩條在這個例外裡**一寸都沒鬆**。
      */
-    if (tooSteep(x, z)) return false;
+    if (!allowSteep && tooSteep(x, z)) return false;
     if (bridgeGaps.length) {
       const gap = gapAt(x, z, bridgeGaps);
       if (gap && !(feetY !== null && feetY >= terrainHeight(x, z) + GAP_LIP)) return false;
@@ -4391,7 +4529,8 @@ export function createWorld({
      * 「腳已經站到頂面以上」的可站立體放行 —— 那是跳上高台唯一需要的例外。
      * 玩家貼著地形走的時候一律不給（`null`），走的是 P13 之前那一條路。
      * **邊界護欄在這裡是不可妥協的**：不管腳在多高，`isWalkable()`
-     * （覆蓋率 ＋ 閘門）都要過 —— 所以跳到一半也絕不可能落到虛空上。
+     * （覆蓋率 ＋ 坡度 ＋ 閘門）都要過 —— 所以跳到一半也絕不可能落到虛空上，
+     * 也不可能落在走不上去的崖面上（坡度那一條 P16d 加的，`feetY` 一樣不放行）。
      */
     clampPosition(nextX, nextZ, prevX, prevZ, feetY = null) {
       if (isClear(nextX, nextZ, feetY)) return { x: nextX, z: nextZ };
@@ -4509,7 +4648,8 @@ export function createWorld({
              * 推出去的那一步自己也要站得住 —— 但**「還在缺口裡」不算站不住**
              * （一步 0.35 公尺，走出 3 公尺的缺口本來就要好幾步；
              * 拿含缺口的那一支去判，第一步就會被自己否決、人就真的被關住了）。
-             * `feetY = Infinity` ＝ 只問虛空與閘門，那兩條一寸都沒鬆。
+             * `feetY = Infinity` ＝ 缺口那一條不擋；虛空、閘門**與坡度**照樣擋
+             * （P16d 起 `isWalkable()` 不管腳在多高都看坡度 —— 註解一度沒跟上）。
              */
             return isWalkable(nx, nz, Infinity) ? { x: nx, z: nz } : null;
           }
@@ -4523,10 +4663,29 @@ export function createWorld({
       const ux = d > 1e-4 ? dx / d : 1;
       const uz = d > 1e-4 ? dz / d : 0;
       const move = Math.min(step, hit.r + PLAYER_RADIUS + 0.05 - d);
-      const nx = x + ux * move;
-      const nz = z + uz * move;
-      if (!isWalkable(nx, nz)) return null;
-      return { x: nx, z: nz };
+      /*
+       * v1.2 · P16e：**試一圈方向，不是只往外推一個方向。**
+       *
+       * 原本只推「離圓心最遠」那一個方向，那一步走不到就回 `null` —— 人被關住。
+       * 實測（每一顆碰撞圓 × 32 個角 × 5 個半徑）有 **526 個**站得住又在圓裡的位置
+       * 推不出去：石頭立在橋的甲板邊，離圓心最遠的方向正好指著虛空。
+       *
+       * 現在由近而遠試 ±25°／±50°／±75°／±88°（見 `ESCAPE_FAN`），
+       * 第一圈照完整的規則問，第二圈才鬆掉坡度那一條（`allowSteep`）——
+       * 虛空與閘門在兩圈裡都擋。全部走不通才回 `null`（那表示連原地都不合法，
+       * 交給 `clampPosition()` 處理）。
+       */
+      for (let pass = 0; pass < 2; pass += 1) {
+        for (let k = 0; k < ESCAPE_FAN.length; k += 1) {
+          const a = ESCAPE_FAN[k];
+          const ca = Math.cos(a);
+          const sa = Math.sin(a);
+          const nx = x + (ux * ca - uz * sa) * move;
+          const nz = z + (ux * sa + uz * ca) * move;
+          if (isWalkable(nx, nz, null, pass === 1)) return { x: nx, z: nz };
+        }
+      }
+      return null;
     },
 
     /** 開啟某區的閘門（帶慶祝光環）。 */

@@ -3042,8 +3042,14 @@ for (const site of World.REGION_SITES) {
  * 而 24 個方向裡少掉 2 個「第 4／5 公尺」的落點不影響互動：
  * **2–3 公尺那一圈整圈都空著**（下面逐點驗），而且不按空白鍵的洪水填充
  * 逐格證明這座石座走得到。所以規則寫死成兩層：
- * 2–3 公尺一顆都不准有；4–5 公尺**只放行閘門的柱子**，而且總數有上限。
+ * 2–3 公尺一顆都不准有；4–5 公尺**只有 `PLINTH_GATE_OK` 那一座**放行閘門的柱子。
+ *
+ * v1.2 · P16e：例外原本套在**每一關**身上、只靠一個全域上限（≤ 4）收口 ——
+ * 註解說它只為 `empty-plinth-100` 而開，程式卻沒這麼寫：別的石座長出同樣的問題
+ * 也會被靜靜地放行。現在綁在關卡 id 上，而且逐一驗那一座到底是哪幾個方向。
  */
+/** 唯一一座「4–5 公尺踩得到閘門柱」的石座（見上）。 */
+const PLINTH_GATE_OK = 'empty-plinth-100';
 const gatePillars = [];
 testScene.traverse((o) => {
   if (typeof o.name === 'string' && o.name.startsWith('gate:')) {
@@ -3054,6 +3060,7 @@ ok(gatePillars.length === World.CORRIDORS.length * 2 + World.ANNEX_LINKS.length 
   '每一道閘門都有兩根擋得住人的柱子', `n=${gatePillars.length}`);
 const isGatePillar = (s) => gatePillars.some((g) => Math.hypot(g.x - s.x, g.z - s.z) < 0.05 && Math.abs(g.r - s.r) < 0.05);
 let plinthGateHits = 0;
+const plinthGateWhere = [];
 for (const c of challenges) {
   const [x, z] = c.position;
   // Phase 20 之前這 26 座石座全部走得過去（產品回報的「石頭穿模」）
@@ -3064,9 +3071,10 @@ for (const c of challenges) {
       const px = x + Math.cos(ang) * dist;
       const pz = z + Math.sin(ang) * dist;
       const hit = testWorld.solidAt(px, pz);
-      if (hit && dist >= 4 && isGatePillar(hit)) {
+      if (hit && dist >= 4 && c.id === PLINTH_GATE_OK && isGatePillar(hit)) {
         plinthGateHits += 1;
-        continue; // 閘門的柱子：唯一放行的例外（總數在下面驗）
+        plinthGateWhere.push(`${dist}m@${Math.round((ang * 180) / Math.PI)}°`);
+        continue; // 閘門的柱子：只有這一座放行（下面逐一驗是哪幾個方向）
       }
       ok(
         !hit,
@@ -3081,9 +3089,14 @@ for (const c of challenges) {
     `[${c.id}] 貼著石座站的位置（${(2).toFixed(1)}m）仍在互動半徑 6.5m 內`
   );
 }
-/* 例外的總量有上限：整張地圖上只有 `empty-plinth-100` 的兩個方向踩得到閘門柱 */
+/* 例外的內容寫死：不只「幾個」，而是**哪幾個** —— 換一座石座、換一個方向都會紅 */
 ok(plinthGateHits > 0, '「4–5 公尺踩到閘門柱」這條例外真的有被用到（不是一條永遠成立的斷言）', String(plinthGateHits));
-ok(plinthGateHits <= 4, '踩得到閘門柱的方向不超過 4 個（142 座石座 × 24 方向 × 2 個距離）', String(plinthGateHits));
+eq(
+  plinthGateWhere.slice().sort().join(' '),
+  '4m@30° 4m@45° 5m@30° 5m@45°',
+  `[${PLINTH_GATE_OK}] 踩得到閘門柱的就是這兩個方向的第 4／5 公尺`,
+  plinthGateWhere.slice().sort().join(' ')
+);
 
 for (const lane of World.BRIDGE_LANES) {
   const dx = lane.bx - lane.ax;
@@ -3191,6 +3204,55 @@ for (const tab of tabletSpecs) {
     ok(steps <= 40, '脫困是漸進的一小步一小步（不是瞬移）', `${steps} 步`);
   }
   ok(testWorld.escapeSolid(0, 6) === null, '沒卡住的時候保險絲不動作');
+
+  /*
+   * v1.2 · P16e：**絕不能把玩家關住**（護欄）。
+   *
+   * P16d 之前 `escapeSolid()` 只往「離圓心最遠」那一個方向推，那一步走不到就回
+   * `null` —— 人被 `clampPosition()` 永遠鎖在原地。掃過每一顆碰撞圓 × 24 個角 ×
+   * 4 個半徑，實測有幾百個「站得住、人在圓裡、卻推不出去」的位置：石頭立在
+   * 甲板邊或土地最外緣，離圓心最遠的方向正好指著虛空。
+   * 現在改成試一圈方向（`ESCAPE_FAN`），第二圈再鬆掉坡度那一條。
+   */
+  {
+    let inside = 0;
+    let stuck = 0;
+    let stuckPt = null;
+    let radialOnly = 0;
+    for (const sd of testWorld.solids) {
+      for (let a = 0; a < 24; a += 1) {
+        const ang = (a / 24) * Math.PI * 2;
+        for (const f of [0.15, 0.4, 0.65, 0.9]) {
+          const r = (sd.r + World.PLAYER_RADIUS) * f;
+          const x = sd.x + Math.cos(ang) * r;
+          const z = sd.z + Math.sin(ang) * r;
+          if (World.coverage(x, z) < World.STAND_COVER_MIN || World.tooSteep(x, z)) continue;
+          const hit = testWorld.solidAt(x, z);
+          if (!hit) continue;
+          inside += 1;
+          if (testWorld.escapeSolid(x, z) === null) {
+            stuck += 1;
+            if (!stuckPt) stuckPt = [x.toFixed(1), z.toFixed(1)];
+          }
+          /* 反例：P16e 之前那一支（只推「離圓心最遠」那一個方向、而且吃坡度） */
+          const dx = x - hit.x;
+          const dz = z - hit.z;
+          const d = Math.hypot(dx, dz);
+          const ux = d > 1e-4 ? dx / d : 1;
+          const uz = d > 1e-4 ? dz / d : 0;
+          const move = Math.min(0.35, hit.r + World.PLAYER_RADIUS + 0.05 - d);
+          if (!testWorld.isWalkable(x + ux * move, z + uz * move)) radialOnly += 1;
+        }
+      }
+    }
+    ok(inside > 50000, 'P16e：真的掃到夠多「站得住又在碰撞圓裡」的位置', String(inside));
+    eq(stuck, 0, 'P16e：**沒有任何一個位置會把玩家關住**（保險絲一定推得出去）', stuckPt ? String(stuckPt) : '0');
+    ok(
+      radialOnly > 200,
+      'P16e[反例]：只推「離圓心最遠」那一個方向的話，這一批位置裡有幾百個推不出去',
+      String(radialOnly)
+    );
+  }
 }
 
 /* ------------------------------------------------------------------ */
@@ -18501,7 +18563,14 @@ console.log('\n▸ 高台語法 ＋ 高處的祕密 ＋ 橋缺口（v1.2 · P15�
       'P16d：走一步（半公尺）最深掉 < 0.9 公尺 —— 走得到的點之間沒有斷崖',
       `${worstStep.toFixed(2)}m ${worstPt}`
     );
-    ok(blockedBySlope > 300, 'P16d：斜度那一條真的有在擋（不是一條永遠成立的斷言）', String(blockedBySlope));
+    /*
+     * v1.2 · P16e：這個數字從 925 掉到 21 —— **少擋不是壞事，是分工變乾淨了**。
+     * P16d 的崖唇是一道近乎垂直的摺線，`tooSteep()` 半公尺的探針一伸出去就讀到虛空，
+     * 於是它兼著把崖唇前那一圈（613 個點）也收掉。P16e 把崖唇改成一段肩之後，
+     * 那件事歸高度場與覆蓋率管；剩下的 21 個點才是這條規則真正要擋的
+     * **地本身的坎**（45.1–49.4°）。門檻跟著實測改，但仍然守著「不是永遠成立」。
+     */
+    ok(blockedBySlope > 10, 'P16d：斜度那一條真的有在擋（不是一條永遠成立的斷言）', String(blockedBySlope));
     ok(
       oldWorstStep > 5,
       'P16d[反例]：P16d 之前同一批點裡，半公尺的一步可以掉 5 公尺以上',
@@ -18509,55 +18578,146 @@ console.log('\n▸ 高台語法 ＋ 高處的祕密 ＋ 橋缺口（v1.2 · P15�
     );
   }
 
-  /* --- ⑤ 崖唇外「看起來還是平地、卻走不過去」的那一段有多長 ---------- *
+  /* --- ⑤ 崖唇外「看起來還是平地、卻走不過去」的那一圈有多寬 ---------- *
    *
-   * 換一個看不見的牆不算修好。量的是：從最後一個走得到的點再往外走，
-   * 地面還在同一個高度（差 < 0.3 公尺）的那一段有多長。
-   * 橋沿線的徑線不算（那是甲板，不是崖）。
+   * 換一個看不見的牆不算修好。量的是：**還沒掉下去（比地本身的起伏低不到 0.3 公尺）
+   * 卻走不到的那些點，離走得到的地最遠有多遠**。
+   *
+   * v1.2 · P16e 換掉了 P16d 那把尺。P16d 是「沿著徑線往外走到掉 0.3 公尺為止」——
+   * 那量的是 `唇寬 / sin(徑線與邊界的夾角)`：徑線一擦過鄰居的地界（護欄崗、校驗場
+   * 那幾片加建院落的圓弧）就近乎與邊界平行，同一圈 1.5 公尺的唇會被讀成 7–9 公尺。
+   * 現在改成**到「走得到的地」的真實距離**（0.5 公尺格上的 chamfer 距離，與方向無關，
+   * 也與 `rimDistance()` 的公式無關 —— 它只問「走得到的格子在哪裡」）。
+   * 同一把尺同時量土地邊緣**與橋的甲板邊**（P16d 只驗了土地，站長 P16e 的第 ⑦ 條）。
    */
   {
-    const tan = Math.tan((World.WALK_SLOPE_MAX * Math.PI) / 180);
-    const steep = (x, z) => {
-      const h = World.SLOPE_PROBE;
-      const gx = (World.terrainHeight(x + h, z) - World.terrainHeight(x - h, z)) / (2 * h);
-      const gz = (World.terrainHeight(x, z + h) - World.terrainHeight(x, z - h)) / (2 * h);
-      return Math.hypot(gx, gz) > tan;
+    const G0 = -170;
+    const GS = 0.5;
+    const GN = 681;
+    const cover = new Float64Array(GN * GN);
+    const relief = new Float64Array(GN * GN);
+    const height = new Float64Array(GN * GN);
+    const walk = new Uint8Array(GN * GN);
+    for (let i = 0; i < GN; i += 1) {
+      for (let j = 0; j < GN; j += 1) {
+        const k = i * GN + j;
+        const x = G0 + i * GS;
+        const z = G0 + j * GS;
+        cover[k] = World.coverage(x, z);
+        relief[k] = World.terrainRelief(x, z);
+        height[k] = World.terrainHeight(x, z);
+        walk[k] = cover[k] >= World.STAND_COVER_MIN && !World.tooSteep(x, z) ? 1 : 0;
+      }
+    }
+    /** 每一格到最近的「走得到的格子」有多遠（公尺；chamfer 兩趟）。 */
+    const chamfer = (mask) => {
+      const dist = new Float64Array(GN * GN).fill(1e9);
+      for (let k = 0; k < GN * GN; k += 1) if (mask[k]) dist[k] = 0;
+      const relax = (i, j, di, dj, w) => {
+        const a = i + di;
+        const b = j + dj;
+        if (a < 0 || b < 0 || a >= GN || b >= GN) return;
+        const v = dist[a * GN + b] + w * GS;
+        if (v < dist[i * GN + j]) dist[i * GN + j] = v;
+      };
+      for (let i = 0; i < GN; i += 1) {
+        for (let j = 0; j < GN; j += 1) {
+          relax(i, j, -1, 0, 1);
+          relax(i, j, 0, -1, 1);
+          relax(i, j, -1, -1, Math.SQRT2);
+          relax(i, j, -1, 1, Math.SQRT2);
+        }
+      }
+      for (let i = GN - 1; i >= 0; i -= 1) {
+        for (let j = GN - 1; j >= 0; j -= 1) {
+          relax(i, j, 1, 0, 1);
+          relax(i, j, 0, 1, 1);
+          relax(i, j, 1, 1, Math.SQRT2);
+          relax(i, j, 1, -1, Math.SQRT2);
+        }
+      }
+      return dist;
     };
-    const nearBridge = (px, pz) =>
-      World.CORRIDORS.some((c) => {
-        const ux = c.to.x - c.from.x;
-        const uz = c.to.z - c.from.z;
-        const t = Math.max(0, Math.min(1, ((px - c.from.x) * ux + (pz - c.from.z) * uz) / (ux * ux + uz * uz)));
-        return Math.hypot(px - (c.from.x + ux * t), pz - (c.from.z + uz * t)) < 14;
-      });
+    const dist = chamfer(walk);
+    /** 「還是平地卻走不到」的格子：地面比起伏低不到 0.3 公尺（掉下去的不算）。 */
+    const isLip = (k) => !walk[k] && dist[k] < 20 && relief[k] - height[k] <= 0.3;
+    let lip = 0;
+    let lipPt = null;
+    let lipCells = 0;
+    for (let i = 0; i < GN; i += 1) {
+      for (let j = 0; j < GN; j += 1) {
+        const k = i * GN + j;
+        if (!isLip(k)) continue;
+        lipCells += 1;
+        if (dist[k] > lip) {
+          lip = dist[k];
+          lipPt = [G0 + i * GS, G0 + j * GS];
+        }
+      }
+    }
+    ok(lipCells > 2000, 'P16e：真的有一圈「還是平地卻走不到」的唇（不是一條空過的斷言）', String(lipCells));
+    ok(lip < 2, 'P16e：全地圖「還是平地卻走不到」的那一圈 < 2 公尺寬', `${lip.toFixed(2)}m ${lipPt}`);
+    /* 逐片土地、逐座橋各報一個數字 —— 站長第 ⑦ 條要的是「橋也一起驗」 */
+    const inSite = (x, z) => World.REGION_SITES.some((s) => Math.hypot(x - s.x, z - s.z) <= s.radius);
     for (const site of World.REGION_SITES) {
       let worst = 0;
-      for (let k = 0; k < 120; k += 1) {
-        const a = (k / 120) * Math.PI * 2;
-        const dx = Math.cos(a);
-        const dz = Math.sin(a);
-        let onBridge = false;
-        for (let d = site.flat; d <= site.radius + 10 && !onBridge; d += 0.5) {
-          if (nearBridge(site.x + dx * d, site.z + dz * d)) onBridge = true;
+      for (let i = 0; i < GN; i += 1) {
+        for (let j = 0; j < GN; j += 1) {
+          const k = i * GN + j;
+          if (!isLip(k)) continue;
+          const x = G0 + i * GS;
+          const z = G0 + j * GS;
+          if (Math.hypot(x - site.x, z - site.z) > site.radius + 6) continue;
+          if (dist[k] > worst) worst = dist[k];
         }
-        if (onBridge) continue;
-        if (World.coverage(site.x + dx * (site.radius + 8), site.z + dz * (site.radius + 8)) > 0.15) continue;
-        let last = null;
-        for (let d = site.flat; d <= site.radius + 10; d += 0.1) {
-          const px = site.x + dx * d;
-          const pz = site.z + dz * d;
-          if (World.coverage(px, pz) >= World.STAND_COVER_MIN && !steep(px, pz)) last = d;
-        }
-        if (last === null) continue;
-        const h0 = World.terrainHeight(site.x + dx * last, site.z + dz * last);
-        let flatTo = last;
-        for (let d = last; d <= site.radius + 10; d += 0.1) {
-          if (h0 - World.terrainHeight(site.x + dx * d, site.z + dz * d) > 0.3) break;
-          flatTo = d;
-        }
-        if (flatTo - last > worst) worst = flatTo - last;
       }
-      ok(worst < 2, `P16d：[${site.id}] 崖唇外「還是平地卻走不過去」的那一段 < 2 公尺`, `${worst.toFixed(2)}m`);
+      ok(worst < 2, `P16e：[${site.id}] 土地邊緣那一圈 < 2 公尺寬`, `${worst.toFixed(2)}m`);
+    }
+    for (const c of World.CORRIDORS) {
+      let worst = 0;
+      let seen = 0;
+      for (let i = 0; i < GN; i += 1) {
+        for (let j = 0; j < GN; j += 1) {
+          const k = i * GN + j;
+          if (!isLip(k)) continue;
+          const x = G0 + i * GS;
+          const z = G0 + j * GS;
+          if (inSite(x, z)) continue; // 甲板兩端已經算在土地那一圈裡
+          if (distToSeg(x, z, c.from.x, c.from.z, c.to.x, c.to.z) > c.half + 6) continue;
+          seen += 1;
+          if (dist[k] > worst) worst = dist[k];
+        }
+      }
+      ok(seen > 100, `P16e：[bridge:${c.region}] 甲板邊真的有量到唇`, String(seen));
+      ok(worst < 2, `P16e：[bridge:${c.region}] 甲板邊那一圈 < 2 公尺寬`, `${worst.toFixed(2)}m`);
+    }
+    /*
+     * 反例：把肩的曲率放軟成四分之一（起手更平），同一把尺立刻讀出 > 2 公尺的唇 ——
+     * 證明這條斷言量得到「把看不見的牆往外搬」這件事。
+     */
+    {
+      const soft = (x, z) => {
+        const s = World.rimDistance(x, z);
+        const h = World.terrainRelief(x, z);
+        if (s <= 0) return h;
+        const d = s <= World.RIM_SHOULDER
+          ? 0.5 * (World.RIM_CURVE / 4) * s * s
+          : (World.RIM_CURVE / 4) * World.RIM_SHOULDER * (0.5 * World.RIM_SHOULDER + (s - World.RIM_SHOULDER)) +
+            0.5 * World.RIM_PLUNGE * (s - World.RIM_SHOULDER) ** 2;
+        return d >= h + World.VOID_DEPTH ? -World.VOID_DEPTH : h - d;
+      };
+      let softLip = 0;
+      for (let i = 0; i < GN; i += 1) {
+        for (let j = 0; j < GN; j += 1) {
+          const k = i * GN + j;
+          if (walk[k] || dist[k] >= 20) continue;
+          const x = G0 + i * GS;
+          const z = G0 + j * GS;
+          if (relief[k] - soft(x, z) > 0.3) continue;
+          if (dist[k] > softLip) softLip = dist[k];
+        }
+      }
+      ok(softLip > 2, 'P16e[反例]：肩放軟四倍之後，同一把尺讀出 > 2 公尺的唇', `${softLip.toFixed(2)}m`);
     }
   }
 
@@ -18597,6 +18757,273 @@ console.log('\n▸ 高台語法 ＋ 高處的祕密 ＋ 橋缺口（v1.2 · P15�
       }
     }
     ok(oldWorst > 70, 'P16d[反例]：P16d 之前頸口中線最陡是 70° 以上的溜滑梯', `${oldWorst.toFixed(1)}°`);
+  }
+}
+
+/* ================================================================== *
+ * 畫出來的地面就是腳下的地面（v1.2 · P16e）
+ * ================================================================== *
+ *
+ * P16d 的斷言全部拿**解析式**（`terrainHeight()`）自己跟自己比 —— 於是漏掉了
+ * 這一整類問題：**地形網格是固定格點**（`buildTerrain()`：高畫質 200 段 ＝ 1.70
+ * 公尺一格、低畫質 110 段 ＝ 3.09 公尺一格），解析式畫得出來的崖唇，格點插不出來。
+ * P16d 把 34 公尺壓進 5.75 公尺那一段（約 80°）之後，站在崖唇上的人**浮在畫面的
+ * 地面上 9.2 公尺**（高畫質）／**17.5 公尺**（低畫質）。
+ *
+ * 所以這一節的尺不一樣：拿**真的被畫出來的那張網格**（從建好的世界裡把 `terrain`
+ * 那個 mesh 撈出來）去問「玩家腳下那一點，畫面上的地面在多高」。
+ */
+console.log('\n▸ 畫出來的地面就是腳下的地面（v1.2 · P16e）');
+{
+  /**
+   * 從一個蓋好的世界裡撈出地形網格，做成「任意 (x, z) → 畫面上的地面高度」。
+   *
+   * 網格是 `PlaneGeometry` 轉平的：頂點排成規則格點，每一格切成兩個三角形
+   * （對角線是 u + v = 1）。這裡**不假設**它長這樣 —— 下面用真的 raycast 對過。
+   */
+  const terrainSampler = (scene, label) => {
+    let mesh = null;
+    scene.traverse((o) => {
+      if (o.isMesh && o.name === 'terrain') mesh = o;
+    });
+    ok(Boolean(mesh), `[${label}] 場景裡撈得到地形網格`);
+    const pos = mesh.geometry.attributes.position;
+    const seg = Math.round(Math.sqrt(pos.count)) - 1;
+    eq((seg + 1) * (seg + 1), pos.count, `[${label}] 地形網格是 (seg+1)² 個頂點`, String(pos.count));
+    const size = World.WORLD_RADIUS * 2 + 40;
+    const step = size / seg;
+    const half = size / 2;
+    const n = seg + 1;
+    const H = new Float64Array(n * n);
+    let offGrid = 0;
+    for (let i = 0; i < pos.count; i += 1) {
+      const ix = Math.round((pos.getX(i) + half) / step);
+      const iz = Math.round((pos.getZ(i) + half) / step);
+      if (Math.abs(ix * step - half - pos.getX(i)) > 1e-4 || Math.abs(iz * step - half - pos.getZ(i)) > 1e-4) offGrid += 1;
+      H[iz * n + ix] = pos.getY(i);
+    }
+    eq(offGrid, 0, `[${label}] 地形網格的頂點真的排在規則格點上`, String(offGrid));
+    const sample = (x, z) => {
+      const fx = (x + half) / step;
+      const fz = (z + half) / step;
+      const ix = Math.min(seg - 1, Math.max(0, Math.floor(fx)));
+      const iz = Math.min(seg - 1, Math.max(0, Math.floor(fz)));
+      const u = fx - ix;
+      const v = fz - iz;
+      const ha = H[iz * n + ix];
+      const hb = H[(iz + 1) * n + ix];
+      const hc = H[(iz + 1) * n + ix + 1];
+      const hd = H[iz * n + ix + 1];
+      return u + v <= 1 ? ha + (hd - ha) * u + (hb - ha) * v : hc + (hb - hc) * (1 - u) + (hd - hc) * (1 - v);
+    };
+    /*
+     * 把這支取樣函式跟**真的射線**對一次 —— 不然它只是一段長得像插值的程式，
+     * 而「三角形怎麼切」猜錯的話整節斷言會靜靜地量錯東西。
+     */
+    const ray = new THREE.Raycaster();
+    ray.ray.direction.set(0, -1, 0);
+    ray.far = 1000;
+    let worstRay = 0;
+    let rayHits = 0;
+    for (let k = 0; k < 40; k += 1) {
+      const a = (k / 40) * Math.PI * 2;
+      const d = 8 + (k % 7) * 9;
+      const x = Math.cos(a) * d;
+      const z = Math.sin(a) * d;
+      ray.ray.origin.set(x, 400, z);
+      const hits = ray.intersectObject(mesh);
+      if (!hits.length) continue;
+      rayHits += 1;
+      worstRay = Math.max(worstRay, Math.abs(hits[0].point.y - sample(x, z)));
+    }
+    ok(rayHits > 30, `[${label}] 射線真的打到地形（取樣函式有被驗到）`, String(rayHits));
+    ok(worstRay < 0.01, `[${label}] 取樣函式與真的射線逐點相同`, `${worstRay.toFixed(4)}m`);
+    return { sample, seg, step };
+  };
+
+  /*
+   * 崖面要從甲板／地面的高度長下去，不是從 0 開始 —— `groundAt()` 在
+   * 「混不出東西」（離所有土地與橋都超過自己的半徑）時改用**最近的那一片**的起伏
+   * 把地面接出去。接得起來嗎？就在 `d = radius`／`d = half` 那條縫上兩邊各取一點。
+   * P16e 之前那裡是一道 1–3 公尺的硬邊（外面直接從 0 起算）。
+   */
+  {
+    let seam = 0;
+    let seamAt = null;
+    for (const site of World.REGION_SITES) {
+      for (let k = 0; k < 180; k += 1) {
+        const a = (k / 180) * Math.PI * 2;
+        const dx = Math.cos(a);
+        const dz = Math.sin(a);
+        const inn = World.terrainHeight(site.x + dx * (site.radius - 0.01), site.z + dz * (site.radius - 0.01));
+        const out = World.terrainHeight(site.x + dx * (site.radius + 0.01), site.z + dz * (site.radius + 0.01));
+        if (Math.abs(inn - out) > seam) {
+          seam = Math.abs(inn - out);
+          seamAt = site.id;
+        }
+      }
+    }
+    for (const c of World.CORRIDORS) {
+      const nx = -c.dir.z;
+      const nz = c.dir.x;
+      for (let t = 6; t <= c.length - 6; t += 0.5) {
+        const bx = c.from.x + c.dir.x * t;
+        const bz = c.from.z + c.dir.z * t;
+        for (const sgn of [1, -1]) {
+          const inn = World.terrainHeight(bx + nx * sgn * (c.half - 0.01), bz + nz * sgn * (c.half - 0.01));
+          const out = World.terrainHeight(bx + nx * sgn * (c.half + 0.01), bz + nz * sgn * (c.half + 0.01));
+          if (Math.abs(inn - out) > seam) {
+            seam = Math.abs(inn - out);
+            seamAt = `bridge:${c.region}`;
+          }
+        }
+      }
+    }
+    /*
+     * 門檻 1.5 是量出來的，不是拍的：
+     *   · 直接「挑最近的那一片」接出去 —— 實測 **4.14 公尺**（中央高原邊上的地貌
+     *     比旁邊那座橋的甲板高 4 公尺，出了 `radius` 就整段換人）→ 這條斷言當場紅。
+     *   · 改成 `1 / (離自己的邊 + eps)` 的混合 —— **1.26 公尺**。
+     * 剩下的 1.26 是**兩片的外緣剛好交叉**的那幾個點：從高原那一側逼近讀到的是
+     * 高原的地貌、從橋那一側逼近讀到的是甲板 —— 那個落差在 `terrainRelief()`
+     * 裡本來就有（Phase F 起的覆蓋權重混合就是這樣），任何接法都接不掉，只能減半。
+     */
+    ok(seam < 1.5, 'P16e：崖面與地面在 d = radius／d = half 那條縫上接得起來（不是一道硬邊）', `${seam.toFixed(3)}m ${seamAt}`);
+  }
+
+  const hi = terrainSampler(testScene, 'high');
+  const lo = terrainSampler(lowScene, 'low');
+  eq(hi.seg, 200, 'P16e：高畫質地形網格 200 段', String(hi.seg));
+  eq(lo.seg, 110, 'P16e：低畫質地形網格 110 段', String(lo.seg));
+  ok(
+    World.RIM_SHOULDER > lo.step * Math.SQRT2,
+    'P16e：崖唇的肩比低畫質一格的對角線還寬（站在邊界上的人，腳下那一格四個角都還在肩上）',
+    `${World.RIM_SHOULDER} > ${(lo.step * Math.SQRT2).toFixed(2)}`
+  );
+
+  /** P16d 的高度場（`voidDrop` 吃覆蓋率、把 34 公尺壓進覆蓋率 0.45→0 那一段）。 */
+  const p16dHeight = (x, z) => {
+    const cover = World.coverage(x, z);
+    const h = World.terrainRelief(x, z);
+    if (cover >= World.STAND_COVER_MIN) return h;
+    const t = (World.STAND_COVER_MIN - cover) / World.STAND_COVER_MIN;
+    return h - t * t * World.VOID_DEPTH;
+  };
+  /** 只有「地本身的起伏」的那一面（沒有崖唇）—— 拿來分開兩種誤差。 */
+  const reliefMesh = (seg) => {
+    const size = World.WORLD_RADIUS * 2 + 40;
+    const step = size / seg;
+    const half = size / 2;
+    const n = seg + 1;
+    const H = new Float64Array(n * n);
+    for (let iz = 0; iz < n; iz += 1) {
+      for (let ix = 0; ix < n; ix += 1) H[iz * n + ix] = World.terrainRelief(ix * step - half, iz * step - half);
+    }
+    return (x, z) => {
+      const fx = (x + half) / step;
+      const fz = (z + half) / step;
+      const ix = Math.min(seg - 1, Math.max(0, Math.floor(fx)));
+      const iz = Math.min(seg - 1, Math.max(0, Math.floor(fz)));
+      const u = fx - ix;
+      const v = fz - iz;
+      const ha = H[iz * n + ix];
+      const hb = H[(iz + 1) * n + ix];
+      const hc = H[(iz + 1) * n + ix + 1];
+      const hd = H[iz * n + ix + 1];
+      return u + v <= 1 ? ha + (hd - ha) * u + (hb - ha) * v : hc + (hb - hc) * (1 - u) + (hd - hc) * (1 - v);
+    };
+  };
+  const oldMesh = (seg) => {
+    const size = World.WORLD_RADIUS * 2 + 40;
+    const step = size / seg;
+    const half = size / 2;
+    const n = seg + 1;
+    const H = new Float64Array(n * n);
+    for (let iz = 0; iz < n; iz += 1) {
+      for (let ix = 0; ix < n; ix += 1) H[iz * n + ix] = p16dHeight(ix * step - half, iz * step - half);
+    }
+    return (x, z) => {
+      const fx = (x + half) / step;
+      const fz = (z + half) / step;
+      const ix = Math.min(seg - 1, Math.max(0, Math.floor(fx)));
+      const iz = Math.min(seg - 1, Math.max(0, Math.floor(fz)));
+      const u = fx - ix;
+      const v = fz - iz;
+      const ha = H[iz * n + ix];
+      const hb = H[(iz + 1) * n + ix];
+      const hc = H[(iz + 1) * n + ix + 1];
+      const hd = H[iz * n + ix + 1];
+      return u + v <= 1 ? ha + (hd - ha) * u + (hb - ha) * v : hc + (hb - hc) * (1 - u) + (hd - hc) * (1 - v);
+    };
+  };
+
+  /*
+   * 兩把尺，兩個門檻：
+   *   · `rimMax` —— **虛空那一崩伸進腳下那一格多少**（站長回報的那個 bug）。
+   *     實測 0.158（高）／0.492（低）；P16d 是 9.2／17.5。
+   *   · `gapMax` —— 腳下與畫面的總差。低畫質的門檻鬆一格是量出來的，不是讓步：
+   *     **只有地本身的起伏、完全不含崖唇**，3.09 公尺一格的網格就已經差 0.830 公尺
+   *     （高畫質 1.70 公尺一格是 0.442）—— 那是低多邊形地貌自己的坎，P16d 之前就有，
+   *     而且不在虛空上方。下面那條「剩下的差幾乎全是地貌自己的坎」把這件事釘死。
+   */
+  for (const [label, s, rimMax, gapMax, oldMin] of [['high', hi, 0.25, 0.6, 8], ['low', lo, 0.6, 1.2, 15]]) {
+    const rm = reliefMesh(s.seg);
+    const om = oldMesh(s.seg);
+    let gap = 0;
+    let gapPt = null;
+    let byRim = 0;
+    let byRimPt = null;
+    let reliefOnly = 0;
+    let oldGap = 0;
+    let n = 0;
+    for (let x = -170; x <= 170; x += 0.5) {
+      for (let z = -170; z <= 170; z += 0.5) {
+        if (World.coverage(x, z) < World.STAND_COVER_MIN) continue;
+        if (World.tooSteep(x, z)) continue;
+        n += 1;
+        const drawn = s.sample(x, z);
+        const d = Math.abs(World.terrainHeight(x, z) - drawn);
+        if (d > gap) {
+          gap = d;
+          gapPt = [x, z];
+        }
+        /*
+         * **崖唇自己的份**：同一張網格，一張含崖唇、一張只有起伏。
+         * 兩者的差就是「虛空那一崩伸進腳下這一格多少」——
+         * 這才是站長回報的那個 bug，剩下的是地貌自己的坎（高低畫質都有，P16d 之前就有）。
+         */
+        const dr = Math.abs(drawn - rm(x, z));
+        if (dr > byRim) {
+          byRim = dr;
+          byRimPt = [x, z];
+        }
+        const ro = Math.abs(World.terrainRelief(x, z) - rm(x, z));
+        if (ro > reliefOnly) reliefOnly = ro;
+        const od = Math.abs(p16dHeight(x, z) - om(x, z));
+        if (od > oldGap) oldGap = od;
+      }
+    }
+    ok(n > 200000, `P16e[${label}]：量的點夠多（不是只掃了一角）`, String(n));
+    ok(
+      byRim < rimMax,
+      `P16e[${label}]：虛空那一崩幾乎沒有伸進走得到的人腳下那一格（< ${rimMax} 公尺；P16d 是 9.2／17.5）`,
+      `${byRim.toFixed(3)}m ${byRimPt}`
+    );
+    ok(
+      gap < gapMax,
+      `P16e[${label}]：走得到的每一點，腳下與畫出來的網格差 < ${gapMax} 公尺`,
+      `${gap.toFixed(3)}m ${gapPt}（其中地貌自己的坎就佔 ${reliefOnly.toFixed(3)}m）`
+    );
+    ok(
+      oldGap > oldMin,
+      `P16e[${label}][反例]：P16d 的高度場在同一批點上浮空 > ${oldMin} 公尺`,
+      `${oldGap.toFixed(2)}m`
+    );
+    ok(
+      reliefOnly > gap - 0.3,
+      `P16e[${label}]：剩下的差幾乎全是地貌自己的坎（不是崖唇）`,
+      `${reliefOnly.toFixed(3)} vs ${gap.toFixed(3)}`
+    );
   }
 }
 

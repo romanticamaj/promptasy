@@ -19449,6 +19449,51 @@ async function main() {
       const bail = performance.now() + seconds * 8000 + 4000;
       while (window.__gt.t < until && performance.now() < bail) await new Promise((r) => setTimeout(r, 30));
     };
+    /*
+     * v1.2 · P16e：**畫出來的那張網格**的高度（不是解析式）。
+     *
+     * P16d 的 footGap 拿 player.y 跟同一支 terrainHeight() 比 —— 那永遠是 0，
+     * 所以「人浮在畫面的地面上 9 公尺」這件事一條斷言都沒說話。
+     * 這裡改成把 scene 裡的 terrain mesh 撈出來、照它的格點插值。
+     */
+    const drawnGround = (() => {
+      let mesh = null;
+      g.engine.scene.traverse((o) => { if (o.isMesh && o.name === 'terrain') mesh = o; });
+      if (!mesh) return null;
+      const pos = mesh.geometry.attributes.position;
+      const seg = Math.round(Math.sqrt(pos.count)) - 1;
+      let minX = Infinity;
+      let maxX = -Infinity;
+      for (let i = 0; i < pos.count; i += 1) {
+        const v = pos.getX(i);
+        if (v < minX) minX = v;
+        if (v > maxX) maxX = v;
+      }
+      const size = maxX - minX;
+      const step = size / seg;
+      const half = size / 2;
+      const n = seg + 1;
+      const H = new Float64Array(n * n);
+      for (let i = 0; i < pos.count; i += 1) {
+        const ix = Math.round((pos.getX(i) + half) / step);
+        const iz = Math.round((pos.getZ(i) + half) / step);
+        H[iz * n + ix] = pos.getY(i);
+      }
+      const at = (x, z) => {
+        const fx = (x + half) / step;
+        const fz = (z + half) / step;
+        const ix = Math.min(seg - 1, Math.max(0, Math.floor(fx)));
+        const iz = Math.min(seg - 1, Math.max(0, Math.floor(fz)));
+        const u = fx - ix;
+        const v = fz - iz;
+        const ha = H[iz * n + ix];
+        const hb = H[(iz + 1) * n + ix];
+        const hc = H[(iz + 1) * n + ix + 1];
+        const hd = H[iz * n + ix + 1];
+        return u + v <= 1 ? ha + (hd - ha) * u + (hb - ha) * v : hc + (hb - hc) * (1 - u) + (hd - hc) * (1 - v);
+      };
+      return { at, seg, verts: pos.count };
+    })();
     const press = (code) => window.dispatchEvent(new KeyboardEvent('keydown', { code }));
     const release = (code) => window.dispatchEvent(new KeyboardEvent('keyup', { code }));
     const releaseAll = () => { for (const c of ['KeyW', 'Space', 'ArrowLeft', 'ArrowRight']) release(c); };
@@ -19545,8 +19590,46 @@ async function main() {
       dropFromFlat: flatY - w.terrainHeight(stop.x, stop.z),
       coverAtStop: w.coverage ? w.coverage(stop.x, stop.z) : null,
       footGap: Math.abs(P().y - w.terrainHeight(stop.x, stop.z)),
+      meshSeg: drawnGround ? drawnGround.seg : null,
+      meshVerts: drawnGround ? drawnGround.verts : null,
+      /* 停下來那一刻，人腳下與**畫出來的地面**差幾公尺（P16d 是 9.2） */
+      meshGap: drawnGround ? Math.abs(P().y - drawnGround.at(P().x, P().z)) : null,
+      /* 停下來那一圈（半徑 1 公尺、走得到的那幾個方向）最糟的一個 */
+      meshGapRing: drawnGround
+        ? (() => {
+            let worst = 0;
+            for (let k = 0; k < 16; k += 1) {
+              const ang = (k / 16) * Math.PI * 2;
+              const px = stop.x + Math.cos(ang);
+              const pz = stop.z + Math.sin(ang);
+              if (!w.isWalkable(px, pz)) continue;
+              worst = Math.max(worst, Math.abs(w.terrainHeight(px, pz) - drawnGround.at(px, pz)));
+            }
+            return worst;
+          })()
+        : null,
+      stopD: Math.hypot(stop.x - hub.x, stop.z - hub.z),
+      stopAngle: Math.round((Math.atan2(stop.z - hub.z, stop.x - hub.x) * 180) / Math.PI),
       aheadWalkable: w.isWalkable(stop.x + pick.dx * 1.5, stop.z + pick.dz * 1.5),
       aheadDrop: w.terrainHeight(stop.x, stop.z) - w.terrainHeight(stop.x + pick.dx * 4, stop.z + pick.dz * 4),
+      /*
+       * v1.2 · P16e：崖唇前 5 公尺是一段**肩**，斷崖在肩以外 —— 要走遠一點才問得到。
+       * 方向用「從高原中心指向人站的地方」（不是當初挑的那條徑線）：
+       * 人被擋下來之前可能沿著邊緣滑開幾公尺，那時候原本那條徑線已經不指著外面了。
+       * 取 4–14 公尺裡**最深的那一點**，一個取樣點打偏不會讓這條斷言變成擲骰子。
+       */
+      aheadDropFar: (() => {
+        const len = Math.hypot(stop.x - hub.x, stop.z - hub.z) || 1;
+        const ox = (stop.x - hub.x) / len;
+        const oz = (stop.z - hub.z) / len;
+        const h0 = w.terrainHeight(stop.x, stop.z);
+        let deepest = 0;
+        for (let d = 4; d <= 14; d += 0.5) {
+          const drop = h0 - w.terrainHeight(stop.x + ox * d, stop.z + oz * d);
+          if (drop > deepest) deepest = drop;
+        }
+        return deepest;
+      })(),
     };
     releaseAll();
     g.player.teleport(0, 6);
@@ -19561,8 +19644,29 @@ async function main() {
     `${(edgeWalk.dropFromFlat || 0).toFixed(2)}m`
   );
   ok(edgeWalk.footGap < 1e-6, 'P16d：停下來的時候人是貼著地形的', String(edgeWalk.footGap));
+  eq(edgeWalk.meshSeg, 200, 'P16e：撈到的是高畫質那張地形網格（200 段）', String(edgeWalk.meshSeg));
+  eq(edgeWalk.meshVerts, 201 * 201, 'P16e：那張網格的頂點數對得上', String(edgeWalk.meshVerts));
+  ok(
+    edgeWalk.meshGap < 0.6,
+    'P16e：**停在崖唇上的人沒有浮在畫面的地面上**（腳下 vs 畫出來的網格 < 0.6 公尺）',
+    `${(edgeWalk.meshGap ?? 99).toFixed(3)}m`
+  );
+  ok(
+    edgeWalk.meshGapRing < 0.6,
+    'P16e：崖唇那一圈（半徑 1 公尺、走得到的方向）也沒有浮起來',
+    `${(edgeWalk.meshGapRing ?? 99).toFixed(3)}m`
+  );
   eq(edgeWalk.aheadWalkable, false, 'P16d：再往外 1.5 公尺走不到（擋住他的是地形邊緣）');
-  ok(edgeWalk.aheadDrop > 3, 'P16d：而那個方向 4 公尺外真的是崖（掉下去 3 公尺以上）', `${(edgeWalk.aheadDrop || 0).toFixed(1)}m`);
+  ok(
+    edgeWalk.aheadDrop > 1.5,
+    'P16e：而那個方向 4 公尺外地面真的在往下走（肩：掉下去 1.5 公尺以上）',
+    `${(edgeWalk.aheadDrop || 0).toFixed(2)}m`
+  );
+  ok(
+    edgeWalk.aheadDropFar > 20,
+    'P16e：再往外一點（4–14 公尺）就是斷崖（掉下去 20 公尺以上）—— 肩沒有把虛空變成緩坡',
+    `${(edgeWalk.aheadDropFar || 0).toFixed(1)}m（停在 d=${(edgeWalk.stopD || 0).toFixed(1)} · ${edgeWalk.stopAngle}° · 挑的徑線 ${edgeWalk.angle}°）`
+  );
 
   /* --- 不按空白鍵，走過四片加建院落的頸口 --- */
   const necks = await evaluate(`
