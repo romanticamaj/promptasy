@@ -988,6 +988,13 @@ export function createPromptConsole({
     // 試煉沒有第二幕：任何想去第二幕的請求（含 Enter 推進）一律落到刻印
     const seq = actOrder();
     if (!seq.includes(n)) n = seq[Math.min(seq.indexOf(act) + 1, seq.length - 1)];
+    /*
+     * 重訪一隻已經安撫過的大濁靈：每一層都散掉了，石碑一開就是刻滿的 ——
+     * 第三幕沒有任何一段可以刻（問句區是空的），所以直接走到手掌印那一幕。
+     * 條件用「每一段都是存檔裡帶來的」，不是「刻滿了」：一般關卡自己刻滿之後
+     * 仍然回得去第三幕看那塊石碑。
+     */
+    if (n === 3 && isGuided() && board().allSettled === true) n = 4;
     if (!force && !canGoAct(n)) return act;
     const changed = n !== act;
     act = n;
@@ -2260,6 +2267,22 @@ export function createPromptConsole({
        * 最後一格）—— 所有石碑一律載入空的，`f` 這個安全取值讓這條路不會爆。
        */
       const f = currentFlow || {};
+      mode = normalizeMode(progression.state.settings.promptMode);
+      if (!currentFlow) mode = 'free';
+      applyMode();
+      /**
+       * 導演的第一顆鏡頭永遠是第一幕：只有題目。
+       * 已經看過這一關指引的人（重玩）可以直接跳到刻印 —— 但不會自動幫他跳過，
+       * 選擇權在玩家手上（進度指示器上的 ③ 會是可按的）。
+       *
+       * 這一段要**排在每一塊石碑載入之前**：載入一塊已經刻滿的石碑會就地
+       * 通知「刻滿了」（重訪一隻安撫過的大濁靈），那一下記進來的幕次不能被蓋掉。
+       */
+      visited = new Set([1]);
+      if (!isApplicationTrial(current) && progression.hasSeenGuidance?.(challenge.id)) {
+        visited.add(2);
+        visited.add(3);
+      }
       /*
        * v1.2 · P17：大濁靈的**規則疊加**——每一段都寫著「這一層要什麼」，
        * 走到才看得見下一層；而存檔裡**已經散掉的那幾層直接刻好、不再問一次**
@@ -2281,19 +2304,6 @@ export function createPromptConsole({
       multiBoard.load(k === 'multi' ? f.multiFlow : null, f.slots);
       simBoard.load(k === 'sim' ? f.simFlow : null, f.slots);
       reverseBoard.load(k === 'reverse' ? f.reverseFlow : null, f.slots);
-      mode = normalizeMode(progression.state.settings.promptMode);
-      if (!currentFlow) mode = 'free';
-      applyMode();
-      /**
-       * 導演的第一顆鏡頭永遠是第一幕：只有題目。
-       * 已經看過這一關指引的人（重玩）可以直接跳到刻印 —— 但不會自動幫他跳過，
-       * 選擇權在玩家手上（進度指示器上的 ③ 會是可按的）。
-       */
-      visited = new Set([1]);
-      if (!isApplicationTrial(current) && progression.hasSeenGuidance?.(challenge.id)) {
-        visited.add(2);
-        visited.add(3);
-      }
       // 試煉沒有指引可以翻回去：側頁籤整個收起來（那裡本來就沒有東西）
       const trialNow = isApplicationTrial(current);
       if (guideTabEl) guideTabEl.hidden = trialNow;

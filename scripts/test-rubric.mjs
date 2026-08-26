@@ -6454,9 +6454,10 @@ const distToSeg = (px, pz, ax, az, bx, bz) => {
     ok(typeof m.primarySkillId === 'string' && Boolean(catalog.skill(m.primarySkillId)), `${tag} primarySkillId 是 v2 catalog 裡真的技能`, m.primarySkillId);
     ok(m.primaryTechniqueId === null || techById.has(m.primaryTechniqueId), `${tag} primaryTechniqueId 是 null 或存在的舊技巧`);
     // rubric：主列 weight 2 ＋ 其餘 weight 1；小濁靈三條、大濁靈 6–8 條
+    const [RUB_LO, RUB_HI] = EXPECT.greatMurks.rubricRange;
     ok(
-      Array.isArray(m.rubric) && (isGreat(m) ? m.rubric.length >= 6 && m.rubric.length <= 8 : m.rubric.length === 3),
-      `${tag} rubric ${isGreat(m) ? '6–8 條' : '三條'}`,
+      Array.isArray(m.rubric) && (isGreat(m) ? m.rubric.length >= RUB_LO && m.rubric.length <= RUB_HI : m.rubric.length === 3),
+      `${tag} rubric ${isGreat(m) ? `${RUB_LO}–${RUB_HI} 條` : '三條'}`,
       String((m.rubric || []).length)
     );
     eq(new Set((m.rubric || []).map((r) => r.check)).size, (m.rubric || []).length, `${tag} rubric 沒有重複的檢查器`);
@@ -6688,9 +6689,73 @@ const distToSeg = (px, pz, ax, az, bx, bz) => {
     // 兩份數字不准分家（murks.js 是唯一的真相，screen-rules 為了不 import three.js 重寫一份）
     eq(Rules.GREAT_MURK_R, Murks.GREAT_MURK_RADIUS, 'screen-rules 的大濁靈互動半徑與 murks.js 一致');
     eq(Rules.GREAT_MURK_BODY_R, Murks.GREAT_BODY_RADIUS, 'screen-rules 的大濁靈底座半徑與 murks.js 一致');
-    ok(Rules.GREAT_MURK_R > Murks.MURK_RADIUS && Rules.GREAT_MURK_R < 6.5, '大濁靈的互動半徑夾在小濁靈（5.5）與石座（6.5）之間', String(Rules.GREAT_MURK_R));
+    ok(Rules.GREAT_MURK_R > Murks.MURK_RADIUS && Rules.GREAT_MURK_R < Rules.MARKER_R, '大濁靈的互動半徑夾在小濁靈（5.5）與石座（6.5）之間', String(Rules.GREAT_MURK_R));
+    /*
+     * 石座的互動半徑（6.5）在 `world.js` 裡是 `nearestMarker()` 的預設參數 ——
+     * 讀不到那個字面值，所以**用行為比對**：圈內按得到、圈外按不到。
+     */
+    {
+      // 挑一座**四周夠空**的石座（最近的鄰居 > 20m），不然圈外那一步會按到隔壁那一座
+      const pos = challenges.filter((c) => c.position).map((c) => c.position);
+      const lone = pos.find((a) => pos.every((b) => b === a || Math.hypot(a[0] - b[0], a[1] - b[1]) > 20));
+      ok(Boolean(lone), '找得到一座四周夠空的石座來驗互動半徑（不然這一段是空過的）');
+      const found = testWorld.nearestMarker({ x: lone[0], y: 0, z: lone[1] }, 60);
+      ok(Boolean(found), '那座石座在世界裡找得到');
+      const p0 = found.marker.position;
+      const probe = (d) => testWorld.nearestMarker({ x: p0.x + d, y: p0.y, z: p0.z });
+      ok(Boolean(probe(Rules.MARKER_R - 0.1)), `screen-rules 的石座互動半徑 ${Rules.MARKER_R}：圈內 0.1m 按得到`);
+      eq(probe(Rules.MARKER_R + 0.1), null, `石座互動半徑 ${Rules.MARKER_R}：圈外 0.1m 按不到（兩份數字沒有分家）`);
+    }
     eq(Object.keys(Rules.GREAT_MURK_MARKER_EXCEPTIONS).length <= 1, true, '石座那一條的例外表最多 1 條');
     eq(Object.keys(Rules.GREAT_MURK_WINNABLE_EXCEPTIONS).length, 0, '「按得到牠」那一條沒有例外表');
+    /*
+     * **契約檔的每一個欄位都要有人比對回來**（P17 審查 · 第 3 條；P16c 審查同一條犯過一次）。
+     * 以前只有 `greatMurks.value` 被讀，其餘每一個都在別處重打一份字面值 ——
+     * 把 `winnableMin` 改成 2、把 `markerExceptions.divergence` 改成 3，一條斷言都不會紅。
+     * 逐值比對的作法照守夜人那一格（`EXPECT.watchmen.winnableFloor`／`winnableCeiling`）。
+     */
+    {
+      const C = EXPECT.greatMurks;
+      eq(C.perRegion, 1, '契約寫的是一片土地一隻');
+      ok(Array.isArray(C.rubricRange) && C.rubricRange.length === 2 && C.rubricRange[0] < C.rubricRange[1], '契約的 rubricRange 是一段區間', JSON.stringify(C.rubricRange));
+      /*
+       * 「6–8 之間」這種**包住**式的斷言把區間放寬也不會紅 —— 所以再問一次
+       * 「這段區間是不是**貼著**現行資料」：兩端各要有一隻真的落在上面。
+       */
+      const rubLens = greatMurks.map((m) => m.rubric.length);
+      eq(Math.min(...rubLens), C.rubricRange[0], '契約 rubricRange 的下界貼著現行資料（真的有一隻是這麼多條）');
+      eq(Math.max(...rubLens), C.rubricRange[1], '契約 rubricRange 的上界貼著現行資料');
+      eq(C.winnableMin, Rules.GREAT_MURK_WINNABLE_MIN, '契約與規則表的「按得到牠」門檻是同一個數字');
+      /*
+       * `winnableFloor` ＝ 例外門檻（與規則表逐值相同；這一格是空的）；
+       * `winnableWorst` ＝ 現行 12 隻實測最差的那一隻（門檻不准超過它）。
+       * 舊版把後者叫 `winnableFloorRegion`，存的卻是上限 —— 一個名字混兩種語意。
+       */
+      eq(
+        JSON.stringify(C.winnableFloor),
+        JSON.stringify(Rules.GREAT_MURK_WINNABLE_EXCEPTIONS),
+        '契約與規則表的「按得到牠」例外門檻**逐值相同**'
+      );
+      eq(
+        JSON.stringify(C.markerExceptions),
+        JSON.stringify(Rules.GREAT_MURK_MARKER_EXCEPTIONS),
+        '契約與規則表的石座例外門檻**逐值相同**'
+      );
+      for (const [rid, min] of Object.entries(C.markerExceptions)) {
+        const ceil = C.markerCeiling[rid];
+        ok(Number.isFinite(ceil), `[${rid}] 契約記得石座那一條的上限（murk-fit --ceiling 量的）`);
+        ok(min <= ceil, `[${rid}] 石座例外不超過上限（${min} ≤ ${ceil}）`, `餘裕 ${(ceil - min).toFixed(2)}m`);
+        ok(min < Rules.GREAT_MURK_MARKER_MIN, `[${rid}] 石座例外真的比一般門檻鬆（不然它不叫例外）`);
+      }
+      for (const rid of Object.keys(C.markerCeiling)) {
+        ok(rid in C.markerExceptions, `[${rid}] 上限只記給真的有例外的那一片（沒有孤兒）`);
+      }
+      ok(
+        Array.isArray(C.pathRange) && C.pathRange[0] === Rules.GREAT_MURK_PATH_MIN && C.pathRange[1] === Rules.MOTIF_PATH_MAX,
+        '契約與規則表的「離路網」區間是同一組數字',
+        JSON.stringify(C.pathRange)
+      );
+    }
     const targetsAll = Rules.interactionTargets({
       challenges,
       inscriptions: inscriptionFile.entries,
@@ -6702,6 +6767,19 @@ const distToSeg = (px, pz, ax, az, bx, bz) => {
       tablets: Props.LORE_TABLETS,
       secrets: secretFile.entries,
     });
+    /*
+     * 路網＝遊戲真的畫在地上的那一條（`PATH_BENDS` 是遮擋帶把路擠彎的折點）——
+     * 守夜人那一節與 `murk-fit.mjs` 讀的是同一份參數，三邊量的是同一條路。
+     */
+    const greatPathSegs = Props.buildPathNetwork(
+      World.REGION_SITES,
+      [...World.CORRIDORS, ...World.ANNEX_LINKS],
+      challenges,
+      (await import('../src/world/screens.js')).PATH_BENDS
+    );
+    ok(greatPathSegs.length > 100, '路網真的有那麼多線段要量（不然這一段是空過的）', String(greatPathSegs.length));
+    /** 逐片土地量到的「按得到牠的方向」（契約檔的 `winnableWorst` 要與它對得上）。 */
+    const winByRegion = {};
     for (const m of greatMurks) {
       const tag = `[${m.id}]`;
       const [x, z] = m.at;
@@ -6738,16 +6816,31 @@ const distToSeg = (px, pz, ax, az, bx, bz) => {
         );
       }
       for (const lm of Props.LANDMARKS) {
-        ok(Math.hypot(x - lm.at[0], z - lm.at[1]) >= 6, `${tag} 離地標 ${lm.id} ≥ 6m`);
+        ok(Math.hypot(x - lm.at[0], z - lm.at[1]) >= Rules.GREAT_MURK_LANDMARK_MIN, `${tag} 離地標 ${lm.id} ≥ ${Rules.GREAT_MURK_LANDMARK_MIN}m`);
       }
-      for (const v of Props.STORY_VIGNETTES) ok(Math.hypot(x - v.at[0], z - v.at[1]) >= 6, `${tag} 離小景 ${v.id} ≥ 6m`);
+      for (const v of Props.STORY_VIGNETTES) ok(Math.hypot(x - v.at[0], z - v.at[1]) >= Rules.GREAT_MURK_VIGNETTE_MIN, `${tag} 離小景 ${v.id} ≥ ${Rules.GREAT_MURK_VIGNETTE_MIN}m`);
       for (const l of World.BRIDGE_LANES) {
         ok(distToSeg(x, z, l.ax, l.az, l.bx, l.bz) >= World.LANE_HALF + Rules.LANE_MARGIN, `${tag} 離 ${l.region} 橋的主動線 ≥ ${World.LANE_HALF + Rules.LANE_MARGIN}m`);
       }
       for (const a2 of World.ANNEX_LINKS) ok(Math.hypot(x - a2.gate.x, z - a2.gate.z) >= Rules.GATE_MIN, `${tag} 離 ${a2.region} 頸口 ≥ ${Rules.GATE_MIN}m`);
       for (const c of World.CORRIDORS) ok(Math.hypot(x - c.gate.x, z - c.gate.z) >= Rules.GATE_MIN, `${tag} 離 ${c.region} 閘門 ≥ ${Rules.GATE_MIN}m`);
-      ok(Math.hypot(x, z - 6) >= 7, `${tag} 離出生點 ≥ 7m`);
-      ok(Math.hypot(x - prologueForWorld.shrine.at[0], z - prologueForWorld.shrine.at[1]) >= 9, `${tag} 離起始祭壇 ≥ 9m`);
+      ok(Math.hypot(x, z - 6) >= Rules.GREAT_MURK_SPAWN_MIN, `${tag} 離出生點 ≥ ${Rules.GREAT_MURK_SPAWN_MIN}m`);
+      ok(
+        Math.hypot(x - prologueForWorld.shrine.at[0], z - prologueForWorld.shrine.at[1]) >= Rules.GREAT_MURK_SHRINE_MIN,
+        `${tag} 離起始祭壇 ≥ ${Rules.GREAT_MURK_SHRINE_MIN}m`
+      );
+      /*
+       * **離「走出來的那條路」的區間**（WORLD.md §4.8：遇得到，但不站在路中間）。
+       * P17 審查 · 第 4 條：這一條以前只有搜尋器（`murk-fit.mjs`）在守，
+       * 每次都跑的那道門一句話都不會說 —— 把 `at` 搬到路中間、或搬到離路 40 公尺外，
+       * `test:rubric` 照樣全綠。量的是**遊戲真的畫在地上的那一條**（帶 `PATH_BENDS`）。
+       */
+      const dPath = Rules.pathDistance(greatPathSegs, x, z);
+      ok(
+        dPath >= Rules.GREAT_MURK_PATH_MIN && dPath <= Rules.MOTIF_PATH_MAX,
+        `${tag} 離路網 ${Rules.GREAT_MURK_PATH_MIN}–${Rules.MOTIF_PATH_MAX}m（遇得到，但不站在路中間）`,
+        `${dPath.toFixed(2)}m`
+      );
       /*
        * 小濁靈那一條問的是「加入濁靈**之前**的世界是清的」；大濁靈問的是
        * 「除了牠自己以外沒有別的東西擋著」（`clearExceptSelf`，與器物那一層同一支）。
@@ -6779,6 +6872,22 @@ const distToSeg = (px, pz, ax, az, bx, bz) => {
         }
       }
       ok(win >= Rules.GREAT_MURK_WINNABLE_MIN, `${tag} 按得到牠的方向 ${win}/${Rules.GREAT_MURK_WINNABLE_DIRS}（要 ≥${Rules.GREAT_MURK_WINNABLE_MIN}）`, String(win));
+      winByRegion[m.region] = win;
+    }
+    /*
+     * 契約檔的 `winnableWorst` 記的是「現行 12 隻裡最差的那一隻實測幾分」——
+     * 它是**上限的證據**（門檻不准超過它），所以要真的重量一次、逐值比對。
+     * 只記數字不比對的話，那一格就是一句沒有人查證的話（P17 審查 · 第 3 條）。
+     */
+    {
+      const C = EXPECT.greatMurks;
+      const worst = Math.min(...Object.values(winByRegion));
+      for (const [rid, val] of Object.entries(C.winnableWorst)) {
+        eq(winByRegion[rid], val, `[${rid}] 契約記的「按得到牠」實測值與這一次量到的相同`);
+        ok(val >= C.winnableMin, `[${rid}] 門檻不超過實測值（${C.winnableMin} ≤ ${val}）`, `餘裕 ${val - C.winnableMin}`);
+        eq(val, worst, `[${rid}] 契約記的就是 12 隻裡最差的那一隻`);
+      }
+      eq(Object.keys(C.winnableWorst).length, 1, '契約只記最差的那一片（記多了就會有一份沒人維護）');
     }
   }
 
@@ -19939,7 +20048,28 @@ console.log('\n▸ 中景收尾：每一片土地都有中觀層（v1.2 · P16b�
     let worstFree = 99;
     let worstId = '';
     for (const t of targets) {
-      const R = Rules17.targetRadius(t);
+      /*
+       * P17 審查 · 第 9 條：量的必須是**那一層真正搶得到 `E` 的圈**。
+       * `targetRadius()` 交出來的是淨空半徑，石座（5.6）與大濁靈（4.0）
+       * 都刻意比互動圈小 —— 拿它來量，等於對一個不是它在守的圈發綠色斷言。
+       * 大濁靈在真正的 6.0 圈上實測 15–24（淨空圈上是 19–24），石座 6.5 圈上最差 15。
+       */
+      const R = Rules17.interactRingRadius(t);
+      /*
+       * 而且要**證明**量到的就是那一圈：圈內 0.1m 按得到這一件，圈外 0.1m 按不到它。
+       * 拿淨空半徑當半徑的話（大濁靈 4.0），圈外那一步仍然按得到牠 —— 這一條會紅。
+       */
+      if (t.k === 'greatmurk') {
+        const inR = testWorld.nearestMurk({ x: t.at[0] + R - 0.1, y: 0, z: t.at[1] });
+        const outR = testWorld.nearestMurk({ x: t.at[0] + R + 0.1, y: 0, z: t.at[1] });
+        ok(inR && inR.murk.id === t.id, `[${t.k}:${t.id}] 量的那一圈裡按得到牠`, JSON.stringify(inR && inR.murk.id));
+        ok(!outR || outR.murk.id !== t.id, `[${t.k}:${t.id}] 量的那一圈外就按不到牠了（＝ 真的是牠的互動圈）`, JSON.stringify(outR && outR.murk.id));
+      }
+      /*
+       * 石座那一層不在這裡驗（`nearestMarker` 量的是**三維**距離，
+       * 拿 y=0 的探針去問會被地形高度吃掉）—— 它由 ③b 那一段挑一座四周夠空的
+       * 石座、用它自己的高度逐步探，把 `MARKER_R` 釘死。
+       */
       let free = 0;
       for (let a = 0; a < 24; a += 1) {
         const ang = (a / 24) * Math.PI * 2;
@@ -20098,6 +20228,19 @@ console.log('\n▸ 守夜人：12 位站著不動的人（v1.2 · P16c）');
     const R = Watch.WATCHMAN_RADIUS;
     eq(R, RulesW.WATCHMAN_R, 'watchmen.js 與 screen-rules.mjs 的互動半徑是同一個數字');
     eq(R, RulesW.LAYER_INTERACT_R.watchman, '擺位規則表裡的守夜人半徑也是同一個');
+    /*
+     * 守夜人那一格與大濁靈那一格讀的是**同一個數字**（P17 審查 · 第 1 條）：
+     * `WATCHMAN_ABOVE_MIN.greatmurk` ＝ 互動圈不重疊 ＝ 6.0 ＋ 4.6。
+     * 兩邊各訂一個常數，就會出現「這道門過、那道門紅」而看不出哪一個算數。
+     */
+    eq(
+      RulesW.WATCHMAN_ABOVE_MIN.greatmurk,
+      RulesW.GREAT_MURK_R + RulesW.WATCHMAN_R,
+      '守夜人離大濁靈那一格 ＝ 互動圈不重疊（6.0 ＋ 4.6）'
+    );
+    for (const k of Object.keys(RulesW.WATCHMAN_ABOVE_MIN)) {
+      ok(['marker', 'murk', 'greatmurk'].includes(k), `[${k}] 這一格真的有人讀（沒有死常數）`);
+    }
     ok(R < 5.5 && R >= 4.6, '互動半徑落在濁靈（5.5）與石碑（4.6）之間', String(R));
 
     const segsW = Props.buildPathNetwork(
@@ -20142,9 +20285,16 @@ console.log('\n▸ 守夜人：12 位站著不動的人（v1.2 · P16c）');
         const d = Math.hypot(x - c.position[0], z - c.position[1]);
         ok(d >= RulesW.WATCHMAN_ABOVE_MIN.marker, `${tag} 離石座 ${c.id} ≥ ${RulesW.WATCHMAN_ABOVE_MIN.marker}m`, d.toFixed(2));
       }
+      /*
+       * P17 審查 · 第 1 條：這張表現在含 12 隻**大濁靈**，牠們那一格是 10.6
+       * （＝ 互動半徑 6.0 ＋ 守夜人 4.6，圈不重疊），不是小濁靈的 7.5。
+       * 一律套 `.murk` 的話，守夜人擺在離大濁靈 7.6 公尺處會**這道門過、那道門紅**。
+       */
       for (const m of murkFile.entries) {
+        const k = m.kind === 'great' ? 'greatmurk' : 'murk';
+        const need = RulesW.WATCHMAN_ABOVE_MIN[k];
         const d = Math.hypot(x - m.at[0], z - m.at[1]);
-        ok(d >= RulesW.WATCHMAN_ABOVE_MIN.murk, `${tag} 離濁靈 ${m.id} ≥ ${RulesW.WATCHMAN_ABOVE_MIN.murk}m`, d.toFixed(2));
+        ok(d >= need, `${tag} 離濁靈 ${m.id} ≥ ${need}m`, d.toFixed(2));
       }
       // 同階與更低階的每一層：**互動圈不重疊**（他在仲裁裡贏它們，疊上去就是蓋掉）
       const lower = [

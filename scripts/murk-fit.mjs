@@ -9,7 +9,7 @@
  * 兩段式：
  *   ① **離線篩**（毫秒級）：格點掃過整片土地，用 `scripts/lib/screen-rules.mjs` 的
  *      **同一份門檻**濾掉一看就不行的點 —— 區域歸屬、覆蓋率、互動圈不重疊、
- *      離主動線／閘門／出生點／起始祭壇、離地標留白、離中觀層的石頭、離路網 6–26 公尺。
+ *      離主動線／閘門／出生點／起始祭壇、離地標留白、離中觀層的石頭、離路網 3.5–26 公尺。
  *   ② **重建驗**（每個候選 ~0.5 秒）：把候選塞進 `createWorld({ murks })`，
  *      對真的蓋出來的世界量：底座擋不擋得住人、四周三圈 × 16 個方向走不走得到、
  *      中觀層有沒有被牠的互動圈壓掉（＝ `screen-fit --verify` 會不會因此變紅）。
@@ -42,6 +42,11 @@ const {
   GREAT_MURK_WINNABLE_MIN,
   GREAT_MURK_WINNABLE_EXCEPTIONS,
   GREAT_MURK_MARKER_EXCEPTIONS,
+  GREAT_MURK_PATH_MIN,
+  GREAT_MURK_LANDMARK_MIN,
+  GREAT_MURK_VIGNETTE_MIN,
+  GREAT_MURK_SPAWN_MIN,
+  GREAT_MURK_SHRINE_MIN,
   MOTIF_COVERAGE_MIN,
   MOTIF_PATH_MAX,
   LANE_MARGIN,
@@ -53,24 +58,15 @@ const {
   pathDistance,
 } = Rules;
 
-/** 大濁靈離「走出來的那條路」的區間（公尺）：遇得到，但不站在路中間。 */
-const MURK_PATH_MIN = 3.5;
-/**
- * 大濁靈離地標多遠（公尺）。
- *
- * 小濁靈與守夜人對地標守的是 4（§4.14：「地標旁邊要矮」管的是**高的東西**）。
- * 大濁靈不是一個人：牠的殼撐到 4 公尺，站在地標腳邊會把地標的剪影吃掉一角，
- * 所以這一層拉到 8 —— 這個數字是量出來的（12 片土地照 8 掃都還有落點；
- * 拉到地標自己的 `clear`（13–16）會讓觀象臺與護欄崗直接歸零）。
+/*
+ * v1.2 · P17 審查 · 第 4／7 條：路網、地標、小景、出生點、祭壇那五條門檻
+ * 以前寫在這裡（而且地標那一條的註解說 8、程式寫 6 —— 註解是唯一講錯的那一份）。
+ * 現在它們與其餘每一條一樣住在 `screen-rules.mjs`，搜尋器與 `test:rubric` 讀同一份。
  */
-const MURK_LANDMARK_MIN = 6;
+
 /** 探勘用：`--markerMin` 覆寫石座那一條（收尾時一定要回到 `screen-rules.mjs` 的那一份）。 */
-const markerMin = (regionId) => num('markerMin', GREAT_MURK_MARKER_EXCEPTIONS[regionId] ?? GREAT_MURK_MARKER_MIN);
-/** 離小景（story vignette）—— 小濁靈是 4，大濁靈按底座差額補到 6。 */
-const MURK_VIGNETTE_MIN = 6;
-/** 出生點與起始祭壇（沿用小濁靈那兩條）。 */
-const SPAWN_MIN = 7;
-const SHRINE_MIN = 9;
+const markerMin = (regionId) =>
+  flag('ceiling') ? 0 : num('markerMin', GREAT_MURK_MARKER_EXCEPTIONS[regionId] ?? GREAT_MURK_MARKER_MIN);
 
 const argv = process.argv.slice(2);
 const flag = (name, dflt = null) => {
@@ -178,11 +174,11 @@ function problemsAt(x, z, regionId, targets, screens, pathSegs) {
   }
   for (const lm of Props.LANDMARKS) {
     const d = Math.hypot(x - lm.at[0], z - lm.at[1]);
-    if (d < MURK_LANDMARK_MIN) problems.push(`太靠近地標 ${lm.id}（${d.toFixed(2)} < ${MURK_LANDMARK_MIN}）`);
+    if (d < GREAT_MURK_LANDMARK_MIN) problems.push(`太靠近地標 ${lm.id}（${d.toFixed(2)} < ${GREAT_MURK_LANDMARK_MIN}）`);
   }
   for (const v of Props.STORY_VIGNETTES) {
     const d = Math.hypot(x - v.at[0], z - v.at[1]);
-    if (d < MURK_VIGNETTE_MIN) problems.push(`太靠近小景 ${v.id}（${d.toFixed(2)}）`);
+    if (d < GREAT_MURK_VIGNETTE_MIN) problems.push(`太靠近小景 ${v.id}（${d.toFixed(2)}）`);
   }
   for (const sd of screens) {
     // 中觀層的石頭是**碰撞圓**：守的是「還走得進牠的互動圈」（與 solidProblems 同一條式子）
@@ -192,10 +188,10 @@ function problemsAt(x, z, regionId, targets, screens, pathSegs) {
   }
   if (laneDistance(World, x, z) < World.LANE_HALF + LANE_MARGIN) problems.push('離橋的主動線太近');
   if (gateDistance(World, x, z) < GATE_MIN) problems.push('離閘門太近');
-  if (Math.hypot(x, z - 6) < SPAWN_MIN) problems.push('離出生點太近');
-  if (Math.hypot(x - prologue.shrine.at[0], z - prologue.shrine.at[1]) < SHRINE_MIN) problems.push('離起始祭壇太近');
+  if (Math.hypot(x, z - 6) < GREAT_MURK_SPAWN_MIN) problems.push('離出生點太近');
+  if (Math.hypot(x - prologue.shrine.at[0], z - prologue.shrine.at[1]) < GREAT_MURK_SHRINE_MIN) problems.push('離起始祭壇太近');
   const dPath = pathDistance(pathSegs, x, z);
-  if (dPath < MURK_PATH_MIN || dPath > MOTIF_PATH_MAX) problems.push(`離路網 ${dPath.toFixed(1)}m（要 ${MURK_PATH_MIN}–${MOTIF_PATH_MAX}）`);
+  if (dPath < GREAT_MURK_PATH_MIN || dPath > MOTIF_PATH_MAX) problems.push(`離路網 ${dPath.toFixed(1)}m（要 ${GREAT_MURK_PATH_MIN}–${MOTIF_PATH_MAX}）`);
   return problems;
 }
 
@@ -269,7 +265,18 @@ export async function verifyInWorld(entry, murks) {
 
 async function main() {
   const screens = await screenSolids();
-  const pathSegs = Props.buildPathNetwork(World.REGION_SITES, [...World.CORRIDORS, ...World.ANNEX_LINKS], base.challenges);
+  /*
+   * 路網要與**遊戲真的畫在地上的那一條**同一份：`PATH_BENDS` 是遮擋帶把路擠彎的折點
+   * （`sightline-audit` 與守夜人的擺位稽核都帶著它）。少帶這一個參數，
+   * 搜出來的座標量的就是另一條路（現行 12 隻的實測：折線與直線逐隻相同，所以零倒退）。
+   */
+  const pathSegs = Props.buildPathNetwork(
+    World.REGION_SITES,
+    [...World.CORRIDORS, ...World.ANNEX_LINKS],
+    base.challenges,
+    (await import('../src/world/screens.js')).PATH_BENDS
+  );
+
   const greats = murkFile.entries.filter((m) => m.kind === 'great');
 
   if (flag('verify')) {
@@ -302,6 +309,55 @@ async function main() {
     }
     return { free, win: winnableAt(baseWorld, { id: '', at: [x, z] }, []) };
   };
+
+  /*
+   * `--ceiling`：石座那一條**還能收到多緊**（P17 審查 · 第 2 條）。
+   *
+   * 把石座那一條先拿掉、其餘每一條照舊，逐點掃過整片土地的平地圈，
+   * 只留「搜尋器真的會收下」的點（離線篩全過 ＋ 貼身那一圈 16/16 ＋ 按得到 ≥ 門檻，
+   * 後兩項用 baseline 世界量 —— 與搜尋器排序用的是同一支），
+   * 再印出那些點裡「離最近那座石座最遠」是幾公尺。
+   *
+   * 那個數字才是例外表 `GREAT_MURK_MARKER_EXCEPTIONS` 的天花板：
+   * 訂得比它高，這片土地就一個落點都沒有。
+   * （整片土地不管別條規則的上限沒有意義 —— 分歧之廳那個 23.52 公尺的點
+   *  離路網、覆蓋率、中觀層那幾條全部過不了。）
+   */
+  if (flag('ceiling')) {
+    const only0 = flag('region', null);
+    for (const site of World.REGION_SITES) {
+      if (only0 && site.id !== only0) continue;
+      const mine = greats.find((m) => m.region === site.id);
+      const targets = targetsFor(murkFile.entries.filter((m) => !mine || m.id !== mine.id));
+      const need = GREAT_MURK_WINNABLE_EXCEPTIONS[site.id] ?? GREAT_MURK_WINNABLE_MIN;
+      let best = 0;
+      let at = null;
+      let n = 0;
+      for (let x = site.x - site.flat; x <= site.x + site.flat; x += 0.5) {
+        for (let z = site.z - site.flat; z <= site.z + site.flat; z += 0.5) {
+          if (problemsAt(x, z, site.id, targets, screens.get(site.id) || [], pathSegs).length) continue;
+          const r = ringFree(x, z);
+          if (r.free < GREAT_MURK_RING_DIRS || r.win < need) continue;
+          n += 1;
+          let d = Infinity;
+          for (const c of base.challenges) {
+            if (!c.position) continue;
+            d = Math.min(d, Math.hypot(x - c.position[0], z - c.position[1]));
+          }
+          if (d > best) {
+            best = d;
+            at = [Number(x.toFixed(2)), Number(z.toFixed(2))];
+          }
+        }
+      }
+      const now = GREAT_MURK_MARKER_EXCEPTIONS[site.id] ?? GREAT_MURK_MARKER_MIN;
+      console.log(
+        `${site.id.padEnd(14)} 上限 ${best.toFixed(2)}m ${at ? `(${at[0]}, ${at[1]})` : '—'} · ` +
+          `合格點 ${n} 個 · 現行門檻 ${now}`
+      );
+    }
+    return;
+  }
   const only = flag('region', null);
   const regions = World.REGION_SITES.map((s) => s.id).filter((r) => !only || r === only);
   const grid = num('grid', 1.5);

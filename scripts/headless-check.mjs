@@ -8311,7 +8311,14 @@ async function main() {
       const fz = e.at[1] + Math.sin(ang) * 14;
       if (!g.world.nearestMurk({ x: fx, y: 0, z: fz })) farAt = [fx, fz];
     }
-    g.player.teleport(farAt[0], farAt[1]);
+    /*
+     * 一個方向都找不到時**要有退路**：直接解參照 null 會在頁面裡丟 TypeError，
+     * 那是**整支測試中斷**（不是紅一條）—— 而且下面那條「找得到夠遠的點」
+     * 就永遠不會被執行到，它要抓的正是這個情況（P17 審查 · 第 5 條）。
+     * 退回 P17 之前用的那個固定斜角，讓斷言自己去報。
+     */
+    const far = farAt || [e.at[0] + 10, e.at[1] + 10];
+    g.player.teleport(far[0], far[1]);
     await new Promise((r) => setTimeout(r, 380));
     const farHint = document.querySelector('[data-interact]');
     const hintFar = farHint.hidden || !/濁靈/.test(farHint.textContent);
@@ -8981,6 +8988,68 @@ async function main() {
   ok(greatSettled.head < 0.6, '頭縮成清燈', String(greatSettled.head));
   await evaluate(`window.__promptasy.promptConsole.close(); return 1;`);
   await sleep(320);
+
+  /* --- ③b 重訪一隻已經安撫的大濁靈：每一層都散掉了 → 石碑一開就是刻滿的 ---- *
+   *
+   * P17 審查 · 第 6 條：`load()`（不像 `pick()`）不會通知「刻滿了」——
+   * 於是封印那一聲與手掌印那一幕都不會來，玩家停在第三幕、問句區是空的。
+   * 每一次重訪都會發生，所以這一條要真的走一遍重訪的流程。
+   */
+  const revisit = await evaluate(`
+    const g = window.__promptasy;
+    const c = g.promptConsole;
+    // 聲音的紀錄只留最後 12 支（滾動）—— 拿開場前的長度去 slice 會永遠是空的
+    const before = g.audio.debug().cues.join('|');
+    c.setMode('guided');
+    c.open(g.murkChallenge('${GID}'));
+    await new Promise((r) => setTimeout(r, 340));
+    const dbg = g.audio.debug();
+    const opened = { act: c.act, carved: c.stele.progress.carved, total: c.stele.progress.total };
+    // 照玩家會走的路一幕一幕推（不用 force）：委託 → 指引 → 刻印
+    c.goAct(2);
+    await new Promise((r) => setTimeout(r, 200));
+    const act2 = c.act;
+    c.goAct(3);
+    await new Promise((r) => setTimeout(r, 240));
+    const out = {
+      opened,
+      act2,
+      act: c.act,
+      done: c.stele.done,
+      allSettled: c.stele.allSettled,
+      settled: c.stele.settledSlots.length,
+      text: c.stele.text,
+      sample: c.challenge.sample,
+      carveHidden: document.querySelector('#prompt-console [data-carve]').hidden,
+      palmHidden: document.querySelector('#prompt-console [data-palmwrap]').hidden,
+      openCue: dbg.lastCue,
+      cuesChanged: dbg.cues.join('|') !== before,
+      cueTrail: dbg.cues.slice(-4),
+    };
+    c.close();
+    await new Promise((r) => setTimeout(r, 280));
+    return out;
+  `);
+  eq(revisit.opened.act, 1, '重訪仍然從第一幕（委託）開始 —— 不會偷偷幫玩家跳過題目');
+  eq(revisit.opened.carved, revisit.opened.total, '石碑一開就是刻滿的（每一層都在存檔裡散掉了）');
+  eq(revisit.allSettled, true, '這一關的每一段都是存檔帶來的（不是這一次刻的）');
+  eq(revisit.settled, greatNear.rubricLen, `已經散掉的層 ＝ ${greatNear.rubricLen} 段`);
+  eq(revisit.text, revisit.sample, '刻好的整段話就是這一隻的正言（逐字）');
+  eq(revisit.act2, 2, '第二幕（指引）照樣走得過去');
+  eq(revisit.act, 4, '走到刻印那一幕時：沒有一段可以刻 → 直接走到手掌印那一幕');
+  eq(revisit.carveHidden, true, '問句區收起來（沒有東西可以問）');
+  eq(revisit.palmHidden, false, '手掌印在那裡（可以再呈一次拿更高評價）');
+  /*
+   * 「刻滿了」那一聲逐片土地不同（`REGION_SEAL_CUES`：齒輪工坊是 toolcraftComplete，
+   * 其餘是 seal），而它認的是**上一次由 openPanel 記下的那片土地** ——
+   * 這裡只問「那一聲有沒有響」，不綁哪一支。
+   */
+  eq(revisit.cuesChanged, true, '重訪那一下真的有聲音響出來（不是什麼都沒發生）');
+  ok(
+    /seal|complete/i.test(String(revisit.openCue)),
+    '重訪時「刻滿了」那一聲照樣響（onComplete 有被通知到）',
+    `${revisit.openCue} · ${JSON.stringify(revisit.cueTrail)}`
+  );
 
   /* --- ④ 圖鑑三層：安撫開濁言、A 開眉批、S 開來歷；沒到那一層只給剪影 --- */
   const layered = await evaluate(`

@@ -1581,7 +1581,7 @@ sightline 6 通過／screen-fit 12 片全 ✓／e2e **4,350** 零 console error�
 
 ### P17 — 大濁靈（累積理解式）＋ 濁言圖鑑分層（2026-08-26 開工）
 
-狀態：`in progress`（里程碑 D 第一格）
+狀態：`done`（里程碑 D 第一格；實作 ＋ 審查 9 條全部修完）
 
 **現狀**：小濁靈 8 隻（`src/data/murks.json`，前四區各 2）。契約在 P02／P03 定死並且一路沿用到現在：
 - **沒有回合、沒有勝負、進度只累積**：`recordMurk()` 把新命中的檢查器寫進**跨次聯集** `murks:{[id]:{hits,grade}}`，**永不清零**；「這一次判過」或「累積權重 ≥ pass」就算安撫。
@@ -1612,6 +1612,30 @@ sightline 6 通過／screen-fit 12 片全 ✓／e2e **4,350** 零 console error�
 **禁區**：`curriculum.json`、`challenges.json`、`flows.json`、`letters.json`、`color-script.json`、`solution-stats.json`、`secrets.json`、`watchmen.json`、`vite.config.js`、`CLAUDE.md`、`CHANGELOG.md`、`gameplay-roadmap.md`、三件組、dev server 5173／5174／5175。
 
 Exit criteria：
-- [ ] 12 隻大濁靈站在地圖上，選項式作答、分兩次也安撫得了；沒有任何勝負文案。
-- [ ] 圖鑑三層（濁言／眉批／來歷）各自解鎖得了，未達時不劇透。
-- [ ] 中觀層一片都沒有被互動圈清零；rubric／playtest／build／e2e 全綠、console error 0；預算在框內。
+- [x] 12 隻大濁靈站在地圖上，選項式作答、分兩次也安撫得了；沒有任何勝負文案。
+- [x] 圖鑑三層（濁言／眉批／來歷）各自解鎖得了，未達時不劇透。
+- [x] 中觀層一片都沒有被互動圈清零；rubric／playtest／build／e2e 全綠、console error 0；預算在框內。
+
+**審查修訂（9 條，2026-08-26）** —— 每一條都先寫得出「什麼情況下它會紅」再修：
+
+| # | 問題 | 修法 |
+|---|---|---|
+| ① | `WATCHMAN_ABOVE_MIN.greatmurk = 8.0` **沒有任何地方讀它**（守夜人的稽核掃整份 `murks.json`、一律套 `.murk` 7.5），而大濁靈那一側要 10.6 —— 兩道門差 3 公尺互相打架 | 那一格改寫成式子本身（`GREAT_MURK_R + WATCHMAN_R`）；稽核逐筆分 `kind` 取 `.murk`／`.greatmurk`；補一條「這張表的每一格都有人讀」 |
+| ② | `divergence: 7.2` 的理由推不回來（規則表寫 6.18、契約寫 7.43、實際落點 7.57） | 新增 `murk-fit --ceiling`：拿掉石座那一條、其餘照舊，只留**搜尋器真的會收下**的點 → 上限 **7.57**（46 個合格點，最遠的就是出貨的落點）；照 9.0 掃該區 0 個落點。順手訂正「murk 那側由 `GREAT_MURK_WINNABLE_EXCEPTIONS` 守著」（它是空的） |
+| ③ | 契約檔宣告了卻沒人比對（P16c 審查同一條重犯）；`winnableFloorRegion` 存的是**上限** | 欄位重排成 `winnableFloor`（例外門檻，逐值比對）／`winnableWorst`（實測最差）／`markerCeiling`（上限）／`pathRange`，`test:rubric` **逐值比對**；區間型的再加一條「貼不貼著現行資料」 |
+| ④ | WORLD.md §4.8 的「路網 3.5–26」只有搜尋器在守；同段把 6／6／7／9 重打成字面值 | 五個門檻搬進 `screen-rules.mjs`，`test:rubric` 新增路網那一條（量的是**帶 `PATH_BENDS`** 的路網 ＝ 遊戲畫在地上的那一條，`murk-fit` 也補上這個參數） |
+| ⑤ | `g.player.teleport(farAt[0], …)` 的 null 解參照會讓**整支 e2e 中斷**，而那條要抓它的斷言因此永遠跑不到 | `evaluate` 裡給退路（退回舊的固定斜角），斷言自己去報 |
+| ⑥ | `load()` 不像 `pick()` 會通知「刻滿了」→ 重訪一隻已安撫的大濁靈時 `onSeal()` ＋ 第四幕都不會來 | `load()` 走到終態就 `onComplete`；新增 `stele.allSettled`；`goAct` 對「每一段都是存檔帶來的」把第三幕轉到第四幕；`open()` 把幕次重設排到石碑載入之前 |
+| ⑦ | `MURK_LANDMARK_MIN` 是 6、註解說 8 | 常數搬進 `screen-rules.mjs`，理由寫對 |
+| ⑧ | `GREAT_MURK_WINNABLE_RADII` 開頭寫「站在互動圈上（半徑 5.2）」，描述的正是它自己反對的量法 | 改寫成「一整條射線由內到外試六格」 |
+| ⑨ | 共用的「互動圈上還搶得到 `E` 嗎」對大濁靈量的是 **3.7 公尺的淨空圈**，不是它的 6.0 互動圈 | 新增 `interactRingRadius()`（石座 6.5、大濁靈 6.0，其餘照舊）；並補「圈內按得到、圈外按不到」把那一圈釘死 |
+| ⑩ | `expected-counts.json` 檔尾少一個換行 | 補回 |
+
+**先紅後綠（實際跑過）**：① 把那一格改回死常數 → 2 條紅（以前改它 0 條紅）；③ 動契約五個欄位 → 7 條紅；④ 把三個門檻調嚴 → 19 條紅；⑨ 把量測圈換回淨空半徑 → 12 條紅；⑤ 以 stub 重跑那段 `evaluate`（找不到方向 → 不再丟例外、`farAt` 是 `null`）；⑥ **先把 `src/prompt/{stele,console}.js` 還原成 P17 收尾版跑一次完整 e2e → 正好 3 條紅**（`allSettled` undefined、幕次 3≠4、封印聲空）。
+
+⚠️ 第一次跑綠的時候封印那一條還是紅的 —— 查下去是**量法錯了**：`audio.debug().cues` 只留最後 12 支，「開場前記長度、開場後 slice(長度)」永遠回空陣列。改成問 `lastCue` ＋ 比對整串內容之後全綠。
+
+**⑥ 修好之後的重訪流程**：走到一隻已經安撫的大濁靈 → `E` → 第一幕（委託／濁言）照舊，
+石碑**一開就是刻滿的**（每一段都標成「已經散掉的層」，整段文字逐字等於牠的正言），
+封印那一聲當場響 → 第二幕（指引）照樣翻得到 → 走到第三幕時**沒有一段可以刻**，
+所以直接進第四幕：問句區收起來、手掌印在那裡，按下去就能再呈一次拿更高評價。

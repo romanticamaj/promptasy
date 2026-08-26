@@ -26,6 +26,10 @@ export const LAYER_INTERACT_R = Object.freeze({
    * `GREAT_MURK_WINNABLE_MIN` 逐點量（同 P16c 守夜人的結論）。
    * 4.0 ＝ 貼身那一圈 2.6 ＋ 一步 1.4：石頭停在那之外，人繞得過去也按得到。
    * 照 6.0 寫的話，兩道遮擋帶會把護欄崗與分歧之廳的落點**全部**吃掉（實測：各 0 個）。
+   *
+   * ⚠️ **這張表量的是淨空，不是互動圈**（P17 審查 · 第 9 條）：拿它去問
+   * 「互動圈上還站得住嗎」，量到的會是 3.7 公尺的圈（大濁靈）與 5.3 公尺的圈（石座），
+   * 兩者都不是那一層真正搶得到 `E` 的那一圈。要問互動圈就用 `interactRingRadius()`。
    */
   greatmurk: 4,
   murk: 5.5,
@@ -65,6 +69,28 @@ export const WATCHMAN_R = 4.6;
 export const GREAT_MURK_R = 6;
 
 /**
+ * 石座的互動半徑（`src/world/world.js` 的 `nearestMarker()` 預設 `maxDistance`）。
+ * `LAYER_INTERACT_R.marker` 是**淨空**半徑 `PEDESTAL_CLEAR`（5.6），不是這一個；
+ * `test:rubric` 用真的呼叫 `nearestMarker()` 的方式比對兩份（分家就紅）。
+ */
+export const MARKER_R = 6.5;
+
+/**
+ * **一件東西真正搶得到 `E` 的那一圈**（公尺）。
+ *
+ * `targetRadius()` 交出來的是**淨空**半徑（「石頭不准擋住玩家走到它旁邊」），
+ * 有兩層刻意比互動圈小：石座 5.6（`PEDESTAL_CLEAR`，真正的互動圈 6.5）、
+ * 大濁靈 4.0（貼身那一圈 ＋ 一步，真正的互動圈 6.0）。
+ * 一個欄位混兩種語意，守門的斷言就會對著**不是它在守的那一圈**發綠燈
+ * （P17 審查 · 第 9 條；同 findings 的「守門的斷言要看得到它在守的東西」）——
+ * 所以問「互動圈上還有站得住的位置嗎」一律走這一支。
+ * @param {{k:string, r?:number}} t
+ * @returns {number}
+ */
+export const interactRingRadius = (t) =>
+  t.k === 'marker' ? MARKER_R : t.k === 'greatmurk' ? GREAT_MURK_R : targetRadius(t);
+
+/**
  * 大濁靈離每一層要多遠（公尺）。與小濁靈同一套文法（WORLD.md §4.8），只是半徑換成 6.0：
  *   · 搶 `E` 的每一層：**互動圈不重疊** ＝ 6.0 ＋ 那一層的互動半徑
  *   · 不搶 `E` 的東西（反應物／地標／小景／祕密）：≥ `GREAT_MURK_AUTO_MIN`
@@ -99,14 +125,29 @@ export const GREAT_MURK_MARKER_MIN = 9;
  * `MARKER_MIN_EXCEPTIONS`（流程與代理區那一隻退到 10）同一種東西。
  *
  * `divergence`（分歧之廳，半徑 29 的建物裡 10 座石座 ＋ 兩道石脊 ＋ 一位守夜人
- * ＋ 三件器物 ＋ 兩頁殘頁）：逐點掃過整片土地，**全區離最近那座石座最遠只到 6.18 公尺**。
- * 6 是那個上限往下取整；玩家端零倒退 —— 石座在仲裁裡本來就贏，
- * 站在石座前永遠是石座，大濁靈那一側另外由 `GREAT_MURK_WINNABLE_EXCEPTIONS` 守著。
+ * ＋ 三件器物 ＋ 兩頁殘頁）：`node scripts/murk-fit.mjs --ceiling` 把石座那一條拿掉、
+ * 其餘每一條照舊，逐點掃過平地圈，只留「搜尋器真的會收下」的點
+ * （離線篩全過 ＋ 貼身 16/16 ＋ 按得到 ≥ 門檻）——
+ * **那些點裡離最近那座石座最遠只到 7.57 公尺**（46 個合格點，最遠的就是現行出貨的落點）。
+ * 9.0 掃下去這片土地一個落點都沒有（離線篩只剩 5 個點，而且沒有一個四周繞得過去）。
+ *
+ * ⚠️ **「上限」要與搜尋器問同一件事**（P17 審查 · 第 2 條）：不管其餘規則的話，
+ * 整片土地離最近石座最遠是 23.52 公尺（外圈沒有石座的地方，離路網／覆蓋率／
+ * 中觀層那幾條全部過不了）。P17 收尾時這裡寫的 6.18、契約檔寫的 7.43
+ * 都比真的擺在那裡的那一隻（7.57）還小 —— 兩個數字都不是上限，只是量錯了範圍。
+ *
+ * 7.2 是往下留了 0.37 公尺餘裕的門檻（契約檔記著 7.57 這個上限，
+ * `test:rubric` 逐值比對「例外 ≤ 上限」）；玩家端零倒退 —— 石座在仲裁裡本來就贏，
+ * 站在石座前永遠是石座，而大濁靈那一側由「不准堵住石座周圍 5 公尺那一圈」
+ * 這條**看得到石座**的硬斷言守著（`test:rubric` ③b）。
+ * 其餘 11 片土地照 9.0 掃的上限：護欄崗 9.18（最緊，11 個合格點）、
+ * 校驗場 9.66、示範與推理 9.51，其餘 12.43–22.39。
  */
 export const GREAT_MURK_MARKER_EXCEPTIONS = Object.freeze({ divergence: 7.2 });
 /**
- * **真正要守的東西**：站在大濁靈的互動圈上（半徑 5.2），24 個方向裡有幾個
- * 而且在那個位置上**是牠贏**（沒有任何一座石座在 6.5 之內、也沒有另一隻濁靈更近）。
+ * **真正要守的東西**：走向大濁靈的 24 個方向裡，有幾個「找得到一個站得住、
+ * 而且在那個位置上**是牠贏**的點」（沒有任何一座石座在 6.5 之內、也沒有另一隻濁靈更近）。
+ * 一條射線由內到外試六格（2.8 → 5.8，全部落在牠的互動半徑 6.0 之內）。
  *
  * 為什麼是「一整條射線上找得到一點」而不是「某一圈上的那一點」：玩家不是站在一個圓上，
  * 他是**朝著牠走過去**——路上任何一個站得住又按得到的位置都算數。
@@ -124,10 +165,36 @@ export const GREAT_MURK_WINNABLE_MIN = 8;
  * 最差的那一片也還留得下兩格餘裕（同守夜人那一條的作法：門檻 ＝ 上限 − 2）。
  */
 export const GREAT_MURK_WINNABLE_EXCEPTIONS = Object.freeze({});
+/**
+ * 大濁靈離「走出來的那條路」的區間（公尺）：遇得到，但不站在路中間。
+ * 上限沿用母題那一條（`MOTIF_PATH_MAX` 26）。
+ *
+ * v1.2 · P17 審查 · 第 4 條：這五個數字原本住在 `scripts/murk-fit.mjs` 裡，
+ * `test:rubric` 那一邊把 6／6／7／9 重打成字面值、路網那一條乾脆沒有 ——
+ * 於是把大濁靈的 `at` 搬到路中間、或搬到離路 40 公尺外，`test:rubric` 照樣全綠
+ * （WORLD.md §4.8 自己寫的是「門檻只有一份：`screen-rules.mjs`」）。現在只有這一份。
+ */
+export const GREAT_MURK_PATH_MIN = 3.5;
+/**
+ * 大濁靈離地標多遠（公尺）。小濁靈與守夜人對地標守的是 4
+ * （§4.14：「地標旁邊要矮」管的是**高的東西**，不是一個人）；
+ * 大濁靈的殼撐到 4 公尺，站在地標腳邊會把地標的剪影吃掉一角，所以按底座差額補到 6。
+ * 拉到地標自己的 `clear`（13–16）會讓觀象臺與護欄崗直接歸零（量出來的）。
+ */
+export const GREAT_MURK_LANDMARK_MIN = 6;
+/** 離小景（story vignette）—— 小濁靈是 4，大濁靈按底座差額補到 6。 */
+export const GREAT_MURK_VIGNETTE_MIN = 6;
+/** 離出生點（公尺，沿用小濁靈那一條）。 */
+export const GREAT_MURK_SPAWN_MIN = 7;
+/** 離起始祭壇（公尺，沿用小濁靈那一條）。 */
+export const GREAT_MURK_SHRINE_MIN = 9;
 /** 大濁靈的底座碰撞半徑（`murks.js` 的 `GREAT_BODY_RADIUS`；`test:rubric` 逐值比對）。 */
 export const GREAT_MURK_BODY_R = 1.5;
-/** 大濁靈對「不搶 `E` 的石頭」（中觀層）的淨空半徑 —— 見 `LAYER_INTERACT_R.greatmurk`。 */
-export const GREAT_MURK_CLEAR = 4;
+/**
+ * 大濁靈對「不搶 `E` 的石頭」（中觀層）的淨空半徑 —— 就是 `LAYER_INTERACT_R.greatmurk` 那一格本身。
+ * 寫成 `= 4` 的話這個 4 就有兩份（而且沒有人比對），改一份不會紅。
+ */
+export const GREAT_MURK_CLEAR = LAYER_INTERACT_R.greatmurk;
 /**
  * 加了大濁靈之後，**繞不繞得過去**：貼著身體的那一圈（半徑 2.6）16 個方向全通。
  * 2.6 要大於「底座 1.5 ＋ 玩家 0.62 ＝ 2.12」——小濁靈那一組（1.7／2.6／3.5）
@@ -153,7 +220,21 @@ export const GREAT_MURK_RING_DIRS = 16;
  * 加了守夜人之後，他自己的互動圈與每一座石座的互動圈上都還要有夠多方向
  * 「站得住而且是自己贏」（`test:rubric` 逐點掃 24 個方向）。
  */
-export const WATCHMAN_ABOVE_MIN = Object.freeze({ marker: 8.0, murk: 7.5, greatmurk: 8.0 });
+export const WATCHMAN_ABOVE_MIN = Object.freeze({
+  marker: 8.0,
+  murk: 7.5,
+  /*
+   * v1.2 · P17 審查 · 第 1 條：大濁靈那一格**不是**另訂一個 8.0。
+   *
+   * 原本這一格沒有任何地方讀它（守夜人的擺位稽核掃 `murks.json` 的每一筆、
+   * 一律套 `.murk` 7.5），而大濁靈那一側要求的是「互動圈不重疊」
+   * ＝ 6.0 ＋ 4.6 ＝ **10.6**。把守夜人擺在離大濁靈 7.6 公尺處，
+   * 守夜人的門會過、大濁靈的門會紅 —— 而從常數看不出哪一個才算數。
+   * 所以這一格直接寫成那條式子本身：兩道門讀的是同一個數字。
+   * （現行出貨最近的一對：`watch-sky-mirror` ↔ `murk-great-somewhere` 10.97。）
+   */
+  greatmurk: GREAT_MURK_R + WATCHMAN_R,
+});
 /**
  * 守夜人離「**不搶 `E` 的東西**」至少多遠：反應物、祕密、小景、**地標**。
  *
@@ -363,6 +444,8 @@ export function solidProblems(World, sd, regionId, targets, landmarks) {
 export default {
   LAYER_INTERACT_R,
   targetRadius,
+  MARKER_R,
+  interactRingRadius,
   WATCHMAN_R,
   GREAT_MURK_R,
   GREAT_MURK_AUTO_MIN,
@@ -378,6 +461,11 @@ export default {
   GREAT_MURK_WINNABLE_MIN,
   GREAT_MURK_WINNABLE_EXCEPTIONS,
   GREAT_MURK_MARKER_EXCEPTIONS,
+  GREAT_MURK_PATH_MIN,
+  GREAT_MURK_LANDMARK_MIN,
+  GREAT_MURK_VIGNETTE_MIN,
+  GREAT_MURK_SPAWN_MIN,
+  GREAT_MURK_SHRINE_MIN,
   WATCHMAN_ABOVE_MIN,
   WATCHMAN_AUTO_MIN,
   WATCHMAN_WINNABLE_MIN,

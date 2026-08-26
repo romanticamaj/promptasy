@@ -451,7 +451,17 @@ export function createStele({ onCarve, onReject, onComplete, onPress, onTap } = 
       renderCarved();
       renderLayers();
       renderQuestion();
+      /*
+       * 每一段都已經散掉（重訪一隻安撫過的大濁靈）：石碑一開就是刻滿的，
+       * 「刻滿了」這件事一樣要通知出去 —— 不然封印與手掌印那一幕都不會來
+       * （`pick()` 走到最後一段時做的就是這件事）。
+       */
+      if (index >= flow.slots.length) onComplete?.({ text: text() });
       return true;
+    },
+    /** 這一關的每一段都已經散掉了嗎（重訪一隻安撫過的大濁靈）。 */
+    get allSettled() {
+      return Boolean(flow) && flow.slots.length > 0 && settled.size >= flow.slots.length;
     },
     /** 送出之後允許再刻一次（重玩拿更高評價）。 */
     reopen() {
