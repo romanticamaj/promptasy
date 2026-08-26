@@ -8246,25 +8246,41 @@ async function main() {
     });
     const regions = {};
     for (const e of g.murks.entries) regions[e.region] = (regions[e.region] || 0) + 1;
-    const solids = g.murks.entries.filter((e) => g.world.solids.some((s) => Math.abs(s.x - e.at[0]) < 0.01 && Math.abs(s.z - e.at[1]) < 0.01 && Math.abs(s.r - 0.9) < 0.01 && s.keep)).length;
+    const wantR = (e) => (e.kind === 'great' ? 1.5 : 0.9);
+    const solids = g.murks.entries.filter((e) => g.world.solids.some((s) => Math.abs(s.x - e.at[0]) < 0.01 && Math.abs(s.z - e.at[1]) < 0.01 && Math.abs(s.r - wantR(e)) < 0.01 && s.keep)).length;
+    const standables = g.murks.entries.filter((e) => g.world.solids.some((s) => Math.abs(s.x - e.at[0]) < 0.01 && Math.abs(s.z - e.at[1]) < 0.01 && s.standable === true)).length;
+    const greats = g.murks.entries.filter((e) => e.kind === 'great').length;
+    const perMurk = g.world.murks.murks.map((m) => { let t = 0; m.group.traverse((o) => { if (o.isMesh && o.geometry) { const i = o.geometry.index; t += i ? i.count / 3 : o.geometry.attributes.position.count / 3; } }); return { id: m.id, great: m.entry.kind === 'great', tris: t, radius: m.radius }; });
     return {
       built: names.length, total: g.murks.entries.length, unique: new Set(names).size,
       regions, lights, tris, murkLights, murkTris, solids, allSolids: g.world.solids.length,
       shells: g.world.murks.murks.map((m) => m.shells.length),
+      standables, greats, perMurk,
       rubricLens: g.murks.entries.map((e) => e.rubric.length),
       hasNearest: typeof g.world.nearestMurk === 'function',
     };
   `);
-  eq(murkWorld.total, 8, '資料層有 8 隻濁靈');
+  eq(murkWorld.total, 20, '資料層有 20 隻濁靈（8 隻小的 ＋ 12 隻大的）');
+  eq(murkWorld.greats, 12, '其中 12 隻是大濁靈（v1.2 · P17：一片土地一隻）');
   eq(murkWorld.built, murkWorld.total, '每一隻濁靈都蓋在世界裡（murk:<id>）');
   eq(murkWorld.unique, murkWorld.total, '場景圖節點名沒有重複');
-  eq(JSON.stringify(murkWorld.regions), JSON.stringify({ foundations: 2, reasoning: 2, grounding: 2, orchestration: 2 }), '前四區各 2 隻', JSON.stringify(murkWorld.regions));
+  {
+    // 逐區比對（不比 JSON 字串 —— 那會被 murks.json 的排列順序綁架）
+    const want = { foundations: 3, reasoning: 3, grounding: 3, orchestration: 3, config: 1, forms: 1, toolcraft: 1, wards: 1, refinery: 1, frugality: 1, sight: 1, divergence: 1 };
+    eq(Object.keys(murkWorld.regions).length, Object.keys(want).length, '12 片土地上都有濁靈', JSON.stringify(murkWorld.regions));
+    for (const [rid, n] of Object.entries(want)) eq(murkWorld.regions[rid], n, `[${rid}] ${n} 隻濁靈`, JSON.stringify(murkWorld.regions));
+  }
   eq(murkWorld.murkLights, 0, '濁靈一盞燈都沒加');
-  ok(murkWorld.murkTris / murkWorld.total <= 600, '每隻濁靈 ≤ 600 三角形', `perMurk=${(murkWorld.murkTris / murkWorld.total).toFixed(0)}`);
+  // 逐隻量（平均會讓「一隻超標、一隻很省」互相遮掩）：小 ≤ 600、大 ≤ 400
+  for (const m of murkWorld.perMurk) {
+    ok(m.tris <= (m.great ? 400 : 600), `[${m.id}] ${m.great ? '大' : '小'}濁靈 ≤ ${m.great ? 400 : 600} 三角形`, `tris=${m.tris}`);
+    eq(m.radius, m.great ? 6 : 5.5, `[${m.id}] 互動半徑逐隻帶著自己的那一個`);
+  }
   ok(murkWorld.lights <= 56, '多了濁靈之後燈光仍在預算內', `lights=${murkWorld.lights}`);
   ok(murkWorld.tris < 420000, '多了濁靈之後三角形仍在預算內', `tris=${murkWorld.tris}`);
   ok(murkWorld.allSolids < 1400, '碰撞體仍在預算內', `solids=${murkWorld.allSolids}`);
-  eq(murkWorld.solids, 8, '8 個底座都在碰撞登記表裡（r 0.9、keepSolid）');
+  eq(murkWorld.solids, 20, '20 個底座都在碰撞登記表裡（小 r 0.9／大 r 1.5、keepSolid）');
+  eq(murkWorld.standables, 0, '沒有一隻濁靈站得上去（可站立體稽核 0）');
   eq(JSON.stringify(murkWorld.shells), JSON.stringify(murkWorld.rubricLens), '殼數 ＝ rubric 條數');
   eq(murkWorld.hasNearest, true, 'world.nearestMurk 存在');
 
@@ -8282,8 +8298,20 @@ async function main() {
     // v1.2 · P06b：前面的段落把答題方式切來切去 —— 這一段要驗的是**預設**（引導式＝用選的）
     g.progression.updateSettings({ promptMode: 'guided' });
     const e = g.murks.entries.find((x) => x.id === 'murk-vague-ask');
-    // 先站遠一點：這一隻的提示不該出現
-    g.player.teleport(e.at[0] + 14, e.at[1] + 14);
+    /*
+     * 先站遠一點：這一隻的提示不該出現。
+     * v1.2 · P17：**「遠」要對每一隻濁靈都成立** —— 世界上有 20 隻，
+     * 寫死一個斜角 14 公尺可能剛好站進另一隻（大濁靈）的互動圈裡，
+     * 那時候提示會出現，而那不是這一條在驗的事。所以逐個方向找一個真的沒有濁靈的點。
+     */
+    let farAt = null;
+    for (let i = 0; i < 16 && !farAt; i += 1) {
+      const ang = (i / 16) * Math.PI * 2;
+      const fx = e.at[0] + Math.cos(ang) * 14;
+      const fz = e.at[1] + Math.sin(ang) * 14;
+      if (!g.world.nearestMurk({ x: fx, y: 0, z: fz })) farAt = [fx, fz];
+    }
+    g.player.teleport(farAt[0], farAt[1]);
     await new Promise((r) => setTimeout(r, 380));
     const farHint = document.querySelector('[data-interact]');
     const hintFar = farHint.hidden || !/濁靈/.test(farHint.textContent);
@@ -8292,7 +8320,7 @@ async function main() {
     // 走過去（斜角 2.5 公尺 ≈ 3.5m，在 5.5 內、離石座 > 6.5）
     g.player.teleport(e.at[0] + 2.5, e.at[1] + 2.5);
     return {
-      id: e.id, taint: e.taint, hintFar, posBefore,
+      id: e.id, taint: e.taint, hintFar, posBefore, farAt,
       state: JSON.stringify(g.progression.state),
       save: localStorage.getItem('promptasy.v1.save'),
       xp: g.progression.state.xp,
@@ -8306,6 +8334,7 @@ async function main() {
       cuesBefore: g.audio.debug().cues.length,
     };
   `);
+  ok(Array.isArray(murkPre.farAt), '找得到一個「離每一隻濁靈都夠遠」的點', JSON.stringify(murkPre.farAt));
   eq(murkPre.hintFar, true, '離得遠的時候沒有濁靈的提示');
   /* --- v1.2 · P03：演出的起點 --- */
   eq(murkPre.hasStrike, true, 'world.murks 有 strike / restore（P03）');
@@ -8319,7 +8348,12 @@ async function main() {
       const m = window.__promptasy.world.murks.byId('murk-vague-ask');
       return { hidden: h.hidden, text: h.textContent.replace(/\\s+/g, ' ').trim(), near: m.near, state: m.state };
     `);
-    return !r.hidden && /濁靈/.test(r.text) ? r : null;
+    /*
+     * 條件要與下面那幾條斷言**問同一件事**：世界上有 20 隻濁靈，
+     * 只比對「文字裡有濁靈」會接到上一格畫面留下來的另一隻（P17 實測踩過），
+     * 於是 near／aware 全部量在錯的那一隻身上。
+     */
+    return !r.hidden && /含糊的請求/.test(r.text) && r.near ? r : null;
   }, { timeout: 8000, label: '濁靈的互動提示' });
   ok(/濁靈/.test(murkHint.text) && /含糊的請求/.test(murkHint.text), '提示是「濁靈 · 含糊的請求」（副標是牠自己的名字）', murkHint.text);
   ok(/E/.test(murkHint.text) && /安撫/.test(murkHint.text), '提示帶 E ＋ 動詞「安撫」', murkHint.text);
@@ -8756,15 +8790,263 @@ async function main() {
   {
     const row = murkBook.rows.find((r) => r.label.includes('濁言'));
     ok(Boolean(row), '圖鑑第四列「濁言與正言」', JSON.stringify(murkBook.rows));
-    eq(row && row.n, `1 / ${murkBook.total}`, '計數是 1 / 8');
+    eq(row && row.n, `1 / ${murkBook.total}`, `計數是 1 / ${murkBook.total}`);
     eq(murkBook.hasBook, true, '第四列下面有可展開的清單');
-    eq(murkBook.items, murkBook.total, '清單 8 隻都列出來');
+    eq(murkBook.items, murkBook.total, `清單 ${murkBook.total} 隻都列出來`);
     eq(murkBook.mineHasTaint, true, '安撫過的條目有濁言（弱）');
     eq(murkBook.mineHasSample, true, '安撫過的條目有範例（強）');
     ok(/最佳評價|評價/.test(murkBook.mineText) && /[SA]/.test(murkBook.mineText), '安撫過的條目有你的最佳評價', murkBook.mineText.slice(0, 120));
     ok(murkBook.mineSrc.some((h) => h.startsWith(murkBook.mineSource.split('#')[0])), '安撫過的條目有官方出處連結（護欄 2）', JSON.stringify(murkBook.mineSrc));
     ok(/還沒聽懂/.test(murkBook.otherText), '沒安撫的只顯示「還沒聽懂」', murkBook.otherText);
     eq(murkBook.otherLinks, 0, '沒安撫的不露出範例／出處');
+  }
+
+  /* ================================================================ */
+  /* v1.2 · P17：大濁靈 —— 互動半徑逐隻、規則疊加、已剝的殼不會回來、圖鑑三層 */
+  /* ================================================================ */
+  const GID = 'murk-great-halfsaid';
+  const greatNear = await evaluate(`
+    const g = window.__promptasy;
+    const e = g.murks.entries.find((x) => x.id === '${GID}');
+    const small = g.murks.entries.find((x) => x.kind !== 'great');
+    const at = (p, d) => ({ x: p[0] + d, y: 0, z: p[1] });
+    const hit = (p, d) => { const r = g.world.nearestMurk(at(p, d)); return r ? r.murk.id : null; };
+    return {
+      near58: hit(e.at, 5.8),
+      near62: hit(e.at, 6.2),
+      small58: hit(small.at, 5.8),
+      small52: hit(small.at, 5.2),
+      shells: g.world.murks.byId('${GID}').shells.length,
+      rubricLen: e.rubric.length,
+      radius: g.world.murks.byId('${GID}').radius,
+      bodyR: g.world.murks.byId('${GID}').body.userData.solidRadius,
+      title: e.title,
+    };
+  `);
+  eq(greatNear.near58, GID, '5.8 公尺按得到大濁靈（牠的互動半徑是 6.0）');
+  eq(greatNear.near62, null, '6.2 公尺按不到 —— 半徑就是 6.0，不是無限大');
+  eq(greatNear.small58, null, '同樣 5.8 公尺按不到小濁靈（牠仍是 5.5）—— 半徑是逐隻的，不是整組一個數字');
+  eq(greatNear.small52, 'murk-vague-ask', '5.2 公尺仍按得到小濁靈（沒有把小的也一起放大）');
+  eq(greatNear.shells, greatNear.rubricLen, '大濁靈的殼數 ＝ rubric 條數');
+  eq(greatNear.radius, 6, '互動半徑 6.0');
+  eq(greatNear.bodyR, 1.5, '底座碰撞半徑 1.5（體積大）');
+
+  /* --- ① 第一次：自由書寫只說清楚一半 → 剝掉一半的殼、還沒安撫 --- */
+  const halfSubmit = await evaluate(`
+    const g = window.__promptasy;
+    const c = g.promptConsole;
+    const e = g.murks.entries.find((x) => x.id === '${GID}');
+    const lines = e.sample.split('\\n');
+    const half = Math.ceil(lines.length / 2);
+    c.open(g.murkChallenge('${GID}'));
+    await new Promise((r) => setTimeout(r, 300));
+    if (c.mode !== 'free') c.setMode('free');
+    c.goAct(3, { force: true });
+    await new Promise((r) => setTimeout(r, 220));
+    document.querySelector('.prompt-input').value = lines.slice(0, half).join('\\n');
+    document.querySelector('#prompt-console [data-submit]').click();
+    await new Promise((r) => setTimeout(r, 700));
+    const hits = g.rubricHits();
+    const out = {
+      half,
+      total: lines.length,
+      passed: hits.passedIndices.slice(),
+      calmed: hits.murk.calmed,
+      newlyCalmed: hits.murk.newlyCalmed,
+      state: g.progression.murkState('${GID}'),
+      count: g.murkCount(),
+      newlyLine: document.querySelector('#prompt-console .result [data-murk-newly]')?.textContent.replace(/\\s+/g, ' ').trim() || '',
+    };
+    c.close();
+    await new Promise((r) => setTimeout(r, 280));
+    return out;
+  `);
+  ok(halfSubmit.passed.length >= 3, '第一次說清楚了好幾層（自由書寫、只給一半的句子）', JSON.stringify(halfSubmit.passed));
+  ok(halfSubmit.passed.length < halfSubmit.total, '但沒有全部說完', JSON.stringify(halfSubmit.passed));
+  eq(halfSubmit.calmed, false, '一半 → 還沒安撫（門檻是 75%）');
+  eq(halfSubmit.count, 1, '安撫數還是 1（剛剛那隻小的）');
+  eq(JSON.stringify(halfSubmit.state.hits), JSON.stringify(halfSubmit.passed), '存檔記著這一次說清楚的那幾層');
+  eq(halfSubmit.state.grade, null, '沒安撫 → 還沒有評價');
+  ok(/說清楚了 \d+ 處/.test(halfSubmit.newlyLine), '結果面說「這一次替牠說清楚了 N 處」（不是失敗）', halfSubmit.newlyLine);
+  const halfPeeled = await waitFor(async () => {
+    const r = await evaluate(`
+      const m = window.__promptasy.world.murks.byId('${GID}');
+      return { shells: m.visibleShellCount(), settled: m.settled, active: window.__promptasy.world.murks.activeParticles() };
+    `);
+    return r.active === 0 && r.shells === greatNear.rubricLen - halfSubmit.passed.length ? r : null;
+  }, { timeout: 12000, label: '大濁靈剝掉一半的殼' });
+  eq(halfPeeled.shells, greatNear.rubricLen - halfSubmit.passed.length, '殼數 ＝ 條數 − 已說清楚的層數');
+  eq(halfPeeled.settled, false, '沒安撫 → 還不是清燈（殼還在、牠還盯著你）');
+
+  /* --- ② 重開：規則疊加 —— 已經散掉的那幾層直接刻好、不再問；沒走到的只有「？」 --- */
+  const stacked = await evaluate(`
+    const g = window.__promptasy;
+    const c = g.promptConsole;
+    const e = g.murks.entries.find((x) => x.id === '${GID}');
+    c.setMode('guided');
+    c.open(g.murkChallenge('${GID}'));
+    await new Promise((r) => setTimeout(r, 320));
+    c.goAct(3, { force: true });
+    await new Promise((r) => setTimeout(r, 260));
+    const rows = [...document.querySelectorAll('#prompt-console .layers__row')].map((li) => ({
+      done: li.classList.contains('is-done'),
+      now: li.classList.contains('is-now'),
+      hidden: li.classList.contains('is-hidden'),
+      text: li.querySelector('.layers__text').textContent.trim(),
+    }));
+    const carved = [...document.querySelectorAll('#prompt-console .stele__lines .carved')].map((li) => ({
+      settled: li.hasAttribute('data-settled'),
+      text: li.textContent.trim(),
+    }));
+    return {
+      rows,
+      carved,
+      settledSlots: c.stele.settledSlots,
+      carvedCount: c.stele.progress.carved,
+      total: c.stele.progress.total,
+      ask: document.querySelector('#prompt-console [data-ask]')?.textContent.trim() || '',
+      layers: e.flow.slots.map((sl) => sl.layer),
+      asks: e.flow.slots.map((sl) => sl.ask),
+      steleText: c.stele.text,
+      sampleLines: e.sample.split('\\n'),
+    };
+  `);
+  eq(JSON.stringify(stacked.settledSlots), JSON.stringify(halfSubmit.state.hits), '預刻的那幾段 ＝ 存檔裡已經散掉的那幾層（跨次聯集）');
+  /*
+   * 預刻的是**開頭連續**那一段：中間夾著沒散掉的層時，後面那幾層要等走到才自動補上
+   * （順序必須與 slots 一致 —— 一次全部推到前面會把組出來的那段話寫成另一個順序）。
+   */
+  let lead = 0;
+  while (halfSubmit.state.hits.includes(lead)) lead += 1;
+  eq(stacked.carvedCount, lead, '重開就有開頭那幾段刻在石碑上（已剝的殼不會回來）');
+  eq(stacked.carved.every((c) => c.settled), true, '那幾段都標成「已經散掉的層」', JSON.stringify(stacked.carved.map((c) => c.settled)));
+  eq(stacked.rows.length, stacked.total, '「一層一層」那條列的長度 ＝ 段數 ＝ 殼數');
+  eq(stacked.rows.filter((r) => r.done).length, lead, '散掉的那幾層標成 done');
+  eq(stacked.rows.filter((r) => r.now).length, 1, '只有一層是「現在這一層」');
+  ok(stacked.rows.some((r) => r.hidden), '後面還有沒走到的層');
+  eq(stacked.rows.filter((r) => r.hidden).every((r) => r.text === '？'), true, '沒走到的那幾層只有一個「？」—— 不預告下一條規矩', JSON.stringify(stacked.rows.map((r) => r.text)));
+  {
+    const nowRow = stacked.rows.find((r) => r.now);
+    const nowIdx = stacked.rows.indexOf(nowRow);
+    eq(nowRow.text, stacked.layers[nowIdx], '現在這一層寫著的就是資料裡那一句');
+    eq(stacked.ask, stacked.asks[nowIdx], '問的也是那一段的問題（跳過了已經散掉的層）');
+    eq(stacked.carved.map((c) => c.text).join('\n'), stacked.sampleLines.slice(0, lead).join('\n'), '預刻的內容照 slot 的順序，不是把它們推到前面');
+  }
+
+  /* --- ③ 補完剩下的層 → 安撫（分兩次各說一半也安撫得了） --- */
+  const remain = await evaluate(`
+    const g = window.__promptasy;
+    const e = g.murks.entries.find((x) => x.id === '${GID}');
+    const done = new Set(g.progression.murkHits('${GID}'));
+    return { idx: e.flow.slots.map((sl, i) => ({ i, n: sl.options.findIndex((o) => o.correct) + 1 })).filter((x) => !done.has(x.i)) };
+  `);
+  for (const step of remain.idx) {
+    await key(`Digit${step.n}`, String(step.n), { vk: 48 + step.n });
+    await sleep(360);
+  }
+  const filled = await evaluate(`
+    const g = window.__promptasy;
+    return { act: g.promptConsole.act, text: g.promptConsole.stele.text, sample: g.promptConsole.challenge.sample, done: g.promptConsole.stele.done };
+  `);
+  eq(filled.done, true, '剩下的層補完了');
+  eq(filled.text, filled.sample, '預刻的 ＋ 這一次補的 ＝ 這一隻的正言（逐字）');
+  eq(filled.act, 4, '刻滿之後切到手掌印那一幕');
+  await holdPalm(null, 'P17：大濁靈的手掌印');
+  await waitFor(() => evaluate(`return !document.querySelector('#prompt-console [data-result]').hidden;`), { label: 'P17：結果面板', every: 150 });
+  const greatCalm = await evaluate(`
+    const g = window.__promptasy;
+    await new Promise((r) => setTimeout(r, 500));
+    return {
+      state: g.progression.murkState('${GID}'),
+      count: g.murkCount(),
+      newlyLine: document.querySelector('#prompt-console .result [data-murk-newly]')?.textContent.replace(/\\s+/g, ' ').trim() || '',
+      cues: g.audio.debug().cues.slice(-6),
+      best: g.progression.bestGrade('${GID}'),
+    };
+  `);
+  ok(/牠聽懂了/.test(greatCalm.newlyLine), '第二次補完 → 「牠聽懂了。這一句話，你替牠說完了。」', greatCalm.newlyLine);
+  eq(greatCalm.count, 2, '安撫數 +1（分兩次各說一半，照樣安撫得了）');
+  eq(greatCalm.state.hits.length, greatNear.rubricLen, '存檔的 hits ＝ 全部的層（跨次聯集、永不清零）');
+  ok(['S', 'A'].includes(greatCalm.state.grade), '全部說清楚 → 評價 ≥ A', JSON.stringify(greatCalm.state));
+  eq(greatCalm.best, null, '大濁靈仍然不進 bestGrades（不是關卡）');
+  ok(greatCalm.cues.includes('murkCalm'), '安撫的暖和弦響了', JSON.stringify(greatCalm.cues));
+  const greatSettled = await waitFor(async () => {
+    const r = await evaluate(`
+      const m = window.__promptasy.world.murks.byId('${GID}');
+      return { state: m.state, shells: m.visibleShellCount(), head: m.head.scale.x, active: window.__promptasy.world.murks.activeParticles() };
+    `);
+    return r.state === 'settled' && r.active === 0 ? r : null;
+  }, { timeout: 25000, label: '大濁靈落成清燈' });
+  eq(greatSettled.shells, 0, '全剝 → 沒有殼');
+  ok(greatSettled.head < 0.6, '頭縮成清燈', String(greatSettled.head));
+  await evaluate(`window.__promptasy.promptConsole.close(); return 1;`);
+  await sleep(320);
+
+  /* --- ④ 圖鑑三層：安撫開濁言、A 開眉批、S 開來歷；沒到那一層只給剪影 --- */
+  const layered = await evaluate(`
+    const g = window.__promptasy;
+    // 另外安排一隻「安撫過但只有 C」的大濁靈：那一隻的後兩層必須鎖著
+    const lowId = g.murks.entries.find((x) => x.kind === 'great' && x.id !== '${GID}').id;
+    g.progression.state.murks[lowId] = { hits: [0], grade: 'C' };
+    g.codex.open();
+    await new Promise((r) => setTimeout(r, 450));
+    const pick = (id) => document.querySelector('#codex [data-murk="' + id + '"]');
+    const mine = pick('${GID}');
+    const low = pick(lowId);
+    const e = g.murks.entries.find((x) => x.id === '${GID}');
+    const le = g.murks.entries.find((x) => x.id === lowId);
+    const out = {
+      lowId,
+      greatFlags: [...document.querySelectorAll('#codex [data-murk-great]')].length,
+      mine: {
+        note: !!mine.querySelector('[data-murk-note]'),
+        origin: !!mine.querySelector('[data-murk-origin]'),
+        locked: mine.querySelectorAll('[data-murk-locked]').length,
+        hasNote: mine.textContent.includes(e.scribeNote),
+        hasOrigin: mine.textContent.includes(e.origin),
+        hasTaint: mine.textContent.includes(e.taint),
+      },
+      low: {
+        note: !!low.querySelector('[data-murk-note]'),
+        origin: !!low.querySelector('[data-murk-origin]'),
+        locked: [...low.querySelectorAll('[data-murk-locked]')].map((el) => el.getAttribute('data-murk-locked')),
+        lockedText: [...low.querySelectorAll('[data-murk-locked]')].map((el) => el.textContent.replace(/\\s+/g, ' ').trim()),
+        leaksNote: low.textContent.includes(le.scribeNote),
+        leaksOrigin: low.textContent.includes(le.origin),
+        hasTaint: low.textContent.includes(le.taint),
+        links: low.querySelectorAll('a[href^="https://"]').length,
+      },
+      row: [...document.querySelectorAll('#codex .finds__list li')].map((li) => ({ label: li.querySelector('b').textContent.trim(), n: li.querySelector('span').textContent.trim() })).find((r) => r.label.includes('濁言')),
+      total: g.murks.entries.length,
+      // 第四列的分子要與同一刻算出來的 murkCount 一致（含剛剛塞進去那一隻 C）
+      count: g.murkCount(),
+    };
+    delete g.progression.state.murks[lowId];
+    g.codex.close();
+    await new Promise((r) => setTimeout(r, 300));
+    return out;
+  `);
+  eq(layered.greatFlags, 12, '圖鑑認得出 12 隻大濁靈');
+  eq(layered.mine.hasTaint, true, '安撫過 → 第一層：濁言原文讀得到');
+  eq(layered.mine.note, true, '評價 ≥ A → 第二層：抄寫人的眉批開了');
+  eq(layered.mine.hasNote, true, '眉批的字真的印出來了');
+  eq(layered.low.hasTaint, true, '只拿到 C 也讀得到濁言（第一層只看安撫）');
+  eq(layered.low.note, false, 'C → 第二層還鎖著');
+  eq(layered.low.origin, false, 'C → 第三層還鎖著');
+  eq(JSON.stringify(layered.low.locked), JSON.stringify(['A', 'S']), '鎖著的兩層各自說得出「拿到 A／S 才讀得到」', JSON.stringify(layered.low.locked));
+  eq(layered.low.leaksNote, false, '鎖著的時候不劇透眉批一個字');
+  eq(layered.low.leaksOrigin, false, '鎖著的時候不劇透來歷一個字');
+  ok(layered.low.lockedText.every((t) => /才讀得到/.test(t) && /▒/.test(t)), '鎖著的那一層只給剪影 ＋ 一句「怎麼拿到」', JSON.stringify(layered.low.lockedText));
+  eq(layered.low.links, 1, '只拿到 C 的條目仍看得到官方出處（護欄 2：教學那一層不鎖）');
+  eq(layered.row.n, `${layered.count} / ${layered.total}`, '第四列的分子 ＝ 這一刻安撫過的濁靈數');
+  ok(layered.count >= 3, '這時候至少安撫過 3 隻（小的 ＋ 大的 ＋ 剛塞進去那一隻 C）', String(layered.count));
+  if (greatCalm.state.grade === 'S') {
+    eq(layered.mine.origin, true, 'S → 第三層：來歷開了');
+    eq(layered.mine.hasOrigin, true, '來歷的字真的印出來了');
+    eq(layered.mine.locked, 0, 'S → 沒有鎖著的層');
+  } else {
+    eq(layered.mine.origin, false, 'A（還不是 S）→ 來歷仍鎖著');
+    eq(layered.mine.locked, 1, 'A → 只剩來歷那一層鎖著');
   }
 
   /* --- v1.2 · P03：onRubricHits 非 murk 的差量（給 P09）：只回呼、不演出；同一 session 兩次送出 → 第二次只回新增；重開歸零 --- */
@@ -8869,7 +9151,7 @@ async function main() {
   eq(murkRM.right.active, 0, 'reduced-motion：粒子池空');
   ok(murkRM.right.flash > 0, 'reduced-motion：眼光仍會閃（關掉的是「動」，不是「回應」）', String(murkRM.right.flash));
   ok(murkRM.cues.includes('murkHit') && murkRM.cues.includes('murkCalm'), 'reduced-motion：聲音照響（murkHit ＋ murkCalm）', JSON.stringify(murkRM.cues));
-  eq(murkRM.murkCount, 2, '兩隻都安撫了（murkCount 2）');
+  eq(murkRM.murkCount, 3, '安撫過的濁靈：小的兩隻 ＋ 大的一隻（v1.2 · P17 之後是 3）');
   eq(JSON.stringify([murkRM.pos[0], murkRM.pos[2]]), JSON.stringify(murkRM.at), '清燈在原位');
   await cdp.send('Emulation.setEmulatedMedia', { features: [] }, sessionId);
   await reloadPage('P03 重新載入（回到一般動態）');

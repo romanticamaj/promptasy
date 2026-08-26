@@ -28,7 +28,7 @@ import { buildInscription, INSCRIPTION_RADIUS } from './inscriptions.js';
 import { buildLetter, LETTER_RADIUS } from './letters.js';
 import { createReactiveField, REACTIVE_SPOTS } from './reactive.js';
 import { createHandleField, HANDLE_RADIUS } from './handles.js';
-import { createMurkField, MURK_RADIUS } from './murks.js';
+import { createMurkField, isGreatMurk } from './murks.js';
 import { createWatchmanField, WATCHMAN_RADIUS } from './watchmen.js';
 import { createRubricFx } from './rubric-fx.js';
 // v1.2 · P11：中觀那一階（遮擋帶與母題）。screens.js 不 import 這裡，也不 import props.js。
@@ -3892,7 +3892,8 @@ export function createWorld({
     // Phase 25：動得了的器物 —— 走近才看得到細節，旁邊被草叢埋掉就等於沒放
     ...handles.map((h) => [h.at[0], h.at[1], 5.5]),
     // v1.2 · P01：濁靈 —— 一團暗色濁氣，旁邊被草叢埋掉就看不出「這裡有東西」
-    ...murks.map((m) => [m.at[0], m.at[1], 5.5]),
+    // v1.2 · P17：大濁靈的量體大（底座半徑 1.5、殼撐到 4 公尺），留白跟著大一格
+    ...murks.map((m) => [m.at[0], m.at[1], isGreatMurk(m) ? 7 : 5.5]),
     // v1.2 · P16c：守夜人 —— 一個站著的人被草叢埋到膝蓋就不像有人站在那裡
     ...watchmen.map((w) => [w.at[0], w.at[1], 5.5]),
     /*
@@ -4838,7 +4839,8 @@ export function createWorld({
      * @param {number} [maxDistance]
      * @param {{x:number,z:number}|null} [forward] 鏡頭的水平前方向（兩隻同時在範圍內時用來排名）
      */
-    nearestMurk(position, maxDistance = MURK_RADIUS, forward = null) {
+    nearestMurk(position, maxDistance = null, forward = null) {
+      // 不給距離就讓每一隻用自己的半徑（大濁靈 6.0 / 小濁靈 5.5，見 murks.js）
       return murkField.nearest(position, maxDistance, forward);
     },
 

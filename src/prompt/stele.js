@@ -44,6 +44,16 @@ export function createStele({ onCarve, onReject, onComplete, onPress, onTap } = 
   let carved = [];
   /** 現在在問第幾段。 */
   let index = 0;
+  /**
+   * v1.2 · P17：**已經散掉的那幾層不會再回來。**
+   * 大濁靈的殼記在存檔裡（`state.murks[id].hits`）——重開面板時那幾段
+   * 直接刻好、不再問一次；玩家只補剩下的。這是「進度只累積」在畫面上的樣子。
+   */
+  let settled = new Set();
+  /** 要不要畫「一層一層」那條列（大濁靈才有：每剝一層才看得見下一層寫什麼）。 */
+  let showLayers = false;
+  /** 上一次 load 的選項（`reopen()` 要用同一份）。 */
+  let lastOpts = {};
   /** 這一關已經送出過了嗎（送出後就不再重複觸發）。 */
   let fired = false;
   /** 蓄力環的動畫影格（只是視覺）。 */
@@ -68,6 +78,7 @@ export function createStele({ onCarve, onReject, onComplete, onPress, onTap } = 
     </div>
 
     <div class="carve" data-carve>
+      <ol class="layers" data-layers hidden aria-label="濁氣的層"></ol>
       <p class="carve__progress" data-progress></p>
       <p class="carve__ask" data-ask></p>
       <div class="carve__options" data-options aria-live="polite"></div>
@@ -97,12 +108,26 @@ export function createStele({ onCarve, onReject, onComplete, onPress, onTap } = 
   const askEl = root.querySelector('[data-ask]');
   const optionsEl = root.querySelector('[data-options]');
   const carveEl = root.querySelector('[data-carve]');
+  const layersEl = root.querySelector('[data-layers]');
   const palmWrap = root.querySelector('[data-palmwrap]');
   const palmBtn = root.querySelector('[data-palm]');
 
   /** 目前這一段的問題（沒有就是刻完了）。 */
   function slot() {
     return flow && index < flow.slots.length ? flow.slots[index] : null;
+  }
+
+  /**
+   * 存檔裡已經散掉的那幾層：直接刻上去、跳過不問。
+   * 逐段往前走（不是一次全部推到前面）—— 組出來的文字順序必須與 slots 一致。
+   */
+  function skipSettled() {
+    while (flow && index < flow.slots.length && settled.has(index)) {
+      const s = flow.slots[index];
+      const right = s.options.find((o) => o && o.correct) || s.options[0];
+      carved.push({ text: right.text, slot: index, settled: true });
+      index += 1;
+    }
   }
 
   /** 石碑上刻好的整段文字 —— 這就是要送去離線評分的 prompt。 */
@@ -141,10 +166,34 @@ export function createStele({ onCarve, onReject, onComplete, onPress, onTap } = 
     carvedEl.innerHTML = carved
       .map(
         (c, i) =>
-          `<li class="carved${i === carved.length - 1 ? ' is-fresh' : ''}" style="--i:${i}">${esc(
-            c.text
-          )}</li>`
+          `<li class="carved${i === carved.length - 1 && !c.settled ? ' is-fresh' : ''}${
+            c.settled ? ' is-settled' : ''
+          }" style="--i:${i}"${c.settled ? ' data-settled' : ''}>${esc(c.text)}</li>`
       )
+      .join('');
+  }
+
+  /**
+   * v1.2 · P17：**規則疊加。** 一層一層列出來，但**只看得見走到的那一層**：
+   * 散掉的寫著它要的東西、現在這一層寫著它要的東西、還沒走到的只有一個「？」。
+   * 與 Password Game 最大的差別是**散掉的不會回來** —— 這條列只會往下長。
+   */
+  function renderLayers() {
+    if (!showLayers || !flow || !flow.slots.some((s) => s.layer)) {
+      layersEl.hidden = true;
+      layersEl.innerHTML = '';
+      return;
+    }
+    layersEl.hidden = false;
+    layersEl.innerHTML = flow.slots
+      .map((s, i) => {
+        const done = i < index;
+        const now = i === index;
+        const label = done || now ? esc(s.layer || '') : '？';
+        return `<li class="layers__row${done ? ' is-done' : now ? ' is-now' : ' is-hidden'}"${
+          done ? ' data-layer-done' : now ? ' data-layer-now' : ''
+        }><span class="layers__dot" aria-hidden="true"></span><span class="layers__text">${label}</span></li>`;
+      })
       .join('');
   }
 
@@ -207,8 +256,11 @@ export function createStele({ onCarve, onReject, onComplete, onPress, onTap } = 
 
     carved.push({ text: option.text, slot: index });
     index += 1;
+    // 已經散掉的那幾層一路跳過（它們不會再被問一次）
+    skipSettled();
     renderCarved();
     thud('stamp');
+    renderLayers();
     renderQuestion();
     const done = index >= flow.slots.length;
     onCarve?.({ fragment: option.text, index, total: flow.slots.length, text: text() });
@@ -364,9 +416,24 @@ export function createStele({ onCarve, onReject, onComplete, onPress, onTap } = 
       const s = slot();
       return s ? s.ask : '';
     },
-    /** 換一關（或重來一次）。 */
-    load(nextFlow) {
+    /** 已經散掉（存檔記著）的那幾段（測試用）。 */
+    get settledSlots() {
+      return [...settled];
+    },
+    /**
+     * 換一關（或重來一次）。
+     * @param {object|null} nextFlow
+     * @param {{settled?:number[], layers?:boolean}} [opts]
+     *   `settled` ＝ 存檔裡已經散掉的層（直接刻好、不再問）；`layers` ＝ 畫「一層一層」那條列。
+     */
+    load(nextFlow, opts = {}) {
       flow = nextFlow && Array.isArray(nextFlow.slots) && nextFlow.slots.length ? nextFlow : null;
+      lastOpts = opts && typeof opts === 'object' ? opts : {};
+      const n = flow ? flow.slots.length : 0;
+      settled = new Set(
+        Array.isArray(lastOpts.settled) ? lastOpts.settled.filter((i) => Number.isInteger(i) && i >= 0 && i < n) : []
+      );
+      showLayers = Boolean(lastOpts.layers);
       carved = [];
       index = 0;
       fired = false;
@@ -375,15 +442,21 @@ export function createStele({ onCarve, onReject, onComplete, onPress, onTap } = 
       steleEl.classList.remove('is-ignited', 'is-full', 'is-stamp', 'is-reject');
       dustEl.innerHTML = '';
       root.hidden = !flow;
-      if (!flow) return false;
+      if (!flow) {
+        layersEl.hidden = true;
+        layersEl.innerHTML = '';
+        return false;
+      }
+      skipSettled();
       renderCarved();
+      renderLayers();
       renderQuestion();
       return true;
     },
     /** 送出之後允許再刻一次（重玩拿更高評價）。 */
     reopen() {
       if (!flow) return false;
-      return api.load(flow);
+      return api.load(flow, lastOpts);
     },
     /** 直接選某一個選項（測試 / 快捷用）。 */
     pick,

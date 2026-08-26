@@ -1069,7 +1069,7 @@ export function runPlaytestVerify({ ok, eq }) {
   {
     const murkFile = readJson('src/data/murks.json');
     const murks = murkFile.entries || [];
-    ok(murks.length === 8, `playtest：8 隻濁靈（實際 ${murks.length}）`);
+    ok(murks.length === 20, `playtest：20 隻濁靈 —— 8 隻小的 ＋ 12 隻大的（實際 ${murks.length}）`);
     for (const m of murks) {
       const tag = `[${m.id}]`;
       const sample = evaluate(m, m.sample);

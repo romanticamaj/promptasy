@@ -4,6 +4,12 @@
 > **上游**：`docs/design/gameplay-research-2026-08.md`（研究＋Codex 審查；本 spec 對應其 §6.4 第 3 步「靜止的受污染請求遭遇」與第 2 步「rubric → 世界可見因果」的最小切片）
 > **不在本 spec 內**：行動裝置操作 → [GitHub issue #4](https://github.com/romanticamaj/promptasy/issues/4)；跳躍／攻擊鍵、會追人的敵人、區域色彩腳本 → 後續 phase。
 
+> **這份 spec 描述的是 v1 的那 8 隻（P01–P04 已出貨）。**
+> v1.2 · P17 之後多了 **12 隻大濁靈**（`kind: "great"`、一片土地一隻、6–8 層殼、互動半徑 6.0、圖鑑分三層）——
+> 契約完全沿用本文（沒有回合、沒有勝負、進度只累積、選項式作答、slot 數 ＝ rubric 條數 ＝ 殼數），
+> 只有尺寸與層數不同。**當期的數字與擺位門檻請看 `WORLD.md` §1.6／§4.8 與 `scripts/expected-counts.json`**，
+> 不要照本文的「8 隻」「≤ 600 三角形」「≥ 8m」讀（那是 P01 當時的值）。
+
 ---
 
 ## 0. 一句話

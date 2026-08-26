@@ -34,6 +34,21 @@ import { makeGlowTexture } from '../engine/engine.js';
 
 /** 濁靈的互動半徑：介於石座（6.5）與石碑（4.6）之間（WORLD.md §3.2 的遞減規則）。 */
 export const MURK_RADIUS = 5.5;
+/**
+ * 大濁靈的互動半徑（v1.2 · P17）：6.0。
+ *
+ * 為什麼比小濁靈大 0.5 而不是照抄 5.5：牠最外層的殼半徑到 3.99 公尺，
+ * 5.5 的互動圈幾乎貼著殼面（玩家半徑 0.62 一站進去就已經在殼裡了）。
+ * 6.0 讓人站在殼外一步就按得到，而且仍然**小於石座的 6.5** ——
+ * 搶 `E` 的順序（石座 > 濁靈 > 守夜人 > 石碑…）一格都沒有動。
+ */
+export const GREAT_MURK_RADIUS = 6;
+/** 這一筆資料是不是大濁靈（`kind: "great"`）。 */
+export const isGreatMurk = (entry) => Boolean(entry && entry.kind === 'great');
+/** 這一隻濁靈的互動半徑。 */
+export const murkRadiusOf = (entry) => (isGreatMurk(entry) ? GREAT_MURK_RADIUS : MURK_RADIUS);
+/** 大濁靈底座的碰撞半徑（小濁靈是 0.9）。 */
+export const GREAT_BODY_RADIUS = 1.5;
 /** 走到這麼近，牠會轉頭看你（idle → aware）。 */
 export const MURK_AWARE_RADIUS = 8;
 /** 45 公尺外整組跳過（平方比較）。 */
@@ -118,11 +133,18 @@ export function disposeMurkCache() {
 }
 
 /* 三角形預算（IcosahedronGeometry：detail 0 = 20 面、detail 1 = 80 面）
- *   body 80 ＋ head 80 ＋ core 20 ＋ shells 3 × 80 ＝ 420；sprite 2 → 每隻 ≤ 600。 */
+ *   小濁靈：body 80 ＋ head 80 ＋ core 20 ＋ shells 3 × 80 ＝ 420；sprite 2 → 每隻 ≤ 600。
+ *   大濁靈（P17）：殼有 6–8 層，若照小濁靈用 detail 1（80 面）一隻就 800+ ——
+ *   所以大濁靈的殼一律 **detail 0（20 面）**：半徑大、面就大，稜角本來就是這個世界的低多邊形語言。
+ *   body 80 ＋ head 80 ＋ core 20 ＋ shells 8 × 20 ＝ 340；sprite 2 → 每隻 ≤ 400。 */
 const bodyGeo = () => g('body', () => new THREE.IcosahedronGeometry(0.9, 1));
 const headGeo = () => g('head', () => new THREE.IcosahedronGeometry(0.4, 1));
 const coreGeo = () => g('core', () => new THREE.IcosahedronGeometry(0.11, 0));
 const shellGeo = (r) => g(`shell:${r}`, () => new THREE.IcosahedronGeometry(r, 1));
+const greatBodyGeo = () => g('great:body', () => new THREE.IcosahedronGeometry(GREAT_BODY_RADIUS, 1));
+const greatHeadGeo = () => g('great:head', () => new THREE.IcosahedronGeometry(0.62, 1));
+const greatCoreGeo = () => g('great:core', () => new THREE.IcosahedronGeometry(0.16, 0));
+const greatShellGeo = (r) => g(`great:shell:${r}`, () => new THREE.IcosahedronGeometry(r, 0));
 
 /** 平滑步進（0..1）。 */
 const smooth = (u) => (u <= 0 ? 0 : u >= 1 ? 1 : u * u * (3 - 2 * u));
@@ -136,20 +158,31 @@ const smooth = (u) => (u <= 0 ? 0 : u >= 1 ? 1 : u * u * (3 - 2 * u));
 export function buildMurk(entry, kit, terrainHeight) {
   const [x, z] = entry.at;
   const y = terrainHeight(x, z);
+  const great = isGreatMurk(entry);
+  /*
+   * 大濁靈與小濁靈是**同一種東西的兩個尺寸**（同一份演出、同一份契約），
+   * 差別全部收在這一張表裡：底座半徑與壓扁、頭的高度、殼的起點與間距、光暈大小。
+   * 底座**壓得比小濁靈更扁**（0.34 而不是 0.42）是為了「站不上去」這件事靠尺寸成立：
+   * 半徑 0.8（`STAND_MIN_R`）那一圈上的高低差 0.079 > `STAND_FLAT_EPS` 0.06，
+   * 頂面永遠量不成「夠平」——不靠任何旗標宣告（同 P16c 守夜人底座 0.55 的作法）。
+   */
+  const S = great
+    ? { bodyR: GREAT_BODY_RADIUS, bodyFlat: 0.34, bodyY: 0.3, headY: 1.9, coreZ: 0.62, coreY: 0.06, shell0: 1.75, shellStep: 0.32, shellY: 1.55, glow: 5.2 }
+    : { bodyR: 0.9, bodyFlat: 0.42, bodyY: 0.3, headY: 1.05, coreZ: 0.42, coreY: 0.04, shell0: 0.95, shellStep: 0.28, shellY: 0.95, glow: 3.2 };
   const grp = new THREE.Group();
   grp.name = `murk:${entry.id}`;
   grp.position.set(x, y, z);
 
   // 底座：實心、擋人。低矮的一團「被弄髒的地面」。
   const body = new THREE.Mesh(
-    bodyGeo(),
+    great ? greatBodyGeo() : bodyGeo(),
     mat(`body:${kit.dark}`, () => new THREE.MeshStandardMaterial({ color: kit.dark, flatShading: true, roughness: 0.96 }))
   );
   body.name = 'body';
-  // 只壓扁 Y：碰撞半徑＝幾何半徑 × 水平縮放，這樣登記表上就是 0.9 整
-  body.scale.set(1, 0.42, 1);
-  body.position.y = 0.3;
-  body.userData.solidRadius = 0.9;
+  // 只壓扁 Y：碰撞半徑＝幾何半徑 × 水平縮放，這樣登記表上就是 0.9 / 1.5 整
+  body.scale.set(1, S.bodyFlat, 1);
+  body.position.y = S.bodyY;
+  body.userData.solidRadius = S.bodyR;
   // keepSolid：與石座本體同待遇——淨空區掃雜物時不准把牠掃掉。
   // （半徑 0.9 > CLUTTER_RADIUS，`inNoCollideZone` 本來就不會把牠當雜物；這面旗是「宣告牠是主體」的保險，不是必要條件。）
   body.userData.keepSolid = true;
@@ -158,7 +191,7 @@ export function buildMurk(entry, kit, terrainHeight) {
   // 會轉頭的那一團 ＋ 眼光
   const head = new THREE.Group();
   head.name = 'head';
-  head.position.y = 1.05;
+  head.position.y = S.headY;
   const headMat = mat(
     `head:${kit.mid}:${kit.dark}`,
     () =>
@@ -170,7 +203,7 @@ export function buildMurk(entry, kit, terrainHeight) {
         roughness: 0.85,
       })
   );
-  const headMesh = new THREE.Mesh(headGeo(), headMat);
+  const headMesh = new THREE.Mesh(great ? greatHeadGeo() : headGeo(), headMat);
   headMesh.scale.set(1.15, 0.9, 1.15);
   head.add(headMesh);
   const coreMat = new THREE.MeshStandardMaterial({
@@ -180,9 +213,9 @@ export function buildMurk(entry, kit, terrainHeight) {
     flatShading: true,
     roughness: 0.4,
   });
-  const core = new THREE.Mesh(coreGeo(), coreMat);
+  const core = new THREE.Mesh(great ? greatCoreGeo() : coreGeo(), coreMat);
   core.name = 'core';
-  core.position.set(0, 0.04, 0.42);
+  core.position.set(0, S.coreY, S.coreZ);
   head.add(core);
   grp.add(head);
 
@@ -190,26 +223,33 @@ export function buildMurk(entry, kit, terrainHeight) {
   const shells = [];
   const n = Math.max(1, (entry.rubric || []).length);
   for (let i = 0; i < n; i += 1) {
-    const r = 0.95 + i * 0.28;
+    const r = S.shell0 + i * S.shellStep;
+    /*
+     * 每一層的透明度：小濁靈 3 層一路 0.2 → 0.12；大濁靈最多 8 層，
+     * 照同一個斜率減到第 8 層會變成負的（材質會整層消失、殼數就對不上），
+     * 所以大濁靈用比較緩的斜率並夾在 0.06 以上 —— 最外層仍然看得見。
+     */
+    const op = great ? Math.max(0.06, 0.18 - i * 0.014) : 0.2 - i * 0.04;
     // 同色盤同一層的殼共用一份材質；只畫正面（半透明的背面 overdraw 沒有必要）
     const shellMat = mat(
-      `shell:${kit.mid}:${i}`,
+      `${great ? 'great:' : ''}shell:${kit.mid}:${i}`,
       () =>
         new THREE.MeshBasicMaterial({
           color: kit.mid,
           transparent: true,
-          opacity: 0.2 - i * 0.04,
+          opacity: op,
           depthWrite: false,
           side: THREE.FrontSide,
         })
     );
-    const shell = new THREE.Mesh(shellGeo(Math.round(r * 100) / 100), shellMat);
+    const rr = Math.round(r * 100) / 100;
+    const shell = new THREE.Mesh(great ? greatShellGeo(rr) : shellGeo(rr), shellMat);
     shell.name = `shell:${i}`;
-    shell.position.y = 0.95;
+    shell.position.y = S.shellY;
     shell.scale.set(1, 0.78, 1);
     shell.rotation.set(i * 0.7, i * 1.3, 0);
     // 這一層原本的透明度（剝落／餘殼都從它算）；`own` ＝ 材質已經 clone 成自己的
-    shell.userData.baseOpacity = 0.2 - i * 0.04;
+    shell.userData.baseOpacity = op;
     shell.userData.own = false;
     grp.add(shell);
     shells.push(shell);
@@ -228,8 +268,8 @@ export function buildMurk(entry, kit, terrainHeight) {
     })
   );
   glow.name = 'glow';
-  glow.position.y = 1.05;
-  glow.scale.set(3.2, 3.2, 1);
+  glow.position.y = S.headY;
+  glow.scale.set(S.glow, S.glow, 1);
   glow.userData.noCollide = true;
   grp.add(glow);
 
@@ -238,6 +278,12 @@ export function buildMurk(entry, kit, terrainHeight) {
   return {
     id: entry.id,
     entry,
+    /** 'great' ＝ 大濁靈（P17）；其餘為 undefined（小濁靈）。 */
+    kind: entry.kind || null,
+    /** 這一隻的互動半徑（大 6.0 / 小 5.5）—— `nearest()` 逐隻用它，不是整組一個數字。 */
+    radius: great ? GREAT_MURK_RADIUS : MURK_RADIUS,
+    /** 頭的靜止高度（呼吸與清燈的終態都繞著它擺，不是寫死的 1.05）。 */
+    headY: S.headY,
     group: grp,
     body,
     head,
@@ -521,7 +567,7 @@ export function createMurkField({
     m.scrapT = 0;
     makeResidual(m);
     applySettle(m, 1);
-    m.head.position.y = 1.05;
+    m.head.position.y = m.headY;
     m.glow.material.opacity = 0.2;
   }
 
@@ -553,16 +599,22 @@ export function createMurkField({
      * @param {number} [maxDistance]
      * @param {{x:number,z:number}|null} [forward] 鏡頭的水平前方向（單位向量）
      */
-    nearest(position, maxDistance = MURK_RADIUS, forward = null) {
+    nearest(position, maxDistance = null, forward = null) {
       let best = null;
-      let bestDist = maxDistance;
+      let bestDist = Infinity;
       let bestScore = Infinity;
       for (let i = 0; i < murks.length; i += 1) {
         const m = murks[i];
         const dx = m.x - position.x;
         const dz = m.z - position.z;
         const d = Math.sqrt(dx * dx + dz * dz);
-        if (d >= maxDistance) continue;
+        /*
+         * v1.2 · P17：**互動半徑逐隻算**（大濁靈 6.0、小濁靈 5.5）。
+         * 呼叫端明講 maxDistance 時仍以它為準（測試與其他系統會這樣問）；
+         * 不給就用這一隻自己的半徑 —— 一個數字套整組會讓大濁靈按不到自己的殼外那一步。
+         */
+        const lim = Number.isFinite(maxDistance) ? maxDistance : m.radius;
+        if (d >= lim) continue;
         let score = d;
         if (forward && d > 0.05) {
           const dot = (dx / d) * forward.x + (dz / d) * forward.z;
@@ -615,7 +667,7 @@ export function createMurkField({
           // 這一次同時安撫的話，留 SCRAP_COUNT 顆給光屑（同一個池，別搶）
           const willCalm = Boolean(outcome.calmed || outcome.newlyCalmed) && !m.settled;
           const count = Math.min(willCalm ? N - SCRAP_COUNT : N, 8 + (peeled - 1) * 4);
-          const sy = m.y + 0.95;
+          const sy = m.y + m.headY - 0.1;
           for (let k = 0; k < count; k += 1) spawnBurst(m.x, sy, m.z, k);
         }
       }
@@ -637,7 +689,7 @@ export function createMurkField({
           m.state = 'calming';
           m.settleT = 0;
           m.scrapT = SCRAP_LOOP_SECONDS;
-          const sy = m.y + 1.05;
+          const sy = m.y + m.headY;
           for (let k = 0; k < SCRAP_COUNT; k += 1) spawnScrap(m.x, sy, m.z, k);
         }
       }
@@ -762,7 +814,7 @@ export function createMurkField({
         if (m.settled) {
           /* --- 清燈是安靜的：不 aware、不轉頭；餘殼不轉；光暈暖色微弱呼吸 --- */
           if (m.state !== 'calming') m.state = 'settled';
-          m.head.position.y = 1.05 + Math.sin(t * 0.9 + i) * 0.02 * kinetic;
+          m.head.position.y = m.headY + Math.sin(t * 0.9 + i) * 0.02 * kinetic;
           m.coreMat.emissiveIntensity = 1.3 + Math.sin(t * 1.1 + i) * 0.12 + (m.flash > 0 ? 2.4 : 0);
           m.glow.material.opacity = 0.18 + Math.sin(t * 0.9 + i) * 0.04 + (m.near ? 0.06 : 0) + (m.flash > 0 ? 0.2 : 0);
           continue;
@@ -805,7 +857,7 @@ export function createMurkField({
           const sc = breathe + s * 0.01;
           shell.scale.set(sc, 0.78 * sc, sc);
         }
-        m.head.position.y = 1.05 + Math.sin(t * 1.6 + i) * 0.05 * kinetic;
+        m.head.position.y = m.headY + Math.sin(t * 1.6 + i) * 0.05 * kinetic;
         m.coreMat.emissiveIntensity = 1.1 + m.awareAmt * 1.2 + Math.sin(t * 5.1 + i) * 0.1 + (m.flash > 0 ? 2.4 : 0);
         m.glow.material.opacity = 0.16 + m.awareAmt * 0.16 + (m.near ? 0.1 : 0) + (m.flash > 0 ? 0.25 : 0);
       }
@@ -823,4 +875,4 @@ export function createMurkField({
   return api;
 }
 
-export default { MURK_RADIUS, MURK_AWARE_RADIUS, buildMurk, createMurkField, disposeMurkCache };
+export default { MURK_RADIUS, GREAT_MURK_RADIUS, MURK_AWARE_RADIUS, buildMurk, createMurkField, disposeMurkCache };

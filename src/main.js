@@ -909,6 +909,8 @@ function boot() {
       source: e.source,
       xp: murkFile.xp,
       kind: 'murk',
+      // v1.2 · P17：大濁靈（'great'）與小濁靈（null）——主控台靠它決定要不要疊層／預刻
+      murkKind: e.kind || null,
     };
   }
 
@@ -1390,7 +1392,9 @@ function boot() {
     } else if (nearMurk) {
       // 標題 ＋ 一句狀態 ＋ E ＋ 動詞（WORLD.md §3.1）
       // 副標用牠自己的名字（含糊的請求／只說不要的請求…），不是寫死的一句
-      hud.setInteract(`<b>濁靈</b><span>${esc(nearMurk.entry.title)}</span><kbd>E</kbd> 安撫`);
+      hud.setInteract(
+        `<b>${nearMurk.entry.kind === 'great' ? '大濁靈' : '濁靈'}</b><span>${esc(nearMurk.entry.title)}</span><kbd>E</kbd> 安撫`
+      );
     } else if (nearWatchman) {
       // 標題 ＋ 一句狀態 ＋ E ＋ 動詞（WORLD.md §3.1）
       const met = progression.hasMetWatchman(nearWatchman.id);

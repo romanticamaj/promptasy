@@ -3790,6 +3790,77 @@ select option:disabled {
 .murkbook__skill b {
   color: var(--paper-2);
 }
+/* v1.2 · P17：大濁靈的條目分三層 —— 眉批（A）、來歷（S）；沒到那一層只給剪影。 */
+.murkbook__layer {
+  margin: var(--s3) 0 0;
+  padding-top: var(--s2);
+  border-top: 1px solid rgba(214, 232, 244, 0.08);
+}
+.murkbook__note {
+  margin: 0;
+  color: var(--paper-3);
+  line-height: 1.8;
+}
+.murkbook__need {
+  margin-left: 0.6em;
+  color: var(--paper-4);
+  letter-spacing: var(--tr-meta-tight);
+}
+.murkbook__layer--locked .murkbook__silhouette {
+  margin: 0;
+  color: rgba(185, 203, 219, 0.16);
+  letter-spacing: 0.12em;
+  user-select: none;
+}
+
+/* v1.2 · P17：規則疊加 —— 一層一層，只看得見走到的那一層。 */
+.layers {
+  margin: 0 0 var(--s3);
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 2px;
+}
+.layers__row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5em;
+  font-family: var(--font-meta);
+  font-size: var(--t-meta);
+  letter-spacing: var(--tr-meta-tight);
+  color: var(--paper-4);
+}
+.layers__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(185, 203, 219, 0.2);
+  flex: 0 0 auto;
+}
+.layers__row.is-done {
+  color: var(--paper-3);
+}
+.layers__row.is-done .layers__dot {
+  background: rgba(230, 199, 155, 0.55);
+}
+.layers__row.is-done .layers__text {
+  text-decoration: line-through;
+  text-decoration-color: rgba(185, 203, 219, 0.35);
+}
+.layers__row.is-now {
+  color: var(--paper-1);
+}
+.layers__row.is-now .layers__dot {
+  background: var(--paper-1);
+  box-shadow: 0 0 8px rgba(230, 199, 155, 0.5);
+}
+.layers__row.is-hidden .layers__text {
+  color: rgba(185, 203, 219, 0.22);
+}
+/* 存檔裡已經散掉的那幾層：刻好了，但不是這一次刻的 —— 顏色比新刻的暗一階。 */
+.carved.is-settled {
+  color: rgba(185, 203, 219, 0.55);
+}
 
 /* ================================================================ 刻文小語
    Phase 22：介於「世界觀石碑」與「關卡」之間的第三層 ——

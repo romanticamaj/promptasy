@@ -25,6 +25,30 @@ const SOURCE_LABEL = '神諭原典';
 /** 秘境那一章的 tell 排序（與 `secrets.json` 的 `tells` 同一組鍵）。 */
 const SECRET_TELL_ORDER = Object.freeze(['odd', 'sound', 'high']);
 
+/** 評價的高低（C < B < A < S）；沒有評價 ＝ 還沒安撫。 */
+const GRADE_RANK = Object.freeze({ C: 1, B: 2, A: 3, S: 4 });
+const gradeAtLeast = (grade, want) => (GRADE_RANK[grade] || 0) >= GRADE_RANK[want];
+
+/**
+ * v1.2 · P17：一個濁言條目的**三層**現在各自開了沒有。
+ *
+ *   · `taint`  安撫過（存了評價）→ 濁言原文、正言範例、技法與官方出處
+ *   · `note`   最佳評價 ≥ A → 抄寫人的眉批（遊戲自撰，不掛出處）
+ *   · `origin` 最佳評價 ＝ S → 一句來歷（純風味，不掛出處）
+ *
+ * 抽成模組層的純函式是為了**測得到**：三層的解鎖條件是規則，不是版面。
+ * @param {string|null} grade 這一隻的最佳評價（null ＝ 還沒安撫）
+ * @param {object} entry      murks.json 的一筆（小濁靈沒有後兩層的資料）
+ */
+export function murkLayerState(grade, entry = {}) {
+  const calmed = gradeAtLeast(grade, 'C');
+  return {
+    taint: calmed,
+    note: calmed && Boolean(entry.scribeNote) && gradeAtLeast(grade, 'A'),
+    origin: calmed && Boolean(entry.origin) && gradeAtLeast(grade, 'S'),
+  };
+}
+
 export function createCodex({
   content,
   progression,
@@ -142,10 +166,26 @@ export function createCodex({
     </div>`;
   }
 
+
+  /**
+   * v1.2 · P17：**鎖著的那一層只給剪影，不劇透。**
+   * 講得出「這裡還有東西」與「怎麼拿到」，但一個字的內容都不露。
+   */
+  function lockedLayer(label, need) {
+    return `<div class="murkbook__layer murkbook__layer--locked" data-murk-locked="${esc(need)}">
+      <p class="murkbook__label">${esc(label)}<span class="murkbook__need">拿到 ${esc(need)} 才讀得到</span></p>
+      <p class="murkbook__silhouette" aria-hidden="true">▒▒▒▒▒　▒▒▒▒▒▒▒▒　▒▒▒▒</p>
+    </div>`;
+  }
+
   /**
    * v1.2 · P02：濁言與正言 —— 第四列下面可展開的清單。
    * 安撫過的：濁言（弱）→ 你的最佳評價 → 範例（強）→ 教的技法 → 官方出處（護欄 2）。
    * 還沒安撫的：只留名字＋「還沒聽懂」（不露範例、不露出處 —— 那是自己走過去寫出來的）。
+   *
+   * v1.2 · P17：大濁靈的條目**分三層**——安撫開濁言、拿到 A 開抄寫人的眉批、
+   * 拿到 S 開一句來歷。眉批與來歷都是遊戲自撰（`authored: "game"`）的風味文字，
+   * **不掛出處**（護欄 2：只有真的教學句才附官方連結）。沒到那一層只給剪影。
    */
   function murkBook() {
     if (!murkTotal || !Array.isArray(murks) || !murks.length) return '';
@@ -154,7 +194,9 @@ export function createCodex({
         const st = progression.murkState ? progression.murkState(m.id) : null;
         const grade = st && st.grade ? st.grade : null;
         if (!grade) {
-          return `<li class="murkbook__item murkbook__item--quiet" data-murk="${esc(m.id)}">
+          return `<li class="murkbook__item murkbook__item--quiet" data-murk="${esc(m.id)}"${
+            m.kind === 'great' ? ' data-murk-great' : ''
+          }>
             <span class="murkbook__title">${esc(m.title)}</span>
             <span class="murkbook__state">還沒聽懂</span>
           </li>`;
@@ -163,7 +205,7 @@ export function createCodex({
         const tech = !skill && m.primaryTechniqueId && content.technique ? content.technique(m.primaryTechniqueId) : null;
         const skillName = skill ? skill.nameZh : tech ? tech.title : '';
         const srcName = content.sourceName ? content.sourceName(m.source) : m.source;
-        return `<li class="murkbook__item" data-murk="${esc(m.id)}">
+        return `<li class="murkbook__item" data-murk="${esc(m.id)}"${m.kind === 'great' ? ' data-murk-great' : ''}>
           <details>
             <summary>
               <span class="murkbook__title">${esc(m.title)}</span>
@@ -176,6 +218,24 @@ export function createCodex({
               <blockquote class="murkbook__sample">${esc(m.sample)}</blockquote>
               ${skillName ? `<p class="murkbook__skill">這一句話背後的技法：<b>${esc(skillName)}</b></p>` : ''}
               <a class="src" href="${esc(m.source)}" target="_blank" rel="noopener">${esc(srcName)} · 官方出處 ↗</a>
+              ${
+                m.scribeNote
+                  ? murkLayerState(grade, m).note
+                    ? `<div class="murkbook__layer" data-murk-note><p class="murkbook__label">抄寫人的眉批</p><p class="murkbook__note">${esc(
+                        m.scribeNote
+                      )}</p></div>`
+                    : lockedLayer('抄寫人的眉批', 'A')
+                  : ''
+              }
+              ${
+                m.origin
+                  ? murkLayerState(grade, m).origin
+                    ? `<div class="murkbook__layer" data-murk-origin><p class="murkbook__label">來歷</p><p class="murkbook__note">${esc(
+                        m.origin
+                      )}</p></div>`
+                    : lockedLayer('來歷', 'S')
+                  : ''
+              }
             </div>
           </details>
         </li>`;

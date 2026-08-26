@@ -2260,7 +2260,17 @@ export function createPromptConsole({
        * 最後一格）—— 所有石碑一律載入空的，`f` 這個安全取值讓這條路不會爆。
        */
       const f = currentFlow || {};
-      stele.load(k === 'choice' ? currentFlow : null);
+      /*
+       * v1.2 · P17：大濁靈的**規則疊加**——每一段都寫著「這一層要什麼」，
+       * 走到才看得見下一層；而存檔裡**已經散掉的那幾層直接刻好、不再問一次**
+       * （`murkHits()` 是跨次聯集、永不清零 —— 這就是它在畫面上的樣子）。
+       * 小濁靈維持原樣（三段一次問完），避免動到既有關卡的節奏。
+       */
+      const greatMurk = challenge.kind === 'murk' && challenge.murkKind === 'great';
+      stele.load(k === 'choice' ? currentFlow : null, {
+        settled: greatMurk ? progression.murkHits?.(challenge.id) || [] : [],
+        layers: greatMurk,
+      });
       orderBoard.load(k === 'order' ? f.orderFlow : null);
       workshop.load(k === 'workshop' ? f.workshop : null);
       fixBoard.load(k === 'fix' ? f.fixFlow : null);
