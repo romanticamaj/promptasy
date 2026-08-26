@@ -5990,11 +5990,16 @@ for (const l of letters) {
   const iHandle = mainSrcP07.indexOf('nearHandle = !blocked');
   ok(iIns > 0 && iLetter > iIns && iHandle > iLetter, 'E 的仲裁順序：刻文小語 → 殘頁 → 器物');
   ok(
-    /nearLetter =\s*\n?\s*!hitMarker && !hitMurk && !hitWatchman && !hitTablet && !hitInscription && hitLetter/.test(mainSrcP07),
-    '殘頁讓石座／濁靈／守夜人／石碑／刻文小語先搶 E'
+    /nearLetter =\s*\n?\s*!hitMarker && !hitMurk && !hitWatchman && !hitGuardian && !hitTablet && !hitInscription && hitLetter/.test(
+      mainSrcP07
+    ),
+    // v1.2 · P18：石碑前面又多了一層（守門者），殘頁仍然排在每一層之後
+    '殘頁讓石座／濁靈／守夜人／守門者／石碑／刻文小語先搶 E'
   );
   ok(
-    /hitMarker \|\| hitMurk \|\| hitWatchman \|\| hitTablet \|\| hitInscription \|\| hitLetter/.test(mainSrcP07),
+    /hitMarker \|\| hitMurk \|\| hitWatchman \|\| hitGuardian \|\| hitTablet \|\| hitInscription \|\| hitLetter/.test(
+      mainSrcP07
+    ),
     '殘頁在範圍內時，閘門不再問'
   );
 }
@@ -7345,7 +7350,12 @@ const distToSeg = (px, pz, ax, az, bx, bz) => {
     ok(/nearMurk = !hitMarker && hitMurk/.test(mainSrc), '石座優先於濁靈');
     // v1.2 · P16c：石碑前面多了一層（守夜人），濁靈仍然排在它們兩個之前
     ok(/nearWatchman = !hitMarker && !hitMurk && hitWatchman/.test(mainSrc), '濁靈優先於守夜人');
-    ok(/nearTablet = !hitMarker && !hitMurk && !hitWatchman && hitTablet/.test(mainSrc), '守夜人優先於石碑');
+    // v1.2 · P18：守夜人與石碑之間插進了守門者（人先於碑），石碑仍然排在這四層之後
+    ok(/nearGuardian = !hitMarker && !hitMurk && !hitWatchman && hitGuardian/.test(mainSrc), '守夜人優先於守門者');
+    ok(
+      /nearTablet = !hitMarker && !hitMurk && !hitWatchman && !hitGuardian && hitTablet/.test(mainSrc),
+      '守門者優先於石碑'
+    );
     const worldSrc = readFileSync(resolve(root, 'src/world/world.js'), 'utf8');
     ok(/murks\.map\(\(m\) => \[m\.at\[0\], m\.at\[1\]/.test(worldSrc), 'keepClear 納入濁靈');
     ok(/murkField\.update\(dt, t, x, z\)/.test(worldSrc), 'updateReactions 每幀更新濁靈場');
@@ -20793,6 +20803,718 @@ console.log('\n▸ 守夜人：12 位站著不動的人（v1.2 · P16c）');
     ok(/守夜人/.test(worldMdW.slice(worldMdW.indexOf('### 3.2'), worldMdW.indexOf('### 3.3'))), 'WORLD.md §3.2 的互動層表列得出守夜人');
     ok(/守夜人/.test(worldMdW.slice(worldMdW.indexOf('### 1.5'), worldMdW.indexOf('### 1.6'))), 'WORLD.md §1.5 說得出「他本來就不走」');
     ok(/P16c/.test(worldMdW), 'WORLD.md 標得出這一格');
+  }
+}
+
+/* ================================================================== */
+/* v1.2 · P18：護欄崗的守門者 —— 一個帶著 system prompt 站在門邊的人      */
+/*   ① 資料契約與護欄 2（分支只綁既有檢查器、出處只引用既有那一關）        */
+/*   ② 用語鐵則：沒有失敗態（禁字表逐句掃）                              */
+/*   ③ 狀態機：純函式、選項解得到自己那一條分支、**進度只累積**            */
+/*   ④ guard 介面：離線腳本是**已註冊的預設**，而且那條路自己走得完        */
+/*   ⑤ 擺位（對真的蓋出來的世界量）：互動圈與每一層都不重疊、站在門邊       */
+/*   ⑥ 世界實體、存檔、接線與文件                                        */
+/* ================================================================== */
+console.log('\n▸ 守門者：帶著交辦站在門邊的人（v1.2 · P18）');
+{
+  const guardianFile = readJson('src/data/guardian.json');
+  const rawGuardian = readFileSync(resolve(root, 'src/data/guardian.json'), 'utf8');
+  const Guard = (await import('../src/challenges/guardian.js')).default;
+  const GuardWorld = await import('../src/world/guardian.js');
+  const GuardUI = await import('../src/ui/guardian.js');
+  const Rules18 = (await import('./lib/screen-rules.mjs')).default;
+  const Audit18 = await import('./collision-audit.mjs');
+  const SaveIO18 = await import('../src/save/save.js');
+  const CHECKS18 = (await import('../src/challenges/checks.js')).CHECKS;
+  const MIN_LEN18 = (await import('../src/challenges/checks.js')).MIN_PROMPT_LENGTH;
+  const guardSrc = readFileSync(resolve(root, 'src/challenges/guardian.js'), 'utf8');
+  const guardWorldSrc = readFileSync(resolve(root, 'src/world/guardian.js'), 'utf8');
+  const guardUiSrc = readFileSync(resolve(root, 'src/ui/guardian.js'), 'utf8');
+  const mainSrc18 = readFileSync(resolve(root, 'src/main.js'), 'utf8');
+  const worldSrc18 = readFileSync(resolve(root, 'src/world/world.js'), 'utf8');
+  const progSrc18 = readFileSync(resolve(root, 'src/progression/progression.js'), 'utf8');
+  const cssSrc18 = readFileSync(resolve(root, 'src/styles.css'), 'utf8');
+  const worldMd18 = readFileSync(resolve(root, 'WORLD.md'), 'utf8');
+  const EX18 = EXPECT.guardian;
+
+  /* --- ① 資料契約與護欄 2 ----------------------------------------- */
+  {
+    eq(guardianFile.version, 1, 'guardian.json 有版本欄');
+    eq(guardianFile.authored, 'game', 'guardian.json 檔頭明講是遊戲自撰的層');
+    ok(
+      typeof guardianFile.note === 'string' && /出處|官方/.test(guardianFile.note),
+      'guardian.json 檔頭說明「出處以官方文件為準」'
+    );
+    eq(guardianFile.xp, 0, '說服守門者不給 XP（他讓開的那一步就是報酬）');
+    ok(/^[a-z][a-z0-9-]+$/.test(guardianFile.id), 'id 是 kebab-case');
+    ok(typeof guardianFile.name === 'string' && guardianFile.name.length > 0, '他有名字');
+    ok(typeof guardianFile.post === 'string' && guardianFile.post.length > 0, '他有崗位');
+    ok(Array.isArray(guardianFile.at) && guardianFile.at.every(Number.isFinite), 'at 是兩個數字');
+    ok(Number.isFinite(guardianFile.rot), '有崗位的朝向 rot');
+    ok(Array.isArray(guardianFile.greet) && guardianFile.greet.length >= 1, '有招呼');
+    /*
+     * 契約要**逐值**比對，不是只比 key（P16c／P17 連兩次的教訓）：
+     * 只比 key 的話，有人把門檻改鬆一條斷言都不會紅。
+     */
+    eq(EX18.value, 1, '契約寫的是一位守門者');
+    eq(EX18.region, guardianFile.region, '契約與資料是同一片土地');
+    eq(JSON.stringify(EX18.at), JSON.stringify(guardianFile.at), '契約與資料的落點逐值相同');
+    eq(EX18.latches, guardianFile.latches.length, '契約與資料的門閂數相同');
+    eq(EX18.pass, guardianFile.pass, '契約與資料的門檻相同');
+    eq(EX18.branches, guardianFile.branches.length, '契約與資料的分支數相同');
+    eq(EX18.options, guardianFile.options.length, '契約與資料的選項數相同');
+    eq(EX18.branchesMin, Guard.MIN_BRANCHES, '契約與程式的分支下限是同一個數字');
+    ok(guardianFile.branches.length >= Guard.MIN_BRANCHES, `分支 ≥ ${Guard.MIN_BRANCHES} 條`, String(guardianFile.branches.length));
+    eq(EX18.radius, GuardWorld.GUARDIAN_RADIUS, '契約與世界端的互動半徑相同');
+    eq(EX18.bodyRadius, GuardWorld.GUARDIAN_BODY_RADIUS, '契約與世界端的底座半徑相同');
+    eq(EX18.winnableMin, Rules18.GUARDIAN_WINNABLE_MIN, '契約與規則表的「站得住」門檻是同一個數字');
+    eq(EX18.winnableDirs, Rules18.GUARDIAN_WINNABLE_DIRS, '契約與規則表的方向數相同');
+    ok(EX18.winnableMin <= EX18.winnableCeiling, `門檻不超過量得到的上限（${EX18.winnableMin} ≤ ${EX18.winnableCeiling}）`);
+    eq(EX18.doorMax, Rules18.GUARDIAN_LANDMARK_MAX, '契約與規則表的「離門多遠」上限相同');
+    eq(
+      JSON.stringify(EX18.pathRange),
+      JSON.stringify([Rules18.GUARDIAN_PATH_MIN, Rules18.GUARDIAN_PATH_MAX]),
+      '契約與規則表的路網區間逐值相同'
+    );
+    eq(EX18.defaultGuard, Guard.DEFAULT_GUARD, '契約與程式的預設判定實作是同一個');
+
+    // 門閂：每一條綁一個**既有的**檢查器，出處引用**真的教這一條**的那一關
+    const byId18 = new Map(challenges.map((c) => [c.id, c]));
+    const teachesCheck = (challengeId, check) => {
+      const ch = byId18.get(challengeId);
+      return Boolean(ch && (ch.rubric || []).some((r) => r.check === check));
+    };
+    eq(new Set(guardianFile.latches.map((l) => l.id)).size, guardianFile.latches.length, '門閂 id 沒有重複');
+    for (const l of guardianFile.latches) {
+      const tag = `[latch:${l.id}]`;
+      ok(Boolean(CHECKS18[l.check]), `${tag} 綁的是既有的檢查器`, l.check);
+      ok(Boolean(byId18.get(l.from)), `${tag} 出處指向一座真的存在的神廟`, l.from);
+      ok(teachesCheck(l.from, l.check), `${tag} 那一關的 rubric 真的含這個檢查器（出處不是硬掛的）`);
+      ok(Boolean(byId18.get(l.from).source), `${tag} 那一關自己有官方連結`);
+      ok(typeof l.clause === 'string' && l.clause.length > 0 && l.clause.length <= 60, `${tag} 交辦那一行 ≤ 60 字`);
+      ok(typeof l.waiting === 'string' && l.waiting.length > 0 && l.waiting.length <= 30, `${tag} 「還在等什麼」≤ 30 字`);
+      ok(Number.isFinite(l.weight) && l.weight > 0, `${tag} 有權重`);
+    }
+    ok(guardianFile.pass <= Guard.totalWeight(guardianFile), '門檻不超過總權重（不然永遠說服不了）');
+    ok(guardianFile.pass >= Math.ceil(Guard.totalWeight(guardianFile) * 0.5), '門檻至少要總權重的一半（不然太好說服）');
+
+    // 分支：每一條綁一個既有的檢查器 ＋ 一個真的教它的出處
+    eq(new Set(guardianFile.branches.map((b) => b.id)).size, guardianFile.branches.length, '分支 id 沒有重複');
+    eq(new Set(guardianFile.branches.map((b) => b.check)).size, guardianFile.branches.length, '一條分支一個檢查器（沒有兩條搶同一支）');
+    const latchIds18 = new Set(guardianFile.latches.map((l) => l.id));
+    for (const b of guardianFile.branches) {
+      const tag = `[${b.id}]`;
+      ok(Boolean(CHECKS18[b.check]), `${tag} 綁的是既有的檢查器`, b.check);
+      ok(b.opens === null || latchIds18.has(b.opens), `${tag} opens 指向一道真的門閂（或 null）`);
+      ok(Boolean(byId18.get(b.from)), `${tag} 出處指向一座真的存在的神廟`, String(b.from));
+      ok(teachesCheck(b.from, b.check), `${tag} 那一關的 rubric 真的含這個檢查器`);
+      ok(Boolean((byId18.get(b.from) || {}).source), `${tag} 那一關自己有官方連結（畫面上點得到）`);
+      ok(Array.isArray(b.say) && b.say.length >= 1 && b.say.length <= 3, `${tag} 反應是 1–3 句`);
+      for (const line of b.say) ok(typeof line === 'string' && line.length > 0 && line.length <= 60, `${tag} 每句 ≤ 60 字`, line);
+      ok(typeof b.eyebrow === 'string' && b.eyebrow.length > 0, `${tag} 有眉標`);
+    }
+    // 每一道門閂都真的有一條分支開得了它（不然那一行永遠對不上）
+    for (const l of guardianFile.latches) {
+      ok(guardianFile.branches.some((b) => b.opens === l.id), `[latch:${l.id}] 有一條分支開得了它`);
+    }
+    // 選項：每一個都指向一條真的分支，而且長到評分引擎看得懂
+    eq(new Set(guardianFile.options.map((o) => o.id)).size, guardianFile.options.length, '選項 id 沒有重複');
+    const branchIds18 = new Set(guardianFile.branches.map((b) => b.id));
+    for (const o of guardianFile.options) {
+      const tag = `[${o.id}]`;
+      ok(branchIds18.has(o.expect), `${tag} expect 指向一條真的分支`, o.expect);
+      ok(typeof o.label === 'string' && o.label.length > 0 && o.label.length <= 24, `${tag} 選項標題 ≤ 24 字`);
+      ok(typeof o.text === 'string' && o.text.trim().length >= MIN_LEN18, `${tag} 說出來的那一句夠長（評分引擎看得懂）`);
+    }
+    // **每一條分支都有一個選項說得出來**（沒有按不出來的分支）
+    for (const b of guardianFile.branches) {
+      ok(guardianFile.options.some((o) => o.expect === b.id), `[${b.id}] 有一個選項說得出這一條`);
+    }
+    /*
+     * 護欄 2 的紅線：這個檔案裡**一個連結都不准有**。
+     * 出處一律引用 `challenges.json` 裡那一關自己的官方網址（`from`）——
+     * 這裡自己編一個 url 就是杜撰出處。
+     */
+    ok(!/https?:\/\//.test(rawGuardian), 'guardian.json 裡沒有任何網址（出處一律引用既有的那一關）');
+    ok(!/"source"|techniqueId|skillId/.test(rawGuardian), 'guardian.json 沒有自己掛技巧或出處欄位');
+  }
+
+  /* --- ② 用語鐵則：沒有失敗態（禁字表逐句掃） ---------------------- */
+  {
+    /*
+     * 同 WORLD.md §1.6 濁靈那一張表，再加上這一格自己的鐵則：
+     * 他不是「拒絕」你，他只是**還沒被說服**；畫面上也不准說得像會歸零。
+     */
+    const FORBIDDEN18 = [
+      '怪物', '敵人', '打敗', '擊敗', '戰鬥', '攻擊', '傷害', '血量', '生命值',
+      '失敗', '輸了', '贏了', '勝利', '扣分', '清零', '歸零', '重新開始', '從頭再來', '倒數',
+      '拒絕', '駁回', '不通過', '再試一次', '答錯', '錯誤',
+    ];
+    const walk18 = (v, path, hit) => {
+      if (typeof v === 'string') hit(v, path);
+      else if (Array.isArray(v)) v.forEach((x, i) => walk18(x, `${path}[${i}]`, hit));
+      else if (v && typeof v === 'object') for (const [k, x] of Object.entries(v)) walk18(x, `${path}.${k}`, hit);
+    };
+    let scanned18 = 0;
+    walk18(guardianFile, 'guardian.json', (str, path) => {
+      scanned18 += 1;
+      for (const w of FORBIDDEN18) ok(!str.includes(w), `${path} 不出現「${w}」（他只是還沒被說服）`, str.slice(0, 40));
+    });
+    ok(scanned18 > 120, '禁字表真的掃過整份 guardian.json（不是空掃）', `strings=${scanned18}`);
+    // 反例：這張表真的抓得到東西（不然它只是裝飾）—— 呼叫的是同一支 walk18
+    let caught18 = false;
+    walk18({ bad: '你失敗了，被拒絕，再試一次' }, 'fixture', (str) => {
+      if (FORBIDDEN18.some((w) => str.includes(w))) caught18 = true;
+    });
+    eq(caught18, true, '禁字表對「你失敗了，被拒絕，再試一次」會紅（反例）');
+    /*
+     * 畫面上的字也掃一次。只看**字串字面量**：註解裡寫「沒有失敗態」正是在描述
+     * 這條鐵則本身，掃到它等於把「說明規則的那句話」誤判成「違反規則的文案」。
+     */
+    for (const [name, src] of [['ui/guardian.js', guardUiSrc], ['challenges/guardian.js', guardSrc]]) {
+      for (const raw of src.split('\n')) {
+        const line = raw.trim();
+        if (line.startsWith('*') || line.startsWith('//') || line.startsWith('/*')) continue;
+        if (!/['"`]/.test(line)) continue;
+        for (const w of FORBIDDEN18) ok(!line.includes(w), `${name} 的字串裡不出現「${w}」`, line.slice(0, 50));
+      }
+    }
+  }
+
+  /* --- ③ 狀態機：純函式、解得到自己那一條分支、進度只累積 ---------- */
+  {
+    const realGuard18 = Guard.createGuard(guardianFile);
+    ok(Boolean(realGuard18), '拿得到判定者');
+    /*
+     * 拿不到判定者時給一個退路（findings：搜尋／前置拿到 null 就丟 TypeError 的話，
+     * **整支測試會中斷而不是紅一條** —— 而那正是「把離線實作拔掉」要驗的那個情況）。
+     * 這個替身什麼都解不到，所以下面每一條斷言都會各自報紅。
+     */
+    const guard18 = realGuard18 || {
+      decide: () => ({
+        branchId: null,
+        say: [],
+        opened: [],
+        after: Guard.normalizeState(null, guardianFile),
+        full: false,
+        justConvinced: false,
+      }),
+    };
+    /*
+     * **每一個選項都真的被評分引擎跑過一次**：選項的 `text` → `evaluateLine()`
+     * → `decide()`，解出來的那一條分支要與資料宣告的 `expect` 相同。
+     * 這一條把「選項」與「分支」綁死 —— 改了選項的字卻沒改分支，這裡就會紅。
+     */
+    for (const o of guardianFile.options) {
+      const ev = Guard.evaluateLine(o.text, guardianFile);
+      ok(ev.hits.length >= 1, `[${o.id}] 這一句真的命中了檢查器`, ev.hits.join(','));
+      const res = guard18.decide({ hits: [], turns: 0 }, o.text, ev);
+      eq(res.branchId, o.expect, `[${o.id}] 解到自己宣告的那一條分支`);
+      ok(res.say.length >= 1, `[${o.id}] 他真的說得出話`);
+    }
+    // 反例（**呼叫的是同一支**）：一句什麼技巧都沒用上的話 → 沒有分支，但他照樣說話
+    {
+      const dull = '天氣很好我先走了你自己看著辦吧我沒有什麼特別要說的';
+      const res = guard18.decide({ hits: [], turns: 0 }, dull, Guard.evaluateLine(dull, guardianFile));
+      eq(res.branchId, null, '反例：空泛的一句話解不到任何分支（同一支判定）');
+      eq(res.opened.length, 0, '反例：也不會開任何一道門閂');
+      ok(res.say.length >= 1, '反例：他還是說得出一句話（沒有失敗態，不是沉默也不是責備）');
+      eq(res.after.hits.length, 0, '反例：存檔沒有變');
+    }
+    /*
+     * **進度只累積**（這一格的驗收重點）：分兩次各說一半也說得完。
+     * 第一次說三句、把存檔序列化再讀回來（模擬關掉再開），第二次接著說。
+     */
+    {
+      const pick = (id) => guardianFile.options.find((o) => o.id === id);
+      const need = guardianFile.latches.filter((l) => guardianFile.branches.some((b) => b.opens === l.id));
+      const optFor = (latchId) => {
+        const b = guardianFile.branches.find((x) => x.opens === latchId);
+        return guardianFile.options.find((o) => o.expect === b.id);
+      };
+      const half = Math.ceil(guardianFile.pass / 2);
+      let st = Guard.normalizeState(null, guardianFile);
+      for (let i = 0; i < half; i += 1) {
+        const o = optFor(need[i].id);
+        st = guard18.decide(st, o.text, Guard.evaluateLine(o.text, guardianFile)).after;
+      }
+      const midway = st.hits.slice();
+      ok(midway.length >= half, '第一次說完，交辦上已經對上了幾行', midway.join(','));
+      eq(Guard.isConvinced(guardianFile, st), false, '第一次還沒說服他（那是刻意的：這一條要驗第二次接得上）');
+      // 存檔走一趟 localStorage 的形狀（壞值不會讓已經對上的行變短）
+      const reloaded = Guard.normalizeState(JSON.parse(JSON.stringify({ ...st, turns: st.turns })), guardianFile);
+      eq(JSON.stringify(reloaded.hits), JSON.stringify(midway), '關掉再開，對上的那幾行一個都沒少');
+      let st2 = reloaded;
+      for (let i = half; i < need.length && !Guard.isConvinced(guardianFile, st2); i += 1) {
+        const o = optFor(need[i].id);
+        st2 = guard18.decide(st2, o.text, Guard.evaluateLine(o.text, guardianFile)).after;
+      }
+      eq(Guard.isConvinced(guardianFile, st2), true, '**分兩次說完也說服得了**（跨次聯集，不是同一次全部到齊）');
+      for (const id of midway) ok(st2.hits.includes(id), `第一次對上的「${id}」第二次還在（進度只累積）`);
+      ok(pick('opt-frame') !== undefined, '選項表拿得到（上面那一段真的有東西可挑）');
+    }
+    // 已經開過的門閂再說一次，不會重複計、也不會退回
+    {
+      const b = guardianFile.branches.find((x) => x.opens);
+      const o = guardianFile.options.find((x) => x.expect === b.id);
+      const first = guard18.decide({ hits: [], turns: 0 }, o.text, Guard.evaluateLine(o.text, guardianFile));
+      const again = guard18.decide(first.after, o.text, Guard.evaluateLine(o.text, guardianFile));
+      eq(again.opened.length, 0, '同一句再說一次，不會再開一次（已經開的不重複計）');
+      eq(JSON.stringify(again.after.hits), JSON.stringify(first.after.hits), '對上的那幾行沒有變短也沒有變長');
+      eq(again.after.turns, first.after.turns + 1, '但說話的次數有記到');
+    }
+    // 說服過就不會退回（convinced 是黏的）
+    {
+      const done = { hits: guardianFile.latches.map((l) => l.id), turns: 9, convinced: true };
+      const dull = '天氣很好我先走了你自己看著辦吧我沒有什麼特別要說的';
+      const res = guard18.decide(done, dull, Guard.evaluateLine(dull, guardianFile));
+      eq(res.after.convinced, true, '說服過之後再說一句空泛的話，他也不會退回「還沒被說服」');
+      eq(res.full, true, '七行全開時 full 為真');
+    }
+    // 門檻上的那一步：剛好到 pass 的那一句才是「這一句說服了他」
+    {
+      const need = guardianFile.latches.filter((l) => guardianFile.branches.some((b) => b.opens === l.id));
+      const optFor = (latchId) => {
+        const b = guardianFile.branches.find((x) => x.opens === latchId);
+        return guardianFile.options.find((o) => o.expect === b.id);
+      };
+      let st = Guard.normalizeState(null, guardianFile);
+      let just = 0;
+      for (const l of need) {
+        const o = optFor(l.id);
+        const res = guard18.decide(st, o.text, Guard.evaluateLine(o.text, guardianFile));
+        if (res.justConvinced) just += 1;
+        st = res.after;
+      }
+      eq(just, 1, '「這一句說服了他」只會發生一次');
+    }
+    // normalizeState：壞值一律落成乾淨的預設，而且不會憑空長出東西
+    {
+      const dirty = Guard.normalizeState({ hits: ['frame', 'frame', 'not-a-latch', 7], turns: -3, convinced: 'yes' }, guardianFile);
+      eq(JSON.stringify(dirty.hits), JSON.stringify(['frame']), '不認得的門閂 id 與重複的一律清掉');
+      eq(dirty.turns, 0, '負的次數落成 0');
+      eq(dirty.convinced, true, 'convinced 落成布林');
+      eq(JSON.stringify(Guard.normalizeState(null, guardianFile).hits), '[]', '沒有存檔就是空的');
+    }
+    // 選項輪替：多按幾次「換一批」，每一個選項都輪得到
+    {
+      const seen = new Set();
+      for (let t = 0; t < 8; t += 1) {
+        const round = Guard.pickOptions(guardianFile, { hits: [], turns: 0 }, t);
+        ok(round.length === Guard.OPTIONS_PER_ROUND, `第 ${t} 輪擺得出 ${Guard.OPTIONS_PER_ROUND} 個選項`, String(round.length));
+        ok(new Set(round.map((o) => o.id)).size === round.length, `第 ${t} 輪沒有重複的選項`);
+        for (const o of round) seen.add(o.id);
+      }
+      eq(seen.size, guardianFile.options.length, '八輪之內，每一個選項都輪得到（沒有按不出來的話）');
+      // 還開得了門閂的排前面（那是他在等的）
+      const first = Guard.pickOptions(guardianFile, { hits: [], turns: 0 }, 0);
+      const opensOf = (o) => (guardianFile.branches.find((b) => b.id === o.expect) || {}).opens;
+      ok(opensOf(first[0]), '第一輪的第一個選項開得了一道門閂');
+      // 全開之後照樣擺得出一輪（不會變成空的）
+      const done = { hits: guardianFile.latches.map((l) => l.id), turns: 9, convinced: true };
+      eq(Guard.pickOptions(guardianFile, done, 0).length, Guard.OPTIONS_PER_ROUND, '七行全開之後照樣擺得出一輪');
+    }
+    // 交辦那一塊：對上的行是 open、沒對上的講的是「還在等什麼」（不是「你錯了」）
+    {
+      const rows = Guard.latchStatus(guardianFile, { hits: ['frame'], turns: 1, convinced: false });
+      eq(rows.length, guardianFile.latches.length, '交辦有幾行就畫幾行');
+      eq(rows.filter((r) => r.open).length, 1, '對上的那一行是 open');
+      for (const r of rows) ok(typeof r.waiting === 'string' && r.waiting.length > 0, `[${r.id}] 沒對上時說得出「還在等什麼」`);
+      const html = GuardUI.chargeHtml(guardianFile.charge, rows, { open: 1, need: guardianFile.pass, total: rows.length, convinced: false });
+      ok(html.includes('is-open'), '畫出來的交辦標得出哪一行對上了');
+      ok(html.includes(rows[0].clause) || html.includes(rows[1].clause), '交辦的原文真的畫在畫面上（那份 system prompt 玩家看得見）');
+      ok(GuardUI.saidHtml('框起來').includes('框起來'), '「你剛剛說的那一句」真的畫得出來');
+    }
+  }
+
+  /* --- ④ guard 介面：離線腳本是已註冊的預設，而且那條路自己走得完 --- */
+  {
+    eq(Guard.DEFAULT_GUARD, Guard.OFFLINE_GUARD, '預設的判定實作就是離線腳本');
+    eq(Guard.guards.has(Guard.OFFLINE_GUARD), true, '離線腳本**已經註冊**在出貨的登記表裡');
+    // 拿不到就給一個空殼（同上：讓每一條斷言各自報紅，不要讓整支測試中斷）
+    const g = Guard.createGuard(guardianFile) || { id: null, offline: null, decide: null };
+    eq(g.id, Guard.OFFLINE_GUARD, '不指定實作時拿到的是離線腳本');
+    eq(g.offline, true, '它自己說得出「我不連網」');
+    eq(typeof g.decide, 'function', 'guard 介面就是 decide(state, prompt, evaluation)');
+    /*
+     * **離線那條路自己走得完**：從零開始，只用離線判定者就說服得了他。
+     * 這一條不准用「線上模式沒做所以自動通過」交差 —— 它問的是離線那條路完不完整。
+     */
+    const walkRes = Guard.walkOffline(guardianFile);
+    ok(Boolean(walkRes), '走得完一整趟（拿得到判定者）');
+    const walk = walkRes || { convinced: false, steps: [] };
+    eq(walk.convinced, true, '**離線那條路從頭到尾說服得了他**');
+    ok(
+      walk.steps.length >= 1 && walk.steps.length <= guardianFile.latches.length,
+      '不必把七行全講完就說服得了（門檻是聯集，不是全部）',
+      String(walk.steps.length)
+    );
+    ok(walk.steps.length >= 1 && walk.steps.every((s) => s.branchId), '每一步都解到一條分支');
+    /*
+     * 反例（**呼叫的是同一支**）：把離線實作從登記表裡拿掉，整條路就走不完。
+     * 這就是「拔掉離線實作要紅」——它證明上面那一條不是空過的。
+     */
+    const empty = Guard.createGuardRegistry();
+    eq(empty.size, 0, '反例用的是一份空的登記表');
+    eq(Guard.createGuard(guardianFile, Guard.DEFAULT_GUARD, empty), null, '反例：登記表裡沒有離線實作 → 拿不到判定者');
+    eq(Guard.walkOffline(guardianFile, { registry: empty }), null, '反例：那一趟就走不完（同一支 walkOffline）');
+    // 換一個實作進去，介面照樣接得住（以後接 LLM 就是這樣接）
+    {
+      const spy = Guard.createGuardRegistry();
+      spy.register('spy', (data) => ({ id: 'spy', offline: false, decide: () => ({ branchId: null, say: [], opened: [], after: Guard.normalizeState(null, data) }) }));
+      const other = Guard.createGuard(guardianFile, 'spy', spy);
+      eq(other.id, 'spy', '登記表換得進第二個實作（未來的線上模式就是多這一列）');
+      eq(other.offline, false, '而且它自己說得出「我不是離線的那一個」');
+    }
+    // 靜態掃描：離線那一支真的不連網、不碰祕密
+    ok(
+      !/fetch\(|XMLHttpRequest|WebSocket|apiKey|api_key|https?:\/\//.test(guardSrc),
+      '狀態機沒有任何對外連線或金鑰（護欄 3：核心迴圈可離線）'
+    );
+    // 註解裡寫「不讀 localStorage」正是在描述這件事，所以掃的是**去掉註解之後**的程式
+    const guardCode = guardSrc.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+    ok(!/localStorage|document\.|window\./.test(guardCode), '狀態機是純函式（不碰 DOM、不碰存檔）');
+    ok(/from '\.\/checks\.js'/.test(guardSrc), '它只 import 既有的檢查器（不新增技巧）');
+    ok(!/import .*three/.test(guardSrc), '它不 import three.js（測試餵一份存檔就問得出答案）');
+  }
+
+  /* --- ⑤ 擺位（對真的蓋出來的世界量） ------------------------------ */
+  {
+    eq(GuardWorld.GUARDIAN_RADIUS, Rules18.GUARDIAN_R, 'guardian.js 與 screen-rules.mjs 的互動半徑是同一個數字');
+    eq(GuardWorld.GUARDIAN_RADIUS, Rules18.LAYER_INTERACT_R.guardian, '擺位規則表裡的守門者半徑也是同一個');
+    eq(GuardWorld.GUARDIAN_BODY_RADIUS, Rules18.GUARDIAN_BODY_R, '底座半徑兩份相同');
+    eq(Rules18.GUARDIAN_ABOVE_MIN.marker, Rules18.WATCHMAN_ABOVE_MIN.marker, '離石座那一條與守夜人是同一條規矩（同一個數字）');
+    eq(Rules18.GUARDIAN_ABOVE_MIN.greatmurk, Rules18.GREAT_MURK_R + Rules18.GUARDIAN_R, '離大濁靈 ＝ 互動圈不重疊（6.0 ＋ 3.2）');
+    eq(Rules18.GUARDIAN_ABOVE_MIN.watchman, Rules18.WATCHMAN_R + Rules18.GUARDIAN_R, '離守夜人 ＝ 互動圈不重疊（4.6 ＋ 3.2）');
+    eq(Rules18.GUARDIAN_ABOVE_MIN.murk, 5.5 + Rules18.GUARDIAN_R, '離小濁靈 ＝ 互動圈不重疊（5.5 ＋ 3.2）');
+    for (const k of Object.keys(Rules18.GUARDIAN_ABOVE_MIN)) {
+      ok(['marker', 'murk', 'greatmurk', 'watchman'].includes(k), `[${k}] 這一格真的有人讀（沒有死常數）`);
+    }
+
+    const [gx, gz] = guardianFile.at;
+    const here18 = World.regionAt(gx, gz);
+    ok(here18 && here18.id === guardianFile.region && !here18.onBridge, `regionAt 說他站在 ${guardianFile.region}`, JSON.stringify(here18));
+    ok(World.coverage(gx, gz) > 0.96, '腳下不是崩掉的區緣', World.coverage(gx, gz).toFixed(3));
+
+    /*
+     * **互動圈與每一層都不重疊** —— 連石座也是。
+     * 這一條是他半徑比別人小卻不會被誰蓋掉的原因（WORLD.md §3.2 那條慣例
+     * 要守的正是這件事），所以它要用**看得到互動圈**的量法（`interactRingRadius`）問，
+     * 不是拿淨空半徑去問（P17 審查 · 第 9 條）。
+     */
+    const targets18 = Rules18.interactionTargets({
+      challenges,
+      inscriptions,
+      letters: letterFile.entries,
+      handles,
+      reactiveSpots: Reactive.reactiveTargets(),
+      murks: murkFile.entries,
+      watchmen: readJson('src/data/watchmen.json').entries,
+      tablets: Props.LORE_TABLETS,
+      secrets,
+      guardians: [],
+    });
+    ok(targets18.length > 200, '真的有那麼多互動點要閃（不然這一段是空過的）', String(targets18.length));
+    /** 這一點的互動圈壓到誰了（回問題清單，空陣列＝過）—— 下面的反例會**再呼叫它一次**。 */
+    const overlaps18 = (at) => {
+      const bad = [];
+      for (const t of targets18) {
+        const need = Rules18.GUARDIAN_R + Rules18.interactRingRadius(t) + Rules18.GUARDIAN_NO_OVERLAP_MARGIN;
+        const d = Math.hypot(at[0] - t.at[0], at[1] - t.at[1]);
+        if (d < need) bad.push(`${t.k}:${t.id}（${d.toFixed(2)} < ${need.toFixed(2)}）`);
+      }
+      return bad;
+    };
+    eq(overlaps18(guardianFile.at).join('、'), '', '他的互動圈與每一層都不重疊（連石座也是）');
+    {
+      const c0 = challenges.find((c) => c.region === guardianFile.region) || challenges[0];
+      const fake = [c0.position[0] + 3, c0.position[1]];
+      ok(overlaps18(fake).length > 0, '反例：站在石座旁邊 3 公尺 → 圈疊上去（同一支判定）', overlaps18(fake)[0]);
+    }
+    // 比他高階的那幾層另外再守一次「不准站進人家的地盤」（兩條都要過）
+    for (const c of challenges) {
+      const d = Math.hypot(gx - c.position[0], gz - c.position[1]);
+      ok(d >= Rules18.GUARDIAN_ABOVE_MIN.marker, `離石座 ${c.id} ≥ ${Rules18.GUARDIAN_ABOVE_MIN.marker}m`, d.toFixed(2));
+    }
+    for (const m of murkFile.entries) {
+      const need = Rules18.GUARDIAN_ABOVE_MIN[m.kind === 'great' ? 'greatmurk' : 'murk'];
+      ok(Math.hypot(gx - m.at[0], gz - m.at[1]) >= need, `離濁靈 ${m.id} ≥ ${need}m`);
+    }
+    for (const w of readJson('src/data/watchmen.json').entries) {
+      ok(
+        Math.hypot(gx - w.at[0], gz - w.at[1]) >= Rules18.GUARDIAN_ABOVE_MIN.watchman,
+        `離守夜人 ${w.id} ≥ ${Rules18.GUARDIAN_ABOVE_MIN.watchman}m`,
+        Math.hypot(gx - w.at[0], gz - w.at[1]).toFixed(2)
+      );
+    }
+    // 不搶 E 的東西：不站在人家頭上
+    for (const s of Reactive.reactiveTargets()) {
+      ok(Math.hypot(gx - s.at[0], gz - s.at[1]) >= Rules18.GUARDIAN_AUTO_MIN, `沒站在反應物 ${s.id} 上`);
+    }
+    for (const v of Props.STORY_VIGNETTES) {
+      ok(Math.hypot(gx - v.at[0], gz - v.at[1]) >= Rules18.GUARDIAN_AUTO_MIN, `沒站在小景 ${v.id} 上`);
+    }
+    // **他是站在那道「不會關上的門」旁邊的人**（這一格的設計前提，寫成硬規則）
+    {
+      const door = Props.LANDMARKS.find((l) => l.id === Rules18.GUARDIAN_LANDMARK_ID);
+      ok(Boolean(door), '護欄崗的地標找得到（那道不會關上的門）');
+      const d = Math.hypot(gx - door.at[0], gz - door.at[1]);
+      ok(d <= Rules18.GUARDIAN_LANDMARK_MAX, `站在那道門旁邊（${d.toFixed(2)} ≤ ${Rules18.GUARDIAN_LANDMARK_MAX}m）`);
+      ok(Math.abs(d - EX18.doorNow) < 0.01, '契約記的距離就是現在量到的那一個', d.toFixed(2));
+      for (const lm of Props.LANDMARKS) {
+        ok(Math.hypot(gx - lm.at[0], gz - lm.at[1]) >= Rules18.GUARDIAN_AUTO_MIN, `沒站在地標 ${lm.id} 上`);
+      }
+    }
+    // 離主動線、閘門、出生點、起始祭壇
+    for (const l of World.BRIDGE_LANES) {
+      ok(distToSeg(gx, gz, l.ax, l.az, l.bx, l.bz) >= World.LANE_HALF + Rules18.LANE_MARGIN, `離 ${l.region} 橋的主動線夠遠`);
+    }
+    for (const c of [...World.CORRIDORS, ...World.ANNEX_LINKS]) {
+      ok(Math.hypot(gx - c.gate.x, gz - c.gate.z) >= Rules18.GATE_MIN, `離 ${c.region} 的門 ≥ ${Rules18.GATE_MIN}m`);
+    }
+    ok(Math.hypot(gx, gz - 6) >= 7, '離出生點 ≥ 7m');
+    ok(Math.hypot(gx - prologueForWorld.shrine.at[0], gz - prologueForWorld.shrine.at[1]) >= 9, '離起始祭壇 ≥ 9m');
+    // 離「走出來的路」：遇得到，又不站在路中間
+    {
+      const segs18 = Props.buildPathNetwork(
+        World.REGION_SITES,
+        [...World.CORRIDORS, ...World.ANNEX_LINKS],
+        challenges,
+        (await import('../src/world/screens.js')).PATH_BENDS
+      );
+      const dPath = Rules18.pathDistance(segs18, gx, gz);
+      ok(
+        dPath >= Rules18.GUARDIAN_PATH_MIN && dPath <= Rules18.GUARDIAN_PATH_MAX,
+        `離走出來的路 ${Rules18.GUARDIAN_PATH_MIN}–${Rules18.GUARDIAN_PATH_MAX}m`,
+        dPath.toFixed(1)
+      );
+    }
+    /*
+     * **中觀層一片都不准被清零。** 他的互動圈只要壓到中觀層的碰撞圓上，
+     * `screen-fit -- --verify` 就會紅 —— 所以同一條門檻在這裡先守一次（兩邊同一份數字）。
+     */
+    {
+      const midSolids18 = [];
+      for (const layer of testWorld.screens || []) {
+        for (const node of layer.group.children) {
+          for (const sd of World.collectSolids(node, World.terrainHeight)) midSolids18.push(sd);
+        }
+      }
+      ok(midSolids18.length >= 100, '中觀層真的有那麼多碰撞圓要閃（不然這一段是空過的）', String(midSolids18.length));
+      for (const sd of midSolids18) {
+        const need = Rules18.GUARDIAN_R + World.PLAYER_RADIUS + sd.r;
+        ok(Math.hypot(gx - sd.x, gz - sd.z) >= need, `沒有壓到中觀層的碰撞圓（≥ ${need.toFixed(2)}）`);
+      }
+    }
+    // 加了守門者之後：他自己擋得住人，但貼身三圈八個方向都繞得過去
+    ok(Boolean(testWorld.solidAt(gx, gz)), '守門者本體擋得住人');
+    ok(clearExceptSelf(testWorld, gx, gz), '除了他自己以外，這一點站得下人');
+    for (let a = 0; a < Rules18.GUARDIAN_RING_DIRS; a += 1) {
+      const ang = (a / Rules18.GUARDIAN_RING_DIRS) * Math.PI * 2;
+      for (const d of Rules18.GUARDIAN_RING_RADII) {
+        ok(testWorld.isClear(gx + Math.cos(ang) * d, gz + Math.sin(ang) * d), `周圍 ${d}m 走得到`, `a=${a}`);
+      }
+    }
+    /*
+     * **真正要守的東西**：站在他的互動圈上，有多少個方向站得住。
+     * 這一支是被測的那一支，下面的反例會**再呼叫它一次**。
+     */
+    const standableDirs18 = (at) => {
+      let free = 0;
+      for (let a = 0; a < Rules18.GUARDIAN_WINNABLE_DIRS; a += 1) {
+        const ang = (a / Rules18.GUARDIAN_WINNABLE_DIRS) * Math.PI * 2;
+        const px = at[0] + Math.cos(ang) * (Rules18.GUARDIAN_R - 0.3);
+        const pz = at[1] + Math.sin(ang) * (Rules18.GUARDIAN_R - 0.3);
+        if (!testWorld.isWalkable(px, pz) || testWorld.solidAt(px, pz)) continue;
+        free += 1;
+      }
+      return free;
+    };
+    {
+      const free = standableDirs18(guardianFile.at);
+      ok(free >= Rules18.GUARDIAN_WINNABLE_MIN, `互動圈上至少 ${Rules18.GUARDIAN_WINNABLE_MIN} 個方向站得住`, `${free}/24`);
+      ok(free <= EX18.winnableCeiling, '契約記的上限沒有低於實測（記錄用的數字要是真的）', `${free} ≤ ${EX18.winnableCeiling}`);
+      console.log(`    ↳ 守門者：互動圈上 ${free}/${Rules18.GUARDIAN_WINNABLE_DIRS} 個方向站得住（門檻 ${Rules18.GUARDIAN_WINNABLE_MIN}）`);
+    }
+    {
+      // 反例：搬到虛空邊緣 → 幾乎一個方向都站不住（同一支判定）
+      const site18 = World.REGION_SITES.find((s) => s.id === guardianFile.region);
+      const fake = [site18.x + site18.radius + 6, site18.z];
+      ok(standableDirs18(fake) < Rules18.GUARDIAN_WINNABLE_MIN, '反例：站到土地外面 → 站不住（同一支判定）', `${standableDirs18(fake)}/24`);
+    }
+    // **他真的被餵進 interactionTargets()**（沒餵進去，別人的擺位就會照過期的世界算）
+    {
+      const withHim = Rules18.interactionTargets({ challenges: [], guardians: [guardianFile] });
+      eq(withHim.length, 1, 'interactionTargets() 收得下守門者這一層');
+      eq(withHim[0].k, 'guardian', '而且標成 guardian 這一層');
+      eq(Rules18.interactionTargets({ challenges: [] }).length, 0, '反例：沒有守門者就沒有那一列');
+      ok(/guardians \|\| \[\]/.test(readFileSync(resolve(root, 'scripts/lib/screen-rules.mjs'), 'utf8')), 'interactionTargets() 真的讀了 guardians');
+    }
+    // 圈內按得到、圈外按不到（把互動半徑釘死）
+    {
+      const inRing = new THREE.Vector3(gx + Rules18.GUARDIAN_R - 0.4, 0, gz);
+      const outRing = new THREE.Vector3(gx + Rules18.GUARDIAN_R + 0.6, 0, gz);
+      ok(Boolean(testWorld.nearestGuardian(inRing)), '站在互動圈裡按得到他');
+      eq(testWorld.nearestGuardian(outRing), null, '站在互動圈外按不到他');
+    }
+  }
+
+  /* --- ⑥ 世界實體：命名、碰撞體、0 光源、預算 ---------------------- */
+  {
+    const groups18 = [];
+    testScene.traverse((o) => {
+      if (o.name && o.name.startsWith('guardian:')) groups18.push(o);
+    });
+    eq(groups18.length, 1, '守門者蓋在測試世界裡（guardian:<id>）');
+    eq(groups18[0].name, `guardian:${guardianFile.id}`, '場景圖節點名帶得出他的 id');
+
+    const solids18 = testWorld.solids.filter(
+      (s) => Math.abs(guardianFile.at[0] - s.x) < 0.01 && Math.abs(guardianFile.at[1] - s.z) < 0.01
+    );
+    eq(solids18.length, 1, '碰撞登記表含守門者的底座');
+    ok(Math.abs(solids18[0].r - GuardWorld.GUARDIAN_BODY_RADIUS) < 0.01 && solids18[0].keep === true, '底座 solidRadius 0.55 且 keepSolid');
+    /*
+     * **站不上一個人的頭。** 0.55 < STAND_MIN_R（0.8），所以 `collectSolids()`
+     * 量出來的 standable 一定是 false —— 這件事靠尺寸成立，不靠旗標宣告。
+     */
+    eq(solids18[0].standable, false, '守門者站不上去（standable false）');
+    ok(GuardWorld.GUARDIAN_BODY_RADIUS < World.STAND_MIN_R, '底座半徑本來就小於「站得下人」的下限');
+
+    let lights18 = 0;
+    let tris18 = 0;
+    testWorld.guardians.group.traverse((o) => {
+      if (o.isLight) lights18 += 1;
+      const geo = o.geometry;
+      if (!geo) return;
+      const idx = geo.index ? geo.index.count : geo.attributes.position ? geo.attributes.position.count : 0;
+      tris18 += (idx / 3) * (o.isInstancedMesh ? o.count : 1);
+    });
+    eq(lights18, 0, '守門者整層 0 光源（板上的字是自發光材質）');
+    ok(tris18 <= 200, '守門者 ≤ 200 三角形', `tris=${tris18.toFixed(0)}`);
+    console.log(`    ↳ 守門者：三角 ${tris18.toFixed(0)}、碰撞體 ${solids18.length}、光源 ${lights18}`);
+    ok(!/new THREE\.(Point|Spot|Directional|Hemisphere|Ambient|RectArea)Light/.test(guardWorldSrc), 'world/guardian.js 沒有任何光源');
+    ok(
+      !/position\.(add|lerp|copy|set)\(/.test(guardWorldSrc.split('export function createGuardianField')[1] || ''),
+      '更新迴圈裡沒有移動實體的程式（守門者不走、不跟隨）'
+    );
+    ok(
+      !/(new |\.map\(|\.filter\()/.test((guardWorldSrc.split('    update(dt, t, px, pz) {')[1] || '').split('\n    },')[0]),
+      'update() 裡零每幀配置（不 new、不 map/filter）'
+    );
+    ok(/reducedMotion \? 0 : 1/.test(guardWorldSrc), 'prefers-reduced-motion 之下只留終態（呼吸整個停掉）');
+    // 板上的字只加不減（進度只累積在畫面上的樣子）
+    {
+      const built = testWorld.guardians.byId(guardianFile.id);
+      ok(Boolean(built), 'byId 找得到他');
+      eq(built.marks.length, GuardWorld.GUARDIAN_MARKS, '胸前那塊板畫得出交辦的每一行');
+      eq(guardianFile.latches.length, GuardWorld.GUARDIAN_MARKS, '交辦有幾行，板上就有幾行');
+      built.setOpen([0, 2]);
+      eq(built.open, 2, '對上兩行，板上就亮兩行');
+      built.setOpen([1]);
+      eq(built.open, 3, '再對上一行 → 三行（已經亮的不會因為清單變短而暗掉）');
+      built.clear();
+      eq(built.open, 0, '重置之後全暗');
+      eq(testWorld.markGuardianOpen(guardianFile.id, [0]), true, 'markGuardianOpen 找得到他');
+      eq(testWorld.markGuardianOpen('guardian-does-not-exist', [0]), false, 'markGuardianOpen 對不存在的 id 回 false');
+      built.clear();
+    }
+
+    // 碰撞稽核：加了守門者之後，未涵蓋仍然 0、可站立體仍然 0
+    const res18 = Audit18.auditCoverage(testWorld.guardians.group, World.solidAt, testWorld.solids, World.terrainHeight);
+    eq(res18.uncovered.length, 0, '守門者這一層沒有穿模點');
+    eq(Audit18.auditStandables(solids18, World.terrainHeight).bad.length, 0, '守門者的碰撞圓通得過可站立體稽核');
+
+    // 預算（P18 的框）
+    ok(testWorld.solids.length < 1100, '加了守門者之後碰撞體仍在框內', `n=${testWorld.solids.length}`);
+    {
+      let worldTris18 = 0;
+      let worldLights18 = 0;
+      testScene.traverse((o) => {
+        if (o.isLight) worldLights18 += 1;
+        const geo = o.geometry;
+        if (!geo) return;
+        const idx = geo.index ? geo.index.count : geo.attributes.position ? geo.attributes.position.count : 0;
+        worldTris18 += (idx / 3) * (o.isInstancedMesh ? o.count : 1);
+      });
+      ok(worldTris18 < 236000, '整個世界的三角數仍在框內', `tris=${worldTris18.toFixed(0)}`);
+      eq(worldLights18, 37, '光源仍然是 37 盞（這一層 0 盞）');
+      console.log(`    ↳ 預算：三角 ${worldTris18.toFixed(0)}、碰撞體 ${testWorld.solids.length}、光源 ${worldLights18}`);
+    }
+  }
+
+  /* --- ⑦ 存檔：純加法、只累積、重置清得乾淨 ------------------------ */
+  {
+    const base18 = SaveIO18.defaultSave();
+    ok(base18.guardians && typeof base18.guardians === 'object' && !Array.isArray(base18.guardians), '新存檔有空的 guardians 物件');
+    eq(Object.keys(base18.guardians).length, 0, '一開始是空的');
+    // 舊存檔（沒有這一欄）照樣讀得起來
+    const old18 = SaveIO18.normalize({ version: 1, xp: 10 });
+    eq(JSON.stringify(old18.guardians), '{}', '舊存檔沒有 guardians → 補成空物件（純加法）');
+    // 逐鍵驗形
+    const dirty18 = SaveIO18.normalize({
+      guardians: {
+        'ward-gatekeeper': { hits: ['frame', 'frame', 7], turns: -2, convinced: 1 },
+        '': { hits: ['x'] },
+        bad: { hits: 'nope' },
+      },
+    });
+    eq(JSON.stringify(dirty18.guardians['ward-gatekeeper'].hits), JSON.stringify(['frame']), '壞值清乾淨、去重排序');
+    eq(dirty18.guardians['ward-gatekeeper'].turns, 0, '負的次數落成 0');
+    eq(dirty18.guardians['ward-gatekeeper'].convinced, true, 'convinced 落成布林');
+    eq(dirty18.guardians.bad, undefined, 'hits 不是陣列的整筆丟掉');
+    // 進度只累積（progression 那一層）
+    {
+      memory.clear();
+      const p18 = createProgression({ curriculum, challenges });
+      eq(p18.guardianState('ward-gatekeeper'), null, '沒說過話 → null');
+      eq(p18.hasConvincedGuardian('ward-gatekeeper'), false, '一開始還沒被說服');
+      p18.tellGuardian('ward-gatekeeper', { hits: ['frame', 'rare'], convinced: false });
+      p18.tellGuardian('ward-gatekeeper', { hits: ['rank'], convinced: false });
+      eq(JSON.stringify(p18.guardianState('ward-gatekeeper').hits), JSON.stringify(['frame', 'rank', 'rare']), '兩次的聯集，永不清零');
+      eq(p18.guardianState('ward-gatekeeper').turns, 2, '說了兩次');
+      const done18 = p18.tellGuardian('ward-gatekeeper', { hits: [], convinced: true });
+      eq(done18.firstConvinced, true, '這一次才剛好說服他');
+      p18.tellGuardian('ward-gatekeeper', { hits: [], convinced: false });
+      eq(p18.hasConvincedGuardian('ward-gatekeeper'), true, '說服過就不會退回去');
+      // 它一格都不影響進度
+      eq(p18.state.xp, 0, '跟守門者說話不給 XP');
+      eq(Object.keys(p18.state.bestGrades).length, 0, '不寫任何一關的評價');
+      p18.resetAll();
+      eq(p18.guardianState('ward-gatekeeper'), null, '重置之後清乾淨');
+    }
+    // 靜態掃描：解鎖邏輯從頭到尾沒讀過這一欄
+    {
+      const fn18 = progSrc18.slice(progSrc18.indexOf('function refreshUnlocks'));
+      ok(!/guardians/.test(fn18.slice(0, fn18.indexOf('\n  }'))), 'refreshUnlocks() 沒有讀 guardians');
+    }
+  }
+
+  /* --- ⑧ 接線、UI 與文件 ------------------------------------------ */
+  {
+    ok(/world\.nearestGuardian\(/.test(mainSrc18), 'main.js 有守門者這一層 nearestGuardian');
+    ok(/e\.code === 'KeyE' && nearGuardian/.test(mainSrc18), '`E` 打得開守門者的小窗');
+    ok(/交辦對上了 \$\{gst\.hits\.length\} 行/.test(mainSrc18), 'HUD 的狀態說的是進度（不是結果）');
+    ok(/guardians\.map\(\(g\) => \[g\.at\[0\], g\.at\[1\]/.test(worldSrc18), 'keepClear 納入守門者');
+    ok(/guardianField\.update\(dt, t, x, z\)/.test(worldSrc18), 'updateReactions 每幀更新守門者場');
+    /*
+     * 寫好了卻沒有人呼叫的 reset() 等於沒有（P17 審查記過一次）——
+     * 存檔清了，世界端那塊板要跟著暗。
+     */
+    ok(/world\.guardians\?\.reset\?\.\(\)/.test(mainSrc18), 'onReset 真的呼叫了守門者場的 reset()');
+    ok(/Guard\.createGuard\(guardianFile\)/.test(mainSrc18), 'main.js 走 guard 介面拿判定者（不指定 ＝ 離線腳本）');
+    ok(/Guard\.evaluateLine\(opt\.text, guardianFile\)/.test(mainSrc18), '玩家挑的那一句真的送進評分引擎');
+    // 不新增快捷鍵：小窗自己不掛任何 keydown（Esc／Tab 由 createOverlay 管）
+    ok(!/addEventListener\('key/.test(guardUiSrc), '守門者的小窗沒有自己的鍵盤監聽（E 仍是唯一的互動鍵）');
+    ok(/rovingList\(/.test(guardUiSrc), '選項清單走 rovingList（↑↓ / Home / End）');
+    ok(/<kbd>Esc<\/kbd>/.test(guardUiSrc), '小窗寫得出 Esc 怎麼走開');
+    ok(!/https?:\/\//.test(guardUiSrc.replace(/\/\*[\s\S]*?\*\//g, '')), '小窗自己不寫死任何網址（連結一律來自資料）');
+    ok(/\.guard__opt\b/.test(cssSrc18), 'styles.css 有守門者選項的樣式');
+    ok(/\.guard__clause\.is-open/.test(cssSrc18), 'styles.css 標得出交辦哪一行對上了');
+    // 文件與資料是同一份
+    ok(/守門者/.test(worldMd18), 'WORLD.md 記得有守門者這一層');
+    ok(/守門者/.test(worldMd18.slice(worldMd18.indexOf('### 3.2'), worldMd18.indexOf('### 3.3'))), 'WORLD.md §3.2 的互動層表列得出守門者');
+    ok(/守門者/.test(worldMd18.slice(worldMd18.indexOf('### 1.5'), worldMd18.indexOf('### 1.6'))), 'WORLD.md §1.5 說得出他也是站著不動的人');
+    ok(/P18/.test(worldMd18), 'WORLD.md 標得出這一格');
   }
 }
 

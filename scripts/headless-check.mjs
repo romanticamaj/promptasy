@@ -20095,6 +20095,386 @@ async function main() {
     eq(n.jumped, false, `P16d：[頸口:${n.region}] 全程貼著地形（沒有跳）`);
   }
 
+
+  /* ================================================================ */
+  /*
+   * 守門者（v1.2 · P18）
+   *
+   * 護欄崗那道「不會關上的門」旁邊，一個**帶著 system prompt 站著的人**。
+   * 這一段要證明五件事：
+   *   ① 他真的站在地圖上（0 光源、擋得住人、四周走得到、板上七行）。
+   *   ② 走過去按 `E`：那份交辦**玩家真的讀得到**（七行都畫在畫面上），
+   *      作答是**用選的**（沒有輸入框），面板開著走不動。
+   *   ③ 用對技巧他就讓一步：交辦上那一行變成「對上了」、胸前那塊板多亮一行、
+   *      存檔記下來，而且那一條的**官方出處點得到**。
+   *   ④ **分兩次說服完**：說到差一行 → 走開 → 走遠 → 回來 → 先前對上的那幾行
+   *      **還亮著**（重開面板不重播）→ 再說一句 → 說服、放行。
+   *   ⑤ **全程零失敗態**：面板與 HUD 上一個「失敗／拒絕／再試一次」都沒有。
+   */
+  console.log('\n▸ 守門者：帶著交辦站在門邊的人（v1.2 · P18）');
+
+  // 場面清乾淨（前面走了很多路、開過區域）
+  await evaluate(`
+    const g = window.__promptasy;
+    if (g.prologue.isActive) g.prologue.skip();
+    for (const k of ['keyhelp','shareCard','promptConsole','codex','settings','finale','tabletPanel','inscriptionPanel','letterPanel','watchmanPanel','guardianPanel','handlePanel','practice']) {
+      try { if (g[k] && g[k].isOpen) g[k].close(); } catch {}
+    }
+    if (g.gateAsk.isOpen) g.gateAsk.close({ silent: true });
+    const st = g.progression.state;
+    // 借來的解鎖記下來，這一段結束時還回去
+    window.__p18Borrowed = ['grounding', 'wards'].filter((id) => !st.unlockedRegions.includes(id));
+    for (const id of window.__p18Borrowed) st.unlockedRegions.push(id);
+    g.world.refreshGates();
+    g.player.setInputEnabled(true);
+    return 1;
+  `);
+
+  const guardWorld = await evaluate(`
+    const g = window.__promptasy;
+    const spec = g.guardianData;
+    const names = [];
+    g.world.root.traverse((o) => { if (o.name && o.name.startsWith('guardian:')) names.push(o.name); });
+    let lights = 0, tris = 0;
+    g.world.guardians.group.traverse((o) => {
+      if (o.isLight) lights += 1;
+      if (o.isMesh && o.geometry) {
+        const idx = o.geometry.index;
+        tris += idx ? idx.count / 3 : o.geometry.attributes.position.count / 3;
+      }
+    });
+    let free = 0;
+    for (let a = 0; a < 16; a += 1) {
+      const ang = (a / 16) * Math.PI * 2;
+      if (!g.world.solidAt(spec.at[0] + Math.cos(ang) * 2.6, spec.at[1] + Math.sin(ang) * 2.6)) free += 1;
+    }
+    const built = g.world.guardians.byId(spec.id);
+    return {
+      built: names.length,
+      name: names[0] || '',
+      total: 1,
+      lights, tris, free,
+      solid: Boolean(g.world.solidAt(spec.at[0], spec.at[1])),
+      marks: built ? built.marks.length : 0,
+      latches: spec.latches.length,
+      branches: spec.branches.length,
+      options: spec.options.length,
+      xp: spec.xp,
+      guard: g.guardianGuard(),
+      hasNearest: typeof g.world.nearestGuardian === 'function',
+      urls: /https?:\\/\\//.test(JSON.stringify(spec)),
+    };
+  `);
+  eq(guardWorld.built, 1, '守門者蓋在世界裡（guardian:<id>）');
+  eq(guardWorld.name, 'guardian:ward-gatekeeper', '場景圖節點名帶得出他的 id');
+  eq(guardWorld.lights, 0, '守門者一盞燈都沒加（板上的字是自發光材質）');
+  ok(guardWorld.tris <= 200, '他自己 ≤ 200 三角形', `tris=${Math.round(guardWorld.tris)}`);
+  eq(guardWorld.solid, true, '他擋得住人');
+  eq(guardWorld.free, 16, '貼身那一圈 16 個方向都繞得過去', String(guardWorld.free));
+  eq(guardWorld.marks, guardWorld.latches, '胸前那塊板畫得出交辦的每一行');
+  ok(guardWorld.branches >= 12, '分支 ≥ 12 條', String(guardWorld.branches));
+  ok(guardWorld.options >= 12, '說得出來的話 ≥ 12 句', String(guardWorld.options));
+  eq(guardWorld.xp, 0, '說服守門者不給 XP');
+  eq(guardWorld.hasNearest, true, '世界提供 nearestGuardian');
+  eq(guardWorld.urls, false, 'guardian.json 裡一個網址都沒有（出處引用既有那一關）');
+  ok(guardWorld.guard && guardWorld.guard.id === 'offline', '判定走的是離線腳本（預設實作）', JSON.stringify(guardWorld.guard));
+  eq(guardWorld.guard.offline, true, '而且它自己說得出「我不連網」');
+
+  /* --- ② 走過去 → 提示 → E → 交辦讀得到、用選的、走不動 --- */
+  const guardTalk = await evaluate(`
+    const g = window.__promptasy;
+    const spec = g.guardianData;
+    const hintNow = () => {
+      const el = document.querySelector('[data-interact]');
+      return el && !el.hidden ? el.textContent.replace(/\\s+/g, ' ').trim() : '';
+    };
+    const waitHint = async (want, ms = 8000) => {
+      const t0 = Date.now();
+      let last = '';
+      while (Date.now() - t0 < ms) {
+        last = hintNow();
+        if (last.includes(want)) return last;
+        await new Promise((r) => setTimeout(r, 60));
+      }
+      return last;
+    };
+    const waitFor = async (fn, ms = 6000) => {
+      const t0 = Date.now();
+      while (Date.now() - t0 < ms) {
+        if (fn()) return true;
+        await new Promise((r) => setTimeout(r, 60));
+      }
+      return false;
+    };
+    // 從零開始（前面的段落沒碰過他，但存檔還是清一次比較乾淨）
+    g.progression.state.guardians = {};
+    g.world.guardians.reset();
+    // 站到他旁邊（他的互動半徑 3.2）
+    g.player.teleport(spec.at[0] + 1.5, spec.at[1] + 1.5);
+    const out = { id: spec.id, name: spec.name, xpBefore: g.progression.state.xp };
+    out.hint = await waitHint(spec.name);
+    // 走近之後：頭轉了、人沒動
+    const built = g.world.guardians.byId(spec.id);
+    const posBefore = built.group.position.clone();
+    const headBefore = built.head.rotation.y;
+    await new Promise((r) => setTimeout(r, 900));
+    out.moved = built.group.position.distanceTo(posBefore);
+    out.headTurned = Math.abs(built.head.rotation.y - headBefore);
+
+    window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyE', bubbles: true }));
+    out.opened = await waitFor(() => g.guardianPanel.isOpen);
+    const panel = document.querySelector('#guardian');
+    out.inputEnabled = g.player.inputEnabled;
+    out.title = panel.querySelector('.panel__title')?.textContent.trim() || '';
+    out.clauses = [...panel.querySelectorAll('.guard__clause .guard__text')].map((p) => p.textContent.trim());
+    out.states = [...panel.querySelectorAll('.guard__clause .guard__state')].map((p) => p.textContent.trim());
+    out.openNow = panel.querySelectorAll('.guard__clause.is-open').length;
+    out.opts = [...panel.querySelectorAll('.guard__opt')].map((b) => b.getAttribute('data-option'));
+    out.noTextarea = !panel.querySelector('textarea, input[type=text]');
+    out.wantClauses = spec.latches.map((l) => l.clause);
+    // 交辦那一塊真的量得到（不是 0×0 的空殼）
+    const charge = panel.querySelector('.guard__charge');
+    const r = charge ? charge.getBoundingClientRect() : { width: 0, height: 0 };
+    out.chargeBox = [Math.round(r.width), Math.round(r.height)];
+    // 面板開著的時候走不動：按住 W 一秒，世界座標不變
+    const px0 = g.player.position.x, pz0 = g.player.position.z;
+    window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyW', bubbles: true }));
+    await new Promise((r2) => setTimeout(r2, 900));
+    window.dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyW', bubbles: true }));
+    out.walkedWhileOpen = Math.hypot(g.player.position.x - px0, g.player.position.z - pz0);
+    // 換一批話：換過之後選項不一樣（每一句都輪得到）
+    const before = out.opts.join(',');
+    panel.querySelector('[data-more-opts]').click();
+    await waitFor(() => [...panel.querySelectorAll('.guard__opt')].map((b) => b.getAttribute('data-option')).join(',') !== before);
+    out.opts2 = [...panel.querySelectorAll('.guard__opt')].map((b) => b.getAttribute('data-option'));
+    return out;
+  `);
+  ok(guardTalk.hint.includes(guardTalk.name), '走近守門者 → 提示講的是他', guardTalk.hint);
+  ok(guardTalk.hint.includes('說話'), '提示的動詞是「說話」', guardTalk.hint);
+  ok(guardTalk.moved < 0.001, '走近之後他一步都沒動（不走、不跟隨）', String(guardTalk.moved));
+  ok(guardTalk.headTurned > 0.01, '但他轉頭看你了', String(guardTalk.headTurned));
+  eq(guardTalk.opened, true, '按 E 打開守門者的小窗');
+  eq(guardTalk.inputEnabled, false, '面板開著的時候世界層收不到操控');
+  ok(guardTalk.walkedWhileOpen < 0.001, '面板開著的時候走不動', String(guardTalk.walkedWhileOpen));
+  ok(guardTalk.title.includes(guardTalk.name), '小窗的標題是他', guardTalk.title);
+  eq(guardTalk.noTextarea, true, '選項式作答：沒有輸入框（用選的，不打字）');
+  eq(guardTalk.clauses.length, guardWorld.latches, '交辦的每一行都畫在畫面上（那份 system prompt 玩家讀得到）');
+  eq(JSON.stringify(guardTalk.clauses), JSON.stringify(guardTalk.wantClauses), '而且逐字取自 guardian.json');
+  ok(guardTalk.chargeBox[0] > 100 && guardTalk.chargeBox[1] > 60, '那一塊真的量得到（不是 0×0 的空殼）', JSON.stringify(guardTalk.chargeBox));
+  eq(guardTalk.openNow, 0, '一開始一行都還沒對上');
+  ok(guardTalk.states.every((s) => s.length > 0), '沒對上的行說的是「還在等什麼」', JSON.stringify(guardTalk.states.slice(0, 2)));
+  ok(guardTalk.opts.length >= 3, '一次擺得出好幾句話', JSON.stringify(guardTalk.opts));
+  ok(guardTalk.opts2.join(',') !== guardTalk.opts.join(','), '「換一批話」真的換得到別的句子', guardTalk.opts2.join(','));
+
+  /* --- ③④ 用對技巧他讓一步；**分兩次說服完** --- */
+  const guardTalk2 = await evaluate(`
+    const g = window.__promptasy;
+    const spec = g.guardianData;
+    const waitFor = async (fn, ms = 6000) => {
+      const t0 = Date.now();
+      while (Date.now() - t0 < ms) {
+        if (fn()) return true;
+        await new Promise((r) => setTimeout(r, 60));
+      }
+      return false;
+    };
+    const panelEl = () => document.querySelector('#guardian');
+    /*
+     * 按 E 是**輪詢式**的：面板剛收起來時 nearGuardian 要等下一次世界 tick 才更新，
+     * 只按一下就等於在跟牆鐘賽跑（findings：不要用固定 sleep 對齊時序）。
+     */
+    const openPanel = async () => {
+      const t0 = Date.now();
+      while (Date.now() - t0 < 8000) {
+        if (g.guardianPanel.isOpen) return true;
+        window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyE', bubbles: true }));
+        await new Promise((r) => setTimeout(r, 120));
+      }
+      return g.guardianPanel.isOpen;
+    };
+    const closePanel = async () => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      return waitFor(() => !g.guardianPanel.isOpen);
+    };
+    /** 說一句：需要的話先換到有那個選項的那一批，再按下去。 */
+    const say = async (optionId) => {
+      const panel = panelEl();
+      for (let i = 0; i < 8; i += 1) {
+        const btn = panel.querySelector('[data-option="' + optionId + '"]');
+        if (btn) {
+          btn.click();
+          await waitFor(() => panel.querySelector('.guard__said'));
+          return {
+            said: panel.querySelector('.guard__said')?.textContent || '',
+            reply: [...panel.querySelectorAll('.guard__line')].map((p) => p.textContent.trim()),
+            src: panel.querySelector('a.bookicon')?.getAttribute('href') || '',
+            srcVisible: (() => {
+              const a = panel.querySelector('a.bookicon');
+              if (!a) return false;
+              const r = a.getBoundingClientRect();
+              return getComputedStyle(a).visibility === 'visible' && r.width > 0 && r.height > 0;
+            })(),
+            text: panel.textContent.replace(/\\s+/g, ' '),
+          };
+        }
+        const before = [...panel.querySelectorAll('.guard__opt')].map((b) => b.getAttribute('data-option')).join(',');
+        panel.querySelector('[data-more-opts]').click();
+        await waitFor(() => [...panel.querySelectorAll('.guard__opt')].map((b) => b.getAttribute('data-option')).join(',') !== before);
+      }
+      return null;
+    };
+    const back = async () => {
+      const panel = panelEl();
+      panel.querySelector('[data-back]').click();
+      return waitFor(() => panel.querySelectorAll('.guard__opt').length > 0);
+    };
+    const optFor = (latchId) => {
+      const b = spec.branches.find((x) => x.opens === latchId);
+      return spec.options.find((o) => o.expect === b.id);
+    };
+    const need = spec.latches.filter((l) => spec.branches.some((b) => b.opens === l.id));
+    const out = { texts: [], marksAfterFirst: 0 };
+    /*
+     * XP 與評價要比對**這一段開始之前**的值：整支 e2e 跑到這裡早就通關過好幾關，
+     * 拿 0 去比就是在驗一個永遠不成立的命題（而它會把「沒給 XP」誤報成壞掉）。
+     */
+    out.xpBefore = g.progression.state.xp;
+    out.gradesBefore = Object.keys(g.progression.state.bestGrades).length;
+
+    // 從乾淨的一幕開始（上一段把面板留在「換過一批」的狀態）
+    if (g.guardianPanel.isOpen) g.guardianPanel.close();
+    g.player.teleport(spec.at[0] + 1.5, spec.at[1] + 1.5);
+    out.opened0 = await openPanel();
+
+    // 第一段：說到「還差一行」為止
+    const firstHalf = need.slice(0, spec.pass - 1);
+    for (const l of firstHalf) {
+      const o = optFor(l.id);
+      const res = await say(o.id);
+      if (!res) { out.missing = o.id; break; }
+      out.texts.push(res.text);
+      if (!out.firstSay) { out.firstSay = res.said; out.firstReply = res.reply; out.firstSrc = res.src; out.firstSrcVisible = res.srcVisible; }
+      await back();
+    }
+    const panel1 = panelEl();
+    out.openAfterFirst = panel1.querySelectorAll('.guard__clause.is-open').length;
+    out.stateAfterFirst = g.guardianState();
+    out.marksAfterFirst = g.guardianMarks();
+    out.savedAfterFirst = JSON.parse(localStorage.getItem('promptasy.v1.save')).guardians[spec.id];
+    out.convincedAfterFirst = out.stateAfterFirst.convinced;
+
+    // 走開、走遠、再回來（模擬「另一趟」）
+    out.closed = await closePanel();
+    // 走遠一點（還在同一片土地上，只是離開他的互動圈）
+    g.player.teleport(spec.at[0] + 6, spec.at[1] + 9);
+    // 提示是世界迴圈更新的 —— 等它**真的換過一輪**再讀（不要用固定 sleep 對齊 tick）
+    const hintText = () => {
+      const el = document.querySelector('[data-interact]');
+      return el && !el.hidden ? el.textContent.replace(/\\s+/g, ' ').trim() : '';
+    };
+    await waitFor(() => !hintText().includes(spec.name), 6000);
+    out.farHint = hintText();
+    g.player.teleport(spec.at[0] + 1.5, spec.at[1] + 1.5);
+    await waitFor(() => hintText().includes(spec.name), 6000);
+    out.reopened = await openPanel();
+    const panel2 = panelEl();
+    out.openOnReturn = panel2.querySelectorAll('.guard__clause.is-open').length;
+    out.greetOnReturn = [...panel2.querySelectorAll('.guard__line')].map((p) => p.textContent.trim());
+    out.texts.push(panel2.textContent.replace(/\\s+/g, ' '));
+
+    // 第二段：把剩下的說完
+    for (const l of need.slice(spec.pass - 1)) {
+      if (g.guardianState().convinced) break;
+      const o = optFor(l.id);
+      const res = await say(o.id);
+      if (!res) { out.missing2 = o.id; break; }
+      out.texts.push(res.text);
+      out.lastReply = res.reply;
+      if (!g.guardianState().convinced) await back();
+    }
+    out.stateEnd = g.guardianState();
+    out.marksEnd = g.guardianMarks();
+    out.latchRows = g.guardianLatches().map((r) => [r.id, r.open]);
+    const panel3 = panelEl();
+    out.doneText = panel3.textContent.replace(/\\s+/g, ' ');
+    out.texts.push(out.doneText);
+    out.savedEnd = JSON.parse(localStorage.getItem('promptasy.v1.save')).guardians[spec.id];
+    out.xpAfter = g.progression.state.xp;
+    out.gradesAfter = Object.keys(g.progression.state.bestGrades).length;
+    /*
+     * 收起來、再走近一次：提示說的是進度，不是結果。
+     *
+     * ⚠️ 這裡**不能**只等「提示裡有他的名字」：面板打開的那一瞬間是同步發生的
+     * （按鍵處理函式裡就開了），而這台機器一幀 180 ms —— 中間很可能**一幀都沒跑**，
+     * 於是畫面上還留著開面板之前那一句（那時候才對上 4 行）。
+     * 只等「有他的名字」會當場命中那一句舊的（findings：取樣視窗要蓋住事件本身）。
+     * 所以等的是「它**與剛剛那一句不同**、而且仍然是他的提示」。
+     */
+    const staleHint = hintText();
+    await closePanel();
+    await waitFor(() => hintText() !== staleHint && hintText().includes(spec.name), 8000);
+    out.hintDone = hintText();
+    out.hintStale = staleHint;
+    out.stateAtHint = g.guardianState();
+    out.pass = spec.pass;
+    out.total = spec.latches.length;
+    return out;
+  `);
+  eq(guardTalk2.missing, undefined, '第一段每一句都說得出來（選項輪得到）', String(guardTalk2.missing));
+  ok(guardTalk2.firstSay && guardTalk2.firstSay.length > 10, '面板上看得到「你剛剛說的那一句」（真的送進評分引擎的那一段字）', String(guardTalk2.firstSay).slice(0, 30));
+  ok(guardTalk2.firstReply && guardTalk2.firstReply.length >= 1, '他回了話', JSON.stringify(guardTalk2.firstReply));
+  ok(/^https?:\/\//.test(guardTalk2.firstSrc), '那一條的官方出處點得到', guardTalk2.firstSrc);
+  eq(guardTalk2.firstSrcVisible, true, '那個連結真的畫在畫面上（量得到寬高）');
+  eq(guardTalk2.openAfterFirst, guardTalk2.pass - 1, '第一段說完，交辦上對上了幾行', String(guardTalk2.openAfterFirst));
+  eq(guardTalk2.marksAfterFirst, guardTalk2.openAfterFirst, '胸前那塊板亮的行數與面板一致');
+  eq(guardTalk2.convincedAfterFirst, false, '第一段還沒說服他（這一條是刻意的：下一條要驗第二趟接得上）');
+  ok(guardTalk2.savedAfterFirst && guardTalk2.savedAfterFirst.hits.length === guardTalk2.pass - 1, '對上的那幾行寫進存檔', JSON.stringify(guardTalk2.savedAfterFirst));
+  eq(guardTalk2.closed, true, 'Esc 走得開');
+  eq(guardTalk2.farHint.includes('守門者'), false, '走遠了就按不到他');
+  eq(guardTalk2.reopened, true, '走回來按 E 又開得起來');
+  eq(guardTalk2.openOnReturn, guardTalk2.openAfterFirst, '**回來的時候，先前對上的那幾行還亮著**（重開面板不重播）');
+  ok(guardTalk2.greetOnReturn.length >= 1, '他記得你來過（招呼換成「你說過的那幾件，我記著」那一類）', JSON.stringify(guardTalk2.greetOnReturn));
+  eq(guardTalk2.missing2, undefined, '第二段每一句也都說得出來', String(guardTalk2.missing2));
+  eq(guardTalk2.stateEnd.convinced, true, '**分兩次說完也說服得了他**');
+  ok(guardTalk2.stateEnd.hits.length >= guardTalk2.pass, '交辦上對上的行數到了門檻', JSON.stringify(guardTalk2.stateEnd.hits));
+  eq(guardTalk2.marksEnd, guardTalk2.stateEnd.hits.length, '板上亮的行數與存檔一致');
+  ok(guardTalk2.latchRows.filter((r) => r[1]).length >= guardTalk2.pass, '交辦那一塊也標得出來', JSON.stringify(guardTalk2.latchRows));
+  ok(guardTalk2.savedEnd && guardTalk2.savedEnd.convinced === true, '說服這件事寫進存檔', JSON.stringify(guardTalk2.savedEnd));
+  eq(guardTalk2.xpAfter, guardTalk2.xpBefore, '說服他一分 XP 都沒有給');
+  eq(guardTalk2.gradesAfter, guardTalk2.gradesBefore, '也不寫任何一關的評價');
+  ok(
+    guardTalk2.hintDone.includes('讓開'),
+    '說服之後走近，提示說的是「他已經讓開一步」',
+    `${guardTalk2.hintDone}（前一句：${guardTalk2.hintStale}／存檔：${JSON.stringify(guardTalk2.stateAtHint)}）`
+  );
+
+  /* --- ⑤ 全程零失敗態 --- */
+  {
+    const BAD18 = ['失敗', '拒絕', '駁回', '不通過', '再試一次', '答錯', '錯誤', '打敗', '扣分', '歸零', '清零'];
+    const seen = [guardTalk2.doneText, ...guardTalk2.texts, guardTalk.hint, guardTalk2.hintDone].filter(Boolean);
+    ok(seen.length >= 4, 'P18：真的取樣到那幾幕的畫面文字（不是空掃）', String(seen.length));
+    for (const w of BAD18) {
+      const hit = seen.find((t) => t.includes(w));
+      eq(hit === undefined, true, `P18：全程沒有出現「${w}」（他只是還沒被說服）`, String(hit || '').slice(0, 60));
+    }
+    // 反例：這張表真的抓得到東西
+    eq(BAD18.some((w) => '你失敗了，再試一次'.includes(w)), true, 'P18：禁字表對「你失敗了，再試一次」會紅（反例）');
+  }
+
+  // 場面還原：走回中央高原、把剛剛借來的解鎖收回去
+  await evaluate(`
+    const g = window.__promptasy;
+    if (g.guardianPanel.isOpen) g.guardianPanel.close();
+    const st = g.progression.state;
+    for (const id of window.__p18Borrowed || []) {
+      const i = st.unlockedRegions.indexOf(id);
+      if (i >= 0) st.unlockedRegions.splice(i, 1);
+    }
+    g.world.refreshGates();
+    g.player.teleport(0, 6);
+    return 1;
+  `);
+
   /* ================================================================ */
   await sleep(600);
   const realErrors = consoleErrors.filter((e) => !/favicon|DevTools|Autofill/i.test(e));

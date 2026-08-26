@@ -323,6 +323,32 @@
         "divergence": 10
       },
       "why": "v1.2 · P16c（站長實玩後追加）：守夜人 —— 每片土地一位、提著一盞燈**站著不動的人**，世界裡第一個會回答你的人。「沒有會走動的 NPC」那條鐵則沒有被改掉：他本來就不走。互動半徑 4.6（與石碑同一階，仲裁排在石碑之前）；他不是關卡：不進 142 關、不進 bestGrades、不給 XP、不影響解鎖。\n\n擺位是量出來的（規則在 scripts/lib/screen-rules.mjs，WORLD.md §4.14 有表）：比他高階的兩層（石座 6.5／濁靈 5.5）守的是「不准站進人家的地盤」（≥ 8.0／7.5），不是「互動圈不重疊」—— 後者要 11.1 公尺，142 座石座把 12 片土地填滿之後，護欄崗與分歧之廳**全區 0 個落點**（全區離每座石座最遠只到 9.10／9.75）。同階與更低階（石碑／刻文／殘頁／器物）仍然是圈不重疊；地標與反應物、祕密、小景一樣只守 4 公尺（§2.2「地標旁邊要矮」管的是高的東西，不是一個人）。\n\nwinnableMin 是**真正要守的東西**：站在他的互動圈上，24 個方向裡有幾個「站得住而且是他贏」。十片土地都搜得到 24/24 的落點，所以門檻 22；另外兩片各記**兩個數字**（P16c 審查 · 第 5 條：一個欄位裡混兩種語意，改了也沒人擋得住）：`winnableCeiling` 是那一片**全區量得到的上限**（護欄崗 18/24、分歧之廳 11/24，不是妥協是天花板），`winnableFloor` 是實際的門檻（16／10，各留兩格餘裕）。`winnableFloor` 與 `screen-rules.mjs` 的 `WATCHMAN_WINNABLE_EXCEPTIONS` **逐值比對**，清單只准縮短。"
+    },
+    "guardian": {
+      "value": 1,
+      "region": "wards",
+      "at": [
+        102.75,
+        -153
+      ],
+      "latches": 7,
+      "pass": 5,
+      "branches": 15,
+      "branchesMin": 12,
+      "options": 15,
+      "radius": 3.2,
+      "bodyRadius": 0.55,
+      "winnableMin": 20,
+      "winnableCeiling": 22,
+      "winnableDirs": 24,
+      "doorMax": 12,
+      "doorNow": 10.26,
+      "pathRange": [
+        3,
+        12
+      ],
+      "defaultGuard": "offline",
+      "why": "v1.2 · P18：護欄崗的守門者 —— 一個**帶著 system prompt 站在門邊的人**。他身上那份「交辦」玩家看得見（那份交辦就是教材：指令階層、規矩排在資料前面、界定符、挑罕見的界定符、把會出事的那一步換個形狀、動作前確認、先替他試過假扮的委託），要說服他就得說出對得上那幾行的話。用選的、不打字；判定是**離線腳本狀態機**（src/challenges/guardian.js，純函式、零相依、不連網），走 guard 介面 decide(state, prompt, evaluation)，離線實作是**已註冊的預設**（defaultGuard）。線上 LLM 模式這一格不做，裁決與理由寫在 docs/history/task_plan.md §P18。\n\n沒有失敗態：他只是還沒被說服（禁字表逐句掃資料層與畫面上的字，同 WORLD.md §1.6 濁靈的用語鐵則）。進度只累積：latches 是聯集，說服過就不會退回，分兩次各說一半也成立。他不是關卡：不進 142 關、不進 bestGrades、不給 XP、不收技巧、不影響解鎖。\n\nbranches 15 條（下限 branchesMin 12），每一條綁一個**既有的**檢查器（checks.js），出處一律引用 challenges.json 裡那一關自己的官方連結（from 欄；test:rubric 驗那一關的 rubric 真的含這個檢查器）—— guardian.json 裡一個網址都沒有。options 15 個，每一個的 text 都是真的送進評分引擎的那一句，test:rubric 逐句餵給 decide()，驗它解到自己宣告的那一條分支。\n\n擺位是量出來的（規則在 scripts/lib/screen-rules.mjs，搜尋器是 npm run guardian-fit）：radius 3.2 —— 護欄崗是 12 片土地裡最擠的一片，照守夜人那一階（4.6）全區只剩 5 個落點而且全部離那道門 21.5 公尺；收到 3.2 才有 6 個門邊的點（離門 8.6–10.3）。他的互動圈與**每一層**都不重疊（連石座也是），所以「半徑跟著仲裁順序遞減」那條慣例要守的事情（不要互相蓋掉）在他身上是用更嚴的方式成立的。\n\nwinnableMin 20：站在他的互動圈上，24 個方向裡有幾個站得住。winnableCeiling 22 是 guardian-fit 逐點掃過整片土地量到的上限（現行落點就是 22/24），門檻留兩格餘裕 —— 同守夜人那一格的作法（門檻 ≤ 上限）。doorMax 12 是「他要站在那道不會關上的門旁邊」的硬規則，doorNow 10.26 是現行落點量到的距離。"
     }
   }
 }
