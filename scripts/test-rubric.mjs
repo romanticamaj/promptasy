@@ -21856,20 +21856,31 @@ console.log('\n▸ 相鄰區捷徑 ＋ 外交式導向（v1.2 · P19）');
   /* --- ⑤ 沒推開真的走不過去；推開了就走得過去 ----------------------- */
   {
     /** 蓋一個「這條捷徑開／關」的世界（其餘與出貨那一份逐位元組相同）。 */
-    const worldWith = (open) => {
+    const worldWith = (open, lockTo = false) => {
       const restore = installCanvasStub();
       const scene = new THREE.Scene();
       const w = World.createWorld({
         engine: { scene, camera: {}, onUpdate() {} },
         quality: 'high',
         ...worldOpts,
-        progression: { ...stubProgression, isShortcutOpen: () => open },
+        progression: {
+          ...stubProgression,
+          isShortcutOpen: () => open,
+          // `lockTo` ＝ 另一頭那片土地也還鎖著（「站在門上按重置進度」那一刻的世界）
+          isRegionUnlocked: (id) => !(lockTo && id === sc.toRegion),
+        },
       });
       restore();
       return { world: w, scene };
     };
     const shut = worldWith(false).world;
     const open = worldWith(true).world;
+    /**
+     * 審查①要測的那個世界：門關回去、**而且量器坊重新上鎖**。
+     * 那正是「捷徑推開過、人站在門上按重置進度」的下一幀
+     * （`resetShortcuts()` 關門、`resetAll()` 把解鎖清光）。
+     */
+    const shutLocked = worldWith(false, true).world;
 
     /** 只在走廊足跡裡的洪水填充：從工坊那一頭出發，走得到量器坊那一頭嗎。 */
     const alongLane = (w) => {
@@ -21969,24 +21980,121 @@ console.log('\n▸ 相鄰區捷徑 ＋ 外交式導向（v1.2 · P19）');
      * 「重置進度」那一刻剛好站在門底下的人，保險絲要一步一步把他請出來。
      */
     {
-      let out = 0;
-      let inBand = 0;
-      for (let a = sc.gateAt - World.SHORTCUT_BLOCK / 2; a <= sc.gateAt + World.SHORTCUT_BLOCK / 2; a += 0.2) {
-        for (let lat = -3; lat <= 3; lat += 0.5) {
-          const [x, z] = local19(a, lat);
-          // 只算真的落在「門底下那一段」裡、而且站得住的點（邊界那一圈由浮點決定，不硬猜）
-          if (!World.onShortcutBlock(sc, x, z)) continue;
-          if (World.coverage(x, z) < World.STAND_COVER_MIN) continue;
-          inBand += 1;
-          const esc = shut.escapeSolid(x, z);
-          if (esc && Math.hypot(esc.x - x, esc.z - z) > 1e-6) out += 1;
+      /*
+       * v1.2 · P19（審查①）：**問的是「推得到一個走得到的地方」，不是「有沒有移動」。**
+       * 舊斷言只驗 `> 1e-6`，於是往前推進量器坊區鎖圈那條死路照樣是綠的
+       * —— 它每一步都在動，動完就再也動不了。
+       * 這裡改成**跑完整條脫困**：一直呼叫保險絲，直到它說「不用推了」，
+       * 然後問最後停下來的那一點走不走得到。
+       */
+      const escapeRun = (w, x0, z0) => {
+        let x = x0;
+        let z = z0;
+        let steps = 0;
+        for (; steps < 60; steps += 1) {
+          const e = w.escapeSolid(x, z);
+          if (!e) break;
+          if (Math.hypot(e.x - x, e.z - z) < 1e-6) break; // 推不動 ＝ 關住了
+          x = e.x;
+          z = e.z;
         }
+        return { x, z, steps, free: w.escapeSolid(x, z) === null && w.isWalkable(x, z, null) };
+      };
+      /*
+       * 這一格量的就是「往前那個出口在圈裡、往回那個出口在圈外」——
+       * 兩條先講清楚，下面那組斷言才不是碰巧綠的。
+       */
+      const site19 = World.REGION_SITES.find((s) => s.id === sc.toRegion);
+      ok(Boolean(site19), 'P19：找得到捷徑另一頭那片土地');
+      if (site19) {
+        const lockR = site19.radius + World.REGION_LOCK_PAD;
+        const [fx, fz] = local19(sc.gateAt + World.SHORTCUT_BLOCK / 2 + 0.05, 0);
+        const [bx, bz] = local19(sc.gateAt - World.SHORTCUT_BLOCK / 2 - 0.05, 0);
+        const dF = Math.hypot(fx - site19.x, fz - site19.z);
+        const dB = Math.hypot(bx - site19.x, bz - site19.z);
+        ok(dF < lockR, 'P19：往前那個出口落在量器坊的區鎖圈裡（審查①測的就是它）', `${dF.toFixed(2)} < ${lockR}`);
+        ok(dB > lockR, 'P19：往回那個出口在圈外（所以換一個方向就出得去）', `${dB.toFixed(2)} > ${lockR}`);
       }
-      ok(inBand > 40, 'P19：門底下真的有一片站得上去的地（不是一條空過的斷言）', String(inBand));
-      eq(out, inBand, 'P19：**站在門底下的每一點，保險絲都推得出去**（絕不能把玩家關住）');
+      for (const [label, w] of [
+        ['量器坊已解鎖', shut],
+        ['量器坊也鎖著（重置進度那一刻）', shutLocked],
+      ]) {
+        let moved = 0;
+        let freed = 0;
+        let inBand = 0;
+        let worst = 0;
+        for (let a = sc.gateAt - World.SHORTCUT_BLOCK / 2; a <= sc.gateAt + World.SHORTCUT_BLOCK / 2; a += 0.2) {
+          for (let lat = -3; lat <= 3; lat += 0.5) {
+            const [x, z] = local19(a, lat);
+            // 只算真的落在「門底下那一段」裡、而且站得住的點（邊界那一圈由浮點決定，不硬猜）
+            if (!World.onShortcutBlock(sc, x, z)) continue;
+            if (World.coverage(x, z) < World.STAND_COVER_MIN) continue;
+            inBand += 1;
+            const esc = w.escapeSolid(x, z);
+            if (esc && Math.hypot(esc.x - x, esc.z - z) > 1e-6) moved += 1;
+            const run = escapeRun(w, x, z);
+            if (run.free) freed += 1;
+            if (run.steps > worst) worst = run.steps;
+          }
+        }
+        ok(inBand > 40, `P19：[${label}] 門底下真的有一片站得上去的地（不是一條空過的斷言）`, String(inBand));
+        eq(moved, inBand, `P19：[${label}] 站在門底下的每一點，保險絲都推得動`);
+        eq(
+          freed,
+          inBand,
+          `P19：[${label}] **而且每一點都推得到一個真的走得到的地方**（不是把人推進另一道鎖裡）`
+        );
+        ok(worst <= 20, `P19：[${label}] 最慢的那一點 ${worst} 步就出得去（不會推到天荒地老）`, String(worst));
+      }
       // 反例：門開著的時候那一段本來就走得到，保險絲不該動作
       const [mx, mz] = local19(sc.gateAt, 0);
       eq(open.escapeSolid(mx, mz), null, 'P19[反例]：門開著時保險絲不動作（沒卡住就不推）');
+    }
+    /*
+     * v1.2 · P19（審查②）：**幕的法線要順著走向。**
+     * `PlaneGeometry` 的寬邊在局部 +X，`rotation.y = θ` 把它轉到世界的 (cosθ, −sinθ)；
+     * 寫成 `θ + π/2` 會讓那片幕**順著走廊躺著**（實測 normal·dir ＝ 0.0000），
+     * 走到關著的門前只看得到一條細縫 —— 剩下的只有一根浮在 0.96 公尺高的門閂，
+     * 底下看起來走得過去，人卻被擋下來（§6.3 不准的那種看不見的牆）。
+     * 既有的斷言只問 `veil.visible`，看不到這件事。
+     */
+    {
+      const flatNormal = (obj) => {
+        obj.updateMatrixWorld(true);
+        const n = new THREE.Vector3(0, 0, 1).applyQuaternion(obj.getWorldQuaternion(new THREE.Quaternion()));
+        n.y = 0;
+        return n.normalize();
+      };
+      const built19 = shut.shortcutObjects[0];
+      ok(Boolean(built19 && built19.veil), 'P19：拿得到捷徑那一片幕');
+      if (built19 && built19.veil) {
+        const nv = flatNormal(built19.veil);
+        const dot = nv.x * sc.dir.x + nv.z * sc.dir.z;
+        ok(Math.abs(dot) > 0.999, 'P19：捷徑那片幕擋在門口（法線順著走向，不是側著躺）', dot.toFixed(4));
+        // 門閂那根板一直是對的 —— 幕要跟它同一個朝向，不然一個擋著、一個躺著
+        const pivot = built19.bar.parent;
+        ok(
+          Math.abs(Math.cos(built19.veil.rotation.y - pivot.rotation.y) - 1) < 1e-9,
+          'P19：幕與門閂同一個朝向',
+          `${built19.veil.rotation.y.toFixed(4)} vs ${pivot.rotation.y.toFixed(4)}`
+        );
+      }
+      // 閘門那一片幕：同一個老 bug 被照抄過去，兩處一起守
+      let planes = 0;
+      for (const g of shut.gates) {
+        const corr =
+          World.CORRIDORS.find((c) => c.region === g.id) || World.ANNEX_LINKS.find((a) => a.region === g.id);
+        ok(Boolean(corr), `P19：[${g.id}] 找得到這道閘門的走向（查表要有守衛）`);
+        if (!corr) continue;
+        g.group.traverse((o) => {
+          if (!o.isMesh || !o.geometry || o.geometry.type !== 'PlaneGeometry') return;
+          planes += 1;
+          const n = flatNormal(o);
+          const dot = n.x * corr.dir.x + n.z * corr.dir.z;
+          ok(Math.abs(dot) > 0.999, `P19：[${g.id}] 閘門那片幕擋在門口（法線順著走向）`, dot.toFixed(4));
+        });
+      }
+      eq(planes, shut.gates.length, 'P19：每一道閘門的幕都量到了（一道一片，不是一條空過的斷言）', String(planes));
     }
     /*
      * 「這一點的地是捷徑自己鋪出來的嗎」—— 門底下一定是（沒有捷徑那裡就是虛空），
@@ -22335,8 +22443,30 @@ console.log('\n▸ 相鄰區捷徑 ＋ 外交式導向（v1.2 · P19）');
     ok(/world\.pushWinch\(winch\)/.test(mainSrc19), 'P19：推的那一下真的走世界層');
     ok(/progression\.openShortcut\(built\.id\)/.test(mainSrc19), 'P19：推開的那一刻寫進存檔');
     ok(/world\.markShortcutOpen\(built\.id\)/.test(mainSrc19), 'P19：世界端跟著把門放下來');
-    ok(/world\.resetShortcuts\?\.\(\)/.test(mainSrc19), 'P19：onReset 真的把門關回去（寫好卻沒人呼叫等於沒有）');
-    ok(/world\.setGuidance\?\.\(progression\.state\.settings\.guides !== false\)/.test(mainSrc19), 'P19：開機照存檔決定要不要指路');
+    /*
+     * v1.2 · P19（審查③）：**存檔清了，世界要跟著清。**
+     * `resetAll()` 把 `settings.guides` 還原成預設的 true、設定頁的勾勾也重畫成打勾，
+     * 但世界端的 `guideOn` 是**另一份狀態** —— 少了 `onReset` 裡那一行，
+     * 「關掉指路 → 重置進度」之後存檔與勾勾都說開、螢火卻再也不指路，直到重新載入。
+     * （所以這兩條要**分開量**：`onReset` 裡一次、開機那條路一次。）
+     */
+    const resetBody19 = mainSrc19.slice(
+      mainSrc19.indexOf('onReset: () => {'),
+      mainSrc19.indexOf('onReplayPrologue:')
+    );
+    const bootSrc19 =
+      mainSrc19.slice(0, mainSrc19.indexOf('onReset: () => {')) +
+      mainSrc19.slice(mainSrc19.indexOf('onReplayPrologue:'));
+    ok(resetBody19.length > 200, 'P19：切得出 onReset 那一段（不是一條空過的斷言）', String(resetBody19.length));
+    ok(/world\.resetShortcuts\?\.\(\)/.test(resetBody19), 'P19：onReset 真的把門關回去（寫好卻沒人呼叫等於沒有）');
+    ok(
+      /world\.setGuidance\?\.\(progression\.state\.settings\.guides !== false\)/.test(resetBody19),
+      'P19：onReset 也把螢火指路拉回存檔說的那一邊（存檔清了，世界要跟著清）'
+    );
+    ok(
+      /world\.setGuidance\?\.\(progression\.state\.settings\.guides !== false\)/.test(bootSrc19),
+      'P19：開機照存檔決定要不要指路'
+    );
     ok(/onGuidesChange/.test(mainSrc19) && /onGuidesChange/.test(setSrc19), 'P19：設定頁的開關接到世界層');
     ok(/data-guides/.test(setSrc19), 'P19：設定頁真的有那個勾勾');
     ok(/guides: e\.target\.checked/.test(setSrc19), 'P19：勾勾寫進存檔');

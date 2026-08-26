@@ -555,6 +555,13 @@ function boot() {
       world.guardians?.reset?.();
       // v1.2 · P19：推開的捷徑也關回去（存檔清了，那道門就該重新擋著）
       world.resetShortcuts?.();
+      /*
+       * v1.2 · P19（審查③）：螢火指路也跟著存檔回到預設的「開」。
+       * `resetAll()` 把 `settings.guides` 還原成 true、勾勾也重畫成打勾了，
+       * 但世界端的 `guideOn` 是**另一份狀態** —— 少了這一行，
+       * 「關掉指路 → 重置進度」之後存檔與勾勾都說開、螢火卻再也不指路，直到重新載入。
+       */
+      world.setGuidance?.(progression.state.settings.guides !== false);
       // v1.2 · P09：石座演出也歸零（借走的光柱還回去、粒子池清空；WORLD §8 G24b）
       world.rubricFx?.reset?.();
       // v1.2 · P06：閘門標籤／三態與石座三態也跟著歸零（先行前往過的門回到琥珀、它的石座回到暗）

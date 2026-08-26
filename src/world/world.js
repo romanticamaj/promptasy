@@ -2244,7 +2244,16 @@ function buildShortcut(sc, kit, open) {
     })
   );
   veil.position.set(sc.gate.x, gy + 1.3, sc.gate.z);
-  veil.rotation.y = yaw + Math.PI / 2;
+  /*
+   * **法線要順著走向**（`rotation.y = yaw`，不是 `yaw + π/2`）。
+   * `PlaneGeometry` 的寬邊在局部 +X，`rotation.y = θ` 把它轉到世界的 (cosθ, −sinθ)；
+   * 門閂那根板（`barPivot.rotation.y = yaw`）的寬邊正是這樣橫在兩根柱之間的。
+   * 幕要與門閂同一個朝向，所以也是 `yaw` —— 寫 `yaw + π/2` 會讓 7.2 × 2.6 公尺那片幕
+   * **順著走廊躺著**（實測 normal·dir ＝ 0.0000），走到門前只看得到一條細縫，
+   * 於是「關著的捷徑」看起來只剩一根浮在 0.96 公尺高的橫桿、底下像是走得過去，
+   * 人卻被擋下來 —— 正是 §6.3 不准的那種看不見的牆。
+   */
+  veil.rotation.y = yaw;
   veil.userData.noCollide = true;
   grp.add(veil);
 
@@ -4059,7 +4068,12 @@ function buildGate(corridor, region, color, unlocked, infoText) {
     })
   );
   veil.position.set(gx, gy + 4.7, gz);
-  veil.rotation.y = facing + Math.PI / 2;
+  /*
+   * v1.2 · P19（審查②）：**法線順著走向** —— 與兩根柱、拱（`arch.rotation.y = facing`）
+   * 同一個朝向。原本寫 `facing + π/2`，那讓 10.8 × 9.4 公尺的屏障**順著橋躺著**
+   * （實測 normal·dir ＝ 0.0000），過橋的人只看得到一條細縫；捷徑那一片幕是照抄它的。
+   */
+  veil.rotation.y = facing;
   veil.visible = !unlocked;
   group.add(veil);
 
@@ -4075,7 +4089,8 @@ function buildGate(corridor, region, color, unlocked, infoText) {
     })
   );
   burst.position.set(gx, gy + 4.7, gz);
-  burst.rotation.y = facing + Math.PI / 2;
+  // 慶祝那一圈與屏障同一片平面（同上：`facing`，不是 `facing + π/2`）
+  burst.rotation.y = facing;
   group.add(burst);
 
   let label = makeLabel(`${region.name} · ${region.nameEn}`, {
@@ -5214,6 +5229,18 @@ export function createWorld({
        * 可是那一塊走不到 —— 沒有這一條，「重置進度」那一刻剛好站在門底下的人
        * 會被 `clampPosition()` 永遠鎖在原地（護欄：**絕不能把玩家關住**）。
        * 兩個出口（往回、往前）挑最近的那一個，一步一步走，不瞬移。
+       *
+       * v1.2 · P19（審查①）：**先問那個出口通不通，不通就換另一邊。**
+       * 門正好立在量器坊自己那道區鎖的圈上（`REGION_LOCK_PAD`），所以「往前」那個
+       * 出口在**量器坊還鎖著**的時候是**圈內**（離心 46.79 < 48）—— 正是「捷徑推開過、
+       * 站在門上按重置進度」那一刻的世界：門關回去、量器坊重新上鎖，
+       * 保險絲把人往前推進區鎖圈，那裡每個方向一步之內都走不到、
+       * `escapeSolid()` 從此回 `null`、`clampPosition()` 永遠回 `prev` —— 人卡到重新整理為止。
+       * （實測：163 個站得住的點裡有 **78 個**這樣被關住；往回那個出口離心 49.21，是通的。）
+       *
+       * 判的是**出口那一點**（同一個 `lat` 直直走出去那 2.4 公尺），不是這一步的落點 ——
+       * 落點多半還在門底下那一段裡，拿 `isWalkable()` 去判它會被自己否決
+       * （與缺口那一段同一個坑）。兩邊都不通就交給下面幾段（不獨吞這個位置）。
        */
       for (let i = 0; i < SHORTCUTS.length; i += 1) {
         const sc = SHORTCUTS[i];
@@ -5222,9 +5249,19 @@ export function createWorld({
         laneLocal(sc, x, z, _escapeLocal);
         const back = _escapeLocal.along - (sc.gateAt - SHORTCUT_BLOCK / 2 - 0.05);
         const fwd = sc.gateAt + SHORTCUT_BLOCK / 2 + 0.05 - _escapeLocal.along;
-        const sign = back <= fwd ? -1 : 1;
-        const move = Math.max(0.02, Math.min(step, Math.min(back, fwd)));
-        return { x: x + sc.dir.x * sign * move, z: z + sc.dir.z * sign * move };
+        let out = null;
+        for (let t = 0; t < 2 && !out; t += 1) {
+          // 近的那個出口先試（t=0），不通再試遠的那個
+          const sign = (back <= fwd) === (t === 0) ? -1 : 1;
+          const gap = sign < 0 ? back : fwd;
+          const ex = x + sc.dir.x * sign * gap;
+          const ez = z + sc.dir.z * sign * gap;
+          // `feetY = Infinity` ＝ 缺口那一條不擋；虛空、閘門、區鎖與坡度照樣擋
+          if (!isWalkable(ex, ez, Infinity)) continue;
+          const move = Math.max(0.02, Math.min(step, gap));
+          out = { x: x + sc.dir.x * sign * move, z: z + sc.dir.z * sign * move };
+        }
+        if (out) return out;
       }
       if (bridgeGaps.length && !(feetY !== null && feetY >= terrainHeight(x, z) + GAP_LIP)) {
         const gap = gapAt(x, z, bridgeGaps);

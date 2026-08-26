@@ -20557,13 +20557,21 @@ async function main() {
     );
   };
 
-  // 場面清乾淨 ＋ 借幾片土地的解鎖（這一段結束時還回去）
+  /*
+   * 場面清乾淨 ＋ 借幾片土地的解鎖（這一段結束時還回去）。
+   *
+   * **借條寫進 localStorage，不寫在 `window` 上**：這一段中間會重整頁面
+   * （下面的「P19 重整」），`window` 會被清掉 —— 記在那裡的話，還的那一圈跑的是
+   * 空陣列，而借走的解鎖早就被中途的 `persist()`（`openShortcut` / `updateSettings`）
+   * 寫進存檔了，於是那一輪結束時真的多解鎖了 5 片土地。
+   */
   await clearStage19();
   await evaluate(`
     const g = window.__promptasy;
     const st = g.progression.state;
-    window.__p19Borrowed = ['reasoning','grounding','orchestration','config','forms'].filter((id) => !st.unlockedRegions.includes(id));
-    for (const id of window.__p19Borrowed) st.unlockedRegions.push(id);
+    const borrowed = ['reasoning','grounding','orchestration','config','forms'].filter((id) => !st.unlockedRegions.includes(id));
+    localStorage.setItem('promptasy.e2e.p19Borrowed', JSON.stringify(borrowed));
+    for (const id of borrowed) st.unlockedRegions.push(id);
     g.world.refreshGates();
     return 1;
   `);
@@ -20652,6 +20660,13 @@ async function main() {
    *
    * 不用固定 sleep 對齊牆鐘（這台一幀 200 ms）；逾時就把當下量到的東西原樣回傳，
    * 讓斷言照樣紅，而且看得出來是「人沒走到」還是「提示沒出來」。
+   *
+   * **等待條件不能是「舊值也滿足」的那一種**：兩側的走近提示都含「吊板」，
+   * 拿它當條件的話，**上一次走近留在畫面上的那一句**第一圈就滿足了 ——
+   * 於是迴圈當場跳出去，而 `main.js` 那一側的 `nearWinch` 其實還沒換過來
+   * （這台一幀 200 ms，第一次讀是在 100 ms），接著送出去的第一下 `E`
+   * 就落在**上一座**絞盤上，整段推門因此差一格（門只推到剩 1 下、走不過去）。
+   * 所以等的是**這一側自己的那一句**，而且順便確認世界認得的就是這一座。
    * @param {'from'|'to'} side
    */
   const approachWinch = (side) =>
@@ -20659,6 +20674,8 @@ async function main() {
       const g = window.__promptasy;
       const sc = g.world.shortcuts[0];
       const w = ${JSON.stringify(side)} === 'from' ? sc.winchFrom : sc.winchTo;
+      // 這一側的提示句（見 main.js 的走近提示）：兩句彼此不會互相滿足
+      const wantTxt = ${JSON.stringify(side)} === 'from' ? /索繫在這一頭|還要再推|放下來了/ : /從這裡推不動/;
       // 站在碰撞圈外一點（絞盤半徑 0.95 ＋ 玩家 0.62 ＝ 1.57；2.4 剛好在互動半徑 3.2 內）
       const sign = ${JSON.stringify(side)} === 'from' ? -1 : 1;
       g.player.teleport(w.x + sign * 2.2, w.z + sign * 0.95);
@@ -20682,7 +20699,7 @@ async function main() {
           prologue: g.prologue.isActive,
           tries: i + 1,
         };
-        if (hit && /吊板/.test(txt)) break;
+        if (hit && hit.winch.side === ${JSON.stringify(side)} && /吊板/.test(txt) && wantTxt.test(txt)) break;
       }
       return out;
     `);
@@ -20895,7 +20912,18 @@ async function main() {
       const arr = m.points.geometry.attributes.position.array;
       let cx = 0, cz = 0;
       for (let i = 0; i < m.n; i += 1) { cx += arr[i * 3]; cz += arr[i * 3 + 2]; }
-      return { x: cx / m.n, z: cz / m.n, aim: g.world.guidance() };
+      /*
+       * 前提也一起量：**低畫質整層關掉導向**（gx/gz 是 0），
+       * 而動畫層只更新 45 公尺內的東西 —— 這兩件事只要有一件不成立，
+       * 螢火群就永遠不會偏，而光看重心說不出是哪一件。
+       */
+      return {
+        x: cx / m.n,
+        z: cz / m.n,
+        aim: g.world.guidance(),
+        quality: g.engine.quality,
+        dist: Math.hypot(g.player.position.x - m.x, g.player.position.z - m.z),
+      };
     `);
 
   // 先把導向關掉，量一次「本來的樣子」（基準線）
@@ -20952,16 +20980,79 @@ async function main() {
 
   /** 重心沿導向那一軸偏了多少（相對基準線）。 */
   const leanOf = (c, aim) => (c.x - baseCentroid.x) * aim.x + (c.z - baseCentroid.z) * aim.z;
-  const aim19 = guideToggle.aim;
-  const onSample = await waitFor(
-    async () => {
-      const c = await mothNow();
-      if (!c.aim) return null;
-      return leanOf(c, c.aim) > 0.75 ? { lean: leanOf(c, c.aim), aim: c.aim } : null;
-    },
-    { timeout: 40000, every: 300, label: 'P19：螢火群整體偏向下一個建議去處' }
+  // 導向指不出方向時（上一條斷言已經紅了）給一根軸當退路 —— 不要讓整支測試在這裡丟例外
+  const aim19 = guideToggle.aim || { x: 1, z: 0 };
+  /*
+   * 三個門檻放在一起，因為它們有一條**必須成立的算術關係**：
+   * 兩次觀察都是「一超過門檻就收下這一筆」，所以 `on` 最壞就是剛好 `LEAN_ON_MIN`、
+   * `off` 最壞就是剛好 `LEAN_OFF_MAX` —— 兩者相減能保證的只有 0.55。
+   * 原本差值那條寫 0.6，比保證得到的還嚴 ＝ **一枚硬幣**
+   * （實測 0.752 vs 0.153 ＝ 0.599，差 0.001 就紅掉一整輪 20 分鐘的 e2e）。
+   * 下面多一條斷言把這個關係釘死：以後誰動了任何一個門檻，會先在那裡紅。
+   * 真正在說話的是那兩次觀察本身（偏不過去 / 回不來就紅）＋「≈ 一個 MOTH_GUIDE_LEAN」那一條。
+   */
+  const LEAN_ON_MIN = 0.75;
+  const LEAN_OFF_MAX = 0.2;
+  const LEAN_DIFF_MIN = 0.5;
+  ok(
+    LEAN_ON_MIN - LEAN_OFF_MAX > LEAN_DIFF_MIN,
+    'P19：差值那條門檻鬆於兩個等待條件保證得到的（不是一枚硬幣）',
+    `${LEAN_ON_MIN} - ${LEAN_OFF_MAX} > ${LEAN_DIFF_MIN}`
   );
-  ok(onSample.lean > 0.75, 'P19：整團螢火真的往「下一個建議去處」那一側偏了', onSample.lean.toFixed(3));
+  /**
+   * 在一段固定的預算裡一直取樣，回傳**看過最偏的那一筆**（不是「第一筆超過門檻的」）。
+   *
+   * 兩件事跟原本不一樣，兩件都是為了不讓這一條變成擲骰子：
+   *   · **逾時不丟例外**：`waitFor` 逾時是**整支測試中斷**（20 分鐘報廢），
+   *     而且那條要抓它的斷言永遠跑不到。這裡把最好的那一筆原樣交出去，讓斷言自己去報，
+   *     訊息裡帶著畫質、導向向量、離那一團多遠 —— 一眼看得出是「沒偏」還是「前提就不對」。
+   *   · **兩次都投影在同一根軸上**（`aim19`）：原本開著那一次投影在**當下**的導向向量上，
+   *     關掉那一次投影在 `aim19`；導向的目標一換方向，軸就轉了，而螢火群要好幾秒才追得上 ——
+   *     量到的是「軸轉了多少」，不是「偏了多少」。同一個差值就要用同一根軸。
+   *
+   * @param {number} budgetMs
+   * @param {(lean:number)=>boolean} enough 夠好了就提早收工（省 e2e 的時間）
+   * @param {(best:number, lean:number)=>boolean} better 這一筆比手上那一筆好嗎
+   */
+  const watchLean = async (budgetMs, enough, better) => {
+    const until = Date.now() + budgetMs;
+    let best = null;
+    let samples = 0;
+    let last = null;
+    // 導向整段有沒有換過方向（換了的話「同一根軸」這個前提就破了 —— 要看得見，不要默默算低）
+    let turn = 0;
+    while (Date.now() < until) {
+      const c = await mothNow();
+      samples += 1;
+      last = c;
+      if (c.aim) turn = Math.max(turn, Math.abs(1 - (c.aim.x * aim19.x + c.aim.z * aim19.z)));
+      const lean = leanOf(c, aim19);
+      if (best === null || better(best, lean)) best = lean;
+      if (enough(lean)) break;
+      await sleep(300);
+    }
+    return {
+      lean: best === null ? NaN : best,
+      samples,
+      turn,
+      aim: last ? last.aim : null,
+      quality: last ? last.quality : null,
+      dist: last ? last.dist : null,
+    };
+  };
+  const onSample = await watchLean(60000, (v) => v > LEAN_ON_MIN, (b, v) => v > b);
+  const leanDetail = (s) =>
+    `lean=${Number.isFinite(s.lean) ? s.lean.toFixed(3) : 'NaN'} · ${s.samples} 次取樣 · 轉軸 ${s.turn.toFixed(
+      4
+    )} · 畫質 ${s.quality} · 離那一團 ${Number.isFinite(s.dist) ? s.dist.toFixed(1) : '?'}m · aim=${JSON.stringify(
+      s.aim
+    )}`;
+  ok(onSample.lean > LEAN_ON_MIN, 'P19：整團螢火真的往「下一個建議去處」那一側偏了', leanDetail(onSample));
+  ok(
+    onSample.turn < 1e-6,
+    'P19：整段觀察裡導向沒有換過方向（換了的話兩次量的就不是同一根軸）',
+    leanDetail(onSample)
+  );
   ok(
     Math.abs(onSample.lean - 0.9) < 0.3,
     'P19：偏的量就是那一個 MOTH_GUIDE_LEAN（0.9 公尺）',
@@ -20983,38 +21074,89 @@ async function main() {
   `);
   eq(guideOffToggle.setting, false, 'P19：關掉之後設定記著了');
   eq(guideOffToggle.aim, null, 'P19：關掉之後世界不再指路');
-  const offSample = await waitFor(
-    async () => {
-      const c = await mothNow();
-      return Math.abs(leanOf(c, aim19)) < 0.2 ? { lean: leanOf(c, aim19) } : null;
-    },
-    { timeout: 40000, every: 300, label: 'P19：螢火群飄回原樣' }
+  const offSample = await watchLean(
+    60000,
+    (v) => Math.abs(v) < LEAN_OFF_MAX,
+    (b, v) => Math.abs(v) < Math.abs(b)
   );
   ok(
-    Math.abs(offSample.lean) < 0.2,
+    Math.abs(offSample.lean) < LEAN_OFF_MAX,
     'P19：**關掉之後螢火群真的飄回原樣**（不是只把設定存起來）',
-    offSample.lean.toFixed(3)
+    leanDetail(offSample)
   );
   ok(
-    onSample.lean - offSample.lean > 0.6,
+    onSample.lean - offSample.lean > LEAN_DIFF_MIN,
     'P19：開與關量得出明顯的差（≈ 一個 MOTH_GUIDE_LEAN）',
-    `${onSample.lean.toFixed(3)} vs ${offSample.lean.toFixed(3)}`
+    `${onSample.lean.toFixed(3)} vs ${offSample.lean.toFixed(3)} ｜ 畫質 ${onSample.quality} · 離那一團 ${
+      Number.isFinite(onSample.dist) ? onSample.dist.toFixed(1) : '?'
+    }m`
   );
 
-  // 開回來 ＋ 把借來的解鎖還回去
-  await evaluate(`
+  // 開回來 ＋ 把借來的解鎖還回去（借條在 localStorage 裡，重整活得下來）
+  const scReturn = await evaluate(`
     const g = window.__promptasy;
-    g.progression.updateSettings({ guides: true });
-    g.world.setGuidance(true);
     const st = g.progression.state;
-    for (const id of window.__p19Borrowed || []) {
+    const borrowed = JSON.parse(localStorage.getItem('promptasy.e2e.p19Borrowed') || '[]');
+    for (const id of borrowed) {
       const i = st.unlockedRegions.indexOf(id);
       if (i >= 0) st.unlockedRegions.splice(i, 1);
     }
+    localStorage.removeItem('promptasy.e2e.p19Borrowed');
+    // updateSettings() 會 persist —— 還回去的那一份要真的寫回存檔，不是只改記憶體
+    g.progression.updateSettings({ guides: true });
+    g.world.setGuidance(true);
     g.world.refreshGates();
     g.player.teleport(0, 6);
-    return 1;
+    const saved = JSON.parse(localStorage.getItem('promptasy.v1.save') || '{}').unlockedRegions || [];
+    return {
+      borrowed,
+      leftInState: borrowed.filter((id) => st.unlockedRegions.includes(id)),
+      leftInSave: borrowed.filter((id) => saved.includes(id)),
+    };
   `);
+  ok(scReturn.borrowed.length > 0, 'P19：這一段真的借過土地（不是一條空過的斷言）', scReturn.borrowed.join(','));
+  eq(scReturn.leftInState.length, 0, 'P19：借走的解鎖全部還回去了（借條撐得過中途那次重整）');
+  eq(scReturn.leftInSave.length, 0, 'P19：而且存檔裡也不留（中途的 persist 寫進去的那一份被抹掉了）');
+
+  /* --- ⑧ 重置進度：螢火指路跟著回到預設（存檔清了，世界要跟著清） --- */
+  const guideReset = await evaluate(`
+    const g = window.__promptasy;
+    g.settings.open();
+    await new Promise((r) => setTimeout(r, 320));
+    const box = document.querySelector('#settings [data-guides]');
+    box.checked = false;
+    box.dispatchEvent(new Event('change', { bubbles: true }));
+    await new Promise((r) => setTimeout(r, 260));
+    const off = { setting: g.progression.state.settings.guides, aim: g.world.guidance() };
+    // 二次確認：第一下之後 render() 會換掉那顆按鈕，所以第二下要重新問一次
+    document.querySelector('#settings [data-reset]').click();
+    document.querySelector('#settings [data-reset]').click();
+    await new Promise((r) => setTimeout(r, 260));
+    const checked = document.querySelector('#settings [data-guides]').checked;
+    g.settings.close();
+    await new Promise((r) => setTimeout(r, 320));
+    return { off, setting: g.progression.state.settings.guides, checked };
+  `);
+  eq(guideReset.off.setting, false, 'P19：先把螢火指路關掉（存檔記著關）');
+  eq(guideReset.off.aim, null, 'P19：關掉之後世界端確實不指路了（後面那條才不是空過的）');
+  eq(guideReset.setting, true, 'P19：重置進度之後存檔說指路是開的');
+  eq(guideReset.checked, true, 'P19：勾勾也重畫成打勾了');
+  // 逾時是丟例外（整支中斷），所以接住它、讓下面那條斷言自己去報
+  let guideBack = null;
+  try {
+    guideBack = await waitFor(() => evaluate('return window.__promptasy.world.guidance();'), {
+      timeout: 20000,
+      every: 150,
+      label: 'P19：重置之後世界端又指路了',
+    });
+  } catch {
+    guideBack = null;
+  }
+  ok(
+    guideBack && Number.isFinite(guideBack.x),
+    'P19：**重置進度之後世界端真的又指路了**（不是只有存檔與勾勾說開）',
+    JSON.stringify(guideBack)
+  );
 
   /* ================================================================ */
   await sleep(600);
