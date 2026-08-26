@@ -83,8 +83,20 @@ export function stuckReport({ struggles, isCleared, challenges, checkLines, minT
     if (typeof isCleared === 'function' && isCleared(id)) continue;
     const ch = byId.get(id);
     if (!ch || !Array.isArray(ch.rubric) || !ch.rubric.length) continue;
+    /*
+     * 看的是**最近那一次**還缺什麼（`last`），不是歷來的聯集（`hits`）——
+     * 過關要的是同一次全部到齊，聯集湊得齊不代表他寫得出一次到齊的那一句
+     * （P16c 審查 · 第 2 條：只看聯集的話，最卡的那個人反而問不到東西）。
+     * 舊存檔沒有 `last` 就退回聯集；真的每一條都在最近那一次命中過
+     * （分數還是不夠）就退回聯集，再不行就指第一條 —— 總之**不會沉默**。
+     */
+    const last = Array.isArray(st.last) ? st.last : null;
     const hits = Array.isArray(st.hits) ? st.hits : [];
-    const missing = ch.rubric.find((row) => row && row.check && !hits.includes(row.check));
+    const firstMissing = (have) => ch.rubric.find((row) => row && row.check && !have.includes(row.check));
+    const missing =
+      (last ? firstMissing(last) : null) ||
+      firstMissing(hits) ||
+      ch.rubric.find((row) => row && row.check);
     if (!missing) continue;
     const line = (checkLines || {})[missing.check];
     if (!line) continue;

@@ -18835,11 +18835,23 @@ console.log('\n▸ 守夜人：12 位站著不動的人（v1.2 · P16c）');
     eq(watchmen.length, EXPECT.watchmen.value, `守夜人數＝契約（${EXPECT.watchmen.value} 位）`);
     eq(EXPECT.watchmen.perRegion, 1, '契約寫的是一片土地一位');
     eq(EXPECT.watchmen.winnableMin, RulesW.WATCHMAN_WINNABLE_MIN, '契約與規則表的「按得到他」門檻是同一個數字');
+    /*
+     * 例外要**逐值**比對，不是只比 key（P16c 審查 · 第 5 條）：
+     * 只比 key 的話，有人把契約裡的門檻改成 5 來「騰出空間」，一條斷言都不會紅。
+     * `winnableFloor` ＝ 真正的門檻（與規則表同一份）；
+     * `winnableCeiling` ＝ 那一片全區量得到的上限（記錄用，門檻不准超過它）。
+     */
     eq(
-      JSON.stringify(Object.keys(EXPECT.watchmen.winnableExceptions).sort()),
-      JSON.stringify(Object.keys(RulesW.WATCHMAN_WINNABLE_EXCEPTIONS).sort()),
-      '契約與規則表登記的例外是同兩片土地'
+      JSON.stringify(EXPECT.watchmen.winnableFloor),
+      JSON.stringify(RulesW.WATCHMAN_WINNABLE_EXCEPTIONS),
+      '契約與規則表的例外門檻**逐值相同**'
     );
+    for (const [id, floor] of Object.entries(EXPECT.watchmen.winnableFloor)) {
+      const ceil = EXPECT.watchmen.winnableCeiling[id];
+      ok(Number.isFinite(ceil), `[${id}] 契約記得那一片的全區上限`);
+      ok(floor <= ceil, `[${id}] 門檻不超過全區上限（${floor} ≤ ${ceil}）`);
+      ok(floor < RulesW.WATCHMAN_WINNABLE_MIN, `[${id}] 例外真的比一般門檻鬆（不然它不叫例外）`);
+    }
     eq(new Set(watchmen.map((w) => w.id)).size, 12, 'id 沒有重複');
     eq(new Set(watchmen.map((w) => w.name)).size, 12, '名字沒有重複');
     eq(new Set(watchmen.map((w) => w.voice)).size, 12, '語氣沒有重複（一片土地一種說話的方式）');
@@ -19160,17 +19172,36 @@ console.log('\n▸ 守夜人：12 位站著不動的人（v1.2 · P16c）');
     );
     // 反例 C（同一支）：整張表是空的
     eq(Talk.stuckReport({ struggles: {}, isCleared: () => false, challenges, checkLines: lines }), null, '反例：沒卡過任何一關 → null');
-    // 反例 D（同一支）：每一條都命中過卻沒過 → 指不出「缺的那一條」，就不要亂指
-    eq(
-      Talk.stuckReport({
-        struggles: { [stuckChallenge.id]: { tries: 5, hits: stuckChallenge.rubric.map((r) => r.check) } },
+    /*
+     * **最卡的那個人不准問不到東西**（P16c 審查 · 第 2 條）。
+     * 過關要的是**同一次**全部到齊，所以「他現在還缺什麼」看的是最近那一次（`last`），
+     * 不是歷來的聯集（`hits`）—— 第一次寫對 A、第二次改寫對 B，聯集就湊齊了，
+     * 但他其實兩次都沒過，而且正是最需要有人講一句的那個人。
+     */
+    if (stuckChallenge.rubric.length >= 2) {
+      const allChecks = stuckChallenge.rubric.map((r) => r.check);
+      const second = stuckChallenge.rubric[1].check;
+      const got = Talk.stuckReport({
+        // 聯集湊齊了，但**最近那一次**只命中第二條
+        struggles: { [stuckChallenge.id]: { tries: 5, hits: allChecks, last: [second] } },
         isCleared: () => false,
         challenges,
         checkLines: lines,
-      }),
-      null,
-      '反例：每一條都命中過 → 指不出缺哪一條，這一項就不出現'
-    );
+      });
+      ok(Boolean(got), '聯集湊齊了但最近那一次沒有：守夜人**還是說得出話**（最卡的人問得到東西）');
+      eq(got && got.check, stuckChallenge.rubric[0].check, '而且指的是最近那一次真的缺的那一條', got && got.check);
+    }
+    // 舊存檔（沒有 last 那一欄）：退回聯集，行為與 P16c 之前相同
+    {
+      const allChecks = stuckChallenge.rubric.map((r) => r.check);
+      const got = Talk.stuckReport({
+        struggles: { [stuckChallenge.id]: { tries: 5, hits: allChecks } },
+        isCleared: () => false,
+        challenges,
+        checkLines: lines,
+      });
+      ok(Boolean(got), '舊存檔沒有 last：退回聯集，仍然指得出一條（不會沉默）');
+    }
     // 全序：同樣試了 3 次時，指的是 challenges.json 裡排在前面的那一關（答案要穩定）
     {
       const a = challenges[0];
@@ -19319,6 +19350,20 @@ console.log('\n▸ 守夜人：12 位站著不動的人（v1.2 · P16c）');
       best: p16c.state.bestGrades,
       collected: p16c.state.collected,
     });
+    /*
+     * **重置進度時世界端也要跟著歸零**（P16c 審查 · 第 1 條）：
+     * `resetAll()` 清得掉存檔，但已經蓋出來的守夜人身上還留著「聊過了」的亮度 ——
+     * 不重載頁面就會演出失聯（P03 的濁靈記過同一件事）。
+     * `watchmanField.reset()` 本來就寫好了，只是沒有人呼叫它。
+     */
+    {
+      const mainSrcW = readFileSync(resolve(root, 'src/main.js'), 'utf8');
+      const onReset = mainSrcW.slice(mainSrcW.indexOf('onReset:'), mainSrcW.indexOf('onReset:') + 900);
+      ok(/world\.watchmen\?\.reset\?\.\(\)/.test(onReset), '重置進度會把世界端的守夜人一起拉回沒聊過');
+      ok(/world\.murks\?\.reset\?\.\(\)/.test(onReset), '（對照）濁靈本來就在同一段裡歸零');
+      const fieldSrc = readFileSync(resolve(root, 'src/world/watchmen.js'), 'utf8');
+      ok(/reset\(/.test(fieldSrc), 'watchmen.js 真的有 reset()（不是空指望）');
+    }
     eq(p16c.watchmanState('watch-broken-ring'), null, '沒聊過的守夜人 watchmanState 是 null');
     eq(p16c.hasMetWatchman('watch-broken-ring'), false, '一開始沒聊過');
     eq(p16c.watchmanCount(watchmen.map((w) => w.id)), 0, '一開始 watchmanCount 0');
@@ -19328,7 +19373,15 @@ console.log('\n▸ 守夜人：12 位站著不動的人（v1.2 · P16c）');
     eq(p16c.watchTurn('watch-broken-ring'), 0, '還沒問過情報');
     eq(p16c.seeWatchTopic('watch-broken-ring', 'lore').firstTime, true, '第一次問舊事');
     eq(p16c.seeWatchTopic('watch-broken-ring', 'lore').firstTime, false, '同一種情報只算一次');
-    eq(p16c.watchTurn('watch-broken-ring'), 1, '問過一種');
+    /*
+     * `watchTurn` 數的是**問了幾次**，不是問過幾種（P16c 審查 · 第 3 條）：
+     * `seen` 只放不重複的四種，拿它當輪替的計次的話，四種問完之後
+     * 技巧小知識就永遠停在同一條上。
+     */
+    eq(p16c.watchTurn('watch-broken-ring'), 2, '問了兩次（同一種也算一次）');
+    eq(p16c.watchmanState('watch-broken-ring').seen.length, 1, '但只問過一**種**');
+    for (let i = 0; i < 6; i += 1) p16c.seeWatchTopic('watch-broken-ring', 'lore');
+    eq(p16c.watchTurn('watch-broken-ring'), 8, '一直問下去計次一直往上（技巧那一條才輪得動）');
     eq(p16c.seeWatchTopic('watch-broken-ring', '亂寫的').firstTime, false, '不認得的情報 id 不寫進存檔');
     eq(JSON.stringify(p16c.watchmanState('watch-broken-ring').seen), '["lore"]', 'seen 只留真的問過的那一種');
     const after = JSON.stringify({

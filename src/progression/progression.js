@@ -379,12 +379,25 @@ export function createProgression({
     }
     const prev = state.struggles[id];
     const hits = new Set(prev && Array.isArray(prev.hits) ? prev.hits : []);
+    /*
+     * `last` ＝ **這一次**命中的那幾條；`hits` ＝ 歷來的聯集。
+     *
+     * 兩個都要留，因為它們回答的是不同的問題：過關要的是**同一次**全部到齊，
+     * 所以「他現在還缺什麼」只能看 `last`。只留聯集的話，一個人第一次寫對 A、
+     * 第二次改寫對 B，聯集就湊齊了 —— 守夜人於是對**最卡的那個人**閉嘴
+     * （P16c 審查 · 第 2 條）。聯集留著是給「他到底會不會這一條」用的。
+     */
+    const last = [];
     for (const r of Array.isArray(evaluation.results) ? evaluation.results : []) {
-      if (r && r.passed === true && typeof r.check === 'string') hits.add(r.check);
+      if (r && r.passed === true && typeof r.check === 'string') {
+        hits.add(r.check);
+        last.push(r.check);
+      }
     }
     state.struggles[id] = {
       tries: (prev && Number.isFinite(prev.tries) ? prev.tries : 0) + 1,
       hits: [...hits].sort(),
+      last: [...new Set(last)].sort(),
     };
   }
 
@@ -767,7 +780,11 @@ export function createProgression({
     watchmanState(id) {
       const w = state.watchmen && typeof state.watchmen === 'object' ? state.watchmen[id] : null;
       if (!w || typeof w !== 'object') return null;
-      return { met: Boolean(w.met), seen: Array.isArray(w.seen) ? w.seen.slice() : [] };
+      return {
+        met: Boolean(w.met),
+        seen: Array.isArray(w.seen) ? w.seen.slice() : [],
+        asks: Number.isFinite(w.asks) ? w.asks : 0,
+      };
     },
     /** 聊過了沒。 */
     hasMetWatchman(id) {
@@ -780,10 +797,16 @@ export function createProgression({
       const keys = Array.isArray(ids) ? ids : Object.keys(store);
       return keys.filter((id) => store[id] && store[id].met).length;
     },
-    /** 問過幾種情報（技巧小知識靠它輪到下一條）。 */
+    /**
+     * 問過**幾次**（技巧小知識靠它輪到下一條）。
+     *
+     * 這裡數的是「問了幾次」不是「問過幾種」：`seen` 只放**不重複**的四種情報，
+     * 拿它當輪替的計次的話，四種問完之後就永遠停在同一條技巧上
+     * （P16c 審查 · 第 3 條）。所以另外記一個 `asks`。
+     */
     watchTurn(id) {
-      const w = api.watchmanState(id);
-      return w ? w.seen.length : 0;
+      const w = state.watchmen && typeof state.watchmen === 'object' ? state.watchmen[id] : null;
+      return w && Number.isFinite(w.asks) ? w.asks : 0;
     },
     /**
      * 走近按 `E`：記下「聊過了」。
@@ -794,7 +817,11 @@ export function createProgression({
       if (!state.watchmen || typeof state.watchmen !== 'object' || Array.isArray(state.watchmen)) state.watchmen = {};
       const prev = state.watchmen[id];
       const firstMeet = !(prev && prev.met);
-      state.watchmen[id] = { met: true, seen: prev && Array.isArray(prev.seen) ? prev.seen.slice() : [] };
+      state.watchmen[id] = {
+        met: true,
+        seen: prev && Array.isArray(prev.seen) ? prev.seen.slice() : [],
+        asks: prev && Number.isFinite(prev.asks) ? prev.asks : 0,
+      };
       if (firstMeet) persist();
       return { firstMeet };
     },
@@ -809,7 +836,8 @@ export function createProgression({
       const seen = prev && Array.isArray(prev.seen) ? prev.seen.slice() : [];
       const firstTime = !seen.includes(topic);
       if (firstTime) seen.push(topic);
-      state.watchmen[id] = { met: true, seen };
+      const asks = (prev && Number.isFinite(prev.asks) ? prev.asks : 0) + 1;
+      state.watchmen[id] = { met: true, seen, asks };
       persist();
       return { firstTime };
     },

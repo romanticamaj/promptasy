@@ -542,6 +542,8 @@ function boot() {
       hud.refresh();
       // v1.2 · P03：世界端的濁靈跟著存檔一起歸零（不重載也不會演出失聯）
       world.murks?.reset?.();
+      // v1.2 · P16c：守夜人的「聊過了」也跟著歸零（同上，不重載也不會演出失聯）
+      world.watchmen?.reset?.();
       // v1.2 · P09：石座演出也歸零（借走的光柱還回去、粒子池清空；WORLD §8 G24b）
       world.rubricFx?.reset?.();
       // v1.2 · P06：閘門標籤／三態與石座三態也跟著歸零（先行前往過的門回到琥珀、它的石座回到暗）

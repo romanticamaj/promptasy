@@ -3796,7 +3796,7 @@ select option:disabled {
    兩句世界的話，一段真的教學（含可點的官方出處），然後就收起來。
    版面刻意比石碑再小一號：它是路過看一眼的東西，不是一個場景。
    ================================================================ */
-.overlay--inscribe .overlay__panel {
+.overlay--inscribe .panel {
   max-width: 46rem;
 }
 .inscribe {
@@ -3863,7 +3863,7 @@ select option:disabled {
    跟刻文小語同一個尺度，但紙比石頭軟：字級小半號、左邊一道紙緣的淡線。
    一半的殘頁有教學（技巧名＋既有中文說法＋可點的官方出處），一半純風味。
    ============================================================ */
-.overlay--letter .overlay__panel {
+.overlay--letter .panel {
   max-width: 46rem;
 }
 .letter {
@@ -3935,7 +3935,7 @@ select option:disabled {
    v1.2 · P16c：世界裡第一場對話。跟殘頁同一個尺度（一張小窗、幾行字），
    但底下多一組**用選的**問句 —— 玩家不必打字，也不必記任何新的鍵。
    ============================================================ */
-.overlay--watchman .overlay__panel {
+.overlay--watchman .panel {
   max-width: 44rem;
 }
 .watch {
