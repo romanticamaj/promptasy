@@ -16180,7 +16180,7 @@ console.log('\n▸ 中觀：遮擋帶與母題（v1.2 · P11）');
         tris += n * (o.isInstancedMesh ? o.count : 1);
       }
     });
-    ok(tris < 233000, 'P11：世界三角形 < 233k（P19 的框）', `tris=${Math.round(tris)}`);
+    ok(tris < 239000, 'P11：世界三角形 < 239k（P20a 的框）', `tris=${Math.round(tris)}`);
     eq(lights, 37, 'P11：光源數不變（中觀層一盞燈都不加）', `lights=${lights}`);
     // v1.2 · P16a：+6 座高台 ＋ 4 座母題 ＋ 2 道遮擋帶 → 974 → 992（這一格的預算 <1,100；§6.1 的硬上限仍是 1,400）
     ok(testWorld.solids.length < 1060, 'P11：碰撞體 < 1,060', `n=${testWorld.solids.length}`);
@@ -19860,7 +19860,7 @@ console.log('\n▸ 跳躍鋪區 ＋ 中景補四區（v1.2 · P16a）');
       }
     });
     // 這一格量到 224,946／37／992；門檻是這一格自己宣告的預算（比實測嚴一格）
-    ok(tris16 < 233000, 'P16a：世界三角形 < 233k（P19 的框）', `tris=${Math.round(tris16)}`);
+    ok(tris16 < 239000, 'P16a：世界三角形 < 239k（P20a 的框）', `tris=${Math.round(tris16)}`);
     eq(lights16, 37, 'P16a：光源數仍然是 37（中觀層一盞都不加）', `lights=${lights16}`);
     ok(testWorld.solids.length < 1100, 'P16a：碰撞體 < 1,100', String(testWorld.solids.length));
     // 每一片土地的中觀碰撞體上限（§4.10 ②）—— 新鋪的兩片也要在框內
@@ -20477,7 +20477,7 @@ console.log('\n▸ 守夜人：12 位站著不動的人（v1.2 · P16c）');
       const idx = geo.index ? geo.index.count : geo.attributes.position ? geo.attributes.position.count : 0;
       worldTris += (idx / 3) * (o.isInstancedMesh ? o.count : 1);
     });
-    ok(worldTris < 234000, '三角形在這一格的框內', `n=${Math.round(worldTris)}`);
+    ok(worldTris < 239000, '三角形在這一格的框內（P20a 的框）', `n=${Math.round(worldTris)}`);
     let worldLights = 0;
     testScene.traverse((o) => {
       if (o.isLight) worldLights += 1;
@@ -22487,6 +22487,824 @@ console.log('\n▸ 相鄰區捷徑 ＋ 外交式導向（v1.2 · P19）');
     ok(/導向/.test(worldMd19.slice(worldMd19.indexOf('### 4.4'), worldMd19.indexOf('### 4.5'))), 'P19：§4.4 講得出「導向」這件事');
     ok(/shortcuts/.test(worldMd19.slice(worldMd19.indexOf('### 5.4'), worldMd19.indexOf('## 六'))), 'P19：WORLD.md §5.4 列得出新的存檔欄位');
     ok(/P19/.test(worldMd19), 'P19：WORLD.md 標得出這一格');
+  }
+}
+
+/* ------------------------------------------------------------------ *
+ * v1.2 · P20a — 傳聞連線頁 ＋ 回聲重演（小景內）
+ *
+ * 這一格加的是**兩件不新增任何存檔欄的東西**，所以斷言分成五件事：
+ *   ① 傳聞的資料契約：每一條線的兩端都回查得到本人（六個既有資料層）。
+ *   ② **不劇透**：對**渲染出來的字串**掃 —— 未找到的那一端的名字與內容
+ *      一個字都不准出現；反例是「把佔位換成真名」，同一條掃描要抓得到。
+ *   ③ **沒有新增存檔欄**：存檔頂層欄位**逐鍵**比對契約（只驗「舊欄位都還在」
+ *      的話，偷偷加一欄不會有人紅）。
+ *   ④ 回聲的資料契約與擺位（對**真的蓋出來的世界**量）。
+ *   ⑤ 回聲的世界實體與那一場重演：零光源、零碰撞、**逐幀**量殘影離小景多遠、
+ *      `reducedMotion` 直接是終態、低畫質整層關。
+ * ------------------------------------------------------------------ */
+console.log('\n▸ 傳聞連線頁 ＋ 回聲重演（v1.2 · P20a）');
+{
+  const rumorFile20 = readJson('src/data/rumors.json');
+  const echoFile20 = readJson('src/data/echoes.json');
+  const links20 = rumorFile20.links;
+  const echoes20 = echoFile20.entries;
+  const Rumors = await import('../src/ui/rumors.js');
+  const Echo20 = await import('../src/world/echoes.js');
+  const Rules20 = (await import('./lib/screen-rules.mjs')).default;
+  const SaveIO20 = await import('../src/save/save.js');
+  const Audit20 = await import('./collision-audit.mjs');
+  const Reactive20 = await import('../src/world/reactive.js');
+  const rumorSrc20 = readFileSync(resolve(root, 'src/ui/rumors.js'), 'utf8');
+  const echoSrc20 = readFileSync(resolve(root, 'src/world/echoes.js'), 'utf8');
+  const codexSrc20 = readFileSync(resolve(root, 'src/ui/codex.js'), 'utf8');
+  const mainSrc20 = readFileSync(resolve(root, 'src/main.js'), 'utf8');
+  const worldSrc20 = readFileSync(resolve(root, 'src/world/world.js'), 'utf8');
+  const rulesSrc20 = readFileSync(resolve(root, 'scripts/lib/screen-rules.mjs'), 'utf8');
+  const saveSrc20 = readFileSync(resolve(root, 'src/save/save.js'), 'utf8');
+  const worldMd20 = readFileSync(resolve(root, 'WORLD.md'), 'utf8');
+  const cssSrc20 = readFileSync(resolve(root, 'src/styles.css'), 'utf8');
+  const inscriptions20 = readJson('src/data/inscriptions.json').entries;
+  const secrets20 = readJson('src/data/secrets.json').entries;
+  const watchmen20 = readJson('src/data/watchmen.json').entries;
+  const murks20 = readJson('src/data/murks.json').entries;
+  const letters20 = letterFile.entries;
+
+  /** 六個既有資料層 ——「那一端真的存在嗎」逐條回查用的就是這一份。 */
+  const CLUE_SOURCES = Object.freeze({
+    tablet: Props.LORE_TABLETS,
+    ins: inscriptions20,
+    letter: letters20,
+    secret: secrets20,
+    watchman: watchmen20,
+    murk: murks20,
+  });
+  const clueOf = (ref) => {
+    const parsed = Rumors.parseClueRef(ref);
+    if (!parsed) return null;
+    const list = CLUE_SOURCES[parsed.kind] || [];
+    return list.find((e) => e.id === parsed.id) || null;
+  };
+  /** 一筆線索在畫面上會出現的字（名字 ＋ 內容）—— 掃「有沒有劇透」就是掃這一串。 */
+  const clueWords = (entry) => {
+    const out = [];
+    if (!entry) return out;
+    if (entry.title) out.push(entry.title);
+    if (entry.name) out.push(entry.name);
+    for (const l of entry.lines || []) out.push(typeof l === 'string' ? l : l.text);
+    for (const l of entry.lore || []) out.push(l);
+    if (entry.taint) out.push(entry.taint);
+    if (entry.origin) out.push(entry.origin);
+    return out.filter((w) => typeof w === 'string' && w.length >= 3);
+  };
+  const regionIds20 = World.REGION_SITES.map((s) => s.id);
+
+  /* --- ① 傳聞的資料契約 ------------------------------------------- */
+  {
+    eq(rumorFile20.version, 1, 'rumors.json 有版本欄');
+    eq(rumorFile20.authored, 'game', 'rumors.json 檔頭明講是遊戲自撰的層');
+    ok(typeof rumorFile20.note === 'string' && rumorFile20.note.length > 40, 'rumors.json 檔頭寫得出這一份在做什麼');
+    // 護欄 2：這一頁一個字的教學都沒有 → 一個連結都不准有（同 secrets.json）
+    ok(!/https?:\/\//.test(JSON.stringify(rumorFile20)), 'rumors.json 裡一個連結都沒有（純風味層，出處只掛在原本那一層）');
+    ok(!/techniqueId|skillId|source/.test(JSON.stringify(rumorFile20)), 'rumors.json 不掛技巧、不掛出處');
+    eq(links20.length, EXPECT.rumors.value, `傳聞條數＝契約（${EXPECT.rumors.value} 條）`);
+    eq(
+      JSON.stringify(rumorFile20.kinds),
+      JSON.stringify(EXPECT.rumors.kinds),
+      '契約與資料檔的「認得哪六種線索」**逐值相同**'
+    );
+    eq(
+      JSON.stringify(Rumors.RUMOR_KINDS),
+      JSON.stringify(EXPECT.rumors.kinds),
+      '程式與契約的那六種**逐值相同**（分家就紅）'
+    );
+    for (const k of Rumors.RUMOR_KINDS) {
+      ok(typeof Rumors.RUMOR_UNKNOWN[k] === 'string' && Rumors.RUMOR_UNKNOWN[k].length > 0, `[${k}] 有一句不劇透的佔位`);
+      ok(typeof Rumors.RUMOR_KIND_LABEL[k] === 'string' && Rumors.RUMOR_KIND_LABEL[k].length > 0, `[${k}] 有一個很短的層標`);
+      ok((CLUE_SOURCES[k] || []).length > 0, `[${k}] 這一種線索在世界上真的有那麼一層`, String((CLUE_SOURCES[k] || []).length));
+    }
+    eq(new Set(links20.map((l) => l.id)).size, links20.length, '傳聞 id 沒有重複');
+    const pairs20 = new Set();
+    const kindsUsed20 = new Set();
+    let cross20 = 0;
+    for (const l of links20) {
+      const tag = `[${l.id}]`;
+      ok(/^rumor-[a-z0-9-]+$/.test(l.id), `${tag} id 是 kebab-case 且帶 rumor- 前綴`);
+      ok(regionIds20.includes(l.region), `${tag} region 是真的一片土地`, String(l.region));
+      ok(typeof l.say === 'string' && l.say.length > 0 && l.say.length <= 31, `${tag} 那一句話 ≤ 31 字（回聲說話的規矩）`, l.say);
+      ok(l.a !== l.b, `${tag} 兩端不是同一個東西`);
+      const key = [l.a, l.b].sort().join('|');
+      ok(!pairs20.has(key), `${tag} 這一對沒有被連過第二次`);
+      pairs20.add(key);
+      for (const ref of [l.a, l.b]) {
+        const parsed = Rumors.parseClueRef(ref);
+        ok(Boolean(parsed), `${tag} ${ref} 的形狀是 kind:id`);
+        if (!parsed) continue;
+        kindsUsed20.add(parsed.kind);
+        // **逐條回查**：那一端真的是既有資料層裡的一筆，不是打錯字的 id
+        ok(Boolean(clueOf(ref)), `${tag} ${ref} 在 ${parsed.kind} 那一層真的找得到`);
+      }
+      // 跨土地的那幾條（這一頁存在的理由）
+      const ra = clueOf(l.a);
+      const rb = clueOf(l.b);
+      if (ra && rb && ra.region && rb.region && ra.region !== rb.region) cross20 += 1;
+    }
+    eq(kindsUsed20.size, EXPECT.rumors.kinds.length, '六種線索每一種都至少被連到一次');
+    eq(cross20, EXPECT.rumors.crossRegion, `跨土地的連線數＝契約（${EXPECT.rumors.crossRegion} 條）`);
+    for (const rid of regionIds20) {
+      eq(links20.filter((l) => l.region === rid).length, EXPECT.rumors.perRegion, `[${rid}] 剛好 ${EXPECT.rumors.perRegion} 條傳聞`);
+    }
+    // 反例：形狀不對的 ref 一律 null（**呼叫的是被測的那一支**）
+    for (const bad of ['tablet', ':hearth', 'tablet:', 'nope:hearth', '', null, 42]) {
+      eq(Rumors.parseClueRef(bad), null, `反例：parseClueRef(${JSON.stringify(bad)}) 回 null`);
+    }
+    eq(Rumors.parseClueRef('tablet:hearth').kind, 'tablet', 'parseClueRef 認得出層');
+    eq(Rumors.parseClueRef('tablet:hearth').id, 'hearth', 'parseClueRef 認得出 id');
+  }
+
+  /* --- ② 不劇透：對**渲染出來的字串**掃 --------------------------- */
+  {
+    const index20 = Rumors.buildClueIndex({
+      tablets: Props.LORE_TABLETS,
+      inscriptions: inscriptions20,
+      letters: letters20,
+      secrets: secrets20,
+      watchmen: watchmen20,
+      murks: murks20,
+    });
+    eq(index20.size, Object.values(CLUE_SOURCES).reduce((a, l) => a + l.length, 0), '索引收得下六層的每一筆');
+    for (const l of links20) {
+      ok(index20.has(l.a) && index20.has(l.b), `[${l.id}] 兩端在索引裡都查得到名字`);
+    }
+
+    /**
+     * 「這一段 HTML 有沒有洩漏 `refs` 那幾端的名字或內容」——
+     * **反例用的是同一支**（把佔位換成真名之後再問一次，它要說有）。
+     */
+    const leaks = (html, refs) => {
+      for (const ref of refs) {
+        for (const w of clueWords(clueOf(ref))) {
+          if (html.includes(w)) return `${ref}｜${w}`;
+        }
+      }
+      return '';
+    };
+
+    // 什麼都沒找到：整頁一條線都不畫（「這裡還有 N 條線」本身就是劇透）
+    {
+      const html = Rumors.rumorBlock({ links: links20, index: index20, found: () => false });
+      ok(html.includes('data-rumor-empty'), '一條都沒接起來時，那一頁只有一句話');
+      eq(html.includes('data-rumor='), false, '一條都沒接起來時，一條線都沒畫出來');
+      const all = links20.flatMap((l) => [l.a, l.b]);
+      eq(leaks(html, all), '', '一條都沒接起來時，24 條線的 48 端一個字都沒漏');
+      for (const l of links20) eq(html.includes(l.say), false, `[${l.id}] 那一句話也沒漏出來`);
+    }
+
+    // 只找到一端：另一端**連名字都不給**，那一句話也不說
+    let checked20 = 0;
+    for (const l of links20) {
+      for (const [got, hidden] of [
+        [l.a, l.b],
+        [l.b, l.a],
+      ]) {
+        const html = Rumors.rumorBlock({ links: [l], index: index20, found: (ref) => ref === got });
+        const tag = `[${l.id} · 只找到 ${got}]`;
+        ok(html.includes('is-half'), `${tag} 那條線是虛線`);
+        ok(html.includes(Rumors.RUMOR_HALF_SAY), `${tag} 說的是「另一頭還沒找到」`);
+        eq(html.includes(l.say), false, `${tag} 那一句話還沒說出來`);
+        const gotName = index20.get(got).name;
+        ok(html.includes(gotName), `${tag} 找到的那一端有名字`, gotName);
+        const parsedHidden = Rumors.parseClueRef(hidden);
+        ok(html.includes(Rumors.RUMOR_UNKNOWN[parsedHidden.kind]), `${tag} 另一端只給佔位`);
+        eq(leaks(html, [hidden]), '', `${tag} **另一端的名字與內容一個字都沒有**`);
+        /*
+         * 反例（**呼叫的是同一支掃描**）：把佔位換成真名 —— `leaks()` 就要抓到。
+         * 沒有這一條的話，上面那一條可能只是「掃描根本看不見名字」的空過。
+         */
+        const leaked = html.replace(Rumors.RUMOR_UNKNOWN[parsedHidden.kind], index20.get(hidden).name);
+        ok(leaks(leaked, [hidden]) !== '', `${tag} 反例：把佔位換成真名，同一條掃描抓得到`);
+        checked20 += 1;
+      }
+    }
+    eq(checked20, links20.length * 2, '24 條線的兩個方向都掃過（不是一條空過的斷言）');
+
+    // 兩端都找到：實線 ＋ 那一句話 ＋ 兩個名字
+    {
+      const l = links20[0];
+      const html = Rumors.rumorBlock({ links: [l], index: index20, found: () => true });
+      ok(html.includes('is-linked'), '兩端都找到 → 實線');
+      ok(html.includes(l.say), '兩端都找到 → 那一句話才說出來');
+      ok(html.includes(index20.get(l.a).name) && html.includes(index20.get(l.b).name), '兩端都給名字');
+      eq(html.includes(Rumors.RUMOR_HALF_SAY), false, '兩端都找到就不再說「另一頭還沒找到」');
+    }
+
+    // 統計：只算「看得到的那幾條」
+    {
+      const first = links20[0];
+      const st = Rumors.rumorStats(links20, { index: index20, found: (ref) => ref === first.a || ref === first.b });
+      eq(st.total, links20.length, 'rumorStats 的分母是全部');
+      eq(st.linked, 1, 'rumorStats 數得出接起來的那一條');
+      eq(st.half, 0, '那一條兩端都找到了，所以不算「還差一頭」');
+      eq(st.hidden, links20.length - 1, '其餘的整條不畫');
+      const half = Rumors.rumorStats(links20, { index: index20, found: (ref) => ref === first.a });
+      eq(half.linked, 0, '反例：只找到一端 → 接起來的是 0 條');
+      eq(half.half, 1, '反例：只找到一端 → 算在「還差一頭」');
+    }
+
+    // 樣式真的畫得出實線與虛線（死選擇器不會有人發現）
+    ok(/\.rumor\.is-half \.rumor__thread/.test(cssSrc20), 'CSS 裡虛線那一條規則對得到真的 class');
+    ok(/\.rumor__thread\s*\{/.test(cssSrc20), 'CSS 裡有那根線本身');
+    ok(/\.rumor__end\.is-unknown/.test(cssSrc20), 'CSS 分得出「還沒找到的那一端」');
+  }
+
+  /* --- ③ clueFound：六種各問對了那一支（＋反例） ------------------ */
+  {
+    const spy = (extra) => ({
+      hasReadLore: () => false,
+      hasFoundInscription: () => false,
+      hasFoundLetter: () => false,
+      hasFoundSecret: () => false,
+      hasMetWatchman: () => false,
+      murkState: () => null,
+      ...extra,
+    });
+    const probe = {
+      tablet: ['tablet:hearth', { hasReadLore: (id) => id === 'hearth' }],
+      ins: ['ins:carve-yard-shard', { hasFoundInscription: (id) => id === 'carve-yard-shard' }],
+      letter: ['letter:letter-ring-halves', { hasFoundLetter: (id) => id === 'letter-ring-halves' }],
+      secret: ['secret:stele-73', { hasFoundSecret: (id) => id === 'stele-73' }],
+      watchman: ['watchman:watch-broken-ring', { hasMetWatchman: (id) => id === 'watch-broken-ring' }],
+      murk: ['murk:murk-vague-ask', { murkState: (id) => (id === 'murk-vague-ask' ? { grade: 'C', hits: [0] } : null) }],
+    };
+    for (const [kind, [ref, extra]] of Object.entries(probe)) {
+      ok(Boolean(clueOf(ref)), `[${kind}] 探針指的那一筆真的存在`);
+      eq(Rumors.clueFound(ref, spy(extra)), true, `[${kind}] 問對了那一支存檔述詞`);
+      // 反例（**呼叫的是同一支**）：什麼都沒找到的進度 → false
+      eq(Rumors.clueFound(ref, spy({})), false, `[${kind}] 反例：什麼都還沒找到 → false`);
+      // 反例：同一層的另一個 id 不會沾光
+      eq(Rumors.clueFound(`${kind}:no-such-thing`, spy(extra)), false, `[${kind}] 反例：另一個 id 不算數`);
+    }
+    // 濁靈：安撫過（有 grade）才算，只有命中不算
+    eq(
+      Rumors.clueFound('murk:murk-vague-ask', spy({ murkState: () => ({ grade: null, hits: [0, 1] }) })),
+      false,
+      '[murk] 反例：命中了但還沒安撫 → 不算找到'
+    );
+    eq(Rumors.clueFound('nope:x', spy({})), false, '反例：不認得的層 → false');
+    eq(Rumors.clueFound('tablet:hearth', null), false, '反例：沒有進度物件 → false');
+  }
+
+  /* --- ④ 沒有新增存檔欄（逐鍵比對） -------------------------------- */
+  {
+    const keys20 = Object.keys(SaveIO20.defaultSave()).sort();
+    eq(
+      JSON.stringify(keys20),
+      JSON.stringify(EXPECT.saveKeys.value),
+      'P20a：存檔的頂層欄位**逐鍵**與契約相同（傳聞與回聲一個欄位都沒有新增）'
+    );
+    // 反例（**同一個比對**）：偷偷多一欄就要紅
+    const sneaky = [...keys20, 'rumorsLinked'].sort();
+    ok(
+      JSON.stringify(sneaky) !== JSON.stringify(EXPECT.saveKeys.value),
+      '反例：偷偷多一欄，同一個逐鍵比對就會紅'
+    );
+    eq(
+      JSON.stringify(Object.keys(SaveIO20.normalize({})).sort()),
+      JSON.stringify(EXPECT.saveKeys.value),
+      'normalize() 補出來的也是同一份欄位'
+    );
+    eq(JSON.stringify(Object.keys(SaveIO20.reset()).sort()), JSON.stringify(EXPECT.saveKeys.value), 'reset() 之後也是同一份欄位');
+    // 靜態掃描：這兩層根本沒有碰存檔
+    ok(!/rumor|echo/i.test(saveSrc20), 'save.js 裡沒有 rumor / echo 這種字（沒有欄位可加）');
+    /*
+     * rumors.js 只准碰那六支**唯讀**的存檔述詞 —— 把用到的名字全掃出來逐個比對，
+     * 而不是列黑名單（黑名單漏一個字就等於沒守）。
+     */
+    {
+      const used = new Set((rumorSrc20.match(/progression\.(\w+)/g) || []).map((m) => m.slice('progression.'.length)));
+      eq(
+        JSON.stringify([...used].sort()),
+        JSON.stringify(['hasFoundInscription', 'hasFoundLetter', 'hasFoundSecret', 'hasMetWatchman', 'hasReadLore', 'murkState']),
+        'rumors.js 只碰得到那六支唯讀的存檔述詞（沒有第七支，更沒有寫入）'
+      );
+    }
+    ok(!/progression/.test(echoSrc20), 'echoes.js 連進度都碰不到（純世界層）');
+    eq(echoFile20.xp, 0, '看一場回聲重演不給 XP（純風味）');
+    {
+      const watchBody = mainSrc20.slice(mainSrc20.indexOf('function watchEcho('), mainSrc20.indexOf('function finishEcho('));
+      ok(watchBody.length > 80, '切得出 watchEcho 那一段（不是一條空過的斷言）', String(watchBody.length));
+      ok(!/progression\./.test(watchBody), 'watchEcho 一個存檔欄都沒寫');
+    }
+  }
+
+  /* --- ⑤ 回聲：資料契約 ------------------------------------------- */
+  {
+    eq(echoFile20.version, 1, 'echoes.json 有版本欄');
+    eq(echoFile20.authored, 'game', 'echoes.json 檔頭明講是遊戲自撰的層');
+    ok(typeof echoFile20.note === 'string' && echoFile20.note.length > 40, 'echoes.json 檔頭寫得出這一份在做什麼');
+    ok(!/https?:\/\//.test(JSON.stringify(echoFile20)), 'echoes.json 裡一個連結都沒有（純風味層）');
+    eq(echoes20.length, EXPECT.echoes.value, `回聲處數＝契約（${EXPECT.echoes.value} 處）`);
+    eq(EXPECT.echoes.perRegion, 1, '契約寫的是一片土地一處');
+    eq(JSON.stringify(echoFile20.acts), JSON.stringify(Echo20.ECHO_ACTS), '資料檔與程式的那四種 act **逐值相同**');
+    eq(new Set(echoes20.map((e) => e.id)).size, echoes20.length, '回聲 id 沒有重複');
+    eq(new Set(echoes20.map((e) => e.title)).size, echoes20.length, '標題沒有重複');
+    eq(new Set(echoes20.map((e) => e.stage)).size, echoes20.length, '一處小景只有一處回聲');
+    for (const rid of regionIds20) {
+      eq(echoes20.filter((e) => e.region === rid).length, 1, `[${rid}] 剛好一處回聲`);
+    }
+    // 掛在地標腳下的那幾片：契約逐值 ＋ 那一片**真的沒有小景**（理由要成立）
+    eq(
+      JSON.stringify(echoes20.filter((e) => e.stageKind === 'landmark').map((e) => e.region)),
+      JSON.stringify(EXPECT.echoes.landmarkStages),
+      '掛在地標腳下的那幾片＝契約（**逐值**）'
+    );
+    for (const rid of EXPECT.echoes.landmarkStages) {
+      eq(
+        Props.STORY_VIGNETTES.filter((v) => v.region === rid).length,
+        0,
+        `[${rid}] 掛在地標腳下的理由成立：那一片**真的一組小景都沒有**`
+      );
+    }
+    let worstWaypoint = 0;
+    let worstWaypointId = '';
+    for (const e of echoes20) {
+      const tag = `[${e.id}]`;
+      ok(/^echo-[a-z0-9-]+$/.test(e.id), `${tag} id 是 kebab-case 且帶 echo- 前綴`);
+      ok(regionIds20.includes(e.region), `${tag} region 是真的一片土地`);
+      ok(Array.isArray(e.at) && e.at.length === 2 && e.at.every(Number.isFinite), `${tag} at 是兩個數字`);
+      ok(['vignette', 'landmark'].includes(e.stageKind), `${tag} stageKind 只有小景與地標兩種`, String(e.stageKind));
+      const stage = Props.stageAnchor(e.stage, e.stageKind);
+      ok(Boolean(stage), `${tag} 它記得的那一處 ${e.stage} 真的在世界上`);
+      if (!stage) continue;
+      // 那一處要跟它同一片土地（不然「這一處的回聲」就名不副實）
+      const stageRegion =
+        e.stageKind === 'landmark'
+          ? (Props.LANDMARKS.find((l) => l.id === e.stage) || {}).region
+          : (Props.STORY_VIGNETTES.find((v) => v.id === e.stage) || {}).region;
+      eq(stageRegion, e.region, `${tag} 它記得的那一處與它在同一片土地上`);
+      ok(
+        e.seconds >= EXPECT.echoes.secondsRange[0] && e.seconds <= EXPECT.echoes.secondsRange[1],
+        `${tag} 一場 ${EXPECT.echoes.secondsRange[0]}–${EXPECT.echoes.secondsRange[1]} 秒`,
+        String(e.seconds)
+      );
+      for (const [key, label] of [['title', '標題'], ['line', '開演那一句'], ['result', '結果那一句']]) {
+        ok(typeof e[key] === 'string' && e[key].length > 0 && e[key].length <= 31, `${tag} ${label} ≤ 31 字（回聲說話的規矩）`, e[key]);
+      }
+      ok(Array.isArray(e.figures) && e.figures.length >= 1 && e.figures.length <= 2, `${tag} 一場 1–2 個殘影`);
+      const cosR = Math.cos(stage.rot);
+      const sinR = Math.sin(stage.rot);
+      for (const f of e.figures || []) {
+        ok(Echo20.ECHO_ACTS.includes(f.act), `${tag} act 是那四種之一`, String(f.act));
+        ok(Array.isArray(f.path) && f.path.length >= 1 && f.path.length <= 4, `${tag} 航點 1–4 個`);
+        for (const p of f.path || []) {
+          ok(Array.isArray(p) && p.length === 2 && p.every(Number.isFinite), `${tag} 航點是兩個數字`);
+          const rx = p[0] * cosR + p[1] * sinR;
+          const rz = -p[0] * sinR + p[1] * cosR;
+          const d = Math.hypot(rx, rz);
+          ok(d <= Echo20.ECHO_STAGE_R, `${tag} 航點在那一處 ${Echo20.ECHO_STAGE_R} 公尺內`, d.toFixed(2));
+          if (d > worstWaypoint) {
+            worstWaypoint = d;
+            worstWaypointId = e.id;
+          }
+        }
+      }
+    }
+    eq(
+      Math.round(worstWaypoint * 100) / 100,
+      EXPECT.echoes.reachCeiling,
+      `資料層航點最遠的那一個＝契約（${worstWaypointId}）`
+    );
+    console.log(`    ↳ 回聲：航點離那一處最遠 ${worstWaypoint.toFixed(2)}m（上限 ${Echo20.ECHO_STAGE_R}）`);
+    // 兩份常數不准分家
+    eq(Echo20.ECHO_RADIUS, Rules20.ECHO_R, '`echoes.js` 與擺位規則的互動半徑是同一個數字');
+    eq(Rules20.LAYER_INTERACT_R.echo, Rules20.ECHO_R, '淨空表那一格與互動半徑是同一個數字');
+    eq(Echo20.ECHO_STAGE_R, Rules20.ECHO_STAGE_R, '`echoes.js` 與擺位規則的「不准離開幾公尺」是同一個數字');
+    eq(Echo20.ECHO_STAGE_R, EXPECT.echoes.stageR, '契約與程式的「不准離開幾公尺」是同一個數字');
+    eq(Echo20.ECHO_SECONDS_MIN, EXPECT.echoes.secondsRange[0], '契約與程式的長度下限相同');
+    eq(Echo20.ECHO_SECONDS_MAX, EXPECT.echoes.secondsRange[1], '契約與程式的長度上限相同');
+    eq(
+      JSON.stringify(Rules20.ECHO_MARKER_EXCEPTIONS),
+      JSON.stringify(EXPECT.echoes.markerFloor),
+      '契約與規則表的石座例外門檻**逐值相同**'
+    );
+    eq(
+      JSON.stringify(Rules20.ECHO_ANCHOR_EXCEPTIONS),
+      JSON.stringify(EXPECT.echoes.anchorMaxExceptions),
+      '契約與規則表的「離那一處」例外**逐值相同**'
+    );
+    eq(Rules20.ECHO_ANCHOR_MAX, EXPECT.echoes.anchorMax, '契約與規則表的「離那一處」上限是同一個數字');
+    eq(Rules20.ECHO_WINNABLE_MIN, EXPECT.echoes.winnableFloor, '契約與規則表的「按得到它」門檻是同一個數字');
+    for (const [rid, floor] of Object.entries(EXPECT.echoes.markerFloor)) {
+      const ceil = EXPECT.echoes.markerCeiling[rid];
+      ok(Number.isFinite(ceil), `[${rid}] 契約記得那一片的全區上限`);
+      ok(floor <= ceil, `[${rid}] 門檻不超過全區上限（${floor} ≤ ${ceil}）`);
+      ok(ceil < Rules20.MARKER_R + Rules20.ECHO_R, `[${rid}] 例外真的是必要的（全區上限 ${ceil} < 圈不重疊 ${Rules20.MARKER_R + Rules20.ECHO_R}）`);
+    }
+    for (const [rid, max] of Object.entries(EXPECT.echoes.anchorMaxExceptions)) {
+      ok(max > Rules20.ECHO_ANCHOR_MAX, `[${rid}] 「離那一處」的例外真的比一般門檻鬆`);
+      ok(EXPECT.echoes.anchorDistance[rid] <= max, `[${rid}] 出貨的落點吃得下那個例外`);
+      ok(EXPECT.echoes.anchorDistance[rid] > Rules20.ECHO_ANCHOR_MAX, `[${rid}] 而且它真的需要那個例外`);
+    }
+    // **回聲真的被餵進 interactionTargets()**（沒餵進去，別人的擺位就會照過期的世界算）
+    {
+      const withEcho = Rules20.interactionTargets({ challenges: [], echoes: echoes20 });
+      eq(withEcho.length, echoes20.length, 'interactionTargets() 收得下回聲這一層');
+      eq(withEcho.every((t) => t.k === 'echo'), true, '而且標成 echo 這一層');
+      eq(Rules20.interactionTargets({ challenges: [] }).length, 0, '反例：沒有回聲就沒有那幾列');
+      ok(/data\.echoes \|\| \[\]/.test(rulesSrc20), 'interactionTargets() 真的讀了 echoes');
+      for (const p of ['scripts/screen-fit.mjs', 'scripts/murk-fit.mjs', 'scripts/guardian-fit.mjs', 'scripts/world-harness.mjs']) {
+        ok(/echoes/.test(readFileSync(resolve(root, p), 'utf8')), `${p} 也把回聲餵了進去`);
+      }
+      ok(/echoes\.map/.test(readFileSync(resolve(root, 'scripts/pacing-audit.mjs'), 'utf8')), 'pacing-audit 的 POI 也收了回聲（新資料層擺在路網 12m 內就要餵）');
+    }
+    // `echoNeedFrom` 的分支各自問對了（＋反例）
+    {
+      const marker = { k: 'marker', id: 'x', at: [0, 0] };
+      eq(Rules20.echoNeedFrom(marker), Rules20.MARKER_R + Rules20.ECHO_R, '一般土地對石座守的是「圈不重疊」');
+      eq(Rules20.echoNeedFrom(marker, 'wards'), EXPECT.echoes.markerFloor.wards, '護欄崗對石座守的是例外那一格');
+      eq(Rules20.echoNeedFrom(marker, 'foundations'), Rules20.MARKER_R + Rules20.ECHO_R, '反例：沒有例外的那一片照一般門檻');
+      eq(Rules20.echoNeedFrom({ k: 'react', id: 'x', at: [0, 0], r: 4.4 }), Rules20.ECHO_AUTO_MIN, '反應物那一條是常數（與圈多大無關）');
+      eq(Rules20.echoNeedFrom({ k: 'secret', id: 'x', at: [0, 0] }, 'wards'), Rules20.ECHO_AUTO_MIN, '祕密那一條也是常數，例外表管不到它');
+      eq(
+        Rules20.echoNeedFrom({ k: 'greatmurk', id: 'x', at: [0, 0] }, 'wards'),
+        Rules20.GREAT_MURK_R + Rules20.ECHO_R,
+        '大濁靈那一層**不准放進例外表**（murk-fit 從另一側量的是同一條式子）'
+      );
+      eq(
+        Rules20.echoNeedFrom({ k: 'guardian', id: 'x', at: [0, 0] }, 'wards'),
+        Rules20.GUARDIAN_R + Rules20.ECHO_R,
+        '守門者那一層也不准（guardian-fit 從另一側量的是同一條式子）'
+      );
+    }
+  }
+
+  /* --- ⑥ 回聲的擺位（對**真的蓋出來的世界**量） -------------------- */
+  {
+    const targets20 = Rules20.interactionTargets({
+      challenges,
+      inscriptions: inscriptions20,
+      letters: letters20,
+      handles: handleFile.entries,
+      reactiveSpots: Reactive20.reactiveTargets(),
+      murks: murks20,
+      watchmen: watchmen20,
+      guardians: [readJson('src/data/guardian.json')],
+      tablets: Props.LORE_TABLETS,
+      secrets: secrets20,
+      echoes: echoes20,
+    });
+    ok(targets20.length >= 300, '互動點真的有那麼多要比（不然這一段是空過的）', String(targets20.length));
+    const echoSolids20 = [];
+    for (const layer of testWorld.screens || []) {
+      for (const node of layer.group.children) {
+        for (const sd of World.collectSolids(node, World.terrainHeight)) {
+          echoSolids20.push({ x: sd.x, z: sd.z, r: sd.r, id: sd.id || node.name });
+        }
+      }
+    }
+    ok(echoSolids20.length > 50, '中觀層的碰撞圓真的有那麼多要比', String(echoSolids20.length));
+    const pathSegs20 = Props.buildPathNetwork(
+      World.REGION_SITES,
+      [...World.CORRIDORS, ...World.ANNEX_LINKS],
+      challenges,
+      (await import('../src/world/screens.js')).PATH_BENDS
+    );
+    /** 那一層真正搶得到 `E` 的圈（回聲排最後，所以每一層都比它先）。 */
+    const BEATS_ECHO = new Set(['marker', 'murk', 'greatmurk', 'watchman', 'guardian', 'tablet', 'ins', 'letter', 'handle']);
+    let tightest = Infinity;
+    let tightestWho = '';
+    const winByRegion20 = {};
+    const markerByRegion20 = {};
+    const anchorByRegion20 = {};
+    for (const e of echoes20) {
+      const tag = `[${e.id}]`;
+      const [x, z] = e.at;
+      const here = World.regionAt(x, z);
+      ok(here && here.id === e.region && !here.onBridge, `${tag} 落在自己的土地上（不在橋上）`, JSON.stringify(here));
+      ok(World.coverage(x, z) > Rules20.MOTIF_COVERAGE_MIN, `${tag} 沒有踩在崩掉的區緣上`, World.coverage(x, z).toFixed(2));
+      ok(testWorld.isWalkable(x, z) && !testWorld.solidAt(x, z), `${tag} 那一點真的站得住、沒有石頭壓著`);
+      let minMarker = Infinity;
+      for (const t of targets20) {
+        if (t.k === 'echo') continue;
+        const need = Rules20.echoNeedFrom(t, e.region);
+        const d = Math.hypot(x - t.at[0], z - t.at[1]);
+        ok(d >= need, `${tag} 離 ${t.k}:${t.id} 夠遠`, `${d.toFixed(2)} < ${need.toFixed(2)}`);
+        if (d - need < tightest) {
+          tightest = d - need;
+          tightestWho = `${e.id} ↔ ${t.k}:${t.id}`;
+        }
+        if (t.k === 'marker' && d < minMarker) minMarker = d;
+      }
+      markerByRegion20[e.region] = Math.round(minMarker * 100) / 100;
+      for (const lm of Props.LANDMARKS) {
+        ok(Math.hypot(x - lm.at[0], z - lm.at[1]) >= Rules20.ECHO_AUTO_MIN, `${tag} 沒有坐在地標 ${lm.id} 上`);
+      }
+      for (const sd of echoSolids20) {
+        // 中觀層的石頭是**碰撞圓**：守的是「還走得進它的互動圈」（與 solidProblems 同一條式子）
+        const need = Rules20.ECHO_R + World.PLAYER_RADIUS + sd.r;
+        ok(Math.hypot(x - sd.x, z - sd.z) >= need, `${tag} 沒有被中觀層 ${sd.id} 擋住`);
+      }
+      ok(Rules20.laneDistance(World, x, z) >= World.LANE_HALF + Rules20.LANE_MARGIN, `${tag} 離橋的主動線夠遠`);
+      ok(Rules20.gateDistance(World, x, z) >= Rules20.GATE_MIN, `${tag} 離閘門夠遠（不搶門自己會問的那一下）`);
+      ok(Rules20.pathDistance(pathSegs20, x, z) >= Rules20.ECHO_PATH_MIN, `${tag} 不坐在路中間`);
+      // 離它記得的那一處多遠
+      const stage = Props.stageAnchor(e.stage, e.stageKind);
+      const dAnchor = stage ? Math.hypot(x - stage.at[0], z - stage.at[1]) : Infinity;
+      const anchorMax = Rules20.ECHO_ANCHOR_EXCEPTIONS[e.region] ?? Rules20.ECHO_ANCHOR_MAX;
+      ok(dAnchor <= anchorMax, `${tag} 就坐在它記得的那一處旁邊`, `${dAnchor.toFixed(2)} > ${anchorMax}`);
+      anchorByRegion20[e.region] = Math.round(dAnchor * 100) / 100;
+      /*
+       * **真正要守的東西**：站在它的互動圈上，24 個方向裡有幾個
+       * 「站得住、而且是它贏」。回聲排在仲裁最後，所以「是它贏」＝
+       * 那一點上沒有任何一層排在它前面的東西罩著。
+       */
+      let win = 0;
+      for (let a = 0; a < Rules20.ECHO_WINNABLE_DIRS; a += 1) {
+        const ang = (a / Rules20.ECHO_WINNABLE_DIRS) * Math.PI * 2;
+        const px = x + Math.cos(ang) * (Rules20.ECHO_R - 0.3);
+        const pz = z + Math.sin(ang) * (Rules20.ECHO_R - 0.3);
+        if (!testWorld.isWalkable(px, pz) || testWorld.solidAt(px, pz)) continue;
+        let owned = true;
+        for (const t of targets20) {
+          if (!BEATS_ECHO.has(t.k)) continue;
+          if (Math.hypot(px - t.at[0], pz - t.at[1]) < Rules20.interactRingRadius(t)) {
+            owned = false;
+            break;
+          }
+        }
+        if (owned) win += 1;
+      }
+      winByRegion20[e.region] = win;
+      const floor = Rules20.ECHO_WINNABLE_MIN;
+      ok(win >= floor, `${tag} 互動圈上還有「站得住而且是它贏」的方向`, `${win}/${Rules20.ECHO_WINNABLE_DIRS}（門檻 ${floor}）`);
+    }
+    eq(
+      JSON.stringify(winByRegion20),
+      JSON.stringify(EXPECT.echoes.winnableWorst),
+      '逐片量到的「按得到它」與契約**逐值相同**'
+    );
+    eq(
+      JSON.stringify(anchorByRegion20),
+      JSON.stringify(EXPECT.echoes.anchorDistance),
+      '逐片量到的「離那一處多遠」與契約**逐值相同**'
+    );
+    for (const [rid, ceil] of Object.entries(EXPECT.echoes.markerCeiling)) {
+      eq(markerByRegion20[rid], ceil, `[${rid}] 出貨的落點就是全區離石座最遠的那一個（上限用 eq 不用 <=）`);
+    }
+    console.log(
+      `    ↳ 回聲：擺位最緊的一對 ${tightestWho} 還剩 ${tightest.toFixed(3)}m；` +
+        `按得到它最少 ${Math.min(...Object.values(winByRegion20))}/24（門檻 ${Rules20.ECHO_WINNABLE_MIN}）`
+    );
+  }
+
+  /* --- ⑦ 世界實體：零光源、零碰撞、預算 ---------------------------- */
+  {
+    const field20 = testWorld.echoes;
+    ok(Boolean(field20), '世界蓋出了回聲場');
+    eq(field20.count, echoes20.length, `世界上真的有 ${echoes20.length} 處回聲`);
+    for (const e of echoes20) {
+      const node = testScene.getObjectByName(`echo:${e.id}`);
+      ok(Boolean(node), `[${e.id}] 場景圖上找得到 echo:${e.id}`);
+      if (!node) continue;
+      ok(Boolean(node.getObjectByName('seat')), `[${e.id}] 那一團光在`);
+      ok(Boolean(node.getObjectByName('cast')), `[${e.id}] 殘影那一組在`);
+      eq(node.getObjectByName('cast').visible, false, `[${e.id}] 沒在演的時候殘影是收起來的`);
+    }
+    let lights20 = 0;
+    let tris20 = 0;
+    field20.group.traverse((o) => {
+      if (o.isLight) lights20 += 1;
+      const geo = o.geometry;
+      if (!geo) return;
+      const idx = geo.index ? geo.index.count : geo.attributes.position ? geo.attributes.position.count : 0;
+      tris20 += (idx / 3) * (o.isInstancedMesh ? o.count : 1);
+    });
+    eq(lights20, 0, '回聲這一層 0 個實體光源（護欄：光源固定 37 盞）');
+    ok(tris20 > 0 && tris20 < 2600, '回聲這一層的三角形在框內', `n=${Math.round(tris20)}`);
+    const solids20 = World.collectSolids(field20.group, World.terrainHeight);
+    eq(solids20.length, 0, '回聲這一層 0 個碰撞體（一團光與一群殘影擋不住人）');
+    // 註解裡寫得出「不登記」，所以掃描要先把註解拿掉（不然它自己會把自己判紅）
+    {
+      const code20 = echoSrc20.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+      ok(code20.length > 2000, '切得出去掉註解之後的程式碼', String(code20.length));
+      ok(!/keepSolid|solidRadius/.test(code20), 'echoes.js 的程式碼裡沒有任何碰撞登記');
+      ok(!/THREE\.(Point|Spot|Directional|Hemisphere|Ambient)Light/.test(code20), 'echoes.js 的程式碼裡沒有光源建構子');
+    }
+    ok(/noCollide = true/.test(echoSrc20), 'echoes.js 每一塊都標了 noCollide');
+    eq(
+      Audit20.auditStandables(solids20, World.terrainHeight).bad.length,
+      0,
+      '回聲這一層通得過可站立體稽核（0 個碰撞體，所以是 0）'
+    );
+    console.log(`    ↳ 回聲：三角 ${Math.round(tris20)}、碰撞體 ${solids20.length}、光源 ${lights20}`);
+    // 零每幀配置
+    {
+      const upd = echoSrc20.slice(echoSrc20.indexOf('    update(dt, t, px, pz) {'), echoSrc20.lastIndexOf('  };\n  return api;'));
+      ok(upd.length > 400, '切得出 update() 那一段（不是一條空過的斷言）', String(upd.length));
+      ok(!/new \w/.test(upd), 'P20a：回聲的 tick 裡不 new');
+      ok(!/\.map\(|\.filter\(/.test(upd), 'P20a：回聲的 tick 裡不 map / filter');
+      const place = echoSrc20.slice(echoSrc20.indexOf('function placeFigures('), echoSrc20.indexOf('  const api = {'));
+      ok(place.length > 400, '切得出 placeFigures() 那一段', String(place.length));
+      ok(!/new \w/.test(place), 'P20a：擺殘影的那一支裡也不 new');
+    }
+  }
+
+  /* --- ⑧ 那一場重演：逐幀量它離小景多遠 ---------------------------- */
+  {
+    const finished = [];
+    const restore20 = installCanvasStub();
+    const playWorld = World.createWorld({
+      engine: { scene: new THREE.Scene(), camera: {}, onUpdate() {} },
+      quality: 'high',
+      ...worldOpts,
+      onEchoFinish: (entry) => finished.push(entry.id),
+    });
+    // reducedMotion 的那一份（同一批資料，只有「動」被關掉）
+    const stillWorld = World.createWorld({
+      engine: { scene: new THREE.Scene(), camera: {}, onUpdate() {} },
+      quality: 'high',
+      ...worldOpts,
+      reducedMotion: true,
+    });
+    // 低畫質：整層不蓋
+    const lowWorld = World.createWorld({
+      engine: { scene: new THREE.Scene(), camera: {}, onUpdate() {} },
+      quality: 'low',
+      ...worldOpts,
+    });
+    restore20();
+
+    eq(lowWorld.echoes.count, 0, '低畫質整層關掉（純氛圍層，關掉不擋任何一條路）');
+    eq(lowWorld.nearestEcho({ x: echoes20[0].at[0], y: 0, z: echoes20[0].at[1] }), null, '低畫質之下走過去也按不到（那一層不在）');
+    eq(lowWorld.playEcho(echoes20[0].id), null, '低畫質之下開演回 null');
+
+    // 互動圈：圈內按得到、圈外按不到（證明量的就是它的圈）
+    for (const e of echoes20) {
+      const inR = playWorld.nearestEcho({ x: e.at[0] + Rules20.ECHO_R - 0.1, y: 0, z: e.at[1] });
+      const outR = playWorld.nearestEcho({ x: e.at[0] + Rules20.ECHO_R + 0.1, y: 0, z: e.at[1] });
+      ok(inR && inR.echo.id === e.id, `[${e.id}] 互動圈裡按得到它`, JSON.stringify(inR && inR.echo.id));
+      ok(!outR || outR.echo.id !== e.id, `[${e.id}] 互動圈外就按不到它了（＝ 真的是它的圈）`);
+    }
+
+    let worstReach20 = 0;
+    let worstReachId = '';
+    for (const e of echoes20) {
+      const tag = `[${e.id}]`;
+      const stage = Props.stageAnchor(e.stage, e.stageKind);
+      const started = playWorld.playEcho(e.id);
+      ok(Boolean(started) && started.id === e.id, `${tag} 開得了演`);
+      eq(playWorld.echoPlaying, e.id, `${tag} 正在演的就是它`);
+      eq(playWorld.playEcho(e.id), null, `${tag} 演到一半不接第二次 E`);
+      const built = playWorld.echoes.byId(e.id);
+      eq(built.cast.visible, true, `${tag} 殘影出現了`);
+      const dt = 1 / 60;
+      let frames = 0;
+      let moved = 0;
+      let brightest = 0;
+      let lastX = null;
+      // 逐幀：走到演完為止（多留一秒的保險絲 —— 迴圈邊界不能當斷言邊界）
+      while (playWorld.echoPlaying === e.id && frames < Math.ceil((e.seconds + 1) * 60)) {
+        playWorld.echoes.update(dt, frames * dt, e.at[0], e.at[1]);
+        frames += 1;
+        brightest = Math.max(brightest, built.castMat.opacity);
+        for (const f of built.figures) {
+          // 殘影的世界座標 ＝ 那一處中心 ＋ 它在 cast 裡的位置
+          const d = Math.hypot(f.group.position.x, f.group.position.z);
+          if (d > worstReach20) {
+            worstReach20 = d;
+            worstReachId = e.id;
+          }
+          ok(d <= Echo20.ECHO_STAGE_R, `${tag} 殘影沒有離開那一處 ${Echo20.ECHO_STAGE_R} 公尺`, d.toFixed(2));
+        }
+        // 「動了沒」要看**會走的那一個**（`stand` / `sway` 的殘影本來就站著不動）
+        const walker = built.figures.find((f) => f.segments > 0) || built.figures[0];
+        const fx = walker.group.position.x + walker.group.position.z;
+        if (lastX !== null && Math.abs(fx - lastX) > 1e-6) moved += 1;
+        lastX = fx;
+      }
+      ok(frames >= Math.floor(e.seconds * 60 * 0.9), `${tag} 真的演滿了 ${e.seconds} 秒`, `${frames} 幀`);
+      ok(frames < Math.ceil((e.seconds + 1) * 60), `${tag} 而且會自己結束（不是撞到保險絲）`, `${frames} 幀`);
+      ok(brightest > 0.3, `${tag} 中途真的亮起來過`, brightest.toFixed(2));
+      ok(moved > 30, `${tag} 殘影真的動了`, `${moved} 幀有位移`);
+      eq(playWorld.echoPlaying, null, `${tag} 演完就收`);
+      eq(built.cast.visible, false, `${tag} 演完殘影收起來`);
+      ok(finished.includes(e.id), `${tag} 演完那一拍通知得到主程式（結果那一句才說得出來）`);
+      // 舞台真的是那一處，不是那團光（兩者可以隔十幾公尺）
+      eq(Math.round(built.stageX * 100) / 100, Math.round(stage.at[0] * 100) / 100, `${tag} 舞台中心的 x 是那一處`);
+      eq(Math.round(built.stageZ * 100) / 100, Math.round(stage.at[1] * 100) / 100, `${tag} 舞台中心的 z 是那一處`);
+    }
+    eq(finished.length, echoes20.length, '12 處各演完一次，各通知一次');
+    ok(worstReach20 <= Echo20.ECHO_STAGE_R, '逐幀量到最遠的那一刻仍在框內', worstReach20.toFixed(2));
+    console.log(`    ↳ 回聲：逐幀量到殘影最遠 ${worstReach20.toFixed(2)}m（${worstReachId}，上限 ${Echo20.ECHO_STAGE_R}）`);
+
+    // reducedMotion：**直接是終態**（一出現就站在最後一個航點上，而且不再移動）
+    for (const e of echoes20) {
+      const tag = `[${e.id} · reducedMotion]`;
+      const stage = Props.stageAnchor(e.stage, e.stageKind);
+      const cosR = Math.cos(stage.rot);
+      const sinR = Math.sin(stage.rot);
+      ok(Boolean(stillWorld.playEcho(e.id)), `${tag} 開得了演`);
+      const built = stillWorld.echoes.byId(e.id);
+      stillWorld.echoes.update(1 / 60, 0, e.at[0], e.at[1]);
+      const first = built.figures.map((f) => [f.group.position.x, f.group.position.z]);
+      for (let i = 0; i < built.figures.length; i += 1) {
+        const path = e.figures[i].path;
+        const last = path[path.length - 1];
+        const rx = last[0] * cosR + last[1] * sinR;
+        const rz = -last[0] * sinR + last[1] * cosR;
+        ok(
+          Math.abs(first[i][0] - rx) < 1e-6 && Math.abs(first[i][1] - rz) < 1e-6,
+          `${tag} 第 ${i + 1} 個殘影一出現就站在最後一個航點上（＝ 結果本身）`,
+          JSON.stringify(first[i])
+        );
+      }
+      // 再跑一半的時間：位置一格都不准動（關掉的是「動」）
+      let lit = 0;
+      for (let f = 0; f < Math.floor(e.seconds * 30); f += 1) {
+        stillWorld.echoes.update(1 / 60, f / 60, e.at[0], e.at[1]);
+        lit = Math.max(lit, built.castMat.opacity);
+      }
+      for (let i = 0; i < built.figures.length; i += 1) {
+        ok(
+          Math.abs(built.figures[i].group.position.x - first[i][0]) < 1e-6 &&
+            Math.abs(built.figures[i].group.position.z - first[i][1]) < 1e-6,
+          `${tag} 第 ${i + 1} 個殘影全程沒有移動過`
+        );
+      }
+      ok(lit > 0.3, `${tag} 但**回應**還在（透明度照樣亮起來）`, lit.toFixed(2));
+      stillWorld.echoes.stop();
+    }
+
+    // 收乾淨：reset() 之後不留任何一場在演（存檔清了，世界要跟著清）
+    ok(Boolean(playWorld.playEcho(echoes20[0].id)), '再開一場');
+    eq(playWorld.echoes.reset(), true, 'reset() 收得掉那一場');
+    eq(playWorld.echoPlaying, null, 'reset() 之後沒有東西在演');
+    eq(playWorld.echoes.byId(echoes20[0].id).cast.visible, false, 'reset() 之後殘影也收起來了');
+    eq(playWorld.echoes.reset(), false, '反例：沒有東西在演的時候 reset() 回 false');
+    eq(playWorld.playEcho('no-such-echo'), null, '反例：不存在的 id 開不了演');
+  }
+
+  /* --- ⑨ 接線：`E` 仍是唯一互動鍵、仲裁排最後、重置接得上 ---------- */
+  {
+    ok(/world\.nearestEcho\?\.\(/.test(mainSrc20), 'P20a：main.js 問得到走近的回聲');
+    ok(/e\.code === 'KeyE' && nearEcho/.test(mainSrc20), 'P20a：`E` 看得了一場重演（沒有第二個鍵）');
+    ok(/watchEcho\(nearEcho\)/.test(mainSrc20), 'P20a：那一下真的走世界層');
+    // 仲裁：每一層都比它先，而閘門排在它後面
+    ok(
+      /blocked \|\| hitHandle \|\| hitWinch \|\| world\.echoPlaying/.test(mainSrc20),
+      'P20a：誰要用 `E` 都讓（石座／濁靈／人／碑／刻文／殘頁／器物／機關先）'
+    );
+    ok(
+      /const hitGate = blocked \|\| hitHandle \|\| hitWinch \|\| hitEcho \? null :/.test(mainSrc20),
+      'P20a：閘門排在回聲後面（仲裁順序寫得出來）'
+    );
+    ok(/nearEcho = hitEcho \? hitEcho\.echo : null;/.test(mainSrc20), 'P20a：仲裁結果落到 nearEcho');
+    // 面板打開／序章進行中：整組收手
+    {
+      const clearBody = mainSrc20.slice(mainSrc20.indexOf('if (anyPanelOpen() || prologue.isActive) {'), mainSrc20.indexOf('const hitMarker = world.nearestMarker'));
+      ok(clearBody.length > 100, '切得出「面板打開就收手」那一段', String(clearBody.length));
+      ok(/nearEcho = null;/.test(clearBody), 'P20a：面板打開時回聲也收手');
+    }
+    // 存檔清了，世界要跟著清（寫好了卻沒有人呼叫的 reset() 等於沒有）
+    {
+      const resetBody = mainSrc20.slice(mainSrc20.indexOf('onReset: () => {'), mainSrc20.indexOf('onReplayPrologue:'));
+      ok(resetBody.length > 200, '切得出 onReset 那一段', String(resetBody.length));
+      ok(/world\.echoes\?\.reset\?\.\(\)/.test(resetBody), 'P20a：onReset 真的把正在演的那一場收掉');
+    }
+    // reducedMotion：不播過程就要先把結果說出來（不然那一句永遠等 5 秒）
+    {
+      const watchBody = mainSrc20.slice(mainSrc20.indexOf('function watchEcho('), mainSrc20.indexOf('function finishEcho('));
+      ok(/reducedMotion \? entry\.result : entry\.line/.test(watchBody), 'P20a：reducedMotion 之下開演那一拍就給結果');
+      const finishBody = mainSrc20.slice(mainSrc20.indexOf('function finishEcho('), mainSrc20.indexOf('function pushWinch('));
+      ok(/if \(reducedMotion \|\| !entry\) return;/.test(finishBody), 'P20a：所以演完那一拍不再說第二次');
+    }
+    // 低畫質整層關：判斷在世界層（一個地方決定）
+    ok(/quality === 'low' \? \[\] : echoes/.test(worldSrc20), 'P20a：低畫質整層不蓋（世界層一個地方決定）');
+    /*
+     * 上面那一段是直接餵 `echoes.update()`（世界的整支 `updateReactions` 還要一份
+     * 完整的進度替身）—— 所以「它真的被接進每幀迴圈」要另外守一條靜態掃描，
+     * 不然那一層可以整個沒有人呼叫，而每一條斷言照樣綠（findings：寫好了卻沒有人呼叫等於沒有）。
+     */
+    ok(/echoField\.update\(dt, t, x, z\);/.test(worldSrc20), 'P20a：回聲場真的被接進世界的每幀迴圈');
+    // 圖鑑那一頁真的接上了
+    ok(/rumors: rumorFile\.links \|\| \[\]/.test(mainSrc20), 'P20a：圖鑑收得到那 24 條線');
+    ok(/rumorIndex: buildClueIndex\(\{/.test(mainSrc20), 'P20a：六層的名字索引在 main.js 建一次');
+    ok(/\$\{secretChapter\(\)\}\$\{rumorChapter\(\)\}/.test(codexSrc20), 'P20a：傳聞那一章真的畫在圖鑑上');
+    ok(/found: \(ref\) => clueFound\(ref, progression\)/.test(codexSrc20), 'P20a：「找到了沒」問的是既有的存檔欄');
+  }
+
+  /* --- ⑩ 文件與資料是同一份 --------------------------------------- */
+  {
+    const s32 = worldMd20.slice(worldMd20.indexOf('### 3.2'), worldMd20.indexOf('### 3.3'));
+    ok(/回聲重演/.test(s32), 'WORLD.md §3.2 的表列得出回聲這一層');
+    ok(/機關 > 回聲 > 閘門/.test(s32), 'WORLD.md §3.2 寫得出它排在仲裁最後一位');
+    ok(/無（不加存檔欄）/.test(s32), 'WORLD.md §3.2 講明它沒有存檔欄');
+    const s417 = worldMd20.slice(worldMd20.indexOf('### 4.17'), worldMd20.indexOf('## 五'));
+    ok(s417.length > 400, 'WORLD.md 有 §4.17（回聲重演的擺放）', String(s417.length));
+    ok(/P20a/.test(s417), '§4.17 標得出這一格');
+    ok(/divergence|分歧之廳/.test(s417), '§4.17 講得出唯一掛在地標腳下的那一片');
+    ok(/echoes\.json/.test(s417) && /rumors\.json/.test(worldMd20), 'WORLD.md 指得出這兩份資料住在哪');
+    ok(/不加存檔欄/.test(worldMd20.slice(worldMd20.indexOf('### 5.4'), worldMd20.indexOf('## 六'))), 'WORLD.md §5.4 講明這一格沒有新增欄位');
   }
 }
 

@@ -1447,6 +1447,27 @@ export const STORY_VIGNETTES = Object.freeze([
   },
 ]);
 
+/**
+ * v1.2 · P20a：一場回聲重演的**舞台** —— 那一處小景（或那一片土地的地標）
+ * 的中心與朝向。座標只有一份：這裡現查，不在別的資料檔裡重抄一次。
+ *
+ * 為什麼會有 `landmark` 這一種：**分歧之廳是十二片土地裡唯一沒有小景的一片**
+ * （`STORY_VIGNETTES` 33 組分在其餘十一片），所以它那一處回聲掛在自己的地標
+ * 「兩面的柱」腳下。理由與量出來的數字寫在 WORLD.md §4.17。
+ *
+ * @param {string} id
+ * @param {'vignette'|'landmark'} [kind]
+ * @returns {{at:number[], rot:number}|null}
+ */
+export function stageAnchor(id, kind = 'vignette') {
+  if (kind === 'landmark') {
+    const lm = LANDMARKS.find((l) => l.id === id);
+    return lm ? { at: lm.at, rot: 0 } : null;
+  }
+  const v = STORY_VIGNETTES.find((s) => s.id === id);
+  return v ? { at: v.at, rot: Number.isFinite(v.rot) ? v.rot : 0 } : null;
+}
+
 /* ------------------------------------------------------------------ *
  * 地標（landmark / weenie）：每區一個從中央高原就看得到的大剪影
  * ------------------------------------------------------------------ */
@@ -2360,6 +2381,7 @@ export default {
   LORE_XP,
   STORY_VIGNETTES,
   LANDMARKS,
+  stageAnchor,
   PROP_KINDS,
   kitFor,
   buildVignettes,

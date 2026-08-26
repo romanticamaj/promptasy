@@ -21158,6 +21158,279 @@ async function main() {
     JSON.stringify(guideBack)
   );
 
+
+  /* ================================================================ */
+  /*
+   * v1.2 · P20a —— 回聲重演（走過去按 E，殘影真的在小景裡動起來）
+   *                 ＋ 圖鑑的傳聞頁（虛線那一頭不劇透）
+   *
+   * 這一段要證的是三句話：
+   *   ① 那 12 團光真的蓋在瀏覽器裡（0 光源、0 碰撞）。
+   *   ② 走過去按 `E`，殘影**真的動了**、**沒有離開小景 6 公尺**、演完自己收掉。
+   *   ③ 圖鑑那一頁：找到一端只有虛線 ＋ 佔位（**另一端的名字一個字都沒有**），
+   *      兩端都找到才接成實線、才說出那一句。
+   */
+  console.log('\n▸ 傳聞連線頁 ＋ 回聲重演（v1.2 · P20a）');
+
+  await clearStage19();
+
+  /* --- ① 世界端：12 團光、0 光源、0 碰撞 --------------------------- */
+  const echoWorld = await evaluate(`
+    const g = window.__promptasy;
+    const entries = g.echoData.entries;
+    let lights = 0, tris = 0, casts = 0, visibleCasts = 0;
+    const names = [];
+    g.world.echoes.group.traverse((o) => {
+      if (o.name && o.name.startsWith('echo:')) names.push(o.name);
+      if (o.name === 'cast') { casts += 1; if (o.visible) visibleCasts += 1; }
+      if (o.isLight) lights += 1;
+      if (o.isMesh && o.geometry) {
+        const idx = o.geometry.index;
+        tris += idx ? idx.count / 3 : o.geometry.attributes.position.count / 3;
+      }
+    });
+    // 這一層有沒有登記碰撞：整張碰撞表裡不該有任何一顆坐在那 12 個點上
+    const onEchoes = g.world.solids.filter((s) =>
+      entries.some((e) => Math.hypot(s.x - e.at[0], s.z - e.at[1]) < 0.9)
+    ).length;
+    return {
+      built: names.length,
+      first: names[0] || '',
+      count: g.world.echoes.count,
+      lights,
+      tris: Math.round(tris),
+      casts,
+      visibleCasts,
+      onEchoes,
+      playing: g.world.echoPlaying,
+      quality: g.progression.state.settings.quality,
+    };
+  `);
+  eq(echoWorld.quality, 'high', 'P20a：這一輪是高畫質（低畫質整層不蓋，那條路由 rubric 守）');
+  eq(echoWorld.count, 12, 'P20a：世界上真的有 12 處回聲');
+  eq(echoWorld.built, 12, 'P20a：12 個 echo:<id> 都蓋在場景圖上');
+  ok(echoWorld.first.startsWith('echo:'), 'P20a：場景圖節點名帶得出它的 id', echoWorld.first);
+  eq(echoWorld.lights, 0, 'P20a：回聲這一層一盞燈都沒加（光源固定 37 盞）');
+  eq(echoWorld.onEchoes, 0, 'P20a：回聲這一層一個碰撞體都沒登記（一團光擋不住人）');
+  eq(echoWorld.casts, 12, 'P20a：12 組殘影都建好了（只是收著）');
+  eq(echoWorld.visibleCasts, 0, 'P20a：沒在演的時候一組殘影都看不到');
+  eq(echoWorld.playing, null, 'P20a：一開始沒有東西在演');
+  ok(echoWorld.tris > 0 && echoWorld.tris < 2600, 'P20a：這一層的三角形在框內', String(echoWorld.tris));
+
+  /* --- ② 走過去按 `E`：殘影真的動了、沒離開小景、演完自己收 -------- */
+  const echoTargetId = 'echo-first-words';
+  await evaluate(`
+    const g = window.__promptasy;
+    const e = g.echoData.entries.find((x) => x.id === '${echoTargetId}');
+    g.player.teleport(e.at[0], e.at[1]);
+    return 1;
+  `);
+  /*
+   * 等的是**這一處自己那一句**（標題），不是「有沒有提示」——
+   * 上一段留在畫面上的提示也會滿足「不是空的」，那種等待條件第一圈就跳出去
+   * （findings：等待條件不能是「上一次留下的值也滿足」的那一種）。
+   */
+  const echoHint = await waitFor(
+    () =>
+      evaluate(`
+        const g = window.__promptasy;
+        const el = document.querySelector('[data-interact]');
+        const txt = el && !el.hidden ? el.textContent || '' : '';
+        const title = g.echoData.entries.find((x) => x.id === '${echoTargetId}').title;
+        return txt.includes(title) ? { txt, title } : null;
+      `),
+    { timeout: 20000, every: 150, label: 'P20a：走近那一團光' }
+  );
+  ok(echoHint.txt.includes(echoHint.title), 'P20a：走近提示寫的是它自己的標題', echoHint.txt);
+  ok(echoHint.txt.includes('看一次'), 'P20a：提示的動詞是「看一次」（標題 ＋ 狀態 ＋ 動詞）', echoHint.txt);
+  ok(echoHint.txt.includes('E'), 'P20a：提示說的是按 `E`（沒有第二個鍵）', echoHint.txt);
+
+  await key('KeyE', 'e', { vk: 69 });
+  await waitFor(
+    () => evaluate(`return window.__promptasy.world.echoPlaying === '${echoTargetId}' ? 1 : null;`),
+    { timeout: 15000, every: 100, label: 'P20a：那一場開演了' }
+  );
+
+  /*
+   * 取樣視窗要蓋住事件本身（findings：先睡再量，量到的永遠是 0）——
+   * 所以從**現在**開始每 100ms 取一次，一路取到它自己收掉為止，
+   * 整段共用一個預算（CDP 逾時是整支中斷，不是紅一條）。
+   */
+  const echoSamples = [];
+  const echoBudget = Date.now() + 14000;
+  let echoEnded = false;
+  while (Date.now() < echoBudget) {
+    const snap = await evaluate(`
+      const g = window.__promptasy;
+      const b = g.world.echoes.byId('${echoTargetId}');
+      return {
+        playing: g.world.echoPlaying,
+        visible: b.cast.visible,
+        opacity: b.castMat.opacity,
+        // 殘影在 cast 裡的位置就是「離小景中心多遠」（cast 掛在小景中心上）
+        at: b.figures.map((f) => [f.group.position.x, f.group.position.z]),
+      };
+    `);
+    echoSamples.push(snap);
+    if (snap.playing === null) {
+      echoEnded = true;
+      break;
+    }
+    await sleep(100);
+  }
+  ok(echoEnded, 'P20a：那一場自己演完了（不是撞到取樣預算）', `${echoSamples.length} 次取樣`);
+  ok(echoSamples.length >= 20, 'P20a：取樣視窗真的蓋住了整場（不是一兩幀）', String(echoSamples.length));
+  {
+    const live = echoSamples.filter((s) => s.playing !== null);
+    ok(live.length >= 15, 'P20a：演的過程真的被取樣到了', String(live.length));
+    ok(
+      live.every((s) => s.visible),
+      'P20a：演的時候殘影一直看得到'
+    );
+    ok(
+      live.some((s) => s.opacity > 0.3),
+      'P20a：殘影中途真的亮起來過',
+      String(Math.max(...live.map((s) => s.opacity)).toFixed(2))
+    );
+    // **動了沒**：同一個殘影在兩次取樣之間位置變過（量的是最大位移，不是最小）
+    let moved = 0;
+    for (let i = 1; i < live.length; i += 1) {
+      const a = live[i - 1].at;
+      const b = live[i].at;
+      for (let f = 0; f < Math.min(a.length, b.length); f += 1) {
+        moved = Math.max(moved, Math.hypot(b[f][0] - a[f][0], b[f][1] - a[f][1]));
+      }
+    }
+    ok(moved > 0.05, 'P20a：**殘影真的動了**（兩次取樣之間位置變過）', moved.toFixed(3));
+    // **沒有離開小景 6 公尺**：逐次取樣量最遠的那一刻
+    let reach = 0;
+    for (const s of live) for (const p of s.at) reach = Math.max(reach, Math.hypot(p[0], p[1]));
+    ok(reach > 0.5, 'P20a：真的量到殘影的位置（不是一串 0）', reach.toFixed(2));
+    ok(reach <= 6, 'P20a：**殘影全程沒有離開小景 6 公尺**', reach.toFixed(2));
+    const last = echoSamples[echoSamples.length - 1];
+    eq(last.playing, null, 'P20a：演完就沒有東西在演了');
+    eq(last.visible, false, 'P20a：演完殘影收回去（回到原狀）');
+  }
+  // 那團光還在原地（演完不會把它帶走）
+  const echoAfter = await evaluate(`
+    const g = window.__promptasy;
+    const e = g.echoData.entries.find((x) => x.id === '${echoTargetId}');
+    const node = g.world.root.getObjectByName('echo:' + e.id);
+    return {
+      x: Math.round(node.position.x * 100) / 100,
+      z: Math.round(node.position.z * 100) / 100,
+      at: e.at,
+      seat: Boolean(node.getObjectByName('seat')),
+      saveKeys: Object.keys(g.progression.state).sort().join(','),
+    };
+  `);
+  eq(echoAfter.x, Math.round(echoAfter.at[0] * 100) / 100, 'P20a：那團光還坐在原地（x）');
+  eq(echoAfter.z, Math.round(echoAfter.at[1] * 100) / 100, 'P20a：那團光還坐在原地（z）');
+  eq(echoAfter.seat, true, 'P20a：那團光本體還在');
+  eq(
+    echoAfter.saveKeys.includes('echo') || echoAfter.saveKeys.includes('rumor'),
+    false,
+    'P20a：看完一場之後存檔裡還是沒有 echo / rumor 這種欄位'
+  );
+
+  /* --- ③ 圖鑑的傳聞頁：虛線那一頭不劇透 ---------------------------- */
+  {
+    // 先把這一段會用到的兩個既有欄位存起來（結束時原封還回去）
+    await evaluate(`
+      const g = window.__promptasy;
+      const st = g.progression.state;
+      window.__p20aSaved = { lore: st.loreRead.slice(), letters: st.lettersFound.slice() };
+      st.loreRead.length = 0;
+      st.lettersFound.length = 0;
+      return 1;
+    `);
+
+    const readRumor = async () => {
+      const out = await evaluate(`
+        const g = window.__promptasy;
+        if (!g.codex.isOpen) g.codex.open();
+        const root = g.codex.root;
+        const page = root.querySelector('.rumors');
+        return {
+          hasPage: Boolean(page),
+          html: page ? page.textContent : '',
+          rows: root.querySelectorAll('[data-rumor]').length,
+          half: root.querySelectorAll('.rumor.is-half').length,
+          linked: root.querySelectorAll('.rumor.is-linked').length,
+          empty: Boolean(root.querySelector('[data-rumor-empty]')),
+        };
+      `);
+      await evaluate('window.__promptasy.codex.close(); return 1;');
+      return out;
+    };
+
+    const link20 = await evaluate(`
+      const g = window.__promptasy;
+      const l = g.rumorData.links.find((x) => x.id === 'rumor-mother-stele-ring');
+      // 名字一律從**世界端那一份**現查（不在測試裡手抄第二份）
+      const tab = g.world.tablets.find((t) => 'tablet:' + t.id === l.a);
+      const letter = g.letterData.entries.find((e) => 'letter:' + e.id === l.b);
+      return {
+        id: l.id, say: l.say, a: l.a, b: l.b,
+        aName: tab ? tab.tablet.title : '',
+        bName: letter ? letter.title : '',
+        bLines: letter ? letter.lines : [],
+      };
+    `);
+    ok(link20.aName.length > 1 && link20.bName.length > 1, 'P20a：取樣到那一條線的兩端名字（不是空掃）', JSON.stringify([link20.aName, link20.bName]));
+
+    // 什麼都沒找到 → 一條線都不畫
+    const none20 = await readRumor();
+    eq(none20.hasPage, true, 'P20a：圖鑑上有傳聞這一頁');
+    eq(none20.rows, 0, 'P20a：一條都沒找到時，一條線都不畫（不然「還有 N 條」本身就是劇透）');
+    eq(none20.empty, true, 'P20a：那一頁只有一句話');
+    eq(none20.html.includes(link20.aName), false, 'P20a：一條都沒找到時，兩端的名字一個都沒有（a）');
+    eq(none20.html.includes(link20.bName), false, 'P20a：一條都沒找到時，兩端的名字一個都沒有（b）');
+
+    // 只找到一端 → 虛線 ＋ 佔位，**另一端的名字與內容一個字都沒有**
+    await evaluate(`
+      window.__promptasy.progression.state.loreRead.push('mother-stele');
+      return 1;
+    `);
+    const half20 = await readRumor();
+    eq(half20.rows, 1, 'P20a：找到一端 → 那一條線出現了');
+    eq(half20.half, 1, 'P20a：而且是虛線（還差一頭）');
+    eq(half20.linked, 0, 'P20a：還沒接起來');
+    ok(half20.html.includes(link20.aName), 'P20a：找到的那一端有名字', link20.aName);
+    ok(half20.html.includes('還沒撿到的一頁'), 'P20a：另一端只給佔位', half20.html.slice(0, 80));
+    eq(half20.html.includes(link20.bName), false, 'P20a：**另一端的名字一個字都沒有**');
+    for (const line of link20.bLines) {
+      eq(half20.html.includes(line), false, 'P20a：另一端的內容也一個字都沒有', line.slice(0, 20));
+    }
+    eq(half20.html.includes(link20.say), false, 'P20a：那一句話還沒說出來（說了就等於替另一端劇透）');
+    // 反例（同一條掃描）：把佔位換成真名，這一條就會抓到
+    eq(half20.html.replace('還沒撿到的一頁', link20.bName).includes(link20.bName), true, 'P20a：反例 —— 佔位換成真名，同一條掃描抓得到');
+
+    // 兩端都找到 → 實線 ＋ 那一句話
+    await evaluate(`
+      const g = window.__promptasy;
+      g.progression.state.lettersFound.push('letter-ring-halves');
+      return 1;
+    `);
+    const linked20 = await readRumor();
+    eq(linked20.linked, 1, 'P20a：兩端都找到 → 接成實線');
+    eq(linked20.half, 0, 'P20a：不再是虛線');
+    ok(linked20.html.includes(link20.aName) && linked20.html.includes(link20.bName), 'P20a：兩端都給名字了');
+    ok(linked20.html.includes(link20.say), 'P20a：這時候才說出那一句', link20.say);
+
+    // 還回去（這一段借的是既有欄位，不留痕跡）
+    const restored20 = await evaluate(`
+      const g = window.__promptasy;
+      const st = g.progression.state;
+      st.loreRead.length = 0;
+      st.lettersFound.length = 0;
+      for (const id of window.__p20aSaved.lore) st.loreRead.push(id);
+      for (const id of window.__p20aSaved.letters) st.lettersFound.push(id);
+      return { lore: st.loreRead.length, letters: st.lettersFound.length };
+    `);
+    ok(Number.isFinite(restored20.lore), 'P20a：借的那兩個欄位還回去了', JSON.stringify(restored20));
+  }
+
   /* ================================================================ */
   await sleep(600);
   const realErrors = consoleErrors.filter((e) => !/favicon|DevTools|Autofill/i.test(e));

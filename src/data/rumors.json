@@ -1,0 +1,176 @@
+{
+  "version": 1,
+  "authored": "game",
+  "note": "v1.2 · P20a · 傳聞（rumors）：世界裡的線索本來就散在六種東西上（石碑／刻文小語／殘頁／祕密／守夜人的舊事／濁靈的來歷），它們彼此的關係以前只存在玩家腦子裡。這一份純資料只做一件事：把「講的是同一件事」的兩端配成一條線。兩端一律是既有資料層的 id（`kind:id`），這裡不重寫任何內容、不新增任何線索。全部是遊戲自撰的世界觀（authored: game），一個字的教學都沒有，也因此一個連結都不准有 —— 技巧與官方出處永遠只掛在它們原本的那一層。**沒有存檔欄**：一條線畫不畫得出來，完全由兩端各自找到了沒推導出來。",
+  "kinds": ["tablet", "ins", "letter", "secret", "watchman", "murk"],
+  "links": [
+    {
+      "id": "rumor-mother-stele-ring",
+      "region": "foundations",
+      "a": "tablet:mother-stele",
+      "b": "letter:letter-ring-halves",
+      "say": "母碑倒下的那一年，環也斷成了兩半。"
+    },
+    {
+      "id": "rumor-unsaid-column",
+      "region": "foundations",
+      "a": "ins:tea-circle-board",
+      "b": "secret:ledger-of-the-unsaid",
+      "say": "沒說出口的那一欄，被人摸得最亮。"
+    },
+    {
+      "id": "rumor-third-step",
+      "region": "reasoning",
+      "a": "letter:letter-stair-third",
+      "b": "watchman:watch-endless-stair",
+      "say": "沒有人數完那座塔；第三階是自己踏出來的。"
+    },
+    {
+      "id": "rumor-how-many-shows",
+      "region": "reasoning",
+      "a": "ins:example-pair-back",
+      "b": "letter:letter-stair-tally",
+      "say": "示範幾遍是試出來的 —— 有人試到塔歪了。"
+    },
+    {
+      "id": "rumor-read-then-answer",
+      "region": "grounding",
+      "a": "tablet:archive-door",
+      "b": "letter:letter-tree-borrow",
+      "say": "門上與借書條背面，寫的是同一條規矩。"
+    },
+    {
+      "id": "rumor-pressed-line",
+      "region": "grounding",
+      "a": "watchman:watch-sunken-shelf",
+      "b": "secret:margin-of-the-unread",
+      "say": "被壓進木頭裡的那句話，摺痕底下也有。"
+    },
+    {
+      "id": "rumor-one-lift",
+      "region": "orchestration",
+      "a": "letter:letter-crane-order",
+      "b": "watchman:watch-crane-yard",
+      "say": "有人想一次吊起整座工坊，斷的不是繩子。"
+    },
+    {
+      "id": "rumor-ask-first",
+      "region": "orchestration",
+      "a": "tablet:workshop-yard",
+      "b": "ins:tool-yard-hang",
+      "say": "推開就關不上的門，動手之前要先問一聲。"
+    },
+    {
+      "id": "rumor-forgot-the-mask",
+      "region": "config",
+      "a": "letter:letter-backstage-mask",
+      "b": "watchman:watch-mask-arch",
+      "say": "散場忘了摘面具的那個人，話再也沒變回去。"
+    },
+    {
+      "id": "rumor-empty-rack",
+      "region": "config",
+      "a": "ins:dressing-mirror-tag",
+      "b": "murk:murk-great-nomask",
+      "say": "那排空掛勾旁邊的架子，沒有人替它挑一張。"
+    },
+    {
+      "id": "rumor-ninth-notch",
+      "region": "forms",
+      "a": "letter:letter-gauge-lastnotch",
+      "b": "watchman:watch-gauge-pillar",
+      "say": "柱斷在第九格，第九格本來要刻的是兩個字。"
+    },
+    {
+      "id": "rumor-two-rulers",
+      "region": "forms",
+      "a": "secret:zeroless-rule",
+      "b": "secret:wrong-measure",
+      "say": "找不到零的那把，和背面另有一套刻度的那一塊。"
+    },
+    {
+      "id": "rumor-missing-key",
+      "region": "toolcraft",
+      "a": "letter:letter-forge-nameless",
+      "b": "watchman:watch-nameless-tool",
+      "say": "空著的那一格有牌子、有名字，就是沒有鑰匙。"
+    },
+    {
+      "id": "rumor-no-name-on-haft",
+      "region": "toolcraft",
+      "a": "letter:letter-forge-contract",
+      "b": "murk:murk-great-nohands",
+      "say": "柄上沒有名字，於是沒有人知道該不該拿它。"
+    },
+    {
+      "id": "rumor-gap-on-purpose",
+      "region": "wards",
+      "a": "letter:letter-ward-gap",
+      "b": "watchman:watch-unclosing-door",
+      "say": "那道縫是故意留的；站著的那個人才是門閂。"
+    },
+    {
+      "id": "rumor-letters-last",
+      "region": "wards",
+      "a": "letter:letter-ward-rule",
+      "b": "murk:murk-great-openletter",
+      "say": "門縫塞進來的字也是話，但它們排在最後面。"
+    },
+    {
+      "id": "rumor-second-pass",
+      "region": "refinery",
+      "a": "letter:letter-mirror-facing",
+      "b": "watchman:watch-twice-lit",
+      "say": "兩面鏡中間站得下一個人；第二次改的才收進去。"
+    },
+    {
+      "id": "rumor-second-crack",
+      "region": "refinery",
+      "a": "secret:second-crack",
+      "b": "murk:murk-great-byfeel",
+      "say": "鏡子照得出字，照不出那一版到底對不對。"
+    },
+    {
+      "id": "rumor-carried-away",
+      "region": "frugality",
+      "a": "letter:letter-empty-plinth",
+      "b": "watchman:watch-empty-plinth",
+      "say": "他們一件一件搬，搬到發現不搬也可以。"
+    },
+    {
+      "id": "rumor-enough-twice",
+      "region": "frugality",
+      "a": "secret:almost-nothing",
+      "b": "watchman:watch-gauge-pillar",
+      "say": "相隔一整片地的兩處，留著同樣的兩個字。"
+    },
+    {
+      "id": "rumor-sky-in-words",
+      "region": "sight",
+      "a": "letter:letter-sky-mirror",
+      "b": "watchman:watch-sky-mirror",
+      "say": "鏡裡映的，仍然是文字寫成的那一片天。"
+    },
+    {
+      "id": "rumor-twenty-eight",
+      "region": "sight",
+      "a": "secret:star-tally",
+      "b": "secret:star-grove",
+      "say": "數不完的那一串數，和圖上那二十八個亮點。"
+    },
+    {
+      "id": "rumor-both-faces-kept",
+      "region": "divergence",
+      "a": "letter:letter-pillar-quarrel",
+      "b": "watchman:watch-two-faced",
+      "say": "吵完那一天，他們把兩面一起留了下來。"
+    },
+    {
+      "id": "rumor-it-thinks",
+      "region": "divergence",
+      "a": "ins:thinker-fragment",
+      "b": "letter:letter-pillar-copies",
+      "say": "一邊說要教牠怎麼想，一邊說提一句就夠了。"
+    }
+  ]
+}

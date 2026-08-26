@@ -1,0 +1,189 @@
+{
+  "version": 1,
+  "authored": "game",
+  "xp": 0,
+  "note": "v1.2 · P20a · 回聲重演（echoes）：每片土地一處，坐在一處小景旁邊的一團光。走過去按 E，4–6 秒的殘影會在那一處小景的範圍內把當年發生的事重演一次。全部是遊戲自撰的世界觀（authored: game）—— 一個字的教學都沒有，也因此一個連結都不准有；技巧與官方出處永遠只掛在它們原本的那一層。`path` 的座標是**相對於那一處小景中心**的偏移（會跟著小景自己的 rot 一起轉），所以「殘影不准離開小景 6 公尺」這件事在資料上就看得出來。分歧之廳沒有小景（十二片土地裡唯一的一片），所以它那一處掛在自己的地標「兩面的柱」腳下 —— 理由與量出來的數字寫在 WORLD.md §4.17。",
+  "acts": ["walk", "kneel", "stand", "sway"],
+  "entries": [
+    {
+      "id": "echo-first-words",
+      "region": "foundations",
+      "stage": "first-words-pool",
+      "stageKind": "vignette",
+      "at": [-35.24, 12.63],
+      "title": "量好了才開口",
+      "line": "有人在池邊量了很久，才說出第一句。",
+      "result": "他量好長度、形狀、口氣，才開口。",
+      "seconds": 5,
+      "figures": [
+        { "act": "kneel", "path": [[-4.4, -2.2], [-2.6, -0.6], [-1.6, 1.4]] },
+        { "act": "stand", "path": [[2.8, 2.2]] }
+      ]
+    },
+    {
+      "id": "echo-one-more-card",
+      "region": "reasoning",
+      "stage": "example-pair",
+      "stageKind": "vignette",
+      "at": [-116.25, -81.46],
+      "title": "再掛一張",
+      "line": "兩張牌不夠，他們一張一張往上加。",
+      "result": "加到第幾張才夠，是試出來的。",
+      "seconds": 5.5,
+      "figures": [
+        { "act": "walk", "path": [[-3.8, 2.4], [-0.6, 1.2], [-3.4, 2.8], [-0.4, 0.6]] },
+        { "act": "sway", "path": [[3.2, -1.8]] }
+      ]
+    },
+    {
+      "id": "echo-read-first",
+      "region": "grounding",
+      "stage": "reading-nook",
+      "stageKind": "vignette",
+      "at": [102.37, -104.83],
+      "title": "先讀，再答",
+      "line": "他把卷宗攤開，問題留到最後一句。",
+      "result": "攤開的那一疊到現在還沒收起來。",
+      "seconds": 5,
+      "figures": [
+        { "act": "walk", "path": [[-4.2, 2.6], [-1.8, 1.6], [-0.8, 0.4]] },
+        { "act": "kneel", "path": [[2.6, 2.4], [1.4, 1.2]] }
+      ]
+    },
+    {
+      "id": "echo-fourth-tick",
+      "region": "orchestration",
+      "stage": "half-built-engine",
+      "stageKind": "vignette",
+      "at": [-114.75, 102.88],
+      "title": "勾到第四項",
+      "line": "清單勾到第四項，他就被叫走了。",
+      "result": "第五項是收工。沒有人回來勾完。",
+      "seconds": 5.5,
+      "figures": [
+        { "act": "walk", "path": [[1.6, 1.8], [0.4, 0.6], [-2.4, -2.6], [-4.6, -3.0]] },
+        { "act": "stand", "path": [[3.4, -1.4]] }
+      ]
+    },
+    {
+      "id": "echo-hang-your-name",
+      "region": "config",
+      "stage": "dressing-corner",
+      "stageKind": "vignette",
+      "at": [84.64, 107.24],
+      "title": "今晚你是誰",
+      "line": "上台前，他在掛勾上掛好今晚是誰。",
+      "result": "那一晚他記得摘下來。後來的人不一定。",
+      "seconds": 5,
+      "figures": [
+        { "act": "walk", "path": [[-3.6, -2.4], [-1.2, -0.8], [0.6, 1.6]] },
+        { "act": "sway", "path": [[3.0, 1.8]] }
+      ]
+    },
+    {
+      "id": "echo-overflow",
+      "region": "forms",
+      "stage": "overflow-trough",
+      "stageKind": "vignette",
+      "at": [7.14, 144.42],
+      "title": "照著「適量」倒",
+      "line": "有人照著「適量」倒，槽就滿出來了。",
+      "result": "從那天起，工單上只寫數字。",
+      "seconds": 4.5,
+      "figures": [
+        { "act": "kneel", "path": [[-3.2, 3.0], [-1.4, 1.4], [-0.6, 0.6]] },
+        { "act": "walk", "path": [[3.8, -1.2], [2.2, -0.4]] }
+      ]
+    },
+    {
+      "id": "echo-nameless-haft",
+      "region": "toolcraft",
+      "stage": "nameless-tools",
+      "stageKind": "vignette",
+      "at": [-100.98, -19.09],
+      "title": "沒有替它取名字",
+      "line": "打好了，磨亮了，沒有人替它取名字。",
+      "result": "神諭伸手之前，不知道該不該拿它。",
+      "seconds": 5,
+      "figures": [
+        { "act": "kneel", "path": [[-1.8, -2.6], [-0.6, -0.8]] },
+        { "act": "walk", "path": [[4.2, 2.2], [1.8, 1.0], [4.0, 2.6]] }
+      ]
+    },
+    {
+      "id": "echo-opened-letters",
+      "region": "wards",
+      "stage": "opened-letters",
+      "stageKind": "vignette",
+      "at": [111.18, -124.02],
+      "title": "一封一封拆開",
+      "line": "門縫塞進來那幾封，他一封一封拆開讀。",
+      "result": "信裡的字也是話 —— 但它們排在最後面。",
+      "seconds": 5.5,
+      "figures": [
+        { "act": "walk", "path": [[4.4, 2.6], [1.8, 1.2], [0.6, 0.4]] },
+        { "act": "kneel", "path": [[-3.6, 1.8], [-1.6, 0.8]] }
+      ]
+    },
+    {
+      "id": "echo-stamped-once",
+      "region": "refinery",
+      "stage": "unread-checklist",
+      "stageKind": "vignette",
+      "at": [-146.63, 100.69],
+      "title": "只蓋了章",
+      "line": "他蓋了章，沒有再讀第二次。",
+      "result": "第二次讀才改得動的，留在原地。",
+      "seconds": 4.5,
+      "figures": [
+        { "act": "kneel", "path": [[-2.8, 2.2], [-0.8, 0.8]] },
+        { "act": "walk", "path": [[3.4, -2.0], [2.0, -0.6], [4.2, -2.8]] }
+      ]
+    },
+    {
+      "id": "echo-said-three-times",
+      "region": "frugality",
+      "stage": "said-three-times",
+      "stageKind": "vignette",
+      "at": [0.1, -94.8],
+      "title": "抄了三遍",
+      "line": "同一句話，他抄了三遍才停下來。",
+      "result": "後來的人劃掉兩遍，意思沒有少。",
+      "seconds": 5,
+      "figures": [
+        { "act": "sway", "path": [[-0.6, 1.4]] },
+        { "act": "walk", "path": [[-3.8, -2.4], [-1.6, -1.0], [-3.6, -2.8]] }
+      ]
+    },
+    {
+      "id": "echo-look-over-there",
+      "region": "sight",
+      "stage": "unpointed-view",
+      "stageKind": "vignette",
+      "at": [111.49, -34.13],
+      "title": "你看那邊",
+      "line": "他說「你看那邊」，沒有說是哪一邊。",
+      "result": "鏡子照得到整片天，照不出他在看哪。",
+      "seconds": 5,
+      "figures": [
+        { "act": "stand", "path": [[-2.4, 2.6]] },
+        { "act": "walk", "path": [[2.8, 2.4], [1.0, 0.8], [3.6, -1.6]] }
+      ]
+    },
+    {
+      "id": "echo-both-faces",
+      "region": "divergence",
+      "stage": "twin-pillars",
+      "stageKind": "landmark",
+      "at": [76.84, 29.96],
+      "title": "兩面一起留著",
+      "line": "兩批人各自刻完一面，誰也沒有讓步。",
+      "result": "吵完那一天，他們把兩面一起留了下來。",
+      "seconds": 6,
+      "figures": [
+        { "act": "sway", "path": [[-4.6, -1.2], [-3.2, -0.6]] },
+        { "act": "sway", "path": [[4.6, 1.2], [3.2, 0.6]] }
+      ]
+    }
+  ]
+}

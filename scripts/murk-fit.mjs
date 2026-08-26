@@ -97,6 +97,7 @@ function targetsFor(murks) {
     reactiveSpots: Reactive.reactiveTargets(),
     murks,
     watchmen: base.watchmen,
+    echoes: base.echoes,
     tablets: Props.LORE_TABLETS,
     secrets: base.secrets,
   });

@@ -9,6 +9,7 @@
     "src/data/curriculum-zh.json",
     "src/data/curriculum.json",
     "src/data/dated-notes.json",
+    "src/data/echoes.json",
     "src/data/flows.json",
     "src/data/glossary.json",
     "src/data/guardian.json",
@@ -19,6 +20,7 @@
     "src/data/prologue.json",
     "src/data/ranks.json",
     "src/data/regions-v2.json",
+    "src/data/rumors.json",
     "src/data/secrets.json",
     "src/data/sim-samples.json",
     "src/data/skill-codex-v2.json",
@@ -79,6 +81,7 @@
     "src/ui/nudge.js",
     "src/ui/perfmon.js",
     "src/ui/prologue.js",
+    "src/ui/rumors.js",
     "src/ui/settings.js",
     "src/ui/sharecard.js",
     "src/ui/starmap.js",
@@ -87,6 +90,7 @@
     "src/ui/watchman.js",
     "src/world/color-script.js",
     "src/world/drifts.js",
+    "src/world/echoes.js",
     "src/world/ground.js",
     "src/world/guardian.js",
     "src/world/handles.js",
@@ -100,7 +104,7 @@
     "src/world/watchmen.js",
     "src/world/world.js"
   ],
-  "corpusHash": "ac008fc5a3eacf87",
+  "corpusHash": "bac5a7422ccd99e0",
   "coverage": {
     "latin": [
       32,
@@ -541,6 +545,7 @@
       20961,
       20979,
       20982,
+      20984,
       20985,
       20986,
       20989,
@@ -2690,7 +2695,7 @@
       "id": "serif-tc",
       "family": "Arcade Serif TC",
       "file": "arcade-serif-tc.woff2",
-      "bytes": 705300,
+      "bytes": 705408,
       "role": "cjk",
       "variable": true,
       "weight": null,
@@ -2701,7 +2706,7 @@
           "default": 400
         }
       },
-      "requested": 1949,
+      "requested": 1950,
       "missing": 0,
       "source": "NotoSerifTC.ttf",
       "author": "Google (Noto Project)",
@@ -2713,7 +2718,7 @@
       "id": "sans-tc",
       "family": "Arcade Sans TC",
       "file": "arcade-sans-tc.woff2",
-      "bytes": 537556,
+      "bytes": 537640,
       "role": "cjk",
       "variable": true,
       "weight": null,
@@ -2724,7 +2729,7 @@
           "default": 400
         }
       },
-      "requested": 1949,
+      "requested": 1950,
       "missing": 0,
       "source": "NotoSansTC.ttf",
       "author": "Google (Noto Project)",
@@ -2733,5 +2738,5 @@
       "url": "https://github.com/google/fonts/tree/main/ofl/notosanstc"
     }
   ],
-  "totalBytes": 1567444
+  "totalBytes": 1567636
 }

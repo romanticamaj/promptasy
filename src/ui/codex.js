@@ -17,6 +17,7 @@ import {
   sourceNoteHtml,
 } from './dom.js';
 import { glossary } from './glossary.js';
+import { clueFound, rumorBlock } from './rumors.js';
 import { MANSION_TARGET, allMansionsLit, starMansions, starMapBlock } from './starmap.js';
 
 /** 官方出處在畫面上的說法（和主控台第二幕同一句話）。 */
@@ -73,6 +74,12 @@ export function createCodex({
   /** v1.2 · P07：抄寫人的殘頁（letters.json entries）—— 第五列與可展開的條目。 */
   letterTotal = 0,
   letters = [],
+  /**
+   * v1.2 · P20a：傳聞 —— `rumors.json` 的 links ＋ 六種線索的 `ref → 名字` 索引。
+   * **沒有存檔欄**：一條線畫不畫得出來完全由兩端各自找到了沒推導（見 `src/ui/rumors.js`）。
+   */
+  rumors = [],
+  rumorIndex = null,
 }) {
   const overlay = createOverlay({
     id: 'codex',
@@ -436,6 +443,22 @@ export function createCodex({
     </div>`;
   }
 
+  /* ---------------------------------------------------------------- *
+   * v1.2 · P20a：傳聞（把找到的線索接起來）
+   *
+   * 護欄 2：這一章與秘境同一個規格 —— **一個字的教學都沒有**，不掛技巧、
+   * 不放連結、不顯示任何官方出處。它只回答一件事：「這一條與那一條講的是同一件事。」
+   * ---------------------------------------------------------------- */
+  function rumorChapter() {
+    if (!Array.isArray(rumors) || !rumors.length) return '';
+    return rumorBlock({
+      links: rumors,
+      index: rumorIndex,
+      found: (ref) => clueFound(ref, progression),
+      regionNames: new Map(content.groupsOrdered().map((g) => [g.id, g.name])),
+    });
+  }
+
   function techniqueCard(tech) {
     const got = progression.isCollected(tech.id);
     const vendors = (tech.vendors || [])
@@ -625,7 +648,7 @@ export function createCodex({
       })
       .join('');
 
-    overlay.body.innerHTML = `${rankBar()}${badgeStrip()}${sealStrip()}${secretChapter()}<div class="codex">${groups}</div>`;
+    overlay.body.innerHTML = `${rankBar()}${badgeStrip()}${sealStrip()}${secretChapter()}${rumorChapter()}<div class="codex">${groups}</div>`;
     // 每次重繪都會換掉 ⓘ 節點，但事件是委派在 body 上，綁一次就夠
     bindInfoTips(overlay.body);
     /*

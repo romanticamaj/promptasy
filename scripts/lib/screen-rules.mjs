@@ -46,6 +46,12 @@ export const LAYER_INTERACT_R = Object.freeze({
   ins: 3.8,
   letter: 3.8,
   handle: 3.2,
+  /*
+   * v1.2 · P20a：回聲（互動半徑 3.2）。這一格**同時是**它的淨空半徑與它的互動圈
+   * （同守門者，不像石座與大濁靈那樣一分為二）—— 它排在仲裁的最後一位，
+   * 圈不會比別人大，也就沒有「圈比淨空大」的那個問題。
+   */
+  echo: 3.2,
 });
 
 /**
@@ -102,6 +108,13 @@ export const MARKER_R = 6.5;
  */
 export const interactRingRadius = (t) =>
   t.k === 'marker' ? MARKER_R : t.k === 'greatmurk' ? GREAT_MURK_R : targetRadius(t);
+
+/**
+ * v1.2 · P20a：回聲的互動半徑（`src/world/echoes.js` 的 `ECHO_RADIUS`）。
+ * 同 `WATCHMAN_R`：這裡重寫一份是為了讓**不 import three.js** 的擺位規則也用得到，
+ * `test:rubric` 逐值比對兩份（分家就紅）。
+ */
+export const ECHO_R = 3.2;
 
 /**
  * 大濁靈離每一層要多遠（公尺）。與小濁靈同一套文法（WORLD.md §4.8），只是半徑換成 6.0：
@@ -276,6 +289,99 @@ export const WATCHMAN_WINNABLE_EXCEPTIONS = Object.freeze({ wards: 16, divergenc
 /** 守夜人離「走出來的路」的區間（公尺）：遇得到，但不站在路中間。 */
 export const WATCHMAN_PATH_MIN = 3;
 export const WATCHMAN_PATH_MAX = 12;
+
+/* ------------------------------------------------------------------ *
+ * v1.2 · P20a：回聲（坐在小景旁邊的一團光）的擺位
+ *
+ * 它排在仲裁的**最後一位**（… > 器物 > 機關 > 回聲 > 閘門），所以規則走守門者
+ * 那一套的嚴格版：**互動圈與每一層都不重疊**。兩處例外，而且都只在**石座**那一層，
+ * 數字是逐點掃過整片土地之後的上限，不是妥協（見 `ECHO_MARKER_EXCEPTIONS`）。
+ * ------------------------------------------------------------------ */
+
+/**
+ * 回聲離「**不搶 `E` 的東西**」至少多遠（公尺）：反應物、祕密、地標。
+ * 4 公尺沿用守夜人與濁靈那一條（`WATCHMAN_AUTO_MIN`）—— 走過去的時候
+ * 不要一次觸發兩件事，但也不必為了一團光把整片反應層推開。
+ */
+export const ECHO_AUTO_MIN = WATCHMAN_AUTO_MIN;
+
+/**
+ * 回聲離某一層至少多遠（公尺）——**搜尋與 `test:rubric` 問的是同一支**。
+ *
+ * · 不搶 `E` 的（反應物／祕密）：`ECHO_AUTO_MIN`，與圈多大無關（是個常數）。
+ * · 石座：那一層**永遠贏回聲**，兩片土地擺不下「圈不重疊」（見例外表），
+ *   所以那兩片改守「不准站進人家的地盤」。
+ * · 其餘每一層：**互動圈不重疊** ＝ 兩個互動半徑相加。
+ *
+ * ⚠️ 這一支要與 `murk-fit`／`guardian-fit` 從**另一側**量的那兩條一致：
+ * 大濁靈那一邊量的是 `GREAT_MURK_R + targetRadius(echo)` ＝ 9.2、
+ * 守門者那一邊量的是 `GUARDIAN_R + interactRingRadius(echo)` ＝ 6.4 ——
+ * 兩者都正好是「互動圈不重疊」，所以那兩層**不准放進例外表**。
+ *
+ * @param {{k:string, id?:string, r?:number}} t `interactionTargets()` 的一列
+ * @param {string} [regionId] 這一處回聲落在哪一片土地（只有石座那一層用得到）
+ */
+export function echoNeedFrom(t, regionId = '') {
+  if (t.k === 'react' || t.k === 'secret') return ECHO_AUTO_MIN;
+  if (t.k === 'marker' && regionId in ECHO_MARKER_EXCEPTIONS) return ECHO_MARKER_EXCEPTIONS[regionId];
+  return interactRingRadius(t) + ECHO_R;
+}
+
+/**
+ * 石座那一條的**例外表**（只有兩片土地，要寫理由）—— 與大濁靈的
+ * `GREAT_MURK_MARKER_EXCEPTIONS` 同一種東西、同一個理由：石座永遠贏，
+ * 而 142 座石座已經把這兩片土地填滿了。
+ *
+ * 一般門檻是「互動圈不重疊」＝ 6.5 ＋ 3.2 ＝ **9.7**。逐點掃過整片土地
+ * （0.2 公尺一格，吃完其餘每一條規則之後只留「真的擺得下」的點）：
+ *   · `wards`（護欄崗，半徑 27 的哨所裡 6 座石座 ＋ 兩道石脊 ＋ 守夜人 ＋ 守門者
+ *     ＋ 大濁靈）：全區合格點 **18 個**，離最近那座石座最遠只到 **7.75**。
+ *   · `divergence`（分歧之廳，半徑 29 裡 10 座石座 ＋ 兩道石脊 ＋ 守夜人）：
+ *     全區合格點 **35 個**，最遠只到 **7.99**。
+ * 門檻各往下留一點餘裕（7.7／7.9），上限記在 `expected-counts.json` 的
+ * `markerCeiling`，`test:rubric` 逐值比對「例外 ≤ 上限」。
+ *
+ * 玩家端零倒退：石座在仲裁裡本來就贏回聲（回聲是最後一位），站在石座前永遠是石座；
+ * 回聲那一側由「站在它的互動圈上，有幾個方向站得住而且是它贏」逐點量
+ * （`ECHO_WINNABLE_MIN`）—— 那才是真正要守的東西。
+ */
+export const ECHO_MARKER_EXCEPTIONS = Object.freeze({ wards: 7.7, divergence: 7.9 });
+
+/**
+ * **真正要守的東西**：站在回聲的互動圈上，24 個方向裡有幾個
+ * 「站得住、而且**是它贏**」（沒有任何一層排在它前面的東西罩著那一點）。
+ *
+ * 十片土地實測 **24/24**；兩片例外土地實測 `wards` 12、`divergence` 17。
+ * 門檻訂在 **10**（比最差的那一片再嚴一格留兩格餘裕，同守夜人那一條的作法）。
+ * 逐片量到的數字記在 `expected-counts.json` 的 `winnableWorst`。
+ */
+export const ECHO_WINNABLE_DIRS = 24;
+export const ECHO_WINNABLE_MIN = 10;
+
+/**
+ * 回聲離「走出來的路」至少多遠（公尺）—— 沿用守夜人那一條的下限。
+ * **沒有上限**：它坐在小景旁邊，而小景本來就不在必經路線上（WORLD §4.2）；
+ * 真正管「走不走得到」的是下一條（離小景多遠）。
+ */
+export const ECHO_PATH_MIN = WATCHMAN_PATH_MIN;
+
+/**
+ * 回聲離**它記得的那一處**（小景中心／地標腳下）最多多遠（公尺）。
+ *
+ * 9 公尺是量出來的：十片土地的落點全部落在 4.8–8.2。
+ * 一處例外 —— `divergence`（分歧之廳）是十二片土地裡**唯一沒有小景**的一片
+ * （`STORY_VIGNETTES` 33 組分在其餘十一片），所以它那一處掛在自己的地標腳下，
+ * 而那座地標四周 14 公尺是留白、再往外是 10 座石座 ——
+ * 逐點掃出來離地標最近的合格點是 **12.8**，門檻訂 13.5。
+ */
+export const ECHO_ANCHOR_MAX = 9;
+export const ECHO_ANCHOR_EXCEPTIONS = Object.freeze({ divergence: 13.5 });
+
+/**
+ * 殘影不准離開那一處中心這麼遠（公尺；`src/world/echoes.js` 的 `ECHO_STAGE_R`，
+ * `test:rubric` 逐值比對兩份）。
+ */
+export const ECHO_STAGE_R = 6;
 
 /* ------------------------------------------------------------------ *
  * v1.2 · P18：守門者的擺位
@@ -477,6 +583,12 @@ export function interactionTargets(data) {
    * （P17 交接記下的那條教訓）。
    */
   for (const g of data.guardians || []) out.push({ k: 'guardian', id: g.id, at: g.at });
+  /*
+   * v1.2 · P20a：回聲（互動半徑 3.2）。**一定要餵進來**：沒有這一列，
+   * 中觀層、大濁靈、守門者、下一格要擺的東西都會照一個少了它的世界去算
+   * （P17 交接、P18 又記了一次的那條教訓）。
+   */
+  for (const e of data.echoes || []) out.push({ k: 'echo', id: e.id, at: e.at });
   for (const t of data.tablets || []) out.push({ k: 'tablet', id: t.id, at: t.at });
   /*
    * v1.2 · P15：`tell: "high"` 的祕密**不進這張表**。
@@ -591,6 +703,16 @@ export default {
   WATCHMAN_WINNABLE_EXCEPTIONS,
   WATCHMAN_PATH_MIN,
   WATCHMAN_PATH_MAX,
+  ECHO_R,
+  ECHO_AUTO_MIN,
+  ECHO_MARKER_EXCEPTIONS,
+  ECHO_WINNABLE_DIRS,
+  ECHO_WINNABLE_MIN,
+  ECHO_PATH_MIN,
+  ECHO_ANCHOR_MAX,
+  ECHO_ANCHOR_EXCEPTIONS,
+  ECHO_STAGE_R,
+  echoNeedFrom,
   GUARDIAN_R,
   GUARDIAN_ABOVE_MIN,
   GUARDIAN_AUTO_MIN,

@@ -80,6 +80,7 @@ function targetsExceptSelf() {
     reactiveSpots: Reactive.reactiveTargets(),
     murks: base.murks,
     watchmen: base.watchmen,
+    echoes: base.echoes,
     tablets: Props.LORE_TABLETS,
     secrets: base.secrets,
     guardians: [],

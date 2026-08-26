@@ -9267,3 +9267,104 @@ select option:disabled {
     translate: none;
   }
 }
+
+/* ------------------------------------------------------------------ *
+ * 傳聞（v1.2 · P20a）—— 圖鑑上把找到的線索接起來的那一頁
+ *
+ * 一條線 ＝ 左右兩顆 chip ＋ 中間一根線。**實線＝兩端都找到；虛線＝還差一頭**，
+ * 而虛線那一端連名字都不給（HTML 那邊就沒有那個字，不是靠 CSS 藏起來）。
+ * ------------------------------------------------------------------ */
+.rumors__group {
+  margin: 0 0 var(--s4);
+}
+.rumors__region {
+  margin: 0 0 var(--s2);
+  font-size: var(--t-micro);
+  font-weight: 400;
+  color: var(--paper-4);
+  letter-spacing: var(--tr-cjk);
+}
+.rumors__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: var(--s3);
+}
+.rumor {
+  border-bottom: 1px dashed var(--rule);
+  padding-bottom: var(--s2);
+}
+.rumor__wire {
+  display: grid;
+  grid-template-columns: 1fr minmax(24px, 56px) 1fr;
+  align-items: center;
+  gap: var(--s2);
+}
+.rumor__end {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s2);
+  font-size: var(--t-micro);
+  min-width: 0;
+}
+.rumor__end--b {
+  justify-content: flex-end;
+  text-align: right;
+}
+.rumor__kind {
+  font-family: var(--font-ui);
+  font-size: 0.82em;
+  color: var(--star);
+  border: 1px solid var(--rule-2);
+  border-radius: 2px;
+  padding: 0 4px;
+  flex: none;
+}
+.rumor__name {
+  font-weight: 400;
+  color: var(--paper-2);
+  letter-spacing: var(--tr-cjk);
+  overflow-wrap: anywhere;
+}
+.rumor__end.is-unknown .rumor__kind {
+  color: var(--paper-4);
+  border-style: dashed;
+}
+.rumor__end.is-unknown .rumor__name {
+  color: var(--paper-4);
+  font-style: italic;
+}
+.rumor__thread {
+  height: 1px;
+  align-self: center;
+  background: var(--rule-gold);
+}
+.rumor.is-half .rumor__thread {
+  background: none;
+  border-top: 1px dashed var(--rule-2);
+}
+.rumor__say {
+  margin: var(--s2) 0 0;
+  font-size: var(--t-micro);
+  line-height: 1.8;
+  color: var(--paper-3);
+}
+.rumor.is-half .rumor__say {
+  color: var(--paper-4);
+  font-style: italic;
+}
+@media (max-width: 560px) {
+  .rumor__wire {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+  .rumor__end--b {
+    justify-content: flex-start;
+    text-align: left;
+  }
+  .rumor__thread {
+    width: 24px;
+    margin-inline-start: 6px;
+  }
+}

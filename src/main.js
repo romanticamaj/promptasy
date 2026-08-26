@@ -25,6 +25,8 @@ import letterFile from './data/letters.json';
 import watchmanFile from './data/watchmen.json';
 import guardianFile from './data/guardian.json';
 import murkFile from './data/murks.json';
+import echoFile from './data/echoes.json';
+import rumorFile from './data/rumors.json';
 import datedFile from './data/dated-notes.json';
 import sourceAnchorFile from './data/source-anchors.json';
 import simSamples from './data/sim-samples.json';
@@ -35,6 +37,7 @@ import './styles.css';
 import { createEngine } from './engine/engine.js';
 import { hourOf, hourFactor, composeMood, createMoodMemo } from './engine/hours.js';
 import { createWorld } from './world/world.js';
+import { LORE_TABLETS } from './world/props.js';
 import { loadColorScript, colorScriptFor } from './world/color-script.js';
 import { fxForCheck, fxEnabledIn } from './world/rubric-fx.js';
 import colorScriptFile from './data/color-script.json';
@@ -54,6 +57,7 @@ import { createShareCard } from './ui/sharecard.js';
 import { rankFor, rankStats } from './progression/ranks.js';
 import { createPerfMonitor } from './ui/perfmon.js';
 import { createCodex } from './ui/codex.js';
+import { buildClueIndex } from './ui/rumors.js';
 import { createSettings } from './ui/settings.js';
 import { createIntro } from './ui/intro.js';
 import { createTablet } from './ui/tablet.js';
@@ -182,6 +186,12 @@ function boot() {
     guardians: [guardianFile],
     // 開機還原：存檔存的是門閂 id，板上亮的是第幾行 —— 換算只有 `worldStateOf()` 一份
     guardianStateOf: (id) => Guard.worldStateOf(guardianFile, progression.guardianState(id)),
+    /*
+     * v1.2 · P20a：回聲重演（坐在小景旁邊的一團光；按 E 重演當年的事）。
+     * 低畫質整層不蓋 —— 由 `world.js` 那一邊判（純氛圍層，關掉不擋任何一條路）。
+     */
+    echoes: echoFile.entries || [],
+    onEchoFinish: (entry) => finishEcho(entry),
     // v1.2 · P06：色彩腳本（key／rim／particle 建構時套；sky 走 applyMood 的單一入口）
     colorScript: colorScriptFor,
     reducedMotion,
@@ -537,6 +547,21 @@ function boot() {
     // v1.2 · P02：圖鑑第四列「濁言與正言 n/8」＋ 可展開的條目
     murkTotal: (murkFile.entries || []).length,
     murks: murkFile.entries || [],
+    /*
+     * v1.2 · P20a：傳聞 —— 把「講的是同一件事」的兩端接起來。
+     * 索引在這裡建一次（六個既有資料層的 `ref → 名字`）；
+     * 「找到了沒」由 `src/ui/rumors.js` 的 `clueFound()` 問既有的存檔欄，
+     * **這一層一個存檔欄都沒有新增**。
+     */
+    rumors: rumorFile.links || [],
+    rumorIndex: buildClueIndex({
+      tablets: LORE_TABLETS,
+      inscriptions: inscriptionFile.entries || [],
+      letters: letterFile.entries || [],
+      secrets: secretFile.entries || [],
+      watchmen: watchmanFile.entries || [],
+      murks: murkFile.entries || [],
+    }),
   });
   ui.appendChild(codex.root);
 
@@ -553,6 +578,8 @@ function boot() {
       world.watchmen?.reset?.();
       // v1.2 · P18：守門者胸前那塊板也跟著歸零（存檔清了，世界要跟著清）
       world.guardians?.reset?.();
+      // v1.2 · P20a：正在演的那一場回聲收掉（重置之後世界不該還有殘影在走）
+      world.echoes?.reset?.();
       // v1.2 · P19：推開的捷徑也關回去（存檔清了，那道門就該重新擋著）
       world.resetShortcuts?.();
       /*
@@ -976,6 +1003,12 @@ function boot() {
    */
   let nearWinch = null;
   /**
+   * v1.2 · P20a：走近的回聲（坐在小景旁邊的那一團光）。半徑 3.2 ——
+   * **仲裁排在最後一位**（… > 器物 > 機關 > **回聲** > 閘門），所以它永遠不蓋掉誰。
+   * 低畫質整層不蓋，這一格永遠是 null。
+   */
+  let nearEcho = null;
+  /**
    * Phase 29：剛剛選了「先留下修行」的那道門。
    * 走遠一點（離開互動半徑）再回來才會重新問一次 —— 站在門口不會被連問。
    */
@@ -1337,6 +1370,29 @@ function boot() {
    * 推不動的那一頭只是說一句「索在另一邊」。**推到一半走開不會失敗**，
    * 只是回到原地重來（與器物層的絞盤同一條規矩，也同樣不寫存檔）。
    */
+  /**
+   * v1.2 · P20a：看一場回聲重演。
+   *
+   * **不開任何面板** —— 一開面板世界就停手，而這一層要看的正是世界本身
+   * （WORLD §3.3「一次只有一件事擁有畫面」在這裡的解法是：畫面留給那一幕，
+   * 話只用一行 toast 說）。純風味（護欄 2）：不給 XP、不進圖鑑、不寫任何存檔欄。
+   *
+   * `prefers-reduced-motion`：**不播過程，直接給結果** —— 世界端那一組殘影
+   * 一出現就站在最後一個航點上，所以這裡也在開演那一拍就把結果說出來。
+   */
+  function watchEcho(echo) {
+    const entry = world.playEcho(echo.id);
+    if (!entry) return;
+    audio.cue('shrine');
+    hud.toast(reducedMotion ? entry.result : entry.line, 'info');
+  }
+
+  /** 一場回聲重演演完那一拍（`reducedMotion` 之下結果在開演時就說過了）。 */
+  function finishEcho(entry) {
+    if (reducedMotion || !entry) return;
+    hud.toast(entry.result, 'info');
+  }
+
   function pushWinch(winch) {
     const built = winch.shortcut; // 世界端那道門；`built.shortcut` 才是資料層那一筆
     const name = built.shortcut.name;
@@ -1512,6 +1568,7 @@ function boot() {
       nearWatchman = null;
       nearGuardian = null;
       nearWinch = null;
+      nearEcho = null;
       nearGate = null;
       return;
     }
@@ -1548,7 +1605,16 @@ function boot() {
     );
     // v1.2 · P19：捷徑的絞盤（半徑 3.2）—— 器物讓不出 E 的時候它就不出現
     const hitWinch = blocked || hitHandle ? null : world.nearestShortcutWinch?.(player.position);
-    const hitGate = blocked || hitHandle || hitWinch ? null : world.nearestGate(player.position);
+    /*
+     * v1.2 · P20a：回聲（半徑 3.2）—— 仲裁的**最後一位**（閘門之前）。
+     * 它是純氛圍層：誰要用 `E` 都讓，讓完才輪到它。正在演的時候也不再出現
+     * （一場演完之前不接第二次 `E`）。
+     */
+    const hitEcho =
+      blocked || hitHandle || hitWinch || world.echoPlaying
+        ? null
+        : world.nearestEcho?.(player.position, undefined, camForward);
+    const hitGate = blocked || hitHandle || hitWinch || hitEcho ? null : world.nearestGate(player.position);
     nearMarker = hitMarker ? hitMarker.marker : null;
     nearMurk = !hitMarker && hitMurk ? hitMurk.murk : null;
     nearWatchman = !hitMarker && !hitMurk && hitWatchman ? hitWatchman.watchman : null;
@@ -1564,6 +1630,7 @@ function boot() {
         : null;
     nearHandle = !blocked && hitHandle ? hitHandle.handle : null;
     nearWinch = hitWinch ? hitWinch.winch : null;
+    nearEcho = hitEcho ? hitEcho.echo : null;
     nearGate = hitGate ? hitGate.gate : null;
 
     /*
@@ -1667,6 +1734,11 @@ function boot() {
           open || !nearWinch.canOpen ? '看一眼' : '推動'
         }`
       );
+    } else if (nearEcho) {
+      // 標題 ＋ 一句狀態 ＋ E ＋ 一個動詞（WORLD.md §3.1）
+      hud.setInteract(
+        `<b>${esc(nearEcho.entry.title)}</b><span>牠望著那一處，還記得那天</span><kbd>E</kbd> 看一次`
+      );
     } else if (nearGate) {
       const status = progression.gateStatus(nearGate.meta.id);
       hud.setInteract(
@@ -1757,6 +1829,9 @@ function boot() {
     } else if (e.code === 'KeyE' && nearWinch) {
       e.preventDefault();
       pushWinch(nearWinch);
+    } else if (e.code === 'KeyE' && nearEcho) {
+      e.preventDefault();
+      watchEcho(nearEcho);
     } else if (e.code === 'KeyE' && nearGate) {
       e.preventDefault();
       const status = progression.gateStatus(nearGate.meta.id);
@@ -1876,6 +1951,9 @@ function boot() {
     handlePanel,
     handleData: handleFile,
     handleKinds: HANDLE_KINDS,
+    /** v1.2 · P20a：回聲重演與傳聞的資料（測試 / 除錯用）。 */
+    echoData: echoFile,
+    rumorData: rumorFile,
     /** v1.2 · P01：濁靈資料與「組成 challenge 形物件」的把手（測試 / 除錯用）。 */
     murks: murkFile,
     murkChallenge: (id) => {

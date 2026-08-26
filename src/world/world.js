@@ -16,6 +16,7 @@ import { PALETTE } from '../engine/engine.js';
 import {
   LORE_TABLETS,
   STORY_VIGNETTES,
+  stageAnchor,
   LANDMARKS,
   kitFor,
   buildVignettes,
@@ -29,6 +30,7 @@ import { buildLetter, LETTER_RADIUS } from './letters.js';
 import { createReactiveField, REACTIVE_SPOTS } from './reactive.js';
 import { createHandleField, HANDLE_RADIUS, CAPSTAN_TURNS } from './handles.js';
 import { createMurkField, isGreatMurk } from './murks.js';
+import { createEchoField, ECHO_RADIUS } from './echoes.js';
 import { createWatchmanField, WATCHMAN_RADIUS } from './watchmen.js';
 import { createGuardianField, GUARDIAN_RADIUS } from './guardian.js';
 import { createRubricFx } from './rubric-fx.js';
@@ -4253,6 +4255,14 @@ export function createWorld({
   /** v1.2 · P18：守門者（guardian.json，一位就是一筆）。沒給就不蓋，世界照樣成立。 */
   guardians = [],
   /**
+   * v1.2 · P20a：回聲重演（echoes.json 的 entries）。沒給就不蓋，世界照樣成立。
+   * **低畫質整層關**（見下面 `createEchoField` 那一段）——它是純氛圍層，
+   * 一團光加幾個殘影，關掉不影響任何一條可玩的路。
+   */
+  echoes = [],
+  /** v1.2 · P20a：一場重演演完那一拍（主程式用來說最後一句）。 */
+  onEchoFinish = null,
+  /**
    * v1.2 · P18：開機依存檔還原「交辦上對上了哪幾行、說服了沒」
    * （`(id) => ({ open:number[], convinced:boolean })`）。沒給就全部原樣（板上全暗）。
    */
@@ -4557,6 +4567,25 @@ export function createWorld({
     stateOf: typeof guardianStateOf === 'function' ? guardianStateOf : null,
   });
   root.add(guardianField.group);
+
+  /* --- v1.2 · P20a：回聲重演（坐在小景旁邊的一團光；按 E 重演當年的事） ---
+   *
+   * **低畫質整層不蓋**：它是純氛圍層，關掉不影響任何一條可玩的路
+   * （`echoField` 仍然是一個空的場，所以 `nearestEcho()` 那一支不必到處判 null）。
+   * 小景中心與朝向由 `STORY_VIGNETTES` / `LANDMARKS` 現查 —— 座標只有一份。
+   */
+  /** 一處回聲的舞台（小景中心／地標腳下）—— 座標由 `props.js` 現查。 */
+  const echoStageOf = (entry) => stageAnchor(entry.stage, entry.stageKind);
+  const echoField = createEchoField({
+    entries: quality === 'low' ? [] : echoes,
+    kitOf: (regionId) => kits.get(regionId) || kits.get('foundations'),
+    terrainHeight,
+    stageOf: (entry) => echoStageOf(entry),
+    isBusy,
+    reducedMotion,
+    onFinish: typeof onEchoFinish === 'function' ? onEchoFinish : null,
+  });
+  root.add(echoField.group);
 
   const motes = buildMotes(quality, colorOf, vignetteAnchors, (id) => scriptColor(id, 'particle'));
   root.add(motes);
@@ -5065,6 +5094,8 @@ export function createWorld({
     watchmen: watchmanField,
     /** v1.2 · P18：守門者場。 */
     guardians: guardianField,
+    /** v1.2 · P20a：回聲重演場（低畫質是一個空的場）。 */
+    echoes: echoField,
     /** v1.2 · P09：石座演出（rubric 命中 → 石座旁的因果）。 */
     rubricFx,
     /** v1.2 · P06：這一區道具用的四階色（`kitFor()`；色彩腳本的 rim 已覆寫 light）—— 唯讀（測試與稽核用）。 */
@@ -5472,6 +5503,7 @@ export function createWorld({
       murkField.update(dt, t, x, z);
       watchmanField.update(dt, t, x, z);
       guardianField.update(dt, t, x, z);
+      echoField.update(dt, t, x, z);
       // v1.2 · P09：石座演出（面板開著也照播 —— 玩家正看著結果面，世界在背景）
       rubricFx.update(dt, t);
     },
@@ -5526,6 +5558,28 @@ export function createWorld({
      */
     nearestGuardian(position, maxDistance = GUARDIAN_RADIUS, forward = null) {
       return guardianField.nearest(position, maxDistance, forward);
+    },
+
+    /**
+     * 走近的回聲（v1.2 · P20a）。半徑 3.2 —— **仲裁排在最後一位**
+     * （…> 器物 > 機關 > **回聲** > 閘門），所以它是最小的那一階：
+     * 它永遠不該蓋掉別的東西。低畫質之下這個場是空的，永遠回 null。
+     * @param {THREE.Vector3} position
+     * @param {number} [maxDistance]
+     * @param {{x:number,z:number}|null} [forward] 鏡頭的水平前方向
+     */
+    nearestEcho(position, maxDistance = ECHO_RADIUS, forward = null) {
+      return echoField.nearest(position, maxDistance, forward);
+    },
+
+    /** 開演一場回聲重演（已經在演／低畫質 → 回 null）。 */
+    playEcho(id) {
+      return echoField.play(id);
+    },
+
+    /** 現在正在演的是哪一處回聲（沒有就 null）。 */
+    get echoPlaying() {
+      return echoField.playing;
     },
 
     /**

@@ -68,6 +68,11 @@ export async function pacingAudit({ step = SAMPLE_STEP } = {}) {
   const murks = readJson('src/data/murks.json').entries || [];
   // v1.2 · P07：殘頁也是「路上讀得到的東西」，擺位規則要求離路網 ≤12m → 算進中景那一層
   const letters = readJson('src/data/letters.json').entries || [];
+  /*
+   * v1.2 · P20a：回聲重演坐在小景旁邊（離小景中心 ≤ 9 公尺），所以它跟小景同一階算「中景」。
+   * **新資料層若擺在路網 12m 內，同一個 phase 就要餵進來**（P07 殘頁那條教訓）。
+   */
+  const echoes = readJson('src/data/echoes.json').entries || [];
   // v1.2 · P11：中觀那一層（遮擋帶與母題）本來就是「中景」的定義 —— 不算進來，下一個
   // 「先量再放」的 phase 會拿到過期數據（同 P07 把殘頁補進來的理由）。
   const Screens = await import('../src/world/screens.js');
@@ -83,6 +88,7 @@ export async function pacingAudit({ step = SAMPLE_STEP } = {}) {
       ...inscriptions.map((i) => ({ id: i.id, x: i.at[0], z: i.at[1] })),
       ...murks.map((m) => ({ id: m.id, x: m.at[0], z: m.at[1] })),
       ...letters.map((l) => ({ id: l.id, x: l.at[0], z: l.at[1] })),
+      ...echoes.map((e) => ({ id: e.id, x: e.at[0], z: e.at[1] })),
       ...Screens.SCREEN_BANDS.map((b) => ({ id: b.id, x: b.at[0], z: b.at[1] })),
       ...Screens.MOTIFS.map((mo) => ({ id: mo.id, x: mo.at[0], z: mo.at[1] })),
       // v1.2 · P14：高台。**新資料層若擺在路網 12m 內，同一個 phase 就要餵進來**
