@@ -1676,3 +1676,45 @@ Exit criteria：
 - [ ] 守門者站在那道門旁邊，說服得了（分兩次也行），全程沒有失敗態。
 - [ ] 離線那條路完整且預設；`guard` 介面留得住未來的 LLM 實作。
 - [ ] 護欄崗的中觀層與大濁靈落點都沒被清零；rubric／playtest／build／e2e 全綠、console error 0；預算在框內。
+
+### P19 — 相鄰區捷徑 ＋ 外交式導向（2026-08-27 開工）
+
+狀態：`in progress`（里程碑 D 第三格）
+
+**開工前的裁決：滑翔砍掉。**
+roadmap 寫「phase 開頭決定滑翔做不做」，閘門 C 的砍案條件是「跳躍體感差 → 直接砍」。站長還沒回報體感，但**不必等**——理由是量出來的，與體感無關：
+
+1. **世界擺不下了。** 滑翔要起飛台與落點，而 P16a／P16b／P17／P18 一路量下來：`toolcraft` 連一座 1.6 公尺的高台都塞不進去（742 個格點全被「四周跳不上去」擋掉，最好的差 0.08 公尺）；`wards`／`sight`／`divergence` 的中觀層落點只剩 0–8 個；護欄崗加了守門者之後**全區只剩 5 個合法點**。滑翔需要的是**更多**垂直家具，而沒有地方放。
+2. **跳躍本身就只在 12 片裡的 8 片成立**（有高台的才開）。在一個「有些土地根本不能跳」的地圖上再疊第二個位移動詞，地圖會更難讀，不是更好玩。
+3. **預算**：碰撞體 1,053／1,400，中觀層已經吃掉大半餘裕。
+4. **投報**：里程碑 E 還有行動裝置（GitHub #4，最大的使用者缺口）、打磨與發版。第二個位移動詞的邊際價值低於那些。
+
+→ **滑翔不做**，roadmap 的 P19 條目與 §5 一併改寫；未來要做的話，前提是先解決「垂直家具沒地方放」這件事，而不是先寫滑翔的物理。
+
+**現狀**：12 片土地由中央高原放射出去的橋相連，**沒有任何兩片土地直接相通**——每次換區都要回高原。閘門的解鎖文法（`capstan` 絞盤）已經在了；P15 的橋缺口證明了「地形上開一個口、旁邊留一條走得過去的路」這條路走得通；螢火群（`moths`）是現成的、每區都有的粒子。
+
+**目標**：① 開**一條**相鄰區捷徑（orchestration ↔ config 南弧），單側解鎖、走得過去就記在存檔裡；② **外交式導向**——螢火群整體流向「下一個建議去處」，可在設定關掉。
+
+**範圍**
+1. **`SHORTCUTS[]` 資料**（`src/world/world.js` 或獨立資料檔）：`{ id, from, to, half: 4, flat: 2 }`。地形用與 `CORRIDORS` 同一套（窄走廊），`coverage()` 逐點驗、**不出 ±168**。
+2. **單側解鎖**：沿用既有的絞盤文法——從**已解鎖那一側**推得開，另一側看得到但推不開。存檔 `shortcuts: { [id]: bool }`（純加法、`reset` 清乾淨、舊存檔讀得起來）。
+3. **外交式導向**：螢火群的整體流向偏向「下一個建議去處」（沿用既有的 `objectiveTarget`）。**可在設定關閉**；`reducedMotion` 只留靜態；低畫質整層照舊關掉。**0 新光源**。
+4. **不倒退**：守望石仍在；**不按空白鍵的可達性一個都不准少**；每座橋仍然走得完；捷徑未解鎖時**真的走不過去**（e2e 驗）。
+5. WORLD.md §4.4 加導向規則。
+
+**不做**：滑翔（裁決如上）、其餘捷徑（先做一條看體感）、傳聞頁與檔案廊（P20a／P20b）。
+
+**受影響檔案**：`src/world/world.js`、`src/world/reactive.js` 或粒子那一層、`src/progression/progression.js`、`src/ui/settings.js`、`src/main.js`、`scripts/lib/screen-rules.mjs`、`scripts/test-rubric.mjs`、`scripts/headless-check.mjs`、`scripts/expected-counts.json`、`WORLD.md`。
+
+**預算**：三角 232,726 → **<238,000**；**光源 37 不變**；碰撞體 1,053 → **<1,100**；collision-audit 未涵蓋 **0**；可站立體稽核 **0**；`audit:pacing` 12 片死區 **0**；`screen-fit`／`murk-fit`／`guardian-fit` 的 `--verify` 全部維持。
+
+**Acceptance tests（先紅後綠）**
+- rubric：捷徑地形的 `coverage()` 逐點（走廊上走得到、走廊外走不到、不出 ±168）；**未解鎖時那一段 `isWalkable` 為假**（先紅：把鎖拿掉就要紅）；單側解鎖（從解鎖那側推得開、另一側推不開）；存檔遷移與 reset；**不按空白鍵的可達性逐點不變**；導向可關閉且關掉之後螢火群的流向真的變回原樣（先紅）；預算實測。
+- e2e：走到捷徑口 → 未解鎖走不過去 → 從對側解鎖 → 走得過去 → 存檔記著；設定關掉導向 → 螢火群不再偏向；零 console error。
+
+**禁區**：`curriculum.json`、`challenges.json`、`flows.json`、`murks.json`、`letters.json`、`color-script.json`、`solution-stats.json`、`secrets.json`、`watchmen.json`、`guardian.json`、`vite.config.js`、`CLAUDE.md`、`CHANGELOG.md`、`gameplay-roadmap.md`、三件組、dev server 5173／5174／5175。
+
+Exit criteria：
+- [ ] 一條捷徑，單側解鎖、未解鎖真的走不過去、解鎖後記在存檔裡。
+- [ ] 螢火群會指路，而且關得掉。
+- [ ] 可達性一個都沒少；rubric／playtest／build／e2e 全綠、console error 0；預算在框內。
