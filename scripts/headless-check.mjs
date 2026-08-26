@@ -20514,6 +20514,508 @@ async function main() {
     return 1;
   `);
 
+
+  /* ================================================================ */
+  /*
+   * v1.2 · P19 —— 相鄰區捷徑（南弧的吊板）＋ 外交式導向（螢火指路）
+   *
+   * 這一段要證的是兩句話：
+   *   ① 沒推開**真的走不過去**，而且擋的只有門底下那一段；
+   *      索繫在工坊那一頭 —— 另一頭看得到、推不開。
+   *   ② 螢火群真的偏向下一個建議去處，而且**關掉之後真的回到原樣**。
+   */
+  console.log('\n▸ 相鄰區捷徑 ＋ 外交式導向（v1.2 · P19）');
+
+  /**
+   * 把場面清乾淨。
+   *
+   * **標題卡與那張操作說明卡也算一層**（`anyPanelOpen()` 讀得到它們）——
+   * 只要有一層開著，互動迴圈整個早退：走近不會有提示、`E` 也按不動。
+   * 這一段一開始漏了它們兩個，於是「走近絞盤」那幾條斷言全部紅在
+   * 「人明明站對了、`world.nearestShortcutWinch()` 也答得出來」的地方。
+   */
+  const clearStage19 = async () => {
+    await key('Enter', 'Enter', { vk: 13 });
+    await evaluate(`
+      const g = window.__promptasy;
+      if (g.prologue.isActive) g.prologue.skip();
+      const startBtn = document.querySelector('.intro [data-start]');
+      if (g.intro.isOpen && startBtn) startBtn.click();
+      for (const k of ['keyhelp','shareCard','promptConsole','codex','settings','finale','tabletPanel','inscriptionPanel','letterPanel','watchmanPanel','guardianPanel','handlePanel','practice']) {
+        try { if (g[k] && g[k].isOpen) g[k].close(); } catch {}
+      }
+      if (g.gateAsk.isOpen) g.gateAsk.close({ silent: true });
+      g.player.setInputEnabled(true);
+      return 1;
+    `);
+    await waitFor(
+      () =>
+        evaluate(
+          'return window.__promptasy.player.inputEnabled && !window.__promptasy.title.isOpen && !window.__promptasy.intro.isOpen;'
+        ),
+      { timeout: 20000, every: 150, label: 'P19：場面清乾淨' }
+    );
+  };
+
+  // 場面清乾淨 ＋ 借幾片土地的解鎖（這一段結束時還回去）
+  await clearStage19();
+  await evaluate(`
+    const g = window.__promptasy;
+    const st = g.progression.state;
+    window.__p19Borrowed = ['reasoning','grounding','orchestration','config','forms'].filter((id) => !st.unlockedRegions.includes(id));
+    for (const id of window.__p19Borrowed) st.unlockedRegions.push(id);
+    g.world.refreshGates();
+    return 1;
+  `);
+
+  /* --- ① 世界端：門、兩座絞盤、0 光源 ------------------------------- */
+  const scWorld = await evaluate(`
+    const g = window.__promptasy;
+    const sc = g.world.shortcuts[0];
+    const names = [];
+    g.world.root.traverse((o) => { if (o.name && o.name.startsWith('shortcut:')) names.push(o.name); });
+    const grp = g.world.root.getObjectByName('shortcut:' + sc.id);
+    let lights = 0, tris = 0, winches = 0;
+    grp.traverse((o) => {
+      if (o.isLight) lights += 1;
+      if (o.name && o.name.startsWith('winch:')) winches += 1;
+      if (o.isMesh && o.geometry) {
+        const idx = o.geometry.index;
+        tris += idx ? idx.count / 3 : o.geometry.attributes.position.count / 3;
+      }
+    });
+    const along = (a, lat) => ({
+      x: sc.from.x + sc.dir.x * a + -sc.dir.z * lat,
+      z: sc.from.z + sc.dir.z * a + sc.dir.x * lat,
+    });
+    const onLane = g.world.solids.filter((s) => {
+      const dx = s.x - sc.from.x, dz = s.z - sc.from.z;
+      const t = Math.max(0, Math.min(sc.length, dx * sc.dir.x + dz * sc.dir.z));
+      const px = sc.from.x + sc.dir.x * t, pz = sc.from.z + sc.dir.z * t;
+      return Math.hypot(s.x - px, s.z - pz) <= sc.half;
+    });
+    return {
+      built: names.length, name: names[0] || '', lights, tris, winches,
+      id: sc.id, fromRegion: sc.fromRegion, toRegion: sc.toRegion, unlockFrom: sc.unlockFrom,
+      half: sc.half, flat: sc.flat, length: sc.length, gateAt: sc.gateAt,
+      onLane: onLane.length,
+      standable: onLane.filter((s) => s.standable).length,
+      open: g.progression.isShortcutOpen(sc.id),
+      // 門的兩側各取一點：離門 2 公尺，兩邊都該站得住（擋的只有門底下那一段）
+      beforeOk: g.world.isWalkable(along(sc.gateAt - 2.6, 0).x, along(sc.gateAt - 2.6, 0).z),
+      afterOk: g.world.isWalkable(along(sc.gateAt + 2.6, 0).x, along(sc.gateAt + 2.6, 0).z),
+      gateBlocked: !g.world.isWalkable(sc.gate.x, sc.gate.z),
+    };
+  `);
+  eq(scWorld.built, 1, 'P19：捷徑蓋在世界裡（shortcut:<id>）');
+  eq(scWorld.name, 'shortcut:south-arc', 'P19：場景圖節點名帶得出它的 id');
+  eq(scWorld.lights, 0, 'P19：捷徑一盞燈都沒加');
+  ok(scWorld.tris < 1200, 'P19：捷徑自己 < 1,200 三角形（甲板本身是地形，0 三角）', `tris=${Math.round(scWorld.tris)}`);
+  eq(scWorld.winches, 2, 'P19：兩座絞盤都蓋出來了');
+  eq(scWorld.fromRegion, 'orchestration', 'P19：一頭是齒輪工坊');
+  eq(scWorld.toRegion, 'forms', 'P19：另一頭是量器坊');
+  eq(scWorld.unlockFrom, 'orchestration', 'P19：索繫在齒輪工坊那一頭');
+  eq(scWorld.half, 4, 'P19：走廊半寬 4（窄走廊）');
+  eq(scWorld.onLane, 2, 'P19：走廊上只有兩顆碰撞圓（兩座絞盤）', String(scWorld.onLane));
+  eq(scWorld.standable, 0, 'P19：走廊上沒有可站立體（絞盤站不上一個人的頭）');
+  eq(scWorld.open, false, 'P19：一開始那道門是關著的');
+  eq(scWorld.beforeOk, true, 'P19：門的工坊側走得到門前');
+  eq(scWorld.afterOk, true, 'P19：門的量器坊側也走得到門前（擋的只有門底下那一段）');
+  eq(scWorld.gateBlocked, true, 'P19：門底下走不過去');
+
+  /* --- ② 鎖著的時候真的走不過去（走的是玩家真的會走的那一支） -------- */
+  const scBlocked = await evaluate(`
+    const g = window.__promptasy;
+    const sc = g.world.shortcuts[0];
+    // clampPosition 是**一步**的夾具，不是一段路 —— 所以照玩家真的會走的步長一步一步推
+    let p = { x: sc.from.x + sc.dir.x * (sc.gateAt - 5), z: sc.from.z + sc.dir.z * (sc.gateAt - 5) };
+    const STEP = 0.2;
+    for (let i = 0; i < 80; i += 1) {
+      p = g.world.clampPosition(p.x + sc.dir.x * STEP, p.z + sc.dir.z * STEP, p.x, p.z);
+    }
+    const alongStop = (p.x - sc.from.x) * sc.dir.x + (p.z - sc.from.z) * sc.dir.z;
+    return { alongStop, gateAt: sc.gateAt, block: 2.4 };
+  `);
+  ok(
+    scBlocked.alongStop < scBlocked.gateAt - scBlocked.block / 2,
+    'P19：門鎖著的時候，一步一步往前走會停在門這一側',
+    `${scBlocked.alongStop.toFixed(2)} < ${(scBlocked.gateAt - scBlocked.block / 2).toFixed(2)}`
+  );
+  ok(
+    scBlocked.alongStop > scBlocked.gateAt - scBlocked.block / 2 - 1.5,
+    'P19：而且是走到門前才停（不是離門老遠就有一道看不見的牆）',
+    scBlocked.alongStop.toFixed(2)
+  );
+
+  /**
+   * 走到某一座絞盤旁邊，**輪詢到世界真的認得他站在那裡為止**。
+   *
+   * 不用固定 sleep 對齊牆鐘（這台一幀 200 ms）；逾時就把當下量到的東西原樣回傳，
+   * 讓斷言照樣紅，而且看得出來是「人沒走到」還是「提示沒出來」。
+   * @param {'from'|'to'} side
+   */
+  const approachWinch = (side) =>
+    evaluate(`
+      const g = window.__promptasy;
+      const sc = g.world.shortcuts[0];
+      const w = ${JSON.stringify(side)} === 'from' ? sc.winchFrom : sc.winchTo;
+      // 站在碰撞圈外一點（絞盤半徑 0.95 ＋ 玩家 0.62 ＝ 1.57；2.4 剛好在互動半徑 3.2 內）
+      const sign = ${JSON.stringify(side)} === 'from' ? -1 : 1;
+      g.player.teleport(w.x + sign * 2.2, w.z + sign * 0.95);
+      let out = null;
+      for (let i = 0; i < 80; i += 1) {
+        await new Promise((r) => setTimeout(r, 100));
+        const el = document.querySelector('[data-interact]');
+        const txt = el && !el.hidden ? el.textContent.replace(/\\s+/g, ' ').trim() : '';
+        const hit = g.world.nearestShortcutWinch(g.player.position);
+        out = {
+          hint: txt,
+          side: hit ? hit.winch.side : null,
+          dist: hit ? hit.distance : null,
+          canOpen: hit ? hit.winch.canOpen : null,
+          at: [g.player.position.x, g.player.position.z],
+          want: [w.x, w.z],
+          unlocked: g.progression.state.unlockedRegions.slice(),
+          // 互動迴圈早退的唯一原因就是這些（anyPanelOpen）—— 失敗時看得出是哪一層
+          panels: ['keyhelp','shareCard','promptConsole','codex','settings','intro','finale','tabletPanel','inscriptionPanel','letterPanel','watchmanPanel','guardianPanel','gateAsk','handlePanel','practice','title']
+            .filter((k) => { try { return g[k] && g[k].isOpen; } catch { return false; } }),
+          prologue: g.prologue.isActive,
+          tries: i + 1,
+        };
+        if (hit && /吊板/.test(txt)) break;
+      }
+      return out;
+    `);
+
+  /* --- ③ 走到量器坊那一頭：看得到，推不開 --------------------------- */
+  const stuckNear = await approachWinch('to');
+  eq(stuckNear.side, 'to', 'P19：走到量器坊那一頭 → 世界認得的是那一只鼓', JSON.stringify(stuckNear));
+  ok(stuckNear.dist !== null && stuckNear.dist < 3.2, 'P19：真的走到它旁邊了', String(stuckNear.dist));
+  eq(stuckNear.canOpen, false, 'P19：那一只鼓**推不開**（索繫在工坊那一頭）');
+  ok(/吊板/.test(stuckNear.hint), 'P19：走近另一只鼓 → 走近提示出現', stuckNear.hint);
+  ok(/推不動|索繫/.test(stuckNear.hint), 'P19：提示直接說「從這裡推不動」（不用試才知道）', stuckNear.hint);
+  ok(/E/.test(stuckNear.hint), 'P19：提示標著 E 這個鍵', stuckNear.hint);
+
+  const stuckSide = await evaluate(`
+    const g = window.__promptasy;
+    const sc = g.world.shortcuts[0];
+    const out = { toasts: [] };
+    for (let i = 0; i < 4; i += 1) {
+      window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyE', bubbles: true }));
+      await new Promise((r) => setTimeout(r, 320));
+      out.toasts.push([...document.querySelectorAll('.toast')].map((t) => t.textContent.trim()).pop() || '');
+    }
+    out.open = g.progression.isShortcutOpen(sc.id);
+    out.worldOpen = g.world.shortcutObjects[0].isOpen;
+    out.remaining = g.world.shortcutObjects[0].remaining;
+    out.gateBlocked = !g.world.isWalkable(sc.gate.x, sc.gate.z);
+    out.saved = Boolean((JSON.parse(localStorage.getItem('promptasy.v1.save')).shortcuts || {})[sc.id]);
+    return out;
+  `);
+  ok(/索繫在工坊那一頭/.test(stuckSide.toasts[0] || ''), 'P19：按下去它老實說索在另一邊', stuckSide.toasts[0]);
+  eq(stuckSide.open, false, 'P19：按了四次，門還是沒開（單側解鎖）');
+  eq(stuckSide.worldOpen, false, 'P19：世界端那道門也還關著');
+  eq(stuckSide.remaining, 3, 'P19：那一只鼓一格都沒有咬進去');
+  eq(stuckSide.gateBlocked, true, 'P19：門底下照樣走不過去');
+  eq(stuckSide.saved, false, 'P19：推不開的那一頭一個位元組都沒寫進存檔');
+
+  /* --- ④ 走到工坊那一頭：推三下，門放下來 --------------------------- */
+  const openNear = await approachWinch('from');
+  eq(openNear.side, 'from', 'P19：走到工坊那一頭 → 世界認得的是推得動的那一座', JSON.stringify(openNear));
+  eq(openNear.canOpen, true, 'P19：這一頭推得動（索繫在這裡，而且這片土地已經解鎖）');
+  ok(/推動/.test(openNear.hint), 'P19：走近工坊那一座 → 提示是「推動」', openNear.hint);
+
+  const openSide = await evaluate(`
+    const g = window.__promptasy;
+    const sc = g.world.shortcuts[0];
+    const out = { steps: [], xp0: g.progression.state.xp, grades0: Object.keys(g.progression.state.bestGrades).length };
+    for (let i = 0; i < 3; i += 1) {
+      window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyE', bubbles: true }));
+      await new Promise((r) => setTimeout(r, 380));
+      const el = document.querySelector('[data-interact]');
+      out.steps.push({
+        open: g.progression.isShortcutOpen(sc.id),
+        remaining: g.world.shortcutObjects[0].remaining,
+        anyPanel: g.handlePanel.isOpen || g.promptConsole.isOpen,
+        hint: el && !el.hidden ? el.textContent.replace(/\\s+/g, ' ').trim() : '',
+        toast: [...document.querySelectorAll('.toast')].map((t) => t.textContent.trim()).pop() || '',
+      });
+    }
+    out.xp1 = g.progression.state.xp;
+    out.worldOpen = g.world.shortcutObjects[0].isOpen;
+    out.gateOpen = g.world.isWalkable(sc.gate.x, sc.gate.z);
+    out.saved = Boolean((JSON.parse(localStorage.getItem('promptasy.v1.save')).shortcuts || {})[sc.id]);
+    out.grades = Object.keys(g.progression.state.bestGrades).length;
+    /*
+     * 門閂真的在往下沉（動畫層）—— **輪詢到它沉下去為止**，不用固定 sleep 對齊牆鐘：
+     * 這台是軟體渲染，一幀可能好幾百毫秒，固定的等待量到的是「沉到一半」。
+     * 逾時就把當下的數字原樣回傳，讓斷言照樣紅。
+     */
+    for (let i = 0; i < 120; i += 1) {
+      await new Promise((r) => setTimeout(r, 100));
+      if (!g.world.shortcutObjects[0].veil.visible) break;
+    }
+    out.barY = g.world.shortcutObjects[0].bar.parent.position.y;
+    out.veil = g.world.shortcutObjects[0].veil.visible;
+    return out;
+  `);
+  eq(openSide.steps[0].open, false, 'P19：推第一下門還沒開（不是一按就通）');
+  eq(openSide.steps[1].open, false, 'P19：推第二下門還沒開');
+  eq(openSide.steps[2].open, true, 'P19：推第三下門才放下來');
+  eq(openSide.steps[0].remaining, 2, 'P19：第一下之後還要推 2 下');
+  eq(openSide.steps[1].remaining, 1, 'P19：第二下之後還要推 1 下');
+  ok(/還要再推 2 下/.test(openSide.steps[0].toast), 'P19：畫面上直接說還要推幾下', openSide.steps[0].toast);
+  ok(/量器坊/.test(openSide.steps[2].toast), 'P19：推開的那一刻說得出這條路通去哪裡', openSide.steps[2].toast);
+  eq(openSide.steps.every((s) => s.anyPanel === false), true, 'P19：推絞盤全程不開任何窗（不打斷走路）');
+  eq(openSide.worldOpen, true, 'P19：世界端那道門開了');
+  eq(openSide.gateOpen, true, 'P19：門底下走得過去了');
+  eq(openSide.saved, true, 'P19：推開的那一刻寫進存檔');
+  eq(openSide.xp1, openSide.xp0, 'P19：推開捷徑不給 XP（純風味那一層的護欄）');
+  eq(openSide.grades, openSide.grades0, 'P19：也不寫任何一關的評價（推之前推之後一樣多）');
+  ok(openSide.barY < -0.85, 'P19：門閂真的沉進甲板裡了（整塊藏起來，不留一條看得見的線）', openSide.barY.toFixed(2));
+  eq(openSide.veil, false, 'P19：門口那一片幕收掉了');
+
+  /* --- ⑤ 真的用走的走過去（不是傳送、不用跳） ----------------------- *
+   *
+   * 鏡頭沒有「設定角度」的介面（那是玩家的手），所以這裡**用真的方向鍵轉過去**，
+   * 而且輪詢到轉到為止 —— 不用固定 sleep 去猜這台機器一幀多久。
+   */
+  {
+    const aim = await evaluate(`
+      const g = window.__promptasy;
+      const sc = g.world.shortcuts[0];
+      const want = Math.atan2(sc.dir.x, sc.dir.z);
+      let d = want - g.player.cameraYaw;
+      while (d > Math.PI) d -= Math.PI * 2;
+      while (d < -Math.PI) d += Math.PI * 2;
+      window.__p19Yaw = want;
+      return { want, diff: d };
+    `);
+    const turnCode = aim.diff > 0 ? 'ArrowLeft' : 'ArrowRight';
+    const turnVk = aim.diff > 0 ? 37 : 39;
+    if (Math.abs(aim.diff) > 0.05) {
+      await keyDown(turnCode, turnCode, { vk: turnVk });
+      await waitFor(
+        () =>
+          evaluate(`
+            const g = window.__promptasy;
+            let d = window.__p19Yaw - g.player.cameraYaw;
+            while (d > Math.PI) d -= Math.PI * 2;
+            while (d < -Math.PI) d += Math.PI * 2;
+            return Math.abs(d) < 0.06 ? { d } : null;
+          `),
+        { timeout: 20000, every: 60, label: 'P19：鏡頭轉到走廊的方向' }
+      );
+      await keyUp(turnCode, turnCode, { vk: turnVk });
+    }
+    const aimed = await evaluate(`
+      const g = window.__promptasy;
+      const sc = g.world.shortcuts[0];
+      let d = window.__p19Yaw - g.player.cameraYaw;
+      while (d > Math.PI) d -= Math.PI * 2;
+      while (d < -Math.PI) d += Math.PI * 2;
+      g.player.teleport(sc.from.x + sc.dir.x * (sc.gateAt - 7), sc.from.z + sc.dir.z * (sc.gateAt - 7));
+      await new Promise((r) => setTimeout(r, 260));
+      const a = (g.player.position.x - sc.from.x) * sc.dir.x + (g.player.position.z - sc.from.z) * sc.dir.z;
+      return { diff: Math.abs(d), along: a, gateAt: sc.gateAt };
+    `);
+    ok(aimed.diff < 0.12, 'P19：鏡頭真的對著走廊', aimed.diff.toFixed(3));
+    ok(aimed.along < aimed.gateAt - 5, 'P19：出發點在門的這一側（真的要走過去）', aimed.along.toFixed(2));
+  }
+  await keyDown('KeyW', 'w', { vk: 87 });
+  const scWalk = await waitFor(
+    () =>
+      evaluate(`
+        const g = window.__promptasy;
+        const sc = g.world.shortcuts[0];
+        const a = (g.player.position.x - sc.from.x) * sc.dir.x + (g.player.position.z - sc.from.z) * sc.dir.z;
+        return a > sc.gateAt + 2 ? { a, gateAt: sc.gateAt, y: g.player.position.y } : null;
+      `),
+    { timeout: 30000, every: 100, label: 'P19：按 W 走過那道門' }
+  );
+  await keyUp('KeyW', 'w', { vk: 87 });
+  ok(scWalk.a > scWalk.gateAt + 2, 'P19：**只按 W 就真的走過那道門**（不用跳）', scWalk.a.toFixed(2));
+
+  /* --- ⑥ 重整之後那道門還開著 --------------------------------------- */
+  await reloadPage('P19 重整');
+  // 重整之後標題卡又擋在前面了（它開著時互動迴圈整個早退）
+  await clearStage19();
+  const scPersist = await evaluate(`
+    const g = window.__promptasy;
+    await new Promise((r) => setTimeout(r, 200));
+    const sc = g.world.shortcuts[0];
+    return {
+      open: g.progression.isShortcutOpen(sc.id),
+      worldOpen: g.world.shortcutObjects[0].isOpen,
+      barY: g.world.shortcutObjects[0].bar.parent.position.y,
+      remaining: g.world.shortcutObjects[0].remaining,
+      guides: g.progression.state.settings.guides,
+    };
+  `);
+  eq(scPersist.open, true, 'P19：重整之後那道門還是開的');
+  eq(scPersist.worldOpen, true, 'P19：世界端也記得它開著（不用再推三下）');
+  eq(scPersist.remaining, 0, 'P19：重整之後絞盤已經推滿了');
+  ok(scPersist.barY < -0.5, 'P19：重整之後門閂就已經在甲板底下（不會先擋一下再沉）', scPersist.barY.toFixed(2));
+  eq(scPersist.guides, true, 'P19：螢火指路預設開著');
+
+  /* --- ⑦ 外交式導向：螢火群真的偏過去，而且關得掉 ------------------- */
+  await evaluate(`
+    const g = window.__promptasy;
+    if (g.prologue.isActive) g.prologue.skip();
+    for (const k of ['keyhelp','shareCard','promptConsole','codex','settings','finale','tabletPanel','inscriptionPanel','letterPanel','watchmanPanel','guardianPanel','handlePanel','practice']) {
+      try { if (g[k] && g[k].isOpen) g[k].close(); } catch {}
+    }
+    g.player.setInputEnabled(true);
+    // 站在一團螢火旁邊 10 公尺（進得了動畫層 45 公尺、但不會把牠們嚇散：進場半徑 3）
+    // 方向是**挑出來的**：站到虛空裡的話人會被夾回別的地方，這一段就量不到東西
+    const m = g.world.reactive.objects.find((o) => o.kind === 'moths');
+    let spot = null;
+    for (let a = 0; a < 12; a += 1) {
+      const ang = (a / 12) * Math.PI * 2;
+      const px = m.x + Math.cos(ang) * 10;
+      const pz = m.z + Math.sin(ang) * 10;
+      if (g.world.isClear(px, pz, null)) { spot = [px, pz]; break; }
+    }
+    g.player.teleport(spot[0], spot[1]);
+    window.__p19Moth = m.id;
+    return 1;
+  `);
+  /**
+   * 這一團螢火的重心（相對它自己的原點）＋ 現在的導向向量。
+   *
+   * **不等「穩下來」**：這台一幀 200 ms，收斂本身就要好幾秒，
+   * 「兩次讀數差不多」會在收斂到一半時就成立（實測讀到 0.397，只有該有的四成）。
+   * 所以下面一律用 `waitFor` **等那個數字真的到位**（等待條件用舊值不成立），
+   * 逾時就讓斷言紅。
+   */
+  const mothNow = () =>
+    evaluate(`
+      const g = window.__promptasy;
+      const m = g.world.reactive.objects.find((o) => o.id === window.__p19Moth);
+      const arr = m.points.geometry.attributes.position.array;
+      let cx = 0, cz = 0;
+      for (let i = 0; i < m.n; i += 1) { cx += arr[i * 3]; cz += arr[i * 3 + 2]; }
+      return { x: cx / m.n, z: cz / m.n, aim: g.world.guidance() };
+    `);
+
+  // 先把導向關掉，量一次「本來的樣子」（基準線）
+  await evaluate(`
+    const g = window.__promptasy;
+    g.progression.updateSettings({ guides: false });
+    g.world.setGuidance(false);
+    return 1;
+  `);
+  const baseCentroid = await waitFor(
+    () =>
+      evaluate(`
+        const g = window.__promptasy;
+        if (g.world.guidance() !== null) return null;
+        const m = g.world.reactive.objects.find((o) => o.id === window.__p19Moth);
+        const read = () => {
+          const arr = m.points.geometry.attributes.position.array;
+          let cx = 0, cz = 0;
+          for (let i = 0; i < m.n; i += 1) { cx += arr[i * 3]; cz += arr[i * 3 + 2]; }
+          return { x: cx / m.n, z: cz / m.n };
+        };
+        const a = read();
+        await new Promise((r) => setTimeout(r, 400));
+        const b = read();
+        // 沒有導向時螢火只在自己的家附近浮動，很快就停下來
+        return Math.hypot(a.x - b.x, a.z - b.z) < 0.03 ? b : null;
+      `),
+    { timeout: 30000, every: 250, label: 'P19：導向關著時的基準線' }
+  );
+
+  // 再從設定頁把它打開（真的點那個勾勾，不是直接改狀態）
+  const guideToggle = await evaluate(`
+    const g = window.__promptasy;
+    g.settings.open();
+    await new Promise((r) => setTimeout(r, 320));
+    const box = document.querySelector('#settings [data-guides]');
+    const before = box ? box.checked : null;
+    box.checked = true;
+    box.dispatchEvent(new Event('change', { bubbles: true }));
+    await new Promise((r) => setTimeout(r, 260));
+    g.settings.close();
+    await new Promise((r) => setTimeout(r, 320));
+    return {
+      before,
+      setting: g.progression.state.settings.guides,
+      saved: JSON.parse(localStorage.getItem('promptasy.v1.save')).settings.guides,
+      aim: g.world.guidance(),
+    };
+  `);
+  eq(guideToggle.before, false, 'P19：剛剛關掉之後，設定頁的勾勾也跟著不勾了');
+  eq(guideToggle.setting, true, 'P19：打開之後設定記著了');
+  eq(guideToggle.saved, true, 'P19：也寫進了存檔');
+  ok(guideToggle.aim && Number.isFinite(guideToggle.aim.x), 'P19：打開之後世界指得出一個方向', JSON.stringify(guideToggle.aim));
+
+  /** 重心沿導向那一軸偏了多少（相對基準線）。 */
+  const leanOf = (c, aim) => (c.x - baseCentroid.x) * aim.x + (c.z - baseCentroid.z) * aim.z;
+  const aim19 = guideToggle.aim;
+  const onSample = await waitFor(
+    async () => {
+      const c = await mothNow();
+      if (!c.aim) return null;
+      return leanOf(c, c.aim) > 0.75 ? { lean: leanOf(c, c.aim), aim: c.aim } : null;
+    },
+    { timeout: 40000, every: 300, label: 'P19：螢火群整體偏向下一個建議去處' }
+  );
+  ok(onSample.lean > 0.75, 'P19：整團螢火真的往「下一個建議去處」那一側偏了', onSample.lean.toFixed(3));
+  ok(
+    Math.abs(onSample.lean - 0.9) < 0.3,
+    'P19：偏的量就是那一個 MOTH_GUIDE_LEAN（0.9 公尺）',
+    onSample.lean.toFixed(3)
+  );
+
+  // 關掉 → 真的飄回原樣（不是只把設定存起來）
+  const guideOffToggle = await evaluate(`
+    const g = window.__promptasy;
+    g.settings.open();
+    await new Promise((r) => setTimeout(r, 320));
+    const box = document.querySelector('#settings [data-guides]');
+    box.checked = false;
+    box.dispatchEvent(new Event('change', { bubbles: true }));
+    await new Promise((r) => setTimeout(r, 260));
+    g.settings.close();
+    await new Promise((r) => setTimeout(r, 320));
+    return { setting: g.progression.state.settings.guides, aim: g.world.guidance() };
+  `);
+  eq(guideOffToggle.setting, false, 'P19：關掉之後設定記著了');
+  eq(guideOffToggle.aim, null, 'P19：關掉之後世界不再指路');
+  const offSample = await waitFor(
+    async () => {
+      const c = await mothNow();
+      return Math.abs(leanOf(c, aim19)) < 0.2 ? { lean: leanOf(c, aim19) } : null;
+    },
+    { timeout: 40000, every: 300, label: 'P19：螢火群飄回原樣' }
+  );
+  ok(
+    Math.abs(offSample.lean) < 0.2,
+    'P19：**關掉之後螢火群真的飄回原樣**（不是只把設定存起來）',
+    offSample.lean.toFixed(3)
+  );
+  ok(
+    onSample.lean - offSample.lean > 0.6,
+    'P19：開與關量得出明顯的差（≈ 一個 MOTH_GUIDE_LEAN）',
+    `${onSample.lean.toFixed(3)} vs ${offSample.lean.toFixed(3)}`
+  );
+
+  // 開回來 ＋ 把借來的解鎖還回去
+  await evaluate(`
+    const g = window.__promptasy;
+    g.progression.updateSettings({ guides: true });
+    g.world.setGuidance(true);
+    const st = g.progression.state;
+    for (const id of window.__p19Borrowed || []) {
+      const i = st.unlockedRegions.indexOf(id);
+      if (i >= 0) st.unlockedRegions.splice(i, 1);
+    }
+    g.world.refreshGates();
+    g.player.teleport(0, 6);
+    return 1;
+  `);
+
   /* ================================================================ */
   await sleep(600);
   const realErrors = consoleErrors.filter((e) => !/favicon|DevTools|Autofill/i.test(e));

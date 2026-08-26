@@ -16180,7 +16180,7 @@ console.log('\n▸ 中觀：遮擋帶與母題（v1.2 · P11）');
         tris += n * (o.isInstancedMesh ? o.count : 1);
       }
     });
-    ok(tris < 232000, 'P11：世界三角形 < 232k', `tris=${Math.round(tris)}`);
+    ok(tris < 233000, 'P11：世界三角形 < 233k（P19 的框）', `tris=${Math.round(tris)}`);
     eq(lights, 37, 'P11：光源數不變（中觀層一盞燈都不加）', `lights=${lights}`);
     // v1.2 · P16a：+6 座高台 ＋ 4 座母題 ＋ 2 道遮擋帶 → 974 → 992（這一格的預算 <1,100；§6.1 的硬上限仍是 1,400）
     ok(testWorld.solids.length < 1060, 'P11：碰撞體 < 1,060', `n=${testWorld.solids.length}`);
@@ -19225,7 +19225,13 @@ console.log('\n▸ 高台語法 ＋ 高處的祕密 ＋ 橋缺口（v1.2 · P15�
       }
       ok(worst < 2, `P16e：[${site.id}] 土地邊緣那一圈 < 2 公尺寬`, `${worst.toFixed(2)}m`);
     }
-    for (const c of World.CORRIDORS) {
+    /*
+     * v1.2 · P19：這一圈連**捷徑走廊**一起量（`LANES` ＝ 橋 ＋ 捷徑）。
+     * 新開一條走廊等於新開一段甲板邊，那段唇沒有人量的話，
+     * 「換一個看不見的牆不算修好」這條規則就漏了新的那一段。
+     */
+    for (const c of World.LANES) {
+      const label = c.region || c.id;
       let worst = 0;
       let seen = 0;
       for (let i = 0; i < GN; i += 1) {
@@ -19240,8 +19246,8 @@ console.log('\n▸ 高台語法 ＋ 高處的祕密 ＋ 橋缺口（v1.2 · P15�
           if (dist[k] > worst) worst = dist[k];
         }
       }
-      ok(seen > 100, `P16e：[bridge:${c.region}] 甲板邊真的有量到唇`, String(seen));
-      ok(worst < 2, `P16e：[bridge:${c.region}] 甲板邊那一圈 < 2 公尺寬`, `${worst.toFixed(2)}m`);
+      ok(seen > 100, `P16e：[lane:${label}] 甲板邊真的有量到唇`, String(seen));
+      ok(worst < 2, `P16e：[lane:${label}] 甲板邊那一圈 < 2 公尺寬`, `${worst.toFixed(2)}m`);
     }
     /*
      * 反例：把肩的曲率放軟成四分之一（起手更平），同一把尺立刻讀出 > 2 公尺的唇 ——
@@ -19854,7 +19860,7 @@ console.log('\n▸ 跳躍鋪區 ＋ 中景補四區（v1.2 · P16a）');
       }
     });
     // 這一格量到 224,946／37／992；門檻是這一格自己宣告的預算（比實測嚴一格）
-    ok(tris16 < 232000, 'P16a：世界三角形 < 232k', `tris=${Math.round(tris16)}`);
+    ok(tris16 < 233000, 'P16a：世界三角形 < 233k（P19 的框）', `tris=${Math.round(tris16)}`);
     eq(lights16, 37, 'P16a：光源數仍然是 37（中觀層一盞都不加）', `lights=${lights16}`);
     ok(testWorld.solids.length < 1100, 'P16a：碰撞體 < 1,100', String(testWorld.solids.length));
     // 每一片土地的中觀碰撞體上限（§4.10 ②）—— 新鋪的兩片也要在框內
@@ -21690,6 +21696,667 @@ console.log('\n▸ 守門者：帶著交辦站在門邊的人（v1.2 · P18）')
     ok(/守門者/.test(worldMd18.slice(worldMd18.indexOf('### 3.2'), worldMd18.indexOf('### 3.3'))), 'WORLD.md §3.2 的互動層表列得出守門者');
     ok(/守門者/.test(worldMd18.slice(worldMd18.indexOf('### 1.5'), worldMd18.indexOf('### 1.6'))), 'WORLD.md §1.5 說得出他也是站著不動的人');
     ok(/P18/.test(worldMd18), 'WORLD.md 標得出這一格');
+  }
+}
+
+/* ================================================================== *
+ * 相鄰區捷徑 ＋ 外交式導向（v1.2 · P19）
+ * ================================================================== *
+ *
+ * 兩件事，各有一句話要被證明：
+ *   ① 捷徑：**沒推開真的走不過去**，而且擋的只有門底下那一段（不是整條走廊）；
+ *      單側解鎖 —— 索繫在工坊那一頭，另一頭推不動。
+ *   ② 導向：螢火群真的偏向下一個建議去處，而且**關掉之後逐值回到原樣**
+ *      （不是只把設定存起來）。
+ *
+ * 每一條會動的斷言都配一個反例：把鎖拿掉、把導向關掉、把畫質切低，
+ * 同一把尺要立刻讀出不一樣的數字。
+ */
+console.log('\n▸ 相鄰區捷徑 ＋ 外交式導向（v1.2 · P19）');
+{
+  const worldSrc19 = readFileSync(resolve(root, 'src/world/world.js'), 'utf8');
+  const reactSrc19 = readFileSync(resolve(root, 'src/world/reactive.js'), 'utf8');
+  const mainSrc19 = readFileSync(resolve(root, 'src/main.js'), 'utf8');
+  const setSrc19 = readFileSync(resolve(root, 'src/ui/settings.js'), 'utf8');
+  const worldMd19 = readFileSync(resolve(root, 'WORLD.md'), 'utf8');
+  const Ground19 = await import('../src/world/ground.js');
+  const SC = World.SHORTCUTS;
+  const sc = SC[0];
+  const site19 = (id) => World.REGION_SITES.find((s) => s.id === id);
+  /** 沿走廊的局部座標（測試自己算一次，不借被測的那一支）。 */
+  const local19 = (along, lat = 0) => [
+    sc.from.x + sc.dir.x * along + -sc.dir.z * lat,
+    sc.from.z + sc.dir.z * along + sc.dir.x * lat,
+  ];
+
+  /* --- ① 資料契約：逐值比對（不是只比 key） ------------------------- */
+  {
+    eq(SC.length, 1, 'P19：先做一條捷徑（其餘等體感）');
+    eq(sc.id, 'south-arc', 'P19：那一條叫 south-arc');
+    eq(sc.fromRegion, 'orchestration', 'P19：一頭是齒輪工坊');
+    eq(sc.toRegion, 'forms', 'P19：另一頭是量器坊');
+    eq(sc.unlockFrom, 'orchestration', 'P19：索繫在齒輪工坊那一頭');
+    eq(sc.half, 4, 'P19：走廊半寬 4（橋是 9 —— 這是窄走廊）');
+    eq(sc.flat, 2, 'P19：走廊平段半寬 2');
+    ok(sc.half < World.CORRIDORS[0].half, 'P19：捷徑真的比橋窄', `${sc.half} < ${World.CORRIDORS[0].half}`);
+    eq(Object.isFrozen(SC), true, 'P19：捷徑表凍結了（甲板高度補完之後）');
+    eq(Object.isFrozen(sc), true, 'P19：那一筆本身也凍結了');
+    ok(Math.abs(sc.length - Math.hypot(sc.to.x - sc.from.x, sc.to.z - sc.from.z)) < 1e-9, 'P19：長度就是兩端的距離', sc.length.toFixed(2));
+    ok(Math.abs(Math.hypot(sc.dir.x, sc.dir.z) - 1) < 1e-12, 'P19：方向是單位向量');
+    /*
+     * 兩端要落在**各自土地走得到的那一圈裡面**（`SITE_RIM`），
+     * 不然走廊接不上土地 —— 中間會留一段虛空。這裡不引用常數，直接問覆蓋率。
+     */
+    for (const [label, pt, id] of [['齒輪工坊', sc.from, sc.fromRegion], ['量器坊', sc.to, sc.toRegion]]) {
+      const s = site19(id);
+      const d = Math.hypot(pt.x - s.x, pt.z - s.z);
+      ok(d < s.radius, `P19：[${label}] 走廊那一端在土地的圓盤裡`, d.toFixed(2));
+      ok(
+        World.coverage(pt.x, pt.z, World.CORRIDORS.length) >= World.STAND_COVER_MIN,
+        `P19：[${label}] 那一端**沒有捷徑時本來就站得住**（走廊接得上土地）`,
+        World.coverage(pt.x, pt.z, World.CORRIDORS.length).toFixed(3)
+      );
+    }
+    // 走廊不得擦到第三片土地（含加建院落）
+    for (const s of World.REGION_SITES) {
+      if (s.id === sc.fromRegion || s.id === sc.toRegion) continue;
+      const d = distToSeg(s.x, s.z, sc.from.x, sc.from.z, sc.to.x, sc.to.z);
+      ok(d > s.radius + 4, `P19：走廊離「${s.id}」夠遠（不會借道第三片土地）`, d.toFixed(1));
+    }
+    // 也不得擦到別人的橋
+    for (const c of World.CORRIDORS) {
+      const d = distToSeg(c.gate.x, c.gate.z, sc.from.x, sc.from.z, sc.to.x, sc.to.z);
+      ok(d > 20, `P19：走廊離「${c.region}」那道閘門夠遠`, d.toFixed(1));
+    }
+    /*
+     * 地面色也要接得上：捷徑要登記一段跨距，不然那條甲板不屬於任何一片土地，
+     * `groundBlend()` 回空陣列 → 拿中央高原那一組當底，兩端各留一條硬邊。
+     */
+    {
+      const span = World.BRIDGE_SPANS.find((sp) => sp.fromId === sc.fromRegion && sp.toId === sc.toRegion);
+      ok(Boolean(span), 'P19：捷徑登記了一段地面色的跨距');
+      // 走廊偏離那條中線最多幾公尺（要在 SPAN_HALF_W 之內，跨距才蓋得到甲板）。
+      // 沒有那一筆時**不要往下解參照** —— 一個 null 會把整支測試炸掉（P17 審查記過一次）
+      if (span) {
+        let worst = 0;
+        for (let a = 0; a <= sc.length; a += 0.5) {
+          const [x, z] = local19(a, 0);
+          const d = distToSeg(x, z, span.ax, span.az, span.bx, span.bz);
+          if (d > worst) worst = d;
+        }
+        ok(worst < Ground19.SPAN_HALF_W, 'P19：整條走廊都在那段跨距的漸變帶裡', `${worst.toFixed(2)} < ${Ground19.SPAN_HALF_W}`);
+      }
+    }
+  }
+
+  /* --- ② 甲板兩端接上自己的地（P19 的核心幾何斷言） ------------------ *
+   *
+   * 甲板兩端的高度是**問出來的**（「沒有這條走廊時這裡多高」），不是手打的。
+   * 可以驗的性質：走廊的兩個端點上，`terrainRelief()` 與加走廊之前**逐位元組相同**。
+   */
+  {
+    for (const [label, pt, deck] of [['起點', sc.from, sc.deckA], ['終點', sc.to, sc.deckB]]) {
+      const base = World.terrainRelief(pt.x, pt.z);
+      eq(base, deck, `P19：[${label}] 甲板的高度就是那一點的地（一毫米都沒動）`);
+    }
+    ok(Math.abs(sc.deckA - sc.deckB) > 0.3, 'P19：兩端的地本來就不一樣高（甲板真的在接兩個不同的高度）', `${sc.deckA.toFixed(2)} vs ${sc.deckB.toFixed(2)}`);
+    /*
+     * **反例**：橋用的是寫死的 1.1 / 1.1 / 0.7。把那組數字套到這條走廊上，
+     * 同樣那兩點的地會被抬起來 —— 證明上面那兩條不是永遠成立的斷言。
+     */
+    {
+      const fake = 1.1;
+      const wA = World.coverage(sc.from.x, sc.from.z, World.CORRIDORS.length);
+      const shifted = Math.abs((wA * sc.deckA + fake) / (wA + 1) - sc.deckA);
+      ok(shifted > 0.2, 'P19[反例]：甲板改用橋那組寫死的高度，起點的地會被抬起來', `${shifted.toFixed(2)}m`);
+    }
+    // 七座橋一個位元組都沒變（`corridorHeight` 抽成欄位之後仍然是 1.1 + sin(πt)·0.7）
+    for (const c of World.CORRIDORS) {
+      eq(c.deckA, 1.1, `P19：[bridge:${c.region}] 甲板起點仍然是 1.1`);
+      eq(c.deckB, 1.1, `P19：[bridge:${c.region}] 甲板終點仍然是 1.1`);
+      eq(c.rise, 0.7, `P19：[bridge:${c.region}] 拱高仍然是 0.7`);
+    }
+  }
+
+  /* --- ③ 門立在量器坊自己那道區鎖的圈上（兩道鎖疊在同一步） ---------- */
+  {
+    const s = site19(sc.toRegion);
+    const d = Math.hypot(sc.gate.x - s.x, sc.gate.z - s.z);
+    ok(Math.abs(d - (s.radius + World.REGION_LOCK_PAD)) < 1e-6, 'P19：門就立在量器坊區鎖那一圈上', d.toFixed(3));
+    eq(World.REGION_LOCK_PAD, 4, 'P19：區鎖那一圈比土地半徑多 4 公尺');
+    ok(
+      new RegExp('site\\.radius \\+ REGION_LOCK_PAD').test(worldSrc19),
+      'P19：`isWalkable()` 用的就是同一個常數（門檻只留一份）'
+    );
+    ok(sc.gateAt > 0 && sc.gateAt < sc.length, 'P19：門落在走廊上（不是端點外）', sc.gateAt.toFixed(2));
+    // 兩座絞盤：都在走廊上、都不在門底下那一段、都站得住
+    for (const [label, pt] of [['工坊那一頭', sc.winchFrom], ['量器坊那一頭', sc.winchTo]]) {
+      ok(World.coverage(pt.x, pt.z) >= World.STAND_COVER_MIN, `P19：[${label}] 絞盤站在走得到的甲板上`);
+      eq(World.onShortcutBlock(sc, pt.x, pt.z), false, `P19：[${label}] 絞盤不在門底下那一段裡`);
+      const d2 = Math.hypot(pt.x - sc.gate.x, pt.z - sc.gate.z);
+      ok(d2 < World.WINCH_RADIUS * 2.5, `P19：[${label}] 絞盤就在門邊（不用找）`, d2.toFixed(1));
+    }
+  }
+
+  /* --- ④ 走廊上不放程序化道具（窄走廊擋一顆石頭就走不過去） ---------- */
+  {
+    for (let a = 0; a <= sc.length; a += 0.5) {
+      for (const lat of [-3, -1.5, 0, 1.5, 3]) {
+        const [x, z] = local19(a, lat);
+        eq(World.inCorridor(x, z), true, `P19：走廊 (${a.toFixed(1)}, ${lat}) 算在動線裡（不准擺東西）`);
+      }
+    }
+    // 反例：離走廊 8 公尺就不算動線了（這條規則沒有把半張地圖圈起來）
+    {
+      const [x, z] = local19(sc.length / 2, 8.5);
+      eq(World.inCorridor(x, z), false, 'P19[反例]：離走廊 8.5 公尺不算動線');
+    }
+  }
+
+  /* --- ⑤ 沒推開真的走不過去；推開了就走得過去 ----------------------- */
+  {
+    /** 蓋一個「這條捷徑開／關」的世界（其餘與出貨那一份逐位元組相同）。 */
+    const worldWith = (open) => {
+      const restore = installCanvasStub();
+      const scene = new THREE.Scene();
+      const w = World.createWorld({
+        engine: { scene, camera: {}, onUpdate() {} },
+        quality: 'high',
+        ...worldOpts,
+        progression: { ...stubProgression, isShortcutOpen: () => open },
+      });
+      restore();
+      return { world: w, scene };
+    };
+    const shut = worldWith(false).world;
+    const open = worldWith(true).world;
+
+    /** 只在走廊足跡裡的洪水填充：從工坊那一頭出發，走得到量器坊那一頭嗎。 */
+    const alongLane = (w) => {
+      const STEP = 0.25;
+      const LATS = 25; // -3 … 3
+      const NA = Math.round(sc.length / STEP) + 1;
+      const seen = new Uint8Array(NA * LATS);
+      const latOf = (j) => -3 + j * 0.25;
+      const walk = (i, j) => {
+        const [x, z] = local19(i * STEP, latOf(j));
+        return w.isClear(x, z, null);
+      };
+      const start = [Math.round(2 / STEP), 12];
+      if (!walk(start[0], start[1])) return { ok: false, why: '起點就站不住' };
+      const q = [start[0] * LATS + start[1]];
+      seen[q[0]] = 1;
+      let head = 0;
+      while (head < q.length) {
+        const cur = q[head];
+        head += 1;
+        const i = Math.floor(cur / LATS);
+        const j = cur - i * LATS;
+        for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+          const ni = i + di;
+          const nj = j + dj;
+          if (ni < 0 || nj < 0 || ni >= NA || nj >= LATS) continue;
+          const k = ni * LATS + nj;
+          if (seen[k] || !walk(ni, nj)) continue;
+          seen[k] = 1;
+          q.push(k);
+        }
+      }
+      const end = Math.round((sc.length - 2) / STEP) * LATS + 12;
+      return { ok: seen[end] === 1, reached: q.length };
+    };
+    const shutFill = alongLane(shut);
+    const openFill = alongLane(open);
+    eq(shutFill.ok, false, 'P19：**沒推開時，沿著走廊走不到另一頭**');
+    eq(openFill.ok, true, 'P19[反例]：把鎖拿掉，同一條走廊就走得通了');
+    ok(openFill.reached > shutFill.reached, 'P19：推開之後走得到的甲板變多了', `${openFill.reached} > ${shutFill.reached}`);
+
+    // 擋的只有門底下那一段：兩側都走得到門前（換一個看不見的牆不算修好）
+    for (const [label, a] of [['工坊側', sc.gateAt - World.SHORTCUT_BLOCK / 2 - 0.4], ['量器坊側', sc.gateAt + World.SHORTCUT_BLOCK / 2 + 0.4]]) {
+      const [x, z] = local19(a, 0);
+      eq(shut.isWalkable(x, z), true, `P19：[${label}] 沒推開也走得到門前`);
+    }
+    // 門底下那一段：沒推開一定擋、推開一定通
+    for (let lat = -3; lat <= 3; lat += 0.5) {
+      const [x, z] = local19(sc.gateAt, lat);
+      if (World.coverage(x, z) < World.STAND_COVER_MIN) continue;
+      eq(shut.isWalkable(x, z), false, `P19：門底下 lat=${lat} 沒推開走不過去`);
+      eq(open.isWalkable(x, z), true, `P19[反例]：推開之後 lat=${lat} 走得過去`);
+    }
+    /*
+     * 開口寬度：推開之後中間留得出人走的路（玩家半徑 0.62）。
+     * 最窄的一步不在門底下，而是**絞盤旁邊** —— 所以整條走廊都量一次，不是只量門。
+     */
+    {
+      const widthAt = (along) => {
+        let widest = 0;
+        let run = 0;
+        for (let lat = -4.5; lat <= 4.5; lat += 0.05) {
+          const [x, z] = local19(along, lat);
+          if (open.isClear(x, z, null)) {
+            run += 0.05;
+            if (run > widest) widest = run;
+          } else run = 0;
+        }
+        return widest;
+      };
+      ok(widthAt(sc.gateAt) > 5.5, 'P19：推開之後門那一步 > 5.5 公尺寬', `${widthAt(sc.gateAt).toFixed(2)}m`);
+      let narrow = Infinity;
+      let narrowAt = 0;
+      for (let a = 1; a <= sc.length - 1; a += 0.25) {
+        const w = widthAt(a);
+        if (w < narrow) {
+          narrow = w;
+          narrowAt = a;
+        }
+      }
+      ok(narrow > 3.5, 'P19：整條走廊最窄的一步也留得出 3.5 公尺（玩家半徑 0.62）', `${narrow.toFixed(2)}m @${narrowAt.toFixed(2)}`);
+      ok(
+        Math.abs(narrowAt - sc.gateAt) > 2,
+        'P19：最窄的那一步在絞盤旁邊，不在門底下（門不是瓶頸）',
+        narrowAt.toFixed(2)
+      );
+    }
+    /*
+     * **不管腳在多高都擋**（同虛空與閘門）：跳到一半也不准飄過門去。
+     */
+    {
+      const [x, z] = local19(sc.gateAt, 0);
+      eq(shut.isWalkable(x, z, World.terrainHeight(x, z) + 3), false, 'P19：腳離地 3 公尺照樣過不去');
+    }
+    /*
+     * **絕不能把玩家關住**（護欄）：門底下那 2.4 公尺的地是平的，人站得上去；
+     * 「重置進度」那一刻剛好站在門底下的人，保險絲要一步一步把他請出來。
+     */
+    {
+      let out = 0;
+      let inBand = 0;
+      for (let a = sc.gateAt - World.SHORTCUT_BLOCK / 2; a <= sc.gateAt + World.SHORTCUT_BLOCK / 2; a += 0.2) {
+        for (let lat = -3; lat <= 3; lat += 0.5) {
+          const [x, z] = local19(a, lat);
+          // 只算真的落在「門底下那一段」裡、而且站得住的點（邊界那一圈由浮點決定，不硬猜）
+          if (!World.onShortcutBlock(sc, x, z)) continue;
+          if (World.coverage(x, z) < World.STAND_COVER_MIN) continue;
+          inBand += 1;
+          const esc = shut.escapeSolid(x, z);
+          if (esc && Math.hypot(esc.x - x, esc.z - z) > 1e-6) out += 1;
+        }
+      }
+      ok(inBand > 40, 'P19：門底下真的有一片站得上去的地（不是一條空過的斷言）', String(inBand));
+      eq(out, inBand, 'P19：**站在門底下的每一點，保險絲都推得出去**（絕不能把玩家關住）');
+      // 反例：門開著的時候那一段本來就走得到，保險絲不該動作
+      const [mx, mz] = local19(sc.gateAt, 0);
+      eq(open.escapeSolid(mx, mz), null, 'P19[反例]：門開著時保險絲不動作（沒卡住就不推）');
+    }
+    /*
+     * 「這一點的地是捷徑自己鋪出來的嗎」—— 門底下一定是（沒有捷徑那裡就是虛空），
+     * 走廊兩端一定不是（那是土地自己的地）。
+     */
+    {
+      const [gx, gz] = local19(sc.gateAt, 0);
+      eq(World.onlyByShortcut(gx, gz), true, 'P19：門底下那一塊地是捷徑自己鋪出來的');
+      eq(World.onlyByShortcut(sc.from.x, sc.from.z), false, 'P19：走廊起點站的是齒輪工坊自己的地');
+      eq(World.onlyByShortcut(sc.to.x, sc.to.z), false, 'P19：走廊終點站的是量器坊自己的地');
+      let only = 0;
+      for (let a = 0; a <= sc.length; a += 0.25) {
+        const [x, z] = local19(a, 0);
+        if (World.onlyByShortcut(x, z)) only += 1;
+      }
+      ok(only * 0.25 > 15, 'P19：走廊中線有 15 公尺以上完全靠自己撐著（真的跨過虛空）', `${(only * 0.25).toFixed(1)}m`);
+    }
+    // 進度替身沒有 isShortcutOpen（舊存檔 / 舊替身）→ 一律當成沒推開
+    {
+      const restore = installCanvasStub();
+      const bare = World.createWorld({
+        engine: { scene: new THREE.Scene(), camera: {}, onUpdate() {} },
+        quality: 'high',
+        ...worldOpts,
+      });
+      restore();
+      const [x, z] = local19(sc.gateAt, 0);
+      eq(bare.isWalkable(x, z), false, 'P19：進度替身答不出來時保守當成「還沒推開」');
+    }
+
+    /* --- 單側解鎖：索繫在工坊那一頭 --- */
+    {
+      const w = worldWith(false).world;
+      const fromHit = w.nearestShortcutWinch({ x: sc.winchFrom.x, z: sc.winchFrom.z });
+      const toHit = w.nearestShortcutWinch({ x: sc.winchTo.x, z: sc.winchTo.z });
+      ok(fromHit && fromHit.winch.side === 'from', 'P19：站到工坊那一頭問得到絞盤');
+      ok(toHit && toHit.winch.side === 'to', 'P19：站到量器坊那一頭問得到另一只鼓');
+      eq(fromHit.winch.canOpen, true, 'P19：工坊那一頭推得動');
+      eq(toHit.winch.canOpen, false, 'P19：量器坊那一頭**看得到、推不開**');
+      // 從推不開的那一頭推：什麼都不會發生（也不叫失敗）
+      for (let i = 0; i < 5; i += 1) {
+        const r = w.pushWinch(toHit.winch);
+        eq(r.pushed, false, 'P19：推不開的那一只鼓推不動');
+        eq(r.stuck, true, 'P19：它老實說「索在另一邊」');
+      }
+      const [gx, gz] = local19(sc.gateAt, 0);
+      eq(w.isWalkable(gx, gz), false, 'P19：推了五次另一只鼓，門還是關著');
+      // 從推得動的那一頭推：三下才開（按三次 E，不發明「按住」）
+      const turns = [];
+      for (let i = 0; i < Handles.CAPSTAN_TURNS; i += 1) turns.push(w.pushWinch(fromHit.winch));
+      eq(turns.length, Handles.CAPSTAN_TURNS, 'P19：絞盤要推三下');
+      eq(turns.slice(0, -1).every((r) => r.pushed && !r.complete), true, 'P19：前兩下只是咬進一格');
+      eq(turns[turns.length - 1].complete, true, 'P19：第三下門就放下來了');
+      eq(fromHit.winch.shortcut.isOpen, true, 'P19：世界端那道門開了');
+      // 推到一半走開不會失敗，只是回到原地重來（不寫存檔 —— 與器物層的絞盤同一條規矩）
+      {
+        const half = worldWith(false).world;
+        const h = half.nearestShortcutWinch({ x: sc.winchFrom.x, z: sc.winchFrom.z });
+        half.pushWinch(h.winch);
+        eq(h.winch.shortcut.remaining, Handles.CAPSTAN_TURNS - 1, 'P19：推一下之後還剩兩下');
+        const again = worldWith(false).world;
+        const h2 = again.nearestShortcutWinch({ x: sc.winchFrom.x, z: sc.winchFrom.z });
+        eq(h2.winch.shortcut.remaining, Handles.CAPSTAN_TURNS, 'P19：重開一次從頭來（推到一半不寫存檔）');
+      }
+    }
+
+    /* --- 護欄 7：不按空白鍵的可達性一個都沒少 --- */
+    {
+      // 門是關的那個世界（＝最保守的那一份）也要走得到每一個互動點
+      const STEP = 0.5;
+      const R19 = 172;
+      const N19 = Math.round((R19 * 2) / STEP) + 1;
+      const seen = new Uint8Array(N19 * N19);
+      const toCell = (x, z) => [Math.round((x + R19) / STEP), Math.round((z + R19) / STEP)];
+      const q = [];
+      const st = toCell(0, 6);
+      seen[st[0] * N19 + st[1]] = 1;
+      q.push(st[0] * N19 + st[1]);
+      let head = 0;
+      let reached = 0;
+      while (head < q.length) {
+        const cur = q[head];
+        head += 1;
+        reached += 1;
+        const i = Math.floor(cur / N19);
+        const j = cur - i * N19;
+        for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+          const ni = i + di;
+          const nj = j + dj;
+          if (ni < 0 || nj < 0 || ni >= N19 || nj >= N19) continue;
+          const k = ni * N19 + nj;
+          if (seen[k]) continue;
+          if (!shut.isClear(ni * STEP - R19, nj * STEP - R19, null)) continue;
+          seen[k] = 1;
+          q.push(k);
+        }
+      }
+      const near19 = (x, z, reachM = 2) => {
+        const pad = Math.ceil(reachM / STEP);
+        const [ci, cj] = toCell(x, z);
+        for (let di = -pad; di <= pad; di += 1) {
+          for (let dj = -pad; dj <= pad; dj += 1) {
+            const ni = ci + di;
+            const nj = cj + dj;
+            if (ni < 0 || nj < 0 || ni >= N19 || nj >= N19) continue;
+            if (seen[ni * N19 + nj]) return true;
+          }
+        }
+        return false;
+      };
+      ok(reached > 60000, 'P19：洪水填充走過整張地圖', String(reached));
+      let bad19 = 0;
+      for (const c of challenges) if (!near19(c.position[0], c.position[1])) bad19 += 1;
+      eq(bad19, 0, 'P19：門關著時 142 座石座照樣走得到（可達性一個都沒少）');
+      for (const [label, list] of [
+        ['守夜人', readJson('src/data/watchmen.json').entries.map((w) => [w.at[0], w.at[1]])],
+        ['濁靈', readJson('src/data/murks.json').entries.map((m) => [m.at[0], m.at[1]])],
+      ]) {
+        let n19 = 0;
+        for (const [x, z] of list) if (!near19(x, z)) n19 += 1;
+        eq(n19, 0, `P19：門關著時 ${list.length} 個${label}照樣走得到`);
+      }
+      // 兩座絞盤本身也走得到（門關著也要走得到工坊那一頭 —— 不然永遠推不開）
+      ok(near19(sc.winchFrom.x, sc.winchFrom.z, 2), 'P19：門關著時走得到工坊那一頭的絞盤');
+      ok(near19(sc.winchTo.x, sc.winchTo.z, 2), 'P19：門關著時（繞路）也走得到另一只鼓');
+    }
+
+    /* --- 預算 --- */
+    {
+      const { scene: s19, world: w19 } = worldWith(true);
+      let lights19 = 0;
+      let tris19 = 0;
+      s19.traverse((o) => {
+        if (o.isLight) lights19 += 1;
+        if (o.isMesh && o.geometry) {
+          const g = o.geometry;
+          const n = g.index ? g.index.count / 3 : g.attributes.position ? g.attributes.position.count / 3 : 0;
+          tris19 += n * (o.isInstancedMesh ? o.count : 1);
+        }
+      });
+      eq(lights19, 37, 'P19：光源數仍然是 37（捷徑與導向一盞都沒加）');
+      ok(tris19 < 238000, 'P19：世界三角形 < 238k', `tris=${Math.round(tris19)}`);
+      ok(w19.solids.length < 1100, 'P19：碰撞體 < 1,100', String(w19.solids.length));
+      // 捷徑自己：門的兩根柱是細桿（不登記圓），只有兩座絞盤擋人
+      const onLane = w19.solids.filter(
+        (s) => distToSeg(s.x, s.z, sc.from.x, sc.from.z, sc.to.x, sc.to.z) <= sc.half
+      );
+      eq(onLane.length, 2, 'P19：走廊上只有兩顆碰撞圓（兩座絞盤）', JSON.stringify(onLane.map((s) => [s.x.toFixed(1), s.z.toFixed(1)])));
+      eq(onLane.every((s) => s.standable === false), true, 'P19：絞盤站不上一個人的頭（可站立體沒有多出來）');
+      const grp19 = s19.getObjectByName(`shortcut:${sc.id}`);
+      ok(Boolean(grp19), 'P19：場景裡撈得到那一條捷徑');
+      let scLights = 0;
+      grp19.traverse((o) => {
+        if (o.isLight) scLights += 1;
+      });
+      eq(scLights, 0, 'P19：捷徑自己 0 光源（門閂那一線與地環都是自發光／加色片）');
+    }
+  }
+
+  /* --- ⑥ 存檔：純加法、只往開的方向走、reset 清得乾淨 ---------------- */
+  {
+    eq(JSON.stringify(SaveIO.defaultSave().shortcuts), '{}', 'P19：全新存檔一條捷徑都沒推開');
+    eq(JSON.stringify(SaveIO.normalize({}).shortcuts), '{}', 'P19：舊存檔沒有這一欄 → 空物件');
+    eq(SaveIO.normalize({ shortcuts: { 'south-arc': true } }).shortcuts['south-arc'], true, 'P19：明寫的 true 會被尊重');
+    eq('south-arc' in SaveIO.normalize({ shortcuts: { 'south-arc': false } }).shortcuts, false, 'P19：false 一律當成還沒推開');
+    eq('south-arc' in SaveIO.normalize({ shortcuts: { 'south-arc': 'yes' } }).shortcuts, false, 'P19：非布林值丟掉');
+    eq(JSON.stringify(SaveIO.normalize({ shortcuts: ['south-arc'] }).shortcuts), '{}', 'P19：陣列不是合法的形狀');
+    eq(JSON.stringify(SaveIO.normalize({ shortcuts: { ['x'.repeat(80)]: true } }).shortcuts), '{}', 'P19：太長的鍵丟掉');
+    // 設定：螢火指路預設開，只認得明寫的 false
+    eq(SaveIO.defaultSave().settings.guides, true, 'P19：全新存檔的螢火指路是開的');
+    eq(SaveIO.normalize({}).settings.guides, true, 'P19：舊存檔沒有這一欄 → 開著');
+    eq(SaveIO.normalize({ settings: {} }).settings.guides, true, 'P19：有 settings 但沒這一欄也是開著');
+    eq(SaveIO.normalize({ settings: { guides: false } }).settings.guides, false, 'P19：明寫的關會被尊重');
+    eq(SaveIO.normalize({ settings: { guides: 'no' } }).settings.guides, true, 'P19：非布林值退回預設（開）');
+    {
+      const p19 = createProgression({ curriculum, challenges });
+      eq(p19.isShortcutOpen('south-arc'), false, 'P19：一開始一條都沒推開');
+      eq(p19.shortcutCount(), 0, 'P19：推開的條數是 0');
+      const first = p19.openShortcut('south-arc');
+      eq(first.opened, true, 'P19：第一次推開就是推開');
+      eq(p19.isShortcutOpen('south-arc'), true, 'P19：推開之後記著了');
+      const again = p19.openShortcut('south-arc');
+      eq(again.opened, false, 'P19：再推一次不會重複記帳');
+      eq(again.alreadyOpen, true, 'P19：它老實說「已經開了」');
+      eq(p19.state.xp, 0, 'P19：推開捷徑不給 XP');
+      eq(Object.keys(p19.state.bestGrades).length, 0, 'P19：不寫任何一關的評價');
+      eq(p19.state.collected.length, 0, 'P19：不收技巧');
+      eq(p19.openShortcut('').opened, false, 'P19：空 id 什麼都不做');
+      p19.resetAll();
+      eq(p19.isShortcutOpen('south-arc'), false, 'P19：重置之後清乾淨');
+    }
+    // 靜態掃描：解鎖邏輯從頭到尾沒讀過這一欄
+    {
+      const progSrc19 = readFileSync(resolve(root, 'src/progression/progression.js'), 'utf8');
+      const fn19 = progSrc19.slice(progSrc19.indexOf('function refreshUnlocks'));
+      ok(!/shortcuts/.test(fn19.slice(0, fn19.indexOf('\n  }'))), 'P19：refreshUnlocks() 沒有讀 shortcuts');
+    }
+  }
+
+  /* --- ⑦ 外交式導向：真的偏過去，而且關掉真的回到原樣 ---------------- */
+  {
+    const kit19 = kitFor('#8aa0b4');
+    const mothSpot = Reactive.REACTIVE_SPOTS.find((s) => s.kind === 'moths');
+    ok(Boolean(mothSpot), 'P19：世界上真的有螢火群這一層');
+    ok(Reactive.MOTH_GUIDE_LEAN > 0.4, 'P19：靜態的那一段大到看得出來', String(Reactive.MOTH_GUIDE_LEAN));
+    ok(Reactive.MOTH_GUIDE_SPAN > Reactive.MOTH_GUIDE_LEAN, 'P19：會動的那一段比靜態的那一段長（看起來是在流，不是被吹歪）');
+
+    /** 跑一段時間，回傳這一團螢火的重心（相對它自己的原點）。 */
+    const centroid = (guide, { quality = 'high', reducedMotion = false, frames = 600 } = {}) => {
+      const field = Reactive.createReactiveField({
+        spots: [mothSpot],
+        secrets: [],
+        kitOf: () => kit19,
+        terrainHeight: World.terrainHeight,
+        guide,
+        qualityOf: () => quality,
+        reducedMotion,
+      });
+      const o = field.objects[0];
+      let t = 0;
+      for (let i = 0; i < frames; i += 1) {
+        t += 1 / 60;
+        field.update(1 / 60, t, mothSpot.at[0] + 12, mothSpot.at[1] + 12);
+      }
+      const arr = o.points.geometry.attributes.position.array;
+      let cx = 0;
+      let cz = 0;
+      for (let k = 0; k < o.n; k += 1) {
+        cx += arr[k * 3];
+        cz += arr[k * 3 + 2];
+      }
+      return { x: cx / o.n, z: cz / o.n };
+    };
+    const plain = centroid(null);
+    const east = centroid({ on: true, x: 1, z: 0 });
+    const north = centroid({ on: true, x: 0, z: -1 });
+    const shutOff = centroid({ on: false, x: 1, z: 0 });
+    const low = centroid({ on: true, x: 1, z: 0 }, { quality: 'low' });
+    const reduced = centroid({ on: true, x: 1, z: 0 }, { reducedMotion: true });
+
+    ok(Math.abs(east.x - plain.x - Reactive.MOTH_GUIDE_LEAN) < 0.1, 'P19：指東 → 整團往東挪了一個 LEAN', `${(east.x - plain.x).toFixed(3)}`);
+    ok(Math.abs(east.z - plain.z) < 0.02, 'P19：指東不會順便往南北跑');
+    ok(Math.abs(north.z - plain.z + Reactive.MOTH_GUIDE_LEAN) < 0.1, 'P19：指北 → 整團往北挪了一個 LEAN', `${(north.z - plain.z).toFixed(3)}`);
+    /*
+     * **先紅的那一條**：關掉導向之後，重心要與「這個世界從來沒有導向」**逐值相同**。
+     * 只把設定存起來、粒子照樣偏過去的話，這一條會立刻紅。
+     */
+    eq(shutOff.x, plain.x, 'P19：關掉導向 → 螢火群的重心逐值回到原樣（x）');
+    eq(shutOff.z, plain.z, 'P19：關掉導向 → 螢火群的重心逐值回到原樣（z）');
+    eq(low.x, plain.x, 'P19：低畫質整層關掉導向（x 逐值相同）');
+    eq(low.z, plain.z, 'P19：低畫質整層關掉導向（z 逐值相同）');
+    ok(Math.abs(reduced.x - east.x) < 0.05, 'P19：`reducedMotion` 留著靜態的那一段（資訊沒有被拿掉）', `${reduced.x.toFixed(3)} vs ${east.x.toFixed(3)}`);
+
+    /** 一隻螢火沿導向那一軸的擺幅（＝「會動的那一段」有多大）。 */
+    const swing = (guide, reducedMotion = false) => {
+      const field = Reactive.createReactiveField({
+        spots: [mothSpot],
+        secrets: [],
+        kitOf: () => kit19,
+        terrainHeight: World.terrainHeight,
+        guide,
+        qualityOf: () => 'high',
+        reducedMotion,
+      });
+      const o = field.objects[0];
+      let t = 0;
+      let lo = Infinity;
+      let hi = -Infinity;
+      for (let i = 0; i < 1400; i += 1) {
+        t += 1 / 60;
+        field.update(1 / 60, t, mothSpot.at[0] + 12, mothSpot.at[1] + 12);
+        if (i < 200) continue;
+        const arr = o.points.geometry.attributes.position.array;
+        let cx = 0;
+        for (let k = 0; k < o.n; k += 1) cx += arr[k * 3];
+        cx /= o.n;
+        const v = arr[0] - cx;
+        if (v < lo) lo = v;
+        if (v > hi) hi = v;
+      }
+      return hi - lo;
+    };
+    const swingOn = swing({ on: true, x: 1, z: 0 });
+    const swingOff = swing(null);
+    const swingReduced = swing({ on: true, x: 1, z: 0 }, true);
+    ok(swingOn > 0.3, 'P19：導向開著時螢火真的沿那個方向在流', swingOn.toFixed(3));
+    eq(swingOff, 0, 'P19[反例]：導向關著時那一軸一動也不動（流的那一段完全是導向帶來的）');
+    ok(swingReduced < swingOn * 0.25, 'P19：`reducedMotion` 把會動的那一段收掉了', `${swingReduced.toFixed(3)} vs ${swingOn.toFixed(3)}`);
+
+    // 0 新粒子、0 新光源：導向是既有那一團的偏向量，不是第七種反應物
+    {
+      const mk = (guide) => {
+        const f = Reactive.createReactiveField({
+          spots: [mothSpot],
+          secrets: [],
+          kitOf: () => kit19,
+          terrainHeight: World.terrainHeight,
+          guide,
+          qualityOf: () => 'high',
+        });
+        let pts = 0;
+        let lights = 0;
+        f.group.traverse((o) => {
+          if (o.isPoints) pts += 1;
+          if (o.isLight) lights += 1;
+        });
+        return { pts, lights };
+      };
+      const a19 = mk(null);
+      const b19 = mk({ on: true, x: 1, z: 0 });
+      eq(b19.pts, a19.pts, 'P19：導向沒有多長出一團粒子');
+      eq(b19.lights, 0, 'P19：導向 0 光源');
+    }
+
+    // 世界端的開關：關掉之後 guidance() 就是 null，而且下一幀螢火群讀到的是 0
+    {
+      const restore = installCanvasStub();
+      const w19 = World.createWorld({
+        engine: { scene: new THREE.Scene(), camera: {}, onUpdate() {} },
+        quality: 'high',
+        ...worldOpts,
+        progression: { ...stubProgression, isCleared: () => false },
+      });
+      restore();
+      w19.setGuidance(true);
+      w19.updateReactions(1 / 60, 1, 0, 6, 0);
+      const aim = w19.guidance();
+      ok(aim && Number.isFinite(aim.x) && Number.isFinite(aim.z), 'P19：導向開著時世界指得出一個方向', JSON.stringify(aim));
+      ok(Math.abs(Math.hypot(aim.x, aim.z) - 1) < 1e-9, 'P19：那是一個單位向量');
+      const objective = w19.objectiveTarget('foundations');
+      ok(Boolean(objective), 'P19：那時候真的有一個「下一個建議去處」');
+      const wantX = objective.x - 0;
+      const wantZ = objective.z - 6;
+      const wl = Math.hypot(wantX, wantZ);
+      ok(Math.abs(aim.x - wantX / wl) < 1e-9 && Math.abs(aim.z - wantZ / wl) < 1e-9, 'P19：導向指的就是那個目標（同一套 objectiveTarget）');
+      w19.setGuidance(false);
+      w19.updateReactions(1 / 60, 2, 0, 6, 0);
+      eq(w19.guidance(), null, 'P19：關掉之後世界不再指路');
+    }
+  }
+
+  /* --- ⑧ 接線、UI 與文件 ------------------------------------------ */
+  {
+    ok(/world\.nearestShortcutWinch\?\.\(/.test(mainSrc19), 'P19：main.js 問得到走近的絞盤');
+    ok(/e\.code === 'KeyE' && nearWinch/.test(mainSrc19), 'P19：`E` 推得動絞盤');
+    ok(/world\.pushWinch\(winch\)/.test(mainSrc19), 'P19：推的那一下真的走世界層');
+    ok(/progression\.openShortcut\(built\.id\)/.test(mainSrc19), 'P19：推開的那一刻寫進存檔');
+    ok(/world\.markShortcutOpen\(built\.id\)/.test(mainSrc19), 'P19：世界端跟著把門放下來');
+    ok(/world\.resetShortcuts\?\.\(\)/.test(mainSrc19), 'P19：onReset 真的把門關回去（寫好卻沒人呼叫等於沒有）');
+    ok(/world\.setGuidance\?\.\(progression\.state\.settings\.guides !== false\)/.test(mainSrc19), 'P19：開機照存檔決定要不要指路');
+    ok(/onGuidesChange/.test(mainSrc19) && /onGuidesChange/.test(setSrc19), 'P19：設定頁的開關接到世界層');
+    ok(/data-guides/.test(setSrc19), 'P19：設定頁真的有那個勾勾');
+    ok(/guides: e\.target\.checked/.test(setSrc19), 'P19：勾勾寫進存檔');
+    ok(/qualityOf\(\) !== 'low'/.test(reactSrc19), 'P19：低畫質整層關掉導向');
+    // 零每幀配置：那一幀只讀兩個純量，不重建物件
+    {
+      const upd = reactSrc19.slice(reactSrc19.indexOf('update(dt, t, px, pz'), reactSrc19.indexOf('/* --- 祕密'));
+      ok(!/=\s*\{[^}]*\}/.test(upd.replace(/\/\*[\s\S]*?\*\//g, '')), 'P19：反應場的 tick 裡不建物件');
+      ok(!/\.map\(|\.filter\(/.test(upd), 'P19：反應場的 tick 裡不 map / filter');
+    }
+    // 文件與資料是同一份
+    ok(/SHORTCUTS/.test(worldMd19), 'P19：WORLD.md 指得出捷徑住在哪個常數');
+    ok(/南弧/.test(worldMd19), 'P19：WORLD.md 講得出那一條叫什麼');
+    ok(
+      /螢火/.test(worldMd19.slice(worldMd19.indexOf('### 4.4'), worldMd19.indexOf('### 4.5'))),
+      'P19：WORLD.md §4.4 寫得下導向規則'
+    );
+    ok(/導向/.test(worldMd19.slice(worldMd19.indexOf('### 4.4'), worldMd19.indexOf('### 4.5'))), 'P19：§4.4 講得出「導向」這件事');
+    ok(/shortcuts/.test(worldMd19.slice(worldMd19.indexOf('### 5.4'), worldMd19.indexOf('## 六'))), 'P19：WORLD.md §5.4 列得出新的存檔欄位');
+    ok(/P19/.test(worldMd19), 'P19：WORLD.md 標得出這一格');
   }
 }
 
