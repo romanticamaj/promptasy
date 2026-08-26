@@ -5891,15 +5891,18 @@ for (const l of letters) {
   eq(testWorld.letters.length, letters.length, '每一頁殘頁都蓋在世界裡');
 
   const mainSrcP07 = readFileSync(resolve(root, 'src/main.js'), 'utf8');
-  const iIns = mainSrcP07.indexOf('nearInscription = !hitMarker');
+  const iIns = mainSrcP07.indexOf('nearInscription =\n      !hitMarker');
   const iLetter = mainSrcP07.indexOf('nearLetter =\n      !hitMarker');
   const iHandle = mainSrcP07.indexOf('nearHandle = !blocked');
   ok(iIns > 0 && iLetter > iIns && iHandle > iLetter, 'E 的仲裁順序：刻文小語 → 殘頁 → 器物');
   ok(
-    /nearLetter =\s*\n?\s*!hitMarker && !hitMurk && !hitTablet && !hitInscription && hitLetter/.test(mainSrcP07),
-    '殘頁讓石座／濁靈／石碑／刻文小語先搶 E'
+    /nearLetter =\s*\n?\s*!hitMarker && !hitMurk && !hitWatchman && !hitTablet && !hitInscription && hitLetter/.test(mainSrcP07),
+    '殘頁讓石座／濁靈／守夜人／石碑／刻文小語先搶 E'
   );
-  ok(/hitMarker \|\| hitMurk \|\| hitTablet \|\| hitInscription \|\| hitLetter/.test(mainSrcP07), '殘頁在範圍內時，閘門不再問');
+  ok(
+    /hitMarker \|\| hitMurk \|\| hitWatchman \|\| hitTablet \|\| hitInscription \|\| hitLetter/.test(mainSrcP07),
+    '殘頁在範圍內時，閘門不再問'
+  );
 }
 
 /* --- ⑥ 存檔與進程：純加法、XP 只給一次、教學那一半才收技巧 --- */
@@ -6916,7 +6919,9 @@ const distToSeg = (px, pz, ax, az, bx, bz) => {
     ok(/kind: 'murk'/.test(mainSrc), 'main.js 組出的 challenge 形物件帶 kind: murk');
     ok(/challenge\.kind === 'murk'\)[\s\S]{0,1200}return;/.test(mainSrc), 'onResult 的 murk 分支置頂並 return');
     ok(/nearMurk = !hitMarker && hitMurk/.test(mainSrc), '石座優先於濁靈');
-    ok(/nearTablet = !hitMarker && !hitMurk && hitTablet/.test(mainSrc), '濁靈優先於石碑');
+    // v1.2 · P16c：石碑前面多了一層（守夜人），濁靈仍然排在它們兩個之前
+    ok(/nearWatchman = !hitMarker && !hitMurk && hitWatchman/.test(mainSrc), '濁靈優先於守夜人');
+    ok(/nearTablet = !hitMarker && !hitMurk && !hitWatchman && hitTablet/.test(mainSrc), '守夜人優先於石碑');
     const worldSrc = readFileSync(resolve(root, 'src/world/world.js'), 'utf8');
     ok(/murks\.map\(\(m\) => \[m\.at\[0\], m\.at\[1\]/.test(worldSrc), 'keepClear 納入濁靈');
     ok(/murkField\.update\(dt, t, x, z\)/.test(worldSrc), 'updateReactions 每幀更新濁靈場');
@@ -15300,6 +15305,8 @@ console.log('\n▸ 中觀：遮擋帶與母題（v1.2 · P11）');
       handles,
       reactiveSpots: Reactive.reactiveTargets(),
       murks: murkFile.entries,
+      // v1.2 · P16c：守夜人也是一層互動點（他也要按得到、也不准擋住別人）
+      watchmen: readJson('src/data/watchmen.json').entries,
       tablets: LORE_TABLETS,
       secrets: groundSecrets,
     });
@@ -18739,6 +18746,8 @@ console.log('\n▸ 中景收尾：每一片土地都有中觀層（v1.2 · P16b�
       handles,
       reactiveSpots: Reactive.reactiveTargets(),
       murks: murkFile.entries,
+      // v1.2 · P16c：守夜人也是一層互動點（他也要按得到、也不准擋住別人）
+      watchmen: readJson('src/data/watchmen.json').entries,
       tablets: LORE_TABLETS,
       secrets: groundSecrets,
     });
@@ -18781,6 +18790,622 @@ console.log('\n▸ 中景收尾：每一片土地都有中觀層（v1.2 · P16b�
       ok(b.length >= 7 && b.length <= 20, `[${b.id}] 長度在 7–20 公尺`, String(b.length));
       ok(b.height >= 6 && b.height <= 12, `[${b.id}] 高度在 6–12 公尺`, String(b.height));
     }
+  }
+}
+
+
+/* ------------------------------------------------------------------ *
+ * v1.2 · P16c — 守夜人：12 位站著不動的人 ＋ 選項式對話
+ *
+ * 這一格加的是世界的第一場**對話**，所以斷言分成四件事：
+ *   ① 資料契約與護欄 2（一位一片土地；技巧那一項只准引用既有資料、
+ *      這個檔案裡一個連結都不准有）。
+ *   ② 擺位（對**真的蓋出來的世界**量）：他自己按得到、也沒有把任何一層蓋掉，
+ *      而且**中觀層一片都沒有被清零**（`screen-fit -- --verify` 的那一條在這裡也守一次）。
+ *   ③ 世界實體：0 光源、站不上去、碰撞稽核不漏、預算在框內。
+ *   ④ 四種情報：純函式逐條問，每一條都配一個**真的呼叫被測那一支**的反例。
+ * ------------------------------------------------------------------ */
+console.log('\n▸ 守夜人：12 位站著不動的人（v1.2 · P16c）');
+{
+  const watchFile = readJson('src/data/watchmen.json');
+  const watchmen = watchFile.entries;
+  const Watch = await import('../src/world/watchmen.js');
+  const Talk = await import('../src/progression/watchtalk.js');
+  const SaveIO16c = await import('../src/save/save.js');
+  const RulesW = (await import('./lib/screen-rules.mjs')).default;
+  const AuditW = await import('./collision-audit.mjs');
+  const watchSrc = readFileSync(resolve(root, 'src/world/watchmen.js'), 'utf8');
+  const talkSrc = readFileSync(resolve(root, 'src/progression/watchtalk.js'), 'utf8');
+  const uiSrc = readFileSync(resolve(root, 'src/ui/watchman.js'), 'utf8');
+  const mainSrcW = readFileSync(resolve(root, 'src/main.js'), 'utf8');
+  const worldSrcW = readFileSync(resolve(root, 'src/world/world.js'), 'utf8');
+  const progSrcW = readFileSync(resolve(root, 'src/progression/progression.js'), 'utf8');
+  const worldMdW = readFileSync(resolve(root, 'WORLD.md'), 'utf8');
+  const cssSrcW = readFileSync(resolve(root, 'src/styles.css'), 'utf8');
+
+  /* --- ① 資料契約 ------------------------------------------------- */
+  {
+    eq(watchFile.version, 1, 'watchmen.json 有版本欄');
+    eq(watchFile.authored, 'game', 'watchmen.json 檔頭明講是遊戲自撰的層');
+    ok(
+      typeof watchFile.note === 'string' && /出處|官方/.test(watchFile.note),
+      'watchmen.json 檔頭說明「出處以官方文件為準」'
+    );
+    eq(watchFile.xp, 0, '跟守夜人說話不給 XP（他給的是情報，情報就是報酬）');
+    eq(watchmen.length, EXPECT.watchmen.value, `守夜人數＝契約（${EXPECT.watchmen.value} 位）`);
+    eq(EXPECT.watchmen.perRegion, 1, '契約寫的是一片土地一位');
+    eq(EXPECT.watchmen.winnableMin, RulesW.WATCHMAN_WINNABLE_MIN, '契約與規則表的「按得到他」門檻是同一個數字');
+    eq(
+      JSON.stringify(Object.keys(EXPECT.watchmen.winnableExceptions).sort()),
+      JSON.stringify(Object.keys(RulesW.WATCHMAN_WINNABLE_EXCEPTIONS).sort()),
+      '契約與規則表登記的例外是同兩片土地'
+    );
+    eq(new Set(watchmen.map((w) => w.id)).size, 12, 'id 沒有重複');
+    eq(new Set(watchmen.map((w) => w.name)).size, 12, '名字沒有重複');
+    eq(new Set(watchmen.map((w) => w.voice)).size, 12, '語氣沒有重複（一片土地一種說話的方式）');
+    eq(new Set(watchmen.map((w) => w.post)).size, 12, '崗位沒有重複');
+    for (const site of World.REGION_SITES) {
+      eq(watchmen.filter((w) => w.region === site.id).length, 1, `[${site.id}] 剛好一位守夜人`);
+    }
+    for (const w of watchmen) {
+      const tag = `[${w.id}]`;
+      ok(/^watch-[a-z0-9-]+$/.test(w.id), `${tag} id 是 kebab-case 且帶 watch- 前綴`);
+      ok(Array.isArray(w.at) && w.at.length === 2 && w.at.every(Number.isFinite), `${tag} at 是兩個數字`);
+      ok(Number.isFinite(w.rot), `${tag} 有崗位的朝向 rot`);
+      ok(Watch.WATCHMAN_LOOKS.includes(w.look), `${tag} look 是三種提燈方式之一`, String(w.look));
+      ok(Array.isArray(w.greet) && w.greet.length >= 1 && w.greet.length <= 2, `${tag} 招呼是 1–2 句`);
+      for (const g of w.greet) ok(typeof g === 'string' && g.length > 0 && g.length <= 30, `${tag} 招呼每句 ≤ 30 字`, g);
+      ok(Array.isArray(w.lore) && w.lore.length >= 2 && w.lore.length <= 3, `${tag} 舊事是 2–3 拍（可以追問）`);
+      for (const l of w.lore) ok(typeof l === 'string' && l.length > 0 && l.length <= 60, `${tag} 舊事每拍 ≤ 60 字`, l);
+    }
+    /*
+     * 護欄 2 的紅線：這個檔案裡**一個連結都不准有**。
+     * 技巧那一項顯示的每一個字（名稱、一句話、官方網址）都是從
+     * `skill-codex-v2.json` 讀出來的 —— 這裡自己編一個 url 就是杜撰出處。
+     */
+    const rawWatch = readFileSync(resolve(root, 'src/data/watchmen.json'), 'utf8');
+    ok(!/https?:\/\//.test(rawWatch), 'watchmen.json 裡沒有任何網址（出處一律引用既有資料）');
+    ok(!/techniqueId|skillId|"source"/.test(rawWatch), 'watchmen.json 沒有自己掛技巧或出處欄位');
+
+    // 四種情報的 id：存檔那一份與 watchtalk 那一份逐字相同（分家就會有一份是假的）
+    eq(JSON.stringify(SaveIO16c.WATCH_TOPICS), JSON.stringify(Talk.WATCH_TOPICS), 'save.js 與 watchtalk.js 的情報 id 是同一份');
+    eq(
+      JSON.stringify(Object.keys(watchFile.topics).sort()),
+      JSON.stringify([...Talk.WATCH_TOPICS].sort()),
+      'watchmen.json 的 topics 剛好是那四種'
+    );
+  }
+
+  /* --- ①b 世界語言的檢查器提示（不給答案、不貼範例） -------------- */
+  {
+    const CHECKS_W = (await import('../src/challenges/checks.js')).CHECKS;
+    const used = new Set();
+    for (const c of challenges) for (const r of c.rubric || []) used.add(r.check);
+    for (const m of murkFile.entries) for (const r of m.rubric || []) used.add(r.check);
+    const lines = watchFile.checkLines;
+    ok(used.size >= 80, '真的有那麼多檢查器要翻成世界語言（不然這一段是空過的）', String(used.size));
+    for (const id of [...used].sort()) {
+      ok(typeof lines[id] === 'string' && lines[id].length > 0, `[${id}] 有一句世界語言`);
+    }
+    for (const id of Object.keys(lines)) ok(used.has(id), `[${id}] 這一句對得上真的在用的檢查器（沒有孤兒）`);
+    for (const [id, line] of Object.entries(lines)) {
+      ok(line.length <= 34, `[${id}] 一句話 ≤ 34 字`, `${line.length}`);
+      // 「例如」「換成」「直接寫」那幾種寫法就是在給答案 —— 那是提示球與神諭刻文的事
+      ok(!/例如|直接寫|換成|寫成「|加一句/.test(line), `[${id}] 沒有給範例／給答案`, line);
+      const def = CHECKS_W[id];
+      ok(!def || line !== def.hint, `[${id}] 不是把檢查器的教學提示原封搬過來`);
+    }
+  }
+
+  /* --- ② 擺位（對真的蓋出來的世界量） ------------------------------ */
+  {
+    const R = Watch.WATCHMAN_RADIUS;
+    eq(R, RulesW.WATCHMAN_R, 'watchmen.js 與 screen-rules.mjs 的互動半徑是同一個數字');
+    eq(R, RulesW.LAYER_INTERACT_R.watchman, '擺位規則表裡的守夜人半徑也是同一個');
+    ok(R < 5.5 && R >= 4.6, '互動半徑落在濁靈（5.5）與石碑（4.6）之間', String(R));
+
+    const segsW = Props.buildPathNetwork(
+      World.REGION_SITES,
+      [...World.CORRIDORS, ...World.ANNEX_LINKS],
+      challenges,
+      (await import('../src/world/screens.js')).PATH_BENDS
+    );
+    // 中觀層的每一顆碰撞圓（守夜人不准把它們的合法性吃掉）
+    const midSolids = [];
+    for (const layer of testWorld.screens || []) {
+      for (const node of layer.group.children) {
+        for (const sd of World.collectSolids(node, World.terrainHeight)) midSolids.push(sd);
+      }
+    }
+    ok(midSolids.length >= 100, '中觀層真的有那麼多碰撞圓要閃（不然這一段是空過的）', String(midSolids.length));
+
+    for (const w of watchmen) {
+      const tag = `[${w.id}]`;
+      const [x, z] = w.at;
+      const here = World.regionAt(x, z);
+      ok(here && here.id === w.region && !here.onBridge, `${tag} regionAt 說他站在 ${w.region}`, JSON.stringify(here));
+      ok(World.coverage(x, z) > 0.96, `${tag} 腳下不是崩掉的區緣`, World.coverage(x, z).toFixed(3));
+      for (const l of World.BRIDGE_LANES) {
+        ok(distToSeg(x, z, l.ax, l.az, l.bx, l.bz) >= World.LANE_HALF + 4, `${tag} 離 ${l.region} 橋的主動線 ≥ 4m`);
+      }
+      for (const c of [...World.CORRIDORS, ...World.ANNEX_LINKS]) {
+        ok(Math.hypot(x - c.gate.x, z - c.gate.z) >= RulesW.GATE_MIN, `${tag} 離 ${c.region} 的門 ≥ ${RulesW.GATE_MIN}m`);
+      }
+      for (const lm of Props.LANDMARKS) {
+        // 地標吃的是 4 公尺（同濁靈）：§2.2「地標旁邊要矮」管的是高的東西，不是一個人
+        ok(Math.hypot(x - lm.at[0], z - lm.at[1]) >= RulesW.WATCHMAN_AUTO_MIN, `${tag} 沒站在地標 ${lm.id} 上`);
+      }
+      ok(Math.hypot(x, z - 6) >= 7, `${tag} 離出生點 ≥ 7m`);
+      ok(
+        Math.hypot(x - prologueForWorld.shrine.at[0], z - prologueForWorld.shrine.at[1]) >= 9,
+        `${tag} 離起始祭壇 ≥ 9m`
+      );
+
+      // 比他**高階**的兩層：不准站進人家的地盤（規則反過來，理由寫在 screen-rules）
+      for (const c of challenges) {
+        const d = Math.hypot(x - c.position[0], z - c.position[1]);
+        ok(d >= RulesW.WATCHMAN_ABOVE_MIN.marker, `${tag} 離石座 ${c.id} ≥ ${RulesW.WATCHMAN_ABOVE_MIN.marker}m`, d.toFixed(2));
+      }
+      for (const m of murkFile.entries) {
+        const d = Math.hypot(x - m.at[0], z - m.at[1]);
+        ok(d >= RulesW.WATCHMAN_ABOVE_MIN.murk, `${tag} 離濁靈 ${m.id} ≥ ${RulesW.WATCHMAN_ABOVE_MIN.murk}m`, d.toFixed(2));
+      }
+      // 同階與更低階的每一層：**互動圈不重疊**（他在仲裁裡贏它們，疊上去就是蓋掉）
+      const lower = [
+        ...Props.LORE_TABLETS.map((t) => ['tablet', t.id, t.at]),
+        ...inscriptions.map((i) => ['ins', i.id, i.at]),
+        ...letterFile.entries.map((l) => ['letter', l.id, l.at]),
+        ...handles.map((h) => ['handle', h.id, h.at]),
+      ];
+      for (const [k, id, at] of lower) {
+        const need = R + RulesW.LAYER_INTERACT_R[k];
+        const d = Math.hypot(x - at[0], z - at[1]);
+        ok(d >= need, `${tag} 與 ${k}:${id} 的互動圈不重疊（≥ ${need}）`, d.toFixed(2));
+      }
+      // 自動層（不搶 E）只要不站在人家頭上
+      for (const s of Reactive.reactiveTargets()) {
+        ok(Math.hypot(x - s.at[0], z - s.at[1]) >= RulesW.WATCHMAN_AUTO_MIN, `${tag} 沒站在反應物 ${s.id} 上`);
+      }
+      for (const s of groundSecrets) {
+        ok(Math.hypot(x - s.at[0], z - s.at[1]) >= RulesW.WATCHMAN_AUTO_MIN, `${tag} 沒站在祕密 ${s.id} 上`);
+      }
+      for (const v of Props.STORY_VIGNETTES) {
+        ok(Math.hypot(x - v.at[0], z - v.at[1]) >= RulesW.WATCHMAN_AUTO_MIN, `${tag} 沒站在小景 ${v.id} 上`);
+      }
+      // 守夜人彼此（一片土地一位，本來就隔得遠，但規則要寫出來）
+      for (const other of watchmen) {
+        if (other === w) continue;
+        ok(Math.hypot(x - other.at[0], z - other.at[1]) >= R * 2, `${tag} 與 ${other.id} 的互動圈不重疊`);
+      }
+      /*
+       * **中觀層一片都不准被清零。**
+       * P16b 交接的警告：`sight`／`divergence`／`wards` 各只剩 0–8 種合法擺法。
+       * 守夜人的互動圈只要壓到中觀層的碰撞圓上，`screen-fit -- --verify` 就會紅 ——
+       * 所以同一條門檻在這裡先守一次（兩邊同一份數字）。
+       */
+      for (const sd of midSolids) {
+        const need = R + World.PLAYER_RADIUS + sd.r;
+        const d = Math.hypot(x - sd.x, z - sd.z);
+        ok(d >= need, `${tag} 沒有壓到中觀層的碰撞圓（≥ ${need.toFixed(2)}）`, d.toFixed(2));
+      }
+      const dPath = RulesW.pathDistance(segsW, x, z);
+      ok(
+        dPath >= RulesW.WATCHMAN_PATH_MIN && dPath <= RulesW.WATCHMAN_PATH_MAX,
+        `${tag} 離走出來的路 ${RulesW.WATCHMAN_PATH_MIN}–${RulesW.WATCHMAN_PATH_MAX}m（遇得到，又不站在路中間）`,
+        dPath.toFixed(1)
+      );
+
+      // 加了守夜人之後：他自己擋得住人，但四面八方都走得到互動距離
+      ok(Boolean(testWorld.solidAt(x, z)), `${tag} 守夜人本體擋得住人`);
+      ok(clearExceptSelf(testWorld, x, z), `${tag} 除了他自己以外，這一點站得下人`);
+      for (let a = 0; a < 8; a += 1) {
+        const ang = (a / 8) * Math.PI * 2;
+        for (const d of [1.7, 2.6, 3.5]) {
+          ok(testWorld.isClear(x + Math.cos(ang) * d, z + Math.sin(ang) * d), `${tag} 周圍 ${d}m 走得到`, `a=${a}`);
+        }
+      }
+    }
+
+    /*
+     * **真正要守的東西**：站在他的互動圈上，有多少個方向「站得住、而且是他贏」。
+     * 距離公式怎麼寫都好 —— 玩家得走得到他面前、按得下 `E`。
+     * 這一支是被測的那一支，下面的反例會**再呼叫它一次**。
+     */
+    const winnableDirs = (at) => {
+      let free = 0;
+      for (let a = 0; a < 24; a += 1) {
+        const ang = (a / 24) * Math.PI * 2;
+        const px = at[0] + Math.cos(ang) * (R - 0.3);
+        const pz = at[1] + Math.sin(ang) * (R - 0.3);
+        if (!testWorld.isWalkable(px, pz) || testWorld.solidAt(px, pz)) continue;
+        // 比他高階的層在這一點贏了嗎（石座 6.5 / 濁靈 5.5）
+        const beaten =
+          challenges.some((c) => Math.hypot(px - c.position[0], pz - c.position[1]) < 6.5) ||
+          murkFile.entries.some((m) => Math.hypot(px - m.at[0], pz - m.at[1]) < 5.5);
+        if (!beaten) free += 1;
+      }
+      return free;
+    };
+    let worstW = 99;
+    let worstWho = '';
+    for (const w of watchmen) {
+      const free = winnableDirs(w.at);
+      const need = RulesW.WATCHMAN_WINNABLE_EXCEPTIONS[w.region] ?? RulesW.WATCHMAN_WINNABLE_MIN;
+      if (free - need < worstW) {
+        worstW = free - need;
+        worstWho = `${w.id} ${free}/24（門檻 ${need}）`;
+      }
+      ok(free >= need, `[${w.id}] 互動圈上至少 ${need} 個方向按得到他`, `${free}/24`);
+    }
+    ok(
+      Object.keys(RulesW.WATCHMAN_WINNABLE_EXCEPTIONS).length <= 2,
+      '「按得到他」的例外表最多兩片土地（再多就不是例外，是門檻訂錯了）'
+    );
+    console.log(`    ↳ 餘裕最小的守夜人：${worstWho}`);
+    /*
+     * 反例（**呼叫的是同一支**）：把一位守夜人搬到某座石座旁邊 3 公尺 ——
+     * 整個互動圈都在石座的地盤裡，幾乎一個方向都按不到他。
+     */
+    {
+      const c0 = challenges.find((c) => c.region === 'foundations') || challenges[0];
+      const fake = [c0.position[0] + 3, c0.position[1]];
+      ok(
+        winnableDirs(fake) < RulesW.WATCHMAN_WINNABLE_EXCEPTIONS.divergence,
+        '反例：站在石座旁邊 3 公尺 → 按不到他（同一支判定）',
+        `${winnableDirs(fake)}/24`
+      );
+    }
+  }
+
+  /* --- ③ 世界實體：命名、碰撞體、0 光源、預算 ---------------------- */
+  {
+    const groups = [];
+    testScene.traverse((o) => {
+      if (o.name && o.name.startsWith('watchman:')) groups.push(o);
+    });
+    eq(groups.length, watchmen.length, '每一位守夜人都蓋在測試世界裡（watchman:<id>）');
+    eq(new Set(groups.map((g) => g.name)).size, watchmen.length, '場景圖節點名沒有重複');
+
+    const solidsW = testWorld.solids.filter((s) =>
+      watchmen.some((w) => Math.abs(w.at[0] - s.x) < 0.01 && Math.abs(w.at[1] - s.z) < 0.01)
+    );
+    eq(solidsW.length, watchmen.length, '碰撞登記表含 12 位守夜人的底座');
+    ok(solidsW.every((s) => Math.abs(s.r - 0.55) < 0.01 && s.keep === true), '底座 solidRadius 0.55 且 keepSolid');
+    /*
+     * **站不上一個人的頭。** 0.55 < STAND_MIN_R（0.8），所以 `collectSolids()`
+     * 量出來的 standable 一定是 false —— 這件事靠尺寸成立，不靠旗標宣告。
+     */
+    ok(solidsW.every((s) => s.standable === false), '守夜人站不上去（standable false）');
+    ok(0.55 < World.STAND_MIN_R, '底座半徑本來就小於「站得下人」的下限', `${0.55} < ${World.STAND_MIN_R}`);
+
+    let lights = 0;
+    let tris = 0;
+    testWorld.watchmen.group.traverse((o) => {
+      if (o.isLight) lights += 1;
+      const geo = o.geometry;
+      if (!geo) return;
+      const idx = geo.index ? geo.index.count : geo.attributes.position ? geo.attributes.position.count : 0;
+      tris += (idx / 3) * (o.isInstancedMesh ? o.count : 1);
+    });
+    eq(lights, 0, '守夜人整層 0 光源（燈是自發光材質）');
+    ok(tris / watchmen.length <= 200, '每位守夜人 ≤ 200 三角形', `perWatchman=${(tris / watchmen.length).toFixed(0)}`);
+    ok(!/new THREE\.(Point|Spot|Directional|Hemisphere|Ambient|RectArea)Light/.test(watchSrc), 'watchmen.js 沒有任何光源');
+    ok(
+      !/position\.(add|lerp|copy|set)\(/.test(watchSrc.split('export function createWatchmanField')[1] || ''),
+      '更新迴圈裡沒有移動實體的程式（守夜人不走、不跟隨）'
+    );
+    ok(
+      !/(new |\.map\(|\.filter\()/.test(
+        (watchSrc.split('    update(dt, t, px, pz) {')[1] || '').split('\n    },')[0]
+      ),
+      'update() 裡零每幀配置（不 new、不 map/filter）'
+    );
+
+    // 碰撞稽核：加了守夜人之後，未涵蓋仍然 0、可站立體仍然 0
+    const resW = AuditW.auditCoverage(testWorld.watchmen.group, World.solidAt, testWorld.solids, World.terrainHeight);
+    eq(resW.uncovered.length, 0, '守夜人這一層沒有穿模點');
+    eq(AuditW.auditStandables(solidsW, World.terrainHeight).bad.length, 0, '守夜人的碰撞圓通得過可站立體稽核');
+
+    // 預算（P16c 的框）
+    ok(testWorld.solids.length < 1080, '加了守夜人之後碰撞體仍在這一格的框內', `n=${testWorld.solids.length}`);
+    let worldTris = 0;
+    testScene.traverse((o) => {
+      const geo = o.geometry;
+      if (!geo) return;
+      const idx = geo.index ? geo.index.count : geo.attributes.position ? geo.attributes.position.count : 0;
+      worldTris += (idx / 3) * (o.isInstancedMesh ? o.count : 1);
+    });
+    ok(worldTris < 232000, '三角形在這一格的框內', `n=${Math.round(worldTris)}`);
+    let worldLights = 0;
+    testScene.traverse((o) => {
+      if (o.isLight) worldLights += 1;
+    });
+    eq(worldLights, 37, '光源仍然是 37 盞');
+    console.log(`    ↳ 守夜人：三角 ${Math.round(tris)}、碰撞體 ${solidsW.length}、光源 0`);
+  }
+
+  /* --- ④ 四種情報（純函式，每一條都配反例） ------------------------ */
+  {
+    const lines = watchFile.checkLines;
+    const stuckChallenge = challenges.find((c) => (c.rubric || []).length >= 2);
+    const firstCheck = stuckChallenge.rubric[0].check;
+    const missCheck = stuckChallenge.rubric[1].check;
+
+    // ①「某關失敗 3 次、只命中第一條」的存檔 → 他要指向缺的那一條
+    const struggles = { [stuckChallenge.id]: { tries: 3, hits: [firstCheck] } };
+    const got = Talk.stuckReport({ struggles, isCleared: () => false, challenges, checkLines: lines });
+    ok(Boolean(got), '卡關提示：讀得到失敗紀錄');
+    eq(got.challengeId, stuckChallenge.id, '指的是那一關');
+    eq(got.tries, 3, '說得出試了幾次');
+    eq(got.check, missCheck, '指向 rubric 裡還沒命中的那一條');
+    eq(got.line, lines[missCheck], '講的是那一條的世界語言（逐字取自 watchmen.json）');
+    ok(!/例如/.test(got.line), '卡關提示不給範例');
+
+    // 反例 A（同一支）：全過的存檔 → 這一項根本不該出現
+    eq(
+      Talk.stuckReport({ struggles, isCleared: () => true, challenges, checkLines: lines }),
+      null,
+      '反例：這一關已經過了 → 沒有卡關提示'
+    );
+    // 反例 B（同一支）：只試了一次不算卡
+    eq(
+      Talk.stuckReport({
+        struggles: { [stuckChallenge.id]: { tries: 1, hits: [] } },
+        isCleared: () => false,
+        challenges,
+        checkLines: lines,
+      }),
+      null,
+      '反例：只試了一次 → 還不算卡住'
+    );
+    // 反例 C（同一支）：整張表是空的
+    eq(Talk.stuckReport({ struggles: {}, isCleared: () => false, challenges, checkLines: lines }), null, '反例：沒卡過任何一關 → null');
+    // 反例 D（同一支）：每一條都命中過卻沒過 → 指不出「缺的那一條」，就不要亂指
+    eq(
+      Talk.stuckReport({
+        struggles: { [stuckChallenge.id]: { tries: 5, hits: stuckChallenge.rubric.map((r) => r.check) } },
+        isCleared: () => false,
+        challenges,
+        checkLines: lines,
+      }),
+      null,
+      '反例：每一條都命中過 → 指不出缺哪一條，這一項就不出現'
+    );
+    // 全序：同樣試了 3 次時，指的是 challenges.json 裡排在前面的那一關（答案要穩定）
+    {
+      const a = challenges[0];
+      const b = challenges.find((c, i) => i > 0 && (c.rubric || []).length >= 1);
+      const two = { [b.id]: { tries: 3, hits: [] }, [a.id]: { tries: 3, hits: [] } };
+      const pick = Talk.stuckReport({ struggles: two, isCleared: () => false, challenges, checkLines: lines });
+      eq(pick.challengeId, a.id, '平手時照 challenges.json 的順序挑（不是看物件的鍵序）');
+      const more = { [a.id]: { tries: 3, hits: [] }, [b.id]: { tries: 9, hits: [] } };
+      eq(
+        Talk.stuckReport({ struggles: more, isCleared: () => false, challenges, checkLines: lines }).challengeId,
+        b.id,
+        '試最多次的那一關優先'
+      );
+    }
+
+    // ② 指路：該區最近一處還沒找到的殘頁／祕密；找到之後換下一處，全找齊就沒有
+    for (const w of watchmen) {
+      const r = Talk.wayReport({
+        at: w.at,
+        region: w.region,
+        letters: letterFile.entries,
+        secrets,
+        hasLetter: () => false,
+        hasSecret: () => false,
+      });
+      ok(Boolean(r), `[${w.id}] 一開始指得出這片土地上還沒找到的東西`);
+      ok(Talk.WATCH_TOPICS.includes('way') && ['letter', 'secret'].includes(r.kind), `[${w.id}] 指的是殘頁或祕密`);
+      const inRegion = [...letterFile.entries, ...secrets].filter((e) => e.region === w.region);
+      const nearest = inRegion
+        .map((e) => ({ id: e.id, d: Math.hypot(e.at[0] - w.at[0], e.at[1] - w.at[1]) }))
+        .sort((a, b) => a.d - b.d)[0];
+      eq(r.id, nearest.id, `[${w.id}] 指的是最近的那一處`);
+    }
+    {
+      const w0 = watchmen[0];
+      const first = Talk.wayReport({
+        at: w0.at,
+        region: w0.region,
+        letters: letterFile.entries,
+        secrets,
+        hasLetter: () => false,
+        hasSecret: () => false,
+      });
+      const second = Talk.wayReport({
+        at: w0.at,
+        region: w0.region,
+        letters: letterFile.entries,
+        secrets,
+        hasLetter: (id) => id === first.id,
+        hasSecret: (id) => id === first.id,
+      });
+      ok(second && second.id !== first.id, '找到之後他改指下一處（不會一直指同一個）');
+      // 反例（同一支）：全找齊 → 這一項不出現
+      eq(
+        Talk.wayReport({
+          at: w0.at,
+          region: w0.region,
+          letters: letterFile.entries,
+          secrets,
+          hasLetter: () => true,
+          hasSecret: () => true,
+        }),
+        null,
+        '反例：這片土地全找齊了 → 沒有指路這一項'
+      );
+    }
+    // 方位：+z 是南、-z 是北、+x 是東（與 §1.4 的方位表同一套）
+    eq(Talk.bearing(0, 0, 0, -10), '正北', '方位：-z 是北');
+    eq(Talk.bearing(0, 0, 10, 0), '正東', '方位：+x 是東');
+    eq(Talk.bearing(0, 0, 0, 10), '正南', '方位：+z 是南');
+    eq(Talk.bearing(0, 0, -10, 0), '正西', '方位：-x 是西');
+    eq(Talk.bearing(0, 0, 10, -10), '東北', '方位：+x −z 是東北');
+    ok(Talk.paceWord(5) !== Talk.paceWord(50), '遠近講出來的話不一樣');
+
+    // ③ 舊事：一拍一拍，說完就沒有「再說一點」
+    for (const w of watchmen) {
+      const b0 = Talk.loreBeats(w, 0);
+      eq(b0.line, w.lore[0], `[${w.id}] 第一拍是 lore 的第一句`);
+      eq(b0.more, w.lore.length > 1, `[${w.id}] 還有下一拍`);
+      const last = Talk.loreBeats(w, w.lore.length - 1);
+      eq(last.more, false, `[${w.id}] 最後一拍沒有「再說一點」`);
+      eq(Talk.loreBeats(w, 99).index, w.lore.length - 1, `[${w.id}] step 超過範圍就夾在最後一拍`);
+    }
+
+    // ④ 技巧小知識：逐字引用既有資料 ＋ 可點的官方連結（護欄 2 的紅線）
+    const codexSkills = skillCodexV2.skills;
+    const allUrls = new Set();
+    for (const s of codexSkills) for (const src of s.sources || []) allUrls.add(src.url);
+    for (const w of watchmen) {
+      const skills = catalog.regionSkills(w.region);
+      const note = Talk.skillNote({ skills, knows: () => false, turn: 0 });
+      ok(Boolean(note), `[${w.id}] 這片土地說得出一條技巧小知識`);
+      const src = codexSkills.find((s) => s.id === note.skillId);
+      ok(Boolean(src), `[${w.id}] 引的是 skill-codex-v2.json 裡真的有的一條`);
+      eq(note.oneLiner, src.oneLiner, `[${w.id}] 那一句逐字取自 skill-codex-v2.json（不是新寫的）`);
+      eq(note.nameZh, src.nameZh, `[${w.id}] 技能名逐字取自 skill-codex-v2.json`);
+      ok(note.source && allUrls.has(note.source.url), `[${w.id}] 連結存在於既有的出處表（不是新編的）`, String(note.source && note.source.url));
+      // 這一條真的畫得出可點的連結
+      const html = (await import('../src/ui/watchman.js')).skillNoteHtml(note);
+      ok(html.includes(`href="${note.source.url}"`), `[${w.id}] 小窗畫得出可點的官方連結`);
+      ok(html.includes('神諭原典'), `[${w.id}] 連結標成「神諭原典」（與第二幕同一個誠實模式）`);
+    }
+    // 問過幾次就換一條（同一位守夜人不會只會講一句話）
+    {
+      const skills = catalog.regionSkills('foundations');
+      const a = Talk.skillNote({ skills, knows: () => false, turn: 0 });
+      const b = Talk.skillNote({ skills, knows: () => false, turn: 1 });
+      ok(skills.length < 2 || a.skillId !== b.skillId, '問第二次講的是另一條');
+      // 已經會了的優先（那是複習，不是劇透）
+      const third = skills[2];
+      const known = Talk.skillNote({ skills, knows: (id) => id === third.id, turn: 0 });
+      eq(known.skillId, third.id, '已經會了的那一條優先');
+    }
+    // 反例（同一支）：這片土地一條技能都沒有 → 這一項不出現
+    eq(Talk.skillNote({ skills: [], knows: () => false, turn: 0 }), null, '反例：沒有技能可引 → null');
+
+    // 純函式那一支不准碰 DOM／three.js／localStorage（測試才問得起它）
+    ok(!/document|window|localStorage|three/.test(talkSrc.replace(/\/\*[\s\S]*?\*\//g, '')), 'watchtalk.js 是純函式（不碰 DOM／three.js／存檔）');
+  }
+
+  /* --- ⑤ 存檔與進度：純加法、不影響解鎖 ---------------------------- */
+  {
+    const norm = SaveIO16c.normalize;
+    // 舊存檔（沒有這兩欄）
+    const old = norm({ version: 1, xp: 120, collected: ['clarity-01'] });
+    eq(JSON.stringify(old.watchmen), '{}', '舊存檔沒有 watchmen → 補成 {}');
+    eq(JSON.stringify(old.struggles), '{}', '舊存檔沒有 struggles → 補成 {}');
+    eq(old.xp, 120, '補欄位不會動到既有的進度');
+    // 壞值
+    const bad = norm({
+      watchmen: { 'watch-broken-ring': { met: 1, seen: ['lore', 'lore', 'nope', 7] }, '': { met: true }, x: 5 },
+      struggles: { a: { tries: -3, hits: ['x'] }, b: { tries: 2.6, hits: ['q', 'q', 5] }, c: 'nope' },
+    });
+    eq(JSON.stringify(bad.watchmen['watch-broken-ring']), '{"met":true,"seen":["lore"]}', 'seen 只留認得的情報 id、去重');
+    ok(!('' in bad.watchmen) && !('x' in bad.watchmen), '壞掉的鍵整筆丟掉');
+    ok(!('a' in bad.struggles) && !('c' in bad.struggles), 'tries ≤ 0 或形狀不對的整筆丟掉');
+    eq(JSON.stringify(bad.struggles.b), '{"tries":3,"hits":["q"]}', 'tries 取整、hits 去重且只留字串');
+
+    // 進度：聊天不動 XP／等級／解鎖／評價
+    const p16c = createProgression({ curriculum, challenges });
+    p16c.resetAll();
+    const before = JSON.stringify({
+      xp: p16c.state.xp,
+      level: p16c.state.level,
+      unlocked: p16c.state.unlockedRegions,
+      best: p16c.state.bestGrades,
+      collected: p16c.state.collected,
+    });
+    eq(p16c.watchmanState('watch-broken-ring'), null, '沒聊過的守夜人 watchmanState 是 null');
+    eq(p16c.hasMetWatchman('watch-broken-ring'), false, '一開始沒聊過');
+    eq(p16c.watchmanCount(watchmen.map((w) => w.id)), 0, '一開始 watchmanCount 0');
+    eq(p16c.meetWatchman('watch-broken-ring').firstMeet, true, '第一次聊 firstMeet 為真');
+    eq(p16c.meetWatchman('watch-broken-ring').firstMeet, false, '第二次聊就不是第一次了（冪等）');
+    eq(p16c.watchmanCount(watchmen.map((w) => w.id)), 1, '聊過一位');
+    eq(p16c.watchTurn('watch-broken-ring'), 0, '還沒問過情報');
+    eq(p16c.seeWatchTopic('watch-broken-ring', 'lore').firstTime, true, '第一次問舊事');
+    eq(p16c.seeWatchTopic('watch-broken-ring', 'lore').firstTime, false, '同一種情報只算一次');
+    eq(p16c.watchTurn('watch-broken-ring'), 1, '問過一種');
+    eq(p16c.seeWatchTopic('watch-broken-ring', '亂寫的').firstTime, false, '不認得的情報 id 不寫進存檔');
+    eq(JSON.stringify(p16c.watchmanState('watch-broken-ring').seen), '["lore"]', 'seen 只留真的問過的那一種');
+    const after = JSON.stringify({
+      xp: p16c.state.xp,
+      level: p16c.state.level,
+      unlocked: p16c.state.unlockedRegions,
+      best: p16c.state.bestGrades,
+      collected: p16c.state.collected,
+    });
+    eq(after, before, '跟守夜人說話一格進度都沒有動（XP／等級／解鎖／評價／圖鑑）');
+    // 重新載入還在
+    const reloadedW = createProgression({ curriculum, challenges });
+    eq(reloadedW.hasMetWatchman('watch-broken-ring'), true, '重新載入之後仍然記得聊過');
+    reloadedW.resetAll();
+    eq(reloadedW.hasMetWatchman('watch-broken-ring'), false, 'reset 清得乾淨');
+    eq(JSON.stringify(reloadedW.struggles()), '{}', 'reset 也把卡關紀錄清掉');
+
+    // 卡在哪一關：沒過就累積，過了就整筆刪
+    {
+      const p = createProgression({ curriculum, challenges });
+      p.resetAll();
+      const ch = challenges.find((c) => (c.rubric || []).length >= 2);
+      const mkEval = (passed, hits) => ({
+        challengeId: ch.id,
+        passed,
+        grade: passed ? 'A' : null,
+        teaches: [],
+        results: ch.rubric.map((r) => ({ check: r.check, passed: hits.includes(r.check) })),
+        baseXp: 10,
+        total: ch.rubric.length,
+        earned: 0,
+      });
+      p.recordResult(mkEval(false, [ch.rubric[0].check]));
+      eq(p.struggleOf(ch.id).tries, 1, '沒過 → 記一次');
+      p.recordResult(mkEval(false, [ch.rubric[1].check]));
+      eq(p.struggleOf(ch.id).tries, 2, '沒過 → 再記一次');
+      eq(
+        JSON.stringify(p.struggleOf(ch.id).hits),
+        JSON.stringify([ch.rubric[0].check, ch.rubric[1].check].sort()),
+        '命中過的檢查器跨次累積聯集（進度只累積，不倒退）'
+      );
+      eq(p.state.xp, 0, '沒過不給 XP');
+      p.recordResult(mkEval(true, ch.rubric.map((r) => r.check)));
+      eq(p.struggleOf(ch.id), null, '過了就不是卡關（整筆刪掉）');
+      // 濁靈與序章不進這一欄（它們不是 142 關）
+      p.recordResult({ challengeId: 'murk-vague-ask', passed: false, teaches: [], results: [], baseXp: 0 });
+      eq(p.struggleOf('murk-vague-ask'), null, '濁靈不進卡關紀錄（牠不是關卡）');
+      p.resetAll();
+    }
+
+    // 靜態掃描：解鎖邏輯從頭到尾沒讀過這兩欄
+    {
+      const fn = progSrcW.slice(progSrcW.indexOf('function refreshUnlocks'));
+      const body = fn.slice(0, fn.indexOf('\n  }'));
+      ok(!/watchmen|struggles/.test(body), 'refreshUnlocks() 沒有讀 watchmen／struggles');
+      ok(!/state\.watchmen/.test(progSrcW.slice(progSrcW.indexOf('function gateSatisfied'), progSrcW.indexOf('function masterSealFor'))), 'gateSatisfied() 也沒有讀它');
+    }
+  }
+
+  /* --- ⑥ 接線、UI 與文件 ------------------------------------------ */
+  {
+    ok(/world\.nearestWatchman\(/.test(mainSrcW), 'main.js 有守夜人這一層 nearestWatchman');
+    ok(/e\.code === 'KeyE' && nearWatchman/.test(mainSrcW), '`E` 打得開守夜人的小窗');
+    ok(/<kbd>E<\/kbd> 說話/.test(mainSrcW), 'HUD 提示是「標題 ＋ 一句狀態 ＋ E ＋ 動詞」');
+    ok(/watchmen\.map\(\(w\) => \[w\.at\[0\], w\.at\[1\]/.test(worldSrcW), 'keepClear 納入守夜人');
+    ok(/watchmanField\.update\(dt, t, x, z\)/.test(worldSrcW), 'updateReactions 每幀更新守夜人場');
+    // 不新增快捷鍵：小窗自己不掛任何 keydown（Esc／Tab 由 createOverlay 管）
+    ok(!/addEventListener\('key/.test(uiSrc), '守夜人的小窗沒有自己的鍵盤監聽（E 仍是唯一的互動鍵）');
+    ok(/rovingList\(/.test(uiSrc), '選項清單走 rovingList（↑↓ / Home / End）');
+    ok(/<kbd>Esc<\/kbd>/.test(uiSrc), '小窗寫得出 Esc 怎麼走開');
+    ok(!/https?:\/\//.test(uiSrc.replace(/\/\*[\s\S]*?\*\//g, '')), '小窗自己不寫死任何網址（連結一律來自資料）');
+    ok(/\.watch__opt/.test(cssSrcW), 'styles.css 有守夜人選項的樣式');
+    // 文件與資料是同一份
+    ok(/守夜人/.test(worldMdW), 'WORLD.md 記得有守夜人這一層');
+    ok(/守夜人/.test(worldMdW.slice(worldMdW.indexOf('### 3.2'), worldMdW.indexOf('### 3.3'))), 'WORLD.md §3.2 的互動層表列得出守夜人');
+    ok(/守夜人/.test(worldMdW.slice(worldMdW.indexOf('### 1.5'), worldMdW.indexOf('### 1.6'))), 'WORLD.md §1.5 說得出「他本來就不走」');
+    ok(/P16c/.test(worldMdW), 'WORLD.md 標得出這一格');
   }
 }
 

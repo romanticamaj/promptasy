@@ -22,6 +22,7 @@ import inscriptionFile from './data/inscriptions.json';
 import secretFile from './data/secrets.json';
 import handleFile from './data/handles.json';
 import letterFile from './data/letters.json';
+import watchmanFile from './data/watchmen.json';
 import murkFile from './data/murks.json';
 import datedFile from './data/dated-notes.json';
 import sourceAnchorFile from './data/source-anchors.json';
@@ -57,6 +58,8 @@ import { createIntro } from './ui/intro.js';
 import { createTablet } from './ui/tablet.js';
 import { createInscription } from './ui/inscription.js';
 import { createLetter } from './ui/letter.js';
+import { createWatchman, skillNoteHtml } from './ui/watchman.js';
+import Watchtalk from './progression/watchtalk.js';
 import { createGateAsk } from './ui/gate.js';
 import { createHandlePanel } from './ui/handle.js';
 import { HANDLE_VERBS, HANDLE_VERBS_USED, HANDLE_KINDS, CAPSTAN_TURNS } from './world/handles.js';
@@ -169,6 +172,9 @@ function boot() {
     murks: murkFile.entries || [],
     // v1.2 · P03：開機依存檔還原殼數／清燈（不播動畫）
     murkStateOf: (id) => progression.murkState(id),
+    // v1.2 · P16c：守夜人（站著不動的人；走近按 E 聊得起來）
+    watchmen: watchmanFile.entries || [],
+    watchmanMetOf: (id) => progression.hasMetWatchman(id),
     // v1.2 · P06：色彩腳本（key／rim／particle 建構時套；sky 走 applyMood 的單一入口）
     colorScript: colorScriptFor,
     reducedMotion,
@@ -633,6 +639,19 @@ function boot() {
   });
   ui.appendChild(letterPanel.root);
 
+  /* --- v1.2 · P16c：守夜人的對話小窗（用選的，不打字） --- */
+  const watchmanPanel = createWatchman({
+    onTopic: ({ watchmanId, topic }) => {
+      progression.seeWatchTopic(watchmanId, topic);
+      audio.cue('open');
+    },
+    onClose: () => {
+      audio.cue('close');
+      closePanel();
+    },
+  });
+  ui.appendChild(watchmanPanel.root);
+
   /* --- Phase 29：橋上的門會問你一句（條件沒到也能先行前往） --- */
   const gateAsk = createGateAsk({
     onProceed: (regionId) => proceedThroughGate(regionId),
@@ -805,7 +824,8 @@ function boot() {
       panel !== promptConsole &&
       panel !== handlePanel &&
       panel !== inscriptionPanel &&
-      panel !== letterPanel
+      panel !== letterPanel &&
+      panel !== watchmanPanel
     ) {
       audio.cue('open');
     }
@@ -854,6 +874,7 @@ function boot() {
     tabletPanel.isOpen ||
     inscriptionPanel.isOpen ||
     letterPanel.isOpen ||
+    watchmanPanel.isOpen ||
     gateAsk.isOpen ||
     handlePanel.isOpen ||
     practice.isOpen ||
@@ -899,6 +920,8 @@ function boot() {
   let nearHandle = null;
   /** v1.2 · P01：走近的濁靈（第 ⑥ 層：石座 > 濁靈 > 石碑 > 刻文 > 器物 > 閘門）。 */
   let nearMurk = null;
+  /** v1.2 · P16c：走近的守夜人（第 ⑧ 層：石座 > 濁靈 > **守夜人** > 石碑 > …）。 */
+  let nearWatchman = null;
   /**
    * Phase 29：剛剛選了「先留下修行」的那道門。
    * 走遠一點（離開互動半徑）再回來才會重新問一次 —— 站在門口不會被連問。
@@ -1011,6 +1034,106 @@ function boot() {
       xpGain: outcome.xpGain,
       newlyCollected: outcome.newlyCollected,
     });
+  }
+
+  /**
+   * v1.2 · P16c：這一位守夜人**現在**說得出哪幾種情報，以及每一種怎麼講。
+   *
+   * 四種情報的算法全部在 `src/progression/watchtalk.js`（純函式，測試直接問它）；
+   * 這裡只負責把答案裹成世界的話。**沒得講的那一項不會出現在選單上** ——
+   * 不畫一個按不出東西的選項。
+   */
+  function watchmanContext(w) {
+    const e = w.entry;
+    const lines = watchmanFile.topics || {};
+    const label = (id, fallback) => (lines[id] && lines[id].label) || fallback;
+    const eyebrow = (id, fallback) => (lines[id] && lines[id].eyebrow) || fallback;
+
+    const stuck = Watchtalk.stuckReport({
+      struggles: progression.struggles(),
+      isCleared: (id) => progression.isCleared(id),
+      challenges: content.challenges,
+      checkLines: watchmanFile.checkLines || {},
+    });
+    const way = Watchtalk.wayReport({
+      at: e.at,
+      region: e.region,
+      letters: letterFile.entries || [],
+      secrets: secretFile.entries || [],
+      hasLetter: (id) => progression.hasFoundLetter(id),
+      hasSecret: (id) => progression.hasFoundSecret(id),
+    });
+    const note = Watchtalk.skillNote({
+      skills: catalog.regionSkills(e.region),
+      knows: (id) => progression.isSkillCollected(id),
+      turn: progression.watchTurn(e.id),
+    });
+
+    const topics = [];
+    if (stuck) topics.push({ id: 'stuck', label: label('stuck', '我卡在一座碑前面') });
+    if (way) topics.push({ id: 'way', label: label('way', '這附近還有什麼沒找到的') });
+    if ((e.lore || []).length) topics.push({ id: 'lore', label: label('lore', '這片地以前是什麼樣子') });
+    if (note) topics.push({ id: 'skill', label: label('skill', '說一件神諭的規矩給我聽') });
+
+    /** 祕密的 tell（secrets.json 既有的欄位）翻成守夜人的一句話。 */
+    const TELL_LINE = {
+      odd: '那裡有一樣東西的顏色不對。看久一點就分得出來。',
+      sound: '站定，聽一下。那裡的聲音會比眼睛先到。',
+      high: '得先站到高處才搆得到。地上走過去是碰不到的。',
+    };
+
+    return {
+      greet: (e.greet || []).slice(),
+      topics,
+      answer(topic, step) {
+        if (topic === 'stuck' && stuck) {
+          return {
+            eyebrow: eyebrow('stuck', '卡住的地方'),
+            lines: [
+              `你在「${stuck.title}」那座碑前面站過 ${stuck.tries} 次了。`,
+              stuck.line,
+              '我不會替你寫。寫的那個人，得是你。',
+            ],
+          };
+        }
+        if (topic === 'way' && way) {
+          return {
+            eyebrow: eyebrow('way', '指路'),
+            lines: [
+              `往${way.dir}走，${way.pace}。`,
+              way.kind === 'letter'
+                ? '地上有一頁抄寫人留下的紙，還沒有人去撿。'
+                : TELL_LINE[way.tell] || '那裡藏著一點東西。走到了你就知道。',
+            ],
+          };
+        }
+        if (topic === 'lore') {
+          const beat = Watchtalk.loreBeats(e, step);
+          return { eyebrow: eyebrow('lore', '舊事'), lines: [beat.line], more: beat.more };
+        }
+        if (topic === 'skill' && note) {
+          return {
+            eyebrow: eyebrow('skill', '神諭的規矩'),
+            lines: ['神諭的規矩我記不了幾條。這一條我一直記著——'],
+            html: skillNoteHtml(note),
+          };
+        }
+        return { eyebrow: '', lines: ['……'] };
+      },
+    };
+  }
+
+  /**
+   * 走近按 `E`：跟守夜人說話。
+   *
+   * 這一層**不給 XP、不寫任何一關的評價、不影響解鎖**（存檔只記「聊過了」與
+   * 「問過哪幾種」）——他給的是情報，情報本身就是報酬。
+   */
+  function talkToWatchman(w) {
+    audio.cue('open');
+    progression.meetWatchman(w.id);
+    world.markWatchmanMet(w.id);
+    openPanel(watchmanPanel, w.entry, watchmanContext(w));
   }
 
   /**
@@ -1200,6 +1323,7 @@ function boot() {
       nearLetter = null;
       nearHandle = null;
       nearMurk = null;
+      nearWatchman = null;
       nearGate = null;
       return;
     }
@@ -1219,14 +1343,22 @@ function boot() {
     const hitHandle = world.nearestHandle(player.position, undefined, camForward);
     // v1.2 · P01：濁靈（半徑 5.5）—— 石座讓它、它讓石碑以下的每一層
     const hitMurk = world.nearestMurk(player.position, undefined, camForward);
-    const blocked = Boolean(hitMarker || hitMurk || hitTablet || hitInscription || hitLetter);
+    /*
+     * v1.2 · P16c：守夜人（半徑 4.6）—— **與石碑同一階**，由仲裁順序排在石碑之前
+     * （同半徑靠仲裁分先後是既有的文法：刻文小語與殘頁也都是 3.8）。
+     * 兩位同時在範圍內時照器物那一套用「面向」排名，不是純距離。
+     */
+    const hitWatchman = world.nearestWatchman(player.position, undefined, camForward);
+    const blocked = Boolean(hitMarker || hitMurk || hitWatchman || hitTablet || hitInscription || hitLetter);
     const hitGate = blocked || hitHandle ? null : world.nearestGate(player.position);
     nearMarker = hitMarker ? hitMarker.marker : null;
     nearMurk = !hitMarker && hitMurk ? hitMurk.murk : null;
-    nearTablet = !hitMarker && !hitMurk && hitTablet ? hitTablet.tablet : null;
-    nearInscription = !hitMarker && !hitMurk && !hitTablet && hitInscription ? hitInscription.inscription : null;
+    nearWatchman = !hitMarker && !hitMurk && hitWatchman ? hitWatchman.watchman : null;
+    nearTablet = !hitMarker && !hitMurk && !hitWatchman && hitTablet ? hitTablet.tablet : null;
+    nearInscription =
+      !hitMarker && !hitMurk && !hitWatchman && !hitTablet && hitInscription ? hitInscription.inscription : null;
     nearLetter =
-      !hitMarker && !hitMurk && !hitTablet && !hitInscription && hitLetter ? hitLetter.letter : null;
+      !hitMarker && !hitMurk && !hitWatchman && !hitTablet && !hitInscription && hitLetter ? hitLetter.letter : null;
     nearHandle = !blocked && hitHandle ? hitHandle.handle : null;
     nearGate = hitGate ? hitGate.gate : null;
 
@@ -1257,6 +1389,14 @@ function boot() {
       // 標題 ＋ 一句狀態 ＋ E ＋ 動詞（WORLD.md §3.1）
       // 副標用牠自己的名字（含糊的請求／只說不要的請求…），不是寫死的一句
       hud.setInteract(`<b>濁靈</b><span>${esc(nearMurk.entry.title)}</span><kbd>E</kbd> 安撫`);
+    } else if (nearWatchman) {
+      // 標題 ＋ 一句狀態 ＋ E ＋ 動詞（WORLD.md §3.1）
+      const met = progression.hasMetWatchman(nearWatchman.id);
+      hud.setInteract(
+        `<b>${esc(nearWatchman.entry.name)}</b><span>${
+          met ? esc(nearWatchman.entry.post) : '一個提著燈站在那裡的人'
+        }</span><kbd>E</kbd> 說話`
+      );
     } else if (nearTablet) {
       const seen = progression.hasReadLore(nearTablet.id);
       hud.setInteract(
@@ -1322,6 +1462,7 @@ function boot() {
       else if (tabletPanel.isOpen) tabletPanel.close();
       else if (inscriptionPanel.isOpen) inscriptionPanel.close();
       else if (letterPanel.isOpen) letterPanel.close();
+      else if (watchmanPanel.isOpen) watchmanPanel.close();
       else if (gateAsk.isOpen) gateAsk.close();
       else if (handlePanel.isOpen) handlePanel.close();
       return;
@@ -1355,6 +1496,9 @@ function boot() {
       e.preventDefault();
       audio.cue('open');
       openPanel(promptConsole, murkChallenge(nearMurk));
+    } else if (e.code === 'KeyE' && nearWatchman) {
+      e.preventDefault();
+      talkToWatchman(nearWatchman);
     } else if (e.code === 'KeyE' && nearTablet) {
       e.preventDefault();
       readTablet(nearTablet);
@@ -1449,6 +1593,22 @@ function boot() {
     /** v1.2 · P07：殘頁的小窗與資料（測試 / 除錯用）。 */
     letterPanel,
     letterData: letterFile,
+    /** v1.2 · P16c：守夜人的小窗與資料（測試 / 除錯用）。 */
+    watchmanPanel,
+    watchmanData: watchmanFile,
+    /** v1.2 · P16c：這一位守夜人現在說得出哪幾種情報（測試用：沒得講的不出現）。 */
+    watchmanTopics: (id) => {
+      const w = world.watchmen.byId(id);
+      return w ? watchmanContext(w).topics.map((t) => t.id) : null;
+    },
+    /** v1.2 · P16c：他現在會指哪一關（測試用：卡關提示讀不讀得到失敗紀錄）。 */
+    watchmanStuck: () =>
+      Watchtalk.stuckReport({
+        struggles: progression.struggles(),
+        isCleared: (id) => progression.isCleared(id),
+        challenges: content.challenges,
+        checkLines: watchmanFile.checkLines || {},
+      }),
     gateAsk,
     /** Phase 29：走到門前問一次（測試 / 除錯用）。 */
     askGate: (regionId) => askGate(world.gates.find((g) => g.id === regionId)),

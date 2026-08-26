@@ -3931,6 +3931,101 @@ select option:disabled {
   color: var(--paper-4);
 }
 
+/* ============================================================ 守夜人
+   v1.2 · P16c：世界裡第一場對話。跟殘頁同一個尺度（一張小窗、幾行字），
+   但底下多一組**用選的**問句 —— 玩家不必打字，也不必記任何新的鍵。
+   ============================================================ */
+.overlay--watchman .overlay__panel {
+  max-width: 44rem;
+}
+.watch {
+  position: relative;
+  padding: var(--s2) 0;
+}
+.watch__mark {
+  width: 2.4rem;
+  height: 1px;
+  margin: 0 0 var(--s4);
+  background: linear-gradient(90deg, var(--gold), rgba(198, 160, 92, 0));
+}
+.watch__eyebrow {
+  margin: 0 0 var(--s3);
+  font-family: var(--font-ui);
+  font-size: var(--t-micro);
+  letter-spacing: var(--tr-cjk);
+  color: var(--paper-4);
+}
+.watch__line {
+  margin: 0 0 var(--s4);
+  font-family: var(--font-prose);
+  font-size: 1.36rem;
+  line-height: var(--lh-prose);
+  letter-spacing: 0.04em;
+  color: #e7ece2;
+  text-wrap: pretty;
+  animation: reveal-in var(--d-reveal) var(--e-out) both;
+  animation-delay: calc(var(--i, 0) * 80ms);
+}
+.watch__opts {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  margin: var(--s5) 0 0;
+}
+.watch__opt {
+  padding: var(--s3) var(--s4);
+  border: 1px solid var(--rule);
+  border-left: 2px solid rgba(198, 160, 92, 0.45);
+  background: rgba(255, 255, 255, 0.02);
+  font-family: var(--font-prose);
+  font-size: var(--t-body);
+  line-height: var(--lh-body);
+  letter-spacing: 0.03em;
+  color: var(--paper-2);
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--d-fast) var(--e-out), color var(--d-fast) var(--e-out), border-color var(--d-fast) var(--e-out);
+  animation: reveal-in var(--d-reveal) var(--e-out) both;
+  animation-delay: calc(var(--i, 0) * 80ms);
+}
+.watch__opt:hover,
+.watch__opt:focus-visible {
+  border-left-color: var(--gold);
+  background: rgba(230, 199, 155, 0.08);
+  color: var(--paper);
+}
+.watch__glyph {
+  margin: var(--s5) 0 var(--s4);
+  padding: var(--s5) var(--s5) var(--s4);
+  border: 1px solid var(--rule);
+  border-left: 3px solid var(--gold);
+  background: rgba(255, 255, 255, 0.02);
+}
+.watch__tech {
+  margin: var(--s2) 0 var(--s3);
+  font-family: var(--font-display);
+  font-size: var(--t-h3);
+  color: var(--paper);
+}
+.watch__tip {
+  margin: 0 0 var(--s3);
+  font-family: var(--font-prose);
+  font-size: var(--t-body);
+  line-height: var(--lh-prose);
+  color: var(--paper-2);
+}
+.watch__acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s3);
+  margin: var(--s5) 0 0;
+}
+.watch__hint {
+  margin: var(--s5) 0 0;
+  font-size: var(--t-meta);
+  color: var(--paper-4);
+}
+
 /* v1.2 · P07 · 圖鑑第五列下面可展開的清單：撿到的看得到內容，沒撿到的只留「還沒找到」。 */
 .letterbook {
   margin: var(--s3) 0 0;

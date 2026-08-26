@@ -77,6 +77,7 @@ export async function worldOptions() {
     secrets: readJson('src/data/secrets.json').entries,
     handles: readJson('src/data/handles.json').entries,
     murks: readJson('src/data/murks.json').entries,
+    watchmen: readJson('src/data/watchmen.json').entries,
   };
 }
 

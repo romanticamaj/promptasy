@@ -21,6 +21,13 @@ export const SAVE_KEY = 'promptasy.v1.save';
 export const LEGACY_SAVE_KEYS = Object.freeze(['promptarcade.v1.save']);
 export const SAVE_VERSION = 1;
 
+/**
+ * v1.2 · P16c：守夜人聊得出來的四種情報 id。
+ * 存檔的 `watchmen[*].seen` 只認得這四個 —— 資料層的真相住在
+ * `src/progression/watchtalk.js` 的 `WATCH_TOPICS`，這裡逐字相同（`test:rubric` 比對）。
+ */
+export const WATCH_TOPICS = Object.freeze(['stuck', 'way', 'lore', 'skill']);
+
 /** 全新存檔。 */
 export function defaultSave() {
   return {
@@ -98,6 +105,28 @@ export function defaultSave() {
      * `normalize()` 給 `{}`、逐鍵驗形；`reset()` 自然清空。
      */
     murks: {},
+    /**
+     * v1.2 · P16c：守夜人（watchmen.json）—— **單一物件欄** `{ [watchmanId]: { met, seen } }`。
+     *
+     *   met   聊過了沒（走近按 `E` 開過那扇小窗就算）
+     *   seen  問過哪幾種情報（'stuck' | 'way' | 'lore' | 'skill'，去重）
+     *
+     * 純加法，而且**一格都不影響進度**：不給 XP、不寫 `bestGrades`、不進 142 關的分母、
+     * 不收技巧、不算徽章、不是任何東西的解鎖條件（`refreshUnlocks()` 從頭到尾沒讀過它）。
+     * 它只決定「腳下那一圈光要不要留一點餘溫」與「技巧小知識輪到第幾條」。
+     */
+    watchmen: {},
+    /**
+     * v1.2 · P16c：卡在哪一關（`struggles`）—— **單一物件欄**
+     * `{ [challengeId]: { tries, hits } }`。
+     *
+     *   tries  這一關**沒過**的呈遞次數（過了就整筆刪掉 —— 過了就不是卡關）
+     *   hits   跨次**累積**命中過的檢查器 id（同濁靈的聯集，永不清零）
+     *
+     * 守夜人的「卡關提示」讀的就是這一欄：試最多次、還沒過的那一關，
+     * 指向它 rubric 裡還沒命中的那一條。同樣純加法、不影響任何既有欄位。
+     */
+    struggles: {},
     /**
      * v1.2 · P07：玩家在**序章**送出的第一段 prompt（原文，去頭尾空白、≤ 280 字）。
      *
@@ -193,6 +222,36 @@ export function normalize(raw) {
     }
   }
 
+  /*
+   * v1.2 · P16c：守夜人。逐鍵驗形 —— `met` 一律落成布林；`seen` 只留認得的四種情報 id、
+   * 去重排序。整筆都不合形就丟掉（壞值不該讓遊戲開不起來，也不該被當成真的）。
+   */
+  const watchmen = {};
+  if (d.watchmen && typeof d.watchmen === 'object' && !Array.isArray(d.watchmen)) {
+    for (const [k, v] of Object.entries(d.watchmen)) {
+      if (typeof k !== 'string' || !k || k.length > 64) continue;
+      if (!v || typeof v !== 'object' || Array.isArray(v)) continue;
+      const seen = [...new Set((Array.isArray(v.seen) ? v.seen : []).filter((x) => WATCH_TOPICS.includes(x)))].sort();
+      watchmen[k] = { met: Boolean(v.met) || seen.length > 0, seen };
+    }
+  }
+
+  /*
+   * v1.2 · P16c：卡在哪一關。`tries` 是非負整數（不是就整筆丟）、`hits` 只留字串並去重排序。
+   * 沒有 `hits` 的 `tries` 是合法的（第一次就全掛）—— 那正是守夜人最該講的一種。
+   */
+  const struggles = {};
+  if (d.struggles && typeof d.struggles === 'object' && !Array.isArray(d.struggles)) {
+    for (const [k, v] of Object.entries(d.struggles)) {
+      if (typeof k !== 'string' || !k || k.length > 64) continue;
+      if (!v || typeof v !== 'object' || Array.isArray(v)) continue;
+      const tries = Number.isFinite(v.tries) ? Math.max(0, Math.round(v.tries)) : 0;
+      if (tries <= 0) continue;
+      const hits = [...new Set((Array.isArray(v.hits) ? v.hits : []).filter((x) => typeof x === 'string' && x))].sort();
+      struggles[k] = { tries, hits };
+    }
+  }
+
   const settings = { ...base.settings };
   if (d.settings && typeof d.settings === 'object') {
     if (typeof d.settings.music === 'string') settings.music = d.settings.music;
@@ -264,6 +323,8 @@ export function normalize(raw) {
     leanSeals: [...new Set(strArr(d.leanSeals) || [])],
     // v1.2 · P02：舊存檔沒有 murks → 空物件（純加法，不影響任何既有欄位）
     murks,
+    watchmen,
+    struggles,
     // v1.2 · P07：舊存檔沒有 firstPrompt → 空字串（純加法）。壞值一律落成空字串。
     firstPrompt: firstPrompt(d.firstPrompt),
     bestGrades,

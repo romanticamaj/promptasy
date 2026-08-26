@@ -19057,6 +19057,367 @@ async function main() {
     ok(seen.length === 3, 'P16b：三片土地都走過了', String(seen.length));
   }
 
+
+  /* ================================================================ */
+  /*
+   * 守夜人（v1.2 · P16c）
+   *
+   * 世界裡第一場對話。這一段要證明四件事：
+   *   ① 12 位真的站在地圖上（0 光源、擋得住人、四周走得到）。
+   *   ② 走過去按 `E` 聊得起來：選單 → 一種情報 → 追問 → 回選單 → `Esc` 收起；
+   *      **面板開著時走不動**、技巧那一項**點得到連結**。
+   *   ③ 卡關提示**真的讀得到失敗紀錄**（先驗「沒卡過就沒有這一項」，再餵三次失敗）。
+   *   ④ 他**不走**：走近之後頭轉了，人一步都沒動。
+   */
+  console.log('\n▸ 守夜人：12 位站著不動的人（v1.2 · P16c）');
+
+  // 場面清乾淨（前一段走了很多路、開過區域）
+  await evaluate(`
+    const g = window.__promptasy;
+    if (g.prologue.isActive) g.prologue.skip();
+    for (const k of ['keyhelp','shareCard','promptConsole','codex','settings','finale','tabletPanel','inscriptionPanel','letterPanel','watchmanPanel','handlePanel','practice']) {
+      try { if (g[k] && g[k].isOpen) g[k].close(); } catch {}
+    }
+    g.player.setInputEnabled(true);
+    return 1;
+  `);
+
+  const watchWorld = await evaluate(`
+    const g = window.__promptasy;
+    const names = [];
+    g.world.root.traverse((o) => { if (o.name && o.name.startsWith('watchman:')) names.push(o.name); });
+    let lights = 0, tris = 0;
+    g.world.watchmen.group.traverse((o) => {
+      if (o.isLight) lights += 1;
+      if (o.isMesh && o.geometry) {
+        const idx = o.geometry.index;
+        tris += idx ? idx.count / 3 : o.geometry.attributes.position.count / 3;
+      }
+    });
+    const blocked = [];
+    const notSolid = [];
+    for (const spec of g.watchmanData.entries) {
+      if (!g.world.solidAt(spec.at[0], spec.at[1])) notSolid.push(spec.id);
+      let free = 0;
+      for (let a = 0; a < 16; a += 1) {
+        const ang = (a / 16) * Math.PI * 2;
+        if (!g.world.solidAt(spec.at[0] + Math.cos(ang) * 3.0, spec.at[1] + Math.sin(ang) * 3.0)) free += 1;
+      }
+      if (free < 14) blocked.push(spec.id + ':' + free);
+    }
+    const regions = {};
+    for (const e of g.watchmanData.entries) regions[e.region] = (regions[e.region] || 0) + 1;
+    let sceneLights = 0;
+    g.engine.scene.traverse((o) => { if (o.isLight) sceneLights += 1; });
+    return {
+      built: names.length,
+      unique: new Set(names).size,
+      total: g.watchmanData.entries.length,
+      lights, tris, blocked, notSolid, regions, sceneLights,
+      hasNearest: typeof g.world.nearestWatchman === 'function',
+      xp: g.watchmanData.xp,
+    };
+  `);
+  eq(watchWorld.total, 12, '資料層有 12 位守夜人');
+  eq(watchWorld.built, watchWorld.total, '每一位都蓋在世界裡（watchman:<id>）');
+  eq(watchWorld.unique, watchWorld.total, '場景圖節點名沒有重複');
+  eq(Object.keys(watchWorld.regions).length, 12, '12 片土地都有一位');
+  ok(Object.values(watchWorld.regions).every((n) => n === 1), '每片土地剛好一位', JSON.stringify(watchWorld.regions));
+  eq(watchWorld.lights, 0, '守夜人一盞燈都沒加（燈是自發光材質）');
+  ok(watchWorld.tris < 2500, '12 位的三角形總量 < 2.5k', `tris=${Math.round(watchWorld.tris)}`);
+  eq(watchWorld.notSolid.length, 0, '每一位都擋得住人', watchWorld.notSolid.join(','));
+  eq(watchWorld.blocked.length, 0, '每一位四周都走得到', watchWorld.blocked.join(','));
+  // 這一段跑在整支 e2e 的後面（畫質、解鎖狀態都被前面動過），所以問的是**預算**：
+  // 「守夜人這一層 0 盞」上面已經逐位數過了，37 那個絕對值由 `test:rubric` 對剛蓋好的世界守。
+  ok(watchWorld.sceneLights <= 56, '加了一層新內容之後燈光仍在預算內', `lights=${watchWorld.sceneLights}`);
+  eq(watchWorld.hasNearest, true, '世界提供 nearestWatchman');
+  eq(watchWorld.xp, 0, '跟守夜人說話不給 XP');
+
+  /*
+   * ① 選單是**算出來**的：`stuck` 那一項出現與否，跟「現在真的有沒有卡住的關」一致。
+   *
+   * 這一段跑在整支 e2e 的後面，前面已經送過很多次 prompt —— 所以**不能**假設
+   * 「一關都沒卡過」。要問的是那個真的成立的命題：選單與 `stuckReport()` 同步。
+   */
+  const watchBefore = await evaluate(`
+    const g = window.__promptasy;
+    const w = g.watchmanData.entries.find((e) => e.region === 'foundations');
+    const stuck = g.watchmanStuck();
+    return {
+      id: w.id, name: w.name, at: w.at,
+      topics: g.watchmanTopics(w.id),
+      stuckId: stuck ? stuck.challengeId : null,
+      stuckCheck: stuck ? stuck.check : null,
+    };
+  `);
+  eq(
+    watchBefore.topics.includes('stuck'),
+    watchBefore.stuckId !== null,
+    '「卡關提示」那一項出現與否，跟真的有沒有卡住的關一致'
+  );
+  ok(watchBefore.topics.includes('lore'), '舊事永遠講得出來', JSON.stringify(watchBefore.topics));
+
+  /* --- ② 走過去 → 提示 → E → 選單 → 舊事 → 追問 → 回選單 --- */
+  const watchTalk = await evaluate(`
+    const g = window.__promptasy;
+    const w = g.watchmanData.entries.find((e) => e.region === 'foundations');
+    const hintNow = () => {
+      const el = document.querySelector('[data-interact]');
+      return el && !el.hidden ? el.textContent.replace(/\\s+/g, ' ').trim() : '';
+    };
+    const waitHint = async (want, ms = 8000) => {
+      const t0 = Date.now();
+      let last = '';
+      while (Date.now() - t0 < ms) {
+        last = hintNow();
+        if (last.includes(want)) return last;
+        await new Promise((r) => setTimeout(r, 60));
+      }
+      return last;
+    };
+    const waitFor = async (fn, ms = 6000) => {
+      const t0 = Date.now();
+      while (Date.now() - t0 < ms) {
+        if (fn()) return true;
+        await new Promise((r) => setTimeout(r, 60));
+      }
+      return false;
+    };
+    // 站到他旁邊（他的互動半徑 4.6）
+    g.player.teleport(w.at[0] + 2.4, w.at[1] + 2.4);
+    const out = {
+      id: w.id,
+      name: w.name,
+      post: w.post,
+      xpBefore: g.progression.state.xp,
+      bestGradesBefore: Object.keys(g.progression.state.bestGrades).length,
+      stuckNow: Boolean(g.watchmanStuck()),
+    };
+    out.hint = await waitHint(w.name);
+    // 走近之後：頭轉了、人沒動
+    const built = g.world.watchmen.byId(w.id);
+    const posBefore = built.group.position.clone();
+    const headBefore = built.head.rotation.y;
+    await new Promise((r) => setTimeout(r, 900));
+    out.moved = built.group.position.distanceTo(posBefore);
+    out.headTurned = Math.abs(built.head.rotation.y - headBefore);
+    out.faces = Math.abs(built.head.rotation.y) <= 1.221; // 頭只轉得動 ±70 度
+
+    window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyE', bubbles: true }));
+    out.opened = await waitFor(() => g.watchmanPanel.isOpen);
+    const panel = document.querySelector('#watchman');
+    out.inputEnabled = g.player.inputEnabled;
+    out.title = panel.querySelector('.panel__title')?.textContent.trim() || '';
+    out.greet = [...panel.querySelectorAll('.watch__line')].map((p) => p.textContent.trim());
+    out.opts = [...panel.querySelectorAll('.watch__opt')].map((b) => b.getAttribute('data-topic'));
+    out.optLabels = [...panel.querySelectorAll('.watch__opt')].map((b) => b.textContent.trim());
+    out.noTextarea = !panel.querySelector('textarea, input[type=text]');
+    // 面板開著的時候走不動：按住 W 一秒，世界座標不變
+    const px0 = g.player.position.x, pz0 = g.player.position.z;
+    window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyW', bubbles: true }));
+    await new Promise((r) => setTimeout(r, 900));
+    window.dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyW', bubbles: true }));
+    out.walkedWhileOpen = Math.hypot(g.player.position.x - px0, g.player.position.z - pz0);
+
+    // 問舊事
+    panel.querySelector('[data-topic="lore"]').click();
+    await waitFor(() => panel.querySelector('.watch__eyebrow'));
+    out.loreEyebrow = panel.querySelector('.watch__eyebrow').textContent.trim();
+    out.lore1 = panel.querySelector('.watch__line')?.textContent.trim() || '';
+    out.hasMore = Boolean(panel.querySelector('[data-more]'));
+    out.savedSeen = JSON.parse(localStorage.getItem('promptasy.v1.save')).watchmen[w.id];
+    // 追問
+    panel.querySelector('[data-more]').click();
+    await waitFor(() => (panel.querySelector('.watch__line')?.textContent.trim() || '') !== out.lore1);
+    out.lore2 = panel.querySelector('.watch__line')?.textContent.trim() || '';
+    // 回選單
+    panel.querySelector('[data-back]').click();
+    await waitFor(() => panel.querySelectorAll('.watch__opt').length > 0);
+    out.backToMenu = panel.querySelectorAll('.watch__opt').length;
+    // 技巧小知識：一句話 ＋ 可點的官方連結
+    panel.querySelector('[data-topic="skill"]').click();
+    await waitFor(() => panel.querySelector('.watch__tech'));
+    out.tech = panel.querySelector('.watch__tech')?.textContent.trim() || '';
+    out.tip = panel.querySelector('.watch__tip')?.textContent.trim() || '';
+    const a = panel.querySelector('a.bookicon');
+    out.srcUrl = a ? a.getAttribute('href') : '';
+    out.srcVisible = a
+      ? (() => {
+          const r = a.getBoundingClientRect();
+          return getComputedStyle(a).visibility === 'visible' && r.width > 0 && r.height > 0;
+        })()
+      : false;
+    out.srcTarget = a ? a.getAttribute('target') : '';
+    // 這一條真的在 skill-codex-v2 裡（護欄 2：引用，不是新編）
+    out.knownUrl = g.catalog.skills.some((s) => (s.sources || []).some((x) => x.url === out.srcUrl));
+    out.oneLinerReal = g.catalog.skills.some((s) => s.oneLiner === out.tip && s.nameZh === out.tech);
+    out.xpAfter = g.progression.state.xp;
+    out.bestGradesAfter = Object.keys(g.progression.state.bestGrades).length;
+    // Esc 收起
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    out.closed = await waitFor(() => !g.watchmanPanel.isOpen);
+    out.inputBack = await waitFor(() => g.player.inputEnabled);
+    out.lore = w.lore;
+    return out;
+  `);
+  ok(watchTalk.hint.includes(watchTalk.name), '走近守夜人 → 提示講的是他的名字', watchTalk.hint);
+  ok(watchTalk.hint.includes('說話'), '提示的動詞是「說話」', watchTalk.hint);
+  ok(watchTalk.moved < 0.001, '走近之後他一步都沒動（不走、不靠近）', String(watchTalk.moved));
+  ok(watchTalk.headTurned > 0.01, '但他轉頭看你了', String(watchTalk.headTurned));
+  eq(watchTalk.faces, true, '頭只轉得動 ±70 度（再多就要整個人轉過去，而他不轉）');
+  eq(watchTalk.opened, true, '按 E 打開守夜人的小窗');
+  eq(watchTalk.inputEnabled, false, '面板開著的時候世界層收不到操控');
+  ok(watchTalk.walkedWhileOpen < 0.001, '面板開著的時候走不動', String(watchTalk.walkedWhileOpen));
+  ok(watchTalk.title.includes(watchTalk.name), '小窗的標題是他的名字', watchTalk.title);
+  ok(watchTalk.greet.length >= 1, '他先開口打招呼', JSON.stringify(watchTalk.greet));
+  eq(watchTalk.noTextarea, true, '選項式的對話：沒有輸入框（用選的，不打字）');
+  ok(watchTalk.opts.length >= 2, '選單至少兩種情報', JSON.stringify(watchTalk.opts));
+  eq(watchTalk.opts.includes('stuck'), watchTalk.stuckNow, '選單上的「卡關提示」與 stuckReport() 同步');
+  eq(watchTalk.lore1, watchTalk.lore[0], '舊事第一拍逐字取自 watchmen.json');
+  eq(watchTalk.hasMore, true, '還有下一拍可以追問');
+  eq(watchTalk.lore2, watchTalk.lore[1], '追問拿到第二拍');
+  ok(watchTalk.savedSeen && watchTalk.savedSeen.seen.includes('lore'), '問過的情報寫進存檔', JSON.stringify(watchTalk.savedSeen));
+  ok(watchTalk.backToMenu >= 2, '「還想問別的」回得了選單', String(watchTalk.backToMenu));
+  ok(watchTalk.tech.length > 0, '技巧小知識講得出技能名', watchTalk.tech);
+  ok(watchTalk.tip.length > 0, '技巧小知識講得出那一句', watchTalk.tip);
+  ok(/^https?:\/\//.test(watchTalk.srcUrl), '技巧那一項附得出官方連結', watchTalk.srcUrl);
+  eq(watchTalk.srcVisible, true, '那個連結真的畫在畫面上（量得到寬高）');
+  eq(watchTalk.srcTarget, '_blank', '連結開新分頁');
+  eq(watchTalk.knownUrl, true, '連結存在於既有的出處表（不是新編的）');
+  eq(watchTalk.oneLinerReal, true, '那一句與技能名逐字取自 skill-codex-v2.json（引用，不是新寫）');
+  eq(watchTalk.xpAfter, watchTalk.xpBefore, '聊天一分 XP 都沒有給');
+  eq(watchTalk.bestGradesAfter, watchTalk.bestGradesBefore, '聊天不寫任何一關的評價');
+  eq(watchTalk.closed, true, 'Esc 收得起來');
+  eq(watchTalk.inputBack, true, '收起之後又走得動了');
+
+  /* --- ③ 卡關提示：餵三次失敗 → 他指得出那一關缺的那一條 --- */
+  const watchStuck = await evaluate(`
+    const g = window.__promptasy;
+    const w = g.watchmanData.entries.find((e) => e.region === 'foundations');
+    /*
+     * 挑一關**還沒過、而且他現在沒有在指**的（前面的段落可能已經卡過別的關）——
+     * 再餵 9 次沒過，讓它穩穩成為「試最多次」的那一關。
+     */
+    const before = g.watchmanStuck();
+    /*
+     * **要挑一關「這支 e2e 前面完全沒碰過」的。**
+     * 前面的段落送過很多次 prompt，隨手挑一關可能已經有「卡關紀錄」——
+     * 命中的聯集會多出別人留下的那幾條，「還沒命中的那一條」就不是我們餵的那一條了
+     * （最壞的情況：兩條都被命中過 → 他正確地「指不出缺哪一條」而不講這一項）。
+     */
+    const ch = g.content.challenges.find(
+      (c) =>
+        (c.rubric || []).length >= 2 &&
+        !c.application &&
+        !g.progression.isCleared(c.id) &&
+        !g.progression.struggleOf(c.id) &&
+        (!before || before.challengeId !== c.id)
+    );
+    const hit = ch.rubric[0].check;
+    const miss = ch.rubric[1].check;
+    const xpBefore = g.progression.state.xp;
+    const beforeId = before ? before.challengeId : null;
+    for (let i = 0; i < 9; i += 1) {
+      g.progression.recordResult({
+        challengeId: ch.id,
+        passed: false,
+        grade: null,
+        teaches: [],
+        baseXp: 0,
+        total: ch.rubric.length,
+        earned: 0,
+        results: ch.rubric.map((r) => ({ check: r.check, passed: r.check === hit })),
+      });
+    }
+    const st = g.progression.struggleOf(ch.id);
+    const topics = g.watchmanTopics(w.id);
+    // 走過去重開一次面板（選單是**開的那一刻**算出來的）
+    const waitFor = async (fn, ms = 6000) => {
+      const t0 = Date.now();
+      while (Date.now() - t0 < ms) { if (fn()) return true; await new Promise((r) => setTimeout(r, 60)); }
+      return false;
+    };
+    g.player.teleport(w.at[0] + 2.4, w.at[1] + 2.4);
+    await waitFor(() => {
+      const el = document.querySelector('[data-interact]');
+      return el && !el.hidden && el.textContent.includes(w.name);
+    });
+    window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyE', bubbles: true }));
+    await waitFor(() => g.watchmanPanel.isOpen);
+    const panel = document.querySelector('#watchman');
+    const opts = [...panel.querySelectorAll('.watch__opt')].map((b) => b.getAttribute('data-topic'));
+    let lines = [];
+    if (opts.includes('stuck')) {
+      panel.querySelector('[data-topic="stuck"]').click();
+      await waitFor(() => panel.querySelector('.watch__eyebrow'));
+      lines = [...panel.querySelectorAll('.watch__line')].map((p) => p.textContent.trim());
+    }
+    const links = panel.querySelectorAll('a').length;
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    await waitFor(() => !g.watchmanPanel.isOpen);
+    const now = g.watchmanStuck();
+    return {
+      challengeId: ch.id,
+      title: ch.title,
+      beforeId,
+      pointsAt: now ? now.challengeId : null,
+      pointsCheck: now ? now.check : null,
+      hit, miss,
+      rubricLen: ch.rubric.length,
+      tries: st ? st.tries : 0,
+      hits: st ? st.hits : [],
+      topics, opts, lines, links,
+      wantLine: g.watchmanData.checkLines[miss],
+      xpBefore,
+      xpAfter: g.progression.state.xp,
+      bestGrade: g.progression.bestGrade(ch.id),
+    };
+  `);
+  ok(watchStuck.beforeId !== watchStuck.challengeId, '餵之前他指的不是這一關（反例：這一項不是憑空出現的）', String(watchStuck.beforeId));
+  ok(watchStuck.rubricLen >= 2, '挑到的那一關真的有兩條以上的檢查器', String(watchStuck.rubricLen));
+  eq(watchStuck.tries, 9, '九次沒過 → 存檔記了九次');
+  eq(watchStuck.pointsAt, watchStuck.challengeId, '他改指這一關了（試最多次的那一關）');
+  eq(watchStuck.pointsCheck, watchStuck.miss, '指的是這一關還沒命中的那一條檢查器');
+  eq(JSON.stringify(watchStuck.hits), JSON.stringify([watchStuck.hit]), '命中過的那一條被記住了');
+  eq(watchStuck.bestGrade, null, '沒過就沒有評價（卡關紀錄不是通關）');
+  eq(watchStuck.xpAfter, watchStuck.xpBefore, '沒過不給 XP');
+  ok(watchStuck.topics.includes('stuck'), '卡住之後，「卡關提示」那一項出現了', JSON.stringify(watchStuck.topics));
+  ok(watchStuck.opts.includes('stuck'), '選單上真的多了那一項', JSON.stringify(watchStuck.opts));
+  ok(
+    watchStuck.lines.some((l) => l.includes(watchStuck.title)),
+    '他指得出是哪一座碑',
+    JSON.stringify(watchStuck.lines)
+  );
+  ok(watchStuck.lines.some((l) => l.includes('9')), '他說得出你試了幾次', JSON.stringify(watchStuck.lines));
+  ok(
+    watchStuck.lines.some((l) => l === watchStuck.wantLine),
+    '他指向 rubric 裡還沒命中的那一條（逐字是那一句世界語言）',
+    JSON.stringify(watchStuck.lines)
+  );
+  ok(
+    !watchStuck.lines.some((l) => /例如|請寫|範例/.test(l)),
+    '卡關提示不給答案、不貼範例',
+    JSON.stringify(watchStuck.lines)
+  );
+  eq(watchStuck.links, 0, '卡關提示不掛任何連結（它是世界的話，不是課程）');
+
+  /* --- ④ 重整：聊過的還記得 --- */
+  await reloadPage('守夜人：重整');
+  const watchReload = await evaluate(`
+    const g = window.__promptasy;
+    const w = g.watchmanData.entries.find((e) => e.region === 'foundations');
+    return {
+      met: g.progression.hasMetWatchman(w.id),
+      seen: g.progression.watchmanState(w.id),
+      worldMet: g.world.watchmen.byId(w.id).met,
+      struggles: Object.keys(g.progression.struggles()).length,
+    };
+  `);
+  eq(watchReload.met, true, '重整之後仍然記得聊過');
+  ok(watchReload.seen && watchReload.seen.seen.length >= 1, '問過的情報也還在', JSON.stringify(watchReload.seen));
+  eq(watchReload.worldMet, true, '世界端也記得（腳下那一圈留了一點餘溫）');
+  ok(watchReload.struggles >= 1, '卡關紀錄也留在存檔裡', String(watchReload.struggles));
+
   /* ================================================================ */
   await sleep(600);
   const realErrors = consoleErrors.filter((e) => !/favicon|DevTools|Autofill/i.test(e));

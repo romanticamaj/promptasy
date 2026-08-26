@@ -83,6 +83,7 @@ async function loadTargets() {
     // 每一個各自帶自己的觸發半徑（風鈴 3.2、螢蛾 3.0…）——見 `screen-rules.mjs` 的 `targetRadius`
     reactiveSpots: Reactive.reactiveTargets(),
     murks: readJson('src/data/murks.json').entries,
+    watchmen: readJson('src/data/watchmen.json').entries,
     tablets: Props.LORE_TABLETS,
     secrets: readJson('src/data/secrets.json').entries,
   });

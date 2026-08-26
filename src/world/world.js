@@ -29,6 +29,7 @@ import { buildLetter, LETTER_RADIUS } from './letters.js';
 import { createReactiveField, REACTIVE_SPOTS } from './reactive.js';
 import { createHandleField, HANDLE_RADIUS } from './handles.js';
 import { createMurkField, MURK_RADIUS } from './murks.js';
+import { createWatchmanField, WATCHMAN_RADIUS } from './watchmen.js';
 import { createRubricFx } from './rubric-fx.js';
 // v1.2 · P11：中觀那一階（遮擋帶與母題）。screens.js 不 import 這裡，也不 import props.js。
 import { SCREEN_BANDS, MOTIFS, PLATFORMS, buildScreens, landmarkSight, pointInBand } from './screens.js';
@@ -3573,6 +3574,13 @@ export function createWorld({
   handles = [],
   /** v1.2 · P01：濁靈（murks.json 的 entries）。沒給就不蓋，世界照樣成立。 */
   murks = [],
+  /** v1.2 · P16c：守夜人（watchmen.json 的 entries）。沒給就不蓋，世界照樣成立。 */
+  watchmen = [],
+  /**
+   * v1.2 · P16c：開機依存檔還原「聊過了沒」（`(id) => progression.hasMetWatchman(id)`）。
+   * 沒給就退回 `progression.hasMetWatchman`（測試世界的 stub 沒有這個方法 → 全部沒聊過）。
+   */
+  watchmanMetOf = null,
   /**
    * v1.2 · P03：開機依存檔還原濁靈的殼數／清燈（`(id) => progression.murkState(id)`）。
    * 沒給就退回 `progression.murkState`（測試世界的 stub 沒有這個方法 → 全部原樣）。
@@ -3654,6 +3662,8 @@ export function createWorld({
     ...handles.map((h) => [h.at[0], h.at[1], 5.5]),
     // v1.2 · P01：濁靈 —— 一團暗色濁氣，旁邊被草叢埋掉就看不出「這裡有東西」
     ...murks.map((m) => [m.at[0], m.at[1], 5.5]),
+    // v1.2 · P16c：守夜人 —— 一個站著的人被草叢埋到膝蓋就不像有人站在那裡
+    ...watchmen.map((w) => [w.at[0], w.at[1], 5.5]),
     /*
      * v1.2 · P11：中觀的遮擋帶與母題 —— 它們自己就是石頭，腳下不要再撒碎石與草叢
      * （石脊沿著長邊每 2 公尺登記一個點，圓圈才貼得住一條長條形的東西）。
@@ -3826,6 +3836,22 @@ export function createWorld({
     onStir: onReact ? () => onReact({ sound: 'murkStir' }) : null,
   });
   root.add(murkField.group);
+
+  /* --- v1.2 · P16c：守夜人（站著不動的人；走近會轉頭，按 E 開對話小窗） --- */
+  const watchmanField = createWatchmanField({
+    entries: watchmen,
+    kitOf: (regionId) => kits.get(regionId) || kits.get('foundations'),
+    terrainHeight,
+    isBusy,
+    reducedMotion,
+    metOf:
+      typeof watchmanMetOf === 'function'
+        ? watchmanMetOf
+        : progression && typeof progression.hasMetWatchman === 'function'
+          ? (id) => progression.hasMetWatchman(id)
+          : null,
+  });
+  root.add(watchmanField.group);
 
   const motes = buildMotes(quality, colorOf, vignetteAnchors, (id) => scriptColor(id, 'particle'));
   root.add(motes);
@@ -4188,6 +4214,8 @@ export function createWorld({
     handles: handleField,
     /** v1.2 · P01：濁靈場。 */
     murks: murkField,
+    /** v1.2 · P16c：守夜人場。 */
+    watchmen: watchmanField,
     /** v1.2 · P09：石座演出（rubric 命中 → 石座旁的因果）。 */
     rubricFx,
     /** v1.2 · P06：這一區道具用的四階色（`kitFor()`；色彩腳本的 rim 已覆寫 light）—— 唯讀（測試與稽核用）。 */
@@ -4519,6 +4547,7 @@ export function createWorld({
       reactive.update(dt, t, x, z, y);
       handleField.update(dt, t, x, z);
       murkField.update(dt, t, x, z);
+      watchmanField.update(dt, t, x, z);
       // v1.2 · P09：石座演出（面板開著也照播 —— 玩家正看著結果面，世界在背景）
       rubricFx.update(dt, t);
     },
@@ -4543,6 +4572,23 @@ export function createWorld({
      */
     nearestMurk(position, maxDistance = MURK_RADIUS, forward = null) {
       return murkField.nearest(position, maxDistance, forward);
+    },
+
+    /**
+     * 走近的守夜人（v1.2 · P16c）。半徑 4.6 —— **與石碑同一階**，
+     * 搶 `E` 的順序是「石座 > 濁靈 > **守夜人** > 石碑 > 刻文小語 > 殘頁 > 器物 > 閘門」。
+     * 同半徑由仲裁順序分先後，是既有的文法（刻文小語與殘頁也都是 3.8）。
+     * @param {THREE.Vector3} position
+     * @param {number} [maxDistance]
+     * @param {{x:number,z:number}|null} [forward] 鏡頭的水平前方向（兩位同時在範圍內時用來排名）
+     */
+    nearestWatchman(position, maxDistance = WATCHMAN_RADIUS, forward = null) {
+      return watchmanField.nearest(position, maxDistance, forward);
+    },
+
+    /** 標記某位守夜人聊過了（世界端的視覺變化：腳下那一圈留一點餘溫）。 */
+    markWatchmanMet(id) {
+      return watchmanField.setMet(id, true);
     },
 
     /** 標記某件器物已經動過（世界端的視覺變化）。 */

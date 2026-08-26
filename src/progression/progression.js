@@ -5,6 +5,7 @@
  */
 import { betterGrade, gradeForRatio, xpForGrade } from '../challenges/rubric.js';
 import { createCatalog } from '../challenges/catalog.js';
+import { WATCH_TOPICS } from './watchtalk.js';
 import * as SaveIO from '../save/save.js';
 
 /** 升到下一級所需 XP：100, 160, 220, 280 … */
@@ -363,6 +364,30 @@ export function createProgression({
     return newly;
   }
 
+  /**
+   * v1.2 · P16c：把一次呈遞記進 `struggles`。
+   * 過了 → 整筆刪掉；沒過 → 次數 +1、命中的檢查器併進聯集。
+   * 只認 challenges.json 裡真的有的關卡（濁靈與序章練習不進這一欄）。
+   */
+  function recordStruggle(evaluation) {
+    const id = evaluation && evaluation.challengeId;
+    if (typeof id !== 'string' || !id || !challengeById.has(id)) return;
+    if (!state.struggles || typeof state.struggles !== 'object' || Array.isArray(state.struggles)) state.struggles = {};
+    if (evaluation.passed) {
+      delete state.struggles[id];
+      return;
+    }
+    const prev = state.struggles[id];
+    const hits = new Set(prev && Array.isArray(prev.hits) ? prev.hits : []);
+    for (const r of Array.isArray(evaluation.results) ? evaluation.results : []) {
+      if (r && r.passed === true && typeof r.check === 'string') hits.add(r.check);
+    }
+    state.struggles[id] = {
+      tries: (prev && Number.isFinite(prev.tries) ? prev.tries : 0) + 1,
+      hits: [...hits].sort(),
+    };
+  }
+
   const api = {
     get state() {
       return state;
@@ -607,8 +632,16 @@ export function createProgression({
         newScribe: false,
       };
 
+      /*
+       * v1.2 · P16c：**沒過的那幾次也要留下痕跡** —— 守夜人的「卡關提示」讀的就是它。
+       * 記兩件事：試了幾次、跨次累積命中過哪幾條檢查器（聯集，永不清零 ——
+       * 同濁靈的規矩：進度只累積，不倒退）。過關那一刻整筆刪掉（過了就不是卡關）。
+       * 純加法：不給 XP、不寫 bestGrades、不影響解鎖。
+       */
+      recordStruggle(evaluation);
+
       if (!evaluation.passed) {
-        emit();
+        persist();
         return outcome;
       }
 
@@ -720,6 +753,79 @@ export function createProgression({
         const m = store[id];
         return m && typeof m.grade === 'string' && m.grade;
       }).length;
+    },
+
+    /* ---------------------------------------------------------------- *
+     * v1.2 · P16c：守夜人（watchmen.json）—— 聊過的人會被記住
+     *
+     * 這一欄**一格都不影響進度**：不給 XP、不寫 `bestGrades`、不收技巧、
+     * 不算徽章、不是任何東西的解鎖條件（`refreshUnlocks()` 沒讀過它）。
+     * 它只記「聊過了沒」與「問過哪幾種情報」。
+     * ---------------------------------------------------------------- */
+
+    /** 這一位守夜人的存檔狀態（沒聊過 → null）。 */
+    watchmanState(id) {
+      const w = state.watchmen && typeof state.watchmen === 'object' ? state.watchmen[id] : null;
+      if (!w || typeof w !== 'object') return null;
+      return { met: Boolean(w.met), seen: Array.isArray(w.seen) ? w.seen.slice() : [] };
+    },
+    /** 聊過了沒。 */
+    hasMetWatchman(id) {
+      const w = api.watchmanState(id);
+      return Boolean(w && w.met);
+    },
+    /** 聊過的守夜人數（給了 id 清單就只數清單裡的，存檔裡的孤兒 id 不算）。 */
+    watchmanCount(ids = null) {
+      const store = state.watchmen && typeof state.watchmen === 'object' && !Array.isArray(state.watchmen) ? state.watchmen : {};
+      const keys = Array.isArray(ids) ? ids : Object.keys(store);
+      return keys.filter((id) => store[id] && store[id].met).length;
+    },
+    /** 問過幾種情報（技巧小知識靠它輪到下一條）。 */
+    watchTurn(id) {
+      const w = api.watchmanState(id);
+      return w ? w.seen.length : 0;
+    },
+    /**
+     * 走近按 `E`：記下「聊過了」。
+     * @returns {{firstMeet:boolean}}
+     */
+    meetWatchman(id) {
+      if (typeof id !== 'string' || !id) return { firstMeet: false };
+      if (!state.watchmen || typeof state.watchmen !== 'object' || Array.isArray(state.watchmen)) state.watchmen = {};
+      const prev = state.watchmen[id];
+      const firstMeet = !(prev && prev.met);
+      state.watchmen[id] = { met: true, seen: prev && Array.isArray(prev.seen) ? prev.seen.slice() : [] };
+      if (firstMeet) persist();
+      return { firstMeet };
+    },
+    /**
+     * 問了一種情報。
+     * @returns {{firstTime:boolean}}
+     */
+    seeWatchTopic(id, topic) {
+      if (typeof id !== 'string' || !id || !WATCH_TOPICS.includes(topic)) return { firstTime: false };
+      if (!state.watchmen || typeof state.watchmen !== 'object' || Array.isArray(state.watchmen)) state.watchmen = {};
+      const prev = state.watchmen[id];
+      const seen = prev && Array.isArray(prev.seen) ? prev.seen.slice() : [];
+      const firstTime = !seen.includes(topic);
+      if (firstTime) seen.push(topic);
+      state.watchmen[id] = { met: true, seen };
+      persist();
+      return { firstTime };
+    },
+
+    /** v1.2 · P16c：這一關卡了幾次、命中過哪幾條（沒卡過 → null）。 */
+    struggleOf(challengeId) {
+      const st = state.struggles && typeof state.struggles === 'object' ? state.struggles[challengeId] : null;
+      if (!st || typeof st !== 'object') return null;
+      return { tries: Number(st.tries) || 0, hits: Array.isArray(st.hits) ? st.hits.slice() : [] };
+    },
+    /** v1.2 · P16c：整張「卡在哪幾關」的表（守夜人讀它）。 */
+    struggles() {
+      const store = state.struggles && typeof state.struggles === 'object' && !Array.isArray(state.struggles) ? state.struggles : {};
+      const out = {};
+      for (const [k, v] of Object.entries(store)) out[k] = { tries: Number(v.tries) || 0, hits: Array.isArray(v.hits) ? v.hits.slice() : [] };
+      return out;
     },
 
     /**

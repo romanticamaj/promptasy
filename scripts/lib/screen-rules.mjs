@@ -20,6 +20,7 @@ export const LAYER_INTERACT_R = Object.freeze({
   marker: 5.6,
   murk: 5.5,
   secret: 5.5,
+  watchman: 4.6,
   tablet: 4.6,
   react: 4.4,
   ins: 3.8,
@@ -38,6 +39,59 @@ export const LAYER_INTERACT_R = Object.freeze({
  * **這一支只負責挑**：沒有人再抄第二份數字。
  */
 export const targetRadius = (t) => (Number.isFinite(t.r) ? t.r : LAYER_INTERACT_R[t.k]);
+
+/**
+ * v1.2 · P16c：守夜人的互動半徑（`src/world/watchmen.js` 的 `WATCHMAN_RADIUS`）。
+ * 這裡重寫一份是為了讓**不 import three.js** 的擺位規則也用得到；
+ * `test:rubric` 逐值比對兩份（分家就紅）。
+ */
+export const WATCHMAN_R = 4.6;
+
+/**
+ * 守夜人**與比他高階的兩層**（石座、濁靈）之間守的距離（公尺）。
+ *
+ * 其餘每一層（石碑、刻文小語、殘頁、器物）守的是「互動圈不重疊」——
+ * 守夜人在仲裁裡贏過它們，圈疊上去就等於把它們蓋掉。
+ * 石座與濁靈**永遠贏守夜人**，所以規則反過來：他不准站進人家的地盤裡。
+ *
+ * 為什麼不是「圈不重疊」（石座要 4.6 + 6.5 = 11.1）：那是**量出來**的。
+ * 142 座石座已經把 12 片土地填得很滿 —— 逐點掃過整張地圖，
+ * 護欄崗（半徑 27 的哨所裡 6 座石座）與分歧之廳（半徑 29 裡 10 座）
+ * **全區一個落點都沒有**（全區離每一座石座最遠只到 9.10／9.75 公尺）。
+ * 8.0 ＝ 石座互動半徑 6.5 ＋ 1.5 的餘裕；照這條線掃，12 片土地每一片都擺得下
+ * （最擠的護欄崗 8.14、分歧之廳 8.25），而且**真正要守的東西另外量**：
+ * 加了守夜人之後，他自己的互動圈與每一座石座的互動圈上都還要有夠多方向
+ * 「站得住而且是自己贏」（`test:rubric` 逐點掃 24 個方向）。
+ */
+export const WATCHMAN_ABOVE_MIN = Object.freeze({ marker: 8.0, murk: 7.5 });
+/**
+ * 守夜人離「**不搶 `E` 的東西**」至少多遠：反應物、祕密、小景、**地標**。
+ *
+ * 4 公尺是既有的先例（濁靈的 `nearRules` 對這四種也是 4）。
+ * 地標為什麼不吃它自己的 14–16 公尺留白：那條規矩（WORLD.md §2.2「高的東西旁邊要矮」）
+ * 管的是**高的東西**，守夜人是一個 1.8 公尺的人，他站在地標旁邊正好證明那座地標有多高。
+ * 這一條是量出來才放的：吃 `lm.clear` 的話，護欄崗（哨所半徑 27、地標留白 13）
+ * 唯一一個「四周按得到他」滿分的落點會被自己的地標擋掉（實測 8.73 < 13）。
+ */
+export const WATCHMAN_AUTO_MIN = 4;
+
+/**
+ * **真正要守的東西**：站在守夜人的互動圈上，24 個方向裡有幾個
+ * 「站得住、而且**是他贏**」（比他高階的石座 6.5／濁靈 5.5 不在那一點的範圍內）。
+ *
+ * 距離規則怎麼寫都好 —— 玩家得走得到他面前、按得下 `E`。這一條是量出來的門檻：
+ * 十片土地都找得到 **24/24** 的落點，所以門檻訂在 22（比產生它的搜尋器嚴一格）。
+ * 兩片例外，數字是逐點掃過整片土地之後的**上限**，不是妥協：
+ *   · `wards`（哨所半徑 27，6 座石座）全區最好 18/24
+ *   · `divergence`（廳半徑 29，10 座石座）全區最好 18/24，
+ *     再吃完其餘每一條擺位規則之後只剩 11/24
+ * 門檻各留兩格餘裕（16／10）。要再加例外就要先量、再寫理由。
+ */
+export const WATCHMAN_WINNABLE_MIN = 22;
+export const WATCHMAN_WINNABLE_EXCEPTIONS = Object.freeze({ wards: 16, divergence: 10 });
+/** 守夜人離「走出來的路」的區間（公尺）：遇得到，但不站在路中間。 */
+export const WATCHMAN_PATH_MIN = 3;
+export const WATCHMAN_PATH_MAX = 12;
 
 /** 離橋的主動線：`LANE_HALF + LANE_MARGIN`（再扣掉自己的半徑 —— 圓心在外面就夠了）。 */
 export const LANE_MARGIN = 4;
@@ -130,6 +184,8 @@ export function interactionTargets(data) {
   // 反應物由 `reactive.js` 的 `reactiveTargets()` 各自帶好自己的 `r`（見 `targetRadius`）
   for (const s of data.reactiveSpots || []) out.push({ k: 'react', id: s.id, at: s.at, r: s.r });
   for (const m of data.murks || []) out.push({ k: 'murk', id: m.id, at: m.at });
+  // v1.2 · P16c：守夜人（互動半徑 4.6，與石碑同一階）
+  for (const w of data.watchmen || []) out.push({ k: 'watchman', id: w.id, at: w.at });
   for (const t of data.tablets || []) out.push({ k: 'tablet', id: t.id, at: t.at });
   /*
    * v1.2 · P15：`tell: "high"` 的祕密**不進這張表**。
@@ -216,6 +272,13 @@ export function solidProblems(World, sd, regionId, targets, landmarks) {
 export default {
   LAYER_INTERACT_R,
   targetRadius,
+  WATCHMAN_R,
+  WATCHMAN_ABOVE_MIN,
+  WATCHMAN_AUTO_MIN,
+  WATCHMAN_WINNABLE_MIN,
+  WATCHMAN_WINNABLE_EXCEPTIONS,
+  WATCHMAN_PATH_MIN,
+  WATCHMAN_PATH_MAX,
   PLATFORM_MOTIF_GAP,
   AROUND_RING,
   AROUND_FREE_MIN,

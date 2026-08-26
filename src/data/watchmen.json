@@ -1,0 +1,373 @@
+{
+  "version": 1,
+  "authored": "game",
+  "note": "守夜人（v1.2 · P16c）：每片土地一位站著不動的人。名字、崗位、語氣、招呼與世界觀故事全部是遊戲自撰的（authored: game），不冒充任何官方文字。技巧那一項一律**引用**既有的資料（skill-codex-v2.json 的 oneLiner 與它自己的官方出處），所以這個檔案裡不寫任何技巧宣稱、也不放任何連結——出處以官方文件為準。checkLines 是把既有檢查器「在等什麼」翻成世界語言的一句話，刻意不給範例、不給答案（那是提示球與神諭刻文的事）。",
+  "xp": 0,
+  "topics": {
+    "stuck": {
+      "label": "我卡在一座碑前面",
+      "eyebrow": "卡住的地方"
+    },
+    "way": {
+      "label": "這附近還有什麼沒找到的",
+      "eyebrow": "指路"
+    },
+    "lore": {
+      "label": "這片地以前是什麼樣子",
+      "eyebrow": "舊事"
+    },
+    "skill": {
+      "label": "說一件神諭的規矩給我聽",
+      "eyebrow": "神諭的規矩"
+    }
+  },
+  "checkLines": {
+    "allowsNullField": "它等的是「找不到的時候，那一格該擺什麼」。",
+    "anchorsToSection": "它等的是每一句話都指得回它出自哪一段。",
+    "asksForPlanFirst": "它等的是動手之前先看到一份打算。",
+    "asksForRationaleNotTranscript": "它等的是結論的依據，不是它想事情的過程。",
+    "asksModelToRewritePrompt": "它等的是你把這份委託交給它自己改一次。",
+    "asksMultipleSamples": "它等的是同一件事多問幾次，再下判斷。",
+    "asksToCiteSources": "它等的是先把根據抬出來，再開口。",
+    "asksToCompact": "它等的是把長的那一段收成短的，再往下走。",
+    "asksToRefine": "它等的是看過一遍之後，再改一次。",
+    "asksToVerify": "它等的是最後回頭自己對一遍。",
+    "assignsTask": "它等的是一句「要你做什麼」。",
+    "avoidsPressureLanguage": "它等的是你把急的、求的、大聲的那些字拿掉。",
+    "avoidsSelfCounting": "它等的是數目由外面給，不是它自己數。",
+    "bansFillerPhrases": "它等的是你點名哪些空話不准出現。",
+    "carriesForwardEssentials": "它等的是往下帶的只有非帶不可的那幾件。",
+    "citesInline": "它等的是出處就貼在那一句話旁邊。",
+    "decisionTree": "它等的是一條分得出先後的岔路。",
+    "decomposesTask": "它等的是把整件事拆成一段一段。",
+    "definesEvalSet": "它等的是一組你已經知道答案的題目。",
+    "definesHandoffState": "它等的是交班的時候要留下哪幾行字。",
+    "definesSchema": "它等的是模子本身：有哪幾格、每一格放什麼。",
+    "definesToneConcretely": "它等的是把「語氣」寫成看得見的規矩。",
+    "definesTools": "它等的是這隻手叫什麼、做得了什麼、要餵它什麼。",
+    "definesWordedScale": "它等的是一把尺，每一級各自長什麼樣。",
+    "delegatesWithCriteria": "它等的是派工的時候，把驗收也一起交出去。",
+    "diagnosesFailureCause": "它等的是先說出上一次是哪裡壞掉的。",
+    "disambiguatesTerms": "它等的是那個有兩種意思的詞被講死成一種。",
+    "explainsWhy": "它等的是一句「因為」。",
+    "extractsStandingRules": "它等的是把每次都算數的那幾條抽出來放好。",
+    "givesOutForUncertainty": "它等的是一條「不知道的時候可以走」的路。",
+    "groundsInContext": "它等的是一句「只准用我給你的這一份」。",
+    "hasAudience": "它等的是這段話最後給誰看。",
+    "hasConstraint": "它等的是一個數得出來的界線。",
+    "hasDelimiters": "它等的是資料被框起來，跟指令分得開。",
+    "hasFallbackCategory": "它等的是一格「都不是的時候放這裡」。",
+    "hasFewShot": "它要的是兩組例子。",
+    "hasRole": "它等的是一句「你是誰」。",
+    "hasStepByStep": "它等的是一句「先想過再答」。",
+    "hasStopRule": "它等的是一句「做到這裡就停」。",
+    "includesAdversarialCase": "它等的是一個你自己先想到的壞例子。",
+    "justifiesExampleCount": "它等的是你說得出為什麼是這幾組，不是更多。",
+    "keepsPromptLean": "它等的是你把撐場面的那幾句拿掉。",
+    "labelsNegativeExample": "它等的是反例旁邊寫著錯在哪裡。",
+    "labelsSources": "它等的是每一份資料都有自己的名字。",
+    "limitsScope": "它等的是一句「這一次只動這裡」。",
+    "limitsToolOutput": "它等的是回來的東西只留看得懂的那幾行。",
+    "limitsToolSurface": "它等的是把這一次用不到的手先收起來。",
+    "mentionsParameters": "它等的是旋鈕被轉到某一格，而不是「隨便」。",
+    "namesComponents": "它等的是每個零件被叫出自己的名字。",
+    "namesDesignElements": "它等的是你點得出畫面上哪幾樣東西。",
+    "namesModelClass": "它等的是你指名要哪一台。",
+    "namesShotElements": "它等的是這一格畫面裡該有的那幾樣被點名。",
+    "noDuplicateSchemaRules": "它等的是模子上寫過的話，不要再說第二遍。",
+    "namesStackAndScope": "它等的是你講出這是用什麼蓋的、這一次動到哪裡。",
+    "noUndefinedReference": "它等的是每一個「那個」都有交代過。",
+    "ordersToolCalls": "它等的是先做哪一件、再做哪一件。",
+    "pointsAtRegion": "它等的是你指得出要看哪一塊。",
+    "positiveFraming": "它等的是「要做什麼」，不是「不要做什麼」。",
+    "prefersToolOverMentalMath": "它等的是算數那一段交給會算的東西。",
+    "preservesPriorState": "它等的是上一步留下來的東西還在原地。",
+    "putsQuestionLast": "它等的是長的擺前面，問句留到最後一行。",
+    "ranksInstructions": "它等的是規矩之間排出誰先誰後。",
+    "requiresConfirmation": "它等的是動不可挽回的事之前，先問你一句。",
+    "requiresPreamble": "它等的是動手前後各交代一句。",
+    "reshapesToLowRisk": "它等的是同一件事，改成危險少一點的做法。",
+    "rulesBeforeData": "它等的是規矩排在資料前面。",
+    "saysWhatToPreserve": "它等的是你點名哪些東西不准動。",
+    "setsActionBudget": "它等的是它能動幾下、來回幾次。",
+    "setsPersistence": "它等的是一句「做到完，不要半路回來問」。",
+    "setsRetrievalBudget": "它等的是查到什麼程度就該收手。",
+    "specifiesFormat": "它等的是答案該長成什麼樣子。",
+    "statesFormatPreference": "它等的是一段講清楚版面偏好的話。",
+    "statesScope": "它等的是這條規矩管到哪裡為止。",
+    "statesSuccessCriteria": "它等的是做完的時候長什麼樣。",
+    "statesToolTriggers": "它等的是什麼時候該伸手、什麼時候不該。",
+    "staticBeforeVariable": "它等的是每次都一樣的那一段放在最前面。",
+    "toolNamesDistinct": "它等的是兩隻手的名字分得開。",
+    "tunesAutonomyLevel": "它等的是積極或收斂，你要把它拉到哪一端。",
+    "usesOneSkeleton": "它等的是分段的辦法從頭到尾只用一種。",
+    "usesProsodyPunctuation": "它等的是標點替你把停頓標出來。",
+    "usesRareDelimiter": "它等的是框住資料的記號夠罕見，不會跟內文撞在一起。"
+  },
+  "entries": [
+    {
+      "id": "watch-broken-ring",
+      "region": "foundations",
+      "at": [
+        -38,
+        25
+      ],
+      "rot": -0.88,
+      "name": "補環的舟",
+      "post": "高原西南邊的坡",
+      "voice": "慢，一句一句，說完才停",
+      "look": "lantern",
+      "greet": [
+        "你走過來的時候，我就在數了。",
+        "這片地上，話沒說完的人最多。"
+      ],
+      "lore": [
+        "斷環本來是一整個環。立起來那天，他們還沒想好要在上面刻什麼。",
+        "於是它就空著。空了很久，久到自己裂開。",
+        "後來的人說那是意外。我看過裂口——是從沒刻字的那一面先裂的。"
+      ]
+    },
+    {
+      "id": "watch-endless-stair",
+      "region": "reasoning",
+      "at": [
+        -100.5,
+        -87
+      ],
+      "rot": 1.49,
+      "name": "數階的岑",
+      "post": "無盡階梯塔的西南階下",
+      "voice": "邊說邊數，常停在半句上",
+      "look": "wick",
+      "greet": [
+        "三百……四百零二。你來了。",
+        "沒關係，我從哪裡停都接得回去。"
+      ],
+      "lore": [
+        "那座塔的階梯沒有人數完過。不是太高，是每個人都從不同的一階開始數。",
+        "有一個抄寫人數到第四千階才回頭，回來只說了一句：我忘了自己從哪裡起算。",
+        "所以這裡的規矩是——先說你從哪一階開始，再開始爬。"
+      ]
+    },
+    {
+      "id": "watch-sunken-shelf",
+      "region": "grounding",
+      "at": [
+        84.5,
+        -89
+      ],
+      "rot": 0.79,
+      "name": "翻頁的苓",
+      "post": "藏書之樹的西南側",
+      "voice": "壓得很低，像怕吵到書",
+      "look": "censer",
+      "greet": [
+        "小聲一點。這裡的紙比人薄。",
+        "你要問什麼？我先把手上這頁放好。"
+      ],
+      "lore": [
+        "藏書之樹不是種出來的。是書堆得太高，堆成了樹的形狀。",
+        "他們在最底下那一層寫過一句話：先讀完再答。字被上面的重量壓進木頭裡了。",
+        "現在只有霧最濃的夜裡摸得到那幾道凹痕。我摸過，是真的。"
+      ]
+    },
+    {
+      "id": "watch-crane-yard",
+      "region": "orchestration",
+      "at": [
+        -79,
+        118
+      ],
+      "rot": 3.03,
+      "name": "排工的甲",
+      "post": "巨臂吊車東南邊的工位",
+      "voice": "短句，像在報工序",
+      "look": "lantern",
+      "greet": [
+        "站好。這裡上頭有東西在吊。",
+        "說吧，一次一件。"
+      ],
+      "lore": [
+        "巨臂吊車一次只吊得動一小件。它不是壞掉——是他們刻意造成這樣。",
+        "有人想一次吊起整座工坊，繩子沒斷，斷的是他自己。",
+        "從那天起，工坊的規矩是：先把大東西拆開，再叫吊車。"
+      ]
+    },
+    {
+      "id": "watch-mask-arch",
+      "region": "config",
+      "at": [
+        97.5,
+        119.5
+      ],
+      "rot": -3.1,
+      "name": "換面的綺",
+      "post": "面具拱門南邊的側廊",
+      "voice": "抑揚頓挫，像還在台上",
+      "look": "censer",
+      "greet": [
+        "來了——請進，請進。",
+        "先別急著開口。你要用哪一張臉說話？"
+      ],
+      "lore": [
+        "面具拱門上一共掛過七十二張臉。現在剩下的都是沒有人願意戴的那幾張。",
+        "戴上面具的人說話會變。他們試過反過來——把面具拿掉再說一次，話又變回去了。",
+        "所以這裡不問你是誰。這裡只問：這一次你要它當誰。"
+      ]
+    },
+    {
+      "id": "watch-gauge-pillar",
+      "region": "forms",
+      "at": [
+        -9.5,
+        121.5
+      ],
+      "rot": 1.96,
+      "name": "量尺的寸",
+      "post": "刻度之柱西邊的一階",
+      "voice": "說什麼都先給一個數字",
+      "look": "wick",
+      "greet": [
+        "四步。你剛剛走了四步過來。",
+        "要問什麼？我這裡量得出來的都能答。"
+      ],
+      "lore": [
+        "刻度之柱斷在第九格。第九格上面本來要刻的是「夠了」兩個字。",
+        "量器坊的人量過所有東西，最後量到自己頭上——量完就沒有人再刻下去。",
+        "那把尺還停在半空，指著一個沒有人讀得到的刻度。我每晚看它一次。"
+      ]
+    },
+    {
+      "id": "watch-nameless-tool",
+      "region": "toolcraft",
+      "at": [
+        -115,
+        5.5
+      ],
+      "rot": 2.09,
+      "name": "命名的冶",
+      "post": "鍛台東南邊的工具溝",
+      "voice": "說一句停一下，像在等鐵冷",
+      "look": "lantern",
+      "greet": [
+        "爐子還溫著。站近一點沒關係。",
+        "……你說。我聽著。"
+      ],
+      "lore": [
+        "他們替神諭打了一整排的手。每一把都好用，每一把都沒有名字。",
+        "沒有名字的東西，神諭伸手之前不知道該不該拿。於是它一把都沒拿。",
+        "那一圈鑰匙就這樣懸到現在。我這輩子只想替其中一把刻上名字。"
+      ]
+    },
+    {
+      "id": "watch-unclosing-door",
+      "region": "wards",
+      "at": [
+        100.5,
+        -160.5
+      ],
+      "rot": 1.21,
+      "name": "守門的亙",
+      "post": "不會關上的門西北邊",
+      "voice": "只說必要的，不寒暄",
+      "look": "wick",
+      "greet": [
+        "門開著。一直都開著。",
+        "問。"
+      ],
+      "lore": [
+        "這道門關不上。不是壞了——是他們造的時候就沒有做門閂。",
+        "哨所的說法是：關得上的門會讓人以為外面的東西進不來。",
+        "所以他們留了一道開著的門，再派人站在這裡。站著的那個人才是門閂。"
+      ]
+    },
+    {
+      "id": "watch-twice-lit",
+      "region": "refinery",
+      "at": [
+        -118,
+        136
+      ],
+      "rot": -0.46,
+      "name": "照鏡的澄",
+      "post": "校驗場淺谷的東南岸",
+      "voice": "每句話都會再說一次，第二次不一樣",
+      "look": "censer",
+      "greet": [
+        "你來了。——你又來了，這次比較晚。",
+        "說吧。說吧，慢慢說。"
+      ],
+      "lore": [
+        "院子裡那面鏡不照人，照的是自己。抄寫人管它叫回頭看的鏡。",
+        "他們在這裡寫完的每一段，都要再讀一次，再改一次。第二次改的才收進去。",
+        "有人問過：那第三次呢？沒有人回答。這片院子的谷底就是這樣挖出來的。"
+      ]
+    },
+    {
+      "id": "watch-empty-plinth",
+      "region": "frugality",
+      "at": [
+        10.5,
+        -96
+      ],
+      "rot": 2.57,
+      "name": "拿走的簡",
+      "post": "空基座東北邊的門檻",
+      "voice": "極短，能省的字都省掉",
+      "look": "lantern",
+      "greet": [
+        "嗯。",
+        "說。"
+      ],
+      "lore": [
+        "基座上本來有東西。被拿走了。",
+        "不是偷。是他們一件一件搬走，搬到剩下最後一件時，發現不搬也可以。",
+        "那件東西現在只剩一圈光的輪廓。看得見，摸不到——夠了。"
+      ]
+    },
+    {
+      "id": "watch-two-faced",
+      "region": "divergence",
+      "at": [
+        92.5,
+        7
+      ],
+      "rot": -2.03,
+      "name": "並讀的岐",
+      "post": "兩面之柱東北邊",
+      "voice": "一句話總是兩半，中間夾一個「可是」",
+      "look": "censer",
+      "greet": [
+        "這裡沒有暗處，可是也沒有一個講得完的答案。",
+        "你要聽哪一面？"
+      ],
+      "lore": [
+        "五根柱子，每一根都有兩面。兩面刻的是同一件事的兩種寫法。",
+        "抄寫人吵了很多年，最後誰也沒有贏——所以兩面都留下來了。",
+        "廳裡刻意不留暗處，就是為了逼人把兩面都讀完再走。"
+      ]
+    },
+    {
+      "id": "watch-sky-mirror",
+      "region": "sight",
+      "at": [
+        148,
+        -19.5
+      ],
+      "rot": -0.11,
+      "name": "仰望的昴",
+      "post": "觀象臺東邊的坡",
+      "voice": "說話的時候眼睛不看你，看天",
+      "look": "wick",
+      "greet": [
+        "……你聽見了嗎。今晚的風比昨晚乾。",
+        "問吧。我看著上面回答你。"
+      ],
+      "lore": [
+        "那面鏡斜插在最高的一側，照的不是人，是整片星空。",
+        "觀象臺的人不只讀字。他們把看到的、聽到的都寫下來，寫成字再交給神諭。",
+        "所以這一片地什麼圖都沒有留下——留下的全是描述那些圖的句子。"
+      ]
+    }
+  ]
+}
