@@ -466,7 +466,21 @@
         "sight": 22,
         "divergence": 24
       },
-      "why": "v1.2 · P20b：檔案廊（src/data/archive.json）—— 每片土地一座小展館，走近浮出一則「為什麼」。它補的是教學的第四層：術語小卡講「是什麼」、130 條技能講「怎麼做」、守夜人**引用**既有的那一句，這一層講背後的機制。**不彈窗、不搶 `E`、零光源、零碰撞體、零可站立體**。\n\nverifiedUrls 365 ＝ 出處唯一准用的那份集合的大小：curriculum.json／skill-codex-v2.json／source-anchors.json／glossary.json 四份檔案裡出現過的每一個網址（test:rubric **現算**，不抄第二份）。24 則的 source.url 逐則回查那個集合、source.name 與那個網址在既有資料裡登記的文件名逐字相同 —— 這是護欄 2 在這一格的紅線。\n\nbodyMax 60／titleMax 18：規格訂的長度（實測最長 53／17）。overlapMax 8：與既有三層（術語小卡／130 條技能／守夜人說過的話）的 4 字滑動窗重疊上限 —— 實測最像的一對是 arc-tool-desc-is-prompt ↔ 技能 mm-troubleshoot 的 5 組，門檻留 3 組餘裕；反例是「把既有那一句原封不動抄過來」，同一支掃描要抓得到。\n\ntris 1844 ＝ 12 座 × 132（地面那一圈 32 ＋ 四根細桿 48 ＋ 兩道橫樑 24 ＋ 兩座龕 24 ＋ 龕上兩片字 4）＋ 130 片展品 × 2。展品一片一條技法，收集到的那幾片才亮。\n\nmarkerFloor／markerCeiling：一般規則是「互動圈不重疊」（6.5 ＋ 3.2 ＝ 9.7）。護欄崗與分歧之廳擺不下（照 9.7 掃過整片平地圈各剩 0 個格點），所以那兩片改守「不准站進石座的地盤」——`node scripts/archive-fit.mjs --region <id> --ceiling` 把石座那一條拿掉、其餘每一條照舊，逐點掃出來離最近石座**最遠只到** 8.20／8.08（markerCeiling），門檻各往下留餘裕（markerFloor 7.8／7.7 —— 出貨落點 7.91／7.83，各留 0.11／0.13 公尺；findings：餘裕只剩 0.01 的門檻等於沒有門檻）。檔案廊連 `E` 都不搶，所以玩家端零倒退。\n\nstandWorst／markerNearest：出貨的 12 座逐片量到的數字（站在「走近浮出」那一圈上 24 個方向裡有幾個站得住／離最近那座石座多遠），test:rubric 逐值比對。門檻 ARCHIVE_STAND_MIN 16，最差的一片是觀象臺 22。"
+      "ceilingDrop": {
+        "foundations": 0.31,
+        "reasoning": 0.46,
+        "grounding": 0.67,
+        "orchestration": 0.84,
+        "config": 0.98,
+        "forms": 0.79,
+        "toolcraft": 0.24,
+        "frugality": 0.4,
+        "refinery": 0.68,
+        "wards": 0.21,
+        "sight": 0.14,
+        "divergence": 0.16
+      },
+      "why": "v1.2 · P20b：檔案廊（src/data/archive.json）—— 每片土地一座小展館，走近浮出一則「為什麼」。它補的是教學的第四層：術語小卡講「是什麼」、130 條技能講「怎麼做」、守夜人**引用**既有的那一句，這一層講背後的機制。**不彈窗、不搶 `E`、零光源、零碰撞體、零可站立體**。\n\nverifiedUrls 365 ＝ 出處唯一准用的那份集合的大小：curriculum.json／skill-codex-v2.json／source-anchors.json／glossary.json 四份檔案裡出現過的每一個網址（test:rubric **現算**，不抄第二份）。24 則的 source.url 逐則回查那個集合、source.name 與那個網址在既有資料裡登記的文件名逐字相同 —— 這是護欄 2 在這一格的紅線。\n\nbodyMax 60／titleMax 18：規格訂的長度（實測最長 53／17）。overlapMax 8：與既有三層（術語小卡／130 條技能／守夜人說過的話）的 4 字滑動窗重疊上限 —— 實測最像的一對是 arc-tool-desc-is-prompt ↔ 技能 mm-troubleshoot 的 5 組，門檻留 3 組餘裕；反例是「把既有那一句原封不動抄過來」，同一支掃描要抓得到。\n\ntris 1844 ＝ 12 座 × 132（地面那一圈 32 ＋ 四根細桿 48 ＋ 兩道橫樑 24 ＋ 兩座龕 24 ＋ 龕上兩片字 4）＋ 130 片展品 × 2。展品一片一條技法，收集到的那幾片才亮。\n\nmarkerFloor／markerCeiling：一般規則是「互動圈不重疊」（6.5 ＋ 3.2 ＝ 9.7）。護欄崗與分歧之廳擺不下（照 9.7 掃過整片平地圈各剩 0 個格點），所以那兩片改守「不准站進石座的地盤」——`node scripts/archive-fit.mjs --region <id> --ceiling` 把石座那一條拿掉、其餘每一條照舊，逐點掃出來離最近石座**最遠只到** 8.20／8.08（markerCeiling），門檻各往下留餘裕（markerFloor 7.8／7.7 —— 出貨落點 7.91／7.83，各留 0.11／0.13 公尺；findings：餘裕只剩 0.01 的門檻等於沒有門檻）。檔案廊連 `E` 都不搶，所以玩家端零倒退。\n\nstandWorst／markerNearest：出貨的 12 座逐片量到的數字（站在「走近浮出」那一圈上 24 個方向裡有幾個站得住／離最近那座石座多遠），test:rubric 逐值比對。門檻 ARCHIVE_STAND_MIN 16，最差的一片是觀象臺 22。\n\nceilingDrop：出貨的 12 座逐片量到的「頂棚四角落差」——量的是**轉過 `rot` 之後真的會蓋出來的那四根腳**（`archives.js` 的 `archiveFootprint()`，整個 repo 只有那一份真相）。ARCHIVE_STEP_DROP_MAX 1.1 這道門今天兩種算法都在預算內（轉後 0.14–0.98、沒轉 0.10–1.06），所以只有門檻攔不住「量錯四個點」；逐值比對才攔得住。"
     },
     "saveKeys": {
       "value": [

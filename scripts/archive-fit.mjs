@@ -65,17 +65,10 @@ const num = (name, dflt) => {
 const World = await import('../src/world/world.js');
 const Props = await import('../src/world/props.js');
 const Reactive = await import('../src/world/reactive.js');
+const Archive = await import('../src/world/archives.js');
 const base = await worldOptions();
 const archiveFile = readJson('src/data/archive.json');
 const prologue = readJson('src/data/prologue.json');
-
-/** 頂棚四個角相對於中心的偏移（與 `src/world/archives.js` 的四根細桿同一組座標）。 */
-const CORNERS = [
-  [-ARCHIVE_BODY_R, -ARCHIVE_BODY_R],
-  [ARCHIVE_BODY_R, -ARCHIVE_BODY_R],
-  [-ARCHIVE_BODY_R, ARCHIVE_BODY_R],
-  [ARCHIVE_BODY_R, ARCHIVE_BODY_R],
-];
 
 /** 所有互動層（檔案廊自己那一層拿掉 —— 它不跟自己比距離）。 */
 function targetsExceptSelf() {
@@ -105,8 +98,10 @@ function targetsExceptSelf() {
  * @param {Array} screens 這一片土地的中觀層碰撞圓
  * @param {Array} pathSegs 路網
  * @param {boolean} [skipMarker] `--ceiling` 用：把石座那一條拿掉，其餘照舊
+ * @param {object} [bare] 「還沒有檔案廊」的那個世界
+ * @param {number|null} [rot] 出貨的 `rotation.y`；`null` ＝ 還沒定案，照 `facingToPath()` 推
  */
-function problemsAt(x, z, regionId, targets, screens, pathSegs, skipMarker = false, bare = null) {
+function problemsAt(x, z, regionId, targets, screens, pathSegs, skipMarker = false, bare = null, rot = null) {
   const problems = [];
   const site = World.REGION_SITES.find((s) => s.id === regionId);
   if (Math.hypot(x - site.x, z - site.z) > site.flat) problems.push('超出平地半徑');
@@ -162,8 +157,16 @@ function problemsAt(x, z, regionId, targets, screens, pathSegs, skipMarker = fal
   }
   // 「現在那裡有沒有東西壓著」——見 `baseWorldAndScreens()` 的檔頭（保守關）
   if (bare && bare.solidAt(x, z)) problems.push('那一點現在有東西壓著（建物／道具）');
-  // 這一層自己的前提：頂棚四個角腳下要夠平（一半埋在山坡裡就不叫展館了）
-  const hs = CORNERS.map(([dx, dz]) => World.terrainHeight(x + dx, z + dz));
+  /*
+   * 這一層自己的前提：頂棚四個角腳下要夠平（一半埋在山坡裡就不叫展館了）。
+   *
+   * 量的要是**真的會蓋出來的那四根腳** —— 整組轉過 `rot`，取沒轉過的四角
+   * 等於在保證另一座展館的事（一道裝飾用的門）。搜尋時 `rot` 還沒定案，
+   * 但它是 `facingToPath()` 推出來的、這裡拿得到路網，所以照同一支現推一次；
+   * `--verify` 則直接餵出貨的那個值。四點的世界座標走 `archives.js` 的同一支。
+   */
+  const theta = rot === null ? facingToPath(pathSegs, x, z) : rot;
+  const hs = Archive.archiveFootprint([x, z], theta).map(([fx, fz]) => World.terrainHeight(fx, fz));
   const drop = Math.max(...hs) - Math.min(...hs);
   if (drop > ARCHIVE_STEP_DROP_MAX) problems.push(`頂棚四角落差 ${drop.toFixed(2)}m（要 ≤ ${ARCHIVE_STEP_DROP_MAX}）`);
   return problems;
@@ -180,9 +183,15 @@ function problemsAt(x, z, regionId, targets, screens, pathSegs, skipMarker = fal
  * 然後全部紅在同一句「站不進去」上。
  * 這一關是**保守**的：檔案廊自己會把 5.2 公尺內的程序化道具擠開，
  * 所以少數被道具擋住、其實擺得下的點會被這一關誤殺 —— 寧可漏掉，不要空轉。
+ *
+ * **`archives: []` 不能省**：`worldOptions()` 現在把出貨的 12 座也讀了進來
+ * （`test:rubric` 要量真的出貨的那個世界），於是這裡蓋出來的會是「已經有檔案廊」
+ * 的世界 —— 它們 5.2 公尺的 `keepClear` 早就把各自周圍的程序化道具清掉了，
+ * 重搜某一片土地時就會看到一片「因為那座展館已經在那裡」才空出來的空地，
+ * 然後提出一個只有在它存在時才成立的落點。
  */
 async function baseWorldAndScreens() {
-  const { world } = await buildWorld({ base });
+  const { world } = await buildWorld({ base: { ...base, archives: [] } });
   const out = new Map();
   for (const layer of world.screens || []) {
     const list = [];
@@ -284,7 +293,7 @@ async function main() {
   if (flag('verify')) {
     let bad = 0;
     for (const h of archiveFile.halls) {
-      const off = problemsAt(h.at[0], h.at[1], h.region, targets, screens.get(h.region) || [], pathSegs, false, null);
+      const off = problemsAt(h.at[0], h.at[1], h.region, targets, screens.get(h.region) || [], pathSegs, false, null, h.rot);
       const res = await verifyInWorld(h);
       const all = [...off, ...res.problems];
       if (all.length) bad += 1;

@@ -485,6 +485,12 @@ export function createCodex({
   function archiveChapter() {
     if (!Array.isArray(archiveNotes) || !archiveNotes.length) return '';
     const names = new Map(content.groupsOrdered().map((gp) => [gp.id, gp.name]));
+    /*
+     * `source` 照隔壁每一章的寫法守一次。護欄 2 真正的關卡在資料那一側
+     * （`test:rubric` 逐則回查那 365 個已驗證網址），這裡守的是**別的東西**：
+     * 少了那個欄位的一則會在 `render()` 裡丟例外 —— 那不是少一個連結，
+     * 是**整本圖鑑打不開**。
+     */
     const items = archiveNotes
       .map(
         (n) => `<li class="tech">
@@ -495,9 +501,13 @@ export function createCodex({
           </summary>
           <div class="archive__body">
             <p class="archive__why">${esc(n.body)}</p>
-            <p class="archive__srcs"><a class="src" href="${esc(n.source.url)}" target="_blank" rel="noopener">${esc(
-              n.source.name
-            )} · ${SOURCE_LABEL} ↗</a></p>
+            ${
+              n.source && n.source.url
+                ? `<p class="archive__srcs"><a class="src" href="${esc(n.source.url)}" target="_blank" rel="noopener">${esc(
+                    n.source.name || n.source.url
+                  )} · ${SOURCE_LABEL} ↗</a></p>`
+                : ''
+            }
           </div>
         </details>
       </li>`
@@ -720,14 +730,23 @@ export function createCodex({
      * 技法那一大疊（`div.codex`）仍然排在最後，選擇器一個字沒動
      * （e2e 數技巧條數靠的就是 `#codex .codex .tech`）。
      */
+    /*
+     * **分隔條只有在底下真的有東西時才畫。** 五個章節的每一支在資料空的時候
+     * 都回 `''`（`archiveNotes` 的預設就是 `[]`），所以無條件畫分隔條的話，
+     * 少了某一份資料的呼叫端會得到一個標題＋副標、底下空空如也。
+     */
+    const loreHtml = `${secretChapter()}${rumorChapter()}${letterBook()}`;
+    const murkHtml = murkBook();
+    const archiveHtml = archiveChapter();
     overlay.body.innerHTML =
       `${rankBar()}${badgeStrip()}${sealStrip()}` +
-      `${division('世界觀', 'Lore', '這個世界自己的事：藏起來的地方、對得上的傳聞、撿到的殘頁。')}` +
-      `${secretChapter()}${rumorChapter()}${letterBook()}` +
-      `${division('濁言', 'Creatures', '留在原地的那些話，以及你替牠說清楚的那一句。')}` +
-      `${murkBook()}` +
-      `${division('小知識', 'Research', '為什麼會這樣 —— 機制那一層，每一則都點得到官方出處。')}` +
-      `${archiveChapter()}` +
+      (loreHtml
+        ? `${division('世界觀', 'Lore', '這個世界自己的事：藏起來的地方、對得上的傳聞、撿到的殘頁。')}${loreHtml}`
+        : '') +
+      (murkHtml ? `${division('濁言', 'Creatures', '留在原地的那些話，以及你替牠說清楚的那一句。')}${murkHtml}` : '') +
+      (archiveHtml
+        ? `${division('小知識', 'Research', '為什麼會這樣 —— 機制那一層，每一則都點得到官方出處。')}${archiveHtml}`
+        : '') +
       `<div class="codex">${groups}</div>`;
     // 每次重繪都會換掉 ⓘ 節點，但事件是委派在 body 上，綁一次就夠
     bindInfoTips(overlay.body);

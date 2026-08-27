@@ -23610,6 +23610,20 @@ console.log('\n▸ 檔案廊：小知識那一層（v1.2 · P20b）');
       ]) {
         ok(/archives/.test(srcOf(rel)), `${rel} 也把檔案廊餵了進去`);
       }
+      /*
+       * ……但**離線篩要問的是「還沒有檔案廊」的那個世界**。
+       * `worldOptions()` 現在把出貨的 12 座也讀進來了（三角數要量真的出貨的那個），
+       * 於是 `archive-fit` 的 `baseWorldAndScreens()` 若照單全收，重搜某一片土地時
+       * 會看到一片「因為那座展館已經在那裡」才空出來的空地 ——
+       * 然後提出一個只有在它存在時才成立的落點。
+       */
+      {
+        const fitSrc21 = srcOf('scripts/archive-fit.mjs');
+        const from21 = fitSrc21.indexOf('async function baseWorldAndScreens()');
+        const bareFn21 = fitSrc21.slice(from21, fitSrc21.indexOf('\n}\n', from21));
+        ok(from21 > 0 && bareFn21.length > 120, '（前提）真的抓到 baseWorldAndScreens() 的本體', String(bareFn21.length));
+        ok(/buildWorld\(\{\s*base:\s*\{\s*\.\.\.base,\s*archives:\s*\[\]\s*\}\s*\}\)/.test(bareFn21), '離線篩蓋的是「還沒有檔案廊」的那個世界');
+      }
       ok(/archives\.map/.test(srcOf('scripts/pacing-audit.mjs')), 'pacing-audit 的 POI 也收了檔案廊');
     }
     // `archiveNeedFrom` 的分支各自問對了（＋反例）
@@ -23658,6 +23672,8 @@ console.log('\n▸ 檔案廊：小知識那一層（v1.2 · P20b）');
     );
     const standByRegion21 = {};
     const markerByRegion21 = {};
+    const dropByRegion21 = {};
+    const flatDropByRegion21 = {};
     let tightest21 = Infinity;
     let tightestWho21 = '';
     const hallIds21 = new Set();
@@ -23703,15 +23719,20 @@ console.log('\n▸ 檔案廊：小知識那一層（v1.2 · P20b）');
         `${tag} 離路網在 ${Rules21.ARCHIVE_PATH_MIN}–${Rules21.ARCHIVE_PATH_MAX} 公尺之間（走得到、又不擋路）`,
         dPath.toFixed(2)
       );
-      // 頂棚四個角腳下夠平（與 archive-fit 的離線篩同一條）
-      const hs = [
-        [-Rules21.ARCHIVE_BODY_R, -Rules21.ARCHIVE_BODY_R],
-        [Rules21.ARCHIVE_BODY_R, -Rules21.ARCHIVE_BODY_R],
-        [-Rules21.ARCHIVE_BODY_R, Rules21.ARCHIVE_BODY_R],
-        [Rules21.ARCHIVE_BODY_R, Rules21.ARCHIVE_BODY_R],
-      ].map(([dx, dz]) => World.terrainHeight(x + dx, z + dz));
+      /*
+       * 頂棚四個角腳下夠平（與 archive-fit 的離線篩同一條）。
+       *
+       * 量的要是**真的會蓋出來的那四根腳**：整組轉過 `rot`，取沒轉過的四角
+       * 等於在保證另一座展館的事 —— 一道裝飾用的門。四點的世界座標走
+       * `archives.js` 的 `archiveFootprint()`（整個 repo 只有那一份真相）。
+       */
+      const hs = Archive21.archiveFootprint(h.at, h.rot).map(([fx, fz]) => World.terrainHeight(fx, fz));
       const drop = Math.max(...hs) - Math.min(...hs);
+      dropByRegion21[h.region] = Math.round(drop * 100) / 100;
       ok(drop <= Rules21.ARCHIVE_STEP_DROP_MAX, `${tag} 頂棚四角的落差在框內`, `${drop.toFixed(2)} > ${Rules21.ARCHIVE_STEP_DROP_MAX}`);
+      // 反例：沒轉過的那四個角量到的是別的東西（12 座的 rot 一個都不是 0）
+      const flatHs = Archive21.archiveFootprint(h.at, 0).map(([fx, fz]) => World.terrainHeight(fx, fz));
+      flatDropByRegion21[h.region] = Math.round((Math.max(...flatHs) - Math.min(...flatHs)) * 100) / 100;
       /*
        * **真正要守的東西**：站在「走近浮出」的那一圈上，24 個方向裡有幾個站得住。
        * 它不搶 `E`，所以這裡問的是走不走得到，不是「是不是它贏」。
@@ -23735,6 +23756,17 @@ console.log('\n▸ 檔案廊：小知識那一層（v1.2 · P20b）');
       eq(around, Rules21.ARCHIVE_RING_DIRS, `${tag} 貼著頂棚那一圈每個方向都繞得過去`, `${around}/${Rules21.ARCHIVE_RING_DIRS}`);
     }
     eq(JSON.stringify(standByRegion21), JSON.stringify(EX21.standWorst), '逐片量到的「走得到它」與契約**逐值相同**');
+    /*
+     * 頂棚四角的落差**逐片釘死**（旋轉之後那四根腳）。
+     * 「≤ 1.1」那道門今天兩種算法都在預算內，所以只有門檻攔不住「量錯四個點」——
+     * 逐值比對才攔得住：拿沒轉過的四角去量，這一條當場紅。
+     */
+    eq(JSON.stringify(dropByRegion21), JSON.stringify(EX21.ceilingDrop), '逐片量到的「頂棚四角落差」與契約**逐值相同**');
+    ok(
+      JSON.stringify(dropByRegion21) !== JSON.stringify(flatDropByRegion21),
+      '反例：沒轉過的那四個角量到的是另一組數字（12 座的 rot 沒有一個是 0）',
+      JSON.stringify(flatDropByRegion21)
+    );
     eq(JSON.stringify(markerByRegion21), JSON.stringify(EX21.markerNearest), '逐片量到的「離最近石座多遠」與契約**逐值相同**');
     // 例外表：每一格都 ≤ 逐點掃出來的上限，而且真的必要
     eq(
@@ -23813,6 +23845,27 @@ console.log('\n▸ 檔案廊：小知識那一層（v1.2 · P20b）');
         const v = built.group.localToWorld(new THREE.Vector3(nx, 0, 0));
         const off = Math.hypot(v.x - built.niches[i].x, v.z - built.niches[i].z);
         ok(off < 0.01, `[${h.id}] 第 ${i} 座龕的世界座標與矩陣算出來的一致`, off.toFixed(4));
+      }
+      /*
+       * **每一塊各自貼自己腳下的地 —— 而「腳下」是轉過之後的那一點。**
+       *
+       * `sx/sz` 是局部偏移，整組卻轉過 `rot`：取高度時取到還沒轉過的那一點，
+       * 三公尺的柱子就會浮在空中（或埋進去）將近一公尺，而它 `noCollide`、
+       * 穿模稽核與碰撞稽核**都看不到**。這裡量的是真的世界位置
+       * （three.js 自己的矩陣，不重打一次三角函數 —— 重打就會有第二份真相）。
+       */
+      for (const post of built.frame.children) {
+        if (!/^post\d/.test(post.name)) continue;
+        const w = built.group.localToWorld(new THREE.Vector3().copy(post.position));
+        const gap = w.y - 1.5 - World.terrainHeight(w.x, w.z);
+        ok(Math.abs(gap) < 0.01, `[${h.id}] ${post.name} 的腳踩在它自己站的那一點上`, `浮了 ${gap.toFixed(3)}m`);
+      }
+      // 檔案龕同一件事（0.72 公尺高的一座石龕浮起自己身高的三分之二也沒有人會紅）
+      for (let i = 0; i < 2; i += 1) {
+        const holder = built.niches[i].group;
+        const w = built.group.localToWorld(new THREE.Vector3().copy(holder.position));
+        const gap = w.y - World.terrainHeight(w.x, w.z);
+        ok(Math.abs(gap) < 0.01, `[${h.id}] 第 ${i} 座檔案龕的底踩在它自己站的那一點上`, `浮了 ${gap.toFixed(3)}m`);
       }
     }
   }
@@ -23926,8 +23979,27 @@ console.log('\n▸ 檔案廊：小知識那一層（v1.2 · P20b）');
       ok(!chapter.includes(cls), `檔案廊那一章沒有借用 .${cls}`);
     }
     ok(chapter.includes('archive__srcs') && chapter.includes('class="src"'), '它有自己的出處列，而且是可點的連結');
+    /*
+     * `source` 要照隔壁每一章那樣守一次：少了那個欄位的一則不是「少一個連結」，
+     * 是 `render()` 當場丟例外 ——**整本圖鑑打不開**。護欄 2 真正的關卡在資料那一側
+     * （下面那一條逐則回查），這一條守的是縱深。
+     */
+    ok(/n\.source && n\.source\.url/.test(chapter), '少了出處的一則不會把整本圖鑑弄壞');
     // 每一則都有 https 出處（圖鑑那一側的護欄 2）
     for (const n of notes21) ok(/^https:\/\//.test(n.source.url), `[archive:${n.id}] 出處是可點的 https 連結`);
+    /*
+     * 三條分隔條**只有在底下真的有東西時才畫**：五個章節的每一支在資料空的時候
+     * 都回 `''`（`archiveNotes` 的預設就是 `[]`），無條件畫的話，
+     * 少了某一份資料的呼叫端會得到一個標題＋副標、底下空空如也。
+     */
+    {
+      const from21 = codexSrc21.indexOf('overlay.body.innerHTML =');
+      const html21 = codexSrc21.slice(from21, codexSrc21.indexOf('bindInfoTips(overlay.body)', from21));
+      ok(from21 > 0 && html21.length > 200, '（前提）真的抓到組版面的那一段', String(html21.length));
+      for (const [zh, name] of [['世界觀', 'loreHtml'], ['濁言', 'murkHtml'], ['小知識', 'archiveHtml']]) {
+        ok(new RegExp(`${name}\\s*\\?`).test(html21), `「${zh}」那一條分隔只有在底下有東西時才畫`);
+      }
+    }
   }
 
   /* --- ⑦ e2e 的頁面內程式碼一定要 parse 得過（這一格自己踩到的） ------ */

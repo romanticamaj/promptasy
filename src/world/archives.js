@@ -45,6 +45,53 @@ export const ARCHIVE_NICHE_X = 1.55;
 /** 一座展館最多吊幾片展品（技法最多的那片土地是 15 條）。 */
 export const ARCHIVE_EXHIBIT_MAX = 16;
 
+/**
+ * 四根細桿的**局部**偏移（`buildArchive()` 與離線的落點檢查共用這一份）。
+ * 順序：左後、右後、左前、右前。
+ */
+export const ARCHIVE_POST_OFFSETS = Object.freeze([
+  Object.freeze([-ARCHIVE_SPAN, -ARCHIVE_SPAN]),
+  Object.freeze([ARCHIVE_SPAN, -ARCHIVE_SPAN]),
+  Object.freeze([-ARCHIVE_SPAN, ARCHIVE_SPAN]),
+  Object.freeze([ARCHIVE_SPAN, ARCHIVE_SPAN]),
+]);
+
+/** `archiveWorldXZ()` 的替身（整組的位置與 `rot` 借它算一次矩陣）。 */
+const _pivot = new THREE.Object3D();
+const _local = new THREE.Vector3();
+
+/**
+ * 局部偏移 →**真的會蓋出來的那一點**（世界的 x／z）。
+ *
+ * 整組有 `grp.rotation.y = rot`，所以局部的 `(lx, lz)` 落在世界的哪裡要先轉過。
+ * 每一塊要貼的是**自己腳下**的地——取到「還沒轉過」的那一點，三公尺的柱子
+ * 就會浮起（或埋進去）將近一公尺，而它 `noCollide`、穿模稽核也看不到。
+ * 這裡借 three.js 自己的矩陣算，**整個 repo 只有這一份真相**：
+ * 蓋的時候、離線篩落點的時候、`test:rubric` 量的時候走的都是這一支
+ * （findings：`rotation.y = θ` 到底把局部軸轉去哪，重打一次三角函數就會有第二份真相）。
+ *
+ * @param {number[]} at   整組站的那一點 `[x, z]`
+ * @param {number} rot    `rotation.y`
+ * @param {number} lx     局部 x
+ * @param {number} lz     局部 z
+ * @returns {number[]}    `[x, z]`
+ */
+export function archiveWorldXZ(at, rot, lx, lz) {
+  _pivot.position.set(at[0], 0, at[1]);
+  _pivot.rotation.set(0, Number.isFinite(rot) ? rot : 0, 0);
+  _pivot.updateMatrixWorld(true);
+  _pivot.localToWorld(_local.set(lx, 0, lz));
+  return [_local.x, _local.z];
+}
+
+/**
+ * 一座展館的四根細桿**真的會落在哪裡**（世界座標，順序同 `ARCHIVE_POST_OFFSETS`）。
+ * 「頂棚四角腳下夠不夠平」那道門量的就是這四點。
+ */
+export function archiveFootprint(at, rot) {
+  return ARCHIVE_POST_OFFSETS.map(([lx, lz]) => archiveWorldXZ(at, rot, lx, lz));
+}
+
 /** 45 公尺外整組跳過（平方比較）。 */
 const FAR_SQ = 45 * 45;
 /** 15 公尺外降頻更新（每 3 幀一次，用 index 錯開）。 */
@@ -111,7 +158,8 @@ export function buildArchive(hall, kit, terrainHeight, exhibits) {
   const grp = new THREE.Group();
   grp.name = `archive:${hall.id}`;
   grp.position.set(x, y, z);
-  grp.rotation.y = Number.isFinite(hall.rot) ? hall.rot : 0;
+  const rot = Number.isFinite(hall.rot) ? hall.rot : 0;
+  grp.rotation.y = rot;
 
   const stoneMat = new THREE.MeshStandardMaterial({ color: kit.mid, flatShading: true, roughness: 0.94 });
 
@@ -126,12 +174,13 @@ export function buildArchive(hall, kit, terrainHeight, exhibits) {
   hem.userData.noCollide = true;
   frame.add(hem);
 
-  for (let i = 0; i < 4; i += 1) {
-    const sx = i % 2 ? ARCHIVE_SPAN : -ARCHIVE_SPAN;
-    const sz = i < 2 ? -ARCHIVE_SPAN : ARCHIVE_SPAN;
+  for (let i = 0; i < ARCHIVE_POST_OFFSETS.length; i += 1) {
+    const [sx, sz] = ARCHIVE_POST_OFFSETS[i];
     const post = new THREE.Mesh(box(0.18, 3, 0.18), stoneMat);
     post.name = `post${i}`;
-    post.position.set(sx, terrainHeight(x + sx, z + sz) - y + 1.5, sz);
+    // 高度取在**轉過之後**那一點（`archiveWorldXZ()` 的檔頭記了為什麼）
+    const [wx, wz] = archiveWorldXZ(hall.at, rot, sx, sz);
+    post.position.set(sx, terrainHeight(wx, wz) - y + 1.5, sz);
     post.userData.noCollide = true;
     frame.add(post);
   }
@@ -172,7 +221,9 @@ export function buildArchive(hall, kit, terrainHeight, exhibits) {
     const nx = i ? ARCHIVE_NICHE_X : -ARCHIVE_NICHE_X;
     const holder = new THREE.Group();
     holder.name = `niche:${i}`;
-    holder.position.set(nx, terrainHeight(x + nx, z) - y, 0);
+    // 同一件事：龕也要貼**自己腳下**的地（它 `noCollide`，穿模稽核看不到它浮起來）
+    const [wx, wz] = archiveWorldXZ(hall.at, rot, nx, 0);
+    holder.position.set(nx, terrainHeight(wx, wz) - y, 0);
     const stand = new THREE.Mesh(box(0.9, 0.72, 0.5), stoneMat);
     stand.name = 'stand';
     stand.position.y = 0.36;
@@ -186,7 +237,7 @@ export function buildArchive(hall, kit, terrainHeight, exhibits) {
     leaf.userData.noCollide = true;
     holder.add(leaf);
     grp.add(holder);
-    niches.push({ group: holder, leaf, leafMat, x: x + nx * Math.cos(grp.rotation.y), z: z - nx * Math.sin(grp.rotation.y) });
+    niches.push({ group: holder, leaf, leafMat, x: wx, z: wz });
   }
 
   return {
@@ -379,6 +430,9 @@ export default {
   ARCHIVE_SPAN,
   ARCHIVE_NICHE_X,
   ARCHIVE_EXHIBIT_MAX,
+  ARCHIVE_POST_OFFSETS,
+  archiveWorldXZ,
+  archiveFootprint,
   buildArchive,
   createArchiveField,
   disposeArchiveCache,
