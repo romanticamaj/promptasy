@@ -23244,6 +23244,42 @@ console.log('\n▸ 傳聞連線頁 ＋ 回聲重演（v1.2 · P20a）');
       stillWorld.echoes.stop();
     }
 
+    /*
+     * 45 公尺外**整組連畫都不畫**：這一層每一塊都是加色混合的透明片，
+     * 「畫」比「算」貴得多。稽核與預算走的是場景圖（不看 `visible`），
+     * 所以三角形與碰撞體的數字一格都不動。
+     */
+    {
+      const far = [9000, 9000];
+      playWorld.echoes.update(1 / 60, 0, far[0], far[1]);
+      const hidden = playWorld.echoes.echoes.filter((e) => !e.group.visible).length;
+      eq(hidden, echoes20.length, '玩家在天邊時，12 團光整組都不畫');
+      const one = echoes20[3];
+      playWorld.echoes.update(1 / 60, 0, one.at[0], one.at[1]);
+      eq(playWorld.echoes.byId(one.id).group.visible, true, '走近的那一團又畫出來了');
+      /*
+       * 而且**畫不畫就是那條 45 公尺的線**（不是「只畫最近的那一團」）——
+       * 逐處拿它自己的距離去比，順便把「同一次更新裡遠的那幾團仍然不畫」講出來。
+       */
+      let wrong = 0;
+      let alsoNear = 0;
+      for (const e of playWorld.echoes.echoes) {
+        const d = Math.hypot(e.x - one.at[0], e.z - one.at[1]);
+        const want = d <= 45;
+        if (want && e.id !== one.id) alsoNear += 1;
+        if (e.group.visible !== want) wrong += 1;
+      }
+      eq(wrong, 0, '畫不畫就是那條 45 公尺的線（逐處比它自己的距離）');
+      ok(alsoNear >= 0 && playWorld.echoes.echoes.some((e) => !e.group.visible), '反例：同一次更新裡，遠的那幾團仍然不畫');
+      // 正在演的那一處永遠畫（玩家可能一邊看一邊走遠）
+      ok(Boolean(playWorld.playEcho(one.id)), '開一場來驗「演到一半走遠」');
+      playWorld.echoes.update(1 / 60, 0, far[0], far[1]);
+      eq(playWorld.echoes.byId(one.id).group.visible, true, '正在演的那一處走多遠都照畫');
+      playWorld.echoes.stop();
+      // 三角形與碰撞體不因為 visible 而變（稽核走場景圖）
+      eq(World.collectSolids(playWorld.echoes.group, World.terrainHeight).length, 0, '不畫也還是 0 個碰撞體');
+    }
+
     // 收乾淨：reset() 之後不留任何一場在演（存檔清了，世界要跟著清）
     ok(Boolean(playWorld.playEcho(echoes20[0].id)), '再開一場');
     eq(playWorld.echoes.reset(), true, 'reset() 收得掉那一場');

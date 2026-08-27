@@ -433,8 +433,21 @@ export function createEchoField({
         const dz = pz - e.z;
         const d2 = dx * dx + dz * dz;
         if (e !== active) {
-          if (d2 > FAR_SQ) continue;
+          /*
+           * 45 公尺外**整組連畫都不畫**（不只是不更新）。
+           *
+           * 這一層每一塊都是加色混合的透明片 ——「畫」比「算」貴得多，
+           * 而軟體渲染下更是如此。12 團光散在整張地圖上，任何一個時間點
+           * 玩家看得到的最多一兩團；其餘的留在場景圖裡但 `visible = false`，
+           * 三角形與碰撞體的數字一格都不動（稽核走的是場景圖，不看 visible）。
+           */
+          const far = d2 > FAR_SQ;
+          e.group.visible = !far;
+          if (far) continue;
           if (d2 > NEAR_SQ && (i + frame) % 3 !== 0) continue;
+        } else if (!e.group.visible) {
+          // 正在演的那一處永遠畫（玩家可能一邊看一邊走遠）
+          e.group.visible = true;
         }
         const aware = !busy && d2 < AWARE_SQ;
         e.awareAmt += ((aware ? 1 : 0) - e.awareAmt) * k;
