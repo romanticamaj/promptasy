@@ -98,6 +98,8 @@ function targetsFor(murks) {
     murks,
     watchmen: base.watchmen,
     echoes: base.echoes,
+    // v1.2 · P20b：檔案廊（互動半徑 3.2）—— 大濁靈那一側量的是 6.0 ＋ 3.2 ＝ 9.2
+    archives: base.archives,
     tablets: Props.LORE_TABLETS,
     secrets: base.secrets,
   });

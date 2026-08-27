@@ -26,6 +26,7 @@ import watchmanFile from './data/watchmen.json';
 import guardianFile from './data/guardian.json';
 import murkFile from './data/murks.json';
 import echoFile from './data/echoes.json';
+import archiveFile from './data/archive.json';
 import rumorFile from './data/rumors.json';
 import datedFile from './data/dated-notes.json';
 import sourceAnchorFile from './data/source-anchors.json';
@@ -192,6 +193,13 @@ function boot() {
      */
     echoes: echoFile.entries || [],
     onEchoFinish: (entry) => finishEcho(entry),
+    /*
+     * v1.2 · P20b：檔案廊（每片土地一座小展館；走近浮出一則「為什麼」）。
+     * 展品一片一條技法 —— 收集到的那幾片亮起來，所以要餵技法 id 與「收了沒」。
+     */
+    archives: archiveFile.halls || [],
+    archiveSkillIdsOf: (regionId) => content.regionSkills(regionId).map((sk) => sk.id),
+    archiveCollectedOf: (skillId) => progression.isSkillCollected(skillId),
     // v1.2 · P06：色彩腳本（key／rim／particle 建構時套；sky 走 applyMood 的單一入口）
     colorScript: colorScriptFor,
     reducedMotion,
@@ -305,6 +313,12 @@ function boot() {
   for (const id of masteredSeen) world.setRegionMastered(id);
 
   function checkPayoffs() {
+    /*
+     * v1.2 · P20b：收集到的技法 ＝ 檔案廊裡亮起來的那幾片展品。
+     * 這一行放在最前面（不是放在「精通」那個 if 裡）—— 收一條就該亮一片，
+     * 不是收滿一整片土地才亮（「存檔變了、世界要跟著變」那條慣例）。
+     */
+    world.refreshArchives?.();
     for (const regionId of progression.masteredRegions()) {
       if (masteredSeen.has(regionId)) continue;
       masteredSeen.add(regionId);
@@ -562,6 +576,12 @@ function boot() {
       watchmen: watchmanFile.entries || [],
       murks: murkFile.entries || [],
     }),
+    /*
+     * v1.2 · P20b：檔案廊那一章（小知識 · 為什麼會這樣）。
+     * 世界裡走近就浮出來、但那裡**不放連結**（§3.4 世界層零公司名）；
+     * 可點的官方出處在這一章（護欄 2）。
+     */
+    archiveNotes: archiveFile.notes || [],
   });
   ui.appendChild(codex.root);
 
@@ -580,6 +600,8 @@ function boot() {
       world.guardians?.reset?.();
       // v1.2 · P20a：正在演的那一場回聲收掉（重置之後世界不該還有殘影在走）
       world.echoes?.reset?.();
+      // v1.2 · P20b：檔案廊的展品也跟著暗回去（存檔清了，展櫃就該空了）
+      world.archives?.reset?.();
       // v1.2 · P19：推開的捷徑也關回去（存檔清了，那道門就該重新擋著）
       world.resetShortcuts?.();
       /*
@@ -1008,6 +1030,33 @@ function boot() {
    * 低畫質整層不蓋，這一格永遠是 null。
    */
   let nearEcho = null;
+  /** v1.2 · P20b：現在浮出來的是哪一則小知識（`{ archive, side }`；沒有就 null）。 */
+  let nearArchive = null;
+  /**
+   * 每片土地那兩則小知識（照 archive.json 的順序：第 0 則在左邊那座龕、第 1 則在右邊）。
+   * 建一次就好 —— 互動迴圈每幀都會問，不能在裡面 filter。
+   */
+  const ARCHIVE_NOTES = (() => {
+    const byRegion = new Map();
+    for (const n of archiveFile.notes || []) {
+      if (!byRegion.has(n.region)) byRegion.set(n.region, []);
+      byRegion.get(n.region).push(n);
+    }
+    return byRegion;
+  })();
+  /**
+   * 那一則浮出來長什麼樣：標題 ＋ 一段話 ＋ 一行「這是哪一種東西」。
+   *
+   * **世界層零公司名**（§3.4）：官方出處是可點的連結，只放在圖鑑的
+   * 「檔案廊」那一章；這裡一個網址、一個廠牌名都不出現。
+   * @param {{archive:object, side:number}} hit
+   */
+  function archiveAsideHtml(hit) {
+    const list = ARCHIVE_NOTES.get(hit.archive.region);
+    const note = list && list[hit.side];
+    if (!note) return null;
+    return `<b>${esc(note.title)}</b><p>${esc(note.body)}</p><i>檔案廊 · 為什麼會這樣</i>`;
+  }
   /**
    * Phase 29：剛剛選了「先留下修行」的那道門。
    * 走遠一點（離開互動半徑）再回來才會重新問一次 —— 站在門口不會被連問。
@@ -1570,6 +1619,14 @@ function boot() {
       nearWinch = null;
       nearEcho = null;
       nearGate = null;
+      /*
+       * v1.2 · P20b：面板開著／序章進行中 —— 那一則也要收掉。
+       * `nearestArchive()` 是唯一會清掉「走近」旗標的地方，這裡不清的話
+       * 那張紙片會一直掛在畫面上（P20a 審查 · 第 4 條記過同一件事）。
+       */
+      nearArchive = null;
+      world.clearArchiveNear?.();
+      hud.setAside(null);
       return;
     }
     const hitMarker = world.nearestMarker(player.position);
@@ -1636,6 +1693,18 @@ function boot() {
     nearWinch = hitWinch ? hitWinch.winch : null;
     nearEcho = hitEcho ? hitEcho.echo : null;
     nearGate = hitGate ? hitGate.gate : null;
+
+    /*
+     * v1.2 · P20b：檔案廊那一則小知識。
+     *
+     * 它**不進 `E` 的仲裁**（連按鍵都沒有），但它一樣要遵守
+     * 「一次只有一件事擁有畫面」（§3.3）：只要有任何一層拿得到 `E`
+     * （或門正要問話），那一則就讓開、順手把世界端的亮度也熄掉。
+     */
+    const archiveYields = Boolean(blocked || hitHandle || hitWinch || hitEcho || hitGate);
+    if (archiveYields) world.clearArchiveNear?.();
+    nearArchive = archiveYields ? null : world.nearestArchive?.(player.position) || null;
+    hud.setAside(nearArchive ? archiveAsideHtml(nearArchive) : null);
 
     /*
      * Phase 29：走到門前，門自己會問。
@@ -1957,6 +2026,8 @@ function boot() {
     handleKinds: HANDLE_KINDS,
     /** v1.2 · P20a：回聲重演與傳聞的資料（測試 / 除錯用）。 */
     echoData: echoFile,
+    // v1.2 · P20b：檔案廊（12 座 halls ＋ 24 則 notes）——e2e 要拿它去對「浮出來的是哪一則」
+    archiveData: archiveFile,
     rumorData: rumorFile,
     /** v1.2 · P01：濁靈資料與「組成 challenge 形物件」的把手（測試 / 除錯用）。 */
     murks: murkFile,

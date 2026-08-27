@@ -31,6 +31,7 @@
     "screen-fit": "node scripts/screen-fit.mjs",
     "murk-fit": "node scripts/murk-fit.mjs",
     "guardian-fit": "node scripts/guardian-fit.mjs",
+    "archive-fit": "node scripts/archive-fit.mjs",
     "colors:table": "node scripts/color-script-table.mjs"
   },
   "dependencies": {

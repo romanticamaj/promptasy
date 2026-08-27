@@ -80,6 +80,13 @@ export function createCodex({
    */
   rumors = [],
   rumorIndex = null,
+  /**
+   * v1.2 · P20b：檔案廊的小知識（`archive.json` 的 notes）——**第四層教學**：
+   * 術語小卡講「是什麼」、130 條技法講「怎麼做」、守夜人**引用**既有的那一句，
+   * 這一層講「**為什麼**」。世界層走近就浮出來（不彈窗），這裡是可以回頭讀、
+   * 而且**點得到官方出處**的那一份（護欄 2）。
+   */
+  archiveNotes = [],
 }) {
   const overlay = createOverlay({
     id: 'codex',
@@ -164,11 +171,14 @@ export function createCodex({
         }</i></li>`
       );
     }
+    /*
+     * v1.2 · P20b：這裡只留**計數**。濁言的那本書搬到「濁言」那一分、
+     * 殘頁那一本搬到「世界觀」那一分（見 `render()` 的三分法）——
+     * 一張計數表底下掛兩本書，讀的人分不出哪一本屬於哪一列。
+     */
     return `<div class="finds">
       <div class="meta-rule"><h4><span class="zh">走出來的收集</span></h4></div>
       <ul class="finds__list">${rows.join('')}</ul>
-      ${murkBook()}
-      ${letterBook()}
       ${blessed ? '<p class="badges__hidden">✦ 回聲的祝福 —— 你找到了那座小祠。</p>' : ''}
     </div>`;
   }
@@ -459,6 +469,63 @@ export function createCodex({
     });
   }
 
+  /* ---------------------------------------------------------------- *
+   * v1.2 · P20b：檔案廊（小知識 · 為什麼會這樣）
+   *
+   * 護欄 2：這一章與技巧那一疊同一個規格 —— **每一則都附得出可點的官方出處**
+   * （`archive.json` 的 `source`，網址只准來自 repo 裡已經驗證過的那一份集合）。
+   * 它與另外三層分工清楚：不是術語小卡（那是「是什麼」）、不是技法（「怎麼做」）、
+   * 也不是守夜人引用過的那一句 —— 這一章只回答「**為什麼會這樣**」。
+   *
+   * 版型借技巧那一疊的 `.tech`（方向鍵才走得進去），但**內文用自己的 class**：
+   * `.tech__tip` / `.tech__ex` / `.tech__note` / `.tech__srcs` 是「整本圖鑑不准有
+   * 整句英文」那條掃描與出處深連結那條斷言在看的選擇器，混進來會讓它們量到
+   * 不屬於它們的東西（findings「守門的斷言要看得到它在守的東西」的反面）。
+   * ---------------------------------------------------------------- */
+  function archiveChapter() {
+    if (!Array.isArray(archiveNotes) || !archiveNotes.length) return '';
+    const names = new Map(content.groupsOrdered().map((gp) => [gp.id, gp.name]));
+    const items = archiveNotes
+      .map(
+        (n) => `<li class="tech">
+        <details>
+          <summary>
+            <span class="tech__id">${esc(names.get(n.region) || n.region)}</span>
+            <b class="tech__title">${esc(n.title)}</b>
+          </summary>
+          <div class="archive__body">
+            <p class="archive__why">${esc(n.body)}</p>
+            <p class="archive__srcs"><a class="src" href="${esc(n.source.url)}" target="_blank" rel="noopener">${esc(
+              n.source.name
+            )} · ${SOURCE_LABEL} ↗</a></p>
+          </div>
+        </details>
+      </li>`
+      )
+      .join('');
+    return `<div class="archive">
+      <p class="muted" style="margin:0 0 var(--s4);font-size:var(--t-micro)">十二片土地各一座檔案廊，走近就浮出來一則（${
+        archiveNotes.length
+      } 則）。它們不教做法，只講背後的機制 —— 每一則都附得出官方出處。</p>
+      <ul class="techs">${items}</ul>
+    </div>`;
+  }
+
+  /**
+   * v1.2 · P20b：三分法的分隔條。
+   * 圖鑑長到有六、七個章節之後，讀的人分不出「哪幾章是同一種東西」——
+   * 三條分隔把它們收成三疊：世界觀（純風味）／濁言（你替牠說清楚的話）／
+   * 小知識（為什麼會這樣）。技法那一大疊仍然自己一區，排在最後。
+   */
+  function division(zh, en, sub) {
+    return `<div class="division">
+      <div class="meta-rule meta-rule--division"><h4><span class="zh">${esc(zh)}</span><span class="en">${esc(
+        en
+      )}</span></h4></div>
+      <p class="division__sub muted">${esc(sub)}</p>
+    </div>`;
+  }
+
   function techniqueCard(tech) {
     const got = progression.isCollected(tech.id);
     const vendors = (tech.vendors || [])
@@ -648,7 +715,20 @@ export function createCodex({
       })
       .join('');
 
-    overlay.body.innerHTML = `${rankBar()}${badgeStrip()}${sealStrip()}${secretChapter()}${rumorChapter()}<div class="codex">${groups}</div>`;
+    /*
+     * v1.2 · P20b：三分法 —— Lore（世界觀）／Creatures（濁言）／Research（小知識）。
+     * 技法那一大疊（`div.codex`）仍然排在最後，選擇器一個字沒動
+     * （e2e 數技巧條數靠的就是 `#codex .codex .tech`）。
+     */
+    overlay.body.innerHTML =
+      `${rankBar()}${badgeStrip()}${sealStrip()}` +
+      `${division('世界觀', 'Lore', '這個世界自己的事：藏起來的地方、對得上的傳聞、撿到的殘頁。')}` +
+      `${secretChapter()}${rumorChapter()}${letterBook()}` +
+      `${division('濁言', 'Creatures', '留在原地的那些話，以及你替牠說清楚的那一句。')}` +
+      `${murkBook()}` +
+      `${division('小知識', 'Research', '為什麼會這樣 —— 機制那一層，每一則都點得到官方出處。')}` +
+      `${archiveChapter()}` +
+      `<div class="codex">${groups}</div>`;
     // 每次重繪都會換掉 ⓘ 節點，但事件是委派在 body 上，綁一次就夠
     bindInfoTips(overlay.body);
     /*

@@ -31,6 +31,7 @@ import { createReactiveField, REACTIVE_SPOTS } from './reactive.js';
 import { createHandleField, HANDLE_RADIUS, CAPSTAN_TURNS } from './handles.js';
 import { createMurkField, isGreatMurk } from './murks.js';
 import { createEchoField, ECHO_RADIUS } from './echoes.js';
+import { createArchiveField, ARCHIVE_RADIUS } from './archives.js';
 import { createWatchmanField, WATCHMAN_RADIUS } from './watchmen.js';
 import { createGuardianField, GUARDIAN_RADIUS } from './guardian.js';
 import { createRubricFx } from './rubric-fx.js';
@@ -4260,6 +4261,15 @@ export function createWorld({
    * 一團光加幾個殘影，關掉不影響任何一條可玩的路。
    */
   echoes = [],
+  /**
+   * v1.2 · P20b：檔案廊（archive.json 的 halls）。沒給就不蓋，世界照樣成立。
+   * 它是「走近浮出」的一層：不搶 `E`、零碰撞體、零光源。
+   */
+  archives = [],
+  /** 這片土地有哪幾條技法（照順序）—— 展品一片一條。 */
+  archiveSkillIdsOf = null,
+  /** 某一條技法收集到了沒（決定那一片展品亮不亮）。 */
+  archiveCollectedOf = null,
   /** v1.2 · P20a：一場重演演完那一拍（主程式用來說最後一句）。 */
   onEchoFinish = null,
   /**
@@ -4358,6 +4368,11 @@ export function createWorld({
     ...watchmen.map((w) => [w.at[0], w.at[1], 5.5]),
     // v1.2 · P18：守門者 —— 同上；他胸前那塊板是要讀的，不能被草叢遮掉
     ...guardians.map((g) => [g.at[0], g.at[1], 5.5]),
+    /*
+     * v1.2 · P20b：檔案廊 —— 一座蓋在地上的展館，腳下被碎石與草叢埋掉就不像一座建物；
+     * 頂棚半徑 1.9 ＋ 走進去的一圈 3.2 ＝ 5.2（同守夜人那一格的量級）。
+     */
+    ...archives.map((h) => [h.at[0], h.at[1], 5.2]),
     /*
      * v1.2 · P11：中觀的遮擋帶與母題 —— 它們自己就是石頭，腳下不要再撒碎石與草叢
      * （石脊沿著長邊每 2 公尺登記一個點，圓圈才貼得住一條長條形的東西）。
@@ -4586,6 +4601,23 @@ export function createWorld({
     onFinish: typeof onEchoFinish === 'function' ? onEchoFinish : null,
   });
   root.add(echoField.group);
+
+  /* --- v1.2 · P20b：檔案廊（走近浮出一則小知識的小展館；不搶 `E`、不彈窗） ---
+   *
+   * 與回聲相反，這一層**低畫質照蓋**：它是教學內容（第四層「為什麼」），
+   * 不是純氛圍層 —— 護欄 1「學習優先」不准把它關掉。它本來就便宜：
+   * 12 座共 1.8k 三角、0 光源、0 碰撞體。
+   */
+  const archiveField = createArchiveField({
+    halls: archives,
+    kitOf: (regionId) => kits.get(regionId) || kits.get('foundations'),
+    terrainHeight,
+    skillIdsOf: typeof archiveSkillIdsOf === 'function' ? archiveSkillIdsOf : null,
+    collectedOf: typeof archiveCollectedOf === 'function' ? archiveCollectedOf : null,
+    isBusy,
+    reducedMotion,
+  });
+  root.add(archiveField.group);
 
   const motes = buildMotes(quality, colorOf, vignetteAnchors, (id) => scriptColor(id, 'particle'));
   root.add(motes);
@@ -5096,6 +5128,8 @@ export function createWorld({
     guardians: guardianField,
     /** v1.2 · P20a：回聲重演場（低畫質是一個空的場）。 */
     echoes: echoField,
+    /** v1.2 · P20b：檔案廊那一層（測試與稽核用）。 */
+    archives: archiveField,
     /** v1.2 · P09：石座演出（rubric 命中 → 石座旁的因果）。 */
     rubricFx,
     /** v1.2 · P06：這一區道具用的四階色（`kitFor()`；色彩腳本的 rim 已覆寫 light）—— 唯讀（測試與稽核用）。 */
@@ -5504,6 +5538,7 @@ export function createWorld({
       watchmanField.update(dt, t, x, z);
       guardianField.update(dt, t, x, z);
       echoField.update(dt, t, x, z);
+      archiveField.update(dt, t, x, z);
       // v1.2 · P09：石座演出（面板開著也照播 —— 玩家正看著結果面，世界在背景）
       rubricFx.update(dt, t);
     },
@@ -5575,6 +5610,27 @@ export function createWorld({
     /** 把「走近」的亮度熄掉（互動迴圈讓給高階層而早退時呼叫）。 */
     clearEchoNear() {
       echoField.clearNear();
+    },
+
+    /**
+     * 走近的檔案廊（v1.2 · P20b）。半徑 3.2 —— 它**不搶 `E`**，
+     * 所以這一支不進 `E` 的仲裁；它只回答「現在該浮出哪一則」。
+     * 讓給高階層時要呼叫 `clearArchiveNear()`（不然那一則會一直掛在畫面上）。
+     * @param {THREE.Vector3} position
+     * @param {number} [maxDistance]
+     */
+    nearestArchive(position, maxDistance = ARCHIVE_RADIUS) {
+      return archiveField.nearest(position, maxDistance);
+    },
+
+    /** 把檔案廊「走近」的狀態熄掉（互動迴圈讓給高階層而早退時呼叫）。 */
+    clearArchiveNear() {
+      archiveField.clearNear();
+    },
+
+    /** 收集到的技法變了 → 展品重新對一次（過關、重置進度都走這一支）。 */
+    refreshArchives() {
+      return archiveField.refresh();
     },
 
     /** 開演一場回聲重演（已經在演／低畫質 → 回 null）。 */

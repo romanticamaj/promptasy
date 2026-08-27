@@ -82,6 +82,13 @@ export async function worldOptions() {
     echoes: readJson('src/data/echoes.json').entries,
     // v1.2 · P18：守門者（一位就是一筆 —— 那份資料本身就是他）
     guardians: [readJson('src/data/guardian.json')],
+    /*
+     * v1.2 · P20b：檔案廊。它也進 `keepClear`，所以少了這一層就是在驗一個
+     * 永遠不會出貨的佈局（findings「P06c 的發現」）。展品一片一條技法 ——
+     * 這裡把技法 id 也餵進去，`test:rubric` 量到的三角形才是真的出貨的那個數字。
+     */
+    archives: readJson('src/data/archive.json').halls,
+    archiveSkillIdsOf: (regionId) => catalog.regionSkills(regionId).map((s) => s.id),
   };
 }
 

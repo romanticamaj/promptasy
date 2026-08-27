@@ -1,7 +1,7 @@
 {
   "note": "測試用的「這是契約，不是快照」清單。凡是能從 runtime catalog 或資料檔算出來的數字（技巧數、區域數、技能數、flow 數…），測試一律現算，不寫在這裡；只有『這個數字本身就是當期的驗收目標』才登記在這裡，改動它＝有意識地改變契約。每一格都寫得出為什麼。",
   "updatedAt": "2026-08-27",
-  "updatedBy": "v1.2 · P20a：傳聞連線頁 ＋ 回聲重演（小景內）",
+  "updatedBy": "v1.2 · P20b：檔案廊（每片土地一座小展館，走近浮出一則「為什麼」）",
   "contract": {
     "solutionStats": {
       "value": 142,
@@ -419,6 +419,54 @@
         "murk"
       ],
       "why": "v1.2 · P20a：傳聞（src/data/rumors.json）—— 把「講的是同一件事」的兩端接起來。24 條、每片土地兩條；兩端一律是六個既有資料層的既有 id（`kind:id`），test:rubric 逐條回查得到本人。其中 3 條**跨土地**（減法之庭↔量器坊的「夠了」、觀象臺↔沉書檔案庫的二十八個亮點、示範與推理↔分歧之廳的「牠自己會想」）—— 那是這一頁存在的理由：同一件事被兩個相隔很遠的地方各說了一半。\\n\\n**沒有存檔欄**：一條線畫不畫得出來完全由「兩端各自找到了沒」推導（hasReadLore／hasFoundInscription／hasFoundLetter／hasFoundSecret／hasMetWatchman／murkState().grade）。未找到的那一端**連名字都不給**，只給一句佔位；那條線在說什麼也要兩端都找到才顯示 —— test:rubric 對**渲染出來的字串**逐條掃，並且用「把佔位換成真名」當反例證明那一條掃描真的看得見名字。\\n\\n護欄 2：這一頁一個字的教學都沒有、一個連結都不准有（同 secrets.json）。"
+    },
+    "archive": {
+      "halls": 12,
+      "notes": 24,
+      "notesPerRegion": 2,
+      "bodyMax": 60,
+      "titleMax": 18,
+      "verifiedUrls": 365,
+      "overlapMax": 8,
+      "tris": 1844,
+      "trisCeiling": 2400,
+      "markerFloor": {
+        "wards": 7.8,
+        "divergence": 7.7
+      },
+      "markerCeiling": {
+        "wards": 8.2,
+        "divergence": 8.08
+      },
+      "markerNearest": {
+        "foundations": 13.34,
+        "reasoning": 10.97,
+        "grounding": 10.56,
+        "orchestration": 14.42,
+        "config": 12.85,
+        "forms": 13.41,
+        "toolcraft": 14.2,
+        "frugality": 14.39,
+        "refinery": 9.85,
+        "wards": 7.91,
+        "sight": 9.96,
+        "divergence": 7.83
+      },
+      "standWorst": {
+        "foundations": 23,
+        "reasoning": 24,
+        "grounding": 24,
+        "orchestration": 24,
+        "config": 24,
+        "forms": 24,
+        "toolcraft": 24,
+        "frugality": 24,
+        "refinery": 24,
+        "wards": 24,
+        "sight": 22,
+        "divergence": 24
+      },
+      "why": "v1.2 · P20b：檔案廊（src/data/archive.json）—— 每片土地一座小展館，走近浮出一則「為什麼」。它補的是教學的第四層：術語小卡講「是什麼」、130 條技能講「怎麼做」、守夜人**引用**既有的那一句，這一層講背後的機制。**不彈窗、不搶 `E`、零光源、零碰撞體、零可站立體**。\n\nverifiedUrls 365 ＝ 出處唯一准用的那份集合的大小：curriculum.json／skill-codex-v2.json／source-anchors.json／glossary.json 四份檔案裡出現過的每一個網址（test:rubric **現算**，不抄第二份）。24 則的 source.url 逐則回查那個集合、source.name 與那個網址在既有資料裡登記的文件名逐字相同 —— 這是護欄 2 在這一格的紅線。\n\nbodyMax 60／titleMax 18：規格訂的長度（實測最長 53／17）。overlapMax 8：與既有三層（術語小卡／130 條技能／守夜人說過的話）的 4 字滑動窗重疊上限 —— 實測最像的一對是 arc-tool-desc-is-prompt ↔ 技能 mm-troubleshoot 的 5 組，門檻留 3 組餘裕；反例是「把既有那一句原封不動抄過來」，同一支掃描要抓得到。\n\ntris 1844 ＝ 12 座 × 132（地面那一圈 32 ＋ 四根細桿 48 ＋ 兩道橫樑 24 ＋ 兩座龕 24 ＋ 龕上兩片字 4）＋ 130 片展品 × 2。展品一片一條技法，收集到的那幾片才亮。\n\nmarkerFloor／markerCeiling：一般規則是「互動圈不重疊」（6.5 ＋ 3.2 ＝ 9.7）。護欄崗與分歧之廳擺不下（照 9.7 掃過整片平地圈各剩 0 個格點），所以那兩片改守「不准站進石座的地盤」——`node scripts/archive-fit.mjs --region <id> --ceiling` 把石座那一條拿掉、其餘每一條照舊，逐點掃出來離最近石座**最遠只到** 8.20／8.08（markerCeiling），門檻各往下留餘裕（markerFloor 7.8／7.7 —— 出貨落點 7.91／7.83，各留 0.11／0.13 公尺；findings：餘裕只剩 0.01 的門檻等於沒有門檻）。檔案廊連 `E` 都不搶，所以玩家端零倒退。\n\nstandWorst／markerNearest：出貨的 12 座逐片量到的數字（站在「走近浮出」那一圈上 24 個方向裡有幾個站得住／離最近那座石座多遠），test:rubric 逐值比對。門檻 ARCHIVE_STAND_MIN 16，最差的一片是觀象臺 22。"
     },
     "saveKeys": {
       "value": [

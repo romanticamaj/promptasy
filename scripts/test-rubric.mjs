@@ -33,6 +33,20 @@ const challenges = challengeData.challenges;
 const skillCodexV2 = readJson('src/data/skill-codex-v2.json');
 const regionsV2 = readJson('src/data/regions-v2.json');
 const EXPECT = readJson('scripts/expected-counts.json').contract;
+
+/**
+ * 整個世界的三角形上限（v1.2 · P20b 的框）。
+ *
+ * 這個門檻以前散在**八個地方**（P06c 240k、P11／P16a／P20a 239k、P12／P15 234k、
+ * P18 236k、P19 238k）—— 八份數字量的是同一件事，卻各自為政：
+ * 加一層新內容要記得改八個地方，改漏一個就會在別人的段落裡紅，
+ * 而且從訊息看不出「那到底是誰的框」（findings：同一件事的門檻要只有一份）。
+ * 現在只有這一個常數，每一段照自己的量法量、對同一條線比。
+ *
+ * 241,000 是 P20b 的框（硬上限仍是 WORLD.md §6.1 的 420,000）：
+ * 加上檔案廊那 1,844 之後高畫質實測 235,436（另一種量法 236,820）。
+ */
+const WORLD_TRI_CEIL = 241000;
 const { createCatalog } = await import('../src/challenges/catalog.js');
 const catalog = createCatalog({ curriculum, skillCodex: skillCodexV2, regions: regionsV2 });
 
@@ -6321,7 +6335,7 @@ ok(Handles.CAPSTAN_TURNS >= 2 && Handles.CAPSTAN_TURNS <= 4, '絞盤要推 2–4
         tris += (idx ? idx.count / 3 : o.geometry.attributes.position.count / 3) * (o.isInstancedMesh ? o.count : 1);
       }
     });
-    ok(tris < 240000, 'P06c：世界三角形 < 240k', `tris=${Math.round(tris)}`);
+    ok(tris < WORLD_TRI_CEIL, `P06c：世界三角形 < ${WORLD_TRI_CEIL}（P20b 的框）`, `tris=${Math.round(tris)}`);
     eq(worldLights, 37, 'P06c：光源數不變（這兩層一盞燈都不加）', `lights=${worldLights}`);
     let reactiveLights = 0;
     testWorld.reactive.group.traverse((o) => {
@@ -15642,6 +15656,7 @@ console.log('\n▸ 四宿星圖 ＋ 反應式回聲 ＋ 傳說鉤（v1.2 · P08�
       ['src/data/challenges.json', '關卡的出處與「哪一家這樣寫」的教學欄位'],
       ['src/data/dated-notes.json', '時代註記：某一家的某個版本改了什麼'],
       ['src/data/glossary.json', '術語小卡：名詞出自哪一家的文件'],
+      ['src/data/archive.json', '檔案廊小知識的出處表（文件名）—— 標題與內文另外有一條零公司名的掃描'],
       ['src/data/sim-samples.json', '轉鈕的離線樣本：模擬的是哪一家的哪一台'],
       ['src/challenges/checks.js', '逐條回饋引用官方文件（出處性使用）'],
       ['src/prompt/console.js', '「神諭原典 —— 也就是四家的官方文件」那一行'],
@@ -16180,7 +16195,7 @@ console.log('\n▸ 中觀：遮擋帶與母題（v1.2 · P11）');
         tris += n * (o.isInstancedMesh ? o.count : 1);
       }
     });
-    ok(tris < 239000, 'P11：世界三角形 < 239k（P20a 的框）', `tris=${Math.round(tris)}`);
+    ok(tris < WORLD_TRI_CEIL, `P11：世界三角形 < ${WORLD_TRI_CEIL}（P20b 的框）`, `tris=${Math.round(tris)}`);
     eq(lights, 37, 'P11：光源數不變（中觀層一盞燈都不加）', `lights=${lights}`);
     // v1.2 · P16a：+6 座高台 ＋ 4 座母題 ＋ 2 道遮擋帶 → 974 → 992（這一格的預算 <1,100；§6.1 的硬上限仍是 1,400）
     ok(testWorld.solids.length < 1060, 'P11：碰撞體 < 1,060', `n=${testWorld.solids.length}`);
@@ -17565,7 +17580,7 @@ console.log('\n▸ 地面材質語言 ＋ 每區粒子（v1.2 · P12）');
         tris12 += n * (o.isInstancedMesh ? o.count : 1);
       }
     });
-    ok(tris12 < 234000, 'P12：世界三角形 < 234k（P17 的框）', `tris=${Math.round(tris12)}`);
+    ok(tris12 < WORLD_TRI_CEIL, `P12：世界三角形 < ${WORLD_TRI_CEIL}（P20b 的框）`, `tris=${Math.round(tris12)}`);
     eq(lights12, 37, 'P12：光源數不變（地面／粒子／中觀一盞燈都不加）', `lights=${lights12}`);
     ok(testWorld.solids.length < 1100, 'P12：碰撞體 < 1,100（v1.2 · P17 的框）', `n=${testWorld.solids.length}`);
     /*
@@ -18944,7 +18959,7 @@ console.log('\n▸ 高台語法 ＋ 高處的祕密 ＋ 橋缺口（v1.2 · P15�
         tris += n * (o.isInstancedMesh ? o.count : 1);
       }
     });
-    ok(tris < 234000, 'P15：世界三角形 < 234k（P17 的框）', `tris=${Math.round(tris)}`);
+    ok(tris < WORLD_TRI_CEIL, `P15：世界三角形 < ${WORLD_TRI_CEIL}（P20b 的框）`, `tris=${Math.round(tris)}`);
     eq(lights, 37, 'P15：光源數仍然是 37（高台、祕密、缺口一盞都沒加）', String(lights));
     ok(testWorld.solids.length < 1060, 'P15：碰撞體 < 1,060', String(testWorld.solids.length));
   }
@@ -19860,7 +19875,7 @@ console.log('\n▸ 跳躍鋪區 ＋ 中景補四區（v1.2 · P16a）');
       }
     });
     // 這一格量到 224,946／37／992；門檻是這一格自己宣告的預算（比實測嚴一格）
-    ok(tris16 < 239000, 'P16a：世界三角形 < 239k（P20a 的框）', `tris=${Math.round(tris16)}`);
+    ok(tris16 < WORLD_TRI_CEIL, `P16a：世界三角形 < ${WORLD_TRI_CEIL}（P20b 的框）`, `tris=${Math.round(tris16)}`);
     eq(lights16, 37, 'P16a：光源數仍然是 37（中觀層一盞都不加）', `lights=${lights16}`);
     ok(testWorld.solids.length < 1100, 'P16a：碰撞體 < 1,100', String(testWorld.solids.length));
     // 每一片土地的中觀碰撞體上限（§4.10 ②）—— 新鋪的兩片也要在框內
@@ -20477,7 +20492,7 @@ console.log('\n▸ 守夜人：12 位站著不動的人（v1.2 · P16c）');
       const idx = geo.index ? geo.index.count : geo.attributes.position ? geo.attributes.position.count : 0;
       worldTris += (idx / 3) * (o.isInstancedMesh ? o.count : 1);
     });
-    ok(worldTris < 239000, '三角形在這一格的框內（P20a 的框）', `n=${Math.round(worldTris)}`);
+    ok(worldTris < WORLD_TRI_CEIL, `三角形在這一格的框內（P20b 的框 ${WORLD_TRI_CEIL}）`, `n=${Math.round(worldTris)}`);
     let worldLights = 0;
     testScene.traverse((o) => {
       if (o.isLight) worldLights += 1;
@@ -21617,7 +21632,7 @@ console.log('\n▸ 守門者：帶著交辦站在門邊的人（v1.2 · P18）')
         const idx = geo.index ? geo.index.count : geo.attributes.position ? geo.attributes.position.count : 0;
         worldTris18 += (idx / 3) * (o.isInstancedMesh ? o.count : 1);
       });
-      ok(worldTris18 < 236000, '整個世界的三角數仍在框內', `tris=${worldTris18.toFixed(0)}`);
+      ok(worldTris18 < WORLD_TRI_CEIL, `整個世界的三角數仍在框內（P20b 的框 ${WORLD_TRI_CEIL}）`, `tris=${worldTris18.toFixed(0)}`);
       eq(worldLights18, 37, '光源仍然是 37 盞（這一層 0 盞）');
       console.log(`    ↳ 預算：三角 ${worldTris18.toFixed(0)}、碰撞體 ${testWorld.solids.length}、光源 ${worldLights18}`);
     }
@@ -22236,7 +22251,7 @@ console.log('\n▸ 相鄰區捷徑 ＋ 外交式導向（v1.2 · P19）');
         }
       });
       eq(lights19, 37, 'P19：光源數仍然是 37（捷徑與導向一盞都沒加）');
-      ok(tris19 < 238000, 'P19：世界三角形 < 238k', `tris=${Math.round(tris19)}`);
+      ok(tris19 < WORLD_TRI_CEIL, `P19：世界三角形 < ${WORLD_TRI_CEIL}（P20b 的框）`, `tris=${Math.round(tris19)}`);
       ok(w19.solids.length < 1100, 'P19：碰撞體 < 1,100', String(w19.solids.length));
       // 捷徑自己：門的兩根柱是細桿（不登記圓），只有兩座絞盤擋人
       const onLane = w19.solids.filter(
@@ -23379,6 +23394,644 @@ console.log('\n▸ 傳聞連線頁 ＋ 回聲重演（v1.2 · P20a）');
     ok(/divergence|分歧之廳/.test(s417), '§4.17 講得出唯一掛在地標腳下的那一片');
     ok(/echoes\.json/.test(s417) && /rumors\.json/.test(worldMd20), 'WORLD.md 指得出這兩份資料住在哪');
     ok(/不加存檔欄/.test(worldMd20.slice(worldMd20.indexOf('### 5.4'), worldMd20.indexOf('## 六'))), 'WORLD.md §5.4 講明這一格沒有新增欄位');
+  }
+}
+
+/* ------------------------------------------------------------------ *
+ * v1.2 · P20b — 檔案廊（每片土地一座小展館，走近浮出一則「為什麼」）
+ *
+ * 這一格的紅線是**護欄 2**，所以斷言分成六件事：
+ *   ① 出處：`source.url` **逐則回查**那份「repo 裡已經驗證過的網址」集合
+ *      （現算，不抄第二份）；`source.name` 與那個網址在既有資料裡登記的文件名逐字相同。
+ *      反例：塞一個集合外的網址、或改一個字的文件名，都要紅。
+ *   ② 內容：≤60 字、`authored: "game"`、中文、零公司名，
+ *      而且**與既有三層不重複**（術語小卡／130 條技能／守夜人引用過的那一句）逐則比對。
+ *   ③ 擺位：對**真的蓋出來的世界**量（與 `scripts/archive-fit.mjs` 同一份門檻）。
+ *   ④ 世界實體：零光源、零碰撞體、零可站立體、穿模稽核零、展品＝技法。
+ *   ⑤ 互動：不搶 `E`、讓給高階層時自己熄掉、零每幀配置、45 公尺外連畫都不畫。
+ *   ⑥ 圖鑑：三分法成形、那一章每一則都點得到官方出處、不借用別人的選擇器。
+ * ------------------------------------------------------------------ */
+console.log('\n▸ 檔案廊：小知識那一層（v1.2 · P20b）');
+{
+  const archiveFile21 = readJson('src/data/archive.json');
+  const halls21 = archiveFile21.halls;
+  const notes21 = archiveFile21.notes;
+  const Archive21 = await import('../src/world/archives.js');
+  const Rules21 = (await import('./lib/screen-rules.mjs')).default;
+  const Audit21 = await import('./collision-audit.mjs');
+  const Reactive21 = await import('../src/world/reactive.js');
+  const archiveSrc21 = readFileSync(resolve(root, 'src/world/archives.js'), 'utf8');
+  const rulesSrc21 = readFileSync(resolve(root, 'scripts/lib/screen-rules.mjs'), 'utf8');
+  const mainSrc21 = readFileSync(resolve(root, 'src/main.js'), 'utf8');
+  const hudSrc21 = readFileSync(resolve(root, 'src/ui/hud.js'), 'utf8');
+  const codexSrc21 = readFileSync(resolve(root, 'src/ui/codex.js'), 'utf8');
+  const worldMd21 = readFileSync(resolve(root, 'WORLD.md'), 'utf8');
+  const inscriptions21 = readJson('src/data/inscriptions.json').entries;
+  const secrets21 = readJson('src/data/secrets.json').entries;
+  const watchmen21 = readJson('src/data/watchmen.json').entries;
+  const murks21 = readJson('src/data/murks.json').entries;
+  const echoes21 = readJson('src/data/echoes.json').entries;
+  const EX21 = EXPECT.archive;
+  /** 世界層零公司名（§3.4）—— 與 P08 那一節用的是同一條式子，只是那一份是區域變數。 */
+  const VENDOR_NAME_21 = /\b(OpenAI|Anthropic|Google|xAI|GPT|Claude|Gemini|Grok)\b/i;
+
+  /* --- ① 出處：那份「已經驗證過的網址」集合，現算 -------------------- */
+  /**
+   * 集合怎麼來的：`curriculum.json`／`skill-codex-v2.json`／`source-anchors.json`／
+   * `glossary.json` 四份檔案裡出現過的每一個 http(s) 網址。
+   * **現算，不抄第二份**（findings：同一份量測不要抄第二份）。
+   */
+  const VERIFIED_SOURCE_FILES = Object.freeze([
+    'src/data/curriculum.json',
+    'src/data/skill-codex-v2.json',
+    'src/data/source-anchors.json',
+    'src/data/glossary.json',
+  ]);
+  const verifiedUrls21 = new Set();
+  for (const rel of VERIFIED_SOURCE_FILES) {
+    for (const u of srcOf(rel).match(/https?:\/\/[^"\s\\)]+/g) || []) verifiedUrls21.add(u);
+  }
+  eq(verifiedUrls21.size, EX21.verifiedUrls, '已經驗證過的網址集合大小與契約逐值相同');
+  ok(verifiedUrls21.size > 300, '（前提）那個集合真的有東西可比', String(verifiedUrls21.size));
+
+  /** 一個網址在既有資料裡登記過哪些文件名（`source.name` 要逐字對得上其中一個）。 */
+  const nameIndex21 = new Map();
+  const addName21 = (u, n) => {
+    if (!u || !n) return;
+    if (!nameIndex21.has(u)) nameIndex21.set(u, new Set());
+    nameIndex21.get(u).add(n);
+  };
+  for (const sk of readJson('src/data/skill-codex-v2.json').skills) {
+    for (const src of sk.sources || []) addName21(src.url, src.docName);
+  }
+  for (const rel of ['src/data/curriculum.json', 'src/data/source-anchors.json']) {
+    JSON.stringify(readJson(rel), (k, v) => {
+      if (v && typeof v === 'object' && v.url) addName21(v.url, v.name || v.docName);
+      return v;
+    });
+  }
+  ok(nameIndex21.size > 200, '（前提）文件名索引真的建得起來', String(nameIndex21.size));
+
+  /**
+   * 一則小知識的出處合不合格。**這一支就是那條紅線本身**：
+   * 測試逐則呼叫它，反例也呼叫它（findings：反例要呼叫被測的那一支，
+   * 不要另外寫一段長得像的程式）。
+   * @param {{name:string,url:string}} src
+   * @returns {string[]} 問題清單（空陣列＝過）
+   */
+  const sourceProblems21 = (src) => {
+    const bad = [];
+    if (!src || typeof src.url !== 'string' || typeof src.name !== 'string') return ['沒有 source'];
+    if (!verifiedUrls21.has(src.url)) bad.push(`網址不在已驗證的集合裡：${src.url}`);
+    const names = nameIndex21.get(src.url);
+    if (!names) bad.push(`那個網址沒有登記過文件名：${src.url}`);
+    else if (!names.has(src.name)) bad.push(`文件名與既有登記不同：「${src.name}」`);
+    return bad;
+  };
+  // 反例：三種壞法各要被同一支抓到（先紅）
+  {
+    const outside = sourceProblems21({ name: notes21[0].source.name, url: 'https://example.com/made-up' });
+    ok(outside.some((b) => b.includes('不在已驗證的集合裡')), '反例：塞一個集合外的網址會被擋下來', outside.join(' | '));
+    const renamed = sourceProblems21({ name: `${notes21[0].source.name} `, url: notes21[0].source.url });
+    ok(renamed.some((b) => b.includes('文件名與既有登記不同')), '反例：文件名多一個空白也會被擋下來', renamed.join(' | '));
+    ok(sourceProblems21(null).length > 0, '反例：沒有 source 會被擋下來');
+  }
+  eq(sourceProblems21(notes21[0].source).length, 0, '（對照）出貨的第一則過得了同一支');
+
+  /* --- ② 內容：字數、語言、分工 ------------------------------------- */
+  eq(archiveFile21.authored, 'game', 'archive.json 標明是遊戲自撰');
+  eq(notes21.length, EX21.notes, `小知識 ${EX21.notes} 則`);
+  eq(halls21.length, EX21.halls, `檔案廊 ${EX21.halls} 座`);
+  {
+    const regions21 = regionsV2.regions.filter((r) => r.implemented !== false).map((r) => r.id);
+    const perRegion = new Map(regions21.map((r) => [r, 0]));
+    const ids = new Set();
+    for (const n of notes21) {
+      const tag = `[archive:${n.id}]`;
+      ok(!ids.has(n.id), `${tag} id 不重複`);
+      ids.add(n.id);
+      ok(perRegion.has(n.region), `${tag} 掛在一片真的存在的土地上`, n.region);
+      perRegion.set(n.region, (perRegion.get(n.region) || 0) + 1);
+      ok([...n.body].length <= EX21.bodyMax, `${tag} 內文 ≤ ${EX21.bodyMax} 字`, String([...n.body].length));
+      ok([...n.body].length >= 20, `${tag} 內文不是一句敷衍`, String([...n.body].length));
+      ok([...n.title].length <= EX21.titleMax, `${tag} 標題 ≤ ${EX21.titleMax} 字`, String([...n.title].length));
+      ok(CJK.test(n.body) && CJK.test(n.title), `${tag} 是中文`);
+      ok(!ENGLISH(n.body), `${tag} 內文沒有整句英文`, ENGLISH(n.body) || '');
+      ok(!ENGLISH(n.title), `${tag} 標題沒有整句英文`, ENGLISH(n.title) || '');
+      // 世界層零公司名（§3.4）：標題與內文都會被畫在畫面上
+      ok(!VENDOR_NAME_21.test(n.title) && !VENDOR_NAME_21.test(n.body), `${tag} 標題與內文零公司名`);
+      const bad = sourceProblems21(n.source);
+      eq(bad.length, 0, `${tag} 出處在已驗證的集合裡、文件名逐字相同`, bad.join(' | '));
+    }
+    for (const [rid, n] of perRegion) eq(n, EX21.notesPerRegion, `[${rid}] 每片土地 ${EX21.notesPerRegion} 則`);
+  }
+  /*
+   * **與既有三層不重複**（這一格最容易破的一條）。
+   *
+   * 量法：把兩段話都拆成 4 字一組的滑動窗，看重疊了幾組。
+   * 只比「有沒有出現同一個詞」會被標點與常用字灌爆；比整句相等又形同沒有守 ——
+   * 4-gram 重疊到 `EX21.overlapMax` 組以上，就是在重講同一句話。
+   */
+  {
+    const grams = (t, n = 4) => {
+      const clean = String(t).replace(/[，。：；、「」『』（）—…·　\s]/g, '');
+      const out = new Set();
+      for (let i = 0; i + n <= clean.length; i += 1) out.add(clean.slice(i, i + n));
+      return out;
+    };
+    const overlap = (a, b) => {
+      let hit = 0;
+      for (const g of a) if (b.has(g)) hit += 1;
+      return hit;
+    };
+    /** 既有三層：每一條都帶著「它是誰」，紅的時候看得出撞到哪一句。 */
+    const priorLayers21 = [];
+    for (const t of readJson('src/data/glossary.json').terms) {
+      priorLayers21.push({ who: `術語小卡:${t.id}`, text: `${t.plain}${t.use}${t.example}` });
+    }
+    for (const sk of readJson('src/data/skill-codex-v2.json').skills) {
+      priorLayers21.push({ who: `技能:${sk.id}`, text: `${sk.nameZh}${sk.oneLiner}` });
+    }
+    for (const w of watchmen21) {
+      priorLayers21.push({ who: `守夜人:${w.id}`, text: [...(w.greet || []), ...(w.lore || [])].join('') });
+    }
+    ok(priorLayers21.length >= 160, '（前提）既有三層真的有那麼多句要比', String(priorLayers21.length));
+    const priorGrams21 = priorLayers21.map((p) => ({ who: p.who, g: grams(p.text) }));
+    let worst21 = { n: -1, who: '', id: '' };
+    for (const n of notes21) {
+      const mine = grams(`${n.title}${n.body}`);
+      for (const p of priorGrams21) {
+        const hit = overlap(mine, p.g);
+        if (hit > worst21.n) worst21 = { n: hit, who: p.who, id: n.id };
+        ok(hit <= EX21.overlapMax, `[archive:${n.id}] 沒有重講 ${p.who} 那一句`, `重疊 ${hit} 組 4 字`);
+      }
+    }
+    console.log(`    ↳ 檔案廊：與既有三層最像的一對 ${worst21.id} ↔ ${worst21.who}（重疊 ${worst21.n} 組，上限 ${EX21.overlapMax}）`);
+    // 反例：把守夜人真的引用過的那一句原封不動塞進來，同一支要抓得到
+    {
+      const oneLiner = readJson('src/data/skill-codex-v2.json').skills[0].oneLiner;
+      const fake = grams(oneLiner);
+      let caught = false;
+      for (const p of priorGrams21) if (overlap(fake, p.g) > EX21.overlapMax) caught = true;
+      eq(caught, true, '反例：把既有那一句原封不動抄過來，重疊掃描抓得到');
+    }
+  }
+
+  /* --- ③ 擺位（對**真的蓋出來的世界**量） --------------------------- */
+  {
+    const targets21 = Rules21.interactionTargets({
+      challenges,
+      inscriptions: inscriptions21,
+      letters: letterFile.entries,
+      handles: handleFile.entries,
+      reactiveSpots: Reactive21.reactiveTargets(),
+      murks: murks21,
+      watchmen: watchmen21,
+      guardians: [readJson('src/data/guardian.json')],
+      tablets: Props.LORE_TABLETS,
+      secrets: secrets21,
+      echoes: echoes21,
+      archives: [],
+    });
+    ok(targets21.length >= 300, '（前提）互動點真的有那麼多要比', String(targets21.length));
+    // 檔案廊真的被餵進 interactionTargets()（沒餵進去，別人的擺位就會照過期的世界算）
+    {
+      const withHalls = Rules21.interactionTargets({ challenges: [], archives: halls21 });
+      eq(withHalls.length, halls21.length, 'interactionTargets() 收得下檔案廊這一層');
+      eq(withHalls.every((t) => t.k === 'archive'), true, '而且標成 archive 這一層');
+      eq(Rules21.interactionTargets({ challenges: [] }).length, 0, '反例：沒有檔案廊就沒有那幾列');
+      ok(/data\.archives \|\| \[\]/.test(rulesSrc21), 'interactionTargets() 真的讀了 archives');
+      for (const rel of [
+        'scripts/screen-fit.mjs',
+        'scripts/murk-fit.mjs',
+        'scripts/guardian-fit.mjs',
+        'scripts/world-harness.mjs',
+        'scripts/archive-fit.mjs',
+      ]) {
+        ok(/archives/.test(srcOf(rel)), `${rel} 也把檔案廊餵了進去`);
+      }
+      ok(/archives\.map/.test(srcOf('scripts/pacing-audit.mjs')), 'pacing-audit 的 POI 也收了檔案廊');
+    }
+    // `archiveNeedFrom` 的分支各自問對了（＋反例）
+    {
+      const marker = { k: 'marker', id: 'x', at: [0, 0] };
+      eq(Rules21.archiveNeedFrom(marker), Rules21.MARKER_R + Rules21.ARCHIVE_R, '一般土地對石座守的是「圈不重疊」');
+      eq(Rules21.archiveNeedFrom(marker, 'wards'), EX21.markerFloor.wards, '護欄崗對石座守的是例外那一格');
+      eq(Rules21.archiveNeedFrom(marker, 'foundations'), Rules21.MARKER_R + Rules21.ARCHIVE_R, '反例：沒有例外的那一片照一般門檻');
+      eq(Rules21.archiveNeedFrom({ k: 'react', id: 'x', at: [0, 0], r: 4.4 }), Rules21.ARCHIVE_AUTO_MIN, '反應物那一條是常數');
+      eq(Rules21.archiveNeedFrom({ k: 'secret', id: 'x', at: [0, 0] }, 'wards'), Rules21.ARCHIVE_AUTO_MIN, '祕密那一條也是常數，例外表管不到它');
+      eq(
+        Rules21.archiveNeedFrom({ k: 'greatmurk', id: 'x', at: [0, 0] }, 'wards'),
+        Rules21.GREAT_MURK_R + Rules21.ARCHIVE_R,
+        '大濁靈那一層**不准放進例外表**（murk-fit 從另一側量的是同一條式子）'
+      );
+      eq(
+        Rules21.archiveNeedFrom({ k: 'echo', id: 'x', at: [0, 0] }, 'wards'),
+        Rules21.ECHO_R + Rules21.ARCHIVE_R,
+        '回聲那一層也不准（test:rubric 的回聲段從另一側量的是同一條式子）'
+      );
+      eq(
+        Rules21.archiveNeedFrom({ k: 'guardian', id: 'x', at: [0, 0] }, 'wards'),
+        Rules21.GUARDIAN_R + Rules21.ARCHIVE_R,
+        '守門者那一層也不准（guardian-fit 從另一側量的是同一條式子）'
+      );
+    }
+    // 半徑的兩份（世界端與擺位規則）逐值相同
+    eq(Rules21.ARCHIVE_R, Archive21.ARCHIVE_RADIUS, '互動半徑：擺位規則與世界端逐值相同');
+    eq(Rules21.ARCHIVE_BODY_R, Archive21.ARCHIVE_SPAN, '頂棚半徑：擺位規則與世界端逐值相同');
+    eq(Rules21.LAYER_INTERACT_R.archive, Rules21.ARCHIVE_R, '淨空那一格與互動圈是同一個數字');
+
+    const archiveSolids21 = [];
+    for (const layer of testWorld.screens || []) {
+      for (const node of layer.group.children) {
+        for (const sd of World.collectSolids(node, World.terrainHeight)) {
+          archiveSolids21.push({ x: sd.x, z: sd.z, r: sd.r, id: sd.id || node.name });
+        }
+      }
+    }
+    ok(archiveSolids21.length > 50, '（前提）中觀層的碰撞圓真的有那麼多要比', String(archiveSolids21.length));
+    const pathSegs21 = Props.buildPathNetwork(
+      World.REGION_SITES,
+      [...World.CORRIDORS, ...World.ANNEX_LINKS],
+      challenges,
+      (await import('../src/world/screens.js')).PATH_BENDS
+    );
+    const standByRegion21 = {};
+    const markerByRegion21 = {};
+    let tightest21 = Infinity;
+    let tightestWho21 = '';
+    const hallIds21 = new Set();
+    const hallRegions21 = new Set();
+    for (const h of halls21) {
+      const tag = `[${h.id}]`;
+      const [x, z] = h.at;
+      ok(!hallIds21.has(h.id), `${tag} id 不重複`);
+      hallIds21.add(h.id);
+      ok(!hallRegions21.has(h.region), `${tag} 一片土地只有一座`);
+      hallRegions21.add(h.region);
+      const here = World.regionAt(x, z);
+      ok(here && here.id === h.region && !here.onBridge, `${tag} 落在自己的土地上（不在橋上）`, JSON.stringify(here));
+      ok(World.coverage(x, z) > Rules21.MOTIF_COVERAGE_MIN, `${tag} 沒有蓋在崩掉的區緣上`, World.coverage(x, z).toFixed(2));
+      ok(testWorld.isWalkable(x, z) && !testWorld.solidAt(x, z), `${tag} 展館中間站得進去`);
+      let minMarker = Infinity;
+      for (const t of targets21) {
+        const need = Rules21.archiveNeedFrom(t, h.region);
+        const d = Math.hypot(x - t.at[0], z - t.at[1]);
+        ok(d >= need, `${tag} 離 ${t.k}:${t.id} 夠遠`, `${d.toFixed(2)} < ${need.toFixed(2)}`);
+        if (d - need < tightest21) {
+          tightest21 = d - need;
+          tightestWho21 = `${h.id} ↔ ${t.k}:${t.id}`;
+        }
+        if (t.k === 'marker' && d < minMarker) minMarker = d;
+      }
+      markerByRegion21[h.region] = Math.round(minMarker * 100) / 100;
+      for (const lm of Props.LANDMARKS) {
+        ok(Math.hypot(x - lm.at[0], z - lm.at[1]) >= Rules21.ARCHIVE_AUTO_MIN, `${tag} 沒有蓋在地標 ${lm.id} 上`);
+      }
+      for (const v of Props.STORY_VIGNETTES) {
+        ok(Math.hypot(x - v.at[0], z - v.at[1]) >= Rules21.ARCHIVE_AUTO_MIN, `${tag} 沒有蓋在小景 ${v.id} 上`);
+      }
+      for (const sd of archiveSolids21) {
+        const need = Rules21.ARCHIVE_R + World.PLAYER_RADIUS + sd.r;
+        ok(Math.hypot(x - sd.x, z - sd.z) >= need, `${tag} 沒有被中觀層 ${sd.id} 擋住`);
+      }
+      ok(Rules21.laneDistance(World, x, z) >= World.LANE_HALF + Rules21.LANE_MARGIN, `${tag} 離橋的主動線夠遠`);
+      ok(Rules21.gateDistance(World, x, z) >= Rules21.GATE_MIN, `${tag} 離閘門夠遠`);
+      const dPath = Rules21.pathDistance(pathSegs21, x, z);
+      ok(
+        dPath >= Rules21.ARCHIVE_PATH_MIN && dPath <= Rules21.ARCHIVE_PATH_MAX,
+        `${tag} 離路網在 ${Rules21.ARCHIVE_PATH_MIN}–${Rules21.ARCHIVE_PATH_MAX} 公尺之間（走得到、又不擋路）`,
+        dPath.toFixed(2)
+      );
+      // 頂棚四個角腳下夠平（與 archive-fit 的離線篩同一條）
+      const hs = [
+        [-Rules21.ARCHIVE_BODY_R, -Rules21.ARCHIVE_BODY_R],
+        [Rules21.ARCHIVE_BODY_R, -Rules21.ARCHIVE_BODY_R],
+        [-Rules21.ARCHIVE_BODY_R, Rules21.ARCHIVE_BODY_R],
+        [Rules21.ARCHIVE_BODY_R, Rules21.ARCHIVE_BODY_R],
+      ].map(([dx, dz]) => World.terrainHeight(x + dx, z + dz));
+      const drop = Math.max(...hs) - Math.min(...hs);
+      ok(drop <= Rules21.ARCHIVE_STEP_DROP_MAX, `${tag} 頂棚四角的落差在框內`, `${drop.toFixed(2)} > ${Rules21.ARCHIVE_STEP_DROP_MAX}`);
+      /*
+       * **真正要守的東西**：站在「走近浮出」的那一圈上，24 個方向裡有幾個站得住。
+       * 它不搶 `E`，所以這裡問的是走不走得到，不是「是不是它贏」。
+       */
+      let stand = 0;
+      for (let a = 0; a < Rules21.ARCHIVE_WINNABLE_DIRS; a += 1) {
+        const ang = (a / Rules21.ARCHIVE_WINNABLE_DIRS) * Math.PI * 2;
+        const px = x + Math.cos(ang) * (Rules21.ARCHIVE_R - 0.3);
+        const pz = z + Math.sin(ang) * (Rules21.ARCHIVE_R - 0.3);
+        if (testWorld.isWalkable(px, pz) && !testWorld.solidAt(px, pz)) stand += 1;
+      }
+      standByRegion21[h.region] = stand;
+      ok(stand >= Rules21.ARCHIVE_STAND_MIN, `${tag} 那一圈上還有站得住的方向`, `${stand}/${Rules21.ARCHIVE_WINNABLE_DIRS}（門檻 ${Rules21.ARCHIVE_STAND_MIN}）`);
+      // 貼著頂棚那一圈繞得過去（它零碰撞，所以這一條量的是地形）
+      let around = 0;
+      for (let a = 0; a < Rules21.ARCHIVE_RING_DIRS; a += 1) {
+        const ang = (a / Rules21.ARCHIVE_RING_DIRS) * Math.PI * 2;
+        const rr = Rules21.ARCHIVE_BODY_R + World.PLAYER_RADIUS;
+        if (testWorld.isClear(x + Math.cos(ang) * rr, z + Math.sin(ang) * rr)) around += 1;
+      }
+      eq(around, Rules21.ARCHIVE_RING_DIRS, `${tag} 貼著頂棚那一圈每個方向都繞得過去`, `${around}/${Rules21.ARCHIVE_RING_DIRS}`);
+    }
+    eq(JSON.stringify(standByRegion21), JSON.stringify(EX21.standWorst), '逐片量到的「走得到它」與契約**逐值相同**');
+    eq(JSON.stringify(markerByRegion21), JSON.stringify(EX21.markerNearest), '逐片量到的「離最近石座多遠」與契約**逐值相同**');
+    // 例外表：每一格都 ≤ 逐點掃出來的上限，而且真的必要
+    eq(
+      JSON.stringify(Rules21.ARCHIVE_MARKER_EXCEPTIONS),
+      JSON.stringify(EX21.markerFloor),
+      '石座那一條的例外表與契約**逐值相同**'
+    );
+    for (const [rid, floor] of Object.entries(EX21.markerFloor)) {
+      const ceil = EX21.markerCeiling[rid];
+      ok(Number.isFinite(ceil), `[${rid}] 例外有登記過上限`);
+      ok(floor <= ceil, `[${rid}] 門檻不超過全區上限（${floor} ≤ ${ceil}）`);
+      ok(ceil < Rules21.MARKER_R + Rules21.ARCHIVE_R, `[${rid}] 例外真的是必要的（全區上限 ${ceil} < 圈不重疊 ${Rules21.MARKER_R + Rules21.ARCHIVE_R}）`);
+      ok(markerByRegion21[rid] >= floor, `[${rid}] 出貨的落點吃得下那個例外`);
+    }
+    console.log(`    ↳ 檔案廊：擺位最緊的一對 ${tightestWho21} 還剩 ${tightest21.toFixed(3)}m；走得到它最少 ${Math.min(
+      ...Object.values(standByRegion21)
+    )}/${Rules21.ARCHIVE_WINNABLE_DIRS}（門檻 ${Rules21.ARCHIVE_STAND_MIN}）`);
+  }
+
+  /* --- ④ 世界實體：零光源、零碰撞、零可站立、穿模零 ------------------ */
+  {
+    const layer21 = testScene.getObjectByName('archives');
+    ok(layer21, '場景圖裡真的有檔案廊那一層');
+    let tris21 = 0;
+    let lights21 = 0;
+    let meshes21 = 0;
+    let solids21 = 0;
+    layer21.traverse((o) => {
+      if (o.isLight) lights21 += 1;
+      if (!o.isMesh) return;
+      meshes21 += 1;
+      const g = o.geometry;
+      tris21 += g.index ? g.index.count / 3 : g.attributes.position.count / 3;
+      if (o.userData && Number.isFinite(o.userData.solidRadius)) solids21 += 1;
+    });
+    eq(lights21, 0, '檔案廊整層零光源（護欄：37 盞不變）');
+    eq(solids21, 0, '檔案廊整層零碰撞體（細桿與吊在頭上的展品都不擋人）');
+    ok(tris21 < EX21.trisCeiling, `檔案廊整層 < ${EX21.trisCeiling} 三角形`, `tris=${tris21}`);
+    eq(tris21, EX21.tris, '檔案廊整層的三角數與契約逐值相同');
+    console.log(`    ↳ 檔案廊：三角 ${tris21}、網格 ${meshes21}、碰撞體 0、光源 0`);
+    // 這一層在**真的蓋出來的世界**裡也沒有登記任何碰撞圓（不是只看 userData）
+    for (const h of halls21) {
+      const near = testWorld.solids.filter((sd) => Math.hypot(sd.x - h.at[0], sd.z - h.at[1]) < Rules21.ARCHIVE_BODY_R + 0.5);
+      eq(near.length, 0, `[${h.id}] 世界的碰撞登記表裡沒有它`, near.map((sd) => sd.id).join(','));
+    }
+    // 穿模稽核：這一層一個「有份量卻沒有碰撞體」的東西都沒有
+    {
+      const subs = Audit21.listSubstantial(layer21, World.terrainHeight, World.coverage);
+      const naked = subs.filter((sub) => !sub.excepted);
+      eq(naked.length, 0, '檔案廊沒有「有份量卻沒有碰撞體」的東西', naked.map((n) => `${n.name}(r=${n.r.toFixed(2)},h=${n.height.toFixed(2)})`).slice(0, 3).join(' | '));
+      eq(subs.filter((sub) => sub.standable).length, 0, '檔案廊沒有可站立體');
+    }
+    // 展品 ＝ 這片土地的技法（一片一條）
+    for (const h of halls21) {
+      const built = testWorld.archives.byId(h.id);
+      ok(built, `[${h.id}] 那一座真的蓋出來了`);
+      const want = catalog.regionSkills(h.region).length;
+      eq(built.slats.length, want, `[${h.id}] 展品數 ＝ 這片土地的技法數`, `${built.slats.length} vs ${want}`);
+      eq(built.skillIds.length, want, `[${h.id}] 展品掛的是那幾條技法的 id`);
+      // 兩座檔案龕的世界座標：一左一右，而且真的跟著 `rot` 轉過
+      eq(built.niches.length, 2, `[${h.id}] 兩座檔案龕`);
+      const gap = Math.hypot(built.niches[0].x - built.niches[1].x, built.niches[0].z - built.niches[1].z);
+      ok(Math.abs(gap - Archive21.ARCHIVE_NICHE_X * 2) < 0.01, `[${h.id}] 兩座龕相隔 ${(Archive21.ARCHIVE_NICHE_X * 2).toFixed(2)} 公尺`, gap.toFixed(3));
+      /*
+       * **轉過的座標要用另一條路量一次。**
+       *
+       * `archives.js` 是自己用 `cos/sin` 把局部 ±X 換算成世界座標的
+       * ——「`rotation.y = θ` 到底把局部軸轉去哪」正是 findings 記過一次、
+       * 而且被照抄三處的那個錯（P19 的幕、11 道閘門、慶祝那一圈）。
+       * 這裡改用 three.js 自己的矩陣（`localToWorld`）算一次，兩條路對得起來才算數；
+       * 「兩座龕相隔多遠」那一條是旋轉不變的，證不了這件事。
+       */
+      built.group.updateMatrixWorld(true);
+      for (let i = 0; i < 2; i += 1) {
+        const nx = i ? Archive21.ARCHIVE_NICHE_X : -Archive21.ARCHIVE_NICHE_X;
+        const v = built.group.localToWorld(new THREE.Vector3(nx, 0, 0));
+        const off = Math.hypot(v.x - built.niches[i].x, v.z - built.niches[i].z);
+        ok(off < 0.01, `[${h.id}] 第 ${i} 座龕的世界座標與矩陣算出來的一致`, off.toFixed(4));
+      }
+    }
+  }
+
+  /* --- ⑤ 互動：不搶 `E`、讓開時自己熄掉、零每幀配置 ------------------ */
+  {
+    const field21 = testWorld.archives;
+    ok(field21 && field21.count === halls21.length, '檔案廊那一層 12 座都在場上', String(field21 && field21.count));
+    // `nearest()` 挑得出「站得比較近的那一座龕」（左右各驗一次 —— 一個方向的斷言等於沒有）
+    {
+      const one = field21.archives[0];
+      for (let sideWant = 0; sideWant < 2; sideWant += 1) {
+        const n = one.niches[sideWant];
+        const hit = field21.nearest({ x: n.x, z: n.z });
+        ok(hit && hit.archive === one, `站在第 ${sideWant} 座龕旁邊，找得到那一座展館`);
+        eq(hit && hit.side, sideWant, `而且浮出來的是第 ${sideWant} 則`);
+      }
+      // 圈外按不到（圈內圈外各一次，才釘得住那個半徑）
+      const far = field21.nearest({ x: one.x + Rules21.ARCHIVE_R + 0.5, z: one.z });
+      eq(far, null, '走出那一圈就不再浮出來');
+      // 讓給高階層：`clearNear()` 之後那一則的狀態要熄掉
+      field21.nearest({ x: one.x, z: one.z });
+      const litBefore = one.near;
+      field21.clearNear();
+      eq(litBefore, true, '（前提）走進去時真的會亮');
+      eq(one.near, false, 'clearNear() 之後那一座不再是「走近」的狀態');
+      eq(one.side, -1, '而且不再指著任何一則');
+    }
+    // 收集到的技法 ＝ 亮起來的展品（`refresh()` 真的跟著存檔走）
+    {
+      const one = field21.archives[0];
+      eq(one.slats.some((sl) => sl.lit), false, '（前提）沒有存檔時展品全暗');
+      const first = one.skillIds[0];
+      const field = Archive21.createArchiveField({
+        halls: [halls21[0]],
+        kitOf: () => Props.kitFor(0x88aacc),
+        terrainHeight: World.terrainHeight,
+        skillIdsOf: () => catalog.regionSkills(halls21[0].region).map((sk) => sk.id),
+        collectedOf: (id) => id === first,
+      });
+      const built = field.archives[0];
+      eq(built.slats[0].lit, true, '收了第一條技法，第一片展品就亮了');
+      eq(built.slats.slice(1).some((sl) => sl.lit), false, '反例：沒收的那幾片還是暗的');
+      field.reset();
+      eq(built.slats[0].lit, true, 'reset() 重新對一次存檔（這個替身的存檔沒變，所以還是亮的）');
+    }
+    // 靜態掃描：呼叫端真的接上了（寫好了卻沒有人呼叫的 reset() 等於沒有）
+    ok(/world\.archives\?\.reset\?\.\(\)/.test(mainSrc21), '重置進度時世界端的展品跟著歸零');
+    ok(/world\.refreshArchives\?\.\(\)/.test(mainSrc21), '收集到技法時展品跟著亮起來');
+    ok(/world\.clearArchiveNear\?\.\(\)/.test(mainSrc21), '讓給高階層時把那一則熄掉');
+    ok(/hud\.setAside\(/.test(mainSrc21), '那一則真的送去畫在畫面上');
+    ok(/setAside\(html\)/.test(hudSrc21), 'HUD 真的有那一支（不是只在呼叫端寫了名字）');
+    // 不搶 `E`：整個檔案廊層一個鍵盤事件都沒有
+    ok(!/KeyE|keydown|addEventListener/.test(archiveSrc21), '檔案廊那一層一個按鍵都沒接（`E` 仍是唯一的互動鍵）');
+    ok(!/nearArchive/.test(mainSrc21.slice(mainSrc21.indexOf("e.code === 'KeyE'"))), '`E` 的處理裡沒有檔案廊這一支');
+    // 零每幀配置（`update()` 裡不 new、不 map/filter、不建閉包）
+    {
+      const body = archiveSrc21.slice(archiveSrc21.indexOf('    update(dt, t, px, pz) {'));
+      const upd = body.slice(0, body.indexOf('\n    },'));
+      ok(upd.length > 200, '（前提）真的抓到 update() 的本體', String(upd.length));
+      for (const bad of ['new ', '.map(', '.filter(', '=>']) {
+        ok(!upd.includes(bad), `update() 裡沒有「${bad.trim()}」（零每幀配置）`);
+      }
+      ok(/FAR_SQ/.test(upd) && /visible = !far/.test(upd), '45 公尺外整組**連畫都不畫**（加色混合的透明片畫比算貴）');
+    }
+    // reducedMotion：只留終態（位移歸零，亮度照樣跟著走近變化）
+    {
+      const still = Archive21.createArchiveField({
+        halls: [halls21[0]],
+        kitOf: () => Props.kitFor(0x88aacc),
+        terrainHeight: World.terrainHeight,
+        skillIdsOf: () => catalog.regionSkills(halls21[0].region).map((sk) => sk.id),
+        collectedOf: () => true,
+        reducedMotion: true,
+      });
+      const b = still.archives[0];
+      const baseY = b.slats[0].baseY;
+      still.update(0.016, 12.3, b.x, b.z);
+      eq(b.slats[0].mesh.position.y, baseY, 'reducedMotion：展品不飄（位移只留終態）');
+      ok(b.nearAmt > 0, 'reducedMotion：走近該亮的還是會亮（關掉的是動，不是回應）');
+      // 反例：同一份程式碼、同一拍，開著動的那一份真的會動
+      const moving = Archive21.createArchiveField({
+        halls: [halls21[0]],
+        kitOf: () => Props.kitFor(0x88aacc),
+        terrainHeight: World.terrainHeight,
+        skillIdsOf: () => catalog.regionSkills(halls21[0].region).map((sk) => sk.id),
+        collectedOf: () => true,
+      });
+      const m = moving.archives[0];
+      moving.update(0.016, 12.3, m.x, m.z);
+      ok(Math.abs(m.slats[0].mesh.position.y - m.slats[0].baseY) > 0.001, '反例：沒關掉動的那一份，同一拍真的動了');
+    }
+  }
+
+  /* --- ⑥ 圖鑑：三分法 ＋ 那一章每一則都點得到官方出處 ---------------- */
+  {
+    for (const [zh, en] of [['世界觀', 'Lore'], ['濁言', 'Creatures'], ['小知識', 'Research']]) {
+      ok(codexSrc21.includes(`division('${zh}', '${en}'`), `圖鑑有「${zh} / ${en}」那一分`);
+    }
+    ok(/archiveChapter\(\)/.test(codexSrc21), '圖鑑有檔案廊那一章');
+    ok(/archiveNotes/.test(codexSrc21) && /archiveNotes/.test(mainSrc21), '那一章真的接到了 archive.json');
+    /*
+     * **不借用別人的選擇器**：`.tech__tip` / `.tech__ex` / `.tech__note` / `.tech__srcs`
+     * 是「整本圖鑑不准有整句英文」與「出處深連結」那兩條斷言在看的東西
+     * （findings：守門的斷言要看得到它在守的東西 —— 反過來也一樣，
+     * 不要把別的東西塞進它的視野裡）。
+     */
+    const chapter = codexSrc21.slice(codexSrc21.indexOf('function archiveChapter()'), codexSrc21.indexOf('function division('));
+    ok(chapter.length > 400, '（前提）真的抓到那一章的本體', String(chapter.length));
+    for (const cls of ['tech__tip', 'tech__ex', 'tech__note', 'tech__srcs']) {
+      ok(!chapter.includes(cls), `檔案廊那一章沒有借用 .${cls}`);
+    }
+    ok(chapter.includes('archive__srcs') && chapter.includes('class="src"'), '它有自己的出處列，而且是可點的連結');
+    // 每一則都有 https 出處（圖鑑那一側的護欄 2）
+    for (const n of notes21) ok(/^https:\/\//.test(n.source.url), `[archive:${n.id}] 出處是可點的 https 連結`);
+  }
+
+  /* --- ⑦ e2e 的頁面內程式碼一定要 parse 得過（這一格自己踩到的） ------ */
+  {
+    /*
+     * **頁面內的那一段是字串，不是程式碼 —— 沒有人替它做語法檢查。**
+     *
+     * P20a 記過一次（模板字串裡的註解不能有反引號），P20b 又用另一種方式踩到：
+     * 在 `evaluate(\`…\`)` 的模板裡寫 `/^https:\/\//`，node 端的模板會先把 `\/`
+     * 求值成 `/` —— 頁面收到的是 `/^https://`，當場 SyntaxError，
+     * 而那是**整支 e2e 中斷**（不是紅一條）：後面每一段都不會跑到。
+     *
+     * 所以這裡靜態掃過 `scripts/headless-check.mjs` 裡**每一段**頁面內程式碼：
+     * 把 `${…}` 換成 `(0)`（不能換成 `0` —— `0.replace(…)` 本身就是語法錯誤，
+     * 那是替身造出來的假紅），先照 node 的模板規則求值一次，再丟給
+     * `new Function` 檢查語法。反例在下面：把那個少一層跳脫的寫法餵進同一支，要紅。
+     */
+    const e2eSrc21 = srcOf('scripts/headless-check.mjs');
+    /** 抓出每一段 `evaluate(\`…\`)` 的模板原文（`${…}` 整段跳過，裡面的反引號不算結尾）。 */
+    const pageScripts21 = (text) => {
+      const out = [];
+      const OPEN = 'evaluate(`';
+      let i = 0;
+      for (;;) {
+        const at = text.indexOf(OPEN, i);
+        if (at < 0) break;
+        let j = at + OPEN.length;
+        let body = '';
+        let closed = false;
+        while (j < text.length) {
+          const c = text[j];
+          if (c === '\\') {
+            body += text[j] + text[j + 1];
+            j += 2;
+            continue;
+          }
+          if (c === '$' && text[j + 1] === '{') {
+            let d = 1;
+            let k = j + 2;
+            while (k < text.length && d > 0) {
+              if (text[k] === '{') d += 1;
+              else if (text[k] === '}') d -= 1;
+              k += 1;
+            }
+            body += '(0)';
+            j = k;
+            continue;
+          }
+          if (c === '`') {
+            closed = true;
+            j += 1;
+            break;
+          }
+          body += c;
+          j += 1;
+        }
+        if (closed) out.push({ at, body });
+        i = j;
+      }
+      return out;
+    };
+    /** 一段模板過不過。回問題（null ＝ 過）—— 反例呼叫的就是這一支。 */
+    const templateProblem21 = (body) => {
+      let page;
+      try {
+        // eslint-disable-next-line no-eval
+        page = eval(`\`${body}\``);
+      } catch (err) {
+        return `模板本身求值不了：${err.message}`;
+      }
+      try {
+        // eslint-disable-next-line no-new-func
+        new Function(`return (async()=>{${page}})`);
+      } catch (err) {
+        return `頁面內程式碼 parse 不過：${err.message}`;
+      }
+      return null;
+    };
+    const scripts21 = pageScripts21(e2eSrc21);
+    ok(scripts21.length > 700, '（前提）真的掃到那幾百段頁面內程式碼', String(scripts21.length));
+    const brokenAt21 = [];
+    for (const t of scripts21) {
+      const prob = templateProblem21(t.body);
+      if (prob) brokenAt21.push(`第 ${e2eSrc21.slice(0, t.at).split('\n').length} 行：${prob}`);
+    }
+    eq(brokenAt21.length, 0, 'e2e 的每一段頁面內程式碼都 parse 得過', brokenAt21.slice(0, 3).join(' | '));
+    // 反例：三種真的發生過的寫法，同一支都要抓得到
+    ok(templateProblem21('return /^https:\\/\\//.test(u);'), '反例：少一層跳脫的正規表示式（P20b 踩到的那一個）');
+    ok(templateProblem21('// 這一行的註解裡有 `反引號`\nreturn 1;'), '反例：註解裡有反引號（P20a 踩到的那一個）');
+    ok(templateProblem21('return foo(;'), '反例：單純打錯字');
+    eq(templateProblem21('return 1 + 1;'), null, '（對照）好的那一段不會被誤殺');
+  }
+
+  /* --- ⑧ WORLD.md：新的一層要寫進世界的規則書 ---------------------- */
+  {
+    const s32b = worldMd21.slice(worldMd21.indexOf('### 3.2'), worldMd21.indexOf('### 3.3'));
+    ok(/檔案廊/.test(s32b), 'WORLD.md §3.2 的表列得出檔案廊這一層');
+    ok(/不搶|沒有 `E`|走近浮出/.test(s32b), '§3.2 講明它不搶 `E`');
+    const s418 = worldMd21.slice(worldMd21.indexOf('### 4.18'), worldMd21.indexOf('## 五'));
+    ok(s418.length > 400, 'WORLD.md 有 §4.18（檔案廊的擺放）', String(s418.length));
+    ok(/P20b/.test(s418), '§4.18 標得出這一格');
+    ok(/archive\.json/.test(s418), '§4.18 指得出那份資料住在哪');
+    ok(/365|已經驗證過/.test(s418), '§4.18 寫得出「出處只准用已經驗證過的那一份集合」');
+    ok(/wards|護欄崗/.test(s418) && /divergence|分歧之廳/.test(s418), '§4.18 寫得出兩片需要例外的土地');
   }
 }
 

@@ -30,6 +30,7 @@ export function createHud({ content, progression, getObjective = null, onOpenCod
       </div>
     </div>
     <div class="hud__interact" data-interact hidden></div>
+    <aside class="hud__aside" data-aside hidden aria-live="polite"></aside>
     <div class="hud__toasts" data-toasts role="status" aria-live="polite"></div>
     <div class="hud__banner" data-banner hidden aria-hidden="true"></div>
     <p class="hud__controls">WASD 移動 · Shift 奔跑 · ← → 轉鏡頭 · ↑ ↓ 抬頭低頭（或拖曳滑鼠）· 空白鍵看天空 · - = 拉遠拉近 · E 互動 · ? 操作一覽</p>
@@ -43,6 +44,7 @@ export function createHud({ content, progression, getObjective = null, onOpenCod
   const cartoucheEl = root.querySelector('[data-cartouche]');
   const objectiveEl = root.querySelector('[data-objective]');
   const interactEl = root.querySelector('[data-interact]');
+  const asideEl = root.querySelector('[data-aside]');
   const toastsEl = root.querySelector('[data-toasts]');
   const bannerEl = root.querySelector('[data-banner]');
   const levelBadge = root.querySelector('.hud__lvbadge');
@@ -120,6 +122,27 @@ export function createHud({ content, progression, getObjective = null, onOpenCod
       // 真的換了一片土地才播刻印的轉場，橋上的狀態切換不播
       if (changed) flash(cartoucheEl, 'is-turning', 800);
       return changed;
+    },
+    /**
+     * v1.2 · P20b：檔案廊那一則小知識（走近浮出、走開淡掉）。
+     *
+     * 它**不是** `setInteract`：那一條是「按 `E` 做什麼」的提示，
+     * 這一條是一張讀得到、按不到的紙片（不搶鍵、不開面板、不停世界，
+     * WORLD §3.3「一次只有一件事擁有畫面」——所以它掛在畫面側邊，
+     * 而且比它高階的任何一層一出現，呼叫端就會傳 null 把它收掉）。
+     * @param {string|null} html
+     */
+    setAside(html) {
+      if (!html) {
+        if (asideEl.hidden) return false;
+        asideEl.hidden = true;
+        asideEl.innerHTML = '';
+        return true;
+      }
+      if (!asideEl.hidden && asideEl.innerHTML === html) return false;
+      asideEl.hidden = false;
+      asideEl.innerHTML = html;
+      return true;
     },
     setInteract(html) {
       if (!html) {

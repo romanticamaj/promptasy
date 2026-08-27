@@ -21507,6 +21507,199 @@ async function main() {
   }
 
   /* ================================================================ */
+  /* ================================================================ */
+  /* v1.2 · P20b — 檔案廊（走近浮出一則「為什麼」，不彈窗、不搶 `E`）      */
+  /* ================================================================ */
+  console.log('\n▸ 檔案廊：小知識那一層（v1.2 · P20b）');
+
+  /* --- ① 世界端：12 座、0 光源、0 碰撞 ----------------------------- */
+  const archWorld = await evaluate(`
+    const g = window.__promptasy;
+    const halls = g.archiveData.halls;
+    let lights = 0, tris = 0, slats = 0;
+    const names = [];
+    g.world.archives.group.traverse((o) => {
+      if (o.name && o.name.startsWith('archive:')) names.push(o.name);
+      if (o.name && o.name.startsWith('slat:')) slats += 1;
+      if (o.isLight) lights += 1;
+      if (o.isMesh && o.geometry) {
+        const idx = o.geometry.index;
+        tris += idx ? idx.count / 3 : o.geometry.attributes.position.count / 3;
+      }
+    });
+    // 整張碰撞表裡不該有任何一顆坐在那 12 座展館上
+    const onHalls = g.world.solids.filter((s) =>
+      halls.some((h) => Math.hypot(s.x - h.at[0], s.z - h.at[1]) < 1.9)
+    ).length;
+    return {
+      built: names.length,
+      first: names[0] || '',
+      count: g.world.archives.count,
+      lights,
+      slats,
+      tris: Math.round(tris),
+      onHalls,
+      notes: g.archiveData.notes.length,
+    };
+  `);
+  eq(archWorld.count, 12, 'P20b：世界上真的有 12 座檔案廊');
+  eq(archWorld.built, 12, 'P20b：12 個 archive:<id> 都蓋在場景圖上');
+  ok(archWorld.first.startsWith('archive:'), 'P20b：場景圖節點名帶得出它的 id', archWorld.first);
+  eq(archWorld.lights, 0, 'P20b：檔案廊這一層一盞燈都沒加（光源固定 37 盞）');
+  eq(archWorld.onHalls, 0, 'P20b：檔案廊這一層一個碰撞體都沒登記（走得進去）');
+  eq(archWorld.slats, 130, 'P20b：130 片展品 ＝ 130 條技法（一片一條）');
+  eq(archWorld.notes, 24, 'P20b：24 則小知識');
+  ok(archWorld.tris > 0 && archWorld.tris < 2400, 'P20b：這一層的三角形在框內', String(archWorld.tris));
+
+  /* --- ② 走過去：那一則浮出來，**沒有彈窗**、世界沒有停手 ---------- */
+  const archHallId = 'hall-foundations';
+  /**
+   * 站到指定那一座檔案龕旁邊，等**那一則自己那一句**浮出來。
+   *
+   * 等的條件是「內文含這一則的標題」——兩則的標題彼此不會互相滿足，
+   * 所以上一次留在畫面上的那一張不會讓迴圈第一圈就跳出去
+   * （findings：等待條件不能是「上一次留下的值也滿足」的那一種）。
+   */
+  const standAtNiche = async (side) => {
+    await evaluate(`
+      const g = window.__promptasy;
+      const b = g.world.archives.byId('${archHallId}');
+      g.player.teleport(b.niches[${side}].x, b.niches[${side}].z);
+      return 1;
+    `);
+    return waitFor(
+      () =>
+        evaluate(`
+          const g = window.__promptasy;
+          const el = document.querySelector('[data-aside]');
+          const txt = el && !el.hidden ? el.textContent || '' : '';
+          const notes = g.archiveData.notes.filter((n) => n.region === 'foundations');
+          const want = notes[${side}];
+          return txt.includes(want.title)
+            ? { txt, title: want.title, body: want.body, other: notes[${1 - side}].title }
+            : null;
+        `),
+      { timeout: 25000, every: 150, label: `P20b：走到第 ${side} 座檔案龕旁邊` }
+    );
+  };
+  const archLeft = await standAtNiche(0);
+  ok(archLeft.txt.includes(archLeft.title), 'P20b：走近就浮出那一則的標題（不用按任何鍵）', archLeft.txt.slice(0, 40));
+  ok(archLeft.txt.includes(archLeft.body), 'P20b：內文也整段浮出來了', archLeft.body.slice(0, 24));
+  eq(archLeft.txt.includes(archLeft.other), false, 'P20b：另一座龕那一則的標題**一個字都沒出現**');
+  ok(archLeft.txt.includes('檔案廊'), 'P20b：那張紙片標得出自己是哪一層', archLeft.txt.slice(-24));
+  // 世界層零公司名（§3.4）：浮出來的那張紙片上沒有網址、沒有廠牌名
+  eq(/https?:\/\//.test(archLeft.txt), false, 'P20b：浮出來的那一則沒有網址（出處在圖鑑那一章）');
+  eq(/OpenAI|Anthropic|Google|xAI|Claude|Gemini|Grok/i.test(archLeft.txt), false, 'P20b：也沒有任何公司名（世界層零公司名）');
+
+  /*
+   * **沒有彈窗、世界沒有停手。**
+   * 「沒有停手」量的是 `nearAmt` —— 它只在 `update()` 裡被推進，
+   * 所以它還在長就等於每幀迴圈還在跑（不是拿牆鐘去猜）。
+   */
+  const archLive = await evaluate(`
+    const g = window.__promptasy;
+    const b = g.world.archives.byId('${archHallId}');
+    const before = b.nearAmt;
+    const openPanels = [g.promptConsole.isOpen, g.codex.isOpen, g.settings.isOpen].filter(Boolean).length;
+    const overlays = [...document.querySelectorAll('.overlay')].filter((o) => !o.hidden && o.getClientRects().length).length;
+    await new Promise((r) => setTimeout(r, 700));
+    return {
+      openPanels,
+      overlays,
+      before,
+      after: g.world.archives.byId('${archHallId}').nearAmt,
+      interactHidden: document.querySelector('[data-interact]').hidden,
+    };
+  `);
+  eq(archLive.openPanels, 0, 'P20b：走近檔案廊**不開任何面板**');
+  eq(archLive.overlays, 0, 'P20b：畫面上一個彈窗都沒有');
+  ok(archLive.after >= archLive.before, 'P20b：世界沒有停手（那一層的每幀迴圈還在跑）', `${archLive.before} → ${archLive.after}`);
+  eq(archLive.interactHidden, true, 'P20b：那裡沒有 `E` 的提示（它不搶互動鍵）');
+
+  /* --- ③ 站到另一側：浮出來的換成另一則 --------------------------- */
+  const archRight = await standAtNiche(1);
+  ok(archRight.txt.includes(archRight.title), 'P20b：走到另一座龕旁邊，浮出來的是另一則', archRight.txt.slice(0, 40));
+  eq(archRight.txt.includes(archRight.other), false, 'P20b：這一次換成第一則的標題一個字都沒有');
+  ok(archRight.title !== archLeft.title, 'P20b：（前提）兩則真的不一樣', `${archLeft.title} / ${archRight.title}`);
+
+  /* --- ④ 按 `E`：什麼都不會發生（它不在仲裁裡） -------------------- */
+  await key('KeyE', 'e', { vk: 69 });
+  await sleep(400);
+  const archAfterE = await evaluate(`
+    const g = window.__promptasy;
+    const el = document.querySelector('[data-aside]');
+    return {
+      openPanels: [g.promptConsole.isOpen, g.codex.isOpen, g.settings.isOpen].filter(Boolean).length,
+      overlays: [...document.querySelectorAll('.overlay')].filter((o) => !o.hidden && o.getClientRects().length).length,
+      stillThere: Boolean(el && !el.hidden),
+      echoPlaying: g.world.echoPlaying,
+    };
+  `);
+  eq(archAfterE.openPanels, 0, 'P20b：在檔案廊裡按 `E` 不會開任何面板');
+  eq(archAfterE.overlays, 0, 'P20b：也不會冒出任何彈窗');
+  eq(archAfterE.echoPlaying, null, 'P20b：也沒有順手觸發別的層');
+  eq(archAfterE.stillThere, true, 'P20b：那一則還在（按 `E` 不是「收起來」的鍵）');
+
+  /* --- ⑤ 走開：那一則收掉，世界端的亮度也熄掉 ---------------------- */
+  await evaluate(`
+    const g = window.__promptasy;
+    const b = g.world.archives.byId('${archHallId}');
+    g.player.teleport(b.x + 14, b.z + 14);
+    return 1;
+  `);
+  const archGone = await waitFor(
+    () =>
+      evaluate(`
+        const g = window.__promptasy;
+        const el = document.querySelector('[data-aside]');
+        const b = g.world.archives.byId('${archHallId}');
+        return el && el.hidden && !b.near ? { side: b.side } : null;
+      `),
+    { timeout: 25000, every: 150, label: 'P20b：走開之後那一則收掉' }
+  );
+  eq(archGone.side, -1, 'P20b：走開之後那一座不再指著任何一則');
+
+  /* --- ⑥ 圖鑑：三分法 ＋ 檔案廊那一章每一則都點得到出處 ------------ */
+  const archCodex = await evaluate(`
+    const g = window.__promptasy;
+    g.promptConsole.close(); g.settings.close();
+    g.codex.open();
+    await new Promise((r) => setTimeout(r, 360));
+    const divisions = [...document.querySelectorAll('#codex .division .meta-rule .zh')].map((n) => n.textContent.trim());
+    const rows = [...document.querySelectorAll('#codex .archive .tech')];
+    rows.forEach((li) => { const d = li.querySelector('details'); if (d) d.open = true; });
+    await new Promise((r) => setTimeout(r, 220));
+    const srcs = [...document.querySelectorAll('#codex .archive__srcs a')].map((a) => a.href);
+    const bodies = [...document.querySelectorAll('#codex .archive__why')].map((p) => p.textContent.trim());
+    const out = {
+      divisions,
+      rows: rows.length,
+      srcs: srcs.length,
+      allHttps: srcs.every((u) => /^https:\\/\\//.test(u)),
+      bodies: bodies.length,
+      firstBody: bodies[0] || '',
+      // 這一章不准被算進技巧那一疊，也不准被算進「秘境」那一疊
+      inCodexStack: document.querySelectorAll('#codex .codex .archive').length,
+      inFinds: document.querySelectorAll('#codex .finds .archive').length,
+      // 借用別人的選擇器 = 別人的斷言會量到不屬於它的東西
+      borrowed: document.querySelectorAll('#codex .archive .tech__tip, #codex .archive .tech__ex, #codex .archive .tech__note, #codex .archive .tech__srcs').length,
+    };
+    g.codex.close();
+    return out;
+  `);
+  for (const zh of ['世界觀', '濁言', '小知識']) {
+    ok(archCodex.divisions.includes(zh), `P20b：圖鑑的三分法有「${zh}」那一分`, archCodex.divisions.join('／'));
+  }
+  eq(archCodex.divisions.length, 3, 'P20b：就是三分，不多不少', archCodex.divisions.join('／'));
+  eq(archCodex.rows, 24, 'P20b：檔案廊那一章列出 24 則');
+  eq(archCodex.srcs, 24, 'P20b：每一則都掛得出官方出處（護欄 2）');
+  eq(archCodex.allHttps, true, 'P20b：出處是可點的 https 連結');
+  eq(archCodex.bodies, 24, 'P20b：24 則的內文都展得開');
+  ok(archCodex.firstBody.length >= 20, 'P20b：（前提）真的量到內文，不是空掃', archCodex.firstBody.slice(0, 24));
+  eq(archCodex.inCodexStack, 0, 'P20b：那一章不在技巧那一疊裡（`.codex .tech` 的計數沒被弄髒）');
+  eq(archCodex.inFinds, 0, 'P20b：也不在「秘境」那一疊裡（`.finds .tech` 的計數沒被弄髒）');
+  eq(archCodex.borrowed, 0, 'P20b：那一章沒有借用技巧那一疊的選擇器');
+
   await sleep(600);
   const realErrors = consoleErrors.filter((e) => !/favicon|DevTools|Autofill/i.test(e));
   eq(realErrors.length, 0, '全程零 console error', realErrors.slice(0, 6).join('\n      '));

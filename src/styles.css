@@ -1080,6 +1080,49 @@ a.src:hover {
   margin-top: var(--s2);
 }
 
+/* v1.2 · P20b：檔案廊那一則小知識 —— 一張讀得到、按不到的紙片。
+   刻意擺在左側、字級小、不搶中央那張互動提示的位置（§3.3「一次只有一件事擁有畫面」）。 */
+.hud__aside {
+  position: absolute;
+  left: var(--s6);
+  bottom: 34%;
+  max-width: min(30ch, 34vw);
+  padding: var(--s3) var(--s4);
+  border-left: 2px solid var(--star);
+  background-color: rgba(9, 12, 18, 0.82);
+  backdrop-filter: blur(10px);
+  animation: aside-in var(--d-slow) var(--e-out);
+  pointer-events: none;
+}
+.hud__aside b {
+  display: block;
+  font-family: var(--font-display);
+  font-size: 1.02rem;
+  font-weight: 500;
+  letter-spacing: var(--tr-cjk);
+  color: var(--paper);
+}
+.hud__aside p {
+  margin: var(--s2) 0 0;
+  font-size: var(--t-micro);
+  line-height: 1.75;
+  color: var(--paper-3);
+}
+.hud__aside i {
+  display: block;
+  margin-top: var(--s2);
+  font-style: normal;
+  font-size: var(--t-meta);
+  letter-spacing: 0.08em;
+  color: rgba(120, 137, 161, 0.9);
+}
+@keyframes aside-in {
+  from {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+}
+
 @keyframes rise {
   from {
     opacity: 0;
@@ -3673,6 +3716,33 @@ select option:disabled {
 /* ---------------------------------------------------------------- 走出來的收集
    圖鑑底下那兩行小字：刻文小語與藏起來的地方。
    刻意安靜 —— 它不是主線進度，是「順手撿到的」。 */
+/* v1.2 · P20b：圖鑑的三分法（世界觀／濁言／小知識）與檔案廊那一章 */
+.division {
+  margin: var(--s7) 0 var(--s4);
+}
+.meta-rule--division h4 .zh {
+  font-size: 1.24rem;
+}
+.division__sub {
+  margin: var(--s2) 0 0;
+  font-size: var(--t-micro);
+}
+.archive {
+  margin: 0 0 var(--s6);
+}
+.archive__body {
+  padding: var(--s3) var(--s4) var(--s4);
+}
+.archive__why {
+  margin: 0;
+  font-size: var(--t-body);
+  line-height: 1.9;
+  color: var(--paper-2);
+}
+.archive__srcs {
+  margin: var(--s3) 0 0;
+}
+
 .finds {
   margin: var(--s6) 0 0;
 }

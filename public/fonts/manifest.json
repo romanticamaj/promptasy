@@ -2,6 +2,7 @@
   "generated": "由 scripts/subset-fonts.mjs 產生，請勿手動編輯",
   "corpusFiles": [
     "index.html",
+    "src/data/archive.json",
     "src/data/builder-zh.json",
     "src/data/challenges.json",
     "src/data/coach.json",
@@ -88,6 +89,7 @@
     "src/ui/tablet.js",
     "src/ui/title.js",
     "src/ui/watchman.js",
+    "src/world/archives.js",
     "src/world/color-script.js",
     "src/world/drifts.js",
     "src/world/echoes.js",
@@ -104,7 +106,7 @@
     "src/world/watchmen.js",
     "src/world/world.js"
   ],
-  "corpusHash": "bac5a7422ccd99e0",
+  "corpusHash": "212623ee96f74165",
   "coverage": {
     "latin": [
       32,
@@ -1291,6 +1293,7 @@
       26820,
       26829,
       26840,
+      26842,
       26847,
       26855,
       26869,
@@ -2695,7 +2698,7 @@
       "id": "serif-tc",
       "family": "Arcade Serif TC",
       "file": "arcade-serif-tc.woff2",
-      "bytes": 705408,
+      "bytes": 705912,
       "role": "cjk",
       "variable": true,
       "weight": null,
@@ -2706,7 +2709,7 @@
           "default": 400
         }
       },
-      "requested": 1950,
+      "requested": 1951,
       "missing": 0,
       "source": "NotoSerifTC.ttf",
       "author": "Google (Noto Project)",
@@ -2718,7 +2721,7 @@
       "id": "sans-tc",
       "family": "Arcade Sans TC",
       "file": "arcade-sans-tc.woff2",
-      "bytes": 537640,
+      "bytes": 537972,
       "role": "cjk",
       "variable": true,
       "weight": null,
@@ -2729,7 +2732,7 @@
           "default": 400
         }
       },
-      "requested": 1950,
+      "requested": 1951,
       "missing": 0,
       "source": "NotoSansTC.ttf",
       "author": "Google (Noto Project)",
@@ -2738,5 +2741,5 @@
       "url": "https://github.com/google/fonts/tree/main/ofl/notosanstc"
     }
   ],
-  "totalBytes": 1567636
+  "totalBytes": 1568472
 }

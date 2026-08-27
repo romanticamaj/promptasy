@@ -81,6 +81,8 @@ function targetsExceptSelf() {
     murks: base.murks,
     watchmen: base.watchmen,
     echoes: base.echoes,
+    // v1.2 · P20b：檔案廊（互動半徑 3.2）—— 守門者那一側量的是 3.2 ＋ 3.2 ＝ 6.4
+    archives: base.archives,
     tablets: Props.LORE_TABLETS,
     secrets: base.secrets,
     guardians: [],

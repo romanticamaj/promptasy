@@ -86,6 +86,8 @@ async function loadTargets() {
     watchmen: readJson('src/data/watchmen.json').entries,
     // v1.2 · P20a：回聲重演（坐在小景旁邊的一團光）也是一層互動點
     echoes: readJson('src/data/echoes.json').entries,
+    // v1.2 · P20b：檔案廊 —— 少了這一列，中觀層會照一個沒有展館的世界去搜座標
+    archives: readJson('src/data/archive.json').halls,
     tablets: Props.LORE_TABLETS,
     secrets: readJson('src/data/secrets.json').entries,
   });

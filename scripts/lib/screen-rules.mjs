@@ -52,6 +52,13 @@ export const LAYER_INTERACT_R = Object.freeze({
    * 圈不會比別人大，也就沒有「圈比淨空大」的那個問題。
    */
   echo: 3.2,
+  /*
+   * v1.2 · P20b：檔案廊（走近浮出一則小知識的那座小展館）。3.2 —— 這一格
+   * **同時是**它的淨空半徑與它「走近浮出」的那一圈（同守門者與回聲）。
+   * 它連 `E` 都不搶（見 `src/world/archives.js`），所以不會蓋掉任何一層；
+   * 圈訂成與回聲同一階，是為了讓「離每一層多遠」這件事在兩側量到同一個數字。
+   */
+  archive: 3.2,
 });
 
 /**
@@ -560,6 +567,109 @@ export const AROUND_FREE_MIN = 14;
  */
 export const SOLIDS_PER_REGION_MAX = 22;
 
+/* ------------------------------------------------------------------ *
+ * v1.2 · P20b：檔案廊（每片土地一座小展館）的擺位
+ *
+ * 它是**走近浮出**的一層：不開面板、不搶 `E`、零碰撞體、零光源。
+ * 因為它連 `E` 都不搶，「誰贏」在它身上不成立 —— 真正要守的東西只有兩件：
+ *   ① 它的量體不准站進任何一層的互動圈裡（不然那座展館會擋在人家門口）
+ *   ② 玩家真的走得到它旁邊（腳下站得住、四周繞得過去）
+ * 門檻與回聲那一套逐條對齊（互動半徑同樣是 3.2），所以**兩側量到同一個數字**。
+ * ------------------------------------------------------------------ */
+
+/**
+ * v1.2 · P20b：檔案廊的互動半徑（`src/world/archives.js` 的 `ARCHIVE_RADIUS`）。
+ * 同 `WATCHMAN_R`：這裡重寫一份是為了讓**不 import three.js** 的擺位規則也用得到，
+ * `test:rubric` 逐值比對兩份（分家就紅）。
+ */
+export const ARCHIVE_R = 3.2;
+
+/**
+ * 檔案廊的量體半徑（公尺）——四根細桿撐起來的那一圈頂棚（`ARCHIVE_SPAN`）。
+ * 它**沒有碰撞圓**（細桿與飄在頭上的展品都不擋人，同 §4.16 那道門的柱子），
+ * 所以這個數字只用在兩件事：`keepClear` 的留白、以及「四周繞得過去」量在哪一圈。
+ * `test:rubric` 與 `src/world/archives.js` 逐值比對。
+ */
+export const ARCHIVE_BODY_R = 1.9;
+
+/**
+ * 檔案廊離「**不搶 `E` 的東西**」至少多遠（公尺）：反應物、祕密、地標、小景。
+ * 4 公尺沿用守夜人／回聲那一條（`WATCHMAN_AUTO_MIN`）。
+ */
+export const ARCHIVE_AUTO_MIN = WATCHMAN_AUTO_MIN;
+
+/**
+ * 檔案廊離某一層至少多遠（公尺）——**搜尋與 `test:rubric` 問的是同一支**，
+ * 而且與 `echoNeedFrom()` 逐條同構（兩層的互動半徑都是 3.2）。
+ *
+ * · 不搶 `E` 的（反應物／祕密）：`ARCHIVE_AUTO_MIN`，與圈多大無關（是個常數）。
+ * · 石座：那一層永遠贏，兩片土地擺不下「圈不重疊」（見例外表）。
+ * · 其餘每一層：**互動圈不重疊** ＝ 兩個互動半徑相加。
+ *
+ * ⚠️ 大濁靈（9.2）、守門者（6.4）、回聲（6.4）那三層**不准放進例外表**：
+ * `murk-fit`／`guardian-fit`／`test:rubric` 的回聲段從另一側量的是同一條式子。
+ *
+ * @param {{k:string, id?:string, r?:number}} t `interactionTargets()` 的一列
+ * @param {string} [regionId] 這一座展館落在哪一片土地（只有石座那一層用得到）
+ */
+export function archiveNeedFrom(t, regionId = '') {
+  if (t.k === 'react' || t.k === 'secret') return ARCHIVE_AUTO_MIN;
+  if (t.k === 'marker' && regionId in ARCHIVE_MARKER_EXCEPTIONS) return ARCHIVE_MARKER_EXCEPTIONS[regionId];
+  return interactRingRadius(t) + ARCHIVE_R;
+}
+
+/**
+ * 石座那一條的**例外表**（要寫理由、而且數字是逐點掃出來的**上限**）——
+ * 與回聲的 `ECHO_MARKER_EXCEPTIONS` 同一種東西、同一個理由：石座永遠贏，
+ * 而 142 座石座已經把那幾片土地填滿了。一般門檻是「互動圈不重疊」＝ 6.5 ＋ 3.2 ＝ **9.7**。
+ * 每一格的上限記在 `expected-counts.json` 的 `archive.markerCeiling`，
+ * `test:rubric` 逐值比對「例外 ≤ 上限」。
+ *
+ * **只有一片土地需要它**：`wards`（護欄崗，半徑 27 的哨所裡 6 座石座 ＋ 兩道石脊
+ * ＋ 守夜人 ＋ 守門者 ＋ 大濁靈 ＋ 一處回聲）。照 9.7 掃過整片平地圈
+ * **一個格點都不剩**；把石座那一條拿掉、其餘每一條照舊
+ * （`node scripts/archive-fit.mjs --region wards --ceiling`），
+ * 合格點只剩 140 個，而且**離最近那座石座最遠只到 8.20 公尺**。
+ * 門檻訂在 7.8 —— 出貨的落點量到 7.91，餘裕 0.11 公尺
+ * （findings：餘裕只剩 0.01 的門檻等於沒有門檻，所以不貼著出貨值訂）。玩家端零倒退：檔案廊連 `E` 都不搶，
+ * 站在石座前永遠是石座，而「走得到這座展館嗎」由 `ARCHIVE_STAND_MIN` 逐點量。
+ * `divergence`（分歧之廳，半徑 29 的建物裡 10 座石座 ＋ 兩道石脊 ＋ 守夜人
+ * ＋ 大濁靈 ＋ 一處回聲 ＋ 三件器物 ＋ 兩頁殘頁，而且**那座建物本身就是量體**）：
+ * 照 9.7 掃也是一個格點都不剩；拿掉石座那一條之後合格點 321 個，
+ * 離最近石座**最遠只到 8.08 公尺**，門檻訂在 7.7（出貨的落點 7.83，餘裕 0.13 公尺）。
+ * 另外十片土地照 9.7 全部擺得下（離線篩各剩數十到數百個格點）。
+ */
+export const ARCHIVE_MARKER_EXCEPTIONS = Object.freeze({ wards: 7.8, divergence: 7.7 });
+
+/**
+ * 檔案廊離「走出來的路」的區間（公尺）：**走得到**（上限）、又不站在路中間（下限）。
+ * 上限沿用母題那一條（`MOTIF_PATH_MAX` 26）—— 一座沒有人走得到的展館等於沒有蓋。
+ */
+export const ARCHIVE_PATH_MIN = WATCHMAN_PATH_MIN;
+export const ARCHIVE_PATH_MAX = MOTIF_PATH_MAX;
+
+/**
+ * **真正要守的東西之一**：站在它「走近浮出」的那一圈上，24 個方向裡有幾個站得住。
+ *
+ * 它不搶 `E`，所以「是不是它贏」在它身上不成立（那是回聲那一條要問的）——
+ * 這一條純粹在量**走不走得到**（腳下是不是崩掉的區緣、有沒有石頭擋著）。
+ * 逐片量到的數字記在 `expected-counts.json` 的 `archive.standWorst`。
+ */
+export const ARCHIVE_WINNABLE_DIRS = 24;
+export const ARCHIVE_STAND_MIN = 16;
+
+/**
+ * **真正要守的東西之二**：貼著頂棚那一圈（`ARCHIVE_BODY_R` ＋ 玩家半徑）繞得過去。
+ * 它零碰撞，所以這一條量的是**地形**：展館不准蓋在一個人走不進去的坡上。
+ */
+export const ARCHIVE_RING_DIRS = 16;
+
+/**
+ * 頂棚四個角腳下的地形落差上限（公尺）—— 沿用母題那一條（`MOTIF_STEP_DROP_MAX`）：
+ * 讀得出這是一整座蓋在平地上的東西，不是一半埋在山坡裡。
+ */
+export const ARCHIVE_STEP_DROP_MAX = MOTIF_STEP_DROP_MAX;
+
 /**
  * 把所有「有互動圈、不准被擋住」的東西列成一張表。
  * @param {object} data `{ challenges, inscriptions, letters, handles, reactiveSpots, murks, tablets, secrets }`
@@ -589,6 +699,12 @@ export function interactionTargets(data) {
    * （P17 交接、P18 又記了一次的那條教訓）。
    */
   for (const e of data.echoes || []) out.push({ k: 'echo', id: e.id, at: e.at });
+  /*
+   * v1.2 · P20b：檔案廊（互動半徑 3.2）。**一定要餵進來**：沒有這一列，
+   * 中觀層、大濁靈、守門者、回聲、下一格要擺的東西都會照一個少了它的世界去算
+   * （P17 交接、P18／P20a 各記了一次的那條教訓）。
+   */
+  for (const h of data.archives || []) out.push({ k: 'archive', id: h.id, at: h.at });
   for (const t of data.tablets || []) out.push({ k: 'tablet', id: t.id, at: t.at });
   /*
    * v1.2 · P15：`tell: "high"` 的祕密**不進這張表**。
@@ -713,6 +829,17 @@ export default {
   ECHO_ANCHOR_EXCEPTIONS,
   ECHO_STAGE_R,
   echoNeedFrom,
+  ARCHIVE_R,
+  ARCHIVE_BODY_R,
+  ARCHIVE_AUTO_MIN,
+  ARCHIVE_MARKER_EXCEPTIONS,
+  ARCHIVE_PATH_MIN,
+  ARCHIVE_PATH_MAX,
+  ARCHIVE_WINNABLE_DIRS,
+  ARCHIVE_STAND_MIN,
+  ARCHIVE_RING_DIRS,
+  ARCHIVE_STEP_DROP_MAX,
+  archiveNeedFrom,
   GUARDIAN_R,
   GUARDIAN_ABOVE_MIN,
   GUARDIAN_AUTO_MIN,

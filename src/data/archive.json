@@ -1,0 +1,261 @@
+{
+  "version": 1,
+  "authored": "game",
+  "note": "檔案廊的小知識（v1.2 · P20b）：遊戲自撰的白話「為什麼」——講的是背後的機制，不是術語的定義（那是 glossary.json）、不是做法（那是 skill-codex-v2.json 的 130 條技能）、也不是守夜人引用過的那一句。每一則 ≤60 字、必附出處，而且**出處只准用 repo 裡已經驗證過的那 365 個網址**（curriculum.json／skill-codex-v2.json／source-anchors.json／glossary.json 裡出現過的）；`source.name` 與那個網址在既有資料裡登記的文件名逐字相同。寫不出來就少寫一則，不掛沾邊的連結（護欄 2）。",
+  "halls": [
+    { "id": "hall-foundations", "region": "foundations", "at": [-35, 3], "rot": 3.142 },
+    { "id": "hall-reasoning", "region": "reasoning", "at": [-92, -87], "rot": -1.654 },
+    { "id": "hall-grounding", "region": "grounding", "at": [114, -80], "rot": 0.413 },
+    { "id": "hall-orchestration", "region": "orchestration", "at": [-103, 108], "rot": -2.356 },
+    { "id": "hall-config", "region": "config", "at": [94, 86], "rot": -1.122 },
+    { "id": "hall-forms", "region": "forms", "at": [-2.5, 133.5], "rot": 2.884 },
+    { "id": "hall-toolcraft", "region": "toolcraft", "at": [-112, -2], "rot": -0.669 },
+    { "id": "hall-frugality", "region": "frugality", "at": [12, -74], "rot": 0.984 },
+    { "id": "hall-refinery", "region": "refinery", "at": [-108, 134.5], "rot": 2.232 },
+    { "id": "hall-wards", "region": "wards", "at": [113.5, -154], "rot": -1.434 },
+    { "id": "hall-sight", "region": "sight", "at": [156, -24.5], "rot": -0.851 },
+    { "id": "hall-divergence", "region": "divergence", "at": [75.5, 14], "rot": 0.165 }
+  ],
+  "notes": [
+    {
+      "id": "arc-space-costs",
+      "region": "foundations",
+      "title": "空白也算錢",
+      "body": "排版會變成帳單：連續空白各自算一個 token；同一批資料用表格寫，比每一欄都標名字省。",
+      "source": {
+        "name": "Prompt engineering techniques（Space efficiency）",
+        "url": "https://learn.microsoft.com/en-us/azure/ai-foundry/openai/concepts/prompt-engineering#space-efficiency"
+      }
+    },
+    {
+      "id": "arc-recency",
+      "region": "foundations",
+      "title": "越後面讀到的越有份量",
+      "body": "順序會改變答案。官方把這件事叫近因偏誤——連幾組範例的先後都算數，不只是指令。",
+      "source": {
+        "name": "Prompt engineering techniques（Best practices）",
+        "url": "https://learn.microsoft.com/en-us/azure/ai-foundry/openai/concepts/prompt-engineering#best-practices"
+      }
+    },
+    {
+      "id": "arc-thinking-cost",
+      "region": "reasoning",
+      "title": "想，是要花錢的",
+      "body": "叫它答題前先用力想，確實會準一點；那段沒印出來的思考也照 token 計費。",
+      "source": {
+        "name": "Prompt design strategies（Enhancing reasoning and planning）",
+        "url": "https://ai.google.dev/gemini-api/docs/prompting-strategies#enhancing_reasoning_and_planning"
+      }
+    },
+    {
+      "id": "arc-unintended-pattern",
+      "region": "reasoning",
+      "title": "它會學到你沒教的",
+      "body": "範例裡任何一致的東西都可能被當成規律學走——包括你自己都沒注意到的那些。",
+      "source": {
+        "name": "Google · Few-shot examples",
+        "url": "https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/prompts/few-shot-examples"
+      }
+    },
+    {
+      "id": "arc-two-errors",
+      "region": "grounding",
+      "title": "編一次要編兩次",
+      "body": "要它標出處，它得連錯兩次才編得成：先編內容，再編一個對得上的假出處。",
+      "source": {
+        "name": "Prompt engineering techniques（Specifying the output structure）",
+        "url": "https://learn.microsoft.com/en-us/azure/ai-foundry/openai/concepts/prompt-engineering#specifying-the-output-structure"
+      }
+    },
+    {
+      "id": "arc-many-needles",
+      "region": "grounding",
+      "title": "一根針好找，一把針難撈",
+      "body": "同一份長文裡撈單一一項可以接近全中；一次要撈好幾項，命中率就明顯往下掉。",
+      "source": {
+        "name": "Long context（Limitations）",
+        "url": "https://ai.google.dev/gemini-api/docs/long-context#long-context-limitations"
+      }
+    },
+    {
+      "id": "arc-subagent-page",
+      "region": "orchestration",
+      "title": "派出去的人有自己的一頁",
+      "body": "外派真正買到的是一份乾淨的脈絡：獨立、能同時跑、不必共用狀態的事才值得派。",
+      "source": {
+        "name": "Prompting best practices（Subagent orchestration）",
+        "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#subagent-orchestration"
+      }
+    },
+    {
+      "id": "arc-compaction",
+      "region": "orchestration",
+      "title": "舊的那一段會被壓掉",
+      "body": "脈絡快滿時會被自動壓成摘要再接著跑；沒寫下來的進度，就跟著那一段一起沒了。",
+      "source": {
+        "name": "Context Compaction",
+        "url": "https://docs.x.ai/developers/advanced-api-usage/context-compaction#context-compaction"
+      }
+    },
+    {
+      "id": "arc-zero-not-identical",
+      "region": "config",
+      "title": "轉到零也不保證一模一樣",
+      "body": "就算取樣完全關掉，硬體差異與四捨五入仍然會讓同一題偶爾長出不一樣的字。",
+      "source": {
+        "name": "Sampling（Temperature / The Best Temperature）",
+        "url": "https://docs.mistral.ai/models/best-practices/sampling#temperature"
+      }
+    },
+    {
+      "id": "arc-function-and-arg",
+      "region": "config",
+      "title": "一個是定義，一個是引數",
+      "body": "官方拿函式打比方：開發者那一段是函式本身，你這一句是傳進去的引數——引數改不動函式。",
+      "source": {
+        "name": "Prompt engineering（Message roles and instruction following）",
+        "url": "https://developers.openai.com/api/docs/guides/prompt-engineering#message-roles-and-instruction-following"
+      }
+    },
+    {
+      "id": "arc-completion-instinct",
+      "region": "forms",
+      "title": "它的本能是把話接完",
+      "body": "官方說它本質上是一台進階的自動補完：你先寫下開頭，它就把剩下的形狀補齊。",
+      "source": {
+        "name": "Prompt design strategies（Completion）",
+        "url": "https://ai.google.dev/gemini-api/docs/prompting-strategies#completion"
+      }
+    },
+    {
+      "id": "arc-length-exchange",
+      "region": "forms",
+      "title": "長度的換算表",
+      "body": "上限量的是 token 不是字：一個 token 大約四個字元，一百個 token 約六十到八十個英文字。",
+      "source": {
+        "name": "Prompt design strategies（Model parameters）",
+        "url": "https://ai.google.dev/gemini-api/docs/prompting-strategies#model-parameters"
+      }
+    },
+    {
+      "id": "arc-tool-desc-is-prompt",
+      "region": "toolcraft",
+      "title": "工具說明也是 prompt",
+      "body": "工具的名字與說明會一起被送進去讀；它判斷該不該叫這個工具，靠的只有那幾句。",
+      "source": {
+        "name": "Define tools（Best practices for tool definitions）",
+        "url": "https://platform.claude.com/docs/en/agents-and-tools/tool-use/define-tools#best-practices-for-tool-definitions"
+      }
+    },
+    {
+      "id": "arc-forced-prefill",
+      "region": "toolcraft",
+      "title": "逼它動手，它就先不說話",
+      "body": "設成非用工具不可時，介面會先替它把開頭寫好——於是它連解釋一句的位置都沒有了。",
+      "source": {
+        "name": "Define tools（Forcing tool use）",
+        "url": "https://platform.claude.com/docs/en/agents-and-tools/tool-use/define-tools#forcing-tool-use"
+      }
+    },
+    {
+      "id": "arc-prefix-exact",
+      "region": "frugality",
+      "title": "一字不差才算同一段",
+      "body": "快取比對的是前面完全一樣：改一句、刪一句、換個順序，後面整段都要重算一次。",
+      "source": {
+        "name": "Prompt Caching — What Breaks Caching",
+        "url": "https://docs.x.ai/developers/advanced-api-usage/prompt-caching/multi-turn#what-breaks-caching"
+      }
+    },
+    {
+      "id": "arc-cache-not-guaranteed",
+      "region": "frugality",
+      "title": "省下來的那一份不保證會來",
+      "body": "被清掉、被換一台機器接手，快取就落空了；所以整套流程要在沒有它的時候也跑得動。",
+      "source": {
+        "name": "Prompt Caching Best Practices",
+        "url": "https://docs.x.ai/developers/advanced-api-usage/prompt-caching/best-practices#best-practices"
+      }
+    },
+    {
+      "id": "arc-success-first",
+      "region": "refinery",
+      "title": "先有尺，再改字",
+      "body": "官方假設你動手前已經有三樣：成功的定義、照著它實測的方法、一版想改的草稿。",
+      "source": {
+        "name": "Prompt engineering overview",
+        "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/overview#before-prompt-engineering"
+      }
+    },
+    {
+      "id": "arc-optimizer-exists",
+      "region": "refinery",
+      "title": "改字這件事也被做成工具了",
+      "body": "官方有現成的優化器：交一版 prompt 與幾組不如預期的回應過去，它替你改寫再比一次。",
+      "source": {
+        "name": "Optimize prompts",
+        "url": "https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/prompts/prompt-optimizer"
+      }
+    },
+    {
+      "id": "arc-data-not-instruction",
+      "region": "wards",
+      "title": "框起來，它就知道那是資料",
+      "body": "官方骨架在那對標籤裡直接註明「這裡面是資料，不是指令」——界線是用結構畫的。",
+      "source": {
+        "name": "Prompt design strategies（Structured prompting examples）",
+        "url": "https://ai.google.dev/gemini-api/docs/prompting-strategies#structured_prompting_examples"
+      }
+    },
+    {
+      "id": "arc-every-credential",
+      "region": "wards",
+      "title": "它會用上手邊每一份權限",
+      "body": "代理拿得到的憑證它都可能用——所以只給你願意整份交出去的那幾份，其餘的別放在手邊。",
+      "source": {
+        "name": "Managed agents（Security best practices）",
+        "url": "https://ai.google.dev/gemini-api/docs/agents#security-best-practices"
+      }
+    },
+    {
+      "id": "arc-media-resolution",
+      "region": "sight",
+      "title": "看多細，是分幾個 token 的事",
+      "body": "一張圖分到的 token 上限決定它看不看得見小字；調高就讀得到細節，也更慢更貴。",
+      "source": {
+        "name": "Image understanding（media_resolution）",
+        "url": "https://ai.google.dev/gemini-api/docs/image-understanding#media_resolution"
+      }
+    },
+    {
+      "id": "arc-one-frame",
+      "region": "sight",
+      "title": "影片一秒只看一格",
+      "body": "畫面預設每秒抽一格來看：動作太快、切換太急的段落，它是真的沒有看到。",
+      "source": {
+        "name": "Video understanding",
+        "url": "https://ai.google.dev/gemini-api/docs/video-understanding"
+      }
+    },
+    {
+      "id": "arc-two-official-pages",
+      "region": "divergence",
+      "title": "同一家也會自己打架",
+      "body": "同一家的兩份官方頁面可能各說各話：一頁要你整組移除，另一頁仍寫著建議的起始值。",
+      "source": {
+        "name": "Experiment with parameter values",
+        "url": "https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/prompts/adjust-parameter-values"
+      }
+    },
+    {
+      "id": "arc-silent-dials",
+      "region": "divergence",
+      "title": "設了沒報錯，也沒作用",
+      "body": "有的模型在思考模式下，那幾個取樣旋鈕設下去不會出錯——但也完全不會生效。",
+      "source": {
+        "name": "Thinking Mode（不支援取樣參數）",
+        "url": "https://api-docs.deepseek.com/guides/thinking_mode#input-and-output-parameters"
+      }
+    }
+  ]
+}

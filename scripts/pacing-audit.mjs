@@ -73,6 +73,11 @@ export async function pacingAudit({ step = SAMPLE_STEP } = {}) {
    * **新資料層若擺在路網 12m 內，同一個 phase 就要餵進來**（P07 殘頁那條教訓）。
    */
   const echoes = readJson('src/data/echoes.json').entries || [];
+  /*
+   * v1.2 · P20b：檔案廊 —— 一座 3 公尺高的展館，離路網 3–26 公尺，
+   * 是不折不扣的「中景」。**新資料層若擺在路網 12m 內，同一個 phase 就要餵進來**。
+   */
+  const archives = readJson('src/data/archive.json').halls || [];
   // v1.2 · P11：中觀那一層（遮擋帶與母題）本來就是「中景」的定義 —— 不算進來，下一個
   // 「先量再放」的 phase 會拿到過期數據（同 P07 把殘頁補進來的理由）。
   const Screens = await import('../src/world/screens.js');
@@ -89,6 +94,7 @@ export async function pacingAudit({ step = SAMPLE_STEP } = {}) {
       ...murks.map((m) => ({ id: m.id, x: m.at[0], z: m.at[1] })),
       ...letters.map((l) => ({ id: l.id, x: l.at[0], z: l.at[1] })),
       ...echoes.map((e) => ({ id: e.id, x: e.at[0], z: e.at[1] })),
+      ...archives.map((h) => ({ id: h.id, x: h.at[0], z: h.at[1] })),
       ...Screens.SCREEN_BANDS.map((b) => ({ id: b.id, x: b.at[0], z: b.at[1] })),
       ...Screens.MOTIFS.map((mo) => ({ id: mo.id, x: mo.at[0], z: mo.at[1] })),
       // v1.2 · P14：高台。**新資料層若擺在路網 12m 內，同一個 phase 就要餵進來**
