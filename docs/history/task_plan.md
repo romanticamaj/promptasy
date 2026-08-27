@@ -1748,3 +1748,40 @@ Exit criteria：
 - [ ] 傳聞頁把找到的線索連起來，未找到的一端只有虛線、不劇透，而且**沒有新增存檔欄**。
 - [ ] 12 處回聲重演，`E` 播得起來、不離開小景、`reducedMotion` 直接給結果。
 - [ ] rubric／playtest／build／e2e 全綠、console error 0；預算在框內。
+
+### P20b — 檔案廊（AI 小知識 24 則）（2026-08-27 開工）
+
+狀態：`in progress`（里程碑 D 第五格）
+
+**現狀**：教學內容目前有三層——`glossary.json`（術語小卡 24 條，§3.7）＝「**是什麼**」、130 條技能（`skill-codex-v2.json`）＝「**怎麼做**」、守夜人的「教我一手」＝**引用**既有技巧。**沒有人講「為什麼」**：token 是什麼形狀的東西、context window 為什麼會滿、temperature 到底在調什麼、指令階層為什麼擋得住注入、few-shot 為什麼有效。
+
+**目標**：每片土地一座小展館（檔案廊）。**收集到的技巧＝展品**；走近浮出一則小知識——**不彈窗**（畫面留給世界，§3.3）。24 則（每區 2），主題是「**為什麼／背後機制**」。
+
+**護欄 2 在這一格是紅線，而且是最容易破的一格**：
+- 每一則 **≤60 字**、`authored: "game"`、**必附出處**。
+- **出處只能用 repo 裡已經驗證過的那 365 個網址**（`curriculum.json`／`skill-codex-v2.json`／`source-anchors.json`／`glossary.json` 裡出現過的）。rubric 要**逐則回查**那個集合。
+- **寫不出來就不要寫**：如果某一則的說法在既有出處裡找不到支撐，**換一則**，不要為了湊 24 則去掛一個沾邊的連結。真的湊不滿就少寫幾則、把理由寫進回報——**誠實留白永遠比掛假出處好**（這個專案已經這樣做過很多次：擺不下的中觀層、擺不下的高台、不做的 LLM 模式）。
+- 內容要與既有三層**分工清楚**：不是重講術語（那是 glossary）、不是重講做法（那是技能）、也不是重複守夜人引用過的那一句。
+
+**範圍**
+1. **資料** 新 `src/data/archive.json`（`authored: "game"`）：24 則 `{ id, region, title, body(≤60 字), source }`。
+2. **世界端**：每區一座小展館，走近浮出（不彈窗、不搶 `E`）。**0 新光源**；擺位用既有那一整套工具量、**不准把任何一片的既有落點清零**（`screen-fit`／`murk-fit`／`guardian-fit` 的 `--verify` 全部維持）。
+3. **圖鑑三分法**：Lore（世界觀）／Creatures（濁言）／Research（小知識）成形。
+4. **不倒退**：e2e 舊斷言零改動；`E` 仍是唯一互動鍵；新互動層（如果有）要餵進 `interactionTargets()`。
+
+**不做**：中點揭示（P21）、終局（P22）。
+
+**受影響檔案**：新 `src/data/archive.json`、新（或併入）`src/world/*`／`src/ui/codex.js`、`src/main.js`、`scripts/lib/screen-rules.mjs`、`scripts/test-rubric.mjs`、`scripts/headless-check.mjs`、`scripts/expected-counts.json`、`WORLD.md`。
+
+**預算**：三角 235,360 → **<241,000**；**光源 37 不變**；碰撞體 1,055 → **<1,110**；collision-audit 未涵蓋 **0**；可站立體稽核 **0**；`audit:pacing` 12 片死區 **0**。
+
+**Acceptance tests（先紅後綠）**
+- rubric：每一則的 `source` **都在既有那 365 個已驗證網址的集合裡**（逐則回查，先紅：塞一個新網址要紅）；每則 ≤60 字；`authored: "game"`；`zh-scan` 過；**與 glossary／技能／守夜人不重複**（逐則比對，重複要紅）；擺位吃既有那一整套；預算實測。
+- e2e：走近展館 → 小知識浮出來 → **沒有彈窗**、世界沒有停手；圖鑑三分法看得到；**舊斷言零改動**；零 console error。
+
+**禁區**：`curriculum.json`、`challenges.json`、`flows.json`、`murks.json`、`letters.json`、`color-script.json`、`solution-stats.json`、`secrets.json`、`watchmen.json`、`guardian.json`、`rumors.json`、`echoes.json`、`glossary.json`、`vite.config.js`、`CLAUDE.md`、`CHANGELOG.md`、`gameplay-roadmap.md`、三件組、dev server 5173／5174／5175。
+
+Exit criteria：
+- [ ] 24 則（或誠實地少於 24 則＋理由），每則 ≤60 字、**出處都在既有的已驗證集合裡**、與既有三層不重複。
+- [ ] 每區一座展館，走近浮出、不彈窗、不搶 `E`；圖鑑三分法成形。
+- [ ] rubric／playtest／build／e2e 全綠、console error 0；預算在框內。
