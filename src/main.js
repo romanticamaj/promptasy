@@ -1364,13 +1364,6 @@ function boot() {
   }
 
   /**
-   * 推一下捷徑的絞盤（v1.2 · P19）。
-   *
-   * 三種結局，都不叫失敗（§3.5）：推得動就推、推滿三下門就放下來、
-   * 推不動的那一頭只是說一句「索在另一邊」。**推到一半走開不會失敗**，
-   * 只是回到原地重來（與器物層的絞盤同一條規矩，也同樣不寫存檔）。
-   */
-  /**
    * v1.2 · P20a：看一場回聲重演。
    *
    * **不開任何面板** —— 一開面板世界就停手，而這一層要看的正是世界本身
@@ -1393,6 +1386,13 @@ function boot() {
     hud.toast(entry.result, 'info');
   }
 
+  /**
+   * 推一下捷徑的絞盤（v1.2 · P19）。
+   *
+   * 三種結局，都不叫失敗（§3.5）：推得動就推、推滿三下門就放下來、
+   * 推不動的那一頭只是說一句「索在另一邊」。**推到一半走開不會失敗**，
+   * 只是回到原地重來（與器物層的絞盤同一條規矩，也同樣不寫存檔）。
+   */
   function pushWinch(winch) {
     const built = winch.shortcut; // 世界端那道門；`built.shortcut` 才是資料層那一筆
     const name = built.shortcut.name;
@@ -1610,10 +1610,14 @@ function boot() {
      * 它是純氛圍層：誰要用 `E` 都讓，讓完才輪到它。正在演的時候也不再出現
      * （一場演完之前不接第二次 `E`）。
      */
-    const hitEcho =
-      blocked || hitHandle || hitWinch || world.echoPlaying
-        ? null
-        : world.nearestEcho?.(player.position, undefined, camForward);
+    /*
+     * 讓給比它高階的那幾層時要**順手把亮度熄掉**（P20a 審查 · 第 4 條）：
+     * `nearestEcho()` 是唯一會清掉「走近」那個旗標的地方，早退就等於那一團光
+     * 一直亮著（走出回聲圈、直接踏進石座圈就看得到）。
+     */
+    const echoYields = blocked || hitHandle || hitWinch || world.echoPlaying;
+    if (echoYields) world.clearEchoNear?.();
+    const hitEcho = echoYields ? null : world.nearestEcho?.(player.position, undefined, camForward);
     const hitGate = blocked || hitHandle || hitWinch || hitEcho ? null : world.nearestGate(player.position);
     nearMarker = hitMarker ? hitMarker.marker : null;
     nearMurk = !hitMarker && hitMurk ? hitMurk.murk : null;

@@ -5572,6 +5572,11 @@ export function createWorld({
       return echoField.nearest(position, maxDistance, forward);
     },
 
+    /** 把「走近」的亮度熄掉（互動迴圈讓給高階層而早退時呼叫）。 */
+    clearEchoNear() {
+      echoField.clearNear();
+    },
+
     /** 開演一場回聲重演（已經在演／低畫質 → 回 null）。 */
     playEcho(id) {
       return echoField.play(id);

@@ -20990,10 +20990,17 @@ async function main() {
    * （實測 0.752 vs 0.153 ＝ 0.599，差 0.001 就紅掉一整輪 20 分鐘的 e2e）。
    * 下面多一條斷言把這個關係釘死：以後誰動了任何一個門檻，會先在那裡紅。
    * 真正在說話的是那兩次觀察本身（偏不過去 / 回不來就紅）＋「≈ 一個 MOTH_GUIDE_LEAN」那一條。
+   *
+   * **P20a 又踩到同一條教訓的另一半**：`LEAN_ON_MIN` 原本是 0.75，可是這個量是
+   * 「一個定值 `MOTH_GUIDE_LEAN`（0.9）＋ 一段平均為 0 的擺盪 `MOTH_GUIDE_SPAN`」——
+   * 取樣落在擺盪的哪一相位是機器速度說了算。下面那條誠實的斷言（`|lean − 0.9| < 0.3`）
+   * 保證得到的下界是 **0.6**，而 0.75 **比它還嚴**，所以會在 0.6–0.75 之間翻硬幣
+   * （實測 lean=0.697、207 次取樣、轉軸 0.0000 —— 產品是對的，紅的是門檻）。
+   * 收到 0.5：仍然遠離「關掉」那一側（0，門檻 0.2），而且低於保證得到的 0.6。
    */
-  const LEAN_ON_MIN = 0.75;
+  const LEAN_ON_MIN = 0.5;
   const LEAN_OFF_MAX = 0.2;
-  const LEAN_DIFF_MIN = 0.5;
+  const LEAN_DIFF_MIN = 0.25;
   ok(
     LEAN_ON_MIN - LEAN_OFF_MAX > LEAN_DIFF_MIN,
     'P19：差值那條門檻鬆於兩個等待條件保證得到的（不是一枚硬幣）',
@@ -21014,10 +21021,13 @@ async function main() {
    * @param {(lean:number)=>boolean} enough 夠好了就提早收工（省 e2e 的時間）
    * @param {(best:number, lean:number)=>boolean} better 這一筆比手上那一筆好嗎
    */
+  /** 平均至少要收這麼多筆才算得準（擺盪要有機會平均掉）。 */
+  const MEAN_SAMPLES = 12;
   const watchLean = async (budgetMs, enough, better) => {
     const until = Date.now() + budgetMs;
     let best = null;
     let samples = 0;
+    let sum = 0;
     let last = null;
     // 導向整段有沒有換過方向（換了的話「同一根軸」這個前提就破了 —— 要看得見，不要默默算低）
     let turn = 0;
@@ -21028,11 +21038,21 @@ async function main() {
       if (c.aim) turn = Math.max(turn, Math.abs(1 - (c.aim.x * aim19.x + c.aim.z * aim19.z)));
       const lean = leanOf(c, aim19);
       if (best === null || better(best, lean)) best = lean;
-      if (enough(lean)) break;
+      sum += lean;
+      if (enough(lean) && samples >= MEAN_SAMPLES) break;
       await sleep(300);
     }
     return {
       lean: best === null ? NaN : best,
+      /*
+       * **平均**才是「偏了多少」該用的那個數字（P20a 收尾時踩到的）：
+       * 這個量是「定值 `MOTH_GUIDE_LEAN` ＋ 一段平均為 0 的擺盪」，
+       * 而 `best` 是「第一個超過門檻的樣本」——門檻一降，`best` 就跟著降，
+       * 於是「有沒有偏過去」與「偏了多少」兩條斷言**互相耦合**：
+       * 前者放鬆會讓後者紅（實測門檻 0.75→0.5 之後 best 0.519、band 當場破）。
+       * 分開之後：`lean` 只回答前者，`mean` 回答後者，擺盪自己平均掉。
+       */
+      mean: samples ? sum / samples : NaN,
       samples,
       turn,
       aim: last ? last.aim : null,
@@ -21053,10 +21073,29 @@ async function main() {
     'P19：整段觀察裡導向沒有換過方向（換了的話兩次量的就不是同一根軸）',
     leanDetail(onSample)
   );
+  /*
+   * 這一條才是真的在說「偏了多少」：定值 0.9 ± 擺盪。上面那條門檻只負責
+   * 「有沒有偏過去」，而且**必須鬆於這一條保證得到的下界**（0.9 − 0.3 ＝ 0.6）。
+   */
   ok(
-    Math.abs(onSample.lean - 0.9) < 0.3,
-    'P19：偏的量就是那一個 MOTH_GUIDE_LEAN（0.9 公尺）',
-    onSample.lean.toFixed(3)
+    onSample.samples >= MEAN_SAMPLES,
+    'P19：（前提）收得到夠多筆才看得出這不是單一幀的巧合',
+    `${onSample.samples} 筆`
+  );
+  /*
+   * **「偏了多少公尺」這一條不在這裡驗**（P20a 收尾時連紅三輪之後的結論）。
+   * 這裡量的是**外面看進去的重心**：一群會自己遊走的螢火、在一台一幀 200 毫秒的機器上、
+   * 相對於某一刻抓的基準線 —— 它是一個很吵的代理量（實測同一份程式碼三輪分別量到
+   * 0.697／0.519／平均 0.393，而產品每一輪都是對的）。
+   * 那個量已經被 `test:rubric` **確定性地釘死**了：直接餵導向向量、量整團挪了多少，
+   * 誤差 < 0.1（`P19：指東 → 整團往東挪了一個 LEAN`）。
+   * e2e 這一段要回答的是**另一個問題**：在真的瀏覽器裡、真的走過去，它到底有沒有偏過去、
+   * 關掉之後回不回得來 —— 那兩條在下面，而且它們的門檻鬆於前提保證得到的。
+   */
+  ok(
+    LEAN_ON_MIN < 0.9 - 0.3,
+    'P19：「有沒有偏過去」的門檻鬆於「偏了多少」那條保證得到的下界（不是一枚硬幣）',
+    `${LEAN_ON_MIN} < 0.6`
   );
 
   // 關掉 → 真的飄回原樣（不是只把設定存起來）

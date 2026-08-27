@@ -419,6 +419,17 @@ export function createEchoField({
       for (let i = 0; i < echoes.length; i += 1) echoes[i].setNear(echoes[i] === best);
       return best ? { echo: best, distance: bestDist } : null;
     },
+    /**
+     * 把「走近」的亮度全部熄掉。
+     *
+     * `nearest()` 是唯一會清掉那個旗標的地方，可是互動迴圈在**比它高階的層贏了**
+     * （石座、面板開著、序章…）的時候就早退、不會呼叫它 —— 於是那一團光
+     * 會**一直亮著**（P20a 審查 · 第 4 條：走出回聲圈、直接踏進石座圈就會看到）。
+     * 呼叫端在早退之前呼叫這一支，亮度就跟著那一層的勝負走。
+     */
+    clearNear() {
+      for (let i = 0; i < echoes.length; i += 1) echoes[i].setNear(false);
+    },
 
     /**
      * 每幀更新。**零每幀配置**：這裡不 new、不 map/filter、不建閉包。

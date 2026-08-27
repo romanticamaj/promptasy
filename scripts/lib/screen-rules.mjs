@@ -337,7 +337,7 @@ export function echoNeedFrom(t, regionId = '') {
  *   · `wards`（護欄崗，半徑 27 的哨所裡 6 座石座 ＋ 兩道石脊 ＋ 守夜人 ＋ 守門者
  *     ＋ 大濁靈）：全區合格點 **18 個**，離最近那座石座最遠只到 **7.75**。
  *   · `divergence`（分歧之廳，半徑 29 裡 10 座石座 ＋ 兩道石脊 ＋ 守夜人）：
- *     全區合格點 **35 個**，最遠只到 **7.99**。
+ *     全區合格點 **35 個**，最遠只到 **7.98**（契約 `echoes.markerCeiling` 逐值比對的就是這個數字）。
  * 門檻各往下留一點餘裕（7.7／7.9），上限記在 `expected-counts.json` 的
  * `markerCeiling`，`test:rubric` 逐值比對「例外 ≤ 上限」。
  *
@@ -372,7 +372,7 @@ export const ECHO_PATH_MIN = WATCHMAN_PATH_MIN;
  * 一處例外 —— `divergence`（分歧之廳）是十二片土地裡**唯一沒有小景**的一片
  * （`STORY_VIGNETTES` 33 組分在其餘十一片），所以它那一處掛在自己的地標腳下，
  * 而那座地標四周 14 公尺是留白、再往外是 10 座石座 ——
- * 逐點掃出來離地標最近的合格點是 **12.8**，門檻訂 13.5。
+ * 逐點掃出來離地標最近的合格點是 **13.2**（＝出貨的那一個；契約 `echoes.anchorDistance.divergence`），門檻訂 13.5。
  */
 export const ECHO_ANCHOR_MAX = 9;
 export const ECHO_ANCHOR_EXCEPTIONS = Object.freeze({ divergence: 13.5 });

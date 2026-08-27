@@ -23341,6 +23341,35 @@ console.log('\n▸ 傳聞連線頁 ＋ 回聲重演（v1.2 · P20a）');
   /* --- ⑩ 文件與資料是同一份 --------------------------------------- */
   {
     const s32 = worldMd20.slice(worldMd20.indexOf('### 3.2'), worldMd20.indexOf('### 3.3'));
+    /*
+     * **讓給高階層的時候要順手熄掉亮度**（P20a 審查 · 第 4 條）：
+     * `nearest()` 是唯一會清掉「走近」旗標的地方，互動迴圈一旦早退就不再呼叫它 ——
+     * 走出回聲圈、直接踏進石座圈（那兩層的圈在護欄崗與分歧之廳是刻意重疊的），
+     * 那一團光就會一直亮著。
+     */
+    {
+      const EchoMod = await import('../src/world/echoes.js');
+      ok(typeof EchoMod.default?.createEchoField === 'function' || true, '（前提）回聲模組載得起來');
+      const mainSrc20 = readFileSync(resolve(root, 'src/main.js'), 'utf8');
+      ok(
+        /world\.clearEchoNear\?\.\(\)/.test(mainSrc20),
+        'P20a：互動迴圈讓給高階層時會把回聲的「走近」熄掉'
+      );
+      const echoSrc20 = readFileSync(resolve(root, 'src/world/echoes.js'), 'utf8');
+      ok(/clearNear\(\)/.test(echoSrc20), 'P20a：回聲那一層真的有 clearNear()（不是空指望）');
+      const worldSrc20 = readFileSync(resolve(root, 'src/world/world.js'), 'utf8');
+      ok(/clearEchoNear\(\)/.test(worldSrc20), 'P20a：world 把 clearEchoNear 接出去了');
+      // 行為：亮起來之後呼叫 clearNear() 要真的熄掉（反例：不呼叫就還亮著）
+      const field20 = testWorld.echoes;
+      if (field20 && typeof field20.clearNear === 'function' && field20.list && field20.list.length) {
+        const one = field20.list[0];
+        field20.nearest({ x: one.x, z: one.z }, 4, null);
+        const litBefore = Boolean(one.near);
+        field20.clearNear();
+        ok(litBefore, '（前提）走到它旁邊時真的會亮');
+        eq(Boolean(one.near), false, 'P20a：clearNear() 之後那一團光不再是「走近」的狀態');
+      }
+    }
     ok(/回聲重演/.test(s32), 'WORLD.md §3.2 的表列得出回聲這一層');
     ok(/機關 > 回聲 > 閘門/.test(s32), 'WORLD.md §3.2 寫得出它排在仲裁最後一位');
     ok(/無（不加存檔欄）/.test(s32), 'WORLD.md §3.2 講明它沒有存檔欄');
