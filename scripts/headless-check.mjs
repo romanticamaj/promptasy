@@ -20965,18 +20965,35 @@ async function main() {
     box.dispatchEvent(new Event('change', { bubbles: true }));
     await new Promise((r) => setTimeout(r, 260));
     g.settings.close();
-    await new Promise((r) => setTimeout(r, 320));
+    /*
+     * 導向不是「打開就有」：它每 GUIDE_RESCAN 秒才重算一次目標，
+     * 而這台機器一幀 200 毫秒 —— 固定等 320 毫秒等於在賭那一次重算輪不輪得到
+     * （load 高的那幾輪就是這樣量到 aim = null，然後下游三條全部跟著紅）。
+     * 輪詢到它真的指得出方向為止；真的壞掉就會逾時，斷言照樣報得出來。
+     */
+    let aim = null;
+    const t0 = performance.now();
+    while (performance.now() - t0 < 8000) {
+      aim = g.world.guidance();
+      if (aim && Number.isFinite(aim.x)) break;
+      await new Promise((r) => requestAnimationFrame(r));
+    }
     return {
       before,
       setting: g.progression.state.settings.guides,
       saved: JSON.parse(localStorage.getItem('promptasy.v1.save')).settings.guides,
-      aim: g.world.guidance(),
+      aim,
+      aimWaitMs: Math.round(performance.now() - t0),
     };
   `);
   eq(guideToggle.before, false, 'P19：剛剛關掉之後，設定頁的勾勾也跟著不勾了');
   eq(guideToggle.setting, true, 'P19：打開之後設定記著了');
   eq(guideToggle.saved, true, 'P19：也寫進了存檔');
-  ok(guideToggle.aim && Number.isFinite(guideToggle.aim.x), 'P19：打開之後世界指得出一個方向', JSON.stringify(guideToggle.aim));
+  ok(
+    guideToggle.aim && Number.isFinite(guideToggle.aim.x),
+    'P19：打開之後世界指得出一個方向（輪詢到它算出來為止）',
+    `${JSON.stringify(guideToggle.aim)}｜等了 ${guideToggle.aimWaitMs}ms`
+  );
 
   /** 重心沿導向那一軸偏了多少（相對基準線）。 */
   const leanOf = (c, aim) => (c.x - baseCentroid.x) * aim.x + (c.z - baseCentroid.z) * aim.z;
