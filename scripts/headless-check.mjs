@@ -21717,6 +21717,293 @@ async function main() {
   eq(archCodex.inFinds, 0, 'P20b：也不在「秘境」那一疊裡（`.finds .tech` 的計數沒被弄髒）');
   eq(archCodex.borrowed, 0, 'P20b：那一章沒有借用技巧那一疊的選擇器');
 
+  /* ================================================================ */
+  /* v1.2 · P21：轉折 —— 中點揭示 ＋ 鏡碑第二層                        */
+  console.log('\n▸ 轉折：中點揭示 ＋ 鏡碑第二層（v1.2 · P21）');
+  /*
+   * 走到某一塊碑「按得到它」的那一側。
+   *
+   * 不能寫死 +2.4,+2.4：石碑在仲裁上讓給石座（半徑 6.5），而這兩塊新碑離最近的石座
+   * 只有 7.15／8.70 公尺 —— 往石座那一側站，走近提示上出現的是石座，按下去開的是關卡。
+   * 所以逐一試幾個方位，**整段共用一份預算**（findings：每次各給 N 秒的迴圈會把
+   * 90 秒的 CDP 保險絲加爆，整支測試中斷）。
+   */
+  const walkToTablet = (id, name) => evaluate(`
+    const g = window.__promptasy;
+    const tab = g.world.tablets.find((t) => t.id === ${JSON.stringify(id)});
+    const out = { found: Boolean(tab), near: false, offset: null, tried: 0 };
+    if (!tab) return out;
+    const offsets = [[2.4, -2.4], [-2.4, -2.4], [0, -3.2], [0, 3.2], [-3.2, 0], [3.2, 0], [1.8, -1.8], [-1.8, -1.8], [2.4, 2.4], [-2.4, 2.4]];
+    const deadline = Date.now() + 14000;
+    for (const off of offsets) {
+      if (Date.now() > deadline) break;
+      g.player.teleport(tab.position.x + off[0], tab.position.z + off[1]);
+      out.tried += 1;
+      const stop = Math.min(deadline, Date.now() + 1200);
+      while (Date.now() < stop) {
+        const el = document.querySelector('[data-interact]');
+        if (el && !el.hidden && el.textContent.indexOf(${JSON.stringify(name)}) >= 0) {
+          out.near = true;
+          out.offset = off;
+          out.text = el.textContent;
+          return out;
+        }
+        await new Promise((r) => setTimeout(r, 40));
+      }
+    }
+    return out;
+  `);
+
+  const turnIn = await evaluate(`
+    const g = window.__promptasy;
+    const out = {};
+    const waitFor = async (fn, ms = 30000) => {
+      const t0 = Date.now();
+      while (Date.now() - t0 < ms) { const v = fn(); if (v) return v; await new Promise((r) => setTimeout(r, 40)); }
+      return null;
+    };
+    const tab = g.world.tablets.find((t) => t.id === 'twin-pillars-foot');
+    out.tabletExists = Boolean(tab);
+    if (!tab) return out;
+
+    // 先回中央高原，把回聲的冷卻等到 0（不然這一句會被冷卻默默丟掉）
+    g.player.teleport(0, 6);
+    out.backHome = Boolean(await waitFor(() => {
+      const h = g.world.regionAt(g.player.position.x, g.player.position.z);
+      return h && h.id === 'foundations' && !h.onBridge;
+    }, 8000));
+    out.cooledDown = Boolean(await waitFor(() => g.nudge.state().echoCooldown === 0));
+
+    // 這一趟走到這裡的進度：中點揭示不准看這幾個數字
+    out.clearedBefore = Object.keys(g.progression.state.bestGrades).length;
+    const gate = g.progression.gateStatus('divergence');
+    out.gateUnlocked = Boolean(gate.unlocked);
+    // 這一片土地上的關卡解了幾關 —— 中點揭示不准看這個數字
+    const dvgIds = g.content.challenges.filter((c) => c.region === 'divergence').map((c) => c.id);
+    out.clearedInDivergence = dvgIds.filter((id) => g.progression.bestGrade(id)).length;
+
+    // 旗標清乾淨（前面的段落可能已經路過那一片土地）
+    g.progression.setFlag('midpointSeen', false);
+    out.flagBefore = Boolean(g.progression.state.flags.midpointSeen);
+
+    // 走進分歧之廳（先落在碑的南側 —— 北邊那兩座石座會把 E 搶走）
+    g.player.teleport(tab.position.x + 2.4, tab.position.z - 2.4);
+    const here = g.world.regionAt(g.player.position.x, g.player.position.z);
+    out.here = here ? here.id : null;
+    out.onBridge = here ? Boolean(here.onBridge) : null;
+    out.flagAfter = Boolean(await waitFor(() => g.progression.state.flags.midpointSeen, 8000));
+    // 等的是「這一句真的被說出口」——上一次留下的字不會滿足它（分支名要對得上）
+    const said = await waitFor(() => {
+      const st = g.nudge.state();
+      return st.visible && st.kind === 'midpointRevealed' ? st.text : null;
+    }, 12000);
+    out.echoText = said || '';
+    out.echoKind = g.nudge.state().kind;
+    // 旗標落地了（重新整理也記得）
+    out.saved = Boolean((JSON.parse(localStorage.getItem('promptasy.v1.save')).flags || {}).midpointSeen);
+    return out;
+  `);
+  eq(turnIn.tabletExists, true, 'P21：柱腳的碑真的立在世界上');
+  eq(turnIn.backHome, true, 'P21：（前提）先回得到中央高原');
+  eq(turnIn.cooledDown, true, 'P21：（前提）回聲的冷卻等到 0 了（不然這一句會被丟掉）');
+  eq(turnIn.clearedInDivergence, 0, 'P21：（前提）這一片土地上一關都還沒解');
+  eq(turnIn.flagBefore, false, 'P21：（前提）走進去之前旗標是關的');
+  eq(turnIn.here, 'divergence', 'P21：人真的站在分歧之廳上');
+  eq(turnIn.onBridge, false, 'P21：而且不在橋上');
+  eq(
+    turnIn.flagAfter,
+    true,
+    'P21：走進去就觸發了中點揭示（這一片一關都沒解）',
+    `全場解過 ${turnIn.clearedBefore} 關、這一片 ${turnIn.clearedInDivergence} 關、門 ${turnIn.gateUnlocked ? '已開' : '還沒開'}`
+  );
+  eq(turnIn.echoText, '兩面不是兩個人刻的。', 'P21：回聲說的就是那一句');
+  eq(turnIn.echoKind, 'midpointRevealed', 'P21：說的是中點揭示那一條分支');
+  eq(turnIn.saved, true, 'P21：旗標寫進 localStorage（重新整理也記得說過了）');
+
+  const nearPillarFoot = await walkToTablet('twin-pillars-foot', '柱腳的碑');
+  eq(nearPillarFoot.near, true, 'P21：碑照樣按得到 E（走近提示寫得出碑名）', JSON.stringify(nearPillarFoot));
+
+  await key('KeyE', 'e', { vk: 69 });
+  const turnRead = await evaluate(`
+    const g = window.__promptasy;
+    const waitFor = async (fn, ms = 8000) => {
+      const t0 = Date.now();
+      while (Date.now() - t0 < ms) { const v = fn(); if (v) return v; await new Promise((r) => setTimeout(r, 40)); }
+      return null;
+    };
+    await waitFor(() => g.tabletPanel.isOpen);
+    const panel = document.getElementById('lore-tablet');
+    const lines = [...panel.querySelectorAll('.lore__line')].map((p) => ({ text: p.textContent, hand: p.dataset.hand }));
+    return {
+      open: g.tabletPanel.isOpen,
+      title: panel.querySelector('.panel__title') ? panel.querySelector('.panel__title').textContent : '',
+      lines,
+      links: panel.querySelectorAll('a').length,
+    };
+  `);
+  eq(turnRead.open, true, 'P21：按 E 打得開柱腳的碑');
+  eq(turnRead.title, '柱腳的碑', 'P21：面板寫得出碑名');
+  eq(turnRead.lines.length, 3, 'P21：柱上多了一層字（原本兩層，走進來之後三層）');
+  ok(
+    turnRead.lines[2].text.includes('同一雙手'),
+    'P21：多出來的那一層就是轉折那一句',
+    turnRead.lines.map((l) => l.text).join(' / ')
+  );
+  eq(turnRead.lines[2].hand, 'later', 'P21：那一層是後來才刻上去的筆跡');
+  eq(turnRead.links, 0, 'P21：碑上不掛任何出處（純風味）');
+
+  await key('Escape', 'Escape', { vk: 27 });
+  const turnAgain = await evaluate(`
+    const g = window.__promptasy;
+    const waitFor = async (fn, ms = 8000) => {
+      const t0 = Date.now();
+      while (Date.now() - t0 < ms) { const v = fn(); if (v) return v; await new Promise((r) => setTimeout(r, 40)); }
+      return null;
+    };
+    await waitFor(() => !g.tabletPanel.isOpen);
+    const out = {};
+    // 走出去、再走回來 —— 這一次一個字都不該說
+    g.player.teleport(0, 6);
+    out.left = Boolean(await waitFor(() => {
+      const h = g.world.regionAt(g.player.position.x, g.player.position.z);
+      return h && h.id === 'foundations';
+    }));
+    const tab = g.world.tablets.find((t) => t.id === 'twin-pillars-foot');
+    g.player.teleport(tab.position.x + 2.4, tab.position.z - 2.4);
+    out.back = Boolean(await waitFor(() => {
+      const h = g.world.regionAt(g.player.position.x, g.player.position.z);
+      return h && h.id === 'divergence';
+    }));
+    /*
+     * 取樣 2.5 秒（40 毫秒一次）看它有沒有再排一次隊。
+     * 這一台機器一幀約 200 毫秒，而 pending 會活到下一幀才被 update() 收掉,
+     * 所以每一次重排都會被抓到好幾次。
+     */
+    let reQueued = 0;
+    let samples = 0;
+    const t0 = Date.now();
+    while (Date.now() - t0 < 2500) {
+      const st = g.nudge.state();
+      samples += 1;
+      if (st.pending === 'midpointRevealed') reQueued += 1;
+      await new Promise((r) => setTimeout(r, 40));
+    }
+    out.reQueued = reQueued;
+    out.samples = samples;
+    out.flagStill = Boolean(g.progression.state.flags.midpointSeen);
+
+    // 把旗標清掉，人不動 —— 它應該當場再說一次（證明擋住它的就是那個旗標）
+    g.progression.setFlag('midpointSeen', false);
+    out.reArmed = Boolean(await waitFor(() => g.progression.state.flags.midpointSeen, 8000));
+    return out;
+  `);
+  eq(turnAgain.left, true, 'P21：（前提）走得出分歧之廳');
+  eq(turnAgain.back, true, 'P21：（前提）又走得回去');
+  ok(turnAgain.samples > 40, 'P21：（前提）取樣視窗真的量了幾十次', `samples=${turnAgain.samples}`);
+  eq(turnAgain.reQueued, 0, 'P21：再走進去一次，回聲一個字都沒再說');
+  eq(turnAgain.flagStill, true, 'P21：旗標還記著「說過了」');
+  eq(turnAgain.reArmed, true, 'P21：把旗標清掉之後，人站在原地它就會再說一次（擋住它的就是那個旗標）');
+
+  /* --- 鏡碑第二層：沒到門檻只是「那一層還沒亮」 --- */
+  const rankBefore = await evaluate(`return { index: window.__promptasy.rank().index, id: window.__promptasy.rank().rank.id };`);
+  const mirrorDark = await walkToTablet('mirror-stele', '鏡碑');
+  eq(mirrorDark.found, true, 'P21：鏡碑真的立在校驗場上');
+  ok(rankBefore.index < 2, 'P21：（前提）這時候還沒走到稱號鏈第三階', `index=${rankBefore.index}（${rankBefore.id}）`);
+  eq(mirrorDark.near, true, 'P21：門檻沒到，碑照樣走得到、按得到（不是鎖住、不是消失）', JSON.stringify(mirrorDark));
+
+  await key('KeyE', 'e', { vk: 69 });
+  const mirrorRead = await evaluate(`
+    const g = window.__promptasy;
+    const waitFor = async (fn, ms = 8000) => {
+      const t0 = Date.now();
+      while (Date.now() - t0 < ms) { const v = fn(); if (v) return v; await new Promise((r) => setTimeout(r, 40)); }
+      return null;
+    };
+    const opened = Boolean(await waitFor(() => g.tabletPanel.isOpen));
+    const panel = document.getElementById('lore-tablet');
+    /*
+     * 面板關起來的時候 innerHTML 還留著上一塊碑的字 —— 沒開就回空的，
+     * 不然一條紅會拖著後面四條一起假紅（而且假紅講的還是別人的內容）。
+     */
+    if (!opened) return { open: false, title: '', texts: [] };
+    return {
+      open: true,
+      title: panel.querySelector('.panel__title') ? panel.querySelector('.panel__title').textContent : '',
+      texts: [...panel.querySelectorAll('.lore__line')].map((p) => p.textContent),
+    };
+  `);
+  eq(mirrorRead.open, true, 'P21：鏡碑打得開');
+  eq(mirrorRead.title, '鏡碑', 'P21：面板寫得出碑名');
+  eq(mirrorRead.texts.length, 2, 'P21：第二層還沒亮的時候，碑上是兩行（碑還在，只是那一層沒有字）');
+  eq(
+    mirrorRead.texts.some((t) => t.indexOf('凡學會說話的人都是抄寫人') >= 0),
+    false,
+    'P21：那一句還沒出現'
+  );
+
+  await key('Escape', 'Escape', { vk: 27 });
+  const mirrorLit = await evaluate(`
+    const g = window.__promptasy;
+    const waitFor = async (fn, ms = 8000) => {
+      const t0 = Date.now();
+      while (Date.now() - t0 < ms) { const v = fn(); if (v) return v; await new Promise((r) => setTimeout(r, 40)); }
+      return null;
+    };
+    await waitFor(() => !g.tabletPanel.isOpen);
+    const out = {};
+    // 一路推到稱號鏈第三階（抄寫人）—— 只用既有的 recordResult，不碰任何 P21 的東西
+    for (const c of g.content.challenges) {
+      if (g.rank().index >= 2) break;
+      g.progression.recordResult({
+        challengeId: c.id,
+        passed: true,
+        grade: 'S',
+        teaches: c.teaches || [],
+        baseXp: c.xp || 30,
+        total: (c.rubric || []).length,
+        earned: (c.rubric || []).length,
+        results: (c.rubric || []).map((r) => ({ check: r.check, passed: true })),
+      });
+    }
+    out.rankIndex = g.rank().index;
+    out.rankId = g.rank().rank.id;
+    return out;
+  `);
+  ok(mirrorLit.rankIndex >= 2, 'P21：推到了稱號鏈第三階（含）以上', `index=${mirrorLit.rankIndex}`);
+  eq(mirrorLit.rankId, 'scribe', 'P21：第三階就是「抄寫人」那一階');
+  const nearMirrorAgain = await walkToTablet('mirror-stele', '鏡碑');
+  eq(nearMirrorAgain.near, true, 'P21：（前提）又走到鏡碑旁邊了', JSON.stringify(nearMirrorAgain));
+
+  await key('KeyE', 'e', { vk: 69 });
+  const mirrorAfter = await evaluate(`
+    const g = window.__promptasy;
+    const waitFor = async (fn, ms = 8000) => {
+      const t0 = Date.now();
+      while (Date.now() - t0 < ms) { const v = fn(); if (v) return v; await new Promise((r) => setTimeout(r, 40)); }
+      return null;
+    };
+    const opened = Boolean(await waitFor(() => g.tabletPanel.isOpen));
+    if (!opened) return { open: false, lines: [], links: 0 };
+    const panel = document.getElementById('lore-tablet');
+    const lines = [...panel.querySelectorAll('.lore__line')].map((p) => ({ text: p.textContent, hand: p.dataset.hand }));
+    return { open: true, lines, links: panel.querySelectorAll('a').length };
+  `);
+  eq(mirrorAfter.open, true, 'P21：（前提）鏡碑第二次也打得開');
+  eq(mirrorAfter.lines.length, 3, 'P21：走到第三階，鏡碑上多一層字');
+  eq(
+    mirrorAfter.lines[2].text.indexOf('凡學會說話的人都是抄寫人') >= 0,
+    true,
+    'P21：多出來的就是那一句',
+    mirrorAfter.lines.map((l) => l.text).join(' / ')
+  );
+  eq(
+    JSON.stringify(mirrorAfter.lines.slice(0, 2).map((l) => l.text)),
+    JSON.stringify(mirrorRead.texts),
+    'P21：前兩層逐字沒動（多的是一層，不是換一塊碑）'
+  );
+  eq(mirrorAfter.links, 0, 'P21：鏡碑也不掛任何出處');
+  await key('Escape', 'Escape', { vk: 27 });
+
   await sleep(600);
   const realErrors = consoleErrors.filter((e) => !/favicon|DevTools|Autofill/i.test(e));
   eq(realErrors.length, 0, '全程零 console error', realErrors.slice(0, 6).join('\n      '));

@@ -515,6 +515,30 @@
         "xp"
       ],
       "why": "v1.2 · P20a：**存檔的頂層欄位逐鍵比對**（排序後整份比字串）。以前只驗「舊欄位都還在」，所以偷偷加一欄不會有人紅 —— 而 P20a 這一格的硬規則正是「不加存檔欄」（傳聞頁與回聲重演都純由既有欄位推導）。清單要變長，就要有人有意識地改這一格。"
+    },
+    "turning": {
+      "region": "divergence",
+      "flag": "midpointSeen",
+      "echo": "midpointRevealed",
+      "midpointGate": "midpoint",
+      "scribeGate": "scribe",
+      "rankStep": 3,
+      "rankId": "scribe",
+      "tablets": [
+        "twin-pillars-foot",
+        "mirror-stele"
+      ],
+      "winnable": {
+        "twin-pillars-foot": 8,
+        "mirror-stele": 24
+      },
+      "winnableWorst": 8,
+      "winnableFloor": 6,
+      "landmarkDistance": {
+        "twin-pillars-foot": 27.0,
+        "mirror-stele": 21.2
+      },
+      "why": "v1.2 · P21：轉折（中點揭示 ＋ 鏡碑第二層）。這一格加兩塊石碑，各多一層掛了門的字（src/world/turning.js 的 TABLET_GATES）。\n\nregion／flag／echo／midpointGate／scribeGate／rankStep／rankId 全部與 turning.js 逐值比對 —— 契約檔宣告了卻沒人比對的欄位就是一句沒人查證的話（P16c 記過、P17 又犯）。\n\nrankStep 3 ＝ 稱號鏈第三階（1 起算），ranks.json 的第三個是 scribe「抄寫人」—— 鏡碑第二層那句話講的正是它。程式裡拿到的是 rankFor() 的 index（0 起算），兩把尺不准混用，所以 scribeReached() 比的是 rankStep − 1。\n\nwinnable ＝ 站在碑的**互動圈**（4.6）上，24 個方向裡有幾個「站得住而且石碑搶得到 E」。量的是互動圈不是淨空半徑：石碑在仲裁上讓給石座（6.5）／濁靈（5.5–6.0）／守夜人（4.6）／守門者（3.2），所以「四周走得到」不等於「按得到」。一個方向只要在 2.2–4.4 公尺之間有一段站得住而且是碑贏，就算按得到。\n\nwinnableWorst 8 ＝ **14 塊碑裡最差的那一塊**（東橋碑 8／柱腳的碑 8 並列；其餘 15–24）。分歧之廳是十二片土地裡最擠的一片 —— 半徑 29 的建物裡塞了 10 座石座、一隻大濁靈、一位守夜人、三件器物、三個反應物、兩頁殘頁、一座檔案廊、一處回聲與兩道石脊；吃完其餘每一條擺位規則（離器物／反應物 ≥ 10.1、離大濁靈 ≥ 10.6、離殘頁 ≥ 8.4、離石座 ≥ 7、離中觀層碰撞圓 ≥ 4.6 ＋ 玩家半徑 ＋ 圓半徑、離閘門 ≥ 12.1、不進地標留白、四周 16 個方向走得到）之後，**整片土地 0.25 公尺一格掃過只剩 17 個合格點**，其中按得到的方向最多就是 8。門檻 winnableFloor 6 往下留兩格。\n\nlandmarkDistance ＝ 碑離自己那片土地的地標多遠（柱腳的碑 27.0 離「兩面的柱」、鏡碑 21.2 離「會回頭照自己的鏡」）。柱腳那塊擺不到柱子腳邊：柱子四周 14 公尺是留白，再往外一圈是大濁靈與四座石座 —— 離柱心 15–25 公尺之間一個合格點都沒有。"
     }
   }
 }

@@ -20,6 +20,8 @@ import * as THREE from 'three';
 import { PALETTE } from '../engine/engine.js';
 // v1.2 · P11：路要繞過中觀的遮擋帶。screens.js 刻意**不** import props.js（不會有循環相依）。
 import { corridorPolyline } from './screens.js';
+// v1.2 · P21：碑上「那一層字」的門只有一份（`turning.js` 不 import 任何東西，沒有循環相依）。
+import { TABLET_GATES } from './turning.js';
 
 /* ------------------------------------------------------------------ *
  * 幾何體 / 材質快取
@@ -2020,15 +2022,40 @@ export const LORE_XP = 8;
  */
 export const TABLET_HANDS = Object.freeze(['first', 'later', 'struck']);
 
-/** 把一塊碑的 `lines` 正規化成 `{ text, hand }[]`（新舊格式都吃）。 */
-export function tabletLines(tablet) {
+/**
+ * v1.2 · P21 · 還沒亮的那一層：一行字可以多一個 `when`（`TABLET_GATES` 之一）。
+ *
+ * 門沒到的時候，那一行**不交出來**——碑還立在原地、還走得過去、還按得到 `E`，
+ * 只是那一層還沒有字（不是鎖住、不是消失、不擋任何路線）。
+ * 沒有 `when` 的行永遠亮著，舊格式（純字串）完全不受影響。
+ */
+export { TABLET_GATES };
+
+/**
+ * 把一塊碑的 `lines` 正規化成 `{ text, hand, when }[]`（新舊格式都吃）。
+ *
+ * @param {object} tablet
+ * @param {string[]|Set<string>|null} [lit] 現在亮著的門（`turning.js` 的 `litTabletGates()`）。
+ *   缺省＝**一層門都沒亮**（碑上只有沒掛門的那幾行）。
+ *   要拿「這塊碑一共寫了幾行」就傳 `TABLET_GATES`（測試與內容稽核用）。
+ */
+export function tabletLines(tablet, lit = null) {
   const raw = (tablet && tablet.lines) || [];
-  return raw.map((l) => {
-    if (typeof l === 'string') return { text: l, hand: 'first' };
+  const on = lit instanceof Set ? lit : new Set(Array.isArray(lit) ? lit : []);
+  const out = [];
+  for (const l of raw) {
+    if (typeof l === 'string') {
+      out.push({ text: l, hand: 'first', when: null });
+      continue;
+    }
     const text = l && typeof l.text === 'string' ? l.text : '';
     const hand = l && TABLET_HANDS.includes(l.hand) ? l.hand : 'first';
-    return { text, hand };
-  });
+    const when = l && TABLET_GATES.includes(l.when) ? l.when : null;
+    // 門沒亮 → 這一層還沒有字
+    if (when && !on.has(when)) continue;
+    out.push({ text, hand, when });
+  }
+  return out;
 }
 
 export const LORE_TABLETS = Object.freeze([
@@ -2134,6 +2161,61 @@ export const LORE_TABLETS = Object.freeze([
       { text: '旋鈕轉緊一點，戲每晚都一樣。', hand: 'first' },
       { text: '轉鬆一點，偶爾會冒出連編劇都沒想過的台詞。', hand: 'later' },
       { text: '全部轉到底最好，反正戲總會演完。', hand: 'struck' },
+    ],
+  },
+  /*
+   * v1.2 · P21 · 中點揭示：柱腳的碑（分歧之廳）。
+   *
+   * 立在廳的南側、不在必經路線上（離路網 7.1 公尺 —— 石碑本來就是「找到才有意義」，
+   * WORLD §4.2）；抬頭往東北就是那五根柱子（離柱心 27.0，柱子的留白是 14）。
+   * 這一片土地被 10 座石座 ＋ 一隻大濁靈 ＋ 兩道石脊填滿了，柱腳那一圈擺不下碑；
+   * 這裡是全區四周 16/16 都走得到、而且按得到它的方向最多（8/24）的那一格
+   * （量法與數字寫在 WORLD.md §4.19）。
+   * 前兩層一走到就讀得到；第三層掛 `when: 'midpoint'` —— 走進這片土地那一刻才亮。
+   *
+   * 它把前半段所有「三種筆跡」的碑重讀一遍：門前的舊牌、立石環、檔案庫門碑、
+   * 後台碑上那些被劃掉的句子，玩家一路以為是「後人在改前人的字」。
+   * 不是。是同一雙手，隔了很久回來，劃掉自己說過的話。
+   * ——連帶地，濁靈就是他們**沒能回來說完**的那幾句。
+   */
+  {
+    id: 'twin-pillars-foot',
+    region: 'divergence',
+    at: [64.25, 39.25],
+    title: '柱腳的碑',
+    lines: [
+      { text: '一面刻著要，另一面刻著不要，刻得一樣整齊。', hand: 'first' },
+      { text: '哪一面才算數，吵到最後也沒吵出來。', hand: 'struck' },
+      {
+        text: '兩面是同一雙手刻的——先刻了一面，很久以後才回來刻另一面。',
+        hand: 'later',
+        when: 'midpoint',
+      },
+    ],
+  },
+  /*
+   * v1.2 · P21 · 鏡碑第二層：鏡碑（校驗場）。
+   *
+   * 立在地標「會回頭照自己的鏡」前方 21.2 公尺。第二層掛 `when: 'scribe'`，
+   * 綁稱號鏈第三階（`ranks.json` 的 `scribe` · 抄寫人）——**沒到只是那一層還沒亮**，
+   * 碑照樣立在那裡、照樣讀得到前兩層。
+   *
+   * 被劃掉的那一句與「第二道裂痕」那處祕密是同一件事的兩面：
+   * 這裡的人不換鏡子，把裂痕留著當校準的起點。
+   */
+  {
+    id: 'mirror-stele',
+    region: 'refinery',
+    at: [-133.5, 108.25],
+    title: '鏡碑',
+    lines: [
+      { text: '這面鏡照的不是你的臉，是你剛剛寫下的那一句。', hand: 'first' },
+      { text: '照久了會裂，裂了就換一面新的。', hand: 'struck' },
+      {
+        text: '凡學會說話的人都是抄寫人。這一面照的是你。',
+        hand: 'later',
+        when: 'scribe',
+      },
     ],
   },
 ]);
@@ -2377,6 +2459,7 @@ export function buildLandmark(regionId, kit, terrainHeight, quality) {
 export default {
   LORE_TABLETS,
   TABLET_HANDS,
+  TABLET_GATES,
   tabletLines,
   LORE_XP,
   STORY_VIGNETTES,

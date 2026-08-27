@@ -39,6 +39,8 @@ import { createEngine } from './engine/engine.js';
 import { hourOf, hourFactor, composeMood, createMoodMemo } from './engine/hours.js';
 import { createWorld } from './world/world.js';
 import { LORE_TABLETS } from './world/props.js';
+// v1.2 · P21：中點揭示 ＋ 鏡碑第二層（純函式，不 import 任何東西）
+import { MIDPOINT, shouldRevealMidpoint, markMidpointSeen, midpointSeen, litTabletGates } from './world/turning.js';
 import { loadColorScript, colorScriptFor } from './world/color-script.js';
 import { fxForCheck, fxEnabledIn } from './world/rubric-fx.js';
 import colorScriptFile from './data/color-script.json';
@@ -1563,6 +1565,15 @@ function boot() {
     openPanel(tabletPanel, tablet.tablet, {
       firstRead: !outcome.alreadyRead,
       xpGain: outcome.xpGain,
+      /*
+       * v1.2 · P21：現在亮著的那幾層門。沒亮的那一層不會出現在碑上 ——
+       * 碑還在、還讀得到，只是那一層還沒有字（不是鎖住、不是消失）。
+       * 讀碑是低頻事件，這裡現算一次稱號（每幀迴圈裡一次都沒有）。
+       */
+      lit: litTabletGates({
+        midpointSeen: midpointSeen(progression),
+        rankIndex: rankFor(rankStats(progression, catalog), ranksFile.ranks).index,
+      }),
     });
   }
 
@@ -1594,6 +1605,24 @@ function boot() {
           }
         }
       }
+    }
+
+    /*
+     * v1.2 · P21 · 中點揭示。
+     *
+     * **刻意不掛在上面那個 `entered` 裡面**：那一段只有「跨過區界的那一幀」才跑，
+     * 而在分歧之廳裡按下重置進度的人不會跨任何區界 —— 旗標清了、人還站在原地，
+     * 掛在 `entered` 上就要走出去再走回來才會再說（P16b 那條「狀態旗標要在事情
+     * 真的發生後才記」的另一面）。這裡每幀問一次：兩個字串比較 ＋ 一個布林讀取，
+     * 回的是布林不是物件 —— 零配置。
+     *
+     * 觸發只看「人站在哪一片土地上」，與解了幾關無關（`shouldRevealMidpoint()`
+     * 根本收不到關卡數）。序章進行中不說 —— 那時候回聲整組是關掉的，
+     * 說了也只會被丟掉，而旗標卻已經記成「說過了」。
+     */
+    if (!prologue.isActive && here && shouldRevealMidpoint(here.id, here.onBridge, progression)) {
+      markMidpointSeen(progression);
+      nudge.echo(MIDPOINT.echo);
     }
 
     // 指南針：每幀跟著鏡頭轉；面板打開時收起來（和 HUD 其他元素一致）

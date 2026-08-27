@@ -84,6 +84,11 @@ export const ECHO_LINES = Object.freeze({
   regionMastered: { line: '這一片，你把話都說清楚了。' },
   /** 收滿一種收集（殘頁 / 祕密 / 濁靈…） */
   collectionFull: { line: '{what}，一件都不缺了。' },
+  /**
+   * v1.2 · P21 · 中點揭示：走進分歧之廳的那一刻（與解了幾關無關）。
+   * 兩句都在講同一件事：那些被劃掉的句子不是後人劃的。
+   */
+  midpointRevealed: { line: '兩面不是兩個人刻的。', sub: '是同一雙手，隔了很久回來刻的。' },
   /** 久沒動作，而且這一片已經沒有下一個目標了 */
   idleLong: { line: '這一片安靜下來了。', sub: '歇一會兒也沒關係。' },
 });

@@ -4808,14 +4808,22 @@ memory.clear();
 console.log('▸ 場景敘事（Phase 5）');
 
 const Props = await import('../src/world/props.js');
+// v1.2 · P21：轉折那一格的常數（純函式模組，測試與 main.js 讀同一份）
+const TurningP21 = await import('../src/world/turning.js');
 const { LORE_TABLETS, LORE_XP, STORY_VIGNETTES, LANDMARKS, PROP_KINDS, buildPathNetwork, pathInfluence, kitFor } = Props;
 
 /* --- 石碑：資料合法性 ------------------------------------------------ */
 eq(new Set(LORE_TABLETS.map((t) => t.id)).size, LORE_TABLETS.length, '石碑 id 沒有重複');
-ok(LORE_TABLETS.length >= 8 && LORE_TABLETS.length <= 14, '石碑數量在 8–14 之間', `n=${LORE_TABLETS.length}`);
+ok(LORE_TABLETS.length >= 8 && LORE_TABLETS.length <= 16, '石碑數量在 8–16 之間', `n=${LORE_TABLETS.length}`);
 ok(LORE_XP > 0 && LORE_XP <= 20, '石碑 XP 是「少量」', `xp=${LORE_XP}`);
 
-const regionIdSet = new Set(curriculum.groups.map((g) => g.id));
+/*
+ * v1.2 · P21：石碑的區域要對著**真的蓋出來的那 12 片土地**（`REGION_SITES`），
+ * 不是 curriculum.json 的舊五群 —— 從舊五群出發等於預設「表裡沒有的就不存在」
+ * （findings：「清單要從真的蓋得出來的那一份出發」），加建的四片土地立了碑也不會有人看。
+ */
+const regionIdSet = new Set(World.REGION_SITES.map((s2) => s2.id));
+for (const g of curriculum.groups) ok(regionIdSet.has(g.id), `[lore] 舊五群仍在真實區域表裡（${g.id}）`);
 for (const t of LORE_TABLETS) {
   ok(regionIdSet.has(t.region), `[lore:${t.id}] region 是真實區域`, t.region);
   ok(typeof t.title === 'string' && t.title.length > 0 && t.title.length <= 12, `[lore:${t.id}] 有簡短標題`, t.title);
@@ -6100,20 +6108,28 @@ for (const l of letters) {
   eq(Props.tabletLines({}).length, 0, '沒有 lines 也不會爆');
 
   const threaded = LORE_TABLETS.filter((t) => (t.lines || []).some((l) => typeof l !== 'string'));
-  eq(threaded.length, 4, '12 塊碑裡有 4 塊是回信碑（多筆跡）');
+  eq(threaded.length, 6, '14 塊碑裡有 6 塊是回信碑（多筆跡）');
   for (const t of threaded) {
-    const hands = new Set(Props.tabletLines(t).map((l) => l.hand));
+    /*
+     * v1.2 · P21：問「這塊碑一共寫了幾種筆跡」就要把每一層門都打開 ——
+     * `tabletLines(t)` 缺省是「一層門都沒亮」，拿它來數筆跡會數不到掛了 `when` 的那一層
+     * （而那正是 P21 新加的兩塊碑上的第三種筆跡）。
+     */
+    const hands = new Set(Props.tabletLines(t, Props.TABLET_GATES).map((l) => l.hand));
     eq(hands.size, 3, `[lore:${t.id}] 三種筆跡都在（原句／後人補寫／被劃掉的）`, [...hands].join(','));
   }
   for (const t of LORE_TABLETS) {
-    for (const l of Props.tabletLines(t)) {
+    for (const l of Props.tabletLines(t, Props.TABLET_GATES)) {
       ok(Props.TABLET_HANDS.includes(l.hand), `[lore:${t.id}] 筆跡是已實作的三種之一`, l.hand);
       ok(l.text.length > 0 && l.text.length <= 60, `[lore:${t.id}] 每句長度合理`, l.text);
       ok(!/https?:\/\//.test(l.text), `[lore:${t.id}] 不放連結`, l.text);
     }
   }
   const tabletUiSrc = readFileSync(resolve(root, 'src/ui/tablet.js'), 'utf8');
-  ok(/tabletLines\(tablet\)/.test(tabletUiSrc), '石碑面板走 tabletLines()（新舊格式同一條路）');
+  ok(
+    /tabletLines\(tablet, meta\.lit \|\| null\)/.test(tabletUiSrc),
+    '石碑面板走 tabletLines()（新舊格式同一條路），而且把「現在亮著的門」交給它'
+  );
   ok(/lore__line--\$\{esc\(l\.hand\)\}/.test(tabletUiSrc), '每一行標上自己的筆跡 class');
   const cssSrcP07 = readFileSync(resolve(root, 'src/styles.css'), 'utf8');
   ok(/\.lore__line--later\s*\{/.test(cssSrcP07), 'CSS 有「後人補寫」的字級');
@@ -15767,6 +15783,17 @@ console.log('\n▸ 四宿星圖 ＋ 反應式回聲 ＋ 傳說鉤（v1.2 · P08�
         ok(new RegExp(`speakEcho\\('${k}'`).test(nudgeSrcP08), `回聲自己會說「${k}」`);
         continue;
       }
+      /*
+       * v1.2 · P21：中點揭示那一條的分支名寫在 `turning.js` 的 `MIDPOINT.echo`
+       * （單一來源），main.js 叫的是 `nudge.echo(MIDPOINT.echo)` —— 字面值不在
+       * main.js 裡。所以這一條改成兩句話一起問：**常數逐值等於這個分支名**，
+       * 而且 main.js 真的用那個常數叫得動它。
+       */
+      if (k === TurningP21.MIDPOINT.echo) {
+        eq(TurningP21.MIDPOINT.echo, 'midpointRevealed', '中點揭示的分支名逐值比對（turning.js ↔ ECHO_LINES）');
+        ok(/nudge\.echo\(MIDPOINT\.echo\)/.test(mainSrcP08), `main.js 接得上「${k}」（走 MIDPOINT.echo）`);
+        continue;
+      }
       ok(new RegExp(`nudge\\.echo\\((?:'${k}'|[^)]*'${k}')`).test(mainSrcP08), `main.js 接得上「${k}」`);
     }
     ok(!/hud\.toast\('回聲：/.test(mainSrcP08), '回聲的話不再借 toast 冒充（改走自己的通道）');
@@ -24104,6 +24131,414 @@ console.log('\n▸ 檔案廊：小知識那一層（v1.2 · P20b）');
     ok(/archive\.json/.test(s418), '§4.18 指得出那份資料住在哪');
     ok(/365|已經驗證過/.test(s418), '§4.18 寫得出「出處只准用已經驗證過的那一份集合」');
     ok(/wards|護欄崗/.test(s418) && /divergence|分歧之廳/.test(s418), '§4.18 寫得出兩片需要例外的土地');
+  }
+}
+
+/* ================================================================== *
+ * v1.2 · P21：中點揭示 ＋ 鏡碑第二層（轉折）                          *
+ * ------------------------------------------------------------------ *
+ *   · 走進分歧之廳就觸發 —— 與解了幾關無關（跳著解門的人不會錯過）
+ *   · 只說一次；那個旗標**不影響任何解鎖**（逐項比對每一片土地的解鎖狀態）
+ *   · 鏡碑第二層綁稱號鏈第三階；沒到只是「那一層還沒亮」，碑還在
+ *   · 兩塊碑都是純風味：不掛出處、不宣稱技巧、用語吃禁字表
+ * ================================================================== */
+console.log('▸ 轉折：中點揭示 ＋ 鏡碑第二層（P21）');
+{
+  const Turning = TurningP21;
+  const EX_TURN = EXPECT.turning;
+  const RulesP21 = (await import('./lib/screen-rules.mjs')).default;
+  const VENDOR_RE_P21 = /\b(OpenAI|Anthropic|Google|xAI|GPT|Claude|Gemini|Grok)\b/i;
+  const watchmenFileP21 = readJson('src/data/watchmen.json');
+  const echoFileP21 = readJson('src/data/echoes.json');
+  const archiveFileP21 = readJson('src/data/archive.json');
+  const guardianFileP21 = readJson('src/data/guardian.json');
+  const mainSrc21b = readFileSync(resolve(root, 'src/main.js'), 'utf8');
+  const worldMdP21 = readFileSync(resolve(root, 'WORLD.md'), 'utf8');
+  const ranksP21 = readJson('src/data/ranks.json').ranks;
+
+  /* --- ① 契約逐值比對（宣告了卻沒人比對的欄位＝一句沒人查證的話） --- */
+  {
+    ok(EX_TURN && typeof EX_TURN === 'object', '契約檔登記了 turning 這一格');
+    eq(EX_TURN.region, Turning.MIDPOINT.region, '契約的土地 id 與 turning.js 逐值相同');
+    eq(EX_TURN.flag, Turning.MIDPOINT.flag, '契約的旗標名與 turning.js 逐值相同');
+    eq(EX_TURN.echo, Turning.MIDPOINT.echo, '契約的回聲分支名與 turning.js 逐值相同');
+    eq(EX_TURN.midpointGate, Turning.MIDPOINT.gate, '契約的中點門名與 turning.js 逐值相同');
+    eq(EX_TURN.scribeGate, Turning.SCRIBE.gate, '契約的鏡碑門名與 turning.js 逐值相同');
+    eq(EX_TURN.rankStep, Turning.SCRIBE.rankStep, '契約的稱號階數與 turning.js 逐值相同');
+    eq(EX_TURN.rankId, Turning.SCRIBE.rankId, '契約的稱號 id 與 turning.js 逐值相同');
+    eq(JSON.stringify(EX_TURN.tablets), JSON.stringify(['twin-pillars-foot', 'mirror-stele']), '契約列得出這一格加的兩塊碑');
+    eq(JSON.stringify(Props.TABLET_GATES), JSON.stringify([Turning.MIDPOINT.gate, Turning.SCRIBE.gate]), '碑上的門只有這兩種（props.js 讀的是 turning.js 那一份）');
+  }
+
+  /* --- ② 稱號鏈第三階：逐值比對，不是「差不多是抄寫人」 --- */
+  {
+    ok(ranksP21.length >= Turning.SCRIBE.rankStep, '（前提）稱號鏈真的有第三階', String(ranksP21.length));
+    eq(ranksP21[Turning.SCRIBE.rankStep - 1].id, Turning.SCRIBE.rankId, '稱號鏈第三階就是 ranks.json 的那一個 id');
+    eq(ranksP21[Turning.SCRIBE.rankStep - 1].title, '抄寫人', '第三階的稱號就是「抄寫人」（鏡碑第二層那句話講的正是它）');
+    // index 是 0 起算，rankStep 是 1 起算 —— 這兩把尺不准混用
+    eq(Turning.scribeReached(Turning.SCRIBE.rankStep - 1), true, '走到第三階就算數');
+    eq(Turning.scribeReached(Turning.SCRIBE.rankStep - 2), false, '第二階還不算（反例）');
+    eq(Turning.scribeReached(ranksP21.length - 1), true, '最高階當然也算');
+    eq(Turning.scribeReached(-1), false, '沒有稱號時不算（反例）');
+    eq(Turning.scribeReached(NaN), false, '不是數字時不算（反例）');
+  }
+
+  /* --- ③ 觸發只看「走進去」：一關都沒解的存檔也要觸發 --- */
+  {
+    memory.clear();
+    const zero = createProgression({ catalog, challenges });
+    // 這份存檔真的是「一關都沒解」——反例的前提要先立得住
+    eq(Object.keys(zero.state.bestGrades).length, 0, '（前提）餵進去的是一關都沒解的存檔');
+    eq(zero.state.collected.length, 0, '（前提）一條技巧都沒收');
+    eq(zero.levelInfo().level, 1, '（前提）還是 Lv.1');
+    eq(zero.state.xp, 0, '（前提）0 XP');
+
+    eq(Turning.midpointTriggered('divergence'), true, '站在分歧之廳上就算走進去了');
+    eq(
+      Turning.shouldRevealMidpoint('divergence', false, zero),
+      true,
+      '一關都沒解的人走進分歧之廳，中點揭示照樣觸發（跳著解門的人不會錯過）'
+    );
+    /*
+     * 「先紅」的那一條：把它綁在關卡數上就要紅。
+     * 反例真的呼叫**被測的那一支**（`shouldRevealMidpoint`），不是另外寫一段長得像的程式 ——
+     * 這裡拿它的回傳值去和「假如有人加了 cleared >= N」的那個假實作比對。
+     */
+    const clearedGated = (regionId, onBridge, p) =>
+      Turning.shouldRevealMidpoint(regionId, onBridge, p) && Object.keys(p.state.bestGrades).length >= 1;
+    eq(clearedGated('divergence', false, zero), false, '（反例）綁在關卡數上的那個假實作對這份存檔會回 false');
+    ok(
+      Turning.shouldRevealMidpoint('divergence', false, zero) !== clearedGated('divergence', false, zero),
+      '出貨的那一支與「綁在關卡數上」不是同一件事'
+    );
+    /*
+     * 型別上就不可能綁進度：`midpointTriggered()` 的整個函式體裡
+     * 一個「進度」字眼都沒有（存檔、關卡數、等級、技巧、徽章）。
+     * 靜態掃描比參數個數可靠 —— 參數有預設值時 `Function.length` 會少算。
+     */
+    const trigSrc21 = readFileSync(resolve(root, 'src/world/turning.js'), 'utf8')
+      .split('export function midpointTriggered')[1]
+      // 切到函式體的收尾大括號為止（再往後就是下一支的說明文字了）
+      .split('\n}')[0];
+    ok(trigSrc21.length > 40, '（前提）真的切到 midpointTriggered() 的函式體', String(trigSrc21.length));
+    for (const w of ['progression', 'bestGrades', 'cleared', 'level', 'xp', 'collected', 'badges', 'state']) {
+      ok(!trigSrc21.includes(w), `midpointTriggered() 的函式體裡沒有「${w}」（它綁不到進度）`);
+    }
+
+    // 別的土地、橋上、亂七八糟的輸入都不算
+    for (const s2 of World.REGION_SITES) {
+      if (s2.id === Turning.MIDPOINT.region) continue;
+      eq(Turning.midpointTriggered(s2.id), false, `（反例）站在 ${s2.id} 上不算走進分歧之廳`);
+    }
+    eq(Turning.midpointTriggered('divergence', true), false, '（反例）橋上不算走進去');
+    eq(Turning.midpointTriggered(null), false, '（反例）沒有土地時不算');
+    eq(Turning.midpointTriggered(undefined), false, '（反例）undefined 不算');
+    eq(Turning.shouldRevealMidpoint('foundations', false, zero), false, '（反例）在別的土地上不會說');
+    eq(Turning.shouldRevealMidpoint('divergence', true, zero), false, '（反例）在橋上不會說');
+  }
+
+  /* --- ④ 只說一次，而且旗標不影響任何解鎖 --- */
+  {
+    memory.clear();
+    const p21 = createProgression({ catalog, challenges });
+    /*
+     * 「旗標不影響任何解鎖」要**逐項比對**：說之前把每一片土地的解鎖狀態抄下來，
+     * 說之後再抄一次，整份 JSON 比字串。只驗「foundations 還開著」是包住式的假斷言。
+     */
+    const unlockShot = () =>
+      JSON.stringify({
+        unlockedRegions: [...p21.state.unlockedRegions].sort(),
+        skippedGates: [...(p21.state.skippedGates || [])].sort(),
+        xp: p21.state.xp,
+        level: p21.levelInfo().level,
+        bestGrades: Object.keys(p21.state.bestGrades).sort(),
+        collected: [...p21.state.collected].sort(),
+        badges: p21.state.badges,
+        perRegion: World.REGION_SITES.map((s2) => [
+          s2.id,
+          p21.isRegionUnlocked(s2.id),
+          p21.isRegionPlayable(s2.id),
+          p21.gateStatus(s2.id).text,
+          p21.gateStatus(s2.id).needs.join('｜'),
+        ]),
+      });
+    /*
+     * 「解鎖狀態」不會自己重算 —— `setFlag()` 只寫存檔，`refreshUnlocks()` 掛在
+     * 「做了某件事」那幾條路上。只比對兩張靜態快照的話，一個**間接**讀旗標的
+     * 解鎖判定（例如「有任何旗標是真的就放行」）不會被抓到。
+     * 所以兩張快照之前都先踩一次**零 XP 的探針**（`useHandle(id, 0)`）：
+     * 它唯一的作用就是把 `refreshUnlocks()` 跑一遍，並且把「這一次多開了哪幾片」交出來。
+     */
+    const probe21 = (id) => p21.useHandle(id, 0).newlyUnlocked.slice().sort();
+    eq(JSON.stringify(probe21('__p21-probe-before')), '[]', '（前提）還沒說之前，重算解鎖不會多開任何一片土地');
+    const before = unlockShot();
+    eq(Turning.midpointSeen(p21), false, '新存檔還沒說過');
+    eq(Turning.markMidpointSeen(p21), true, '第一次走進去 → 記下來');
+    eq(JSON.stringify(probe21('__p21-probe-after')), '[]', '記了旗標之後，重算解鎖一片土地都沒多開');
+    eq(Turning.midpointSeen(p21), true, '記住了');
+    eq(Turning.shouldRevealMidpoint('divergence', false, p21), false, '第二次走進去不會再說一次');
+    eq(Turning.markMidpointSeen(p21), false, '再記一次不算第一次');
+    const after = unlockShot();
+    eq(after, before, '中點揭示之後，每一片土地的解鎖狀態逐項不變（旗標不參與任何解鎖）');
+    // 那個旗標真的落地了（不然上面那一條會因為「什麼都沒發生」而假綠）
+    eq(p21.state.flags[Turning.MIDPOINT.flag], true, '旗標真的寫進 flags（上面那條比對不是空比）');
+    eq(Object.keys(p21.state.bestGrades).length, 0, '中點揭示不寫 bestGrades');
+    eq(p21.state.xp, 0, '中點揭示不給 XP');
+    eq(p21.state.collected.length, 0, '中點揭示不收技巧');
+
+    // 存檔遷移：新旗標寫得進去、讀得回來、重置清得乾淨
+    const reloaded21 = createProgression({ catalog, challenges });
+    eq(Turning.midpointSeen(reloaded21), true, '旗標重新載入之後還在');
+    reloaded21.resetAll();
+    eq(Turning.midpointSeen(reloaded21), false, '重置進度之後回到「還沒說過」');
+    memory.clear();
+
+    /*
+     * 探針本身要證明它抓得到東西（不然上面那兩個 `[]` 只是裝飾）：
+     * 換一份**真的夠格**的存檔踩同一支探針，它就會報出新開的那一片。
+     */
+    {
+      memory.clear();
+      const rich21 = createProgression({ catalog, challenges });
+      for (const c of challenges.filter((c2) => c2.region === 'foundations').slice(0, 8)) {
+        rich21.recordResult({ challengeId: c.id, passed: true, grade: 'S', score: 10, max: 10, teaches: c.teaches || [] }, { challenge: c });
+      }
+      const opened21 = rich21.useHandle('__p21-probe-control', 0).newlyUnlocked;
+      ok(Array.isArray(opened21), '（對照）探針交得出「這一次多開了哪幾片」');
+      eq(rich21.isRegionUnlocked('reasoning'), true, '（對照）真的夠格時那一片會開 —— 探針不是永遠回空陣列');
+      memory.clear();
+    }
+
+
+    // 沒有 setFlag 的替身不會爆（舊呼叫端 / 測試腳本）
+    eq(Turning.markMidpointSeen(null), false, '沒有進度物件時不會爆');
+    eq(Turning.midpointSeen(null), false, '沒有進度物件時當成還沒說過');
+    eq(Turning.midpointSeen({}), false, '沒有 state 的替身也當成還沒說過');
+  }
+
+  /* --- ⑤ 碑還在、只是那一層還沒亮 --- */
+  {
+    const byId21 = new Map(LORE_TABLETS.map((t) => [t.id, t]));
+    for (const id of EX_TURN.tablets) ok(byId21.has(id), `[P21] ${id} 真的在 LORE_TABLETS 裡`);
+
+    const gated21 = [
+      [byId21.get('twin-pillars-foot'), Turning.MIDPOINT.gate],
+      [byId21.get('mirror-stele'), Turning.SCRIBE.gate],
+    ];
+    for (const [tab, gate] of gated21) {
+      const tag = `[P21:${tab.id}]`;
+      const dark = Props.tabletLines(tab);
+      const litUp = Props.tabletLines(tab, [gate]);
+      // 門沒亮：碑還在（還有前幾層字），只是少了那一層
+      eq(dark.length, litUp.length - 1, `${tag} 門沒亮時就是少了那一層字`, `${dark.length} vs ${litUp.length}`);
+      ok(dark.length >= 2, `${tag} 門沒亮時碑上還有字（不是空碑、不是整座消失）`, String(dark.length));
+      eq(dark.some((l) => l.when === gate), false, `${tag} 門沒亮時那一層不出現`);
+      eq(litUp.filter((l) => l.when === gate).length, 1, `${tag} 門亮了就多一層`);
+      eq(litUp[litUp.length - 1].when, gate, `${tag} 多出來的是最後那一層（前面幾層一個字都沒動）`);
+      eq(
+        JSON.stringify(dark.map((l) => l.text)),
+        JSON.stringify(litUp.slice(0, dark.length).map((l) => l.text)),
+        `${tag} 亮不亮，前幾層逐字相同`
+      );
+      // 碑本身一直都在世界上（不是條件式地被移出 LORE_TABLETS）
+      ok(
+        LORE_TABLETS.filter((t) => t.id === tab.id).length === 1,
+        `${tag} 碑只有一份，而且永遠在資料裡（沒有「達標才長出來」這種寫法）`
+      );
+      // 另一扇門亮著不會誤開這一層
+      const other = gate === Turning.MIDPOINT.gate ? Turning.SCRIBE.gate : Turning.MIDPOINT.gate;
+      eq(Props.tabletLines(tab, [other]).length, dark.length, `${tag} 另一扇門亮著不會誤開這一層`);
+    }
+    // tabletLines 的門：不認得的 when 當成沒有門（永遠亮）
+    eq(Props.tabletLines({ lines: [{ text: '亂寫的門', when: 'nope' }] }).length, 1, '不認得的門＝沒有門（那一行照樣在）');
+    eq(Props.tabletLines({ lines: [{ text: '亂寫的門', when: 'nope' }] })[0].when, null, '不認得的門會被抹成 null');
+    eq(Props.tabletLines({ lines: ['純字串'] })[0].when, null, '舊格式沒有門');
+    eq(Props.tabletLines({ lines: [{ text: 'x', when: 'midpoint' }] }).length, 0, '（反例）掛了門又沒亮 → 那一行不交出來');
+    eq(Props.tabletLines({ lines: [{ text: 'x', when: 'midpoint' }] }, new Set(['midpoint'])).length, 1, 'lit 也吃 Set');
+
+    // litTabletGates：兩個門各自獨立
+    eq(JSON.stringify(Turning.litTabletGates()), '[]', '什麼都沒到 → 一扇門都沒亮');
+    eq(JSON.stringify(Turning.litTabletGates({ midpointSeen: true })), JSON.stringify([Turning.MIDPOINT.gate]), '只走進過分歧之廳 → 只開中點那一層');
+    eq(
+      JSON.stringify(Turning.litTabletGates({ rankIndex: Turning.SCRIBE.rankStep - 1 })),
+      JSON.stringify([Turning.SCRIBE.gate]),
+      '只到第三階 → 只開鏡碑那一層'
+    );
+    eq(
+      JSON.stringify(Turning.litTabletGates({ midpointSeen: true, rankIndex: ranksP21.length - 1 })),
+      JSON.stringify([Turning.MIDPOINT.gate, Turning.SCRIBE.gate]),
+      '兩個都到 → 兩層都亮'
+    );
+    eq(
+      JSON.stringify(Turning.litTabletGates({ midpointSeen: true, rankIndex: Turning.SCRIBE.rankStep - 2 })),
+      JSON.stringify([Turning.MIDPOINT.gate]),
+      '（反例）第二階還開不了鏡碑那一層'
+    );
+  }
+
+  /* --- ⑥ 純風味：不掛出處、不宣稱技巧、用語吃禁字表 --- */
+  {
+    const FORBIDDEN21 = [
+      '怪物', '敵人', '打敗', '擊敗', '戰鬥', '攻擊', '傷害', '血量', '生命值',
+      '失敗', '輸了', '贏了', '勝利', '扣分', '清零', '歸零', '重新開始', '從頭再來', '倒數',
+    ];
+    const SYSTEM21 = ['送出評分', '按鈕', '面板', 'localStorage', 'bloom', '後製', 'Web Audio', 'API key', 'rubric', 'debug'];
+    let scanned21 = 0;
+    for (const id of EX_TURN.tablets) {
+      const tab = LORE_TABLETS.find((t) => t.id === id);
+      const tag = `[P21:${id}]`;
+      ok(!('source' in tab) && !('sources' in tab) && !('teaches' in tab), `${tag} 沒有 source / teaches 欄位（純風味）`);
+      for (const l of Props.tabletLines(tab, Props.TABLET_GATES)) {
+        scanned21 += 1;
+        ok(!/https?:\/\//.test(l.text), `${tag} 不掛連結`, l.text);
+        for (const w of FORBIDDEN21) ok(!l.text.includes(w), `${tag} 不出現「${w}」`, l.text);
+        for (const w of SYSTEM21) ok(!l.text.includes(w), `${tag} 不出現系統術語「${w}」`, l.text);
+        ok(!VENDOR_RE_P21.test(l.text), `${tag} 沒有公司名`, l.text);
+        ok(!ENGLISH(l.text), `${tag} 沒有整句英文`, l.text);
+      }
+      ok(!/https?:\/\//.test(tab.title), `${tag} 標題不掛連結`);
+    }
+    eq(scanned21, 6, '兩塊碑一共 6 行都掃過了（不是空掃）', String(scanned21));
+    // 反例：這張表真的抓得到東西
+    ok(FORBIDDEN21.some((w) => '這一關你失敗了'.includes(w)), '（反例）禁字表對「這一關你失敗了」會紅');
+    // 鏡碑第二層講的那句話要真的在碑上（規格逐字要求的那一句）
+    const mirror21 = LORE_TABLETS.find((t) => t.id === 'mirror-stele');
+    const mirrorLit21 = Props.tabletLines(mirror21, [Turning.SCRIBE.gate]);
+    ok(
+      mirrorLit21.some((l) => l.when === Turning.SCRIBE.gate && l.text.includes('凡學會說話的人都是抄寫人')),
+      '鏡碑第二層寫的就是「凡學會說話的人都是抄寫人」'
+    );
+    // 中點揭示那一層要說得出「同一雙手」這件事（它就是這一格的轉折）
+    const pillars21 = LORE_TABLETS.find((t) => t.id === 'twin-pillars-foot');
+    const pillarsLit21 = Props.tabletLines(pillars21, [Turning.MIDPOINT.gate]);
+    ok(
+      pillarsLit21.some((l) => l.when === Turning.MIDPOINT.gate && l.text.includes('同一雙手')),
+      '柱腳那一層說得出「兩面是同一雙手刻的」（前半段那些被劃掉的句子在這裡翻面）'
+    );
+    // 回聲那一句與碑上那一層講的是同一件事，但不是同一句（不重複）
+    const echoSpec21 = (await import('../src/ui/nudge.js')).ECHO_LINES[Turning.MIDPOINT.echo];
+    ok(echoSpec21 && typeof echoSpec21.line === 'string', '回聲的分支表有中點揭示這一格');
+    for (const line of [echoSpec21.line, echoSpec21.sub].filter(Boolean)) {
+      ok(line.length <= 31, `回聲那一句「${line}」≤ 31 字`, `len=${line.length}`);
+      for (const w of FORBIDDEN21) ok(!line.includes(w), `回聲那一句不出現「${w}」`);
+    }
+    for (const l of pillarsLit21) ok(l.text !== echoSpec21.line, '回聲沒有把碑上的字照唸一遍');
+  }
+
+  /* --- ⑦ 擺位：兩塊新碑照既有的石碑規矩走（而且量得出「按得到它」） --- */
+  {
+    const ABOVE21 = { marker: 6.5, murk: 5.5, greatmurk: 6, watchman: 4.6, guardian: 3.2 };
+    const targets21 = RulesP21.interactionTargets({
+      challenges,
+      inscriptions,
+      letters,
+      handles,
+      murks: murkFile.entries,
+      watchmen: watchmenFileP21.entries,
+      guardians: [guardianFileP21],
+      echoes: echoFileP21.entries,
+      archives: archiveFileP21.halls,
+      secrets: secretFile.entries,
+      tablets: LORE_TABLETS,
+      reactiveSpots: Reactive.REACTIVE_SPOTS,
+    });
+    /**
+     * 站在碑的互動圈裡，24 個方向裡有幾個「站得住、而且石碑搶得到 `E`」。
+     *
+     * ⚠️ 量的是**互動圈**（4.6），不是誰的淨空半徑 —— 石碑在仲裁上讓給石座／濁靈／
+     * 守夜人／守門者，所以「走得到」不等於「按得到」（findings：守門的斷言要看得到它在守的東西）。
+     * 一個方向只要在 2.2–4.4 公尺之間**有一段**站得住而且是碑贏，就算這個方向按得到。
+     */
+    const winnable21 = (x, z) => {
+      let win = 0;
+      for (let a = 0; a < 24; a += 1) {
+        const ang = (a / 24) * Math.PI * 2;
+        for (const rr of [2.2, 2.8, 3.4, 4, 4.4]) {
+          const px = x + Math.cos(ang) * rr;
+          const pz = z + Math.sin(ang) * rr;
+          if (testWorld.solidAt(px, pz)) continue;
+          if (World.coverage(px, pz) <= 0.85) continue;
+          let beaten = false;
+          for (const t of targets21) {
+            const r = ABOVE21[t.k];
+            if (r == null) continue;
+            if (Math.hypot(px - t.at[0], pz - t.at[1]) <= r) {
+              beaten = true;
+              break;
+            }
+          }
+          if (!beaten) {
+            win += 1;
+            break;
+          }
+        }
+      }
+      return win;
+    };
+    // 先量全部 14 塊，再用「最差的那一塊」當門檻的理由（不是只量新加的那兩塊）
+    const wins21 = LORE_TABLETS.map((t) => [t.id, winnable21(t.at[0], t.at[1])]);
+    const worst21 = Math.min(...wins21.map((w) => w[1]));
+    eq(worst21, EX_TURN.winnableWorst, '14 塊碑裡最差的那一塊按得到的方向數與契約逐值相同', JSON.stringify(wins21));
+    ok(EX_TURN.winnableFloor < EX_TURN.winnableWorst, '門檻比實測最差的再嚴一格（留餘裕，不是貼著寫）');
+    for (const [id, w] of wins21) ok(w >= EX_TURN.winnableFloor, `[lore:${id}] 按得到它的方向 ≥ ${EX_TURN.winnableFloor}/24`, `${w}/24`);
+    for (const id of EX_TURN.tablets) {
+      const tab = LORE_TABLETS.find((t) => t.id === id);
+      eq(winnable21(tab.at[0], tab.at[1]), EX_TURN.winnable[id], `[P21:${id}] 按得到它的方向數與契約逐值相同`);
+      // 它自己那一片土地的地標留白：碑不准站進去
+      const lm21 = LANDMARKS.find((l) => l.region === tab.region);
+      ok(Boolean(lm21), `[P21:${id}] 那一片土地真的有地標`);
+      const dLm21 = Math.hypot(tab.at[0] - lm21.at[0], tab.at[1] - lm21.at[1]);
+      ok(dLm21 >= lm21.clear, `[P21:${id}] 沒有站進地標 ${lm21.id} 的 ${lm21.clear}m 留白`, dLm21.toFixed(1));
+      eq(Number(dLm21.toFixed(1)), EX_TURN.landmarkDistance[id], `[P21:${id}] 離自己那座地標多遠，與契約逐值相同`);
+      // 閘門：碑的互動圈不准罩住問話的那一圈（罩住的話那道門永遠不會開口問）
+      const dGate21 = Math.min(
+        ...[...World.CORRIDORS, ...World.ANNEX_LINKS].map((c) => Math.hypot(tab.at[0] - c.gate.x, tab.at[1] - c.gate.z))
+      );
+      ok(dGate21 >= 4.6 + 7.5, `[P21:${id}] 離閘門夠遠（碑搶得到 E → 門就問不了話）`, dGate21.toFixed(1));
+    }
+  }
+
+  /* --- ⑧ 接線：main.js 每幀零配置、不掛在「跨區那一幀」上 --- */
+  {
+    ok(
+      /import \{[^}]*shouldRevealMidpoint[^}]*\} from '\.\/world\/turning\.js';/.test(mainSrc21b),
+      'main.js 從 turning.js 拿那幾支（沒有第二份真相）'
+    );
+    ok(
+      /if \(!prologue\.isActive && here && shouldRevealMidpoint\(here\.id, here\.onBridge, progression\)\) \{/.test(mainSrc21b),
+      '每幀問一次「人站在哪一片土地上」（不是掛在 hud.setRegion 回的那一幀）'
+    );
+    ok(/markMidpointSeen\(progression\);/.test(mainSrc21b), '真的走進去了才記旗標');
+    // 零配置：這一支回布林，不是物件
+    eq(typeof Turning.shouldRevealMidpoint('divergence', false, {}), 'boolean', 'shouldRevealMidpoint() 回布林（每幀迴圈不准配置）');
+    eq(typeof Turning.midpointTriggered('divergence'), 'boolean', 'midpointTriggered() 回布林');
+    const turningSrc21 = readFileSync(resolve(root, 'src/world/turning.js'), 'utf8');
+    ok(!/^import /m.test(turningSrc21), 'turning.js 一個 import 都沒有（測試與 UI 都拿得到）');
+    ok(!/\.map\(|\.filter\(/.test(turningSrc21.split('export function shouldRevealMidpoint')[1].split('export function markMidpointSeen')[0]), '判定那一段沒有 map / filter');
+    // 讀碑那一條路真的把「現在亮著的門」交出去
+    ok(/lit: litTabletGates\(\{/.test(mainSrc21b), '讀碑時把現在亮著的門交給石碑面板');
+    ok(/midpointSeen: midpointSeen\(progression\)/.test(mainSrc21b), '中點那一層的門讀的是存檔旗標');
+    ok(/rankIndex: rankFor\(rankStats\(progression, catalog\), ranksFile\.ranks\)\.index/.test(mainSrc21b), '鏡碑那一層的門讀的是稱號鏈的 index');
+    // 這一格不新增互動層、不新增 UI
+    const nudgeSrc21 = readFileSync(resolve(root, 'src/ui/nudge.js'), 'utf8');
+    ok(!/document\.createElement/.test(nudgeSrc21.split('midpointRevealed')[1] || ''), '中點揭示沒有新增任何 UI');
+    ok(!/nearestTurning|nearestReveal|nearestPillar/.test(readFileSync(resolve(root, 'src/world/world.js'), 'utf8')), '沒有新增第 N 層互動（碑走既有那一層）');
+    // 旗標不准出現在任何解鎖判定裡（靜態掃描：progression.js 一個字都沒提它）
+    const progSrc21 = readFileSync(resolve(root, 'src/progression/progression.js'), 'utf8');
+    ok(!progSrc21.includes(Turning.MIDPOINT.flag), `progression.js 沒有提到「${Turning.MIDPOINT.flag}」（解鎖判定看不到它）`);
+    ok(!readFileSync(resolve(root, 'src/challenges/catalog.js'), 'utf8').includes(Turning.MIDPOINT.flag), 'catalog.js 也看不到那個旗標');
+  }
+
+  /* --- ⑨ WORLD.md：轉折要寫進世界的規則書 --- */
+  {
+    const s419 = worldMdP21.slice(worldMdP21.indexOf('### 4.19'), worldMdP21.indexOf('## 五'));
+    ok(s419.length > 400, 'WORLD.md 有 §4.19（轉折：中點揭示 ＋ 鏡碑第二層）', String(s419.length));
+    ok(/P21/.test(s419), '§4.19 標得出這一格');
+    ok(/turning\.js/.test(s419), '§4.19 指得出那一層住在哪');
+    ok(/與解了幾關無關|走進去/.test(s419), '§4.19 寫得出「觸發只看走進去」');
+    ok(/不影響任何解鎖|不參與任何解鎖/.test(s419), '§4.19 寫得出「旗標不影響解鎖」');
+    ok(/還沒亮/.test(s419), '§4.19 寫得出「沒到門檻只是那一層還沒亮」');
+    ok(new RegExp(String(EX_TURN.winnable['twin-pillars-foot'])).test(s419), '§4.19 寫得出柱腳那塊碑量到的數字');
   }
 }
 

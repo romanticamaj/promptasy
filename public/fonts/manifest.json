@@ -103,6 +103,7 @@
     "src/world/reactive.js",
     "src/world/rubric-fx.js",
     "src/world/screens.js",
+    "src/world/turning.js",
     "src/world/watchmen.js",
     "src/world/world.js"
   ],
