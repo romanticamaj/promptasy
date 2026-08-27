@@ -24656,6 +24656,29 @@ console.log('▸ 終局：回聲的小祠 ＋ 母碑重立（P22）');
     eq(EX_FIN.steleFlag, T22.FINALE.steleFlag, '契約的「說過了」旗標名逐值相同');
     eq(EX_FIN.inscriptionKey, T22.FINALE.inscriptionKey, '契約的碑面欄位名逐值相同');
     eq(EX_FIN.echoShrine, T22.FINALE.echoShrine, '契約的小祠回聲分支名逐值相同');
+    /*
+     * **一幀只排一句**（P22 審查 · 第 1 條）：`echo()` 只留最新的那一件事，
+     * 兩句都排就等於前一句被後一句蓋掉——而這兩句都是一輩子只有一次機會的
+     * （小祠開口 → 母碑立起來，敘事上有先後）。
+     */
+    {
+      const mainSrc22 = readFileSync(resolve(root, 'src/main.js'), 'utf8');
+      ok(/const shrineToSay\s*=/.test(mainSrc22), 'P22：小祠那一句有記下「這一幀要不要說」');
+      ok(
+        /if \(!shrineToSay && !prologue\.isActive && steleRaised/.test(mainSrc22),
+        'P22：小祠要說的那一幀，母碑那一句讓開（不然前一句會被蓋掉）'
+      );
+      /*
+       * 殼「散掉了」只看儀式走完了沒——不是看門檻還過不過得了。
+       * 課程一長門檻就會變，舊存檔會出現「走完了、但這一版還沒收齊」，
+       * 照 open 推的話殼會回來、而清燈同時還亮著（審查 · 第 2 條）。
+       */
+      const finSrc22 = readFileSync(resolve(root, 'src/world/finale.js'), 'utf8');
+      ok(
+        /murkOn \? 0\.62 : raisedNow \? 0 : 0\.08/.test(finSrc22),
+        'P22：殼散掉與否只看「儀式走完了沒」，不看「門檻還過不過得了」'
+      );
+    }
     eq(EX_FIN.echoCarved, T22.FINALE.echoCarved, '契約的「刻了」回聲分支名逐值相同');
     eq(EX_FIN.echoBlank, T22.FINALE.echoBlank, '契約的「留白」回聲分支名逐值相同');
     eq(EX_FIN.shrineRadius, T22.SHRINE_RADIUS, '契約的小祠互動半徑逐值相同');

@@ -1784,7 +1784,8 @@ function boot() {
      * 門檻本身不在這裡算：`finaleOpen` 由 `refreshFinale()` 在存檔變的時候更新，
      * 這一段每幀只做兩個布林讀取（零配置）。
      */
-    if (!prologue.isActive && shouldAnnounceShrine(world.finale?.open === true, progression)) {
+    const shrineToSay = !prologue.isActive && shouldAnnounceShrine(world.finale?.open === true, progression);
+    if (shrineToSay) {
       nudge.echo(FINALE.echoShrine);
       if (nudge.lastEchoKind() === FINALE.echoShrine) markShrineSpoken(progression);
     }
@@ -1793,7 +1794,12 @@ function boot() {
      * **說出口**是另一件事（這裡等 `lastEchoKind()` 認帳才記）。
      * 碑面有字沒字各一句 —— 留白那一句不准聽起來像可惜（那是玩家自己選的）。
      */
-    if (!prologue.isActive && steleRaised(progression) && !steleSpoken(progression)) {
+    /*
+     * **一幀只排一句**（P22 審查 · 第 1 條）：`echo()` 只留最新的那一件事，
+     * 兩句都排就等於前一句被後一句蓋掉 —— 而這兩句都是一輩子只有一次機會的。
+     * 小祠那一句在敘事上先發生，所以它優先；等它認帳了下一幀才輪到母碑。
+     */
+    if (!shrineToSay && !prologue.isActive && steleRaised(progression) && !steleSpoken(progression)) {
       const kind = progression.motherStele() ? FINALE.echoCarved : FINALE.echoBlank;
       nudge.echo(kind);
       if (nudge.lastEchoKind() === kind) markSteleSpoken(progression);

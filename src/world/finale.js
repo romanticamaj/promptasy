@@ -119,7 +119,8 @@ function put(parent, geometry, material, pos = [0, 0, 0], rot = [0, 0, 0], scale
  * 蓋出回聲的小祠。
  *
  * 三角形：底座 12 ＋ 後牆 12 ＋ 兩片側牆 24 ＋ 楣 12 ＋ 燈座 28 ＋ 燈心 20
- * ＋ 濁氣的殼 20 ＋ 那一點眼光 20 ＋ 光暈 2 ＋ 龕口那道光 2 ＋ 腳下的環 40 ＝ **192**。
+ * ＋ 濁氣的殼 20 ＋ 那一點眼光 20 ＋ 龕口那道光 2 ＋ 腳下的環 40 ＝ **190**。
+ * （光暈是 `Sprite`，**稽核不算它** —— 它只走 `o.isMesh`；兩座加起來的契約是 268。）
  *
  * 碰撞：後牆一顆 `solidRadius = 0.78`（< `STAND_MIN_R` 0.8 → 稽核那邊天生
  * `standable = false`：一座及腰的石龕站不上人，這件事靠尺寸成立，不靠旗標宣告）。
@@ -266,7 +267,7 @@ function buildShrine(kit, terrainHeight, rot) {
 /**
  * 蓋出母碑。
  *
- * 三角形：座 12 ＋ 碑身 12 ＋ 碑頂 12 ＋ 刻面 2 ＋ 光暈 2 ＋ 腳下的環 40 ＝ **80**。
+ * 三角形：座 12 ＋ 碑身 12 ＋ 碑頂 12 ＋ 刻面 2 ＋ 腳下的環 40 ＝ **78**（光暈是 Sprite，不算）。
  *
  * 碰撞：碑身一顆 `solidRadius = 0.75`（同石碑那一階，< `STAND_MIN_R` 0.8）。
  * 它其實一寸路都沒有擋到 —— 它站在斷環臺座（`LANDMARK_SOLIDS` 的 `[0, 0, 5.4]`）
@@ -403,9 +404,15 @@ export function createFinaleField({
    *     （暖金只給成就熱點，所以那盞燈只在這一刻之後才亮）。
    */
   function applyStatic() {
-    // 那一團濁氣：只有「開口了、儀式還沒走完」的時候看得清楚
+    /*
+     * 那一團濁氣：只有「開口了、儀式還沒走完」的時候看得清楚。
+     * 「散掉了」這件事只看 `raisedNow`（**不是** `openNow && !raisedNow`）——
+     * 未來課程一長，門檻就會從 130 變成更多，舊存檔會出現「儀式走完了、
+     * 但這一版還沒收齊」的狀態；照 open 去推，殼會回到 0.08、
+     * 而清燈同時還亮著（P22 審查 · 第 2 條）。
+     */
     const murkOn = openNow && !raisedNow;
-    shrine.shellMat.opacity = murkOn ? 0.62 : openNow ? 0 : 0.08;
+    shrine.shellMat.opacity = murkOn ? 0.62 : raisedNow ? 0 : 0.08;
     shrine.eyeMat.opacity = murkOn ? 0.85 : 0;
     shrine.shell.visible = shrine.shellMat.opacity > 0.001;
     shrine.eye.visible = murkOn;
