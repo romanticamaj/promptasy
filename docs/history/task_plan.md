@@ -1818,3 +1818,39 @@ Exit criteria：
 - [ ] 走進分歧之廳就會遇到中點揭示（**跳著解門的玩家也不會錯過**），只說一次，而且那個旗標不影響任何解鎖。
 - [ ] 鏡碑第二層綁稱號鏈第三階；未達門檻只是「那一層還沒亮」。
 - [ ] rubric／playtest／build／e2e 全綠、console error 0；預算在框內。
+
+### P22 — 終局：回聲的小祠 ＋ 母碑重立（2026-08-27 開工）
+
+狀態：`in progress`（**里程碑 D 最後一格** → 完成後打 tag `v1.2-gate-D`）
+
+**現狀**：序章的第一次自由書寫會被擷取成 `firstPrompt`（P07 起，純文字、≤280 字、HTML escape、只存本機）。中央高原的地標是**斷環**（母碑倒下的那一年，環也斷成了兩半——P20a 的第一條傳聞）。時辰的終態是「**星最亮之夜**」（P05：`f(精通區數 0.5、技能數 0.3、清燈數 0.2)`）。P21 剛給了故事一個轉折：**那些被劃掉的字是同一雙手隔了很久回來劃掉的**，而濁靈是他們沒能回來說完的那幾句。
+
+**目標**：把這條線收起來。130 技能全收 ＋ 四宿全亮 → **回聲的小祠**開口 → 最後一隻濁靈**就是你自己序章寫的第一句** → 你重寫它一次 → **母碑在斷環中央重新立起來，刻上你寫的那一句**。
+
+**這一格的情感負載最重，所以它的鐵則也最硬**：
+1. **不會失敗**：最後那一次重寫是 `free` 模式、接受任何 rubric、**沒有失敗態**。它不是考試，是「你已經學會說話了」的證明。
+2. **私人內容不准未經確認出現在分享卡上**：`firstPrompt` 是玩家自己打的字。**刻上去之前要明確確認**、**可以選擇不刻**、HTML escape、不上傳。
+3. **reset 之後可以重走**：終局不是一次性的煙火。
+4. **舊存檔沒有 `firstPrompt` 也要能走完**（退路是「你最好的一句」）。
+
+**範圍**
+1. **小祠**：中央高原斷環旁，130 技能全收 ＋ 四宿全亮才開口。未達門檻**只是還沒開口**（不是鎖、不是提示「還差 N 個」——那會變成待辦清單）。
+2. **最後一隻濁靈**：牠身上那句話**就是玩家的 `firstPrompt`**（或退路）。安撫牠＝把自己當年那句話重說一遍。
+3. **母碑重立**：斷環中央立起母碑，刻上玩家重寫的那一句。**刻之前確認、可以不刻**。
+4. **分享卡新樣板** ＋ 時辰到終態「星最亮之夜」。
+5. **不倒退**：`E` 仍是唯一互動鍵；e2e 舊斷言零改動；四支 `--verify` 維持。
+
+**受影響檔案**：`src/world/turning.js`（P21 交接：它不 import 任何東西，適合放終局的旗標與觸發）、`src/world/*`、`src/ui/*`、`src/progression/progression.js`、`src/save/save.js`、`src/main.js`、`scripts/test-rubric.mjs`、`scripts/headless-check.mjs`、`scripts/expected-counts.json`、`WORLD.md`。
+
+**預算**：三角 237,264 → **<241,000**（`WORLD_TRI_CEIL`）；**光源 37 不變**；碰撞體 1,049 → **<1,090**；collision-audit 未涵蓋 **0**；可站立體稽核 **0**；`audit:pacing` 12 片死區 **0**；四支 `--verify` 全部維持。
+
+**Acceptance tests（先紅後綠）**
+- rubric：門檻＝130 技能全收 ＋ 四宿全亮（逐項；差一個就還沒開口）；**未達門檻不是鎖也不是待辦清單**；最後那一次重寫**接受任何 rubric、沒有失敗態**（餵幾種爛答案都不會被判失敗）；`firstPrompt` **缺席時走退路**；刻字**必須經過確認**（先紅：拿掉確認就要紅）、**可以選擇不刻**、HTML escape（餵 `<script>` 進去）、**不上傳**（靜態掃描：那條路上沒有網路呼叫）；`reset` 之後所有終局旗標歸零、可以重走；時辰到終態。
+- e2e：用測試存檔走完終局（小祠開口 → 重寫 → 確認 → 母碑立起來 → 分享卡）；選擇不刻也走得完；零 console error。
+
+**禁區**：`curriculum.json`、`challenges.json`、`flows.json`、`murks.json`、`letters.json`、`color-script.json`、`solution-stats.json`、`secrets.json`、`watchmen.json`、`guardian.json`、`rumors.json`、`echoes.json`、`glossary.json`、`archive.json`、`vite.config.js`、`CLAUDE.md`、`CHANGELOG.md`、`gameplay-roadmap.md`、三件組、dev server 5173／5174／5175。
+
+Exit criteria：
+- [ ] 130 技能全收 ＋ 四宿全亮 → 小祠開口 → 最後一隻濁靈是你自己的第一句 → 重寫 → 母碑重立刻上它。
+- [ ] **不會失敗**；**私人內容經過確認才會出現在分享卡上、而且可以選擇不刻**；舊存檔（沒有 `firstPrompt`）走得完；reset 之後可以重走。
+- [ ] rubric／playtest／build／e2e 全綠、console error 0；預算在框內。
