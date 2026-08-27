@@ -6007,16 +6007,17 @@ for (const l of letters) {
   eq(testWorld.letters.length, letters.length, '每一頁殘頁都蓋在世界裡');
 
   const mainSrcP07 = readFileSync(resolve(root, 'src/main.js'), 'utf8');
-  const iIns = mainSrcP07.indexOf('nearInscription =\n      !hitMarker');
-  const iLetter = mainSrcP07.indexOf('nearLetter =\n      !hitMarker');
+  const iIns = mainSrcP07.indexOf('nearInscription =\n      !hitFinale');
+  const iLetter = mainSrcP07.indexOf('nearLetter =\n      !hitFinale');
   const iHandle = mainSrcP07.indexOf('nearHandle = !blocked');
   ok(iIns > 0 && iLetter > iIns && iHandle > iLetter, 'E 的仲裁順序：刻文小語 → 殘頁 → 器物');
   ok(
-    /nearLetter =\s*\n?\s*!hitMarker && !hitMurk && !hitWatchman && !hitGuardian && !hitTablet && !hitInscription && hitLetter/.test(
+    /nearLetter =\s*\n\s*!hitFinale &&\s*\n\s*!hitMarker &&\s*\n\s*!hitMurk &&\s*\n\s*!hitWatchman &&\s*\n\s*!hitGuardian &&\s*\n\s*!hitTablet &&\s*\n\s*!hitInscription &&\s*\n\s*hitLetter/.test(
       mainSrcP07
     ),
-    // v1.2 · P18：石碑前面又多了一層（守門者），殘頁仍然排在每一層之後
-    '殘頁讓石座／濁靈／守夜人／守門者／石碑／刻文小語先搶 E'
+    // v1.2 · P18：石碑前面又多了一層（守門者）；P22 又在最前面插進終局那一層，
+    // 殘頁仍然排在每一層之後
+    '殘頁讓終局／石座／濁靈／守夜人／守門者／石碑／刻文小語先搶 E'
   );
   ok(
     /hitMarker \|\| hitMurk \|\| hitWatchman \|\| hitGuardian \|\| hitTablet \|\| hitInscription \|\| hitLetter/.test(
@@ -7377,13 +7378,18 @@ const distToSeg = (px, pz, ax, az, bx, bz) => {
     );
     ok(/kind: 'murk'/.test(mainSrc), 'main.js 組出的 challenge 形物件帶 kind: murk');
     ok(/challenge\.kind === 'murk'\)[\s\S]{0,1200}return;/.test(mainSrc), 'onResult 的 murk 分支置頂並 return');
-    ok(/nearMurk = !hitMarker && hitMurk/.test(mainSrc), '石座優先於濁靈');
+    ok(/nearMurk = !hitFinale && !hitMarker && hitMurk/.test(mainSrc), '石座優先於濁靈');
     // v1.2 · P16c：石碑前面多了一層（守夜人），濁靈仍然排在它們兩個之前
-    ok(/nearWatchman = !hitMarker && !hitMurk && hitWatchman/.test(mainSrc), '濁靈優先於守夜人');
+    ok(/nearWatchman = !hitFinale && !hitMarker && !hitMurk && hitWatchman/.test(mainSrc), '濁靈優先於守夜人');
     // v1.2 · P18：守夜人與石碑之間插進了守門者（人先於碑），石碑仍然排在這四層之後
-    ok(/nearGuardian = !hitMarker && !hitMurk && !hitWatchman && hitGuardian/.test(mainSrc), '守夜人優先於守門者');
     ok(
-      /nearTablet = !hitMarker && !hitMurk && !hitWatchman && !hitGuardian && hitTablet/.test(mainSrc),
+      /nearGuardian =\s*\n?\s*!hitFinale && !hitMarker && !hitMurk && !hitWatchman && hitGuardian/.test(mainSrc),
+      '守夜人優先於守門者'
+    );
+    ok(
+      /nearTablet =\s*\n?\s*!hitFinale && !hitMarker && !hitMurk && !hitWatchman && !hitGuardian && hitTablet/.test(
+        mainSrc
+      ),
       '守門者優先於石碑'
     );
     const worldSrc = readFileSync(resolve(root, 'src/world/world.js'), 'utf8');
@@ -15792,6 +15798,26 @@ console.log('\n▸ 四宿星圖 ＋ 反應式回聲 ＋ 傳說鉤（v1.2 · P08�
       if (k === TurningP21.MIDPOINT.echo) {
         eq(TurningP21.MIDPOINT.echo, 'midpointRevealed', '中點揭示的分支名逐值比對（turning.js ↔ ECHO_LINES）');
         ok(/nudge\.echo\(MIDPOINT\.echo\)/.test(mainSrcP08), `main.js 接得上「${k}」（走 MIDPOINT.echo）`);
+        continue;
+      }
+      /*
+       * v1.2 · P22：終局那三句同一個道理 —— 分支名寫在 `turning.js` 的
+       * `FINALE.echoShrine`／`echoCarved`／`echoBlank`（單一來源），
+       * main.js 叫的是那三個常數，字面值不在 main.js 裡。
+       * 母碑那兩句是**同一個變數**（碑面有字沒字二選一），所以那一段比對的是
+       * 「常數逐值等於這個分支名」＋「main.js 真的把那個常數餵給 nudge.echo」。
+       */
+      const finaleEchoes = {
+        [TurningP21.FINALE.echoShrine]: 'FINALE.echoShrine',
+        [TurningP21.FINALE.echoCarved]: 'FINALE.echoCarved',
+        [TurningP21.FINALE.echoBlank]: 'FINALE.echoBlank',
+      };
+      if (finaleEchoes[k]) {
+        ok(mainSrcP08.includes(finaleEchoes[k]), `main.js 接得上「${k}」（走 ${finaleEchoes[k]}）`);
+        ok(
+          /nudge\.echo\(FINALE\.echoShrine\)/.test(mainSrcP08) && /nudge\.echo\(kind\)/.test(mainSrcP08),
+          `終局那三句都由 nudge.echo 說出口（${k}）`
+        );
         continue;
       }
       ok(new RegExp(`nudge\\.echo\\((?:'${k}'|[^)]*'${k}')`).test(mainSrcP08), `main.js 接得上「${k}」`);
@@ -24568,6 +24594,831 @@ console.log('▸ 轉折：中點揭示 ＋ 鏡碑第二層（P21）');
     ok(/不影響任何解鎖|不參與任何解鎖/.test(s419), '§4.19 寫得出「旗標不影響解鎖」');
     ok(/還沒亮/.test(s419), '§4.19 寫得出「沒到門檻只是那一層還沒亮」');
     ok(new RegExp(String(EX_TURN.winnable['twin-pillars-foot'])).test(s419), '§4.19 寫得出柱腳那塊碑量到的數字');
+  }
+}
+
+/* ================================================================== *
+ * v1.2 · P22：終局 —— 回聲的小祠 ＋ 母碑重立
+ *
+ *   · 門檻只有兩件：130 條技法全收 ＋ 四宿全亮（逐項；差一個就還沒開口）
+ *   · 沒到門檻**不是鎖、也不是待辦清單**（畫面上不准出現「還差 N」）
+ *   · 最後那一次重寫**沒有失敗態**（餵一整排爛答案都得被收下）
+ *   · `firstPrompt` 缺席時走退路（「你最好的一句」）
+ *   · 刻字**必須經過確認**、**可以選擇不刻**、HTML escape、**不上傳**
+ *   · reset 之後所有終局旗標歸零、可以重走
+ *   · 那三個旗標**不影響任何解鎖**（靜態掃描 ＋ 零 XP 探針 ＋ 逐項快照）
+ * ================================================================== */
+console.log('▸ 終局：回聲的小祠 ＋ 母碑重立（P22）');
+{
+  const T22 = TurningP21;
+  const EX_FIN = EXPECT.finale;
+  const Fin22 = await import('../src/world/finale.js');
+  const Rite22 = await import('../src/challenges/finale.js');
+  const ShrineUi22 = await import('../src/ui/shrine.js');
+  const StarMap22 = await import('../src/ui/starmap.js');
+  const Hours22 = await import('../src/engine/hours.js');
+  const Rules22 = (await import('./lib/screen-rules.mjs')).default;
+  const NudgeP22 = await import('../src/ui/nudge.js');
+  const mainSrc22 = readFileSync(resolve(root, 'src/main.js'), 'utf8');
+  const worldMd22 = readFileSync(resolve(root, 'WORLD.md'), 'utf8');
+  const riteSrc22 = readFileSync(resolve(root, 'src/challenges/finale.js'), 'utf8');
+  const shrineSrc22 = readFileSync(resolve(root, 'src/ui/shrine.js'), 'utf8');
+  const worldFinSrc22 = readFileSync(resolve(root, 'src/world/finale.js'), 'utf8');
+  const turningSrc22 = readFileSync(resolve(root, 'src/world/turning.js'), 'utf8');
+  const progSrc22 = readFileSync(resolve(root, 'src/progression/progression.js'), 'utf8');
+  const vendorsP22 = curriculum.vendors || [];
+  /**
+   * 只看真的會跑的程式。
+   *
+   * 這一格的每一條靜態掃描（禁字、待辦清單、連線）都要先剝掉註解 ——
+   * 註解裡本來就會**解釋**「為什麼這裡沒有失敗態」「為什麼不連網」，
+   * 拿沒剝過的原始碼去掃，掃到的是自己的說明文字，不是出貨的行為。
+   */
+  const strip22 = (src) =>
+    src
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      // ⚠️ `//` 前面不准是冒號 —— 天真的剝法會把 `https://x` 剝成 `https:`，
+      //    於是「那條路上沒有任何網址」那一條再也紅不起來（紅測抓到的）
+      .replace(/(^|[^:])\/\/[^\n]*/g, '$1');
+  const riteCode22 = strip22(riteSrc22);
+  const shrineCode22 = strip22(shrineSrc22);
+  const worldFinCode22 = strip22(worldFinSrc22);
+  ok(riteCode22.length > 300 && shrineCode22.length > 800 && worldFinCode22.length > 800, '（前提）量得到剝掉註解之後的三支程式', `${riteCode22.length}/${shrineCode22.length}/${worldFinCode22.length}`);
+
+  /* --- ① 契約逐值比對（宣告了卻沒人比對的欄位＝一句沒人查證的話） --- */
+  {
+    ok(EX_FIN && typeof EX_FIN === 'object', '契約檔登記了 finale 這一格');
+    eq(EX_FIN.region, T22.FINALE.region, '契約的土地 id 與 turning.js 逐值相同');
+    eq(EX_FIN.shrineId, T22.FINALE.shrineId, '契約的小祠 id 與 turning.js 逐值相同');
+    eq(EX_FIN.steleId, T22.FINALE.steleId, '契約的母碑 id 與 turning.js 逐值相同');
+    eq(EX_FIN.shrineFlag, T22.FINALE.shrineFlag, '契約的小祠旗標名逐值相同');
+    eq(EX_FIN.raisedFlag, T22.FINALE.raisedFlag, '契約的「立起來了」旗標名逐值相同');
+    eq(EX_FIN.steleFlag, T22.FINALE.steleFlag, '契約的「說過了」旗標名逐值相同');
+    eq(EX_FIN.inscriptionKey, T22.FINALE.inscriptionKey, '契約的碑面欄位名逐值相同');
+    eq(EX_FIN.echoShrine, T22.FINALE.echoShrine, '契約的小祠回聲分支名逐值相同');
+    eq(EX_FIN.echoCarved, T22.FINALE.echoCarved, '契約的「刻了」回聲分支名逐值相同');
+    eq(EX_FIN.echoBlank, T22.FINALE.echoBlank, '契約的「留白」回聲分支名逐值相同');
+    eq(EX_FIN.shrineRadius, T22.SHRINE_RADIUS, '契約的小祠互動半徑逐值相同');
+    eq(EX_FIN.steleRadius, T22.STELE_RADIUS, '契約的母碑互動半徑逐值相同');
+    eq(JSON.stringify(EX_FIN.shrineAt), JSON.stringify([...Fin22.SHRINE_AT]), '契約的小祠落點與 finale.js 逐值相同');
+    eq(JSON.stringify(EX_FIN.steleAt), JSON.stringify([...Fin22.STELE_AT]), '契約的母碑落點與 finale.js 逐值相同');
+    eq(EX_FIN.listenChecks, Rite22.LISTEN_CHECKS.length, '契約的「回聲聽得見幾件事」與判定那一支逐值相同');
+    // 母碑就站在斷環的正中央（地標座標只有一份，不手抄）
+    const ring22 = LANDMARKS.find((l) => l.id === 'broken-ring');
+    eq(JSON.stringify([...Fin22.STELE_AT]), JSON.stringify([...ring22.at]), '母碑站的就是斷環那一點（座標讀地標，不另抄一份）');
+    eq(ring22.region, T22.FINALE.region, '斷環在中央高原（終局那一層住的地方）');
+    // 那三個回聲分支名真的在分支表裡
+    for (const k of [T22.FINALE.echoShrine, T22.FINALE.echoCarved, T22.FINALE.echoBlank]) {
+      ok(Boolean(NudgeP22.ECHO_LINES[k]), `回聲的分支表有「${k}」這一格`);
+      ok(NudgeP22.ECHO_KINDS.includes(k), `「${k}」也在分支名清單裡`);
+    }
+    // 「一輩子只說一次」那份名單要收得下這三句（撞上冷卻不准被丟掉）
+    const nudgeSrc22 = readFileSync(resolve(root, 'src/ui/nudge.js'), 'utf8');
+    const onceLine22 = (nudgeSrc22.match(/const ONCE_IN_A_LIFETIME = \[[^\]]*\]/) || [''])[0];
+    ok(onceLine22.length > 20, '（前提）找得到那份「一輩子只說一次」的名單', onceLine22);
+    for (const k of [T22.FINALE.echoShrine, T22.FINALE.echoCarved, T22.FINALE.echoBlank]) {
+      ok(onceLine22.includes(`'${k}'`), `「${k}」列在 ONCE_IN_A_LIFETIME 裡（撞上冷卻不會被吃掉）`);
+    }
+  }
+
+  /* --- ② 門檻：130 條技法全收 ＋ 四宿全亮（逐項；差一個就還沒開口） --- */
+  {
+    const total22 = catalog.counts.skills;
+    const mansions22 = vendorsP22.length;
+    ok(total22 === 130, '（前提）課程 v2 一共 130 條技法', String(total22));
+    eq(mansions22, StarMap22.MANSION_NAMES.length, '（前提）四宿與四部原典對得起來');
+
+    eq(
+      T22.shrineOpen({ skills: total22, skillsTotal: total22, mansionsLit: mansions22, mansionsTotal: mansions22 }),
+      true,
+      '130 條全收 ＋ 四宿全亮 → 小祠開口'
+    );
+    // 逐項：差一個就還沒開口
+    eq(
+      T22.shrineOpen({ skills: total22 - 1, skillsTotal: total22, mansionsLit: mansions22, mansionsTotal: mansions22 }),
+      false,
+      '（反例）差最後一條技法 → 還沒開口'
+    );
+    eq(
+      T22.shrineOpen({ skills: total22, skillsTotal: total22, mansionsLit: mansions22 - 1, mansionsTotal: mansions22 }),
+      false,
+      '（反例）差最後一宿 → 還沒開口'
+    );
+    eq(T22.shrineOpen({}), false, '（反例）什麼都不給 → 還沒開口');
+    eq(T22.shrineOpen(null), false, '（反例）null → 還沒開口');
+    eq(
+      T22.shrineOpen({ skills: 0, skillsTotal: 0, mansionsLit: 0, mansionsTotal: 0 }),
+      false,
+      '（反例）總數是 0 時不算開口（不會因為「零分之零」就開）'
+    );
+    eq(typeof T22.shrineOpen({}), 'boolean', 'shrineOpen() 回布林（每幀迴圈不准配置）');
+
+    /*
+     * **它不可能長成另一種門檻**：整個函式體裡一個「進度」字眼都沒有
+     * （等級、XP、解鎖清單、關卡數、存檔）。靜態掃描比參數個數可靠
+     * —— 參數有預設值時 `Function.length` 會少算（P21 記過）。
+     */
+    const openSrc22 = turningSrc22.split('export function shrineOpen')[1].split('\n}')[0];
+    ok(openSrc22.length > 60, '（前提）真的切到 shrineOpen() 的函式體', String(openSrc22.length));
+    for (const w of ['progression', 'level', 'xp', 'bestGrades', 'unlockedRegions', 'state', 'cleared']) {
+      ok(!openSrc22.includes(w), `shrineOpen() 的函式體裡沒有「${w}」（它綁不到別的進度）`);
+    }
+    /*
+     * 「先紅」的那一條：把它綁在等級上就要紅。反例真的呼叫**被測的那一支**，
+     * 再和「假如有人加了 level >= 20」的那個假實作比對。
+     */
+    const full22 = { skills: total22, skillsTotal: total22, mansionsLit: mansions22, mansionsTotal: mansions22 };
+    const levelGated22 = (c, level) => T22.shrineOpen(c) && level >= 20;
+    eq(levelGated22(full22, 8), false, '（反例）綁等級的那個假實作對「收齊了但等級不高」的人會回 false');
+    ok(
+      T22.shrineOpen(full22) !== levelGated22(full22, 8),
+      '出貨的那一支與「綁等級」不是同一件事'
+    );
+
+    /*
+     * **未達門檻不是鎖，也不是待辦清單。**
+     * 三面一起守：世界端沒開口時那一層交不出東西（不是交出一個按不動的東西）、
+     * 畫面上沒有一個字在算「還差幾個」、資料層也沒有這種字。
+     */
+    const field22 = Fin22.createFinaleField({
+      kit: testWorld.kitOf('foundations'),
+      terrainHeight: World.terrainHeight,
+    });
+    eq(field22.open, false, '沒到門檻 → 小祠是暗的');
+    eq(field22.nearest({ x: Fin22.SHRINE_AT[0], z: Fin22.SHRINE_AT[1] }), null, '沒開口時站在小祠正中央也按不到（那一層交不出東西）');
+    eq(field22.raised, false, '儀式走完之前母碑沒立著');
+    eq(field22.stele.group.visible, false, '沒立起來的母碑整組不畫（斷環中央是空的）');
+    eq(field22.setOpen(true), true, '門檻到了 → 小祠開口');
+    ok(Boolean(field22.nearest({ x: Fin22.SHRINE_AT[0], z: Fin22.SHRINE_AT[1] })), '開口之後站在旁邊就按得到');
+    eq(field22.nearest({ x: Fin22.STELE_AT[0], z: Fin22.STELE_AT[1] }), null, '母碑沒立起來 → 站在斷環中央也按不到');
+    eq(field22.setRaised(true, false), true, '母碑立起來');
+    eq(field22.stele.group.visible, true, '立起來之後母碑才畫出來');
+    const hit22 = field22.nearest({ x: Fin22.STELE_AT[0] + 6.3, z: Fin22.STELE_AT[1] });
+    eq(hit22 && hit22.kind, 'stele', '站在臺邊按得到母碑');
+    eq(hit22 && hit22.id, T22.FINALE.steleId, '交出來的是母碑那一個 id');
+    // 兩件東西的圈不會互相蓋掉（實測距離 17.16 > 4.6 + 7.0）
+    ok(
+      Math.hypot(Fin22.SHRINE_AT[0] - Fin22.STELE_AT[0], Fin22.SHRINE_AT[1] - Fin22.STELE_AT[1]) >
+        T22.SHRINE_RADIUS + T22.STELE_RADIUS,
+      '小祠與母碑自己的兩個圈也不重疊'
+    );
+    /*
+     * **最後一團濁氣就是你自己的第一句** —— 三態照 §1.6 的光語言排：
+     * 還沒開口（看不清）→ 開口了（看得清楚、眼光盯著你）→ 儀式走完（殼散掉，剩一盞清燈）。
+     * 這一格是「安撫」在畫面上的樣子，**不是**多一隻濁靈：牠不進 `murks.json`、
+     * 不算清燈數、不寫 `state.murks`、不給 XP（`murk-fit -- --verify` 一格都沒動）。
+     */
+    {
+      const f22b = Fin22.createFinaleField({ kit: testWorld.kitOf('foundations'), terrainHeight: World.terrainHeight });
+      const murkSnap = () => ({
+        shell: Number(f22b.shrine.shellMat.opacity.toFixed(3)),
+        eye: Number(f22b.shrine.eyeMat.opacity.toFixed(3)),
+        lamp: f22b.shrine.core.visible,
+      });
+      const dark22 = murkSnap();
+      ok(dark22.shell > 0 && dark22.shell < 0.2, '還沒開口：那一團在龕裡，但看不清', String(dark22.shell));
+      eq(dark22.eye, 0, '還沒開口：那一點眼光也沒亮');
+      eq(dark22.lamp, false, '還沒開口：燈座是空的');
+      f22b.setOpen(true);
+      const open22 = murkSnap();
+      ok(open22.shell > dark22.shell, '開口了：那一團濁氣看得清楚了', `${dark22.shell} → ${open22.shell}`);
+      ok(open22.eye > 0, '開口了：那一點眼光盯著你', String(open22.eye));
+      eq(open22.lamp, false, '**開口還不是成就**：暖白的清燈這時候還沒亮');
+      f22b.setRaised(true, false);
+      const calm22 = murkSnap();
+      eq(calm22.shell, 0, '儀式走完：殼散掉了');
+      eq(calm22.eye, 0, '儀式走完：那一點眼光也散了');
+      eq(calm22.lamp, true, '儀式走完：燈座上留下一盞清燈（留在原位）');
+      eq(f22b.shrine.shell.visible, false, '散掉的殼整塊不畫');
+      // 這一團不是第 21 隻濁靈：它不在 murks.json 裡，也不影響清燈數與時辰
+      ok(
+        !(murkFile.entries || []).some((m) => m.id === T22.FINALE.shrineId),
+        '龕裡那一團不進 murks.json（清燈數與時辰一格都沒動）'
+      );
+    }
+
+    field22.reset();
+    eq(field22.open, false, 'reset 之後小祠暗回去');
+    eq(field22.raised, false, 'reset 之後母碑躺回去');
+    eq(field22.carved, false, 'reset 之後碑面留白');
+
+    /** 「還差 N」那一類的字：終局這一層一個都不准有。 */
+    const TODO_WORDS22 = ['還差', '尚未達成', '未解鎖', '解鎖條件', '完成度', '進度條', '待完成', '還需要'];
+    for (const [tag, src] of [
+      ['ui/shrine.js', shrineCode22],
+      ['world/finale.js', worldFinCode22],
+      ['challenges/finale.js', riteCode22],
+    ]) {
+      for (const w of TODO_WORDS22) ok(!src.includes(w), `[${tag}] 沒有「${w}」（沒到門檻不是待辦清單）`);
+    }
+    // 反例：這張表真的抓得到東西
+    ok(TODO_WORDS22.some((w) => '再收 3 條就好了，還差一點'.includes(w)), '（反例）待辦清單那張表對「還差一點」會紅');
+    // main.js 那一格 HUD 提示也不准算「還差幾個」
+    const hudBlock22 = mainSrc22.slice(mainSrc22.indexOf('if (nearFinale) {'), mainSrc22.indexOf('} else if (nearMarker) {'));
+    ok(hudBlock22.length > 200, '（前提）切得到 HUD 那一格', String(hudBlock22.length));
+    for (const w of TODO_WORDS22) ok(!strip22(hudBlock22).includes(w), `HUD 那一格沒有「${w}」`);
+  }
+
+  /* --- ③ 沒有失敗態：餵一整排爛答案，每一句都得被收下 --- */
+  {
+    const JUNK22 = [
+      '',
+      ' ',
+      '嗯',
+      '不知道',
+      '隨便',
+      'asdf',
+      '。。。',
+      '不要不要不要',
+      '幫我',
+      'a'.repeat(400),
+      '<script>alert(1)</script>',
+      '？？？？？？',
+    ];
+    for (const junk of JUNK22) {
+      const res = Rite22.listen(junk);
+      eq(res.accepted, true, `爛答案也收得下：「${junk.slice(0, 12)}」`);
+      ok(Array.isArray(res.heard), '交出來的一定是一張清單（可能是空的）');
+      ok(!('passed' in res) && !('failed' in res) && !('grade' in res) && !('score' in res), '回傳裡沒有評價／分數／過不過');
+      eq(res.said, typeof junk === 'string' ? junk : '', '玩家的原文一個位元組都沒被改');
+    }
+    // 好答案也是同一種形狀（只是聽見的多幾件）
+    const good22 = Rite22.listen('你是一位資深編輯。請把下面這段公告改寫成 3 點條列，每點不超過 20 字，並保留日期。');
+    eq(good22.accepted, true, '好答案照樣是收下（不是「更收下」）');
+    ok(good22.heard.length > Rite22.listen('嗯').heard.length, '好答案聽見的比爛答案多（引擎真的在跑，不是空過）');
+    eq(Rite22.ALWAYS_ACCEPTED, true, '那個門檻是一個永遠為真的常數');
+
+    /*
+     * 靜態面：這一整支交不出「沒過」這種形狀。
+     * （`out.passed` 是**讀**既有檢查器的結果，不是這一支的回傳；
+     *  所以掃的是「它自己會不會生出失敗」那幾個字。）
+     */
+    for (const w of ['failed', 'rejected', '沒過', '未通過', '不及格', '失敗', 'passMark', 'GRADE']) {
+      ok(!riteCode22.includes(w), `judge 那一支裡沒有「${w}」（型別上就沒有失敗態）`);
+    }
+    ok(!/return\s*\{[^}]*accepted:\s*false/.test(riteCode22), '沒有任何一條路交得出 accepted: false');
+    // 畫面那一半也一樣：沒有一句話在講你少了什麼
+    for (const w of ['失敗', '沒過', '未通過', '再試一次', '缺了', '你少了', '不夠', '重來']) {
+      ok(!shrineCode22.includes(w), `小祠的畫面上沒有「${w}」`);
+    }
+    // 「聽見了」那一段：一條都沒聽見時整段不出現（不是「你什麼都沒說對」）
+    eq(ShrineUi22.heardHtml([]), '', '一條都沒聽見 → 那一段整個不出現');
+    ok(ShrineUi22.heardHtml(['你說了要它做的那件事。']).includes('回聲聽見了'), '聽見了就列出來');
+    for (const row of Rite22.LISTEN_CHECKS) {
+      ok(CHECK_IDS.includes(row.check), `[${row.check}] 用的是既有的檢查器（不新增）`);
+      ok(row.heard.startsWith('你'), `[${row.check}] 那一行講的是「你說了什麼」（不是「你少了什麼」）`, row.heard);
+      for (const bad of ['少了', '缺', '沒有說', '忘了', '應該']) ok(!row.heard.includes(bad), `[${row.check}] 那一行不責備`, row.heard);
+    }
+    // 「什麼都還沒寫」不是沒通過，是還沒開口 —— 所以那一下按不下去
+    eq(Rite22.hasSomethingToSay(''), false, '空字串：還沒開口');
+    eq(Rite22.hasSomethingToSay('   \n '), false, '只有空白：還沒開口');
+    eq(Rite22.hasSomethingToSay('嗯'), true, '寫了一個字就算開口了（門檻不是長度）');
+    ok(/data-offer[^>]*disabled/.test(shrineCode22), '沒寫東西的時候「呈給神諭」按不下去（而不是被退回來）');
+  }
+
+  /* --- ④ 舊存檔沒有第一句 → 走退路 --- */
+  {
+    const first22 = T22.finalSayFor('請把這張告示改寫成三點條列。');
+    eq(first22.mode, 'first', '有第一句 → 用玩家自己那一句');
+    eq(first22.say, '請把這張告示改寫成三點條列。', '擺出來的就是玩家的原文');
+    eq(first22.ask, T22.FIRST_SAY_ASK, '底下那一行要玩家「代它再說一遍」');
+    for (const missing of ['', '   ', null, undefined, 42, {}]) {
+      const back22 = T22.finalSayFor(missing);
+      eq(back22.mode, 'best', `沒有第一句（${JSON.stringify(missing)}）→ 走退路`);
+      eq(back22.say, T22.BEST_SAY_FALLBACK.say, '退路擺的是世界的說法，不是空白');
+      eq(back22.ask, T22.BEST_SAY_FALLBACK.ask, '退路要的是「你最好的一句」');
+      ok(back22.say.length > 0 && back22.ask.length > 0, '退路的兩行都不是空的（儀式走得完）');
+    }
+    // 存檔那一層也要真的走得完：舊存檔（連 firstPrompt 都沒有）
+    memory.clear();
+    const oldSave22 = SaveIO.normalize({ version: 1, xp: 40, level: 2 });
+    eq(oldSave22.firstPrompt, '', '（前提）舊存檔沒有第一句');
+    eq(oldSave22[T22.FINALE.inscriptionKey], '', '（前提）舊存檔也沒有碑面那一行');
+    eq(T22.finalSayFor(oldSave22.firstPrompt).mode, 'best', '舊存檔走退路');
+    memory.clear();
+  }
+
+  /* --- ⑤ 刻字：先確認、可以不刻、escape、不上傳 --- */
+  {
+    const PRIVATE22 = '我媽的生日是 3 月 4 日，幫我寫張卡片 <script>alert(1)</script>';
+
+    /* ⑤a 必須經過確認 —— 「拿掉確認就要紅」 */
+    eq(Rite22.inscriptionFor('carve', PRIVATE22), PRIVATE22, '按了「刻上去」才會留下那一句');
+    for (const notCarve of ['blank', '', 'yes', 'true', 'CARVE', 'carve ', ' carve', null, undefined, true, 1, {}]) {
+      eq(
+        Rite22.inscriptionFor(notCarve, PRIVATE22),
+        '',
+        `（反例）不是明確的 'carve'（${JSON.stringify(notCarve)}）一律不刻`
+      );
+    }
+    eq(Rite22.DEFAULT_CHOICE, 'blank', '預設是不刻（沒按過就是沒答應）');
+    eq(JSON.stringify([...Rite22.CARVE_CHOICES]), JSON.stringify(['carve', 'blank']), '只有兩種答案');
+    /*
+     * **「拿掉確認就要紅」**：反例是一支「不問就刻」的假實作，
+     * 拿它與**出貨的那一支**在同一個輸入上比對 —— 兩者不一樣，才證明那道閘真的在。
+     */
+    const noConfirm22 = (choice, text) => text;
+    eq(noConfirm22('blank', PRIVATE22), PRIVATE22, '（反例）「不問就刻」的假實作會把私人的字留下來');
+    ok(
+      Rite22.inscriptionFor('blank', PRIVATE22) !== noConfirm22('blank', PRIVATE22),
+      '出貨的那一支與「不問就刻」不是同一件事'
+    );
+    // 畫面上真的有那兩顆、而且沒有一顆是預先選好的
+    ok(/data-choice="carve"/.test(shrineSrc22), '畫面上有「刻上去」那一顆');
+    ok(/data-choice="blank"/.test(shrineSrc22), '畫面上有「先不刻」那一顆');
+    ok(/刻上去/.test(shrineSrc22) && /先不刻/.test(shrineSrc22), '兩顆都寫得出自己在做什麼');
+    ok(!/checked|autofocus|selected/.test(shrineSrc22), '沒有預先勾好的那一格（每一次都要重新問過）');
+    ok(ShrineUi22.CARVE_ASK.includes('？'), '問句真的是在問（不是宣告）', ShrineUi22.CARVE_ASK);
+    ok(/刻印記錄/.test(ShrineUi22.CARVE_NOTE), '那一段小字講得出「刻上去之後它會出現在哪裡」', ShrineUi22.CARVE_NOTE);
+    ok(/不刻/.test(ShrineUi22.CARVE_NOTE), '那一段小字也講得出「不刻也走得完」');
+
+    /* ⑤b 可以選擇不刻 —— 不刻＝那句話根本不寫進存檔 */
+    memory.clear();
+    const p22 = createProgression({ catalog, challenges });
+    eq(p22.motherStele(), '', '新存檔的碑面是留白的');
+    p22.setMotherStele(Rite22.inscriptionFor('blank', PRIVATE22));
+    eq(p22.motherStele(), '', '選了「先不刻」→ 碑面還是留白');
+    // **整份存檔裡找不到那句話**（不存就不可能外流）
+    const raw22 = memory.get(SaveIO.SAVE_KEY) || '';
+    ok(raw22.length > 100, '（前提）存檔真的落盤了（不是在比一個空字串）', String(raw22.length));
+    ok(!raw22.includes('我媽的生日'), '不刻的時候，整份存檔裡找不到玩家寫的那一句');
+    ok(!raw22.includes('<script>'), '不刻的時候，存檔裡也沒有那段標記');
+    // 刻上去之後才有；再選一次「不刻」要抹得掉（那是玩家把自己的字收回去的路）
+    p22.setMotherStele(Rite22.inscriptionFor('carve', PRIVATE22));
+    eq(p22.motherStele(), PRIVATE22, '按了「刻上去」→ 碑上真的有那一句');
+    ok((memory.get(SaveIO.SAVE_KEY) || '').includes('我媽的生日'), '（對照）刻了才會落盤 —— 上面那條不是永遠回空');
+    p22.setMotherStele(Rite22.inscriptionFor('blank', PRIVATE22));
+    eq(p22.motherStele(), '', '回頭再選「不刻」→ 碑面被抹回留白');
+    ok(!(memory.get(SaveIO.SAVE_KEY) || '').includes('我媽的生日'), '抹掉之後存檔裡也沒有了');
+    memory.clear();
+
+    /* ⑤c HTML escape（餵 <script> 進去） */
+    const evil22 = '<script>alert(1)</script><img src=x onerror=alert(2)>';
+    const said22 = ShrineUi22.saidHtml(evil22);
+    ok(said22.includes('&lt;script&gt;'), '玩家的字被跳脫成純文字');
+    ok(!/<script/i.test(said22), '吐出去的 HTML 裡沒有真的 <script>');
+    ok(!/<(?!\/?pre\b)/i.test(said22), '除了那塊 <pre> 之外，吐出去的字裡一個標記都沒有');
+    ok(said22.includes('&lt;img'), '<img 也被跳脫掉了');
+    const heard22 = ShrineUi22.heardHtml(['<b>壞字</b>']);
+    ok(heard22.includes('&lt;b&gt;'), '「聽見了」那一段也一樣跳脫');
+    // 反例：真的有東西被跳脫（不是在比一個空字串）
+    ok(said22.length > evil22.length, '（反例）跳脫之後字串會變長 —— 上面幾條不是空過');
+    // 儀式與讀碑兩條路上，玩家的字每一次都走 esc()
+    const escCalls22 = (shrineCode22.match(/esc\(/g) || []).length;
+    ok(escCalls22 >= 10, '小祠的每一個出口都走 esc()', `n=${escCalls22}`);
+    ok(
+      !/innerHTML\s*=\s*`[^`]*\$\{(?:text|rewrote|res\.said|saying\.say)\}/.test(shrineCode22),
+      '沒有一條路把玩家的字直接塞進 innerHTML'
+    );
+
+    /* ⑤d 不上傳：那條路上一個網路呼叫都沒有 */
+    const NET22 = ['fetch(', 'XMLHttpRequest', 'WebSocket', 'EventSource', 'sendBeacon', 'navigator.share', 'import(', 'new Worker'];
+    for (const [tag, src] of [
+      ['challenges/finale.js', riteCode22],
+      ['ui/shrine.js', shrineCode22],
+      ['world/finale.js', worldFinCode22],
+      ['world/turning.js', strip22(turningSrc22)],
+    ]) {
+      // 只看真的會跑的程式（註解裡本來就會解釋「為什麼不連網」）
+      const code22 = src;
+      ok(code22.length > 300, `[${tag}] 量得到剝掉註解之後的程式（不是空字串空過）`, String(code22.length));
+      for (const w of NET22) ok(!code22.includes(w), `[${tag}] 那條路上沒有 ${w}`);
+      ok(!/https?:\/\//.test(code22), `[${tag}] 那條路上沒有任何網址`);
+    }
+    // 反例：這張表真的抓得到東西
+    ok(NET22.some((w) => "await fetch('https://x')".includes(w)), '（反例）連線那張表對一段真的 fetch 會紅');
+
+    /* ⑤e 帶得走的那張卡：刻了才有，而且那段話裡不放玩家的字 */
+    const ShareP22 = await import('../src/ui/sharecard.js');
+    const steleText22 = ShareP22.shareText({ kind: 'stele', rankTitle: '抄寫人', level: 9, collected: 130, total: 130 });
+    ok(steleText22.includes('母碑'), '母碑那張卡的話講得出這是什麼', steleText22);
+    ok(!steleText22.includes('我媽的生日'), '那段話裡不會有玩家寫的那一句');
+    ok(steleText22.length <= 90, `母碑那句話不長（${steleText22.length} 字）`);
+    const shareSrc22 = readFileSync(resolve(root, 'src/ui/sharecard.js'), 'utf8');
+    ok(/inscription: opts\.kind === 'stele'/.test(shareSrc22), '只有母碑那一張卡帶得動碑面那一行');
+    ok(/m\.inscription/.test(shareSrc22), '卡片真的會把碑面那一行畫上去');
+  }
+
+  /* --- ⑥ reset 之後所有終局旗標歸零、可以重走 --- */
+  {
+    memory.clear();
+    const p26 = createProgression({ catalog, challenges });
+    eq(T22.shrineSpoken(p26), false, '新存檔：小祠那一句還沒說過');
+    eq(T22.steleRaised(p26), false, '新存檔：母碑還沒立起來');
+    eq(T22.steleSpoken(p26), false, '新存檔：母碑那一句還沒說過');
+
+    eq(T22.markShrineSpoken(p26), true, '第一次說 → 記下來');
+    eq(T22.markShrineSpoken(p26), false, '再記一次不算第一次');
+    eq(T22.shouldAnnounceShrine(true, p26), false, '說過了就不會再說一次');
+    eq(T22.shouldAnnounceShrine(false, p26), false, '沒開口當然不會說');
+    memory.clear();
+    const p26b = createProgression({ catalog, challenges });
+    eq(T22.shouldAnnounceShrine(true, p26b), true, '開口了而且還沒說過 → 這一拍要說');
+    eq(typeof T22.shouldAnnounceShrine(true, p26b), 'boolean', 'shouldAnnounceShrine() 回布林（每幀迴圈不准配置）');
+    eq(T22.markShrineSpoken(p26b), true, '小祠那一句說出口 → 記下來');
+    eq(T22.markSteleRaised(p26b), true, '母碑立起來 → 記下來');
+    eq(T22.markSteleSpoken(p26b), true, '母碑那一句說出口 → 記下來');
+    p26b.setMotherStele('把你要的樣子先說出來。');
+
+    // 重新載入：三個旗標與碑面那一行都還在
+    const reload22 = createProgression({ catalog, challenges });
+    eq(T22.shrineSpoken(reload22), true, '重新載入之後小祠那一句還記著');
+    eq(T22.steleRaised(reload22), true, '重新載入之後母碑還立著');
+    eq(T22.steleSpoken(reload22), true, '重新載入之後母碑那一句還記著');
+    eq(reload22.motherStele(), '把你要的樣子先說出來。', '重新載入之後碑上的字還在');
+
+    // 重置 → 全部回到起點，而且**可以再走一次**
+    reload22.resetAll();
+    eq(T22.shrineSpoken(reload22), false, '重置之後小祠那一句回到沒說過');
+    eq(T22.steleRaised(reload22), false, '重置之後母碑躺回去');
+    eq(T22.steleSpoken(reload22), false, '重置之後母碑那一句回到沒說過');
+    eq(reload22.motherStele(), '', '重置之後碑面回到留白');
+    eq(T22.markShrineSpoken(reload22), true, '重置之後再走一次：小祠那一句又說得出來（終局不是一次性的煙火）');
+    eq(T22.markSteleRaised(reload22), true, '重置之後再走一次：母碑又立得起來');
+    // 沒有進度物件的替身不會爆
+    eq(T22.markShrineSpoken(null), false, '沒有進度物件時不會爆');
+    eq(T22.shrineSpoken(null), false, '沒有進度物件時當成還沒說過');
+    eq(T22.steleRaised({}), false, '沒有 state 的替身也當成還沒立起來');
+    memory.clear();
+  }
+
+  /* --- ⑦ 三個旗標與碑面那一行**不影響任何解鎖** --- */
+  {
+    memory.clear();
+    const p27 = createProgression({ catalog, challenges });
+    const shot27 = () =>
+      JSON.stringify({
+        unlockedRegions: [...p27.state.unlockedRegions].sort(),
+        skippedGates: [...(p27.state.skippedGates || [])].sort(),
+        xp: p27.state.xp,
+        level: p27.levelInfo().level,
+        bestGrades: Object.keys(p27.state.bestGrades).sort(),
+        collected: [...p27.state.collected].sort(),
+        skillsV2: [...p27.state.skillsV2].sort(),
+        badges: p27.state.badges,
+        perRegion: World.REGION_SITES.map((s2) => [
+          s2.id,
+          p27.isRegionUnlocked(s2.id),
+          p27.isRegionPlayable(s2.id),
+          p27.gateStatus(s2.id).text,
+          p27.gateStatus(s2.id).needs.join('｜'),
+        ]),
+      });
+    /*
+     * 只比對兩張靜態快照擋不住**間接**讀法（P21 的紅測證明過），
+     * 所以每張快照之前先踩一次**零 XP 的探針**（`useHandle(id, 0)`）：
+     * 它唯一的作用就是把 `refreshUnlocks()` 跑一遍，並交出「這一次多開了哪幾片」。
+     */
+    const probe27 = (id) => p27.useHandle(id, 0).newlyUnlocked.slice().sort();
+    eq(JSON.stringify(probe27('__p22-probe-before')), '[]', '（前提）還沒走終局之前，重算解鎖不會多開任何一片土地');
+    const before27 = shot27();
+    T22.markShrineSpoken(p27);
+    T22.markSteleRaised(p27);
+    T22.markSteleSpoken(p27);
+    p27.setMotherStele('把你要的樣子先說出來，牠就照著做。');
+    eq(JSON.stringify(probe27('__p22-probe-after')), '[]', '走完終局之後，重算解鎖一片土地都沒多開');
+    eq(shot27(), before27, '終局之後，每一片土地的解鎖狀態逐項不變（旗標與碑面都不參與任何解鎖）');
+    // 那三個旗標與那一行真的落地了（不然上面那一條會因為「什麼都沒發生」而假綠）
+    eq(p27.state.flags[T22.FINALE.shrineFlag], true, '小祠那個旗標真的寫進 flags');
+    eq(p27.state.flags[T22.FINALE.raisedFlag], true, '母碑那個旗標真的寫進 flags');
+    eq(p27.state.flags[T22.FINALE.steleFlag], true, '「說過了」那個旗標真的寫進 flags');
+    ok(p27.motherStele().length > 0, '碑面那一行真的寫進存檔（上面那條比對不是空比）');
+    eq(p27.state.xp, 0, '終局不給 XP');
+    eq(p27.state.collected.length, 0, '終局不收技巧');
+    eq(Object.keys(p27.state.bestGrades).length, 0, '終局不寫任何一關的評價');
+
+    // 靜態掃描：解鎖判定看不到那三個旗標
+    for (const flag of [T22.FINALE.shrineFlag, T22.FINALE.raisedFlag, T22.FINALE.steleFlag]) {
+      ok(!progSrc22.includes(flag), `progression.js 沒有提到「${flag}」（解鎖判定看不到它）`);
+      ok(!readFileSync(resolve(root, 'src/challenges/catalog.js'), 'utf8').includes(flag), `catalog.js 也看不到「${flag}」`);
+    }
+    /*
+     * 碑面那一行**住在 progression.js 裡**（它要讀寫存檔），所以整份掃描不成立 ——
+     * 改成逐支切出解鎖那三支的函式體來掃。這一條比整份掃描更貼近要守的東西。
+     */
+    for (const fn of ['gateSatisfied', 'refreshUnlocks', 'isRegionUnlocked']) {
+      const at27 = progSrc22.indexOf(`function ${fn}(`) >= 0 ? progSrc22.indexOf(`function ${fn}(`) : progSrc22.indexOf(`${fn}(`);
+      ok(at27 > 0, `（前提）找得到 ${fn}()`);
+      const body27 = progSrc22.slice(at27, at27 + 2200);
+      ok(!body27.includes(T22.FINALE.inscriptionKey), `${fn}() 的函式體裡沒有「${T22.FINALE.inscriptionKey}」`);
+      for (const flag of [T22.FINALE.shrineFlag, T22.FINALE.raisedFlag, T22.FINALE.steleFlag])
+        ok(!body27.includes(flag), `${fn}() 的函式體裡沒有「${flag}」`);
+    }
+    // 探針本身要證明它抓得到東西（不然上面那兩個 `[]` 只是裝飾）
+    {
+      memory.clear();
+      const rich27 = createProgression({ catalog, challenges });
+      for (const c of challenges.filter((c2) => c2.region === 'foundations').slice(0, 8)) {
+        rich27.recordResult(
+          { challengeId: c.id, passed: true, grade: 'S', score: 10, max: 10, teaches: c.teaches || [] },
+          { challenge: c }
+        );
+      }
+      ok(Array.isArray(rich27.useHandle('__p22-probe-control', 0).newlyUnlocked), '（對照）探針交得出「這一次多開了哪幾片」');
+      eq(rich27.isRegionUnlocked('reasoning'), true, '（對照）真的夠格時那一片會開 —— 探針不是永遠回空陣列');
+    }
+    memory.clear();
+  }
+
+  /* --- ⑧ 存檔那一欄：純加法、壞值落成空字串、與第一句同一把尺 --- */
+  {
+    eq(SaveIO.defaultSave()[T22.FINALE.inscriptionKey], '', '新存檔的碑面是空字串');
+    eq(SaveIO.normalize({})[T22.FINALE.inscriptionKey], '', '舊存檔沒有這一欄 → 補空字串');
+    eq(SaveIO.normalize({ motherStele: 42 })[T22.FINALE.inscriptionKey], '', '壞值（非字串）落成空字串');
+    eq(SaveIO.normalize({ motherStele: '  說清楚一點  ' })[T22.FINALE.inscriptionKey], '說清楚一點', '去頭尾空白');
+    eq(
+      SaveIO.normalize({ motherStele: 'x'.repeat(400) })[T22.FINALE.inscriptionKey].length,
+      SaveIO.MOTHER_STELE_MAX,
+      '超過上限就截斷'
+    );
+    eq(SaveIO.MOTHER_STELE_MAX, SaveIO.FIRST_PROMPT_MAX, '碑面與第一句用同一把尺（清洗規則不准分兩份）');
+    eq(
+      SaveIO.normalize({ motherStele: '<b>不要</b>幫我猜' })[T22.FINALE.inscriptionKey],
+      '<b>不要</b>幫我猜',
+      '存檔層不改玩家的字（跳脫是顯示那一方的事）'
+    );
+  }
+
+  /* --- ⑨ 時辰：全部收齊 → 星最亮之夜（終態），而且沒有黎明 --- */
+  {
+    const murkTotal22 = (murkFile.entries || []).length;
+    const full = Hours22.hourOf({
+      mastered: catalog.counts.implementedRegions,
+      masteredTotal: catalog.counts.implementedRegions,
+      skills: catalog.counts.skills,
+      skillsTotal: catalog.counts.skills,
+      murks: murkTotal22,
+      murksTotal: murkTotal22,
+    });
+    eq(full.index, 3, '全部收齊 → 時辰走到終態');
+    eq(full.p, 1, '進度是滿的');
+    eq(Hours22.HOUR_IDS[full.index], 'starlit', '終態就是星最亮之夜');
+    // 差一條技法就還沒到終態（終態是「全部」，不是「差不多」）
+    const almost = Hours22.hourOf({
+      mastered: catalog.counts.implementedRegions,
+      masteredTotal: catalog.counts.implementedRegions,
+      skills: catalog.counts.skills - 1,
+      skillsTotal: catalog.counts.skills,
+      murks: murkTotal22,
+      murksTotal: murkTotal22,
+    });
+    ok(almost.index < 3, '（反例）差一條就還沒到星最亮之夜', String(almost.index));
+    // 永遠是夜（roadmap 鐵則 3）
+    ok(
+      !/黎明|日出|魚肚白|東方發白|dawn|sunrise/i.test(strip22(readFileSync(resolve(root, 'src/engine/hours.js'), 'utf8'))),
+      '時辰那一支沒有黎明'
+    );
+    // 母碑立起來那一拍會重算時辰（天空是進度的外顯）
+    ok(/applyMood\(moodRegion, \{ force: true \}\);/.test(mainSrc22.slice(mainSrc22.indexOf('function finishRite'))), '儀式走完那一拍重算一次時辰');
+  }
+
+  /* --- ⑩ 擺位：量出來的，不是挑出來的 --- */
+  {
+    const targets22 = Rules22.interactionTargets({
+      challenges,
+      inscriptions,
+      letters,
+      handles,
+      murks: murkFile.entries,
+      watchmen: readJson('src/data/watchmen.json').entries,
+      guardians: [readJson('src/data/guardian.json')],
+      echoes: readJson('src/data/echoes.json').entries,
+      archives: readJson('src/data/archive.json').halls,
+      secrets: secretFile.entries,
+      tablets: LORE_TABLETS,
+      reactiveSpots: Reactive.REACTIVE_SPOTS,
+    });
+    /** 這一點的互動圈離最近那一層的互動圈還剩幾公尺（負的＝重疊了）。 */
+    const gap22 = (at, R) => {
+      let min = Infinity;
+      let who = '';
+      for (const t of targets22) {
+        const d = Math.hypot(at[0] - t.at[0], at[1] - t.at[1]) - (Rules22.interactRingRadius(t) + R);
+        if (d < min) {
+          min = d;
+          who = `${t.k}:${t.id}`;
+        }
+      }
+      return { min, who };
+    };
+    /** 24 個方向裡有幾個「站得住、而且這一層搶得到 `E`」。 */
+    const winnable22 = (at, radii) => {
+      let win = 0;
+      for (let a = 0; a < 24; a += 1) {
+        const ang = (a / 24) * Math.PI * 2;
+        for (const rr of radii) {
+          const px = at[0] + Math.cos(ang) * rr;
+          const pz = at[1] + Math.sin(ang) * rr;
+          if (testWorld.solidAt(px, pz)) continue;
+          if (World.coverage(px, pz) <= 0.85) continue;
+          let beaten = false;
+          for (const t of targets22) {
+            if (Math.hypot(px - t.at[0], pz - t.at[1]) <= Rules22.interactRingRadius(t)) {
+              beaten = true;
+              break;
+            }
+          }
+          if (!beaten) {
+            win += 1;
+            break;
+          }
+        }
+      }
+      return win;
+    };
+
+    const sg22 = gap22(Fin22.SHRINE_AT, T22.SHRINE_RADIUS);
+    const tg22 = gap22(Fin22.STELE_AT, T22.STELE_RADIUS);
+    ok(sg22.min > 0, `小祠的互動圈與每一層都不重疊（最緊的是 ${sg22.who}）`, sg22.min.toFixed(3));
+    ok(tg22.min > 0, `母碑的互動圈與每一層都不重疊（最緊的是 ${tg22.who}）`, tg22.min.toFixed(3));
+    eq(Number(sg22.min.toFixed(2)), EX_FIN.shrineGap, '小祠那一邊的餘裕與契約逐值相同');
+    eq(Number(tg22.min.toFixed(2)), EX_FIN.steleGap, '母碑那一邊的餘裕與契約逐值相同');
+
+    const sw22 = winnable22(Fin22.SHRINE_AT, [2.4, 3.0, 3.6, 4.2, 4.5]);
+    const tw22 = winnable22(Fin22.STELE_AT, [6.2, 6.4, 6.6, 6.8, 6.9]);
+    eq(sw22, EX_FIN.shrineWinnable, '按得到小祠的方向數與契約逐值相同', `${sw22}/24`);
+    eq(tw22, EX_FIN.steleWinnable, '按得到母碑的方向數與契約逐值相同', `${tw22}/24`);
+    ok(EX_FIN.winnableFloor < Math.min(sw22, tw22), '門檻比實測最差的再嚴一格（留餘裕，不是貼著寫）');
+    ok(sw22 >= EX_FIN.winnableFloor, `按得到小祠的方向 ≥ ${EX_FIN.winnableFloor}/24`);
+    ok(tw22 >= EX_FIN.winnableFloor, `按得到母碑的方向 ≥ ${EX_FIN.winnableFloor}/24`);
+
+    // 小祠不准站進斷環的留白裡；母碑本來就是斷環自己那一格
+    const ring22 = LANDMARKS.find((l) => l.id === 'broken-ring');
+    const dLm22 = Math.hypot(Fin22.SHRINE_AT[0] - ring22.at[0], Fin22.SHRINE_AT[1] - ring22.at[1]);
+    ok(dLm22 >= ring22.clear, `小祠沒有站進斷環的 ${ring22.clear}m 留白`, dLm22.toFixed(2));
+    eq(Number(dLm22.toFixed(2)), EX_FIN.shrineLandmarkDistance, '小祠離斷環多遠，與契約逐值相同');
+    // 離路網：「路邊看得到」的距離（走向斷環的路上就會遇到它）
+    const segs22 = Props.buildPathNetwork(World.REGION_SITES, [...World.CORRIDORS, ...World.ANNEX_LINKS], challenges);
+    const dPath22 = Rules22.pathDistance(segs22, Fin22.SHRINE_AT[0], Fin22.SHRINE_AT[1]);
+    eq(Number(dPath22.toFixed(2)), EX_FIN.shrinePathDistance, '小祠離路網多遠，與契約逐值相同');
+    ok(dPath22 > 2 && dPath22 < 12, '小祠在路邊（看得到，但不擋在主動線上）', dPath22.toFixed(2));
+    // 閘門：終局那一層的圈不准罩住問話的那一圈
+    for (const [tag, at, R] of [
+      ['小祠', Fin22.SHRINE_AT, T22.SHRINE_RADIUS],
+      ['母碑', Fin22.STELE_AT, T22.STELE_RADIUS],
+    ]) {
+      const dGate22 = Rules22.gateDistance(World, at[0], at[1]);
+      ok(dGate22 >= R + 7.5, `${tag}離閘門夠遠（搶得到 E → 門就問不了話）`, dGate22.toFixed(2));
+    }
+    // 兩件都落在中央高原上（不是掉在橋上、也不是掉進別片土地）
+    for (const [tag, at] of [['小祠', Fin22.SHRINE_AT], ['母碑', Fin22.STELE_AT]]) {
+      const here22 = World.regionAt(at[0], at[1]);
+      eq(here22 && here22.id, T22.FINALE.region, `${tag}站在中央高原上`);
+      eq(here22 && here22.onBridge, false, `${tag}不在橋上`);
+    }
+
+    /* 量體：三角、碰撞體、光源 */
+    const finGroup22 = testWorld.finale.group;
+    let tris22 = 0;
+    let lights22 = 0;
+    let solids22 = 0;
+    let standable22 = 0;
+    finGroup22.traverse((o) => {
+      if (o.isLight) lights22 += 1;
+      if (o.isMesh && o.geometry) {
+        const g2 = o.geometry;
+        tris22 += g2.index ? g2.index.count / 3 : g2.attributes.position ? g2.attributes.position.count / 3 : 0;
+      }
+      if (o.userData && typeof o.userData.solidRadius === 'number') {
+        solids22 += 1;
+        // 站不上去靠尺寸成立（< STAND_MIN_R），不靠旗標宣告
+        if (o.userData.solidRadius >= World.STAND_MIN_R) standable22 += 1;
+      }
+    });
+    eq(lights22, 0, '終局那一層一盞燈都沒加（光源仍然是 37）');
+    eq(Math.round(tris22), EX_FIN.tris, '終局那一層的三角形數與契約逐值相同', String(Math.round(tris22)));
+    eq(solids22, EX_FIN.solids, '終局那一層的碰撞體數與契約逐值相同', String(solids22));
+    eq(standable22, 0, '每一顆碰撞體都小於 STAND_MIN_R（站不上去靠尺寸成立）');
+    ok(tris22 < 900, '整層 < 900 三角形', String(Math.round(tris22)));
+    // 場景圖命名（碰撞稽核與 e2e 靠它）
+    ok(Boolean(finGroup22.getObjectByName(`finale:${T22.FINALE.shrineId}`)), '小祠的場景圖節點叫 finale:<id>');
+    ok(Boolean(finGroup22.getObjectByName(`finale:${T22.FINALE.steleId}`)), '母碑的場景圖節點叫 finale:<id>');
+    // 母碑站在斷環臺座的臺面上（不是陷在臺座裡）
+    const steleGroup22 = finGroup22.getObjectByName(`finale:${T22.FINALE.steleId}`);
+    eq(
+      Number((steleGroup22.position.y - World.terrainHeight(Fin22.STELE_AT[0], Fin22.STELE_AT[1])).toFixed(2)),
+      Fin22.STELE_LIFT,
+      '母碑墊在斷環臺座的臺面上'
+    );
+  }
+
+  /* --- ⑪ 用語：吃 §1.6 的禁字表、不用系統術語、零公司名 --- */
+  {
+    const FORBIDDEN22 = [
+      '怪物', '敵人', '打敗', '擊敗', '戰鬥', '攻擊', '傷害', '血量', '生命值',
+      '失敗', '輸了', '贏了', '勝利', '扣分', '清零', '歸零', '重新開始', '從頭再來', '倒數',
+    ];
+    const SYSTEM22 = ['送出評分', '按鈕', '面板', 'localStorage', 'bloom', '後製', 'Web Audio', 'API key', 'rubric', 'debug', '上傳'];
+    const VENDOR22 = /\b(OpenAI|Anthropic|Google|xAI|GPT|Claude|Gemini|Grok)\b/i;
+    const lines22 = [
+      ...ShrineUi22.SHRINE_LINES,
+      ShrineUi22.SAY_CAPTION,
+      ShrineUi22.HEARD_LEAD,
+      ShrineUi22.CARVE_ASK,
+      ShrineUi22.CARVE_NOTE,
+      ShrineUi22.BLANK_STELE,
+      ShrineUi22.BLANK_HINT,
+      T22.BEST_SAY_FALLBACK.say,
+      T22.BEST_SAY_FALLBACK.ask,
+      T22.FIRST_SAY_ASK,
+      ...Rite22.LISTEN_CHECKS.map((r) => r.heard),
+    ];
+    let scanned22 = 0;
+    for (const line of lines22) {
+      scanned22 += 1;
+      ok(typeof line === 'string' && line.length > 0, '每一句都不是空的', line);
+      for (const w of FORBIDDEN22) ok(!line.includes(w), `終局的字裡不出現「${w}」`, line);
+      for (const w of SYSTEM22) ok(!line.includes(w), `終局的字裡不出現系統術語「${w}」`, line);
+      ok(!VENDOR22.test(line), '終局的字裡沒有公司名', line);
+      ok(!ENGLISH(line), '終局的字裡沒有整句英文', line);
+      ok(!/https?:\/\//.test(line), '終局的字裡不掛連結', line);
+    }
+    eq(
+      scanned22,
+      ShrineUi22.SHRINE_LINES.length + 6 + 3 + Rite22.LISTEN_CHECKS.length,
+      '每一句都掃過了（不是空掃）',
+      String(scanned22)
+    );
+    // 反例：這張表真的抓得到東西
+    ok(FORBIDDEN22.some((w) => '這一次你失敗了'.includes(w)), '（反例）禁字表對「這一次你失敗了」會紅');
+    // 三句回聲：≤ 2 句、每句 ≤ 31 字（WORLD §1.2）
+    for (const k of [T22.FINALE.echoShrine, T22.FINALE.echoCarved, T22.FINALE.echoBlank]) {
+      const spec22 = NudgeP22.ECHO_LINES[k];
+      const parts22 = [spec22.line, spec22.sub].filter(Boolean);
+      ok(parts22.length <= 2, `[echo:${k}] 最多兩句`, String(parts22.length));
+      for (const line of parts22) {
+        ok(line.length <= 31, `[echo:${k}]「${line}」≤ 31 字`, `len=${line.length}`);
+        for (const w of FORBIDDEN22) ok(!line.includes(w), `[echo:${k}] 不出現「${w}」`);
+      }
+    }
+    // 純風味：這一層不掛出處、不宣稱技巧（教學與官方文件永遠只在關卡與圖鑑）
+    ok(!/\bsources?\b|teaches|官方/.test(shrineCode22), '小祠的畫面上不掛出處、不宣稱技巧');
+  }
+
+  /* --- ⑫ 接線：E 仍是唯一的互動鍵、每幀零配置、世界跟著存檔走 --- */
+  {
+    ok(/import \{[^}]*shrineOpen[^}]*\} from '\.\/world\/turning\.js';/s.test(mainSrc22), 'main.js 從 turning.js 拿門檻那一支（沒有第二份真相）');
+    ok(/if \(e\.code === 'KeyE' && nearFinale\) \{/.test(mainSrc22), '終局走的是既有的 E（沒有新增快捷鍵）');
+    ok(/nearFinale === 'shrine' \? enterShrine\(\) : /.test(mainSrc22) || /if \(nearFinale === 'shrine'\) enterShrine\(\);/.test(mainSrc22), '小祠與母碑分得開');
+    // 沒有新增第 N 種按鍵
+    const keyBlock22 = mainSrc22.slice(mainSrc22.indexOf("if (e.code === 'KeyE' && nearFinale)"), mainSrc22.indexOf("} else if (e.code === 'KeyC')"));
+    ok(keyBlock22.length > 400, '（前提）切得到按鍵那一段', String(keyBlock22.length));
+    ok(!/e\.code === 'Key(?!E\b)[A-Z]/.test(keyBlock22.replace(/KeyE/g, 'KeyE')), '那一段裡除了 E 沒有別的字母鍵');
+    // 說出口了才記旗標（P21 那一條在這裡是兩句話各守一次）
+    const echoBlock22 = mainSrc22.slice(mainSrc22.indexOf('shouldAnnounceShrine('), mainSrc22.indexOf('// 指南針：每幀跟著鏡頭轉'));
+    ok(echoBlock22.length > 400, '（前提）切得到終局那兩句回聲', String(echoBlock22.length));
+    ok(
+      /lastEchoKind\(\) === FINALE\.echoShrine\) markShrineSpoken/.test(echoBlock22),
+      '小祠那一句：真的說出口了才記旗標'
+    );
+    ok(
+      echoBlock22.indexOf('nudge.echo(FINALE.echoShrine)') < echoBlock22.indexOf('markShrineSpoken'),
+      '順序是「先排隊、後記旗標」'
+    );
+    ok(/lastEchoKind\(\) === kind\) markSteleSpoken/.test(echoBlock22), '母碑那一句：也是說出口了才記旗標');
+    /*
+     * 但**「母碑站起來了」不能等回聲**：那是世界狀態，儀式一走完就要落盤
+     * （等回聲說完才記的話，中間重整一次母碑就會躺回去）。
+     */
+    const riteBlock22 = mainSrc22.slice(mainSrc22.indexOf('function finishRite'), mainSrc22.indexOf('走進一個藏起來的地方'));
+    ok(riteBlock22.length > 400, '（前提）切得到 finishRite()', String(riteBlock22.length));
+    ok(/markSteleRaised\(progression\)/.test(riteBlock22), '儀式走完當場記下「母碑立起來了」');
+    ok(!/lastEchoKind/.test(riteBlock22), '「立起來了」不等回聲（那是世界狀態，不是「說過了」）');
+    ok(/inscriptionFor\(choice, text\)/.test(riteBlock22), '刻不刻走的是那道閘（不是直接把字寫進去）');
+    // 世界跟著存檔走：開機還原 ＋ 重置歸零
+    ok(/finaleStateOf: \(\) => \(\{/.test(mainSrc22), '開機依存檔還原終局那一層');
+    ok(/world\.finale\?\.reset\?\.\(\);/.test(mainSrc22), '重置進度時世界端也歸零');
+    ok(/refreshFinale\(\);/.test(mainSrc22), '存檔變了 → 小祠與母碑跟著對一次');
+    // 每幀零配置：那兩支回布林
+    eq(typeof T22.shouldAnnounceShrine(true, {}), 'boolean', 'shouldAnnounceShrine() 回布林');
+    eq(typeof T22.steleRaised({}), 'boolean', 'steleRaised() 回布林');
+    // nearest() 回的是同一個共用物件（每幀被呼叫，不准配置）
+    {
+      const f22 = Fin22.createFinaleField({
+        kit: testWorld.kitOf('foundations'),
+        terrainHeight: World.terrainHeight,
+        open: true,
+      });
+      const a22 = f22.nearest({ x: Fin22.SHRINE_AT[0], z: Fin22.SHRINE_AT[1] });
+      const b22 = f22.nearest({ x: Fin22.SHRINE_AT[0] + 0.5, z: Fin22.SHRINE_AT[1] });
+      ok(a22 === b22, 'nearest() 每次回同一個物件（每幀不配置）');
+    }
+    // turning.js 仍然一個 import 都沒有
+    ok(!/^import /m.test(turningSrc22), 'turning.js 一個 import 都沒有（測試與 UI 都拿得到）');
+  }
+
+  /* --- ⑬ WORLD.md：終局要寫進世界的規則書 --- */
+  {
+    const s420 = worldMd22.slice(worldMd22.indexOf('### 4.20'), worldMd22.indexOf('## 五'));
+    ok(s420.length > 400, 'WORLD.md 有 §4.20（終局：回聲的小祠 ＋ 母碑重立）', String(s420.length));
+    ok(/P22/.test(s420), '§4.20 標得出這一格');
+    ok(/finale\.js/.test(s420), '§4.20 指得出那一層住在哪');
+    ok(/沒有失敗態|不會失敗/.test(s420), '§4.20 寫得出「沒有失敗態」');
+    ok(/確認|問過/.test(s420), '§4.20 寫得出「刻上去之前要問過」');
+    ok(/不刻|留白/.test(s420), '§4.20 寫得出「可以選擇不刻」');
+    ok(/還沒開口/.test(s420), '§4.20 寫得出「沒到門檻只是還沒開口」');
+    ok(new RegExp(String(EX_FIN.steleWinnable)).test(s420), '§4.20 寫得出母碑量到的方向數');
+    ok(new RegExp(String(EX_FIN.shrineAt[0])).test(s420), '§4.20 寫得出小祠的落點');
   }
 }
 

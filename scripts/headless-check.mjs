@@ -7377,6 +7377,21 @@ async function main() {
 
   const nudgeIdle = await evaluate(`
     const g = window.__promptasy;
+    /*
+     * v1.2 · P22 補的**前置**（底下的斷言一個字都沒改）。
+     *
+     * 這一段驗的是**導航提示**，而它是用手餵 update() 逼出來的。
+     * 問題是主迴圈同一時間可能正把別的分支排進 pending —— 走進分歧之廳那一句
+     * （P21 的中點揭示）就是：這一輪玩到這裡時，玩家的下一個目標正好在那一片
+     * 土地上，人就站在那裡。pending 會被下一拍**優先**說出口（那一句列在
+     * 一輩子只說一次的名單裡，連冷卻都擋不住它），於是底下量到的是那一句，
+     * 不是導航提示（實測：一幀 200ms 的機器上穩定重現，219ms 的機器上剛好躲過）。
+     *
+     * 先把那個「說過了」的旗標記起來 —— 主迴圈就不會再排它；
+     * P21 自己那一段本來就會把旗標清乾淨再重驗（「前面的段落可能已經路過那一片土地」），
+     * 所以這裡記起來不會少驗到任何東西。
+     */
+    g.progression.setFlag('midpointSeen', true);
     // 離目標夠遠、而且站著不動
     const t0 = g.world.objectiveTarget(g.hud.region);
     g.player.teleport(t0.x + 62, t0.z + 44);
@@ -7386,6 +7401,15 @@ async function main() {
      * 而「＿＿已開啟」那一則提示會把冷卻計時器推起來 —— 那是對的行為，但會蓋掉
      * 這一段要驗的「迷路提示」。先把冷卻走完（不改產品碼，只是讓時間過去）。
      */
+    for (let i = 0; i < 8; i += 1) g.nudge.update(20);
+    /*
+     * 已經排上隊的那一句也要讓它先說出去（旗標只擋得住「之後」的排隊）——
+     * 餵到 pending 空了為止，再把冷卻走一次。
+     */
+    for (let i = 0; i < 4 && g.nudge.state().pending; i += 1) {
+      g.nudge.update(0.1);
+      await new Promise((r) => requestAnimationFrame(r));
+    }
     for (let i = 0; i < 8; i += 1) g.nudge.update(20);
     g.nudge.update(0.1);            // 認識新目標（這一拍只做基準）
     /*
@@ -22002,6 +22026,549 @@ async function main() {
     'P21：前兩層逐字沒動（多的是一層，不是換一塊碑）'
   );
   eq(mirrorAfter.links, 0, 'P21：鏡碑也不掛任何出處');
+  /* ================================================================
+   * v1.2 · P22：終局 —— 回聲的小祠 ＋ 母碑重立
+   *
+   *   還沒開口 → 收齊 → 開口 → 走進去（最後一團濁氣是你自己的第一句）
+   *   → 重寫（怎麼寫都收得下）→ **先不刻**（那句話一個位元組都沒落盤）
+   *   → 再走一次 → **刻上去**（含 `<script>`，畫面上只看得到字）
+   *   → 讀碑 → 分享 → 舊存檔走退路 → 重置之後可以重走
+   * ================================================================ */
+  console.log('▸ 終局：回聲的小祠 ＋ 母碑重立（P22）');
+
+  await key('Escape', 'Escape', { vk: 27 });
+
+  /** 這一段要刻上去的私人句子（`<script>` 是故意的：畫面上只准看得到字）。 */
+  const RITE_CARVE = '<script>alert(1)</script>我媽的生日是 3 月 4 日，請寫三句祝福。';
+
+  /* --- ① 還沒收齊：小祠站在那裡，但它還沒開口（不是鎖） --- */
+  const shrineDark = await evaluate(`
+    const g = window.__promptasy;
+    const waitFor = async (fn, ms = 8000) => {
+      const t0 = Date.now();
+      while (Date.now() - t0 < ms) { const v = fn(); if (v) return v; await new Promise((r) => setTimeout(r, 40)); }
+      return null;
+    };
+    const out = {};
+    const st = g.finaleState();
+    out.counts = st.counts;
+    out.open = st.open;
+    out.raised = st.raised;
+    // 站到小祠正中央 —— 開口之前這一層一個東西都不該交出來
+    const at = g.world.finale.shrine;
+    g.player.teleport(at.x, at.z);
+    out.arrived = Boolean(await waitFor(() => Math.hypot(g.player.position.x - at.x, g.player.position.z - at.z) < 1.5));
+    out.near = await waitFor(() => g.nearFinale(), 1500);
+    out.interact = (document.querySelector('.hud__interact') || {}).hidden;
+    out.steleVisible = g.world.finale.stele.group.visible;
+    // 龕裡那一團：還沒開口的時候看不清、燈座是空的
+    out.murkShell = g.world.finale.shrine.shellMat.opacity;
+    out.lamp = g.world.finale.shrine.core.visible;
+    return out;
+  `);
+  ok(shrineDark.counts.skills < shrineDark.counts.skillsTotal, 'P22：（前提）這一趟還沒把 130 條技法收齊', `${shrineDark.counts.skills}/${shrineDark.counts.skillsTotal}`);
+  eq(shrineDark.open, false, 'P22：沒收齊 → 小祠還沒開口');
+  eq(shrineDark.arrived, true, 'P22：（前提）人真的站到小祠旁邊了');
+  eq(shrineDark.near, null, 'P22：還沒開口的時候，站在小祠正中央也按不到（不是鎖，是還沒開口）');
+  eq(shrineDark.raised, false, 'P22：儀式之前母碑沒立著');
+  eq(shrineDark.steleVisible, false, 'P22：沒立起來的母碑整組不畫（斷環中央是空的）');
+  ok(shrineDark.murkShell < 0.2, 'P22：還沒開口的時候，龕裡那一團看不清', String(shrineDark.murkShell));
+  eq(shrineDark.lamp, false, 'P22：還沒開口的時候，燈座是空的（暖白的清燈還沒亮）');
+
+  /* --- ② 把 130 條技法與四宿收齊 → 小祠開口 ＋ 回聲說一句 ---
+   *
+   * **刻意不重整**：這一段要驗的是「收齊那一刻世界跟著變」，而那條路就是
+   * `checkPayoffs()` 裡的 `refreshFinale()`（收一條技法就問一次）。
+   * 「開機依存檔還原」是另一件事，留到這一節的最後一段用一次重整單獨驗
+   * —— 混在一起的話，重整之後的畫面狀態會把這一段的訊號蓋掉。
+   */
+  const shrineOpened = await evaluate(`
+    const g = window.__promptasy;
+    const waitFor = async (fn, ms = 20000) => {
+      const t0 = Date.now();
+      while (Date.now() - t0 < ms) { const v = fn(); if (v) return v; await new Promise((r) => setTimeout(r, 40)); }
+      return null;
+    };
+    const out = {};
+    /*
+     * 這一趟前面有一段「重置」會把第一句一起清掉，所以這裡走**真的那一支**
+     * （captureFirstPrompt 只寫一次）：存檔裡還有就用存檔裡那一句，
+     * 已經被清掉就補一句進去。兩條路都是玩家寫得出來的字。
+     * （模板字串裡的註解不准有反引號 —— 那會把整支 evaluate 切成兩半。）
+     */
+    out.firstPrompt = g.progression.captureFirstPrompt('幫我寫個東西，你知道的那種。').text;
+    // 收齊 130 條技法與四宿（走的是存檔本身，不是繞過門檻）
+    for (const s of g.catalog.skills) if (!g.progression.isSkillCollected(s.id)) g.progression.state.skillsV2.push(s.id);
+    g.progression.state.badges = { openai: 9, anthropic: 9, google: 9, xai: 9 };
+    // 終局那三個旗標從乾淨的狀態開始（前面的段落動不到它們，寫出來是為了不靠運氣）
+    g.progression.setFlag('shrineSpoken', false);
+    g.progression.setFlag('steleRaised', false);
+    g.progression.setFlag('steleSpoken', false);
+    g.progression.setMotherStele('');
+    g.world.finale.reset();
+    // 「存檔變了 → 世界跟著對一次」走的就是過關那條路上的同一支
+    g.refreshFinale();
+    const st = g.finaleState();
+    out.counts = st.counts;
+    out.open = st.open;
+    out.raised = st.raised;
+    out.stele = st.stele;
+    out.spokenBefore = st.flags.shrineSpoken;
+    // 龕裡那一團：開口之後看得清楚了，但清燈還沒亮（開口不是成就）
+    out.murkShell = g.world.finale.shrine.shellMat.opacity;
+    out.murkEye = g.world.finale.shrine.eyeMat.opacity;
+    out.lamp = g.world.finale.shrine.core.visible;
+    // 等的是「這一句真的被說出口」——分支名要對得上，上一次留下的字滿足不了它
+    out.echo = await waitFor(() => {
+      const n = g.nudge.state();
+      return n.visible && n.kind === 'shrineOpened' ? n.text : null;
+    });
+    out.spokenAfter = Boolean(await waitFor(() => g.finaleState().flags.shrineSpoken));
+    out.saved = Boolean((JSON.parse(localStorage.getItem('promptasy.v1.save')).flags || {}).shrineSpoken);
+    // 走到小祠旁邊：這一次它交得出東西
+    const at = g.world.finale.shrine;
+    g.player.teleport(at.x + 2.6, at.z + 2.6);
+    // ⚠️ 等的是「**變成小祠**」，不是「有東西」—— 上一拍留下的值不准也滿足它
+    out.near = await waitFor(() => (g.nearFinale() === 'shrine' ? 'shrine' : null));
+    out.interact = await waitFor(() => {
+      const el = document.querySelector('.hud__interact');
+      return el && !el.hidden && el.textContent.includes('回聲的小祠') ? el.textContent : null;
+    });
+    out.say = g.finaleSay();
+    return out;
+  `);
+  ok(shrineOpened.firstPrompt.length > 0, 'P22：（前提）存檔裡有一句「玩家的第一句」可以還給他', shrineOpened.firstPrompt);
+  eq(shrineOpened.counts.skills, shrineOpened.counts.skillsTotal, 'P22：130 條技法全收');
+  eq(shrineOpened.counts.mansionsLit, shrineOpened.counts.mansionsTotal, 'P22：四宿全亮');
+  eq(shrineOpened.open, true, 'P22：門檻到了 —— 小祠開口（走的是過關那條路上的同一支）');
+  eq(shrineOpened.raised, false, 'P22：（前提）母碑還沒立起來');
+  eq(shrineOpened.stele, '', 'P22：（前提）碑面是留白的');
+  eq(shrineOpened.spokenBefore, false, 'P22：（前提）小祠那一句還沒說過');
+  ok(shrineOpened.murkShell > 0.4, 'P22：開口之後，龕裡那一團濁氣看得清楚了', String(shrineOpened.murkShell));
+  ok(shrineOpened.murkEye > 0.5, 'P22：那一點眼光盯著你', String(shrineOpened.murkEye));
+  eq(shrineOpened.lamp, false, 'P22：**開口還不是成就** —— 暖白的清燈這時候還沒亮');
+  eq(shrineOpened.echo, '斷環旁邊那座小祠開口了。', 'P22：回聲說的就是那一句');
+  eq(shrineOpened.spokenAfter, true, 'P22：說出口了才記旗標');
+  eq(shrineOpened.saved, true, 'P22：旗標寫進存檔（重新整理也記得說過了）');
+  eq(shrineOpened.near, 'shrine', 'P22：開口之後走過去按得到它');
+  ok(String(shrineOpened.interact).includes('E'), 'P22：走近提示寫得出「E 走進去」', String(shrineOpened.interact));
+  ok(!String(shrineOpened.interact).includes('還差'), 'P22：走近提示不算「還差幾條」（終局不是待辦清單）');
+  eq(shrineOpened.say.mode, 'first', 'P22：小祠要還給你的是序章那一句');
+  eq(shrineOpened.say.say, shrineOpened.firstPrompt, 'P22：而且是玩家的原文');
+
+  /* --- ③ 走進去：最後一團濁氣就是你自己寫的第一句 --- */
+  await key('KeyE', 'e', { vk: 69 });
+  const riteOpen = await evaluate(`
+    const g = window.__promptasy;
+    const waitFor = async (fn, ms = 8000) => {
+      const t0 = Date.now();
+      while (Date.now() - t0 < ms) { const v = fn(); if (v) return v; await new Promise((r) => setTimeout(r, 40)); }
+      return null;
+    };
+    await waitFor(() => g.shrinePanel.isOpen);
+    const panel = document.getElementById('shrine-rite');
+    const said = panel.querySelector('.rite__said');
+    const input = panel.querySelector('#rite-input');
+    const offer = panel.querySelector('[data-offer]');
+    return {
+      open: g.shrinePanel.isOpen,
+      beat: g.shrinePanel.beat,
+      title: panel.querySelector('.panel__title').textContent,
+      said: said ? said.textContent : null,
+      lines: [...panel.querySelectorAll('.rite__line')].map((p) => p.textContent),
+      hasInput: Boolean(input),
+      offerDisabled: offer ? offer.disabled : null,
+      links: panel.querySelectorAll('a').length,
+      grades: panel.querySelectorAll('.grade, .meter, .result__top').length,
+    };
+  `);
+  eq(riteOpen.open, true, 'P22：按 E 走得進小祠');
+  eq(riteOpen.beat, 'say', 'P22：第一拍是「小祠把你的第一句還給你」');
+  eq(riteOpen.title, '回聲的小祠', 'P22：那扇窗寫得出自己是什麼');
+  eq(riteOpen.said, shrineOpened.firstPrompt, 'P22：擺出來的就是玩家序章寫的那一句（一個位元組都沒改）');
+  ok(riteOpen.lines.length >= 2, 'P22：回聲說了那兩句', riteOpen.lines.join(' / '));
+  eq(riteOpen.hasInput, true, 'P22：底下就是重寫的地方（自由書寫）');
+  eq(riteOpen.offerDisabled, true, 'P22：什麼都還沒寫的時候，「呈給神諭」按不下去（那不是沒通過，是還沒開口）');
+  eq(riteOpen.links, 0, 'P22：小祠不掛任何出處（純風味）');
+  eq(riteOpen.grades, 0, 'P22：這裡沒有評價印章、沒有分數條（這一次不是考試）');
+
+  /* --- ④ 重寫：**寫得再爛也收得下** --- */
+  const riteHeard = await evaluate(`
+    const g = window.__promptasy;
+    const waitFor = async (fn, ms = 8000) => {
+      const t0 = Date.now();
+      while (Date.now() - t0 < ms) { const v = fn(); if (v) return v; await new Promise((r) => setTimeout(r, 40)); }
+      return null;
+    };
+    const panel = document.getElementById('shrine-rite');
+    const input = panel.querySelector('#rite-input');
+    // 故意寫一句很爛的：終局收得下任何一句。
+    // 那串英數是**找得回來的記號** —— 底下要翻整份存檔證明「不刻＝沒落盤」，
+    // 拿「隨便」這種常見詞去比，會被存檔裡別的地方誤中。
+    input.value = '隨便啦 ZQX-BLANK-PROBE';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    const offer = panel.querySelector('[data-offer]');
+    const enabled = !offer.disabled;
+    offer.click();
+    await waitFor(() => g.shrinePanel.beat === 'heard');
+    const carve = panel.querySelector('[data-choice="carve"]');
+    const blank = panel.querySelector('[data-choice="blank"]');
+    return {
+      enabled,
+      beat: g.shrinePanel.beat,
+      lead: (panel.querySelector('.rite__lead') || {}).textContent || '',
+      said: (panel.querySelector('.rite__said') || {}).textContent || '',
+      heardRows: panel.querySelectorAll('.rite__heardlist li').length,
+      ask: (panel.querySelector('.rite__ask--carve') || {}).textContent || '',
+      note: (panel.querySelector('.rite__note') || {}).textContent || '',
+      carve: carve ? carve.textContent : null,
+      blank: blank ? blank.textContent : null,
+      preselected: panel.querySelectorAll('[data-choice][checked], [data-choice][autofocus]').length,
+      grades: panel.querySelectorAll('.grade, .meter, .result__top').length,
+      body: panel.textContent,
+    };
+  `);
+  eq(riteHeard.enabled, true, 'P22：寫了東西之後「呈給神諭」就按得下去');
+  eq(riteHeard.beat, 'heard', 'P22：呈上去之後走到第二拍');
+  ok(riteHeard.lead.includes('牠聽懂了'), 'P22：寫得再爛，回應也是「牠聽懂了」', riteHeard.lead);
+  eq(riteHeard.said, '隨便啦 ZQX-BLANK-PROBE', 'P22：把玩家剛剛寫的那一句原樣擺出來');
+  eq(riteHeard.grades, 0, 'P22：第二拍也沒有評價印章與分數條');
+  for (const bad of ['失敗', '沒過', '未通過', '再試一次', '還差', '你少了']) {
+    ok(!riteHeard.body.includes(bad), `P22：畫面上沒有「${bad}」（沒有失敗態）`);
+  }
+  ok(riteHeard.ask.includes('？'), 'P22：刻不刻是**問**出來的，不是宣告', riteHeard.ask);
+  ok(riteHeard.note.includes('刻印記錄'), 'P22：那一段小字講得出「刻上去會出現在哪裡」', riteHeard.note);
+  eq(riteHeard.carve, '刻上去', 'P22：有「刻上去」那一顆');
+  eq(riteHeard.blank, '先不刻', 'P22：也永遠有「先不刻」那一顆');
+  eq(riteHeard.preselected, 0, 'P22：沒有預先選好的那一顆（每一次都要重新問過）');
+
+  /* --- ⑤ 先不刻：母碑照樣立起來，但那句話一個位元組都沒落盤 --- */
+  const riteBlank = await evaluate(`
+    const g = window.__promptasy;
+    const waitFor = async (fn, ms = 20000) => {
+      const t0 = Date.now();
+      while (Date.now() - t0 < ms) { const v = fn(); if (v) return v; await new Promise((r) => setTimeout(r, 40)); }
+      return null;
+    };
+    const out = {};
+    document.querySelector('#shrine-rite [data-choice="blank"]').click();
+    out.closed = Boolean(await waitFor(() => !g.shrinePanel.isOpen));
+    out.raised = Boolean(await waitFor(() => g.finaleState().raised));
+    out.stele = g.finaleState().stele;
+    out.visible = g.world.finale.stele.group.visible;
+    out.savedFlag = Boolean((JSON.parse(localStorage.getItem('promptasy.v1.save')).flags || {}).steleRaised);
+    // **整份存檔裡找不到玩家剛剛寫的那一句**（不存就不可能外流）
+    out.raw = localStorage.getItem('promptasy.v1.save') || '';
+    out.leaked = out.raw.includes('ZQX-BLANK-PROBE');
+    // 站起來那一段演完（不用固定 sleep，等它自己說站定了）
+    out.settled = Boolean(await waitFor(() => !g.finaleState().rising));
+    // 安撫＝殼散掉、燈座上留下一盞清燈（§1.6 的光語言）
+    out.murkShell = g.world.finale.shrine.shellMat.opacity;
+    out.lamp = g.world.finale.shrine.core.visible;
+    out.echo = await waitFor(() => {
+      const n = g.nudge.state();
+      return n.visible && n.kind === 'steleBlank' ? n.text : null;
+    });
+    out.spoken = Boolean(await waitFor(() => g.finaleState().flags.steleSpoken));
+    return out;
+  `);
+  eq(riteBlank.closed, true, 'P22：選完那一下，儀式就收起來了');
+  eq(riteBlank.raised, true, 'P22：**選了「先不刻」，母碑照樣立起來**');
+  eq(riteBlank.stele, '', 'P22：碑面留白');
+  eq(riteBlank.visible, true, 'P22：世界上真的看得到那塊碑了');
+  eq(riteBlank.savedFlag, true, 'P22：「立起來了」當場落盤（中途重整不會躺回去）');
+  ok(riteBlank.raw.length > 200, 'P22：（前提）存檔真的落盤了（不是在比一個空字串）', String(riteBlank.raw.length));
+  eq(riteBlank.leaked, false, 'P22：**不刻的時候，整份存檔裡找不到玩家寫的那一句**');
+  eq(riteBlank.settled, true, 'P22：母碑站定了');
+  eq(riteBlank.echo, '母碑重新站在環中央了。', 'P22：留白那一句不聽起來像可惜');
+  eq(riteBlank.murkShell, 0, 'P22：**最後一團濁氣散掉了**（你替自己把那句話說完了）');
+  eq(riteBlank.lamp, true, 'P22：燈座上留下一盞清燈（留在原位）');
+  eq(riteBlank.spoken, true, 'P22：說出口了才記那一個旗標');
+
+  /* --- ⑥ 讀碑：留白的碑照樣讀得到 --- */
+  const readBlank = await evaluate(`
+    const g = window.__promptasy;
+    const waitFor = async (fn, ms = 12000) => {
+      const t0 = Date.now();
+      while (Date.now() - t0 < ms) { const v = fn(); if (v) return v; await new Promise((r) => setTimeout(r, 40)); }
+      return null;
+    };
+    const at = g.world.finale.stele;
+    g.player.teleport(at.x + 6.4, at.z);
+    return {
+      // ⚠️ 等的是「**變成母碑**」—— 剛剛還站在小祠旁邊，'shrine' 也是真值
+      near: await waitFor(() => (g.nearFinale() === 'stele' ? 'stele' : null)),
+      interact: await waitFor(() => {
+        const el = document.querySelector('.hud__interact');
+        return el && !el.hidden && el.textContent.includes('母碑') ? el.textContent : null;
+      }),
+    };
+  `);
+  eq(readBlank.near, 'stele', 'P22：站在斷環臺邊按得到母碑');
+  ok(String(readBlank.interact).includes('讀碑'), 'P22：走近提示寫得出「E 讀碑」', String(readBlank.interact));
+
+  await key('KeyE', 'e', { vk: 69 });
+  const blankPanel = await evaluate(`
+    const g = window.__promptasy;
+    const waitFor = async (fn, ms = 8000) => {
+      const t0 = Date.now();
+      while (Date.now() - t0 < ms) { const v = fn(); if (v) return v; await new Promise((r) => setTimeout(r, 40)); }
+      return null;
+    };
+    await waitFor(() => g.shrinePanel.isOpen);
+    const panel = document.getElementById('shrine-rite');
+    return {
+      open: g.shrinePanel.isOpen,
+      beat: g.shrinePanel.beat,
+      title: panel.querySelector('.panel__title').textContent,
+      lead: (panel.querySelector('.rite__lead') || {}).textContent || '',
+      said: panel.querySelectorAll('.rite__said').length,
+    };
+  `);
+  eq(blankPanel.open, true, 'P22：留白的碑照樣讀得到（它只是還沒有字）');
+  eq(blankPanel.beat, 'stele', 'P22：讀碑走的是另一種開法');
+  eq(blankPanel.title, '母碑', 'P22：那扇窗寫得出碑名');
+  eq(blankPanel.lead, '碑面留白。', 'P22：碑上真的什麼都沒有');
+  eq(blankPanel.said, 0, 'P22：留白的碑上不會憑空長出一句話');
+  await key('Escape', 'Escape', { vk: 27 });
+
+  /* --- ⑦ 回去再說一次 → 刻上去（含 <script>：畫面上只看得到字） --- */
+  const riteCarve = await evaluate(`
+    const g = window.__promptasy;
+    const waitFor = async (fn, ms = 20000) => {
+      const t0 = Date.now();
+      while (Date.now() - t0 < ms) { const v = fn(); if (v) return v; await new Promise((r) => setTimeout(r, 40)); }
+      return null;
+    };
+    await waitFor(() => !g.shrinePanel.isOpen);
+    const out = {};
+    const at = g.world.finale.shrine;
+    g.player.teleport(at.x + 2.6, at.z + 2.6);
+    // ⚠️ 等的是「**變回小祠**」—— 剛剛站在母碑旁邊，'stele' 也是真值
+    out.back = await waitFor(() => (g.nearFinale() === 'shrine' ? 'shrine' : null));
+    g.shrinePanel.open('rite', g.finaleSay());
+    await waitFor(() => g.shrinePanel.beat === 'say');
+    const panel = document.getElementById('shrine-rite');
+    const input = panel.querySelector('#rite-input');
+    input.value = ${JSON.stringify(RITE_CARVE)};
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    panel.querySelector('[data-offer]').click();
+    await waitFor(() => g.shrinePanel.beat === 'heard');
+    // **那段標記只能是字**：面板裡不准真的長出一個 <script>
+    out.scriptTags = panel.querySelectorAll('script').length;
+    out.saidText = (panel.querySelector('.rite__said') || {}).textContent || '';
+    out.saidHtml = (panel.querySelector('.rite__said') || {}).innerHTML || '';
+    out.heardRows = panel.querySelectorAll('.rite__heardlist li').length;
+    panel.querySelector('[data-choice="carve"]').click();
+    out.closed = Boolean(await waitFor(() => !g.shrinePanel.isOpen));
+    out.stele = g.finaleState().stele;
+    out.carved = g.finaleState().carved;
+    out.saved = (JSON.parse(localStorage.getItem('promptasy.v1.save')) || {}).motherStele;
+    out.echoAlready = g.finaleState().flags.steleSpoken;
+    return out;
+  `);
+  eq(riteCarve.back, 'shrine', 'P22：回得去小祠（它一直開著 —— 終局可以再走一次）');
+  eq(riteCarve.saidText, RITE_CARVE, 'P22：玩家寫的那一句原樣擺出來（含那段標記的字面）');
+  eq(riteCarve.scriptTags, 0, 'P22：**那段標記沒有變成真的東西**（HTML escape）');
+  ok(riteCarve.saidHtml.includes('&lt;script&gt;'), 'P22：它被跳脫成純文字了', riteCarve.saidHtml.slice(0, 60));
+  ok(riteCarve.heardRows > 0, 'P22：這一句回聲聽見了幾件事（引擎真的在跑）', String(riteCarve.heardRows));
+  eq(riteCarve.closed, true, 'P22：按了「刻上去」儀式就收起來');
+  eq(riteCarve.stele, RITE_CARVE, 'P22：碑上刻的就是玩家寫的那一句');
+  eq(riteCarve.carved, true, 'P22：世界端那一片刻痕亮起來了');
+  eq(riteCarve.saved, RITE_CARVE, 'P22：刻上去之後才寫進存檔');
+
+  const carvedPanel = await evaluate(`
+    const g = window.__promptasy;
+    const waitFor = async (fn, ms = 12000) => {
+      const t0 = Date.now();
+      while (Date.now() - t0 < ms) { const v = fn(); if (v) return v; await new Promise((r) => setTimeout(r, 40)); }
+      return null;
+    };
+    const at = g.world.finale.stele;
+    g.player.teleport(at.x + 6.4, at.z);
+    // 站在臺邊那一圈上（世界端那一支就答得出來，不必等互動迴圈跑到）
+    const hit = g.world.nearestFinale(g.player.position);
+    const out0 = hit ? hit.kind : null;
+    g.shrinePanel.open('stele', g.progression.motherStele());
+    await waitFor(() => g.shrinePanel.isOpen);
+    const panel = document.getElementById('shrine-rite');
+    const out = {
+      atStele: out0,
+      lead: (panel.querySelector('.rite__lead') || {}).textContent || '',
+      said: (panel.querySelector('.rite__said') || {}).textContent || '',
+      scriptTags: panel.querySelectorAll('script').length,
+    };
+    // 分享：那張卡帶得動碑面那一行，但**那段話裡不放玩家的字**
+    panel.querySelector('[data-share]').click();
+    await waitFor(() => g.shareCard.isOpen);
+    const data = g.shareCard.shareData();
+    out.shareText = data ? data.text : '';
+    out.shareLeaks = data ? data.text.includes('我媽的生日') : null;
+    out.canvas = Boolean(document.querySelector('#sharecard canvas'));
+    return out;
+  `);
+  eq(carvedPanel.atStele, 'stele', 'P22：刻完之後站在臺邊，那一層交出來的是母碑');
+  ok(carvedPanel.lead.includes('你自己寫的那一句'), 'P22：讀碑讀得出「這是你刻的」', carvedPanel.lead);
+  eq(carvedPanel.said, RITE_CARVE, 'P22：碑上讀到的就是那一句');
+  eq(carvedPanel.scriptTags, 0, 'P22：讀碑那一頁也沒有真的長出標記');
+  ok(carvedPanel.shareText.includes('母碑'), 'P22：母碑那張卡的話講得出這是什麼', carvedPanel.shareText);
+  eq(carvedPanel.shareLeaks, false, 'P22：**帶得走的那段話裡不放玩家自己寫的字**（圖才是主角）');
+  eq(carvedPanel.canvas, true, 'P22：那張卡真的畫得出來');
+  await key('Escape', 'Escape', { vk: 27 });
+  await key('Escape', 'Escape', { vk: 27 });
+
+  /* --- ⑧ 沒有第一句（舊存檔的樣子）也走得完：退路是「你最好的一句」 --- */
+  const oldSaveRite = await evaluate(`
+    const g = window.__promptasy;
+    const waitFor = async (fn, ms = 20000) => {
+      const t0 = Date.now();
+      while (Date.now() - t0 < ms) { const v = fn(); if (v) return v; await new Promise((r) => setTimeout(r, 40)); }
+      return null;
+    };
+    const out = {};
+    // 把第一句拿掉 —— 這正是舊存檔（P07 之前）在 normalize() 之後的樣子
+    g.progression.state.firstPrompt = '';
+    g.progression.setMotherStele('');
+    g.progression.setFlag('steleRaised', false);
+    g.progression.setFlag('steleSpoken', false);
+    g.world.finale.setRaised(false);
+    g.world.finale.setCarved(false);
+    out.firstPrompt = g.progression.firstPrompt();
+    out.say = g.finaleSay();
+    out.open = g.finaleState().open;
+    out.raised = g.finaleState().raised;
+    g.shrinePanel.open('rite', g.finaleSay());
+    await waitFor(() => g.shrinePanel.beat === 'say');
+    const panel = document.getElementById('shrine-rite');
+    out.said = (panel.querySelector('.rite__said') || {}).textContent || '';
+    out.ask = (panel.querySelector('.rite__ask') || {}).textContent || '';
+    const input = panel.querySelector('#rite-input');
+    input.value = '請把下面這段公告改寫成三點條列，每點不超過 20 字。';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    panel.querySelector('[data-offer]').click();
+    await waitFor(() => g.shrinePanel.beat === 'heard');
+    panel.querySelector('[data-choice="carve"]').click();
+    out.closed = Boolean(await waitFor(() => !g.shrinePanel.isOpen));
+    out.raisedAfter = Boolean(await waitFor(() => g.finaleState().raised));
+    out.stele = g.finaleState().stele;
+    return out;
+  `);
+  eq(oldSaveRite.firstPrompt, '', 'P22：（前提）這一次沒有第一句可以還給玩家（＝舊存檔的樣子）');
+  eq(oldSaveRite.open, true, 'P22：（前提）門檻還在（技法與四宿沒被清掉）');
+  eq(oldSaveRite.raised, false, 'P22：（前提）母碑回到躺著');
+  eq(oldSaveRite.say.mode, 'best', 'P22：沒有第一句 → 走退路');
+  eq(oldSaveRite.said, '（這一句沒有被留下來。）', 'P22：退路擺的是世界的說法，不是一片空白');
+  eq(oldSaveRite.ask, '那就把你最好的一句留在這裡。', 'P22：退路要的是「你最好的一句」');
+  eq(oldSaveRite.closed, true, 'P22：沒有第一句照樣走得完整段儀式');
+  eq(oldSaveRite.raisedAfter, true, 'P22：沒有第一句照樣立得起母碑');
+  eq(oldSaveRite.stele, '請把下面這段公告改寫成三點條列，每點不超過 20 字。', 'P22：照樣刻得上字');
+
+  /* --- ⑨ 重置之後回到起點，而且**可以重走** --- */
+  const riteReset = await evaluate(`
+    const g = window.__promptasy;
+    const waitFor = async (fn, ms = 12000) => {
+      const t0 = Date.now();
+      while (Date.now() - t0 < ms) { const v = fn(); if (v) return v; await new Promise((r) => setTimeout(r, 40)); }
+      return null;
+    };
+    const out = {};
+    g.settings.open();
+    await waitFor(() => g.settings.isOpen);
+    document.querySelector('#settings [data-reset]').click();
+    document.querySelector('#settings [data-reset]').click();
+    out.reset = Boolean(await waitFor(() => g.progression.state.xp === 0 && g.progression.state.skillsV2.length === 0));
+    const st = g.finaleState();
+    out.open = st.open;
+    out.raised = st.raised;
+    out.carved = st.carved;
+    out.stele = st.stele;
+    out.flags = st.flags;
+    out.visible = g.world.finale.stele.group.visible;
+    out.murkShell = g.world.finale.shrine.shellMat.opacity;
+    g.settings.close();
+    // 重置之後那一層又交不出東西了（問世界端那一支，不必等互動迴圈跑到）
+    const at = g.world.finale.shrine;
+    g.player.teleport(at.x, at.z);
+    out.hit = g.world.nearestFinale(g.player.position);
+    // 再收齊一次 → 它會再一次開口（終局不是一次性的煙火）
+    for (const s of g.catalog.skills) g.progression.state.skillsV2.push(s.id);
+    g.progression.state.badges = { openai: 9, anthropic: 9, google: 9, xai: 9 };
+    g.refreshFinale();
+    out.reopened = g.finaleState().open;
+    const again = g.world.nearestFinale(g.player.position);
+    out.hitAgain = again ? again.kind : null;
+    out.nearAgain = await waitFor(() => (g.nearFinale() === 'shrine' ? 'shrine' : null));
+    return out;
+  `);
+  eq(riteReset.reset, true, 'P22：（前提）重置真的把進度清了');
+  eq(riteReset.open, false, 'P22：重置之後小祠暗回去');
+  eq(riteReset.raised, false, 'P22：重置之後母碑躺回去');
+  eq(riteReset.carved, false, 'P22：重置之後碑面留白');
+  eq(riteReset.stele, '', 'P22：重置之後碑上那一行也清掉了（玩家的字不會留在別人的存檔裡）');
+  eq(riteReset.visible, false, 'P22：重置之後斷環中央又空了');
+  ok(riteReset.murkShell < 0.2, 'P22：重置之後龕裡那一團又看不清了', String(riteReset.murkShell));
+  eq(riteReset.flags.shrineSpoken, false, 'P22：重置之後三個旗標全部歸零（一）');
+  eq(riteReset.flags.steleRaised, false, 'P22：重置之後三個旗標全部歸零（二）');
+  eq(riteReset.flags.steleSpoken, false, 'P22：重置之後三個旗標全部歸零（三）');
+  eq(riteReset.hit, null, 'P22：重置之後小祠又回到「還沒開口」（站在正中央也交不出東西）');
+  eq(riteReset.reopened, true, 'P22：**再收齊一次，它會再一次開口**（終局不是一次性的煙火）');
+  eq(riteReset.hitAgain, 'shrine', 'P22：而且又交得出東西了');
+  eq(riteReset.nearAgain, 'shrine', 'P22：互動迴圈也跟著又按得到它');
+
+  /* --- ⑩ 開機依存檔還原：走完的人重整一次，母碑還立著、字還在 --- */
+  /*
+   * ⚠️ **不能直接改 localStorage 再重整**：從 setItem 到 Page.reload 之間還會跑好幾幀，
+   * 遊戲只要落盤一次（例如回聲說出口那一下記旗標）就會把記憶體裡那一份寫回去，
+   * 蓋掉我們剛寫的東西（實測：母碑那三格全部被蓋回 false／空字串）。
+   * 所以改成走**真的那幾支 API**（它們自己會落盤），再重整。
+   */
+  const beforeReload = await evaluate(`
+    const g = window.__promptasy;
+    // 舊存檔的樣子：連第一句都沒有
+    g.progression.state.firstPrompt = '';
+    g.progression.setFlag('shrineSpoken', true);
+    g.progression.setFlag('steleSpoken', true);
+    g.progression.setFlag('steleRaised', true);
+    g.progression.setMotherStele(${JSON.stringify('把你要的樣子先說出來，牠就照著做。')});
+    const raw = JSON.parse(localStorage.getItem('promptasy.v1.save')) || {};
+    return {
+      motherStele: raw.motherStele,
+      firstPrompt: raw.firstPrompt,
+      steleRaised: Boolean((raw.flags || {}).steleRaised),
+      skills: (raw.skillsV2 || []).length,
+    };
+  `);
+  eq(beforeReload.steleRaised, true, 'P22：（前提）重整之前，存檔說母碑立著');
+  eq(beforeReload.motherStele, '把你要的樣子先說出來，牠就照著做。', 'P22：（前提）重整之前，碑上那一行已經落盤');
+  eq(beforeReload.firstPrompt, '', 'P22：（前提）重整之前，存檔裡沒有第一句（＝舊存檔的樣子）');
+  ok(beforeReload.skills > 0, 'P22：（前提）技法也還在存檔裡', String(beforeReload.skills));
+  await reloadPage('P22：走完的人重新載入');
+  await key('Enter', 'Enter', { vk: 13 });
+  const bootRestore = await evaluate(`
+    const g = window.__promptasy;
+    const st = g.finaleState();
+    return {
+      open: st.open,
+      raised: st.raised,
+      carved: st.carved,
+      stele: st.stele,
+      visible: g.world.finale.stele.group.visible,
+      lamp: g.world.finale.shrine.core.visible,
+      murkShell: g.world.finale.shrine.shellMat.opacity,
+      sayMode: g.finaleSay().mode,
+      firstPrompt: g.progression.firstPrompt(),
+    };
+  `);
+  eq(bootRestore.open, true, 'P22：重整之後小祠照樣開著');
+  eq(bootRestore.raised, true, 'P22：**重整之後母碑還立著**（那是世界狀態，儀式一走完就落盤）');
+  eq(bootRestore.visible, true, 'P22：世界上也真的畫著它');
+  eq(bootRestore.carved, true, 'P22：碑面上那一片刻痕也還亮著');
+  eq(bootRestore.stele, '把你要的樣子先說出來，牠就照著做。', 'P22：碑上刻的那一行讀得回來');
+  eq(bootRestore.lamp, true, 'P22：龕裡留著那一盞清燈');
+  eq(bootRestore.murkShell, 0, 'P22：那一團濁氣不會重整回來（牠已經被說完了）');
+  eq(bootRestore.firstPrompt, '', 'P22：（前提）這份存檔連 firstPrompt 都沒有（＝舊存檔在硬碟上的樣子）');
+  eq(bootRestore.sayMode, 'best', 'P22：舊存檔重整之後照樣走得到退路');
+
   await key('Escape', 'Escape', { vk: 27 });
 
   await sleep(600);

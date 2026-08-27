@@ -78,6 +78,13 @@ export async function pacingAudit({ step = SAMPLE_STEP } = {}) {
    * 是不折不扣的「中景」。**新資料層若擺在路網 12m 內，同一個 phase 就要餵進來**。
    */
   const archives = readJson('src/data/archive.json').halls || [];
+  /*
+   * v1.2 · P22：終局那兩件東西（斷環旁的小祠 3.36 公尺、斷環中央的母碑）。
+   * 小祠是一座及腰的石龕、母碑是一塊 5 公尺高的碑 —— 兩件都是不折不扣的「中景」。
+   * **新資料層若擺在路網 12m 內，同一個 phase 就要餵進來**（P07 殘頁那條教訓）。
+   * 這一層沒有自己的 json：座標只有一份，寫在 `src/world/finale.js`。
+   */
+  const Finale = await import('../src/world/finale.js');
   // v1.2 · P11：中觀那一層（遮擋帶與母題）本來就是「中景」的定義 —— 不算進來，下一個
   // 「先量再放」的 phase 會拿到過期數據（同 P07 把殘頁補進來的理由）。
   const Screens = await import('../src/world/screens.js');
@@ -100,6 +107,9 @@ export async function pacingAudit({ step = SAMPLE_STEP } = {}) {
       // v1.2 · P14：高台。**新資料層若擺在路網 12m 內，同一個 phase 就要餵進來**
       // （P07 的教訓：24 頁殘頁漏餵，下一格就照著過期數據決定中景要放哪）。
       ...Screens.PLATFORMS.map((pf) => ({ id: pf.id, x: pf.at[0], z: pf.at[1] })),
+      // v1.2 · P22：終局那兩件（小祠 ＋ 母碑）
+      { id: 'echo-shrine', x: Finale.SHRINE_AT[0], z: Finale.SHRINE_AT[1] },
+      { id: 'mother-stele-raised', x: Finale.STELE_AT[0], z: Finale.STELE_AT[1] },
     ],
     marker: challenges.filter((c) => c.position).map((c) => ({ id: c.id, x: c.position[0], z: c.position[1] })),
     landmark: Props.LANDMARKS.map((l) => ({ id: l.id, x: l.at[0], z: l.at[1] })),
