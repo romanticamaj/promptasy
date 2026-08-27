@@ -158,6 +158,15 @@ export function defaultSave() {
      * 舊存檔沒有這一欄 → `normalize()` 給空字串，終局改用「你最好的一句」。
      */
     firstPrompt: '',
+    /**
+     * v1.2 · P22：母碑上刻的那一行（空字串＝碑面留白）。
+     *
+     * 這是玩家在終局重寫的那一句 —— 也是玩家自己打的字。
+     * **只有明確按下「刻上去」才會寫進來**；選了「不刻」＝這一欄根本不會有東西
+     * （不存就不可能外流）。它只留在這台裝置上，不上傳；顯示的一方一律 HTML escape。
+     * 刻上去之後才會出現在帶得走的那張刻印記錄上。
+     */
+    motherStele: '',
     badges: { openai: 0, anthropic: 0, google: 0, xai: 0 },
     settings: {
       music: 'ambient-01',
@@ -202,6 +211,22 @@ export function firstPrompt(v) {
   // eslint-disable-next-line no-control-regex
   const clean = v.replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, ' ').trim();
   return clean.length > FIRST_PROMPT_MAX ? clean.slice(0, FIRST_PROMPT_MAX) : clean;
+}
+/**
+ * v1.2 · P22：母碑上那一行的上限（字元）—— 與第一句同一把尺。
+ * 碑上刻的是一句話，不是一篇文章；兩邊共用同一個數字，之後改也只改一處。
+ */
+export const MOTHER_STELE_MAX = FIRST_PROMPT_MAX;
+/**
+ * v1.2 · P22：把任意值正規化成可以刻上母碑的一行。
+ *
+ * 清洗規則與 `firstPrompt()` **逐字相同**（去頭尾空白、控制字元換成空白、截到上限），
+ * 而且同樣**不動玩家寫的字** —— HTML escape 是顯示那一方的責任。
+ * 走同一支的理由：兩欄裝的是同一種東西（玩家自己打的一句話），
+ * 清洗規則分兩份就是等著哪一天只修到其中一份。
+ */
+export function motherStele(v) {
+  return firstPrompt(v);
 }
 const strArr = (v) => (Array.isArray(v) ? v.filter((x) => typeof x === 'string') : null);
 
@@ -387,6 +412,8 @@ export function normalize(raw) {
     shortcuts,
     // v1.2 · P07：舊存檔沒有 firstPrompt → 空字串（純加法）。壞值一律落成空字串。
     firstPrompt: firstPrompt(d.firstPrompt),
+    // v1.2 · P22：舊存檔沒有 motherStele → 空字串（純加法）＝ 碑面留白。壞值一律落成空字串。
+    motherStele: motherStele(d.motherStele),
     bestGrades,
     badges,
     settings,
@@ -465,6 +492,8 @@ export default {
   SAVE_VERSION,
   FIRST_PROMPT_MAX,
   firstPrompt,
+  MOTHER_STELE_MAX,
+  motherStele,
   defaultSave,
   normalize,
   load,

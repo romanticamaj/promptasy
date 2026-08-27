@@ -89,6 +89,17 @@ export const ECHO_LINES = Object.freeze({
    * 兩句都在講同一件事：那些被劃掉的句子不是後人劃的。
    */
   midpointRevealed: { line: '兩面不是兩個人刻的。', sub: '是同一雙手，隔了很久回來刻的。' },
+  /*
+   * v1.2 · P22 · 終局：三句都是**一輩子只說一次**的（見 `ONCE_IN_A_LIFETIME`）。
+   * 小祠開口一句；母碑立起來時看碑面有沒有字，分兩句 ——
+   * 留白那一句不准聽起來像可惜（那是玩家自己選的）。
+   */
+  /** 130 條技法全收 ＋ 四宿全亮，斷環旁那座小祠開口了 */
+  shrineOpened: { line: '斷環旁邊那座小祠開口了。', sub: '它一直留著你的第一句話。' },
+  /** 母碑立起來，碑上刻著玩家自己寫的那一句 */
+  steleCarved: { line: '母碑又立起來了。', sub: '上面是你自己說的那一句。' },
+  /** 母碑立起來，碑面留白（玩家選了先不刻） */
+  steleBlank: { line: '母碑重新站在環中央了。', sub: '碑面留白，你想好了再來。' },
   /** 久沒動作，而且這一片已經沒有下一個目標了 */
   idleLong: { line: '這一片安靜下來了。', sub: '歇一會兒也沒關係。' },
 });
@@ -149,7 +160,7 @@ export function createNudge({ world, player, getRegion = () => 'foundations', co
    * 一輩子只說一次的那幾句：撞上冷卻不能丟掉（丟了就沒有第二次）。
    * 解鎖走的是自己那一條（`announceUnlock`），所以不列在這裡。
    */
-  const ONCE_IN_A_LIFETIME = ['midpointRevealed'];
+  const ONCE_IN_A_LIFETIME = ['midpointRevealed', 'shrineOpened', 'steleCarved', 'steleBlank'];
 
   /*
    * 顯示 / 收起只切一個 class。

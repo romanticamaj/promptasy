@@ -41,6 +41,20 @@ import { createWorld } from './world/world.js';
 import { LORE_TABLETS } from './world/props.js';
 // v1.2 · P21：中點揭示 ＋ 鏡碑第二層（純函式，不 import 任何東西）
 import { MIDPOINT, shouldRevealMidpoint, markMidpointSeen, midpointSeen, litTabletGates } from './world/turning.js';
+// v1.2 · P22：終局的門檻與旗標（同一支純函式，不 import 任何東西）
+import {
+  FINALE,
+  shrineOpen,
+  shouldAnnounceShrine,
+  markShrineSpoken,
+  steleRaised,
+  markSteleRaised,
+  steleSpoken,
+  markSteleSpoken,
+  finalSayFor,
+} from './world/turning.js';
+import { inscriptionFor } from './challenges/finale.js';
+import { starMansions, allMansionsLit } from './ui/starmap.js';
 import { loadColorScript, colorScriptFor } from './world/color-script.js';
 import { fxForCheck, fxEnabledIn } from './world/rubric-fx.js';
 import colorScriptFile from './data/color-script.json';
@@ -69,6 +83,8 @@ import { createLetter } from './ui/letter.js';
 import { createWatchman, skillNoteHtml } from './ui/watchman.js';
 import Watchtalk from './progression/watchtalk.js';
 import { createGuardian } from './ui/guardian.js';
+// v1.2 · P22：終局（回聲的小祠 ＋ 母碑重立）
+import { createShrine } from './ui/shrine.js';
 import Guard from './challenges/guardian.js';
 import { createGateAsk } from './ui/gate.js';
 import { createHandlePanel } from './ui/handle.js';
@@ -202,6 +218,16 @@ function boot() {
     archives: archiveFile.halls || [],
     archiveSkillIdsOf: (regionId) => content.regionSkills(regionId).map((sk) => sk.id),
     archiveCollectedOf: (skillId) => progression.isSkillCollected(skillId),
+    /*
+     * v1.2 · P22：終局那一層（斷環旁的小祠 ＋ 斷環中央的母碑）。
+     * 開機依存檔還原：門檻到了小祠就亮著、儀式走過母碑就站著、刻過字碑面就亮著。
+     * `finaleCounts()` 只讀「收了幾條技法／亮了幾宿」——它看不到等級、XP、解鎖清單。
+     */
+    finaleStateOf: () => ({
+      open: shrineOpen(finaleCounts()),
+      raised: steleRaised(progression),
+      carved: progression.motherStele().length > 0,
+    }),
     // v1.2 · P06：色彩腳本（key／rim／particle 建構時套；sky 走 applyMood 的單一入口）
     colorScript: colorScriptFor,
     reducedMotion,
@@ -314,6 +340,37 @@ function boot() {
   const masteredSeen = new Set(progression.masteredRegions());
   for (const id of masteredSeen) world.setRegionMastered(id);
 
+  /**
+   * v1.2 · P22：終局的門檻只看兩個數字 —— **收了幾條技法、亮了幾宿**。
+   *
+   * 它**看不到等級、看不到 XP、看不到解鎖清單**，所以不可能長成另一種門檻
+   * （`shrineOpen()` 收得到的就只有這四個數）。收集數與圖鑑那一頁用同一把尺
+   * （`isSkillCollected`），星圖用的也是圖鑑那一支純函式 —— 沒有第二份真相。
+   */
+  function finaleCounts() {
+    const skills = catalog.skills || [];
+    let got = 0;
+    for (let i = 0; i < skills.length; i += 1) if (progression.isSkillCollected(skills[i].id)) got += 1;
+    const mansions = starMansions({
+      vendors: content.curriculum.vendors || [],
+      badges: progression.state.badges,
+    });
+    return {
+      skills: got,
+      skillsTotal: skills.length,
+      mansionsLit: mansions.filter((m) => m.lit).length,
+      mansionsTotal: mansions.length,
+      allLit: allMansionsLit(mansions),
+    };
+  }
+
+  /** 存檔變了 → 小祠與母碑跟著對一次（開機、過關、重置都走這一支）。 */
+  function refreshFinale() {
+    world.setShrineOpen?.(shrineOpen(finaleCounts()));
+    world.setSteleRaised?.(steleRaised(progression), false);
+    world.setSteleCarved?.(progression.motherStele().length > 0);
+  }
+
   function checkPayoffs() {
     /*
      * v1.2 · P20b：收集到的技法 ＝ 檔案廊裡亮起來的那幾片展品。
@@ -321,6 +378,12 @@ function boot() {
      * 不是收滿一整片土地才亮（「存檔變了、世界要跟著變」那條慣例）。
      */
     world.refreshArchives?.();
+    /*
+     * v1.2 · P22：收一條技法就可能是最後一條 —— 小祠跟著對一次。
+     * 這一行與上面那一行同一個道理（「存檔變了、世界要跟著變」那條慣例）：
+     * 不是收滿一整片土地才問，是每一次都問。
+     */
+    refreshFinale();
     for (const regionId of progression.masteredRegions()) {
       if (masteredSeen.has(regionId)) continue;
       masteredSeen.add(regionId);
@@ -604,6 +667,13 @@ function boot() {
       world.echoes?.reset?.();
       // v1.2 · P20b：檔案廊的展品也跟著暗回去（存檔清了，展櫃就該空了）
       world.archives?.reset?.();
+      /*
+       * v1.2 · P22：終局也回到起點 —— 小祠暗回去、母碑躺回去、碑面留白。
+       * **終局不是一次性的煙火**：重置之後再走一次，它會再一次開口。
+       */
+      world.finale?.reset?.();
+      // 重置之後門檻當然也重算一次（存檔清了，小祠就該暗回去）
+      refreshFinale();
       // v1.2 · P19：推開的捷徑也關回去（存檔清了，那道門就該重新擋著）
       world.resetShortcuts?.();
       /*
@@ -744,6 +814,21 @@ function boot() {
     },
   });
   ui.appendChild(guardianPanel.root);
+
+  /* --- v1.2 · P22：回聲的小祠（終局的儀式）＋ 母碑（讀碑） ---
+   *
+   * 玩家自己打的字**只在他按下「刻上去」的那一刻**離開面板；
+   * 這裡收到之後才寫進存檔（`inscriptionFor()` 是那道閘：不是 `'carve'` 一律回空字串）。
+   */
+  const shrinePanel = createShrine({
+    onFinish: ({ choice, text }) => finishRite(choice, text),
+    onShare: (opts) => openShare(opts),
+    onClose: () => {
+      audio.cue('close');
+      closePanel();
+    },
+  });
+  ui.appendChild(shrinePanel.root);
 
   /* --- Phase 29：橋上的門會問你一句（條件沒到也能先行前往） --- */
   const gateAsk = createGateAsk({
@@ -919,7 +1004,9 @@ function boot() {
       panel !== inscriptionPanel &&
       panel !== letterPanel &&
       panel !== watchmanPanel &&
-      panel !== guardianPanel
+      panel !== guardianPanel &&
+      // v1.2 · P22：小祠與母碑放的是祭壇那一聲（同刻文小語），不要再疊一聲翻頁音
+      panel !== shrinePanel
     ) {
       audio.cue('open');
     }
@@ -970,6 +1057,7 @@ function boot() {
     letterPanel.isOpen ||
     watchmanPanel.isOpen ||
     guardianPanel.isOpen ||
+    shrinePanel.isOpen ||
     gateAsk.isOpen ||
     handlePanel.isOpen ||
     practice.isOpen ||
@@ -1034,6 +1122,13 @@ function boot() {
   let nearEcho = null;
   /** v1.2 · P20b：現在浮出來的是哪一則小知識（`{ archive, side }`；沒有就 null）。 */
   let nearArchive = null;
+  /**
+   * v1.2 · P22：走近終局那一件（小祠 4.6 / 母碑 7.0）。
+   * **仲裁排在第一位**：這是整條故事線的終點，沒有任何一層該蓋掉它
+   * （而它的兩個圈與每一層都不重疊，所以實務上不會與誰相爭）。
+   * 沒開口／沒立起來的時候 `nearestFinale()` 回 null —— 那不是鎖，是還沒開口。
+   */
+  let nearFinale = null;
   /**
    * 每片土地那兩則小知識（照 archive.json 的順序：第 0 則在左邊那座龕、第 1 則在右邊）。
    * 建一次就好 —— 互動迴圈每幀都會問，不能在裡面 filter。
@@ -1371,6 +1466,49 @@ function boot() {
     openPanel(guardianPanel, guardianFile, guardianContext(g));
   }
 
+  /* ------------------------------------------------------------------ *
+   * v1.2 · P22：終局（回聲的小祠 ＋ 母碑重立）
+   * ------------------------------------------------------------------ */
+
+  /** 走進小祠：把玩家序章寫下的第一句還給他（舊存檔沒有那一欄 → 退路）。 */
+  function enterShrine() {
+    audio.cue('shrine');
+    openPanel(shrinePanel, 'rite', finalSayFor(progression.firstPrompt()));
+  }
+
+  /** 讀碑：碑上刻的那一行（留白的碑照樣讀得到）。 */
+  function readStele() {
+    audio.cue('shrine');
+    openPanel(shrinePanel, 'stele', progression.motherStele());
+  }
+
+  /**
+   * 儀式走完那一拍。
+   *
+   * 順序是刻意的：
+   *   1. **刻不刻**先落盤（`inscriptionFor()` 是那道閘：不是 `'carve'` 一律回空字串
+   *      —— 選了「先不刻」，那句話從頭到尾沒有寫進存檔）。
+   *   2. **母碑站起來**這件事**立刻**記旗標 —— 那是**世界狀態**，不是「說過了」。
+   *      等回聲說出口才記的話，中間重整一次母碑就會躺回去（P21 那條規矩的另一面）。
+   *   3. 回聲那一句走既有的通道排隊，**說出口了才記它自己的旗標**
+   *      （`steleSpoken`；它列在 `ONCE_IN_A_LIFETIME` 裡，撞上冷卻也不會被丟掉）。
+   *
+   * @param {'carve'|'blank'} choice
+   * @param {string} text 玩家重寫的那一句（原文）
+   */
+  function finishRite(choice, text) {
+    const carved = progression.setMotherStele(inscriptionFor(choice, text));
+    const firstTime = markSteleRaised(progression);
+    world.setSteleCarved?.(carved.length > 0);
+    world.setSteleRaised?.(true, firstTime);
+    audio.cue(firstTime ? 'finale' : 'unlock');
+    engine.pulse(1.2);
+    // 天空是進度的外顯：這一刻順手重算一次時辰（多半已經是星最亮之夜）
+    applyMood(moodRegion, { force: true });
+    hud.refresh();
+    hud.celebrate(carved.length > 0 ? '母碑 · 刻上了你的那一句' : '母碑 · 重新立起', 'finale');
+  }
+
   /**
    * 走進一個藏起來的地方（不用按 E —— 好奇心不該還要學一個鍵）。
    * 純風味：不進圖鑑、不算徽章，只給一點 XP 與一個很小的慶祝。
@@ -1636,6 +1774,31 @@ function boot() {
       if (nudge.lastEchoKind() === MIDPOINT.echo) markMidpointSeen(progression);
     }
 
+    /*
+     * v1.2 · P22 · 終局的兩句回聲。
+     *
+     * **說出口了才記旗標**（同上一段的理由，而且這兩句的負擔更重：
+     * 它們一輩子只會有一次機會，所以也列在 `ONCE_IN_A_LIFETIME` 裡）。
+     * 序章進行中不說 —— 那時候回聲整組是關掉的。
+     *
+     * 門檻本身不在這裡算：`finaleOpen` 由 `refreshFinale()` 在存檔變的時候更新，
+     * 這一段每幀只做兩個布林讀取（零配置）。
+     */
+    if (!prologue.isActive && shouldAnnounceShrine(world.finale?.open === true, progression)) {
+      nudge.echo(FINALE.echoShrine);
+      if (nudge.lastEchoKind() === FINALE.echoShrine) markShrineSpoken(progression);
+    }
+    /*
+     * 母碑那一句：**站起來**是世界狀態（`finishRite()` 當場落盤），
+     * **說出口**是另一件事（這裡等 `lastEchoKind()` 認帳才記）。
+     * 碑面有字沒字各一句 —— 留白那一句不准聽起來像可惜（那是玩家自己選的）。
+     */
+    if (!prologue.isActive && steleRaised(progression) && !steleSpoken(progression)) {
+      const kind = progression.motherStele() ? FINALE.echoCarved : FINALE.echoBlank;
+      nudge.echo(kind);
+      if (nudge.lastEchoKind() === kind) markSteleSpoken(progression);
+    }
+
     // 指南針：每幀跟著鏡頭轉；面板打開時收起來（和 HUD 其他元素一致）
     compass.setVisible(!anyPanelOpen());
     compass.update(dt);
@@ -1659,6 +1822,8 @@ function boot() {
       nearWinch = null;
       nearEcho = null;
       nearGate = null;
+      nearFinale = null;
+      world.clearFinaleNear?.();
       /*
        * v1.2 · P20b：面板開著／序章進行中 —— 那一則也要收掉。
        * `nearestArchive()` 是唯一會清掉「走近」旗標的地方，這裡不清的話
@@ -1669,6 +1834,13 @@ function boot() {
       hud.setAside(null);
       return;
     }
+    /*
+     * v1.2 · P22：終局那一件先問 —— 它排在仲裁的第一位。
+     * 小祠沒開口／母碑沒立起來就回 null，所以整趟旅程的絕大部分時間這一行是 null，
+     * 底下每一層的行為與 P21 之前逐字相同。
+     */
+    const hitFinale = world.nearestFinale?.(player.position) || null;
+    if (!hitFinale) world.clearFinaleNear?.();
     const hitMarker = world.nearestMarker(player.position);
     // 石碑與刻文一定要問（它們自己會維護「走近發光」的狀態），但石座優先搶 E 鍵
     const hitTablet = world.nearestTablet(player.position);
@@ -1698,7 +1870,7 @@ function boot() {
      */
     const hitGuardian = world.nearestGuardian(player.position, undefined, camForward);
     const blocked = Boolean(
-      hitMarker || hitMurk || hitWatchman || hitGuardian || hitTablet || hitInscription || hitLetter
+      hitFinale || hitMarker || hitMurk || hitWatchman || hitGuardian || hitTablet || hitInscription || hitLetter
     );
     // v1.2 · P19：捷徑的絞盤（半徑 3.2）—— 器物讓不出 E 的時候它就不出現
     const hitWinch = blocked || hitHandle ? null : world.nearestShortcutWinch?.(player.position);
@@ -1716,17 +1888,27 @@ function boot() {
     if (echoYields) world.clearEchoNear?.();
     const hitEcho = echoYields ? null : world.nearestEcho?.(player.position, undefined, camForward);
     const hitGate = blocked || hitHandle || hitWinch || hitEcho ? null : world.nearestGate(player.position);
-    nearMarker = hitMarker ? hitMarker.marker : null;
-    nearMurk = !hitMarker && hitMurk ? hitMurk.murk : null;
-    nearWatchman = !hitMarker && !hitMurk && hitWatchman ? hitWatchman.watchman : null;
-    nearGuardian = !hitMarker && !hitMurk && !hitWatchman && hitGuardian ? hitGuardian.guardian : null;
-    nearTablet = !hitMarker && !hitMurk && !hitWatchman && !hitGuardian && hitTablet ? hitTablet.tablet : null;
+    nearFinale = hitFinale ? hitFinale.kind : null;
+    nearMarker = !hitFinale && hitMarker ? hitMarker.marker : null;
+    nearMurk = !hitFinale && !hitMarker && hitMurk ? hitMurk.murk : null;
+    nearWatchman = !hitFinale && !hitMarker && !hitMurk && hitWatchman ? hitWatchman.watchman : null;
+    nearGuardian =
+      !hitFinale && !hitMarker && !hitMurk && !hitWatchman && hitGuardian ? hitGuardian.guardian : null;
+    nearTablet =
+      !hitFinale && !hitMarker && !hitMurk && !hitWatchman && !hitGuardian && hitTablet ? hitTablet.tablet : null;
     nearInscription =
-      !hitMarker && !hitMurk && !hitWatchman && !hitGuardian && !hitTablet && hitInscription
+      !hitFinale && !hitMarker && !hitMurk && !hitWatchman && !hitGuardian && !hitTablet && hitInscription
         ? hitInscription.inscription
         : null;
     nearLetter =
-      !hitMarker && !hitMurk && !hitWatchman && !hitGuardian && !hitTablet && !hitInscription && hitLetter
+      !hitFinale &&
+      !hitMarker &&
+      !hitMurk &&
+      !hitWatchman &&
+      !hitGuardian &&
+      !hitTablet &&
+      !hitInscription &&
+      hitLetter
         ? hitLetter.letter
         : null;
     nearHandle = !blocked && hitHandle ? hitHandle.handle : null;
@@ -1762,7 +1944,20 @@ function boot() {
       return;
     }
 
-    if (nearMarker) {
+    if (nearFinale) {
+      /*
+       * 標題 ＋ 一句狀態 ＋ E ＋ 一個動詞（WORLD.md §3.1）。
+       * 這一格**只有開口之後才出現** —— 沒到門檻的時候小祠站在那裡不說話，
+       * 畫面上一個字都不會提「還差幾條」（那會把終局變成一張待辦清單）。
+       */
+      hud.setInteract(
+        nearFinale === 'shrine'
+          ? '<b>回聲的小祠</b><span>它一直留著你的第一句話</span><kbd>E</kbd> 走進去'
+          : `<b>母碑</b><span>${
+              progression.motherStele() ? '上面刻著你自己說的那一句' : '碑面留白'
+            }</span><kbd>E</kbd> 讀碑`
+      );
+    } else if (nearMarker) {
       const best = progression.bestGrade(nearMarker.challenge.id);
       hud.setInteract(
         `<b>${nearMarker.challenge.title}</b><span>${nearMarker.challenge.npc}${
@@ -1884,6 +2079,7 @@ function boot() {
       else if (letterPanel.isOpen) letterPanel.close();
       else if (watchmanPanel.isOpen) watchmanPanel.close();
       else if (guardianPanel.isOpen) guardianPanel.close();
+      else if (shrinePanel.isOpen) shrinePanel.close();
       else if (gateAsk.isOpen) gateAsk.close();
       else if (handlePanel.isOpen) handlePanel.close();
       return;
@@ -1909,7 +2105,11 @@ function boot() {
 
     if (typing || anyPanelOpen()) return;
 
-    if (e.code === 'KeyE' && nearMarker) {
+    if (e.code === 'KeyE' && nearFinale) {
+      e.preventDefault();
+      if (nearFinale === 'shrine') enterShrine();
+      else readStele();
+    } else if (e.code === 'KeyE' && nearMarker) {
       e.preventDefault();
       audio.cue('open');
       openPanel(promptConsole, nearMarker.challenge);
@@ -2057,6 +2257,28 @@ function boot() {
       const g = world.guardians.byId(guardianFile.id);
       return g ? g.marks.filter((m) => m.open).length : null;
     },
+    /** v1.2 · P22：終局的那一扇窗（測試 / 除錯用）。 */
+    shrinePanel,
+    /** v1.2 · P22：終局那一層現在的樣子（測試用：開口了嗎、立起來了嗎、碑上有字嗎）。 */
+    finaleState: () => ({
+      open: world.finale.open,
+      raised: world.finale.raised,
+      carved: world.finale.carved,
+      rising: world.finale.rising,
+      stele: progression.motherStele(),
+      counts: finaleCounts(),
+      flags: {
+        [FINALE.shrineFlag]: Boolean(progression.state.flags[FINALE.shrineFlag]),
+        [FINALE.raisedFlag]: Boolean(progression.state.flags[FINALE.raisedFlag]),
+        [FINALE.steleFlag]: Boolean(progression.state.flags[FINALE.steleFlag]),
+      },
+    }),
+    /** v1.2 · P22：小祠會還給玩家的那一句（測試用：舊存檔走退路）。 */
+    finaleSay: () => finalSayFor(progression.firstPrompt()),
+    /** v1.2 · P22：存檔變了 → 讓小祠與母碑重新對一次（測試用：與過關那條路走同一支）。 */
+    refreshFinale,
+    /** v1.2 · P22：現在走近的是終局的哪一件（測試用：仲裁排第一位）。 */
+    nearFinale: () => nearFinale,
     gateAsk,
     /** Phase 29：走到門前問一次（測試 / 除錯用）。 */
     askGate: (regionId) => askGate(world.gates.find((g) => g.id === regionId)),

@@ -9438,3 +9438,147 @@ select option:disabled {
     margin-inline-start: 6px;
   }
 }
+
+/* ================================================================ 回聲的小祠 ＋ 母碑
+   v1.2 · P22：整趟旅程的最後一個畫面。刻意**不是主控台**——
+   沒有評價印章、沒有分數條、沒有一條條列出你缺了什麼。
+   版面跟守夜人／守門者同一個尺度（一張小窗、幾行字、底下幾顆用選的），
+   多的是中間那塊「你自己寫的那一句」與底下那個重寫的地方。
+   ================================================================ */
+.overlay--rite .panel {
+  max-width: 46rem;
+}
+.rite {
+  position: relative;
+  padding: var(--s2) 0;
+}
+.rite__mark {
+  width: 2.4rem;
+  height: 1px;
+  margin: 0 0 var(--s4);
+  background: linear-gradient(90deg, var(--gold), rgba(198, 160, 92, 0));
+}
+.rite__line,
+.rite__lead {
+  margin: 0 0 var(--s4);
+  font-family: var(--font-prose);
+  font-size: 1.36rem;
+  line-height: var(--lh-prose);
+  letter-spacing: 0.04em;
+  color: #e7ece2;
+  text-wrap: pretty;
+  animation: reveal-in var(--d-reveal) var(--e-out) both;
+  animation-delay: calc(var(--i, 0) * 80ms);
+}
+.rite__lead {
+  color: var(--gold);
+}
+/* 玩家自己打的字：系統字型（子集缺字也不會破圖），一律 escape 過才進來 */
+.rite__said {
+  margin: 0 0 var(--s3);
+  padding: var(--s4);
+  border: 1px solid var(--rule);
+  border-left: 2px solid rgba(198, 160, 92, 0.45);
+  background: rgba(0, 0, 0, 0.22);
+  font-family: var(--font-input);
+  font-size: var(--t-body);
+  line-height: var(--lh-body);
+  color: var(--paper-2);
+  white-space: pre-wrap;
+  overflow-x: auto;
+}
+.rite__caption,
+.rite__note {
+  margin: 0 0 var(--s4);
+  font-family: var(--font-ui);
+  font-size: var(--t-meta);
+  line-height: var(--lh-body);
+  color: var(--paper-4);
+  animation: reveal-in var(--d-reveal) var(--e-out) both;
+  animation-delay: calc(var(--i, 0) * 80ms);
+}
+.rite__ask {
+  margin: var(--s5) 0 var(--s3);
+  font-family: var(--font-prose);
+  font-size: 1.2rem;
+  line-height: var(--lh-prose);
+  letter-spacing: 0.03em;
+  color: var(--paper);
+  animation: reveal-in var(--d-reveal) var(--e-out) both;
+  animation-delay: calc(var(--i, 0) * 80ms);
+}
+.rite__label {
+  display: block;
+  margin: 0 0 var(--s2);
+  font-family: var(--font-ui);
+  font-size: var(--t-micro);
+  letter-spacing: var(--tr-cjk);
+  color: var(--paper-4);
+}
+.rite__input {
+  display: block;
+  width: 100%;
+  min-height: 8rem;
+  padding: var(--s4);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  background: rgba(0, 0, 0, 0.24);
+  color: #dfe9f3;
+  /* 使用者輸入 → 系統字型（子集缺字也安全） */
+  font-family: var(--font-input);
+  font-size: 1.18rem;
+  line-height: 1.75;
+  letter-spacing: 0.01em;
+  resize: vertical;
+  outline: none;
+}
+.rite__input:focus-visible {
+  border-color: rgba(198, 160, 92, 0.55);
+}
+.rite__input::placeholder {
+  color: var(--paper-4);
+  font-style: italic;
+}
+/* 「回聲聽見了」——一律是加法。一條都沒聽見時這一整塊不會出現。 */
+.rite__heard {
+  margin: var(--s4) 0;
+  padding: var(--s4) var(--s5) var(--s3);
+  border: 1px solid var(--rule);
+  border-left: 3px solid var(--gold);
+  background: rgba(255, 255, 255, 0.02);
+}
+.rite__heardlist {
+  margin: var(--s3) 0 0;
+  padding: 0 0 0 var(--s4);
+  list-style: none;
+}
+.rite__heardlist li {
+  position: relative;
+  margin: 0 0 var(--s3);
+  font-family: var(--font-prose);
+  font-size: var(--t-body);
+  line-height: var(--lh-prose);
+  color: var(--paper-2);
+  animation: reveal-in var(--d-reveal) var(--e-out) both;
+  animation-delay: calc(var(--i, 0) * 60ms);
+}
+.rite__heardlist li::before {
+  content: '✦';
+  position: absolute;
+  left: calc(var(--s4) * -1);
+  color: var(--gold);
+}
+.rite__acts,
+.rite__choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s3);
+  margin: var(--s5) 0 0;
+}
+.rite__hint {
+  margin: var(--s5) 0 0;
+  font-family: var(--font-ui);
+  font-size: var(--t-micro);
+  letter-spacing: var(--tr-cjk);
+  color: var(--paper-4);
+}

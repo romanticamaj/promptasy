@@ -34,6 +34,8 @@ import { createEchoField, ECHO_RADIUS } from './echoes.js';
 import { createArchiveField, ARCHIVE_RADIUS } from './archives.js';
 import { createWatchmanField, WATCHMAN_RADIUS } from './watchmen.js';
 import { createGuardianField, GUARDIAN_RADIUS } from './guardian.js';
+// v1.2 · P22：終局那一層（斷環旁的小祠 ＋ 斷環中央的母碑）
+import { createFinaleField, SHRINE_AT, STELE_AT } from './finale.js';
 import { createRubricFx } from './rubric-fx.js';
 // v1.2 · P11：中觀那一階（遮擋帶與母題）。screens.js 不 import 這裡，也不 import props.js。
 import { SCREEN_BANDS, MOTIFS, PLATFORMS, buildScreens, landmarkSight, pointInBand } from './screens.js';
@@ -4278,6 +4280,12 @@ export function createWorld({
    */
   guardianStateOf = null,
   /**
+   * v1.2 · P22：開機依存檔還原終局那一層
+   * （`() => ({ open:boolean, raised:boolean, carved:boolean })`）。
+   * 沒給就全部原樣：小祠暗著、母碑躺著、碑面留白。
+   */
+  finaleStateOf = null,
+  /**
    * v1.2 · P16c：開機依存檔還原「聊過了沒」（`(id) => progression.hasMetWatchman(id)`）。
    * 沒給就退回 `progression.hasMetWatchman`（測試世界的 stub 沒有這個方法 → 全部沒聊過）。
    */
@@ -4392,6 +4400,14 @@ export function createWorld({
     // v1.2 · P14：高台 —— 腳下不撒碎石與草叢（自己的半徑再外推 2.5 公尺，跳上去的落腳處要乾淨）
     ...screenPlatforms.map((pf) => [pf.at[0], pf.at[1], pf.radius + 2.5]),
     ...(shrineSpec ? [[shrineSpec.at[0], shrineSpec.at[1], 10]] : []),
+    /*
+     * v1.2 · P22：終局那兩件東西 —— 一座及腰的石龕與斷環中央那塊碑，
+     * 腳下被碎石與草叢埋掉就不像「有人在這裡留了一個地方」（同守夜人那一格的量級）。
+     * 母碑那一格其實落在斷環 15 公尺的強制留白裡（本來就沒有碎石），寫出來是為了
+     * 「這一層有哪幾個點」只有一份名單。
+     */
+    [SHRINE_AT[0], SHRINE_AT[1], 5.5],
+    [STELE_AT[0], STELE_AT[1], 5.5],
   ];
 
   root.add(
@@ -4582,6 +4598,22 @@ export function createWorld({
     stateOf: typeof guardianStateOf === 'function' ? guardianStateOf : null,
   });
   root.add(guardianField.group);
+
+  /* --- v1.2 · P22：終局那一層（斷環旁的小祠 ＋ 斷環中央的母碑） ---
+   *
+   * 它只有兩件東西、一組互動，而且**排在仲裁的第一位**（見 `nearestFinale()`）。
+   * 開機的狀態由存檔還原：沒到門檻就是暗的 —— 那不是鎖，是還沒開口。
+   */
+  const finaleSnapshot = typeof finaleStateOf === 'function' ? finaleStateOf() || {} : {};
+  const finaleField = createFinaleField({
+    kit: kits.get('foundations'),
+    terrainHeight,
+    open: Boolean(finaleSnapshot.open),
+    raised: Boolean(finaleSnapshot.raised),
+    carved: Boolean(finaleSnapshot.carved),
+    reducedMotion,
+  });
+  root.add(finaleField.group);
 
   /* --- v1.2 · P20a：回聲重演（坐在小景旁邊的一團光；按 E 重演當年的事） ---
    *
@@ -5130,6 +5162,8 @@ export function createWorld({
     echoes: echoField,
     /** v1.2 · P20b：檔案廊那一層（測試與稽核用）。 */
     archives: archiveField,
+    /** v1.2 · P22：終局那一層（小祠 ＋ 母碑）。 */
+    finale: finaleField,
     /** v1.2 · P09：石座演出（rubric 命中 → 石座旁的因果）。 */
     rubricFx,
     /** v1.2 · P06：這一區道具用的四階色（`kitFor()`；色彩腳本的 rim 已覆寫 light）—— 唯讀（測試與稽核用）。 */
@@ -5539,6 +5573,7 @@ export function createWorld({
       guardianField.update(dt, t, x, z);
       echoField.update(dt, t, x, z);
       archiveField.update(dt, t, x, z);
+      finaleField.update(dt, t, x, z);
       // v1.2 · P09：石座演出（面板開著也照播 —— 玩家正看著結果面，世界在背景）
       rubricFx.update(dt, t);
     },
@@ -5631,6 +5666,39 @@ export function createWorld({
     /** 收集到的技法變了 → 展品重新對一次（過關、重置進度都走這一支）。 */
     refreshArchives() {
       return archiveField.refresh();
+    },
+
+    /**
+     * 走近的終局那一件（v1.2 · P22）。小祠 4.6、母碑 7.0 ——
+     * **仲裁排在第一位**：這是整條故事線的終點，沒有任何一層該蓋掉它。
+     * 兩者的圈**與每一層都不重疊**（量出來的：小祠還剩 4.45 公尺、
+     * 母碑還剩 0.32 公尺），所以「排第一」在實務上根本不會與誰相爭。
+     *
+     * 小祠沒開口／母碑沒立起來就回 null —— **那不是鎖，是還沒開口**。
+     * @param {THREE.Vector3} position
+     */
+    nearestFinale(position) {
+      return finaleField.nearest(position);
+    },
+
+    /** 把終局那一層「走近」的亮度熄掉（互動迴圈早退時呼叫）。 */
+    clearFinaleNear() {
+      finaleField.clearNear();
+    },
+
+    /** 小祠開不開口（門檻由 `turning.js` 的 `shrineOpen()` 算，世界只負責看得見）。 */
+    setShrineOpen(v) {
+      return finaleField.setOpen(v);
+    },
+
+    /** 母碑站起來（`animate` ＝ 播那一段站起來的演出；開機還原時給 false）。 */
+    setSteleRaised(v, animate = false) {
+      return finaleField.setRaised(v, animate);
+    },
+
+    /** 碑面上有沒有字（有＝那一片刻痕亮起來）。 */
+    setSteleCarved(v) {
+      return finaleField.setCarved(v);
     },
 
     /** 開演一場回聲重演（已經在演／低畫質 → 回 null）。 */

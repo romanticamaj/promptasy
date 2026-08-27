@@ -85,6 +85,16 @@ export function shareText(model = {}) {
   if (model.kind === 'finale') {
     return `我在 Promptasy 走完了整趟旅程 —— 稱號「${rank}」（Lv.${lv}），${got}。`;
   }
+  /*
+   * v1.2 · P22：母碑。
+   *
+   * ⚠️ **這段話裡不放玩家自己寫的那一句** —— 帶得走的字有兩種，
+   * 一種是圖（玩家按過「刻上去」才有），一種是這段話（它會被丟進別人的撰寫框）。
+   * 碑面那一行只出現在圖上；這裡永遠是世界的說法。
+   */
+  if (model.kind === 'stele') {
+    return `我在 Promptasy 把母碑重新立起來了 —— 稱號「${rank}」（Lv.${lv}），${got}。`;
+  }
   return `我在 Promptasy 修行成了「${rank}」（Lv.${lv}）—— ${got}。`;
 }
 
@@ -465,7 +475,28 @@ export function drawCard(canvas, m) {
     listTop = 396;
   }
 
-  const techs = (m.techniques || []).slice(0, 3);
+  /*
+   * v1.2 · P22：母碑上刻的那一句。
+   *
+   * **它只有在玩家親手按過「刻上去」的時候才會存在**（沒按＝那一欄根本沒寫進存檔，
+   * 這裡拿到的就是空字串）。它是這張卡的主角，所以它出現的時候技法清單讓位 ——
+   * 三行引文 ＋ 三列技法會一路長到頁腳外面去。
+   */
+  const inscription = typeof m.inscription === 'string' ? m.inscription.trim() : '';
+  if (inscription) {
+    hairline(ctx, L, listTop - 14, 540);
+    tracked(ctx, '母碑上刻的那一句', L, listTop + 8, { size: 12, color: '#66768d', track: 3.2 });
+    // 引號用世界自己的那一階冷星光，字用暖金（這是成就熱點）
+    paragraph(ctx, inscription, L, listTop + 48, {
+      font: `400 26px ${FONT_PROSE}`,
+      color: '#e6c79b',
+      maxWidth: 540,
+      lineHeight: 38,
+      maxLines: 3,
+    });
+  }
+
+  const techs = inscription ? [] : (m.techniques || []).slice(0, 3);
   if (techs.length) {
     hairline(ctx, L, listTop - 14, 540);
     tracked(ctx, '刻進圖鑑的技法', L, listTop + 8, { size: 12, color: '#66768d', track: 3.2 });
@@ -625,6 +656,8 @@ const KIND_LABEL = {
   codex: '收集冊 · CODEX',
   mastery: '土地封印 · REGION MASTERED',
   finale: '旅程完成 · ALL COLLECTED',
+  // v1.2 · P22：終局那一張（母碑重新立起來）
+  stele: '母碑 · THE MOTHER STELE',
 };
 
 /**
@@ -735,6 +768,12 @@ export function createShareCard({ content, progression, ranksFile, onClose, onTo
       grade: opts.grade || '',
       headline: opts.headline || '',
       techniques,
+      /*
+       * v1.2 · P22：母碑上刻的那一句 —— **只有母碑那一張卡帶得動它**，
+       * 而且只有玩家真的按過「刻上去」時存檔裡才會有東西。
+       * 其他每一種卡（關卡、圖鑑、土地封印、旅程完成）逐值不變。
+       */
+      inscription: opts.kind === 'stele' ? progression.motherStele?.() || '' : '',
       regions: groups.map((g) => ({
         name: g.name,
         nameEn: g.nameEn,

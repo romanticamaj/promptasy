@@ -1294,6 +1294,38 @@ export function createProgression({
       return { captured: true, text: clean };
     },
 
+    /* ---------------------------------------------------------------- *
+     * v1.2 · P22：母碑上刻的那一行
+     *
+     * 玩家在終局重寫的那一句。**只有明確按下「刻上去」才會有東西**；
+     * 選了「不刻」＝ `setMotherStele('')`，那句話根本不會落盤（不存就不可能外流）。
+     *
+     * ⚠️ **這一欄不參與任何解鎖判定**：`gateSatisfied()` / `refreshUnlocks()` /
+     * `isRegionUnlocked()` 三支的函式體裡一個字都沒提它（`test:rubric` 逐支掃過，
+     * 外加零 XP 探針與逐項快照 —— 靜態掃描擋不住間接讀法，P21 的紅測證明過）。
+     * ---------------------------------------------------------------- */
+
+    /** 母碑上刻的那一行（空字串＝碑面留白）。 */
+    motherStele() {
+      return typeof state.motherStele === 'string' ? state.motherStele : '';
+    },
+
+    /**
+     * 刻上去 / 抹掉。
+     *
+     * 與 `captureFirstPrompt()`（只寫一次、永不覆寫）**刻意相反**：這一欄要改得動。
+     * 玩家隨時可以回小祠再說一次，也隨時可以選「不刻」把碑面清回留白 ——
+     * 那是玩家把自己的字收回去的路。
+     *
+     * @param {string} text 空字串／空白＝留白
+     * @returns {string} 真的留在碑上的那一行
+     */
+    setMotherStele(text) {
+      state.motherStele = SaveIO.motherStele(text);
+      persist();
+      return state.motherStele;
+    },
+
     /** 這個祕密找到了嗎。 */
     hasFoundSecret(id) {
       return Array.isArray(state.secretsFound) && state.secretsFound.includes(id);

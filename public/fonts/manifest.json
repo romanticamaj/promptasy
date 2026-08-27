@@ -32,6 +32,7 @@
     "src/challenges/catalog.js",
     "src/challenges/checks.js",
     "src/challenges/content.js",
+    "src/challenges/finale.js",
     "src/challenges/guardian.js",
     "src/challenges/prologue.js",
     "src/challenges/rubric.js",
@@ -85,6 +86,7 @@
     "src/ui/rumors.js",
     "src/ui/settings.js",
     "src/ui/sharecard.js",
+    "src/ui/shrine.js",
     "src/ui/starmap.js",
     "src/ui/tablet.js",
     "src/ui/title.js",
@@ -93,6 +95,7 @@
     "src/world/color-script.js",
     "src/world/drifts.js",
     "src/world/echoes.js",
+    "src/world/finale.js",
     "src/world/ground.js",
     "src/world/guardian.js",
     "src/world/handles.js",
@@ -107,7 +110,7 @@
     "src/world/watchmen.js",
     "src/world/world.js"
   ],
-  "corpusHash": "212623ee96f74165",
+  "corpusHash": "daca0b46c4a687d9",
   "coverage": {
     "latin": [
       32,
@@ -516,6 +519,7 @@
       20808,
       20809,
       20811,
+      20812,
       20813,
       20818,
       20828,
@@ -996,6 +1000,7 @@
       24758,
       24773,
       24785,
+      24796,
       24801,
       24819,
       24840,
@@ -1057,6 +1062,7 @@
       25260,
       25265,
       25269,
+      25273,
       25276,
       25277,
       25286,
@@ -1471,6 +1477,7 @@
       28966,
       28982,
       29001,
+      29017,
       29031,
       29033,
       29060,
@@ -1572,6 +1579,7 @@
       30436,
       30442,
       30446,
+      30447,
       30452,
       30456,
       30462,
@@ -2699,7 +2707,7 @@
       "id": "serif-tc",
       "family": "Arcade Serif TC",
       "file": "arcade-serif-tc.woff2",
-      "bytes": 705912,
+      "bytes": 707260,
       "role": "cjk",
       "variable": true,
       "weight": null,
@@ -2710,7 +2718,7 @@
           "default": 400
         }
       },
-      "requested": 1951,
+      "requested": 1956,
       "missing": 0,
       "source": "NotoSerifTC.ttf",
       "author": "Google (Noto Project)",
@@ -2722,7 +2730,7 @@
       "id": "sans-tc",
       "family": "Arcade Sans TC",
       "file": "arcade-sans-tc.woff2",
-      "bytes": 537972,
+      "bytes": 538828,
       "role": "cjk",
       "variable": true,
       "weight": null,
@@ -2733,7 +2741,7 @@
           "default": 400
         }
       },
-      "requested": 1951,
+      "requested": 1956,
       "missing": 0,
       "source": "NotoSansTC.ttf",
       "author": "Google (Noto Project)",
@@ -2742,5 +2750,5 @@
       "url": "https://github.com/google/fonts/tree/main/ofl/notosanstc"
     }
   ],
-  "totalBytes": 1568472
+  "totalBytes": 1570676
 }
