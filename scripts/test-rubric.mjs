@@ -24532,6 +24532,35 @@ console.log('▸ 轉折：中點揭示 ＋ 鏡碑第二層（P21）');
   /* --- ⑨ WORLD.md：轉折要寫進世界的規則書 --- */
   {
     const s419 = worldMdP21.slice(worldMdP21.indexOf('### 4.19'), worldMdP21.indexOf('## 五'));
+    /*
+     * **說出口了才記旗標**（P21 審查 · 第 1 條）。
+     *
+     * `echo()` 只是排進 `pending`，真正說出口是下一拍 `update()` 的事；
+     * 原本是「先記旗標、再叫 echo，回傳值丟掉」——只要進場前 20 秒內有任何一句
+     * 回聲說過話（例如剛解鎖分歧之廳的那一則），這一句就被冷卻默默吃掉，
+     * 而旗標已經寫進存檔 → **整段轉折再也不會出現**。
+     */
+    {
+      const mainSrc21 = readFileSync(resolve(root, 'src/main.js'), 'utf8');
+      const at21 = mainSrc21.indexOf('shouldRevealMidpoint(here.id');
+      ok(at21 > 0, '（前提）找得到中點揭示那一段');
+      const block21 = mainSrc21.slice(at21, at21 + 900);
+      ok(
+        /lastEchoKind\(\)\s*===\s*MIDPOINT\.echo\s*\)\s*markMidpointSeen/.test(block21),
+        'P21：真的說出口了才記旗標（不是先記再說）'
+      );
+      ok(
+        block21.indexOf('nudge.echo(MIDPOINT.echo)') < block21.indexOf('markMidpointSeen'),
+        'P21：順序是「先排隊、後記旗標」'
+      );
+      const nudgeSrc21 = readFileSync(resolve(root, 'src/ui/nudge.js'), 'utf8');
+      ok(/ONCE_IN_A_LIFETIME/.test(nudgeSrc21), 'P21：nudge 有「一輩子只說一次」那一組');
+      ok(
+        /ONCE_IN_A_LIFETIME\s*=\s*\[[^\]]*'midpointRevealed'/.test(nudgeSrc21),
+        'P21：中點揭示列在裡面（撞上冷卻不准丟掉）'
+      );
+      ok(/lastEchoKind\(\)/.test(nudgeSrc21), 'P21：nudge 把「上一句真的說出口的是哪一種」交出去了');
+    }
     ok(s419.length > 400, 'WORLD.md 有 §4.19（轉折：中點揭示 ＋ 鏡碑第二層）', String(s419.length));
     ok(/P21/.test(s419), '§4.19 標得出這一格');
     ok(/turning\.js/.test(s419), '§4.19 指得出那一層住在哪');

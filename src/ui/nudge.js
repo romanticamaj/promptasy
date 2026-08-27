@@ -145,6 +145,11 @@ export function createNudge({ world, player, getRegion = () => 'foundations', co
   let echoCooldown = 0;
   /** 事情發生時面板多半還開著 —— 先記著，收起來那一拍再說（只留最新的一件）。 */
   let pending = null;
+  /**
+   * 一輩子只說一次的那幾句：撞上冷卻不能丟掉（丟了就沒有第二次）。
+   * 解鎖走的是自己那一條（`announceUnlock`），所以不列在這裡。
+   */
+  const ONCE_IN_A_LIFETIME = ['midpointRevealed'];
 
   /*
    * 顯示 / 收起只切一個 class。
@@ -189,7 +194,14 @@ export function createNudge({ world, player, getRegion = () => 'foundations', co
     return { line: fill(spec.line), sub: spec.sub ? fill(spec.sub) : '' };
   }
 
-  /** 真的說出口（冷卻與 isBusy 已經在外面判過了）。 */
+  /**
+   * 真的說出口（冷卻與 isBusy 已經在外面判過了）。
+   *
+   * 說出口的那一句會由 `show()` 記在 `lastKind` 上（那本來就是它在做的事）：
+   * 呼叫端要「說出口了才記旗標」時看 `lastEchoKind()`
+   * —— 先記旗標再叫 echo 的話，那一句被冷卻丟掉就**永遠不會再出現**
+   * （P21 審查 · 第 1 條：中點揭示整段轉折就是這樣會被默默吃掉的）。
+   */
   function speakEcho(kind, ctx) {
     const parts = echoText(kind, ctx);
     if (!parts) return false;
@@ -237,6 +249,15 @@ export function createNudge({ world, player, getRegion = () => 'foundations', co
         // 解鎖是一則消息（帶方向與步數），不受冷卻限制
         if (p.kind === 'regionUnlocked') {
           api.announceUnlock(p.ctx.regionId ?? p.ctx.name ?? '');
+          return;
+        }
+        /*
+         * **一輩子只會說一次的那幾句也是消息，不受冷卻限制**（P21 審查 · 第 1 條）。
+         * 中點揭示那一句如果撞上前 20 秒剛說過的任何一句回聲，就會被默默丟掉，
+         * 而它**再也不會有第二次機會** —— 那是整段轉折的情感負載。
+         */
+        if (ONCE_IN_A_LIFETIME.includes(p.kind)) {
+          speakEcho(p.kind, p.ctx);
           return;
         }
         if (echoCooldown <= 0) {
@@ -364,6 +385,16 @@ export function createNudge({ world, player, getRegion = () => 'foundations', co
        */
       pending = { kind, ctx };
       return true;
+    },
+
+    /**
+     * 上一句**真的說出口**的回聲是哪一種（`null` ＝ 還沒說過）。
+     *
+     * 給「說出口了才記旗標」用：`echo()` 只是把它排進 `pending`，
+     * 真正說出口是下一拍 `update()` 的事（而且可能被冷卻或面板擋掉）。
+     */
+    lastEchoKind() {
+      return lastKind;
     },
 
     /** 玩家做了某件事（打開面板 / 通關 / 讀碑）→ 他沒有迷路，計時歸零。 */

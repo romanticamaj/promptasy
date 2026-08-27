@@ -1621,8 +1621,19 @@ function boot() {
      * 說了也只會被丟掉，而旗標卻已經記成「說過了」。
      */
     if (!prologue.isActive && here && shouldRevealMidpoint(here.id, here.onBridge, progression)) {
-      markMidpointSeen(progression);
+      /*
+       * **說出口了才記旗標**（P21 審查 · 第 1 條）。
+       *
+       * `echo()` 只是把那一句排進 `pending`，真正說出口是下一拍 `update()` 的事
+       * —— 面板開著會等、而且原本撞上冷卻就直接丟掉。先記旗標的話：
+       * 玩家解完最後一關解鎖分歧之廳（那一則解鎖把冷卻推到 20 秒）、走過橋進來，
+       * 這一句當場被吃掉，而旗標已經寫進存檔 —— **整段轉折再也不會出現**。
+       * 現在：每一幀都把它排進去（同一個字串，覆蓋自己，零成本），
+       * 直到 `lastEchoKind()` 說它真的講出來了，才記旗標。
+       * 它也列在 `ONCE_IN_A_LIFETIME` 裡，所以不受冷卻限制。
+       */
       nudge.echo(MIDPOINT.echo);
+      if (nudge.lastEchoKind() === MIDPOINT.echo) markMidpointSeen(progression);
     }
 
     // 指南針：每幀跟著鏡頭轉；面板打開時收起來（和 HUD 其他元素一致）
