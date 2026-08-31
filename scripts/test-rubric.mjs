@@ -45,8 +45,18 @@ const EXPECT = readJson('scripts/expected-counts.json').contract;
  *
  * 241,000 是 P20b 的框（硬上限仍是 WORLD.md §6.1 的 420,000）：
  * 加上檔案廊那 1,844 之後高畫質實測 235,436（另一種量法 236,820）。
+ *
+ * v1.2 · P22c 放寬到 **295,000**（硬上限 420,000 沒動）。理由要寫清楚，
+ * 因為「為了讓測試過而放寬預算」正是這個專案最該防的事：
+ *   · 放大之後地形平面 340 → 442，格距要維持 1.70／3.09（P16d/e 的門檻是在那個格距上
+ *     量出來的），段數就得 200 → 260 —— 地形三角 80,000 → 135,200。
+ *   · 這 55,200 個三角是**同一個不透明的 mesh**：draw call ＋0、材質 ＋0、透明片 ＋0、
+ *     overdraw ＋0。而 P22b 剛好量出來，真正貴的是那三項（draw call −27%、加色 −38%）。
+ *   · 不放寬的話只剩兩條路：讓玩家浮在畫出來的地面上 0.642 公尺（P16e 要擋的就是這個），
+ *     或者把三片土地的階梯地貌磨平。兩條都比多五萬個不透明三角糟。
+ * 也就是說：**換掉的是一個已經被證明量錯東西的代理指標**，不是把壞掉的東西藏起來。
  */
-const WORLD_TRI_CEIL = 241000;
+const WORLD_TRI_CEIL = 295000;
 const { createCatalog } = await import('../src/challenges/catalog.js');
 const catalog = createCatalog({ curriculum, skillCodex: skillCodexV2, regions: regionsV2 });
 
@@ -2919,11 +2929,31 @@ for (const corridor of World.CORRIDORS) {
   ok(corridor.gateAt > 0 && corridor.gateAt < corridor.length, `[bridge:${corridor.region}] 閘門在橋中段`);
 }
 
+/**
+ * 一個「兩片土地中間」的虛空取樣點——**從活的資料算出來**（減法之庭與紮根之地
+ * 兩個圓心的中點），不寫死座標。
+ *
+ * v1.2 · P22c 把世界攤開（座標 ×1.3、大小不動）之後，原本寫死的 `(0, -120)`
+ * 已經被搬到 `(0, -106.6)` 的減法之庭整個吞進實地裡（實測 coverage 1.000、
+ * 高度 +1.30）——寫死的探針指的不再是它名字說的那個東西，這一條就變成
+ * 一句永遠成立的空話。改成從圓心推：實測 `(61.75, -115.05)`，
+ * coverage 0.000、高度 −34.00，離紮根之地圓周還有 2.5 公尺、離減法之庭 20.7 公尺。
+ */
+const VOID_AT = (() => {
+  const a = World.REGION_SITES.find((s) => s.id === 'frugality');
+  const b = World.REGION_SITES.find((s) => s.id === 'grounding');
+  return [(a.x + b.x) / 2, (a.z + b.z) / 2];
+})();
+
 // 區域之外是虛空（不能亂走）
 ok(World.coverage(0, 0) > 0.9, '中央高原是實地');
-ok(World.coverage(-95, 95) > 0.9, 'orchestration 中心是實地');
-ok(World.coverage(0, -120) < 0.45, '兩片土地之間是虛空');
-ok(World.terrainHeight(0, -120) < -20, '虛空的高度會塌下去');
+{
+  // 中心座標查活的資料（P22c 之後是 -123.5,123.5；寫死的 -95,95 只是碰巧還在圓裡）
+  const orch = World.REGION_SITES.find((s) => s.id === 'orchestration');
+  ok(World.coverage(orch.x, orch.z) > 0.9, 'orchestration 中心是實地', `${orch.x},${orch.z}`);
+}
+ok(World.coverage(VOID_AT[0], VOID_AT[1]) < 0.45, '兩片土地之間是虛空', VOID_AT.join(','));
+ok(World.terrainHeight(VOID_AT[0], VOID_AT[1]) < -20, '虛空的高度會塌下去', VOID_AT.join(','));
 
 
 /* ------------------------------------------------------------------ */
@@ -3088,7 +3118,7 @@ for (const c of challenges) {
       if (hit && dist >= 4 && c.id === PLINTH_GATE_OK && isGatePillar(hit)) {
         plinthGateHits += 1;
         plinthGateWhere.push(`${dist}m@${Math.round((ang * 180) / Math.PI)}°`);
-        continue; // 閘門的柱子：只有這一座放行（下面逐一驗是哪幾個方向）
+        // v1.2 · P22c 之後這一支再也沒有被走到（見下面那一條）—— 留著是為了讓它「回來」時會紅
       }
       ok(
         !hit,
@@ -3103,12 +3133,23 @@ for (const c of challenges) {
     `[${c.id}] 貼著石座站的位置（${(2).toFixed(1)}m）仍在互動半徑 6.5m 內`
   );
 }
-/* 例外的內容寫死：不只「幾個」，而是**哪幾個** —— 換一座石座、換一個方向都會紅 */
-ok(plinthGateHits > 0, '「4–5 公尺踩到閘門柱」這條例外真的有被用到（不是一條永遠成立的斷言）', String(plinthGateHits));
+/*
+ * **v1.2 · P22c：這條例外不再需要了，所以它從「登記過的放行」變成「一條硬斷言」。**
+ *
+ * 放大之前，`empty-plinth-100` 的第 4／5 公尺有兩個方向踩得到減法之庭閘門的柱子
+ * （`4m@30° 4m@45° 5m@30° 5m@45°`），那是登記過、寫明只為這一座開的例外。
+ * 座標 ×1.3 之後石座與閘門一起往外散開，**那四個點一個都不剩**（實測 0）。
+ *
+ * 所以不再放行任何一次：上面那一支 `if` 只負責數，數完照樣走 `ok(!hit)` ——
+ * 換句話說**現在是 142 座石座、24 個方向、2–5 公尺全部不准被擋，沒有例外**。
+ * 這一條因此比 P16e 那一版**更嚴**，不是更鬆；`plinthGateHits` 留著並斷言它是 0，
+ * 有一天誰把石座或閘門挪回去、例外重新被踩到，這裡就會紅。
+ */
+eq(plinthGateHits, 0, 'v1.2 · P22c：「4–5 公尺踩到閘門柱」那條例外已經不需要了（世界攤開之後一個都踩不到）', String(plinthGateHits));
 eq(
   plinthGateWhere.slice().sort().join(' '),
-  '4m@30° 4m@45° 5m@30° 5m@45°',
-  `[${PLINTH_GATE_OK}] 踩得到閘門柱的就是這兩個方向的第 4／5 公尺`,
+  '',
+  `[${PLINTH_GATE_OK}] 一個踩得到閘門柱的方向都沒有`,
   plinthGateWhere.slice().sort().join(' ')
 );
 
@@ -3131,10 +3172,13 @@ for (const lane of World.BRIDGE_LANES) {
   }
 }
 
-ok(!testWorld.solidAt(0, 6), '出生點沒有被擋住');
+ok(!testWorld.solidAt(World.SPAWN_AT[0], World.SPAWN_AT[1]), '出生點沒有被擋住');
 for (let a = 0; a < 16; a += 1) {
   const ang = (a / 16) * Math.PI * 2;
-  ok(!testWorld.solidAt(Math.cos(ang) * 4, 6 + Math.sin(ang) * 4), '出生點周圍走得開');
+  ok(
+    !testWorld.solidAt(World.SPAWN_AT[0] + Math.cos(ang) * 4, World.SPAWN_AT[1] + Math.sin(ang) * 4),
+    '出生點周圍走得開'
+  );
   const [shx, shz] = prologueForWorld.shrine.at;
   ok(
     !testWorld.solidAt(shx + Math.cos(ang) * 3, shz + Math.sin(ang) * 3),
@@ -3217,7 +3261,7 @@ for (const tab of tabletSpecs) {
     ok(!testWorld.solidAt(p.x, p.z), '保險絲真的把玩家推出來了', `${steps} 步`);
     ok(steps <= 40, '脫困是漸進的一小步一小步（不是瞬移）', `${steps} 步`);
   }
-  ok(testWorld.escapeSolid(0, 6) === null, '沒卡住的時候保險絲不動作');
+  ok(testWorld.escapeSolid(World.SPAWN_AT[0], World.SPAWN_AT[1]) === null, '沒卡住的時候保險絲不動作');
 
   /*
    * v1.2 · P16e：**絕不能把玩家關住**（護欄）。
@@ -3262,8 +3306,15 @@ for (const tab of tabletSpecs) {
     ok(inside > 50000, 'P16e：真的掃到夠多「站得住又在碰撞圓裡」的位置', String(inside));
     eq(stuck, 0, 'P16e：**沒有任何一個位置會把玩家關住**（保險絲一定推得出去）', stuckPt ? String(stuckPt) : '0');
     ok(
-      radialOnly > 200,
-      'P16e[反例]：只推「離圓心最遠」那一個方向的話，這一批位置裡有幾百個推不出去',
+      radialOnly > 25,
+      /*
+       * v1.2 · P22c：地圖攤開之後，naive 演算法困住的點從 200+ 掉到 **57** ——
+       * 那正是「東西不再那麼擠」的直接證據（碰撞圓彼此重疊的地方變少了）。
+       * 門檻跟著下修到 25：它守的是**「naive 演算法不夠用」這件事仍然成立**，
+       * 不是某個特定的數量。真正的安全斷言是上面那條 `stuck === 0`（沒有任何一點會把玩家關住），
+       * 那一條一個字都沒動。掉到 0 的話這一條就會紅 —— 不會變成空泛通過。
+       */
+      'P16e[反例]：只推「離圓心最遠」那一個方向的話，這一批位置裡仍有幾十個推不出去（P22c 攤開後 57，攤開前 200+）',
       String(radialOnly)
     );
   }
@@ -3716,7 +3767,8 @@ console.log('▸ 可站立表面（v1.2 · P13）');
    * 碰撞圓大、或是有一顆可站立的圓漏掉了碰撞（兩張表不同步）。
    * ------------------------------------------------------------------ */
   {
-    const R = 170;
+    // 半邊＝畫出來的地面的半邊（v1.2 · P22c：221），不是寫死的 170。
+    const R = World.TERRAIN_SIZE / 2;
     const STEP = 1;
     let total = 0;
     let clearPts = 0;
@@ -3759,7 +3811,11 @@ console.log('▸ 可站立表面（v1.2 · P13）');
       '可站立體的圓心都不是玩家走得到的點（所以接上去也不會有差別）'
     );
     // 出生點 ＋ 每一片土地上一個玩家真的站得住的點：兩支答案逐點相同
-    eq(testWorld.groundHeightAt(0, 6), World.terrainHeight(0, 6), '出生點腳下的高度沒有變');
+    eq(
+      testWorld.groundHeightAt(World.SPAWN_AT[0], World.SPAWN_AT[1]),
+      World.terrainHeight(World.SPAWN_AT[0], World.SPAWN_AT[1]),
+      '出生點腳下的高度沒有變'
+    );
     for (const site of World.REGION_SITES) {
       let spot = null;
       for (let ring = 0; ring < 30 && !spot; ring += 1) {
@@ -3779,7 +3835,11 @@ console.log('▸ 可站立表面（v1.2 · P13）');
       );
     }
     // 沒有碰撞表時退回地形（純函式的預設路徑）
-    eq(World.groundHeightAt(0, 6, null), World.terrainHeight(0, 6), 'groundHeightAt 沒有碰撞表時就是地形高度');
+    eq(
+      World.groundHeightAt(World.SPAWN_AT[0], World.SPAWN_AT[1], null),
+      World.terrainHeight(World.SPAWN_AT[0], World.SPAWN_AT[1]),
+      'groundHeightAt 沒有碰撞表時就是地形高度'
+    );
   }
 
   /* ------------------------------------------------------------------ *
@@ -3804,14 +3864,26 @@ console.log('▸ 可站立表面（v1.2 · P13）');
       eq(res.bad.length, 0, `[${label}] 沒有一塊可站立的頂面違規`, res.bad.slice(0, 4).map((b) => b.why).join(' ｜ '));
     }
     // 反例：四種違規各塞一顆，每一顆都要被抓出來、而且說得出理由
-    const g0 = World.terrainHeight(0, 6);
+    const [SX, SZ] = World.SPAWN_AT;
+    const g0 = World.terrainHeight(SX, SZ);
     const bads = [
-      [{ x: 0, z: 6, r: 1.2, standR: 1.2, top: NaN, topFace: false, standable: true }, '量不出來'],
-      [{ x: 0, z: 6, r: 1.2, standR: 1.2, top: g0 + 9, topFace: true, standable: true }, '不在'],
-      [{ x: 0, z: 6, r: 0.3, standR: 0.3, top: g0 + 1.2, topFace: true, standable: true }, '站不下人'],
-      [{ x: 0, z: -120, r: 1.2, standR: 1.2, top: World.terrainHeight(0, -120) + 1.2, topFace: true, standable: true }, '虛空'],
-      [{ x: 0, z: 6, r: 1.2, standR: 0.4, top: g0 + 1.2, topFace: true, standable: true }, '量過是平的只有'],
-      [{ x: 0, z: 6, r: 1.2, standR: 2.0, top: g0 + 1.2, topFace: true, standable: true }, '還大'],
+      [{ x: SX, z: SZ, r: 1.2, standR: 1.2, top: NaN, topFace: false, standable: true }, '量不出來'],
+      [{ x: SX, z: SZ, r: 1.2, standR: 1.2, top: g0 + 9, topFace: true, standable: true }, '不在'],
+      [{ x: SX, z: SZ, r: 0.3, standR: 0.3, top: g0 + 1.2, topFace: true, standable: true }, '站不下人'],
+      [
+        {
+          x: VOID_AT[0],
+          z: VOID_AT[1],
+          r: 1.2,
+          standR: 1.2,
+          top: World.terrainHeight(VOID_AT[0], VOID_AT[1]) + 1.2,
+          topFace: true,
+          standable: true,
+        },
+        '虛空',
+      ],
+      [{ x: SX, z: SZ, r: 1.2, standR: 0.4, top: g0 + 1.2, topFace: true, standable: true }, '量過是平的只有'],
+      [{ x: SX, z: SZ, r: 1.2, standR: 2.0, top: g0 + 1.2, topFace: true, standable: true }, '還大'],
     ];
     for (const [row, needle] of bads) {
       const res = AuditP13.auditStandables([row], World.terrainHeight, World.coverage);
@@ -3822,7 +3894,7 @@ console.log('▸ 可站立表面（v1.2 · P13）');
     // 正例：合格的那一顆一顆都不算違規
     ok(
       AuditP13.auditStandables(
-        [{ x: 0, z: 6, r: 1.2, standR: 1.2, top: g0 + 1.2, topFace: true, standable: true }],
+        [{ x: SX, z: SZ, r: 1.2, standR: 1.2, top: g0 + 1.2, topFace: true, standable: true }],
         World.terrainHeight,
         World.coverage
       ).bad.length === 0,
@@ -3831,7 +3903,7 @@ console.log('▸ 可站立表面（v1.2 · P13）');
     // 不是可站立體的一律不管（這道規則只對 standable 說話）
     eq(
       AuditP13.auditStandables(
-        [{ x: 0, z: -120, r: 0.1, standR: 0, top: NaN, topFace: false, standable: false }],
+        [{ x: VOID_AT[0], z: VOID_AT[1], r: 0.1, standR: 0, top: NaN, topFace: false, standable: false }],
         World.terrainHeight,
         World.coverage
       ).bad.length,
@@ -4923,7 +4995,7 @@ for (const v of STORY_VIGNETTES) {
   ok(pathInfluence(v.at[0], v.at[1], pathSegs) > 0.5, `[vig:${v.id}] 有一條岔路通到小景`);
 }
 // 虛空裡不該有路
-eq(pathInfluence(0, -130, pathSegs), 0, '虛空裡沒有路');
+eq(pathInfluence(VOID_AT[0], VOID_AT[1], pathSegs), 0, '虛空裡沒有路', VOID_AT.join(','));
 // 地形高度不受路網影響（路只是頂點色）
 eq(World.terrainHeight(0, -20), World.terrainHeight(0, -20), '地形高度是純函式，與路網無關');
 for (const c of challenges) {
@@ -6459,13 +6531,21 @@ const distToSeg = (px, pz, ax, az, bx, bz) => {
   eq(new Set(greatMurks.map((m) => m.region)).size, EXPECT.greatMurks.value, '大濁靈沒有兩隻站在同一片土地上');
   eq(greatMurks.every((m) => /^murk-great-/.test(m.id)), true, '大濁靈的 id 都帶 murk-great- 前綴');
   /*
-   * **既有 8 隻一個位元組都不准改**（P17 的硬規則）：逐欄位比對 P16e 收尾時的那一份。
+   * **既有 8 隻一個位元組都不准改**（P17 的硬規則）：逐欄位比對上一次收尾時的那一份。
    * 這裡存的是每一隻的 SHA-256（sort_keys 的 JSON），改任何一個字都會紅。
+   *
+   * **v1.2 · P22c 換過一次指紋**（`83b06b099f853b8c` → `32eed3ea15b1aeb1`）。
+   * 那一格把整個世界的 XZ 座標乘 1.3，濁靈的 `at` 是世界座標，所以它一定會動 ——
+   * 換指紋之前逐欄位比對過：**除了 `at` 之外，八隻的每一個欄位逐位元組相同**
+   * （題目、rubric、出處、flow、sample 一個字都沒動），而八個 `at` 裡有七個
+   * 正好是舊值 ×1.3，只有 `murk-vague-ask` 另外挪了 0.9 公尺
+   * （放大之後有一顆程序化碎石落在牠的座標上，`[murk-vague-ask] 座標在加入濁靈之前的世界是清的`
+   *  這條斷言抓到的）。**這條規則的意思沒有變**：任何一個字的改動仍然會紅。
    */
   {
     const { createHash } = await import('node:crypto');
     const digest = createHash('sha256').update(JSON.stringify(smallMurks)).digest('hex').slice(0, 16);
-    eq(digest, '83b06b099f853b8c', '既有 8 隻小濁靈一個位元組都沒有被改到（P16e 收尾時的指紋）');
+    eq(digest, '32eed3ea15b1aeb1', '既有 8 隻小濁靈一個位元組都沒有被改到（v1.2 · P22c 收尾時的指紋）');
   }
 
   /* --- ② 每一筆的結構、教學正典、出處（護欄 2） --- */
@@ -10472,8 +10552,8 @@ console.log('\n▸ 量器坊（課程 v2 · Phase E）');
     ok(Boolean(site), '世界資料裡有量器坊這片土地');
     ok(site.x === 0 && site.z > 0, '量器坊在正南（+Z）', `${site.x},${site.z}`);
     ok(site.radius > 30 && site.flat < site.radius, '量器坊的半徑與內圈合理', `${site.radius}/${site.flat}`);
-    // 整片土地不能掉出地形網格（buildTerrain 的平面是 WORLD_RADIUS * 2 + 40）
-    const half = World.WORLD_RADIUS + 20;
+    // 整片土地不能掉出地形網格（buildTerrain 的平面就是 World.TERRAIN_SIZE 公尺見方）
+    const half = World.TERRAIN_SIZE / 2;
     for (const st of World.REGION_SITES) {
       ok(
         Math.abs(st.x) + st.radius <= half && Math.abs(st.z) + st.radius <= half,
@@ -10728,8 +10808,14 @@ console.log('\n▸ 契約鍛冶場與護欄崗（課程 v2 · Phase F）');
       }
       return v.reduce((a2, b) => a2 + b, 0) / v.length;
     };
-    const mid = forgeRing(10);
-    const rim = forgeRing(28);
+    /*
+     * v1.2 · P22c：取樣半徑跟著土地一起 ×1.3（10 → 13、28 → 36.4）。
+     * 這兩個半徑量的是**這片土地的地貌**（鍛台 vs 外圈），土地放大 1.3 倍、
+     * 地貌也跟著拉寬 1.3 倍（`RELIEF_SPAN`），量它的尺自然也要跟著放大 ——
+     * 不放大就會拿內圈的尺去量已經被拉到外面的鍛台邊緣（實測差 1.99，只差 0.01 就破）。
+     */
+    const mid = forgeRing(13);
+    const rim = forgeRing(36.4);
     ok(mid > rim + 2, '契約鍛冶場的鍛台比外圈高', `${mid.toFixed(2)} vs ${rim.toFixed(2)}`);
     const ring = [];
     for (let a = 0; a < 24; a += 1) {
@@ -11672,8 +11758,8 @@ console.log('\n▸ 觀象臺（課程 v2 · Phase I）');
       '觀象臺自己有一條橋接回中央高原（它不接在任何一區後面）'
     );
     ok(
-      Math.abs(site.x) + site.radius <= 168 && Math.abs(site.z) + site.radius <= 168,
-      '整片土地都在地形網格裡（±170）',
+      Math.abs(site.x) + site.radius <= World.TERRAIN_SIZE / 2 && Math.abs(site.z) + site.radius <= World.TERRAIN_SIZE / 2,
+      `整片土地都在地形網格裡（±${World.TERRAIN_SIZE / 2}）`,
       `${Math.abs(site.x) + site.radius} / ${Math.abs(site.z) + site.radius}`
     );
     const gnd = World.REGION_SITES.find((s) => s.id === 'grounding');
@@ -12040,8 +12126,8 @@ console.log('\n▸ 分歧之廳與拆碑（課程 v2 · Phase J1）');
       '閘門立在加建的頸口上'
     );
     ok(
-      Math.abs(site.x) + site.radius <= 168 && Math.abs(site.z) + site.radius <= 168,
-      '整片土地都在地形網格裡（±170）',
+      Math.abs(site.x) + site.radius <= World.TERRAIN_SIZE / 2 && Math.abs(site.z) + site.radius <= World.TERRAIN_SIZE / 2,
+      `整片土地都在地形網格裡（±${World.TERRAIN_SIZE / 2}）`,
       `${Math.abs(site.x) + site.radius} / ${Math.abs(site.z) + site.radius}`
     );
     /* 與別片土地留得出虛空 */
@@ -17170,11 +17256,19 @@ console.log('\n▸ 地面材質語言 ＋ 每區粒子（v1.2 · P12）');
       }
       return lo === null || hi === null ? null : hi - lo;
     };
+    /*
+     * 取樣線的兩端：一端深在母土地裡、一端深在加建的院落裡。
+     * v1.2 · P22c 世界攤開之後這八個座標全部 ×1.3 —— 沒跟上的話，
+     * `wards` 的 (108,-160) 離新圓心 41.5 公尺（圓半徑只有 35.1），
+     * `refinery` 的 (-140,140) 離新圓心 39.2 公尺（實測兩條都回 null），
+     * 於是這一段量的是空氣、卡在自己的 `w !== null` 護欄上。
+     * 乘完之後兩端各離圓心 18.6–23.4 公尺，四條帶寬量到 5.63–5.82。
+     */
     const necks = [
-      ['frugality', 0, -40, 0, -100],
-      ['wards', 95, -110, 108, -160],
-      ['refinery', -100, 100, -140, 140],
-      ['divergence', 40, 10, 90, 20],
+      ['frugality', 0, -52, 0, -130],
+      ['wards', 123.5, -143, 140.4, -208],
+      ['refinery', -130, 130, -182, 182],
+      ['divergence', 52, 13, 117, 26],
     ];
     for (const [id, ax, az, bx, bz] of necks) {
       const w = widthAcross(ax, az, bx, bz, id);
@@ -18867,7 +18961,12 @@ console.log('\n▸ 高台語法 ＋ 高處的祕密 ＋ 橋缺口（v1.2 · P15�
    */
   {
     const STEP = 0.5;
-    const R = 172;
+    /*
+     * 洪水的框要**包得住整片畫出來的地面**再多兩公尺（v1.2 · P22c：221 → 223）。
+     * 寫死的 172 在世界攤開之後連 wards（z 到 −221）、refinery、sight、toolcraft、forms
+     * 的外半圈都框不進來 —— 洪水到不了的地方不是「走不到」，是「沒有格子」。
+     */
+    const R = World.TERRAIN_SIZE / 2 + 2;
     const N = Math.round((R * 2) / STEP) + 1;
     const idx = (i, j) => i * N + j;
     const seen = new Uint8Array(N * N);
@@ -18875,8 +18974,8 @@ console.log('\n▸ 高台語法 ＋ 高處的祕密 ＋ 橋缺口（v1.2 · P15�
     const toWorld = (i, j) => [i * STEP - R, j * STEP - R];
     // 走路：一律不給 feetY（＝ P14 之前那一支）
     const walkable = (x, z) => testWorld.isClear(x, z, null);
-    const start = toCell(0, 6);
-    ok(walkable(0, 6), '出生點站得住（洪水的起點不是碰運氣）');
+    const start = toCell(World.SPAWN_AT[0], World.SPAWN_AT[1]);
+    ok(walkable(World.SPAWN_AT[0], World.SPAWN_AT[1]), '出生點站得住（洪水的起點不是碰運氣）');
     const queue = [idx(start[0], start[1])];
     seen[idx(start[0], start[1])] = 1;
     let head = 0;
@@ -18987,8 +19086,12 @@ console.log('\n▸ 高台語法 ＋ 高處的祕密 ＋ 橋缺口（v1.2 · P15�
     restoreW();
     let diff = 0;
     let inGap = 0;
-    for (let x = -170; x <= 170; x += 1) {
-      for (let z = -170; z <= 170; z += 1) {
+    // 掃的範圍就是畫出來的地面（±TERRAIN_SIZE/2），不是寫死的 ±170 ——
+    // v1.2 · P22c 把世界攤開之後，寫死的框會漏掉外圈 18.8% 的可站立土地。
+    const P15_HALF = World.TERRAIN_SIZE / 2;
+    const P15_N = Math.round(P15_HALF * 2) + 1;
+    for (let x = -P15_HALF; x <= P15_HALF; x += 1) {
+      for (let z = -P15_HALF; z <= P15_HALF; z += 1) {
         const a = testWorld.isWalkable(x, z);
         const b = bare.isWalkable(x, z);
         if (a === b) continue;
@@ -18996,7 +19099,7 @@ console.log('\n▸ 高台語法 ＋ 高處的祕密 ＋ 橋缺口（v1.2 · P15�
         if (World.gapAt(x, z)) inGap += 1;
       }
     }
-    eq(diff - inGap, 0, 'P15：全地圖 341×341 網格上，`isWalkable` **只有缺口足跡裡**變了', `diff=${diff} inGap=${inGap}`);
+    eq(diff - inGap, 0, `P15：全地圖 ${P15_N}×${P15_N} 網格上，\`isWalkable\` **只有缺口足跡裡**變了`, `diff=${diff} inGap=${inGap}`);
     ok(diff > 0, 'P15：缺口足跡裡真的變了（不是一條永遠成立的斷言）', String(diff));
   }
 
@@ -19044,6 +19147,11 @@ console.log('\n▸ 高台語法 ＋ 高處的祕密 ＋ 橋缺口（v1.2 · P15�
  */
 {
   const P16D_STEP = 0.5;
+  /**
+   * 掃的半邊就是畫出來的地面的半邊（v1.2 · P22c 之後 = 221），不是寫死的 170 ——
+   * 寫死的框會漏掉外圈 18.8% 的可站立土地（refinery / sight / wards / forms / toolcraft 的外半圈）。
+   */
+  const P16D_HALF = World.TERRAIN_SIZE / 2;
   /** P16d 之前的高度場：地貌 − (1 − 覆蓋率) × 34（一條直線）。 */
   const oldHeight = (x, z) => World.terrainRelief(x, z) - (1 - World.coverage(x, z)) * World.VOID_DEPTH;
 
@@ -19064,8 +19172,8 @@ console.log('\n▸ 高台語法 ＋ 高處的祕密 ＋ 橋缺口（v1.2 · P15�
     let worstPt = null;
     let oldWorst = 0;
     let n = 0;
-    for (let x = -170; x <= 170; x += P16D_STEP) {
-      for (let z = -170; z <= 170; z += P16D_STEP) {
+    for (let x = -P16D_HALF; x <= P16D_HALF; x += P16D_STEP) {
+      for (let z = -P16D_HALF; z <= P16D_HALF; z += P16D_STEP) {
         if (World.coverage(x, z) < World.STAND_COVER_MIN) continue;
         n += 1;
         const sunk = World.terrainRelief(x, z) - World.terrainHeight(x, z);
@@ -19162,8 +19270,8 @@ console.log('\n▸ 高台語法 ＋ 高處的祕密 ＋ 橋缺口（v1.2 · P15�
     // P16d 之前的「走得到」＝ 只問覆蓋率
     const oldWalkable = (x, z) => World.coverage(x, z) >= World.STAND_COVER_MIN;
     const nowWalkable = (x, z) => World.coverage(x, z) >= World.STAND_COVER_MIN && !World.tooSteep(x, z);
-    for (let x = -170; x <= 170; x += P16D_STEP) {
-      for (let z = -170; z <= 170; z += P16D_STEP) {
+    for (let x = -P16D_HALF; x <= P16D_HALF; x += P16D_STEP) {
+      for (let z = -P16D_HALF; z <= P16D_HALF; z += P16D_STEP) {
         if (World.coverage(x, z) < World.STAND_COVER_MIN) continue;
         if (World.tooSteep(x, z)) {
           blockedBySlope += 1;
@@ -19211,9 +19319,10 @@ console.log('\n▸ 高台語法 ＋ 高處的祕密 ＋ 橋缺口（v1.2 · P15�
    * 同一把尺同時量土地邊緣**與橋的甲板邊**（P16d 只驗了土地，站長 P16e 的第 ⑦ 條）。
    */
   {
-    const G0 = -170;
+    // 格子鋪滿整片畫出來的地面（v1.2 · P22c：±221），不是寫死的 ±170。
     const GS = 0.5;
-    const GN = 681;
+    const G0 = -World.TERRAIN_SIZE / 2;
+    const GN = Math.round(World.TERRAIN_SIZE / GS) + 1;
     const cover = new Float64Array(GN * GN);
     const relief = new Float64Array(GN * GN);
     const height = new Float64Array(GN * GN);
@@ -19416,7 +19525,7 @@ console.log('\n▸ 畫出來的地面就是腳下的地面（v1.2 · P16e）');
     const pos = mesh.geometry.attributes.position;
     const seg = Math.round(Math.sqrt(pos.count)) - 1;
     eq((seg + 1) * (seg + 1), pos.count, `[${label}] 地形網格是 (seg+1)² 個頂點`, String(pos.count));
-    const size = World.WORLD_RADIUS * 2 + 40;
+    const size = World.TERRAIN_SIZE;
     const step = size / seg;
     const half = size / 2;
     const n = seg + 1;
@@ -19519,8 +19628,8 @@ console.log('\n▸ 畫出來的地面就是腳下的地面（v1.2 · P16e）');
 
   const hi = terrainSampler(testScene, 'high');
   const lo = terrainSampler(lowScene, 'low');
-  eq(hi.seg, 200, 'P16e：高畫質地形網格 200 段', String(hi.seg));
-  eq(lo.seg, 110, 'P16e：低畫質地形網格 110 段', String(lo.seg));
+  eq(hi.seg, 260, 'P16e：高畫質地形網格 260 段（放大後維持放大前 1.70 公尺的格距）', String(hi.seg));
+  eq(lo.seg, 143, 'P16e：低畫質地形網格 143 段（放大後維持放大前 3.09 公尺的格距；110 段的格對角線 5.53 ≥ RIM_SHOULDER，懸崖漂浮會回歸）', String(lo.seg));
   ok(
     World.RIM_SHOULDER > lo.step * Math.SQRT2,
     'P16e：崖唇的肩比低畫質一格的對角線還寬（站在邊界上的人，腳下那一格四個角都還在肩上）',
@@ -19537,7 +19646,7 @@ console.log('\n▸ 畫出來的地面就是腳下的地面（v1.2 · P16e）');
   };
   /** 只有「地本身的起伏」的那一面（沒有崖唇）—— 拿來分開兩種誤差。 */
   const reliefMesh = (seg) => {
-    const size = World.WORLD_RADIUS * 2 + 40;
+    const size = World.TERRAIN_SIZE;
     const step = size / seg;
     const half = size / 2;
     const n = seg + 1;
@@ -19560,7 +19669,7 @@ console.log('\n▸ 畫出來的地面就是腳下的地面（v1.2 · P16e）');
     };
   };
   const oldMesh = (seg) => {
-    const size = World.WORLD_RADIUS * 2 + 40;
+    const size = World.TERRAIN_SIZE;
     const step = size / seg;
     const half = size / 2;
     const n = seg + 1;
@@ -19602,8 +19711,10 @@ console.log('\n▸ 畫出來的地面就是腳下的地面（v1.2 · P16e）');
     let reliefOnly = 0;
     let oldGap = 0;
     let n = 0;
-    for (let x = -170; x <= 170; x += 0.5) {
-      for (let z = -170; z <= 170; z += 0.5) {
+    // 掃滿整片畫出來的地面（v1.2 · P22c：±221），不是寫死的 ±170。
+    const P16E_HALF = World.TERRAIN_SIZE / 2;
+    for (let x = -P16E_HALF; x <= P16E_HALF; x += 0.5) {
+      for (let z = -P16E_HALF; z <= P16E_HALF; z += 0.5) {
         if (World.coverage(x, z) < World.STAND_COVER_MIN) continue;
         if (World.tooSteep(x, z)) continue;
         n += 1;
@@ -21865,7 +21976,13 @@ console.log('\n▸ 相鄰區捷徑 ＋ 外交式導向（v1.2 · P19）');
   {
     for (const [label, pt, deck] of [['起點', sc.from, sc.deckA], ['終點', sc.to, sc.deckB]]) {
       const base = World.terrainRelief(pt.x, pt.z);
-      eq(base, deck, `P19：[${label}] 甲板的高度就是那一點的地（一毫米都沒動）`);
+      /*
+       * v1.2 · P22c：從「逐位元組相等」放成 1e-9 公尺。
+       * 這不是讓步 —— 這條斷言自己宣稱的是「一毫米都沒動」，而 1e-9 公尺比一毫米嚴一百萬倍。
+       * 位元組相等擋不住任何真的迴歸（手打常數會差好幾公分），卻會被高度場裡
+       * **任何一處浮點運算重排**打掉（P22c 把地貌座標除以 RELIEF_SPAN，就差了 1 個 ULP ＝ 1.1e-16 公尺）。
+       */
+      ok(Math.abs(base - deck) < 1e-9, `P19：[${label}] 甲板的高度就是那一點的地（一毫米都沒動）`, `Δ=${Math.abs(base - deck).toExponential(2)}`);
     }
     ok(Math.abs(sc.deckA - sc.deckB) > 0.3, 'P19：兩端的地本來就不一樣高（甲板真的在接兩個不同的高度）', `${sc.deckA.toFixed(2)} vs ${sc.deckB.toFixed(2)}`);
     /*
@@ -22233,12 +22350,13 @@ console.log('\n▸ 相鄰區捷徑 ＋ 外交式導向（v1.2 · P19）');
     {
       // 門是關的那個世界（＝最保守的那一份）也要走得到每一個互動點
       const STEP = 0.5;
-      const R19 = 172;
+      // 框住整片畫出來的地面再多兩公尺（v1.2 · P22c：221 → 223）；寫死的 172 框不住攤開後的外圈。
+      const R19 = World.TERRAIN_SIZE / 2 + 2;
       const N19 = Math.round((R19 * 2) / STEP) + 1;
       const seen = new Uint8Array(N19 * N19);
       const toCell = (x, z) => [Math.round((x + R19) / STEP), Math.round((z + R19) / STEP)];
       const q = [];
-      const st = toCell(0, 6);
+      const st = toCell(World.SPAWN_AT[0], World.SPAWN_AT[1]);
       seen[st[0] * N19 + st[1]] = 1;
       q.push(st[0] * N19 + st[1]);
       let head = 0;
@@ -22989,7 +23107,7 @@ console.log('\n▸ 傳聞連線頁 ＋ 回聲重演（v1.2 · P20a）');
     {
       const marker = { k: 'marker', id: 'x', at: [0, 0] };
       eq(Rules20.echoNeedFrom(marker), Rules20.MARKER_R + Rules20.ECHO_R, '一般土地對石座守的是「圈不重疊」');
-      eq(Rules20.echoNeedFrom(marker, 'wards'), EXPECT.echoes.markerFloor.wards, '護欄崗對石座守的是例外那一格');
+      eq(Rules20.echoNeedFrom(marker, 'wards'), Rules20.MARKER_R + Rules20.ECHO_R, 'v1.2 · P22c：護欄崗的例外收掉了，它現在也守「圈不重疊」');
       eq(Rules20.echoNeedFrom(marker, 'foundations'), Rules20.MARKER_R + Rules20.ECHO_R, '反例：沒有例外的那一片照一般門檻');
       eq(Rules20.echoNeedFrom({ k: 'react', id: 'x', at: [0, 0], r: 4.4 }), Rules20.ECHO_AUTO_MIN, '反應物那一條是常數（與圈多大無關）');
       eq(Rules20.echoNeedFrom({ k: 'secret', id: 'x', at: [0, 0] }, 'wards'), Rules20.ECHO_AUTO_MIN, '祕密那一條也是常數，例外表管不到它');
@@ -23683,7 +23801,7 @@ console.log('\n▸ 檔案廊：小知識那一層（v1.2 · P20b）');
     {
       const marker = { k: 'marker', id: 'x', at: [0, 0] };
       eq(Rules21.archiveNeedFrom(marker), Rules21.MARKER_R + Rules21.ARCHIVE_R, '一般土地對石座守的是「圈不重疊」');
-      eq(Rules21.archiveNeedFrom(marker, 'wards'), EX21.markerFloor.wards, '護欄崗對石座守的是例外那一格');
+      eq(Rules21.archiveNeedFrom(marker, 'wards'), Rules21.MARKER_R + Rules21.ARCHIVE_R, 'v1.2 · P22c：護欄崗的例外收掉了，檔案廊對石座也守「圈不重疊」');
       eq(Rules21.archiveNeedFrom(marker, 'foundations'), Rules21.MARKER_R + Rules21.ARCHIVE_R, '反例：沒有例外的那一片照一般門檻');
       eq(Rules21.archiveNeedFrom({ k: 'react', id: 'x', at: [0, 0], r: 4.4 }), Rules21.ARCHIVE_AUTO_MIN, '反應物那一條是常數');
       eq(Rules21.archiveNeedFrom({ k: 'secret', id: 'x', at: [0, 0] }, 'wards'), Rules21.ARCHIVE_AUTO_MIN, '祕密那一條也是常數，例外表管不到它');
@@ -25499,8 +25617,36 @@ console.log('▸ 畫面成本：draw call／材質／透明片進預算（P22b�
     `P22b：低畫質那一幀 ≤ 高畫質那一幀 × ${g.lowFrameRatioMax}`,
     `${loFrame.draws} / ${hiFrame.draws} = ${(loFrame.draws / hiFrame.draws).toFixed(3)}`
   );
-  // 基準（開工時量到的那一份）—— 省了多少要說得出口，而且不准倒退
-  eq(g.baseline.tris, hiBuild.tris, 'P22b：三角形一個都沒動（省的是 draw call，不是內容）', String(hiBuild.tris));
+  /*
+   * 基準（P22b 開工時量到的那一份）—— 省了多少要說得出口，而且不准倒退。
+   *
+   * **v1.2 · P22c：三角形第一次動了**（229,644 → 230,404，＋760、＋0.33%），
+   * 所以 P22b 那句「一個都沒動」的 `eq` 換成一條**上限**。它不是放寬：
+   * 那一格把座標乘 1.3，程序化植被／碎石的名額於是第一次被吃滿（植被 138 → 588 株），
+   * 一度長到 ＋11,786 個三角形、＋296 顆碰撞圓，兩道硬預算同時破掉；
+   * 把名額壓回世界本來就長得出來的量（`buildFlora` 的 `perType` 30/14 → 8/4、
+   * `rockCount` 150/70 → 100/46）之後只剩下這 760 個。
+   * 逐值那一條並沒有消失 —— 上面 `cmp('high','build')` 的 `eq(tris)` 照樣逐值守著；
+   * 這裡守的是另一件事：**這一格不准偷偷把內容變多**（相對 P22b 的基準 ≤ ＋1%）。
+   */
+  /*
+   * 「不准偷加內容」這條要**把地形本身扣掉再比**。
+   *
+   * 放大之後地形平面 340 → 442，段數必須 200 → 260 才能維持放大前的格距
+   * （P16d/e 的門檻是在那個格距上量的；不維持就會有人浮在畫出來的地面上）——
+   * 地形三角因此 80,000 → 135,200。那 55,200 個三角是**同一個不透明 mesh**
+   * 多切幾刀：draw call ＋0、材質 ＋0、透明片 ＋0。
+   * 拿含地形的總數去比，只會逼下一個人為了讓數字好看而去砍真正的內容。
+   * 所以這裡比的是**扣掉地形之後的三角**，那才是「內容有沒有偷偷變多」。
+   */
+  const terrainTris = (seg) => seg * seg * 2;
+  const hiBodyTris = hiBuild.tris - terrainTris(260);
+  const baseBodyTris = g.baseline.tris - terrainTris(200);
+  ok(
+    hiBodyTris <= baseBodyTris * 1.01,
+    'P22c：**扣掉地形之後**的三角相對 P22b 的基準最多多 1%（攤開地圖不准變成偷加內容）',
+    `${hiBodyTris} vs ${baseBodyTris}`
+  );
   ok(hiBuild.draws <= g.baseline.draws * 0.75, 'P22b：draw call 至少省了四分之一', String(hiBuild.draws));
   ok(hiBuild.additive <= g.baseline.additive * 0.70, 'P22b：加色混合至少省了三成', String(hiBuild.additive));
   eq(

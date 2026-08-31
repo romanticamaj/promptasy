@@ -109,8 +109,8 @@
       "id": "watch-broken-ring",
       "region": "foundations",
       "at": [
-        -38,
-        25
+        -49.4,
+        32.5
       ],
       "rot": -0.88,
       "name": "補環的舟",
@@ -131,8 +131,8 @@
       "id": "watch-endless-stair",
       "region": "reasoning",
       "at": [
-        -100.5,
-        -87
+        -130.65,
+        -113.1
       ],
       "rot": 1.49,
       "name": "數階的岑",
@@ -153,8 +153,8 @@
       "id": "watch-sunken-shelf",
       "region": "grounding",
       "at": [
-        84.5,
-        -89
+        109.85,
+        -115.7
       ],
       "rot": 0.79,
       "name": "翻頁的苓",
@@ -175,8 +175,8 @@
       "id": "watch-crane-yard",
       "region": "orchestration",
       "at": [
-        -79,
-        118
+        -102.7,
+        153.4
       ],
       "rot": 3.03,
       "name": "排工的甲",
@@ -197,8 +197,8 @@
       "id": "watch-mask-arch",
       "region": "config",
       "at": [
-        97.5,
-        119.5
+        126.75,
+        155.35
       ],
       "rot": -3.1,
       "name": "換面的綺",
@@ -219,8 +219,8 @@
       "id": "watch-gauge-pillar",
       "region": "forms",
       "at": [
-        -9.5,
-        121.5
+        -9.35,
+        157.2
       ],
       "rot": 1.96,
       "name": "量尺的寸",
@@ -241,8 +241,8 @@
       "id": "watch-nameless-tool",
       "region": "toolcraft",
       "at": [
-        -115,
-        5.5
+        -149.5,
+        7.15
       ],
       "rot": 2.09,
       "name": "命名的冶",
@@ -263,8 +263,8 @@
       "id": "watch-unclosing-door",
       "region": "wards",
       "at": [
-        100.5,
-        -160.5
+        130.65,
+        -208.65
       ],
       "rot": 1.21,
       "name": "守門的亙",
@@ -285,8 +285,8 @@
       "id": "watch-twice-lit",
       "region": "refinery",
       "at": [
-        -118,
-        136
+        -153.4,
+        176.8
       ],
       "rot": -0.46,
       "name": "照鏡的澄",
@@ -307,8 +307,8 @@
       "id": "watch-empty-plinth",
       "region": "frugality",
       "at": [
-        10.5,
-        -96
+        13.65,
+        -124.8
       ],
       "rot": 2.57,
       "name": "拿走的簡",
@@ -329,8 +329,8 @@
       "id": "watch-two-faced",
       "region": "divergence",
       "at": [
-        92.5,
-        7
+        120.25,
+        9.1
       ],
       "rot": -2.03,
       "name": "並讀的岐",
@@ -351,8 +351,8 @@
       "id": "watch-sky-mirror",
       "region": "sight",
       "at": [
-        148,
-        -19.5
+        192.4,
+        -25.35
       ],
       "rot": -0.11,
       "name": "仰望的昴",

@@ -3,18 +3,18 @@
   "authored": "game",
   "note": "檔案廊的小知識（v1.2 · P20b）：遊戲自撰的白話「為什麼」——講的是背後的機制，不是術語的定義（那是 glossary.json）、不是做法（那是 skill-codex-v2.json 的 130 條技能）、也不是守夜人引用過的那一句。每一則 ≤60 字、必附出處，而且**出處只准用 repo 裡已經驗證過的那 365 個網址**（curriculum.json／skill-codex-v2.json／source-anchors.json／glossary.json 裡出現過的）；`source.name` 與那個網址在既有資料裡登記的文件名逐字相同。寫不出來就少寫一則，不掛沾邊的連結（護欄 2）。",
   "halls": [
-    { "id": "hall-foundations", "region": "foundations", "at": [-35, 3], "rot": 3.142 },
-    { "id": "hall-reasoning", "region": "reasoning", "at": [-92, -87], "rot": -1.654 },
-    { "id": "hall-grounding", "region": "grounding", "at": [114, -80], "rot": 0.413 },
-    { "id": "hall-orchestration", "region": "orchestration", "at": [-103, 108], "rot": -2.356 },
-    { "id": "hall-config", "region": "config", "at": [94, 86], "rot": -1.122 },
-    { "id": "hall-forms", "region": "forms", "at": [-2.5, 133.5], "rot": 2.884 },
-    { "id": "hall-toolcraft", "region": "toolcraft", "at": [-112, -2], "rot": -0.669 },
-    { "id": "hall-frugality", "region": "frugality", "at": [12, -74], "rot": 0.984 },
-    { "id": "hall-refinery", "region": "refinery", "at": [-108, 134.5], "rot": 2.232 },
-    { "id": "hall-wards", "region": "wards", "at": [113.5, -154], "rot": -1.434 },
-    { "id": "hall-sight", "region": "sight", "at": [156, -24.5], "rot": -0.851 },
-    { "id": "hall-divergence", "region": "divergence", "at": [75.5, 14], "rot": 0.165 }
+    { "id": "hall-foundations", "region": "foundations", "at": [-45.5, 3.9], "rot": 3.142 },
+    { "id": "hall-reasoning", "region": "reasoning", "at": [-119.6, -113.1], "rot": -1.654 },
+    { "id": "hall-grounding", "region": "grounding", "at": [148.2, -104], "rot": 0.413 },
+    { "id": "hall-orchestration", "region": "orchestration", "at": [-133.9, 140.4], "rot": -2.356 },
+    { "id": "hall-config", "region": "config", "at": [149.8, 103.8], "rot": -1.122 },
+    { "id": "hall-forms", "region": "forms", "at": [-3.25, 173.55], "rot": 2.884 },
+    { "id": "hall-toolcraft", "region": "toolcraft", "at": [-145.6, -2.6], "rot": -0.669 },
+    { "id": "hall-frugality", "region": "frugality", "at": [15.6, -96.2], "rot": 0.984 },
+    { "id": "hall-refinery", "region": "refinery", "at": [-140.4, 174.85], "rot": 2.232 },
+    { "id": "hall-wards", "region": "wards", "at": [147.55, -200.2], "rot": -1.434 },
+    { "id": "hall-sight", "region": "sight", "at": [202.8, -31.85], "rot": -0.851 },
+    { "id": "hall-divergence", "region": "divergence", "at": [98.15, 18.2], "rot": 0.165 }
   ],
   "notes": [
     {

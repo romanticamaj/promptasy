@@ -191,7 +191,8 @@ function problemsAt(x, z, regionId, targets, screens, pathSegs) {
   }
   if (laneDistance(World, x, z) < World.LANE_HALF + LANE_MARGIN) problems.push('離橋的主動線太近');
   if (gateDistance(World, x, z) < GATE_MIN) problems.push('離閘門太近');
-  if (Math.hypot(x, z - 6) < GREAT_MURK_SPAWN_MIN) problems.push('離出生點太近');
+  // 出生點查 World.SPAWN_AT（v1.2 · P22c：[0, 7.8]；寫死的 6 是舊的出生點 z）
+  if (Math.hypot(x - World.SPAWN_AT[0], z - World.SPAWN_AT[1]) < GREAT_MURK_SPAWN_MIN) problems.push('離出生點太近');
   if (Math.hypot(x - prologue.shrine.at[0], z - prologue.shrine.at[1]) < GREAT_MURK_SHRINE_MIN) problems.push('離起始祭壇太近');
   const dPath = pathDistance(pathSegs, x, z);
   if (dPath < GREAT_MURK_PATH_MIN || dPath > MOTIF_PATH_MAX) problems.push(`離路網 ${dPath.toFixed(1)}m（要 ${GREAT_MURK_PATH_MIN}–${MOTIF_PATH_MAX}）`);

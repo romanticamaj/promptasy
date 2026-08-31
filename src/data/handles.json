@@ -61,8 +61,8 @@
       "kind": "moonpool",
       "region": "foundations",
       "at": [
-        -40,
-        -2
+        -52,
+        -2.6
       ],
       "rot": 0.6,
       "title": "撈月的淺池",
@@ -73,8 +73,8 @@
       "kind": "urn",
       "region": "foundations",
       "at": [
-        -8,
-        -28
+        -10.4,
+        -36.4
       ],
       "rot": -0.4,
       "title": "碑林旁的陶罐",
@@ -88,8 +88,8 @@
       "kind": "gong",
       "region": "foundations",
       "at": [
-        8,
-        -12
+        43.5,
+        -53
       ],
       "rot": 0.25,
       "title": "高原上的響石",
@@ -100,8 +100,8 @@
       "kind": "signpost",
       "region": "foundations",
       "at": [
-        22,
-        4
+        28.6,
+        5.2
       ],
       "rot": 0.9,
       "title": "高原岔路的指路石",
@@ -129,8 +129,8 @@
       "kind": "bench",
       "region": "foundations",
       "at": [
-        -14,
-        30
+        -18.2,
+        39
       ],
       "rot": 1.4,
       "title": "看天的長凳",
@@ -141,8 +141,8 @@
       "kind": "brazier",
       "region": "foundations",
       "at": [
-        -30,
-        30
+        -39,
+        39
       ],
       "rot": -0.8,
       "title": "熄掉的火盆",
@@ -153,8 +153,8 @@
       "kind": "capstan",
       "region": "reasoning",
       "at": [
-        -97,
-        -129
+        -126.1,
+        -167.7
       ],
       "rot": 0.5,
       "title": "階梯下的絞盤",
@@ -165,8 +165,8 @@
       "kind": "signpost",
       "region": "reasoning",
       "at": [
-        -61,
-        -101
+        -79.3,
+        -131.3
       ],
       "rot": -1.2,
       "title": "橋頭的指路石",
@@ -194,8 +194,8 @@
       "kind": "bench",
       "region": "reasoning",
       "at": [
-        -43.42,
-        -49.92
+        -57.42,
+        -63.92
       ],
       "rot": 0.7854,
       "title": "橋中段的長凳",
@@ -206,8 +206,8 @@
       "kind": "watchstone",
       "region": "reasoning",
       "at": [
-        -121,
-        -75
+        -157.3,
+        -97.5
       ],
       "rot": 1.1,
       "title": "迴廊的守望石",
@@ -218,8 +218,8 @@
       "kind": "signpost",
       "region": "grounding",
       "at": [
-        61,
-        -101
+        79.3,
+        -131.3
       ],
       "rot": 1.6,
       "title": "霧裡的指路石",
@@ -247,8 +247,8 @@
       "kind": "brazier",
       "region": "grounding",
       "at": [
-        86,
-        -127
+        111.8,
+        -165.1
       ],
       "rot": 0.3,
       "title": "抄書人的火盆",
@@ -259,8 +259,8 @@
       "kind": "urn",
       "region": "grounding",
       "at": [
-        117,
-        -73
+        152.1,
+        -94.9
       ],
       "rot": -0.9,
       "title": "抄書桌旁的陶罐",
@@ -274,8 +274,8 @@
       "kind": "moonpool",
       "region": "grounding",
       "at": [
-        79,
-        -83
+        102.7,
+        -107.9
       ],
       "rot": 2.4,
       "title": "井邊的撈月池",
@@ -286,8 +286,8 @@
       "kind": "urn",
       "region": "orchestration",
       "at": [
-        -129,
-        89
+        -167.7,
+        115.7
       ],
       "rot": 1.3,
       "title": "工作檯下的陶罐",
@@ -301,8 +301,8 @@
       "kind": "gong",
       "region": "orchestration",
       "at": [
-        -95,
-        61
+        -114.75,
+        78.5
       ],
       "rot": -0.5,
       "title": "工坊的響石",
@@ -313,8 +313,8 @@
       "kind": "capstan",
       "region": "orchestration",
       "at": [
-        -79,
-        127
+        -102.7,
+        165.1
       ],
       "rot": 0.2,
       "title": "吊車底下的絞盤",
@@ -325,8 +325,8 @@
       "kind": "brazier",
       "region": "orchestration",
       "at": [
-        -100.1,
-        114
+        -130.13,
+        148.2
       ],
       "rot": -1.4,
       "title": "熔爐邊的火盆",
@@ -337,8 +337,8 @@
       "kind": "watchstone",
       "region": "config",
       "at": [
-        61,
-        89
+        79.3,
+        115.7
       ],
       "rot": -0.3,
       "title": "後台的守望石",
@@ -349,8 +349,8 @@
       "kind": "gong",
       "region": "config",
       "at": [
-        95,
-        61
+        123.5,
+        79.3
       ],
       "rot": 1.9,
       "title": "開場的響石",
@@ -361,8 +361,8 @@
       "kind": "urn",
       "region": "config",
       "at": [
-        109,
-        127
+        141.7,
+        165.1
       ],
       "rot": 0.7,
       "title": "面具堆旁的陶罐",
@@ -376,8 +376,8 @@
       "kind": "bench",
       "region": "config",
       "at": [
-        73,
-        117
+        94.9,
+        152.1
       ],
       "rot": -2,
       "title": "觀眾席的長凳",
@@ -388,8 +388,8 @@
       "kind": "bench",
       "region": "forms",
       "at": [
-        -27,
-        107.5
+        -35.1,
+        139.75
       ],
       "rot": 0.9,
       "title": "半倒的模子旁的長凳",
@@ -400,8 +400,8 @@
       "kind": "gong",
       "region": "forms",
       "at": [
-        33,
-        114.5
+        42.9,
+        148.85
       ],
       "rot": -1.2,
       "title": "量台邊的響石",
@@ -412,8 +412,8 @@
       "kind": "urn",
       "region": "forms",
       "at": [
-        -0.5,
-        144.5
+        -0.65,
+        187.85
       ],
       "rot": 0.5,
       "title": "溢槽邊的陶罐",
@@ -427,8 +427,8 @@
       "kind": "signpost",
       "region": "forms",
       "at": [
-        11,
-        135
+        14.3,
+        175.5
       ],
       "rot": -1.5,
       "title": "柱腳的指路石",
@@ -456,8 +456,8 @@
       "kind": "brazier",
       "region": "toolcraft",
       "at": [
-        -106.5,
-        -5.5
+        -138.45,
+        -7.15
       ],
       "rot": 0.8,
       "title": "鍛台邊的火盆",
@@ -468,8 +468,8 @@
       "kind": "urn",
       "region": "toolcraft",
       "at": [
-        -94.5,
-        17.5
+        -122.85,
+        22.75
       ],
       "rot": -1.1,
       "title": "工具溝旁的陶罐",
@@ -483,8 +483,8 @@
       "kind": "capstan",
       "region": "toolcraft",
       "at": [
-        -111,
-        14
+        -144.3,
+        18.2
       ],
       "rot": 0.3,
       "title": "風箱的絞盤",
@@ -495,8 +495,8 @@
       "kind": "bench",
       "region": "toolcraft",
       "at": [
-        -105,
-        -28.5
+        -136.5,
+        -37.05
       ],
       "rot": 2.2,
       "title": "放涼架旁的長凳",
@@ -507,8 +507,8 @@
       "kind": "moonpool",
       "region": "sight",
       "at": [
-        116.5,
-        -26
+        151.45,
+        -33.8
       ],
       "rot": 1.2,
       "title": "坡下的仰水盤",
@@ -519,8 +519,8 @@
       "kind": "watchstone",
       "region": "sight",
       "at": [
-        144,
-        -44.5
+        187.2,
+        -57.85
       ],
       "rot": -0.7,
       "title": "南坡的守望石",
@@ -531,8 +531,8 @@
       "kind": "bench",
       "region": "sight",
       "at": [
-        123,
-        -44
+        159.9,
+        -57.2
       ],
       "rot": -2.3,
       "title": "朝天的長凳",
@@ -543,8 +543,8 @@
       "kind": "signpost",
       "region": "sight",
       "at": [
-        148,
-        6.5
+        192.4,
+        8.45
       ],
       "rot": 0.9,
       "title": "東坡的指路石",
@@ -572,8 +572,8 @@
       "kind": "moonpool",
       "region": "refinery",
       "at": [
-        -148.5,
-        123.5
+        -193.05,
+        160.55
       ],
       "rot": -0.4,
       "title": "照兩次的水盤",
@@ -584,8 +584,8 @@
       "kind": "gong",
       "region": "refinery",
       "at": [
-        -120.5,
-        147.5
+        -156.65,
+        191.75
       ],
       "rot": 1.7,
       "title": "複讀的響石",
@@ -596,8 +596,8 @@
       "kind": "urn",
       "region": "refinery",
       "at": [
-        -135,
-        161.5
+        -175.5,
+        209.95
       ],
       "rot": 0.6,
       "title": "十稿的陶罐",
@@ -611,8 +611,8 @@
       "kind": "signpost",
       "region": "divergence",
       "at": [
-        70,
-        30.5
+        91,
+        39.65
       ],
       "rot": -0.9,
       "title": "廳口的指路石",
@@ -640,8 +640,8 @@
       "kind": "watchstone",
       "region": "divergence",
       "at": [
-        81,
-        42
+        105.3,
+        54.6
       ],
       "rot": 1.4,
       "title": "兩面之間的守望石",
@@ -652,8 +652,8 @@
       "kind": "gong",
       "region": "divergence",
       "at": [
-        60,
-        10.5
+        78,
+        13.65
       ],
       "rot": -1.8,
       "title": "秤兩邊的響石",
@@ -664,8 +664,8 @@
       "kind": "watchstone",
       "region": "wards",
       "at": [
-        109,
-        -137
+        141.7,
+        -178.1
       ],
       "rot": 0.5,
       "title": "哨所的守望石",
@@ -676,8 +676,8 @@
       "kind": "signpost",
       "region": "wards",
       "at": [
-        126,
-        -132
+        163.8,
+        -171.6
       ],
       "rot": 2.4,
       "title": "哨所前的指路石",
@@ -705,8 +705,8 @@
       "kind": "bench",
       "region": "frugality",
       "at": [
-        -13.5,
-        -70.5
+        -17.55,
+        -91.65
       ],
       "rot": -1.2,
       "title": "只剩下的一張長凳",
@@ -717,8 +717,8 @@
       "kind": "urn",
       "region": "frugality",
       "at": [
-        13.5,
-        -103.5
+        17.55,
+        -134.55
       ],
       "rot": 1.9,
       "title": "最後一個陶罐",

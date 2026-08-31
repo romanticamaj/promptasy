@@ -8,7 +8,7 @@
     {
       "id": "letter-ring-workorder",
       "region": "foundations",
-      "at": [-50, -6],
+      "at": [-65, -7.8],
       "prop": "workorder",
       "title": "斷環的工單",
       "lines": [
@@ -23,7 +23,7 @@
     {
       "id": "letter-ring-halves",
       "region": "foundations",
-      "at": [-6, 36],
+      "at": [-7.8, 46.8],
       "prop": "page",
       "title": "環的兩半",
       "lines": [
@@ -35,7 +35,7 @@
     {
       "id": "letter-stair-tally",
       "region": "reasoning",
-      "at": [-109, -95],
+      "at": [-141.7, -123.5],
       "prop": "bundle",
       "title": "階上的算帳",
       "lines": [
@@ -50,7 +50,7 @@
     {
       "id": "letter-stair-third",
       "region": "reasoning",
-      "at": [-119, -68],
+      "at": [-154.2, -89.9],
       "prop": "page",
       "title": "沒有頂的塔",
       "lines": [
@@ -62,7 +62,7 @@
     {
       "id": "letter-tree-borrow",
       "region": "grounding",
-      "at": [93, -129],
+      "at": [121.15, -167.45],
       "prop": "workorder",
       "title": "借書條",
       "lines": [
@@ -77,7 +77,7 @@
     {
       "id": "letter-tree-withered",
       "region": "grounding",
-      "at": [82, -62],
+      "at": [106.6, -80.6],
       "prop": "bundle",
       "title": "枯掉的那幾頁",
       "lines": [
@@ -89,7 +89,7 @@
     {
       "id": "letter-crane-order",
       "region": "orchestration",
-      "at": [-90, 131],
+      "at": [-117, 170.3],
       "prop": "workorder",
       "title": "吊車工單",
       "lines": [
@@ -104,7 +104,7 @@
     {
       "id": "letter-crane-checklist",
       "region": "orchestration",
-      "at": [-127, 82],
+      "at": [-165.1, 106.6],
       "prop": "page",
       "title": "勾到第四項",
       "lines": [
@@ -116,7 +116,7 @@
     {
       "id": "letter-backstage-tag",
       "region": "config",
-      "at": [101, 129],
+      "at": [131.3, 167.7],
       "prop": "workorder",
       "title": "後台的掛牌",
       "lines": [
@@ -130,7 +130,7 @@
     {
       "id": "letter-backstage-mask",
       "region": "config",
-      "at": [68, 76],
+      "at": [88.4, 98.8],
       "prop": "page",
       "title": "忘了摘的面具",
       "lines": [
@@ -142,7 +142,7 @@
     {
       "id": "letter-gauge-order",
       "region": "forms",
-      "at": [9, 157],
+      "at": [11.7, 204.1],
       "prop": "workorder",
       "title": "量器坊工單",
       "lines": [
@@ -156,7 +156,7 @@
     {
       "id": "letter-gauge-lastnotch",
       "region": "forms",
-      "at": [-23, 117],
+      "at": [-29.9, 152.1],
       "prop": "page",
       "title": "沒刻完的一格",
       "lines": [
@@ -168,7 +168,7 @@
     {
       "id": "letter-forge-contract",
       "region": "toolcraft",
-      "at": [-118, 31],
+      "at": [-153.4, 40.3],
       "prop": "workorder",
       "title": "鑰匙的契約",
       "lines": [
@@ -182,7 +182,7 @@
     {
       "id": "letter-forge-nameless",
       "region": "toolcraft",
-      "at": [-116, -20],
+      "at": [-150.8, -26],
       "prop": "bundle",
       "title": "無名的那一把",
       "lines": [
@@ -194,7 +194,7 @@
     {
       "id": "letter-ward-rule",
       "region": "wards",
-      "at": [116, -138],
+      "at": [150.8, -179.4],
       "prop": "workorder",
       "title": "守門的規矩",
       "lines": [
@@ -208,7 +208,7 @@
     {
       "id": "letter-ward-gap",
       "region": "wards",
-      "at": [87, -140],
+      "at": [113.1, -182],
       "prop": "page",
       "title": "留一條縫",
       "lines": [
@@ -220,7 +220,7 @@
     {
       "id": "letter-mirror-drafts",
       "region": "refinery",
-      "at": [-150, 131],
+      "at": [-195, 170.3],
       "prop": "bundle",
       "title": "鏡前的草稿",
       "lines": [
@@ -235,7 +235,7 @@
     {
       "id": "letter-mirror-facing",
       "region": "refinery",
-      "at": [-100, 129],
+      "at": [-130, 167.7],
       "prop": "page",
       "title": "照自己的鏡",
       "lines": [
@@ -246,7 +246,7 @@
     {
       "id": "letter-empty-list",
       "region": "frugality",
-      "at": [-6, -68],
+      "at": [-7.8, -88.4],
       "prop": "workorder",
       "title": "搬走的清單",
       "lines": [
@@ -260,7 +260,7 @@
     {
       "id": "letter-empty-plinth",
       "region": "frugality",
-      "at": [15, -81],
+      "at": [19.5, -105.3],
       "prop": "page",
       "title": "空的基座",
       "lines": [
@@ -272,7 +272,7 @@
     {
       "id": "letter-pillar-copies",
       "region": "divergence",
-      "at": [53, 27],
+      "at": [68.9, 35.1],
       "prop": "bundle",
       "title": "兩面的抄本",
       "lines": [
@@ -287,7 +287,7 @@
     {
       "id": "letter-pillar-quarrel",
       "region": "divergence",
-      "at": [101, 22],
+      "at": [131.3, 28.6],
       "prop": "page",
       "title": "吵了很久",
       "lines": [
@@ -299,7 +299,7 @@
     {
       "id": "letter-sky-log",
       "region": "sight",
-      "at": [120, -34],
+      "at": [156, -44.2],
       "prop": "workorder",
       "title": "觀測記錄",
       "lines": [
@@ -314,7 +314,7 @@
     {
       "id": "letter-sky-mirror",
       "region": "sight",
-      "at": [119, 6],
+      "at": [154.7, 7.8],
       "prop": "page",
       "title": "朝天的鏡",
       "lines": [

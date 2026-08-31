@@ -8,8 +8,8 @@
       "id": "murk-vague-ask",
       "region": "foundations",
       "at": [
-        21,
-        -32
+        27.8,
+        -40.85
       ],
       "title": "含糊的請求",
       "sourceChallengeId": "gate-of-clarity-01",
@@ -109,8 +109,8 @@
       "id": "murk-only-donts",
       "region": "foundations",
       "at": [
-        27,
-        39
+        35.1,
+        50.7
       ],
       "title": "滿口「不要」的請求",
       "sourceChallengeId": "lost-automaton-03",
@@ -209,8 +209,8 @@
       "id": "murk-no-example",
       "region": "reasoning",
       "at": [
-        -105,
-        -106
+        -136.5,
+        -137.8
       ],
       "title": "只會形容的請求",
       "sourceChallengeId": "example-hall-11",
@@ -310,8 +310,8 @@
       "id": "murk-leap-answer",
       "region": "reasoning",
       "at": [
-        -86,
-        -97
+        -111.8,
+        -126.1
       ],
       "title": "一口氣跳過去的請求",
       "sourceChallengeId": "step-bridge-20",
@@ -407,8 +407,8 @@
       "id": "murk-trust-me",
       "region": "grounding",
       "at": [
-        86,
-        -103
+        111.8,
+        -133.9
       ],
       "title": "憑印象作答的請求",
       "sourceChallengeId": "citation-desk-21",
@@ -507,8 +507,8 @@
       "id": "murk-never-unsure",
       "region": "grounding",
       "at": [
-        106,
-        -96
+        137.8,
+        -124.8
       ],
       "title": "不准說不知道的請求",
       "sourceChallengeId": "well-of-unknowing-22",
@@ -607,8 +607,8 @@
       "id": "murk-all-at-once",
       "region": "orchestration",
       "at": [
-        -94,
-        85
+        -122.2,
+        110.5
       ],
       "title": "一口氣做完的請求",
       "sourceChallengeId": "subtask-workbench-31",
@@ -708,8 +708,8 @@
       "id": "murk-while-at-it",
       "region": "orchestration",
       "at": [
-        -85.5,
-        99
+        -111.15,
+        128.7
       ],
       "title": "順便多做一點的請求",
       "sourceChallengeId": "sprawling-site-84",
@@ -804,8 +804,8 @@
       "region": "foundations",
       "kind": "great",
       "at": [
-        40,
-        -17
+        52,
+        -22.1
       ],
       "title": "說了一半就走的請求",
       "sourceChallengeId": "measuring-table-08",
@@ -1000,8 +1000,8 @@
       "region": "reasoning",
       "kind": "great",
       "at": [
-        -86.25,
-        -120.75
+        -112.12,
+        -156.97
       ],
       "title": "不肯留下算式的請求",
       "sourceChallengeId": "thinking-chamber-14",
@@ -1158,8 +1158,8 @@
       "region": "grounding",
       "kind": "great",
       "at": [
-        95.5,
-        -84
+        124.15,
+        -109.2
       ],
       "title": "憑印象回答的請求",
       "sourceChallengeId": "sealed-readroom-29",
@@ -1312,8 +1312,8 @@
       "region": "orchestration",
       "kind": "great",
       "at": [
-        -105,
-        91
+        -136.5,
+        118.3
       ],
       "title": "沒有盡頭的委託",
       "sourceChallengeId": "endpoint-stake-81",
@@ -1465,8 +1465,8 @@
       "region": "config",
       "kind": "great",
       "at": [
-        127,
-        92.5
+        165.1,
+        120.25
       ],
       "title": "不知道自己是誰的請求",
       "sourceChallengeId": "mask-workshop-41",
@@ -1643,8 +1643,8 @@
       "region": "forms",
       "kind": "great",
       "at": [
-        4,
-        116
+        5.2,
+        150.8
       ],
       "title": "沒有模子的請求",
       "sourceChallengeId": "gatehouse-gauge-53",
@@ -1797,8 +1797,8 @@
       "region": "toolcraft",
       "kind": "great",
       "at": [
-        -132,
-        -5
+        -171.6,
+        -6.5
       ],
       "title": "沒有交代工具的請求",
       "sourceChallengeId": "tool-forge-33",
@@ -1951,8 +1951,8 @@
       "region": "refinery",
       "kind": "great",
       "at": [
-        -133,
-        140
+        -172.9,
+        182
       ],
       "title": "憑感覺說更好了的請求",
       "sourceChallengeId": "refinery-ruler-92",
@@ -2105,8 +2105,8 @@
       "region": "wards",
       "kind": "great",
       "at": [
-        95.5,
-        -145
+        124.15,
+        -188.5
       ],
       "title": "照著信裡的字做的請求",
       "sourceChallengeId": "two-slots-76",
@@ -2259,8 +2259,8 @@
       "region": "frugality",
       "kind": "great",
       "at": [
-        4.5,
-        -65.5
+        5.85,
+        -85.15
       ],
       "title": "每次都重貼一遍的請求",
       "sourceChallengeId": "stacking-order-102",
@@ -2409,8 +2409,8 @@
       "region": "sight",
       "kind": "great",
       "at": [
-        140,
-        -27
+        182,
+        -35.1
       ],
       "title": "沒有指到哪裡的請求",
       "sourceChallengeId": "first-window-107",
@@ -2563,8 +2563,8 @@
       "region": "divergence",
       "kind": "great",
       "at": [
-        82.5,
-        20.5
+        107.25,
+        26.65
       ],
       "title": "照上一台機器寫的請求",
       "sourceChallengeId": "moving-list-122",

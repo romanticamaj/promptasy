@@ -176,7 +176,13 @@ export const GREAT_MURK_MARKER_MIN = 9;
  * 其餘 11 片土地照 9.0 掃的上限：護欄崗 9.18（最緊，11 個合格點）、
  * 校驗場 9.66、示範與推理 9.51，其餘 12.43–22.39。
  */
-export const GREAT_MURK_MARKER_EXCEPTIONS = Object.freeze({ divergence: 7.2 });
+/*
+ * **v1.2 · P22c：這一條例外也收掉了**（同 `ECHO_MARKER_EXCEPTIONS` /
+ * `ARCHIVE_MARKER_EXCEPTIONS`）。上面整段講的是放大前的分歧之廳；座標 ×1.3 之後
+ * 出貨的 `murk-great-lastmachine` 實測離最近石座 **9.84 公尺**，過得了一般門檻
+ * `GREAT_MURK_MARKER_MIN`（9.0）。不必放行就不放行 —— 表空著，規則變嚴不是變鬆。
+ */
+export const GREAT_MURK_MARKER_EXCEPTIONS = Object.freeze({});
 /**
  * **真正要守的東西**：走向大濁靈的 24 個方向裡，有幾個「找得到一個站得住、
  * 而且在那個位置上**是牠贏**的點」（沒有任何一座石座在 6.5 之內、也沒有另一隻濁靈更近）。
@@ -352,7 +358,16 @@ export function echoNeedFrom(t, regionId = '') {
  * 回聲那一側由「站在它的互動圈上，有幾個方向站得住而且是它贏」逐點量
  * （`ECHO_WINNABLE_MIN`）—— 那才是真正要守的東西。
  */
-export const ECHO_MARKER_EXCEPTIONS = Object.freeze({ wards: 7.7, divergence: 7.9 });
+/*
+ * **v1.2 · P22c：這兩條例外收掉了（表清空，規則沒有變鬆，是變嚴）。**
+ *
+ * 它們的理由一直是「那兩片土地太擠，逐點掃過去也沒有任何一點離石座 ≥ 9.7」。
+ * 座標 ×1.3 之後那個前提不成立了：出貨的兩處回聲實測離最近石座
+ * **護欄崗 10.40、分歧之廳 11.07**，兩個都過得了 `MARKER_R + ECHO_R`（9.7）。
+ * 既然不必再放行，就不放行 —— 表清空之後 `echoNeedFrom()` 對每一片土地都回 9.7。
+ * （放大之前的數字留在版本紀錄裡：wards 7.7、divergence 7.9。）
+ */
+export const ECHO_MARKER_EXCEPTIONS = Object.freeze({});
 
 /**
  * **真正要守的東西**：站在回聲的互動圈上，24 個方向裡有幾個
@@ -639,7 +654,13 @@ export function archiveNeedFrom(t, regionId = '') {
  * 離最近石座**最遠只到 8.08 公尺**，門檻訂在 7.7（出貨的落點 7.83，餘裕 0.13 公尺）。
  * 另外十片土地照 9.7 全部擺得下（離線篩各剩數十到數百個格點）。
  */
-export const ARCHIVE_MARKER_EXCEPTIONS = Object.freeze({ wards: 7.8, divergence: 7.7 });
+/*
+ * **v1.2 · P22c：同 `ECHO_MARKER_EXCEPTIONS`，這兩條也收掉了。**
+ * 上面那一整段講的「照 9.7 掃一個格點都不剩」是放大前的世界；×1.3 之後
+ * 出貨的兩座展館實測離最近石座 **護欄崗 10.28、分歧之廳 10.17**，
+ * 兩個都過得了 `MARKER_R + ARCHIVE_R`（9.7）。不必放行就不放行。
+ */
+export const ARCHIVE_MARKER_EXCEPTIONS = Object.freeze({});
 
 /**
  * 檔案廊離「走出來的路」的區間（公尺）：**走得到**（上限）、又不站在路中間（下限）。

@@ -126,26 +126,30 @@ export const SCREEN_BANDS = Object.freeze([
   /*
    * 階梯迴廊 · 第一道：「第一遍的背脊」
    *
-   * 站在橋頭（主動線的內端，離區界 8 公尺）往裡看，無盡階梯塔正好在正前方 38 公尺。
-   * 這一道石脊橫在 14.5 公尺處、12 公尺高，把整座塔（連塔頂那顆光球）壓在背後。
+   * 站在橋頭（主動線的內端，離區界 8 公尺）往裡看，無盡階梯塔在正前方 51.8 公尺。
+   * 這一道石脊橫在離橋頭 16.6 公尺處、12 公尺高，把整座塔（連塔頂那顆光球）壓在背後：
+   * `npm run audit:sightline` 量到**前 18 公尺看不到、第 18 公尺揭露**（門檻 ≥12／≤25，
+   * 樣點每 3 公尺一個 —— 前後各還留兩個樣點的餘裕）。四周 24 個方向有 22 個繞得過去。
    *
-   * 為什麼是這個座標而不是「橋頭正前方」：階梯迴廊有 15 座石座 ＋ 小景 ＋ 器物 ＋ 殘頁，
-   * 從橋頭到塔的那條直線上，**唯一**同時滿足「離石座淨空 5.6＋玩家 0.62＋自己的碰撞半徑」
-   * 與「離主動線 ≥ LANE_HALF+4、離地標留白 ≥16」的空隙就在這裡（`scripts/screen-fit.mjs`
-   * 逐點掃過，餘裕 0.35 公尺）。它刻意偏北：南端只到主動線南側 0.5 公尺
-   * （再往南就踩進 thinking-chamber-14 的淨空圈），北端伸到 7 公尺 ——
-   * 於是「走出來的路」自然往北繞，繞過北端塔才揭露。
+   * **座標是 v1.2 · P22d 重搜的**，理由要寫清楚，因為它是一個會再犯的錯：
+   * P22c 把全世界的 XZ 乘 1.30，**尺寸沒有跟著乘**。橋頭是「區界再往裡 8 公尺」——
+   * 區界外推了 30%、那 8 公尺沒有，於是橋頭相對整片土地反而往內縮了 2.4 公尺；
+   * 石脊只是等比外推（離橋頭 14.5 → 21.5 公尺），而它還是 7.5 公尺長 ——
+   * 同一道石脊在更遠的地方遮的角小了 30%，橋頭第一步就從它旁邊看到塔了
+   * （P22c 之後量到「前 0 公尺看不到、第 21 公尺揭露」）。
+   * 修法是**沿「橋頭 → 塔」那條軸往橋頭挪 6.9 公尺**（21.5 → 16.6），長度一寸沒加。
+   * 在原座標 12 公尺內用 1.5 公尺格點 × 24 個角度掃：203 個格點、997 種擺法通過每一條淨空、
+   * 其中 933 種擋得住視線，重建驗過 6 個、4 個可行。選的是揭露落在 18 公尺、
+   * 離第二道石脊 15.6 公尺（缺口門檻 ≥8）的那一個。
    *
    * 厚度 1.4 → **2.4**（v1.2 · P12）：碰撞用的圓串半徑就是半個厚度，薄的石脊要用
-   * 更多、更小的圓才蓋得住同一段長度（P11 那版一道帶 12 個碰撞體）。加厚之後一道帶 4 個，
-   * 這片土地的中觀層從 36 個降到 20 個。座標一寸沒動 —— `scripts/screen-fit.mjs --verify`
-   * 重建量過：加厚之後每一個碰撞圓仍然離每一件互動物夠遠。
+   * 更多、更小的圓才蓋得住同一段長度（P11 那版一道帶 12 個碰撞體）。加厚之後一道帶 4 個。
    */
   {
     id: 'reasoning-first-spine',
     region: 'reasoning',
-    at: [-75.97, -80.56],
-    rot: 0.7354,
+    at: [-99.3, -97.8],
+    rot: 0.9163,
     kind: 'stairRidge',
     length: 7.5,
     depth: 2.4,
@@ -163,7 +167,7 @@ export const SCREEN_BANDS = Object.freeze([
   {
     id: 'reasoning-second-spine',
     region: 'reasoning',
-    at: [-79.62, -63.71],
+    at: [-103.51, -82.82],
     rot: -2.7978,
     kind: 'stairRidge',
     length: 7,
@@ -172,18 +176,24 @@ export const SCREEN_BANDS = Object.freeze([
     faceSign: 1,
   },
   /*
-   * 面具劇場 · 第一道：「側幕」（v1.2 · P12）
+   * 面具劇場 · 第一道：「側幕」（v1.2 · P12 擺的，P22d 重搜）
    *
-   * 走下東南那條橋，面具拱門原本從第一步就看得到底。這一道橫在 13 公尺處、12 公尺高，
-   * 把整座拱門推到「翻過去才看到」——`npm run audit:sightline` 量到前 15 公尺看不到、第 15 公尺揭露。
-   * 座標是 `scripts/screen-fit.mjs` 掃出來的（2,955 個格點 → 257 個合法擺法），
-   * 選的是離橋頭 15 公尺左右、四周 22/24 個方向走得過去的那一個。
+   * 走下東南那條橋，面具拱門在正前方 51.8 公尺。這一道橫在離橋頭 15.0 公尺處、12 公尺高，
+   * 把整座拱門推到「繞過去才看到」——`npm run audit:sightline` 量到
+   * **前 15 公尺看不到、第 15 公尺揭露**。四周 24 個方向有 23 個繞得過去。
+   *
+   * P22c 把世界攤開之後它量到「前 0 公尺看不到、第 21 公尺揭露」（原因同上一道的註解：
+   * 橋頭往內縮、石脊等比外推，7 公尺的石脊遮不住同一個角）。P22d 沿軸往橋頭挪了
+   * 5.9 公尺（離橋頭 20.2 → 15.0），長度不動。在原座標 14 公尺內用 1.5 公尺格點 × 24 個角度掃：
+   * 226 個格點、2,041 種擺法通過淨空、483 種擋得住視線，重建驗過 14 個 ——
+   * **只有這一個**同時滿足「走出來的路沒被石頭堵住」與「四周 ≥16/24 繞得過去」
+   * （其餘不是折線撞上一顆石頭，就是四周只剩 14–15 個方向）。
    */
   {
     id: 'config-first-wing',
     region: 'config',
-    at: [80, 75],
-    rot: 0.1745,
+    at: [98.2, 96.7],
+    rot: 0,
     kind: 'stairRidge',
     length: 7,
     depth: 2.4,
@@ -199,7 +209,7 @@ export const SCREEN_BANDS = Object.freeze([
   {
     id: 'config-second-wing',
     region: 'config',
-    at: [72, 81],
+    at: [93.6, 105.3],
     rot: 0.2618,
     kind: 'stairRidge',
     length: 7,
@@ -212,14 +222,21 @@ export const SCREEN_BANDS = Object.freeze([
    *
    * **為什麼是這裡而不是規格點名的沉書檔案庫／齒輪工坊**：那兩片土地量出來擺不下
    * （理由與數字寫在下面 `MOTIFS` 的檔案庫段落，以及 `docs/history/findings.md`）。
-   * 契約鍛冶場的橋頭到「未命名的工具」之間是全場最空的一段：`screen-fit` 掃出 102 種合法擺法。
-   * 這一道橫在離橋頭 19 公尺處 —— 前 21 公尺看不到、第 21 公尺揭露。
+   * 契約鍛冶場的橋頭到「無名的鑰匙」之間是全場最空的一段。
+   * 這一道橫在離橋頭 18.2 公尺處 —— **前 18 公尺看不到、第 18 公尺揭露**，四周 24/24 繞得過去。
+   *
+   * **v1.2 · P22d 重搜，而且是唯一往回拉的一道。**別的區是世界攤開之後石脊遮不住橋頭；
+   * 這一道相反 —— 它被推到離橋頭 27.1 公尺，於是揭露掉到第 27 公尺，
+   * 超過 `REVEAL_MAX` 25（「擋住」變成「迷路」）。所以要把它往橋頭拉回來 9.2 公尺。
+   * 掃過 422 個格點 × 24 個角度：2,326 種擺法通過淨空、2,172 種擋得住視線，
+   * 重建驗過 26 個、3 個可行；另外兩個的揭露都落在第 24 公尺（只剩一個樣點的餘裕），
+   * 選的是 18 公尺這一個。
    */
   {
     id: 'toolcraft-first-jig',
     region: 'toolcraft',
-    at: [-107, 1],
-    rot: 0.5236,
+    at: [-129.9, -3.2],
+    rot: 0.7854,
     kind: 'stairRidge',
     length: 7,
     depth: 2.4,
@@ -233,7 +250,7 @@ export const SCREEN_BANDS = Object.freeze([
   {
     id: 'toolcraft-second-jig',
     region: 'toolcraft',
-    at: [-94, 10],
+    at: [-122.2, 13],
     rot: 1.0472,
     kind: 'stairRidge',
     length: 7,
@@ -246,14 +263,20 @@ export const SCREEN_BANDS = Object.freeze([
    *
    * 量器坊的地形本身就是一把躺著的尺（由北往南一階一階降下去），
    * 所以「刻度之柱」從橋頭第一步就看得到底 —— 一片沒有厚度的土地。
-   * 這一道橫在離橋頭 15 公尺處：`screen-fit` 掃過 2,628 個格點，
-   * **整片土地只有這一種合法擺法**（其餘不是踩進地標留白就是站在階地的落差上）。
+   * 這一道橫在離橋頭 17.8 公尺處 —— **前 18 公尺看不到、第 18 公尺揭露**，四周 22/24。
+   *
+   * **v1.2 · P22d 重搜。**P16a 那一版是「整片土地只有這一種合法擺法」（2,628 個格點裡就那一個），
+   * P22c 把世界攤開之後那個座標量到「前 0 公尺看不到、第 18 公尺揭露」——
+   * 而攤開也把空地讓了出來：這一次在原座標 14 公尺內掃過 224 個格點 × 24 個角度，
+   * 634 種擺法通過淨空、620 種擋得住視線，重建驗過 8 個、6 個可行。
+   * 這一區真正缺的不是長度而是**朝向**：只挪了 2.2 公尺（離橋頭 15.9 → 17.8）、
+   * 把它重新對準（rot 2.8798 → 0）就補回了那個角，長度仍然是 7 公尺。
    */
   {
     id: 'forms-first-tick',
     region: 'forms',
-    at: [-3, 98],
-    rot: 2.8798,
+    at: [-3.2, 129.5],
+    rot: 0,
     kind: 'stairRidge',
     length: 7,
     depth: 2.4,
@@ -268,7 +291,7 @@ export const SCREEN_BANDS = Object.freeze([
   {
     id: 'forms-second-tick',
     region: 'forms',
-    at: [8, 102],
+    at: [10.4, 132.6],
     rot: 0,
     kind: 'stairRidge',
     length: 7,
@@ -280,17 +303,21 @@ export const SCREEN_BANDS = Object.freeze([
    * 分歧之廳 · 「岔開的那一道」（v1.2 · P16b）
    *
    * 這片土地的傳說鉤是「把兩份相反的守則並排讀」——地標「兩面的柱」從橋頭第一步
-   * 就看得到底。這一道橫在離橋頭 15 公尺處，把五根柱子推到「繞過去才看到」，
-   * 而走出來的路自己就分成了「先往這邊、再折回去」的兩段（形狀說的是同一句話）。
+   * 就看得到底。這一道橫在離橋頭 15.4 公尺處，把五根柱子推到「繞過去才看到」：
+   * **前 18 公尺看不到、第 18 公尺揭露**，而走出來的路自己就分成了
+   * 「先往這邊、再折回去」的兩段（形狀說的是同一句話）。四周 20/24 繞得過去。
    *
-   * `screen-fit` 掃過 4,920 個格點 × 24 個角度：擋在視線上又離橋頭夠遠的擺法裡，
-   * **7,877 種踩到別人的淨空、9 種活下來**；重建驗過的是這一個。
+   * **v1.2 · P22d 重搜。**P22c 之後它量到「前 0 公尺看不到、第 21 公尺揭露」——
+   * 它離橋頭其實只差 1 公尺（16.4 → 15.4），缺的是**朝向與側位**：
+   * 重新對準（rot 1.4399 → 0）並橫移 7.4 公尺挪到「橋頭 → 柱」那條軸上就補回來了，
+   * 長度仍然是 8 公尺、一寸沒加。掃過 273 個格點 × 24 個角度：541 種擺法通過淨空、
+   * 492 種擋得住視線，重建驗過 7 個、5 個可行。
    */
   {
     id: 'divergence-first-fork',
     region: 'divergence',
-    at: [66.5, 22],
-    rot: 1.4399,
+    at: [89.6, 21.9],
+    rot: 0,
     kind: 'stairRidge',
     length: 8,
     depth: 2.4,
@@ -299,13 +326,14 @@ export const SCREEN_BANDS = Object.freeze([
   },
   /*
    * 分歧之廳 · 第二道：「另一邊那一道」
-   * 它離橋頭 26 公尺 —— 給的不是入口的厚度，而是**走到廳中央時另一側的那一道**
+   * 它離橋頭 35.8 公尺（P22c 把世界攤開之前是 27.5）—— 給的不是入口的厚度，
+   * 而是**走到廳中央時另一側的那一道**
    * （整片土地只搜得到這一種合法擺法：4,127 個格點 → 1 個候選）。
    */
   {
     id: 'divergence-second-fork',
     region: 'divergence',
-    at: [84, 4.5],
+    at: [109.2, 5.85],
     rot: 2.7489,
     kind: 'stairRidge',
     length: 7,
@@ -317,20 +345,24 @@ export const SCREEN_BANDS = Object.freeze([
    * 觀象臺 · 「坡上的那一階」（v1.2 · P16b）
    *
    * 整片坡由西南（橋頭）往東北仰起來，所以「朝天的鏡」原本從橋頭就看得到 ——
-   * 一片只有高度、沒有厚度的土地。這一道橫在離橋頭 12 公尺處。
+   * 一片只有高度、沒有厚度的土地。這一道橫在離橋頭 16.5 公尺處，
+   * **前 18 公尺看不到、第 18 公尺揭露**，四周 22/24 繞得過去。
    *
-   * **它是全場最緊的一道**：`screen-fit` 用 0.3 公尺格點 × 36 個角度掃過 19,339 個格點，
-   * 擋在視線上又離橋頭夠遠的擺法裡，**41,747 種踩到別人的淨空，只有 8 種活下來**
-   * —— 而那 8 個全擠在 ±1 公尺內，等於整片土地只有這一塊空地。
-   * 量到的揭露是**前 12 公尺看不到、第 12 公尺揭露**
-   * —— 剛好等於 `HIDDEN_MIN`，而樣點每 3 公尺一個，所以再退一格就是 9（不過）。
+   * **v1.2 · P22d 重搜 —— 它從「全場最緊的一道」變成寬鬆的一道。**
+   * P16b 那一版是 19,339 個格點裡只有 8 種活下來、全擠在 ±1 公尺內，揭露量到
+   * 「前 12 公尺看不到、第 12 公尺揭露」—— 剛好等於 `HIDDEN_MIN`，再退一個樣點就不過。
+   * P22c 把世界攤開之後那個座標量到「前 0 公尺看不到」，但同一次攤開也把這塊空地放大了：
+   * 這一次在原座標 14 公尺內掃過 252 個格點 × 24 個角度，1,398 種擺法通過淨空、
+   * 1,340 種擋得住視線，重建驗過 9 個、6 個可行。修法是**重新對準**（rot 2.2253 → 0.9163）
+   * 再往外挪 3.3 公尺（離橋頭 13.2 → 16.5），長度仍然是 8 公尺。
+   * 揭露因此從「剛好 12」變成 18 —— 前後各留兩個樣點的餘裕。
    * 動這一區的路、石座或這一道之前先跑 `npm run audit:sightline`。
    */
   {
     id: 'sight-first-ledge',
     region: 'sight',
-    at: [114, -21],
-    rot: 2.2253,
+    at: [152.5, -27.1],
+    rot: 0.9163,
     kind: 'stairRidge',
     length: 8,
     depth: 2.4,
@@ -350,7 +382,7 @@ export const SCREEN_BANDS = Object.freeze([
   {
     id: 'sight-second-ledge',
     region: 'sight',
-    at: [123, -1],
+    at: [159.9, -1.3],
     rot: 0.5236,
     kind: 'stairRidge',
     length: 7,
@@ -370,7 +402,7 @@ export const SCREEN_BANDS = Object.freeze([
   {
     id: 'wards-first-jamb',
     region: 'wards',
-    at: [91.5, -136.5],
+    at: [118.95, -177.45],
     rot: 1.0472,
     kind: 'stairRidge',
     length: 7,
@@ -385,12 +417,13 @@ export const SCREEN_BANDS = Object.freeze([
    * 護欄崗擠到「最好的一種擺法離 `letters-in-disguise-131` 7.31 公尺、需要 7.42」——
    * 差 0.11 公尺。薄一階之後圓半徑 1.0、需要 7.22，同一塊空地就站得下了
    * （§4.10 的厚度區間本來就是 2–3 公尺，2.0 是下限不是例外）。
-   * 它與第一道一西一南夾著入口：第一道離橋頭 14.2 公尺，這一道 10.3 公尺。
+   * 它與第一道一西一南夾著入口：第一道離橋頭 18.6 公尺，這一道 15.6 公尺
+   * （P22c 把世界攤開之前是 14.2／10.3 —— 兩道都只是等比外推，這一區沒有被重搜過）。
    */
   {
     id: 'wards-second-jamb',
     region: 'wards',
-    at: [104.2, -143.2],
+    at: [135.46, -186.16],
     rot: 2.3038,
     kind: 'stairRidge',
     length: 7,
@@ -447,9 +480,9 @@ export const MOTIFS = Object.freeze([
    * §4.10 白紙黑字寫著 7–26，那條規則當時只活在工具裡、沒有進測試（P12 補上了硬斷言，
    * 補上的當天就抓到這三座）。重搜之後這片土地只擺得下三座，那就三座。
    */
-  { id: 'reasoning-twice-01', region: 'reasoning', at: [-88.46, -65.22], rot: 2.15, kind: 'twiceShown', height: 5.2 },
-  { id: 'reasoning-twice-02', region: 'reasoning', at: [-112, -126], rot: 0.52, kind: 'twiceShown', height: 4.6 },
-  { id: 'reasoning-twice-03', region: 'reasoning', at: [-60, -95], rot: 1.57, kind: 'twiceShown', height: 4.0 },
+  { id: 'reasoning-twice-01', region: 'reasoning', at: [-115, -84.79], rot: 2.15, kind: 'twiceShown', height: 5.2 },
+  { id: 'reasoning-twice-02', region: 'reasoning', at: [-145.6, -163.8], rot: 0.52, kind: 'twiceShown', height: 4.6 },
+  { id: 'reasoning-twice-03', region: 'reasoning', at: [-78, -123.5], rot: 1.57, kind: 'twiceShown', height: 4.0 },
   /*
    * 沉書檔案庫：「讀過的那一疊」——矮台上立著一疊讀完的石板書，
    * 最上面那一頁翻開來懸在半空、只剩一圈光（枯掉的那幾頁）。
@@ -459,11 +492,16 @@ export const MOTIFS = Object.freeze([
    * 與月井（t=18.2, s=-2.8）三個淨空圈把 6–22 公尺整段蓋滿 —— 合法的擺法只出現在離橋頭 7–11 公尺處，
    * 那個距離揭露得太早（實測前 9 公尺就看得到塔），過不了「前 12 公尺看不到」那條硬門檻。
    * 與其放一道過不了門檻的帶，不如誠實地留白，改用母題鋪中景（見 findings.md）。
+   *
+   * v1.2 · P22d：`grounding-read-03` 從 [98.8, -118.3] 挪到 [103.7, -123.8]（7.4 公尺，
+   * 高度與造型都沒動）。P22c 攤開世界之後它的四周只剩 13/16（要 14）——
+   * 而這一片是全場最難搜的：0.5 公尺格點掃出 3,853 個候選、重建驗過 44 個
+   * **只有這一個過**（其餘不是它自己繞不過去，就是換它把 `grounding-read-01` 擠到 13/16）。
    */
-  { id: 'grounding-read-01', region: 'grounding', at: [128, -104], rot: 5.24, kind: 'pageStack', height: 5.2 },
-  { id: 'grounding-read-02', region: 'grounding', at: [112, -90], rot: 4.71, kind: 'pageStack', height: 4.6 },
-  { id: 'grounding-read-03', region: 'grounding', at: [76, -91], rot: 4.71, kind: 'pageStack', height: 5.0 },
-  { id: 'grounding-read-04', region: 'grounding', at: [62, -107], rot: 4.19, kind: 'pageStack', height: 4.2 },
+  { id: 'grounding-read-01', region: 'grounding', at: [166.4, -135.2], rot: 5.24, kind: 'pageStack', height: 5.2 },
+  { id: 'grounding-read-02', region: 'grounding', at: [145.6, -117], rot: 4.71, kind: 'pageStack', height: 4.6 },
+  { id: 'grounding-read-03', region: 'grounding', at: [103.7, -123.8], rot: 1.57, kind: 'pageStack', height: 5.0 },
+  { id: 'grounding-read-04', region: 'grounding', at: [80.6, -139.1], rot: 4.19, kind: 'pageStack', height: 4.2 },
   /*
    * 齒輪工坊：「一次只吊一小件」——一截矮桁架撐著一段折下來的臂，
    * 末端吊著一小件，再往前那一節只剩懸在半空的光。
@@ -473,28 +511,33 @@ export const MOTIFS = Object.freeze([
    * `nailed-rules-89`（t=18.8, s=1.7）兩個石座的淨空圈在軸線上首尾相接，
    * 從橋頭到巨臂吊車的 1–26 公尺沒有一寸放得下一道帶。
    */
-  { id: 'orchestration-piece-01', region: 'orchestration', at: [-102, 119], rot: 0, kind: 'oneSmallPiece', height: 5.0 },
-  { id: 'orchestration-piece-02', region: 'orchestration', at: [-84, 125], rot: 0.52, kind: 'oneSmallPiece', height: 4.4 },
-  { id: 'orchestration-piece-03', region: 'orchestration', at: [-110, 86], rot: 1.05, kind: 'oneSmallPiece', height: 4.8 },
-  { id: 'orchestration-piece-04', region: 'orchestration', at: [-115, 68], rot: 0, kind: 'oneSmallPiece', height: 4.0 },
+  { id: 'orchestration-piece-01', region: 'orchestration', at: [-132.6, 154.7], rot: 0, kind: 'oneSmallPiece', height: 5.0 },
+  { id: 'orchestration-piece-02', region: 'orchestration', at: [-109.2, 162.5], rot: 0.52, kind: 'oneSmallPiece', height: 4.4 },
+  { id: 'orchestration-piece-03', region: 'orchestration', at: [-143, 111.8], rot: 1.05, kind: 'oneSmallPiece', height: 4.8 },
+  { id: 'orchestration-piece-04', region: 'orchestration', at: [-149.5, 88.4], rot: 0, kind: 'oneSmallPiece', height: 4.0 },
   /*
    * 面具劇場：「掛著的空面具」——底座撐起一根柱，柱頂掛著一張沒有人戴的面具，
    * 背面刻的那一句只剩一圈光（「你不是它」）。
    */
-  { id: 'config-mask-01', region: 'config', at: [117, 68], rot: 2.62, kind: 'emptyMask', height: 5.4 },
-  { id: 'config-mask-02', region: 'config', at: [110, 86], rot: 0, kind: 'emptyMask', height: 4.6 },
-  { id: 'config-mask-03', region: 'config', at: [115, 124], rot: 3.67, kind: 'emptyMask', height: 5.0 },
-  { id: 'config-mask-04', region: 'config', at: [83, 128], rot: 2.62, kind: 'emptyMask', height: 4.2 },
+  { id: 'config-mask-01', region: 'config', at: [152.1, 88.4], rot: 2.62, kind: 'emptyMask', height: 5.4 },
+  { id: 'config-mask-02', region: 'config', at: [143, 111.8], rot: 0, kind: 'emptyMask', height: 4.6 },
+  { id: 'config-mask-03', region: 'config', at: [149.5, 161.2], rot: 3.67, kind: 'emptyMask', height: 5.0 },
+  { id: 'config-mask-04', region: 'config', at: [107.9, 166.4], rot: 2.62, kind: 'emptyMask', height: 4.2 },
   /*
    * 契約鍛冶場（v1.2 · P16a）：「未命名的工具」——矮鍛台上立著一把工具的柄，
    * 該刻名字的那一格是空的，刃只剩光。這片土地 P12 就有兩道遮擋帶，
    * 卻一直沒有母題（走進去只有入口有厚度、內圈是空的）；
    * `screen-fit` 掃出 75 個合法擺法，選的是四周 16/16、彼此都散得開的那四個。
+   *
+   * v1.2 · P22d：P22c 把世界攤開之後 `toolcraft-unnamed-02` 的四周掉到 13/16
+   * （母題自己沒動，是它腳下的程序化落石重新排過了）。往東北挪 0.5 公尺、轉了半圈
+   * （rot 1.05 → 5.76）就回到 16/16 —— **這種「只差一格」的失敗要用重建量、不能用手算**：
+   * 母題進 `keepClear`，挪它一寸整片土地的道具就重新排一次。
    */
-  { id: 'toolcraft-unnamed-01', region: 'toolcraft', at: [-122, -16], rot: 3.67, kind: 'unnamedTool', height: 5.2 },
-  { id: 'toolcraft-unnamed-02', region: 'toolcraft', at: [-149, -22], rot: 1.05, kind: 'unnamedTool', height: 4.6 },
-  { id: 'toolcraft-unnamed-03', region: 'toolcraft', at: [-135.5, 11.5], rot: 1.57, kind: 'unnamedTool', height: 4.8 },
-  { id: 'toolcraft-unnamed-04', region: 'toolcraft', at: [-117, 15], rot: 1.05, kind: 'unnamedTool', height: 4.2 },
+  { id: 'toolcraft-unnamed-01', region: 'toolcraft', at: [-158.6, -20.8], rot: 3.67, kind: 'unnamedTool', height: 5.2 },
+  { id: 'toolcraft-unnamed-02', region: 'toolcraft', at: [-193.4, -28.2], rot: 5.76, kind: 'unnamedTool', height: 4.6 },
+  { id: 'toolcraft-unnamed-03', region: 'toolcraft', at: [-176.15, 14.95], rot: 1.57, kind: 'unnamedTool', height: 4.8 },
+  { id: 'toolcraft-unnamed-04', region: 'toolcraft', at: [-152.1, 19.5], rot: 1.05, kind: 'unnamedTool', height: 4.2 },
 ]);
 
 /**
@@ -593,11 +636,19 @@ export const PLATFORMS = Object.freeze([
    * 第一階是這片土地上第一個「上面」：一塊被踩得發亮的圓石鼓，
    * 頂面刻著一圈細線（自發光，0 光源），從遠處看得出那一圈光是**平的**，
    * 不是又一顆石頭。形狀自己說「這個可以站上去」，一個字都不寫。
+   *
+   * v1.2 · P22d 挪過 3.9 公尺（[31.2, -15.6] → 這裡）。P22c 把座標乘 1.30、地形沒跟著乘，
+   * 於是它落到一段更斜的坡上：最難的那一側要爬 1.89 公尺，超過「離散彈道頂點 2.04 −
+   * 餘裕 0.2 ＝ 1.84」（起跳圈是 `radius + 玩家 0.62 + 0.5`，圈越大就越吃到坡下面）。
+   * 在舊座標上逐個半徑量過：3.2→1.92、2.6→1.89、2.2→1.87、2.0→1.85、1.8→1.84、
+   * 1.6→1.83、1.4→1.81 —— 也就是**留在原地就得把石鼓縮到 1.6 以下、而且只剩 0.01 公尺餘裕**。
+   * 換一塊平一點的地才是真的修法：現在最難的那一側爬 1.80 公尺（餘裕 0.04），
+   * 半徑仍是 2.6 —— 高原上這兩階最寬，走過去就看得出它與後面那些窄的不一樣。
    */
   {
     id: 'foundations-first-step',
     region: 'foundations',
-    at: [24, -12],
+    at: [27.9, -13.6],
     rot: 0,
     kind: 'stepStone',
     height: 1.6,
@@ -610,44 +661,76 @@ export const PLATFORMS = Object.freeze([
    * 頂面上躺著一件只有站上來才搆得到的東西（`reveals` 指的那一處祕密）。
    * 從地上看不到它 —— 頂面離地 1.6 公尺（＝ `EYE_HEIGHT`），
    * 平躺在上面的東西從下面只看得到石鼓的側面。
+   *
+   * v1.2 · P22d 先挪到 [-31.6, -47.1]、半徑收到 1.4（P22c 之後舊座標最難的那一側
+   * 要爬 1.86 公尺，門檻 1.84 —— 留在原地是真的做不到）。
+   *
+   * **可是收到 1.4 之後，e2e 六次都跳不上去**（`test:e2e` 的 P15 那一段）：
+   * 半徑一小，頂面平的那一段（`standR`）跟著小，可是起跳圈是 `radius + 0.62 + 0.5`，
+   * 人在空中要橫著走完的那一段反而**變長**（1.4 → 1.27 公尺、2.6 → 1.12 公尺）；
+   * 而這台機器一幀 0.2 秒，腳高過頂面的那一段只有 0.32 秒 ＝ 一幀半。
+   * 收半徑是把它往「跳不上去」推，不是往回救。
+   *
+   * 所以改成**換一塊更平的地 ＋ 把石鼓放回 2.6**
+   * （`node scripts/screen-fit.mjs --region foundations --kind platform --height 1.6
+   * --radius 2.6` 掃出來的落點：四周 16/16、離路網 12.5 公尺）。
+   * 實測第一次就跳得上去（腳被抬高 1.59 公尺、落點離圓心 0.82 公尺）。
+   *
+   * ⚠️ **這一座的 `at` 與 `src/data/secrets.json` 的 `ledger-of-the-unsaid` 是綁死的**：
+   * `test:rubric` 用 `eq(pf.at[0], s.at[0])` 逐值比對（祕密就躺在頂面上）。
+   * 挪這一座就一定要把那一處祕密挪到同一個座標，否則那兩條斷言會紅。
    */
   {
     id: 'foundations-second-step',
     region: 'foundations',
-    at: [-23, -37],
+    at: [-28.6, -44.6],
     rot: 0.4,
     kind: 'stepStone',
     height: 1.6,
-    radius: 1.6,
+    radius: 2.6,
     reveals: 'ledger-of-the-unsaid',
   },
   /*
    * 沉書檔案庫（v1.2 · P15）：**讀過的那一疊**——石鼓的裙是一疊翻過的石板書。
    * 造型語彙照這片土地的母題（`pageStack`，§4.10 ②）：同一個形狀在遠處重複出現，
    * 走近才發現這一疊是可以站上去的那一疊。
+   *
+   * v1.2 · P22d 挪過 3.8 公尺（[104, -152.1] → 這裡）、半徑 1.6 → 1.4：
+   * P22c 之後舊座標最難的那一側要爬 2.17 公尺（門檻 1.84），半徑逐個量過
+   * （1.4→2.136、1.6→2.166、2.0→2.210、2.6→2.243、3.2→2.254）**沒有一個救得回來**。
+   * 現在最難的那一側爬 1.62 公尺（餘裕 0.22）。
+   *
+   * ⚠️ **`at` 與 `src/data/secrets.json` 的 `margin-of-the-unread` 綁死**（同上一座的理由）。
    */
   {
     id: 'grounding-read-step',
     region: 'grounding',
-    at: [80, -117],
+    at: [103.7, -152.3],
     rot: 0.9,
     kind: 'pageStep',
     height: 1.6,
-    radius: 1.6,
+    radius: 1.4,
     reveals: 'margin-of-the-unread',
   },
   /*
    * 面具劇場（v1.2 · P15）：**沒有人站的那一階**——石鼓的裙上浮著一張很淺的面具浮雕，
    * 頂面空著（這片土地的語彙：掛著的空面具、「你不是它」）。
+   *
+   * v1.2 · P22d 挪過 2.2 公尺（[149.5, 127.4] → 這裡）、半徑 1.6 → 1.4：
+   * P22c 之後舊座標最難的那一側要爬 2.17 公尺（門檻 1.84），半徑逐個量過
+   * （1.4→2.090、1.6→2.172、2.0→2.321、2.6→2.474、3.2→2.500）**沒有一個救得回來**。
+   * 現在最難的那一側爬 1.61 公尺（餘裕 0.22）。
+   *
+   * ⚠️ **`at` 與 `src/data/secrets.json` 的 `understudy-mark` 綁死**（同前）。
    */
   {
     id: 'config-gallery-step',
     region: 'config',
-    at: [115, 98],
+    at: [150.7, 129.2],
     rot: 2.6,
     kind: 'maskStep',
     height: 1.6,
-    radius: 1.6,
+    radius: 1.4,
     reveals: 'understudy-mark',
   },
   /*
@@ -657,7 +740,7 @@ export const PLATFORMS = Object.freeze([
   {
     id: 'forms-gauge-step',
     region: 'forms',
-    at: [13, 144],
+    at: [16.9, 187.2],
     rot: 1.8,
     kind: 'gaugeStep',
     height: 1.6,
@@ -672,7 +755,7 @@ export const PLATFORMS = Object.freeze([
   {
     id: 'forms-second-gauge-step',
     region: 'forms',
-    at: [-4, 140],
+    at: [-5.2, 182],
     rot: 0.62,
     kind: 'gaugeStep',
     height: 1.6,
@@ -690,7 +773,7 @@ export const PLATFORMS = Object.freeze([
   {
     id: 'reasoning-third-step',
     region: 'reasoning',
-    at: [-112.75, -107.25],
+    at: [-146.58, -139.43],
     rot: 2.15,
     kind: 'twiceStep',
     height: 1.6,
@@ -699,11 +782,15 @@ export const PLATFORMS = Object.freeze([
   /*
    * 齒輪工坊（v1.2 · P16a）：**吊上來的那一階**——裙邊伸出一截短臂，
    * 臂端吊著一小件；再往前那一節只剩光（母題 `oneSmallPiece` 的同一句話）。
+   *
+   * v1.2 · P22d 挪過 2.5 公尺（[-96.2, 110.5] → 這裡）：P22c 攤開世界之後它的四周
+   * 只剩 13/16（要 14）—— 高台本身沒有變，是腳下的程序化落石重新排過了。
+   * 現在四周 15/16、最難的那一側爬 1.75 公尺（門檻 1.84，餘裕 0.08）。
    */
   {
     id: 'orchestration-hoist-step',
     region: 'orchestration',
-    at: [-74, 85],
+    at: [-94.7, 110],
     rot: 0.9,
     kind: 'hoistStep',
     height: 1.6,
@@ -717,7 +804,7 @@ export const PLATFORMS = Object.freeze([
   {
     id: 'frugality-emptied-step',
     region: 'frugality',
-    at: [9, -69.5],
+    at: [11.7, -90.35],
     rot: 0.3,
     kind: 'takenStep',
     height: 1.6,
@@ -728,11 +815,16 @@ export const PLATFORMS = Object.freeze([
    * 這片土地的地貌就是「一條淺谷把院子分成幾乎一樣高的兩半」——
    * 所以它是第一片**刻意擺兩座**的加建：谷的兩邊各一座，
    * 裙上都嵌著一圈被磨過的鏡面，站在其中一座上看得到另一座（改自己寫過的字）。
+   *
+   * v1.2 · P22d 兩座都挪過（第一座 0.4 公尺、第二座 2.4 公尺），理由都是
+   * 「四周繞不過去」：世界攤開之後這片谷的落石重新排過，第二座掉到 11/16、
+   * 第一座在收尾時掉到 13/16（門檻 14）。現在是 14/16 與 16/16，
+   * 最難的那一側各爬 1.63／1.65 公尺（門檻 1.84）。
    */
   {
     id: 'refinery-first-mirror-step',
     region: 'refinery',
-    at: [-138, 156.5],
+    at: [-179.7, 203.7],
     rot: 1.2,
     kind: 'mirrorStep',
     height: 1.6,
@@ -741,7 +833,7 @@ export const PLATFORMS = Object.freeze([
   {
     id: 'refinery-second-mirror-step',
     region: 'refinery',
-    at: [-153.5, 109],
+    at: [-201.7, 140.7],
     rot: 4.3,
     kind: 'mirrorStep',
     height: 1.6,
@@ -757,53 +849,53 @@ export const PLATFORMS = Object.freeze([
  * 讀的是同一份 —— 路與稽核不會各走各的。
  */
 export const PATH_BENDS = Object.freeze({
-  // 面具劇場：繞過「側幕」的南端（v1.2 · P12，`scripts/screen-fit.mjs` 產生、重建驗過）
+  // 面具劇場：繞過「側幕」的南端（v1.2 · P22d 重搜，`scripts/screen-fit.mjs` 的 `autoBends()` 產生、重建驗過）
   config: Object.freeze([
-    [68.13, 68.13], // 橋頭
-    [79.34, 71.26], // 走到側幕正面前 —— 拱門還在它背後
-    [85.35, 70.2], // 貼著那一面滑到南端
-    [86.67, 77.68], // 繞過端點 —— 拱門在這裡揭露
-    [89.17, 82.88],
+    [86.87, 86.87], // 橋頭
+    [98.2, 92.9], // 走到側幕正面前 —— 拱門還在它背後
+    [104.3, 92.9], // 貼著那一面滑到南端
+    [104.3, 100.5], // 繞過端點 —— 拱門在這裡揭露（第 15 公尺）
+    [110.06, 107.4],
   ]),
-  // 契約鍛冶場：繞過「立起來的工作檯」的北端
+  // 契約鍛冶場：繞過「立起來的工作檯」的南端（v1.2 · P22d）
   toolcraft: Object.freeze([
-    [-88, 0], // 橋頭
-    [-105.1, 4.29],
-    [-110.38, 7.34],
-    [-114.18, 0.76],
-    [-117.13, 0.53],
+    [-112, 0], // 橋頭
+    [-124.89, -3.18], // 走到工作檯正面前 —— 自動產生的那一條從 (-119.5, -0.3) 一顆石頭中間穿過去，往南挪 2.7 公尺
+    [-130.28, 2.17], // 貼著那一面滑到端點
+    [-137.65, -1.28], // 繞過端點 —— 無名的鑰匙在這裡揭露（第 18 公尺）
+    [-141.71, 1.9],
   ]),
-  // 量器坊：繞過「立起來的那一階刻度」的西端（v1.2 · P16a，`screen-fit` 產生、重建驗過）
+  // 量器坊：繞過「立起來的那一階刻度」的東端（v1.2 · P22d）
   forms: Object.freeze([
-    [0, 88], // 橋頭
-    [-2.02, 94.33], // 走到那一道正面前 —— 刻度之柱還在它背後
-    [-7.91, 92.75], // 貼著那一面滑到西端
-    [-9.88, 100.09], // 繞過端點 —— 柱在這裡揭露
-    [-6.91, 107.26],
+    [0, 112], // 橋頭
+    [-3.2, 125.7], // 走到那一道正面前 —— 刻度之柱還在它背後
+    [2.9, 125.7], // 貼著那一面滑到東端
+    [2.9, 133.3], // 繞過端點 —— 柱在這裡揭露（第 18 公尺）
+    [2.03, 141.67],
   ]),
-  // 觀象臺：繞過「坡上的那一階」的南端（v1.2 · P16b，`screen-fit` 產生、折點逐點重建驗過）
+  // 觀象臺：繞過「坡上的那一階」的東端（v1.2 · P22d）
   sight: Object.freeze([
-    [108.23, -14.54], // 橋頭
-    [110.99, -18.69], // 走到那一階正面前 —— 朝天的鏡還在它背後
-    [106.97, -23.92], // 貼著那一面滑到南端
-    [110, -28.55], // 繞過端點 —— 鏡在這裡揭露（自動產生的 113 那一點被石頭堵住，往西挪 3 公尺）
-    [113.8, -31.28], // 最後一段往南收 —— 自動產生的 123.8 那一段會從一顆石頭中間穿過去
+    [138.32, -18.58], // 橋頭
+    [149.49, -29.41], // 走到那一階正面前 —— 朝天的鏡還在它背後
+    [153.5, -34.65], // 貼著那一面滑到端點
+    [159.53, -30.02], // 繞過端點 —— 鏡在這裡揭露（第 18 公尺）
+    [169.78, -33.11],
   ]),
-  // 分歧之廳：繞過「岔開的那一道」的東端（v1.2 · P16b）
+  // 分歧之廳：繞過「岔開的那一道」的東端（v1.2 · P22d）
   divergence: Object.freeze([
-    [59.59, 13.33], // 橋頭
-    [62.73, 21.5], // 走到那一道正面前 —— 兩面的柱還在它背後
-    [63.59, 14.96], // 貼著那一面滑到端點
-    [71.13, 15.95], // 繞過端點 —— 柱在這裡揭露
-    [76.79, 20.47],
+    [75.12, 16.8], // 橋頭
+    [89.6, 18.1], // 走到那一道正面前 —— 兩面的柱還在它背後
+    [94.2, 18.1], // 貼著那一面滑到東端（自動產生的 96.2 那一點離檔案廊 hall-divergence 只有 1.95 公尺，門檻 3；往西挪 2 公尺 → 3.79）
+    [96.2, 25.7], // 繞過端點 —— 柱在這裡揭露（第 18 公尺）
+    [102.44, 30.08],
   ]),
+  // 階梯迴廊：繞過「第一遍的背脊」的南端（v1.2 · P22d）
   reasoning: Object.freeze([
-    [-68.13, -68.13], // 橋頭：主動線的內端（區界再往裡 8 公尺）
-    [-67.49, -75.13], // 繞過橋頭第一座石座，往北偏
-    [-70.18, -79.51], // 貼著第一遍那道背脊的面走
-    [-69.9, -84.04], // 繞過它的北端 —— 塔在這裡揭露
-    [-71.67, -90.05],
-    [-78.38, -93.23], // 從小景北側繞回塔的方向
+    [-86.87, -86.87], // 橋頭：主動線的內端（區界再往裡 8 公尺）
+    [-96.29, -95.49], // 走到那道背脊正面前 —— 塔還在它背後
+    [-92.42, -100.52], // 貼著那一面滑到南端
+    [-98.45, -105.15], // 繞過端點 —— 塔在這裡揭露（第 18 公尺）
+    [-105.96, -110.66],
   ]),
 });
 

@@ -757,13 +757,33 @@ async function main() {
   // 開場曲：harness 帶 --autoplay-policy=no-user-gesture-required，
   // 標題卡上就該真的響起來（title 音軌在播、gain 有拉起來）
   const overture = await evaluate(`
-    const d = window.__promptasy.audio.debug();
-    const t = (d.bgm || d.regions || {}).title || {};
-    return { running: window.__promptasy.audio.isRunning(), playing: !!t.playing, gain: t.gain ?? 0, region: d.region };
+    const g = window.__promptasy;
+    /*
+     * v1.2 · P22c：**輪詢，不用固定 sleep 對齊牆鐘。**
+     * 開場曲是抓下來 ＋ 解碼之後才接上去的（解不開就退回合成 pad）——
+     * 那是非同步的，而這一段之前只等了開機那 900 毫秒。世界攤開之後開機更慢，
+     * 這條就開始隨機紅（同一輪其他機器全綠）。要驗的仍然是同一件事：
+     * **標題卡還在的時候它就響了**，所以下面多帶一個「量的時候標題卡開著嗎」。
+     */
+    let t = (g.audio.debug().bgm || g.audio.debug().regions || {}).title || {};
+    for (let i = 0; i < 150 && !t.playing; i += 1) {
+      await new Promise((r) => setTimeout(r, 100));
+      const d = g.audio.debug();
+      t = (d.bgm || d.regions || {}).title || {};
+    }
+    const d = g.audio.debug();
+    return {
+      running: g.audio.isRunning(),
+      playing: !!t.playing,
+      gain: t.gain ?? 0,
+      region: d.region,
+      titleOpen: g.title.isOpen,
+    };
   `);
   eq(overture.region, 'title', '標題卡期間配樂區域是 title');
   ok(overture.running, '自動播放放行時 AudioContext 是 running');
   ok(overture.playing, '開場曲(Promptasy Overture)在標題卡上就開始播');
+  eq(overture.titleOpen, true, '而且它響起來的時候標題卡還在（不是進場之後才補上）');
 
   // Phase 30：音檔（共約 15 MB）不能在標題卡之前開始下載（護欄 5：不拖慢第一個畫面）
   const beforeGesture = await evaluate(`
@@ -1679,7 +1699,14 @@ async function main() {
      * 所以這裡不去控制方向：**撞到東西停下來也算數**，要驗的是高度，不是走多遠。
      * 「輸入真的有進去」另外用速度證明（blocked 也會有速度，只是走不動）。
      */
-    const near = stand.filter((s) => Math.hypot(s.x, s.z) < 46 && s.r < 2.5);
+    /*
+      * 「中央高原上」的半徑從活的資料推（內圈 flat 再往內縮 4 公尺），不寫死 46 ——
+      * v1.2 · P22c 把世界攤開之後高原長到 r=80.6／flat=65，每平方公尺的密度掉到 1/1.69，
+      * 寫死的 46 只框得到 6 顆（門檻是 3，離紅線只剩 3 顆）；改成 flat−4=61 之後框得到 9 顆。
+      * s.r < 2.5 是**東西的大小**，不動。
+      */
+    const hubSite = w.sites.find((x) => x.id === 'foundations');
+    const near = stand.filter((s) => Math.hypot(s.x, s.z) < hubSite.flat - 4 && s.r < 2.5);
     const walks = [];
     for (const s of near) {
       if (walks.length >= 3) break;
@@ -1904,10 +1931,19 @@ async function main() {
        * 刻意用出生點（半徑 7 公尺的淨空區、一定在中央高原上、一定站得住）——
        * 這一段之前玩家可能被別的段落帶到任何地方，不能假設「他現在站的地方跳得起來」。
        */
-      out.spawnClear = w.isClear(0, 6);
-      g.player.teleport(0, 6);
+      // 出生點就是 World.SPAWN_AT（v1.2 · P22c：[0, 7.8]，之前寫死的是舊的 [0, 6]）
+      out.spawnClear = w.isClear(0, 7.8);
+      g.player.teleport(0, 7.8);
       await waitGame(0.4);
       const y0 = P().y;
+      /*
+       * v1.2 · P22c：位移量從**起跳前那一點**量起，不再從一個寫死的座標量。
+       * 以前是 \`Math.hypot(p.x - 0, p.z - 6)\` —— 那個 \`(0, 6)\` 是舊的出生點；
+       * 出生點改成 \`(0, 7.8)\` 之後，人明明一寸沒動，這條斷言照樣量到 1.80 公尺
+       * （＝ 兩個出生點之間的距離），於是「原地跳沒有把人平移走」變成永遠會紅。
+       * 從起跳前的位置量，問的才是這條斷言真正在問的那件事。
+       */
+      const p0 = P();
       const r = await jumpAndLand();
       const p = P();
       out.plain = {
@@ -1919,7 +1955,7 @@ async function main() {
         peak: Math.max(...r.samples.map((s) => s.y - s.terr)),
         backToGround: Math.abs(p.y - w.terrainHeight(p.x, p.z)),
         backToStart: Math.abs(p.y - y0),
-        moved: Math.hypot(p.x - 0, p.z - 6),
+        moved: Math.hypot(p.x - p0.x, p.z - p0.z),
         standing: r.standing,
       };
     }
@@ -2011,9 +2047,16 @@ async function main() {
       await waitGame(0.3);
       // 找中央高原上「站得住、但再走一步就是虛空」的一點
       let edge = null;
+      /*
+       * 掃的那一圈從活的高原推（外緣再多 5 公尺 → 內圈 flat），不寫死 66→50 ——
+       * v1.2 · P22c 之後高原是 r=80.6／flat=65，50–66 那一圈整段是內陸，
+       * 實測 edge 一路都是 null，整個 ③ 段會**無聲跳過**。
+       * 新的範圍 85.6→65 實測找得到 (60.19, 40.60)（d=72.6）。
+       */
+      const hubSite = w.sites.find((x) => x.id === 'foundations');
       for (let a = 0; a < 180 && !edge; a += 1) {
         const t = (a / 180) * Math.PI * 2;
-        for (let d = 66; d > 50; d -= 0.5) {
+        for (let d = hubSite.radius + 5; d > hubSite.flat; d -= 0.5) {
           const x = Math.cos(t) * d;
           const z = Math.sin(t) * d;
           if (!w.isClear(x, z)) continue;
@@ -2038,6 +2081,8 @@ async function main() {
         out.edge.finalCover = w.coverage(p.x, p.z);
         out.edge.finalFoot = Math.abs(p.y - w.terrainHeight(p.x, p.z));
         out.edge.finalRadius = Math.hypot(p.x, p.z);
+        // 高原自己的半徑一起帶回來 —— 下面那條斷言不准再寫死一個數字（見它的註解）
+        out.edge.hubRadius = hubSite.radius;
       }
     }
 
@@ -2172,7 +2217,19 @@ async function main() {
     ok(r.worstCover >= 0.45, 'P14：整段跳躍**最糟的那一個取樣點**仍然踩得到地', `worst=${r.worstCover.toFixed(2)}`);
     ok(r.finalCover >= 0.45, 'P14：落地的那一點踩得到地（沒有掉進虛空）', `cover=${r.finalCover.toFixed(2)}`);
     ok(r.finalFoot < 1e-6, 'P14：邊緣那一跳落回地形高度', `d=${r.finalFoot}`);
-    ok(r.finalRadius < 70, 'P14：沒有被彈出中央高原', `r=${r.finalRadius.toFixed(1)}`);
+    /*
+     * **v1.2 · P22c：`< 70` 改成從活的高原推。**
+     * 70 是「高原半徑 62 ＋ 8 公尺的漂移餘裕」寫死的結果；座標 ×1.3 之後高原是 80.6，
+     * 起跳點本身就落在 d=72.6（上面那一圈掃出來的），於是這條斷言變成
+     * **「站在高原上就算被彈出高原」**——量到 73.3 就紅，而 73.3 其實還在高原上。
+     * 現在寫成 `半徑 ＋ 8`，與當年那個 70 是同一句話（餘裕 8 公尺沒有跟著乘：
+     * 它是「跳一步會漂多遠」，跳躍常數這一格一寸沒動）。
+     */
+    ok(
+      r.finalRadius < r.hubRadius + 8,
+      'P14：沒有被彈出中央高原',
+      `r=${r.finalRadius.toFixed(1)} / ${(r.hubRadius + 8).toFixed(1)}`
+    );
   }
 
   /* ⑤ 落地塵與收尾 */
@@ -4775,13 +4832,19 @@ async function main() {
 
   const blocked = await evaluate(`
     const g = window.__promptasy;
-    const site = { x: -95, z: -95 };
+    // 圓心查活的資料（v1.2 · P22c：從 -95,-95 搬到 -123.5,-123.5）
+    const site = g.world.sites.find((s) => s.id === 'reasoning');
     await new Promise((r) => setTimeout(r, 1600));
     window.dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyW' }));
     const d = Math.hypot(g.player.position.x - site.x, g.player.position.z - site.z);
-    return { distToRegion: d, walkable: g.world.isWalkable(site.x, site.z) };
+    return { distToRegion: d, radius: site.radius, walkable: g.world.isWalkable(site.x, site.z) };
   `);
-  ok(blocked.distToRegion > 40, '閘門鎖住時走不進 reasoning', `dist=${blocked.distToRegion.toFixed(1)}`);
+  // 「走不進去」＝ 人還在那片土地的圓外（門檻跟著土地走，不是寫死的 40）
+  ok(
+    blocked.distToRegion > blocked.radius,
+    '閘門鎖住時走不進 reasoning',
+    `dist=${blocked.distToRegion.toFixed(1)} r=${blocked.radius}`
+  );
   eq(blocked.walkable, false, '鎖住的區域判定為不可行走');
 
   /* ---------------------------------------------------------------- *
@@ -4907,7 +4970,8 @@ async function main() {
       open: g.gateAsk.isOpen,
       unlocked: g.progression.isRegionUnlocked('reasoning'),
       gateOpen: gate.isOpen,
-      walkable: g.world.isWalkable(-95, -95),
+      // 圓心查活的資料（v1.2 · P22c 之後是 -123.5,-123.5）
+      walkable: (() => { const s = g.world.sites.find((x) => x.id === 'reasoning'); return g.world.isWalkable(s.x, s.z); })(),
       skipped: g.progression.skippedGateCount(),
     };
   `);
@@ -4968,7 +5032,8 @@ async function main() {
       askOpen: g.gateAsk.isOpen,
       unlocked: g.progression.isRegionUnlocked('reasoning'),
       gateOpen: gate.isOpen,
-      walkable: g.world.isWalkable(-95, -95),
+      // 圓心查活的資料（v1.2 · P22c 之後是 -123.5,-123.5）
+      walkable: (() => { const s = g.world.sites.find((x) => x.id === 'reasoning'); return g.world.isWalkable(s.x, s.z); })(),
       skipped: g.progression.state.skippedGates,
       xp: g.progression.state.xp,
       cleared: Object.keys(g.progression.state.bestGrades).length,
@@ -5138,7 +5203,13 @@ async function main() {
     const lightsBefore = countLights();
     const dome = g.engine.skyDome;
     const mulBefore = [dome.material.uniforms.uMulTop.value.r, dome.material.uniforms.uMulTop.value.g, dome.material.uniforms.uMulTop.value.b];
-    g.player.teleport(-95, -95);
+    // 站進 reasoning：從圓心往高原退 20 公尺（圓心擺著地標，站不進去）。
+    // 座標查活的資料 —— v1.2 · P22c 之後圓心是 -123.5,-123.5，寫死的 -95,-95 只是碰巧還在圓裡。
+    {
+      const rs = g.world.sites.find((s) => s.id === 'reasoning');
+      const rd = Math.hypot(rs.x, rs.z) || 1;
+      g.player.teleport(rs.x - (rs.x / rd) * 20, rs.z - (rs.z / rd) * 20);
+    }
     // v1.2 · P06：輪詢直到穹頂乘數離開 1（進區換色是 lerp 過去的，不用固定 sleep 對齊）
     const until = performance.now() + 6000;
     let mulNow = mulBefore;
@@ -5188,8 +5259,16 @@ async function main() {
   console.log('\n▸ 鏡頭避障（Phase 3 已知問題）');
   const camera = await evaluate(`
     const g = window.__promptasy;
-    // 走到書架密集的 grounding 區旁邊（用 teleport 略過解鎖，只測鏡頭）
-    g.player.teleport(95 - 27, -95);
+    /*
+     * 走到 grounding（書架走道那一區）裡面（用 teleport 略過解鎖，只測鏡頭）。
+     * 座標查活的資料：寫死的 (95-27, -95) 在 v1.2 · P22c 之後離新圓心 62.4 公尺、
+     * 已經掉出圓外（實測 regionAt = null、coverage = 0、高度 −34）——
+     * 站在虛空上量鏡頭避障，量到的是空氣。
+     * 改成從圓心往高原退 20 公尺：實測 (109.4, -109.4)，站得住、而且真的在 grounding。
+     */
+    const gs = g.world.sites.find((s) => s.id === 'grounding');
+    const gd = Math.hypot(gs.x, gs.z) || 1;
+    g.player.teleport(gs.x - (gs.x / gd) * 20, gs.z - (gs.z / gd) * 20);
     await new Promise((r) => setTimeout(r, 1500));
     const cam = g.engine.camera.position;
     const p = g.player.position;
@@ -7394,7 +7473,32 @@ async function main() {
     g.progression.setFlag('midpointSeen', true);
     // 離目標夠遠、而且站著不動
     const t0 = g.world.objectiveTarget(g.hud.region);
-    g.player.teleport(t0.x + 62, t0.z + 44);
+    /*
+     * v1.2 · P22c：**「走遠一點」不再寫死一個位移。**
+     *
+     * 原本是 \`t0.x + 62, t0.z + 44\`。座標 ×1.30 之後那個位移一寸沒動，
+     * 十二片土地裡有十片的「目標 ＋ (62, 44)」落在虛空（實測 coverage 0.00）——
+     * \`teleport\` 過去的人被拉回來，離目標仍在 \`NEAR_ENOUGH\`（14 公尺）以內，
+     * 提示於是**正確地**不出現，而斷言看起來像產品壞了。
+     *
+     * 改成從目標往外一圈一圈找「**同一片土地上、走得到、而且離得最遠**」的那一點：
+     * 沒有寫死的數字可以再爛掉，找不到的話下面那條前提斷言會直接紅。
+     */
+    const homeRegion = g.hud.region;
+    let away = null;
+    for (let rr = 60; rr >= 18 && !away; rr -= 2) {
+      for (let k = 0; k < 24 && !away; k += 1) {
+        const ang = (k / 24) * Math.PI * 2;
+        const ax = t0.x + Math.cos(ang) * rr;
+        const az = t0.z + Math.sin(ang) * rr;
+        const at = g.world.regionAt(ax, az);
+        if (!at || at.onBridge || at.id !== homeRegion) continue;
+        if (!g.world.isWalkable(ax, az)) continue;
+        away = { x: ax, z: az, r: rr };
+      }
+    }
+    if (away) g.player.teleport(away.x, away.z);
+    window.__nudgeAway = away;
     await new Promise((r) => setTimeout(r, 400));
     /*
      * 課程 v2 · Phase F：這一輪玩到這裡時，知識式軟門檻可能已經替玩家開了新的土地，
@@ -7443,6 +7547,8 @@ async function main() {
       state: st,
       targetName: t.name,
       dx, dz,
+      away,
+      awayD: Math.hypot(dx, dz),
       hidden: el.hidden,
       isOn: el.classList.contains('is-on'),
       line: el.querySelector('[data-line]').textContent.trim(),
@@ -7458,6 +7564,11 @@ async function main() {
       opacity,
     };
   `);
+  ok(
+    nudgeIdle.away && nudgeIdle.awayD > 14,
+    '（前提）人真的被放到離目標很遠的地方（不然這一整段是空過的）',
+    `${JSON.stringify(nudgeIdle.away)} → ${(nudgeIdle.awayD || 0).toFixed(1)}m`
+  );
   eq(nudgeIdle.state.visible, true, '約 50 秒沒往目標靠近 → 提示出現');
   eq(nudgeIdle.hidden, false, '提示節點看得見');
   eq(nudgeIdle.isOn, true, '提示帶著 is-on（會呼吸的那個狀態）');
@@ -7509,7 +7620,9 @@ async function main() {
   const nudgeCooldown = await evaluate(`
     const g = window.__promptasy;
     const t = g.world.objectiveTarget(g.hud.region);
-    g.player.teleport(t.x + 62, t.z + 44);   // 又走遠了
+    // 又走遠了（用上面那一段找出來的落腳點，不是寫死的位移 —— 理由同上）
+    const away = window.__nudgeAway;
+    if (away) g.player.teleport(away.x, away.z);
     g.nudge.update(20);
     g.nudge.update(20);
     g.nudge.update(20);                      // 閒置 60 秒，但冷卻還沒跑完
@@ -7517,8 +7630,10 @@ async function main() {
     g.nudge.update(20);
     g.nudge.update(20);                      // 冷卻跑完了
     const after = g.nudge.state();
-    return { mid, after };
+    const t2 = g.world.objectiveTarget(g.hud.region);
+    return { mid, after, awayD: Math.hypot(t2.x - g.player.position.x, t2.z - g.player.position.z) };
   `);
+  ok(nudgeCooldown.awayD > 14, '（前提）冷卻那一段人也真的站得夠遠', `${nudgeCooldown.awayD.toFixed(1)}m`);
   eq(nudgeCooldown.mid.visible, false, '冷卻中即使閒置夠久也不會又冒出來（不嘮叨）');
   ok(nudgeCooldown.mid.cooldown > 0, '這時候確實還在冷卻', `cd=${nudgeCooldown.mid.cooldown}`);
   eq(nudgeCooldown.after.visible, true, '冷卻結束後又會提醒一次');
@@ -10051,7 +10166,18 @@ async function main() {
       flameBefore: obj.flameA.material.emissiveIntensity,
     };
     window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyE', bubbles: true }));
-    await new Promise((r) => setTimeout(r, 1400));
+    /*
+     * v1.2 · P22c：**固定 sleep 換成輪詢。**
+     * \`lit\` 是每一幀往上收斂一次（\`lit += (want - lit) * min(1, dt * 2.4)\`，
+     * 而 \`dt\` 在引擎裡就被夾在 0.1），所以它要的是**幾幀**，不是幾毫秒 ——
+     * 要爬過 0.8 要六幀。這台軟體渲染一幀 0.2–0.3 秒，固定等 1.4 秒等於在賭幀數
+     * （實測量到 0.75 ＝ 只跑了五幀）。輪詢到它真的燒起來為止，逾時照樣紅。
+     */
+    for (let i = 0; i < 120 && obj.lit <= 0.95; i += 1) {
+      await new Promise((r) => setTimeout(r, 100));
+    }
+    // 「一直亮著」：再放幾拍，火不會自己熄下去
+    await new Promise((r) => setTimeout(r, 600));
     out.lit = obj.lit;
     out.flame = obj.flameA.material.emissiveIntensity;
     out.glow = obj.glow.material.opacity;
@@ -13048,13 +13174,21 @@ async function main() {
   /* 鎖著的時候真的走不過去 */
   const fmBlocked = await evaluate(`
     const g = window.__promptasy;
-    // 走到閘門後面一點的位置：應該被擋回來
-    const before = { x: 0, z: 60 };
+    /*
+     * 閘門在哪裡**從活的資料讀**（量器坊那條橋是正北，dir = (0,1)，所以沿橋距離就是 z）。
+     * 寫死的 (0,60) → (0,90) 在 v1.2 · P22c 之後已經整段落在閘門**前面**
+     * （閘門從 z≈71 搬到 z=92.3）—— 什麼都沒被擋，這一條就變成假的。
+     * 前後兩點各離閘門 30／20 公尺（距離不隨世界攤開而變），
+     * 「有沒有過去」的容差仍是原本那 9 公尺。
+     */
+    const fc = g.world.corridors.find((x) => x.region === 'forms');
+    const gate = fc.from.z + fc.dir.z * fc.gateAt;
+    const before = { x: 0, z: gate - 30 };
     g.player.position.set(before.x, g.world.terrainHeight(before.x, before.z), before.z);
-    const got = g.world.clampPosition(0, 90, before.x, before.z);
-    return { z: got.z, blocked: got.z < 80 };
+    const got = g.world.clampPosition(0, gate + 20, before.x, before.z);
+    return { z: got.z, gate, blocked: got.z < gate + 9 };
   `);
-  eq(fmBlocked.blocked, true, '閘門鎖著的時候走不過那座橋', String(fmBlocked.z));
+  eq(fmBlocked.blocked, true, '閘門鎖著的時候走不過那座橋', `z=${fmBlocked.z} gate=${fmBlocked.gate}`);
 
   /* --- 先行前往：門開了，但一分 XP 都不加 --- */
   const fmSkip = await evaluate(`
@@ -13080,8 +13214,22 @@ async function main() {
   const fmEnter = await evaluate(`
     const g = window.__promptasy;
     const before = { region: g.hud.region, mood: g.audio.debug().region };
-    g.player.position.set(0, g.world.terrainHeight(0, 124) + 1, 124);
-    await new Promise((r) => setTimeout(r, 900));
+    // 站進量器坊：圓心往高原退 20 公尺（v1.2 · P22c：圓心 z 從 124 搬到 161.2）
+    const fs = g.world.sites.find((s) => s.id === 'forms');
+    const fz = fs.z - 20;
+    g.player.position.set(fs.x, g.world.terrainHeight(fs.x, fz) + 1, fz);
+    /*
+     * v1.2 · P22c：**固定 sleep 換成輪詢**（隔壁三片土地本來就是這樣寫的）。
+     *
+     * 這一段緊接在 \`reloadPage()\` 後面 —— 剛重整完的那幾幀特別貴（著色器要編、
+     * 資產要解），實測**一幀 330 毫秒**（重整後量到 3 fps）。HUD 與配樂是遊戲迴圈
+     * 換的，固定等 900 毫秒等於在賭「這幾百毫秒裡輪得到一幀」。
+     * 產品端沒有壞：輪詢下實測 657 毫秒就換過去了（頁面暖起來之後 219 毫秒）。
+     * 輪詢逾時就把當下的值原樣交出去，斷言照樣紅。
+     */
+    for (let i = 0; i < 120 && g.hud.region !== 'forms'; i += 1) {
+      await new Promise((r) => setTimeout(r, 100));
+    }
     const here = g.world.regionAt(g.player.position.x, g.player.position.z);
     return {
       before,
@@ -13510,17 +13658,27 @@ async function main() {
   /* 鎖著的時候走不進去 */
   const tfBlocked = await evaluate(`
     const g = window.__promptasy;
-    // 正西那條橋
-    const got = g.world.clampPosition(-60, 0, -124, 0);
+    /*
+     * 正西那條橋：站在閘門**前面** 14 公尺，往閘門**後面** 32 公尺走 —— 應該一步都走不出去。
+     * 閘門的位置從活的資料讀（dir = (-1,0)，所以沿橋距離就是 −x）。
+     * 寫死的 clampPosition(-60, 0, -124, 0) 兩件事都壞了：參數順序是
+     * (next, prev)，(-60,0) 是**回頭往高原走**（不是走進工坊），而且
+     * v1.2 · P22c 把工坊搬到 x=−161.2 之後 (-60,0) 已經卡在別的石頭上 ——
+     * 實測回傳 x=−124（＝ prev），got.x > -100 這一條直接紅。
+     * 改成從閘門推之後：鎖著 x=−78.3（沒動）、開了 x=−124.3（走進去了），兩邊都量得出來。
+     */
+    const tc = g.world.corridors.find((x) => x.region === 'toolcraft');
+    const gx = tc.from.x + tc.dir.x * tc.gateAt;
+    const got = g.world.clampPosition(gx - 32, 0, gx + 14, 0);
     // 護欄崗的頸口（從檔案庫往東北）
     const link = g.world.annexLinks.find((l) => l.region === 'wards');
     const from = { x: link.from.x + link.dir.x * 30, z: link.from.z + link.dir.z * 30 };
     const to = { x: link.to.x, z: link.to.z };
     const gotW = g.world.clampPosition(to.x, to.z, from.x, from.z);
     const here = g.world.regionAt(gotW.x, gotW.z);
-    return { x: got.x, blocked: got.x > -100, wardsRegion: here && here.id };
+    return { x: got.x, gateX: gx, blocked: got.x > gx - 8, wardsRegion: here && here.id };
   `);
-  eq(tfBlocked.blocked, true, '閘門鎖著的時候走不過正西那座橋', String(tfBlocked.x));
+  eq(tfBlocked.blocked, true, '閘門鎖著的時候走不過正西那座橋', `x=${tfBlocked.x} gate=${tfBlocked.gateX}`);
   ok(tfBlocked.wardsRegion !== 'wards', '護欄崗鎖著的時候踏不進它的地界', String(tfBlocked.wardsRegion));
 
   /* --- 先行前往：門開了，但一分 XP 都不加 --- */
@@ -13547,8 +13705,22 @@ async function main() {
   /* --- 走進契約鍛冶場：HUD、氣氛、配樂都跟著換 --- */
   const tfEnter = await evaluate(`
     const g = window.__promptasy;
-    g.player.position.set(-124, g.world.terrainHeight(-124, 0) + 1, 0);
-    await new Promise((r) => setTimeout(r, 900));
+    // 站進契約鍛冶場：圓心往高原退 20 公尺（v1.2 · P22c：圓心 x 從 -124 搬到 -161.2）
+    const ts = g.world.sites.find((s) => s.id === 'toolcraft');
+    const tx = ts.x + 20;
+    g.player.position.set(tx, g.world.terrainHeight(tx, ts.z) + 1, ts.z);
+    /*
+     * v1.2 · P22c：**固定 sleep 換成輪詢**（隔壁三片土地本來就是這樣寫的）。
+     *
+     * 這一段緊接在 \`reloadPage()\` 後面 —— 剛重整完的那幾幀特別貴（著色器要編、
+     * 資產要解），實測**一幀 330 毫秒**（重整後量到 3 fps）。HUD 與配樂是遊戲迴圈
+     * 換的，固定等 900 毫秒等於在賭「這幾百毫秒裡輪得到一幀」。
+     * 產品端沒有壞：輪詢下實測 657 毫秒就換過去了（頁面暖起來之後 219 毫秒）。
+     * 輪詢逾時就把當下的值原樣交出去，斷言照樣紅。
+     */
+    for (let i = 0; i < 120 && g.hud.region !== 'toolcraft'; i += 1) {
+      await new Promise((r) => setTimeout(r, 100));
+    }
     const here = g.world.regionAt(g.player.position.x, g.player.position.z);
     return {
       here: here && here.id,
@@ -13582,7 +13754,7 @@ async function main() {
      * 固定 sleep 會偶發性地在換區之前就取樣（AGENTS.md 已登記的家族）。
      * 改成輪詢：等 HUD 真的換過去，最多 6 秒。
      */
-    for (let i = 0; i < 60 && g.hud.region !== 'refinery'; i += 1) {
+    for (let i = 0; i < 60 && g.hud.region !== 'wards'; i += 1) {
       await new Promise((r) => setTimeout(r, 100));
     }
     const here = g.world.regionAt(g.player.position.x, g.player.position.z);
@@ -14143,7 +14315,10 @@ async function main() {
       if (g.world.coverage(x, z) <= 0.45) voids += 1;
     }
     g.player.position.set(link.to.x, g.world.terrainHeight(link.to.x, link.to.z) + 1, link.to.z);
-    await new Promise((r) => setTimeout(r, 900));
+    /* 輪詢等 HUD 真的換過去（理由同量器坊那一段：剛重整完一幀要 330 毫秒） */
+    for (let i = 0; i < 120 && g.hud.region !== 'refinery'; i += 1) {
+      await new Promise((r) => setTimeout(r, 100));
+    }
     const here = g.world.regionAt(g.player.position.x, g.player.position.z);
     return {
       voids,
@@ -14606,7 +14781,10 @@ async function main() {
       if (g.world.coverage(x, z) <= 0.45) voids += 1;
     }
     g.player.position.set(link.to.x, g.world.terrainHeight(link.to.x, link.to.z) + 1, link.to.z);
-    await new Promise((r) => setTimeout(r, 900));
+    /* 輪詢等 HUD 真的換過去（理由同量器坊那一段：剛重整完一幀要 330 毫秒） */
+    for (let i = 0; i < 120 && g.hud.region !== 'frugality'; i += 1) {
+      await new Promise((r) => setTimeout(r, 100));
+    }
     const here = g.world.regionAt(g.player.position.x, g.player.position.z);
     return {
       voids,
@@ -15129,7 +15307,10 @@ async function main() {
       if (g.world.coverage(x, z) <= 0.45) voids += 1;
     }
     g.player.position.set(c.to.x, g.world.terrainHeight(c.to.x, c.to.z) + 1, c.to.z);
-    await new Promise((r) => setTimeout(r, 900));
+    /* 輪詢等 HUD 真的換過去（理由同量器坊那一段：剛重整完一幀要 330 毫秒） */
+    for (let i = 0; i < 120 && g.hud.region !== 'sight'; i += 1) {
+      await new Promise((r) => setTimeout(r, 100));
+    }
     const here = g.world.regionAt(g.player.position.x, g.player.position.z);
     return {
       voids,
@@ -19191,8 +19372,13 @@ async function main() {
      * 不要寫死那一區的中心（座標寫死在測試裡，資料一搬就是一條假的斷言）。
      */
     let spot = null;
-    for (let x = -170; x <= 170 && !spot; x += 4) {
-      for (let z = -170; z <= 170 && !spot; z += 4) {
+    /*
+     * 掃的框從**活的資料**推出來（每片土地的中心＋半徑的最外緣），不是寫死的 ±170 ——
+     * v1.2 · P22c 把座標攤開之後，寫死的框連 toolcraft 的外半圈都掃不到。
+     */
+    const HALF = Math.max(...(w.sites || []).map((s) => Math.max(Math.abs(s.x), Math.abs(s.z)) + s.radius));
+    for (let x = -HALF; x <= HALF && !spot; x += 4) {
+      for (let z = -HALF; z <= HALF && !spot; z += 4) {
         const here = w.regionAt(x, z);
         if (here && here.id === REGION && !here.onBridge && w.isClear(x, z)) spot = { x, z };
       }
@@ -19924,6 +20110,29 @@ async function main() {
     if (g.gateAsk.isOpen) g.gateAsk.close({ silent: true });
     if (g.codex.isOpen) g.codex.close();
     releaseAll();
+    /*
+     * v1.2 · P22c：**先把標題卡收掉，再開始按鍵。**
+     *
+     * 這一段緊接在 \`reloadPage()\` 後面，而重整之後標題卡是開著的 ——
+     * 標題卡開著時 \`player.setInputEnabled(false)\`，於是**第一個按鍵會被吃掉**：
+     * 玩家端的 keydown 監聽先跑（它比標題卡早註冊），看到 \`inputEnabled === false\`
+     * 就 return，\`keys\` 連加都沒加；標題卡的 \`onStart()\` 這時候才把輸入打開。
+     * 底下 \`faceToward()\` 的 \`press(dir)\` 只按一次 —— 那一次正好是被吃掉的那一次，
+     * 於是鏡頭一寸沒轉，人照著開機朝向（−Z）一路走過整片高原走到另一邊。
+     * （HEAD 也有這個洞，只是當時掃出來的徑線剛好也朝 −Z，所以矇混過去了。）
+     * 先送一個 Enter 收掉標題卡，再輪詢等輸入真的打開，才開始按方向鍵。
+     */
+    if (g.title.isOpen) {
+      window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Enter', key: 'Enter' }));
+      window.dispatchEvent(new KeyboardEvent('keyup', { code: 'Enter', key: 'Enter' }));
+    }
+    // 引導卡（intro）沒有 close()，收它的方式就是按它自己那顆鍵
+    if (g.intro.isOpen) g.intro.root.querySelector('[data-start]')?.click();
+    {
+      const bail = performance.now() + 10000;
+      while (!g.player.inputEnabled && performance.now() < bail) await sleep(60);
+    }
+    releaseAll();
   `;
 
   const edgeWalk = await evaluate(`
@@ -19955,10 +20164,13 @@ async function main() {
     await waitGame(0.4);
     /* 基準是「平地的邊緣」那一點（與 test:rubric 的 12 片 × 120 徑線量同一件事） */
     const flatY = w.terrainHeight(hub.x + pick.dx * hub.flat, hub.z + pick.dz * hub.flat);
-    await faceToward(hub.x + pick.dx * 200, hub.z + pick.dz * 200);
+    const faceErr = await faceToward(hub.x + pick.dx * 200, hub.z + pick.dz * 200);
+    const inputOn = g.player.inputEnabled;
     const stop = await walkUntilStuck(30000);
     const out = {
       picked: true,
+      faceErr,
+      inputOn,
       angle: Math.round((pick.a * 180) / Math.PI),
       startD,
       walked: Math.hypot(stop.x - sx, stop.z - sz),
@@ -20007,11 +20219,24 @@ async function main() {
       })(),
     };
     releaseAll();
-    g.player.teleport(0, 6);
+    // 回出生點（v1.2 · P22c：World.SPAWN_AT 從 [0, 6] 變成 [0, 7.8]）
+    g.player.teleport(0, 7.8);
     await waitGame(0.5);
     return out;
   `);
   eq(edgeWalk.picked, true, 'P16d：掃得出一條沒有橋、沒有院子、路上沒有石頭的徑線');
+  /*
+   * （前提）**他真的轉向那條徑線了**。
+   * 少了這一條，「轉不動」會安靜地退化成「照著開機朝向亂走一段」——
+   * 底下每一條斷言於是在量別的地方（P22c 踩到的就是這個）。
+   */
+  eq(edgeWalk.inputOn, true, 'P16d：（前提）這一段開始時角色是動得了的');
+  ok(edgeWalk.faceErr < 0.25, 'P16d：（前提）鏡頭真的轉到那條徑線上', `err=${(edgeWalk.faceErr ?? 99).toFixed(3)} rad`);
+  ok(
+    Math.abs(((edgeWalk.stopAngle - edgeWalk.angle + 540) % 360) - 180) < 40,
+    'P16d：（前提）他是沿著挑中的那條徑線走出去的',
+    `挑 ${edgeWalk.angle}° → 停在 ${edgeWalk.stopAngle}°`
+  );
   ok(edgeWalk.walked > 14, 'P16d：真的往邊緣走了一段（不是原地被卡住）', `${(edgeWalk.walked || 0).toFixed(1)}m`);
   ok(
     edgeWalk.dropFromFlat < 3,
@@ -20797,6 +21022,15 @@ async function main() {
       if (!g.world.shortcutObjects[0].veil.visible) break;
     }
     out.barY = g.world.shortcutObjects[0].bar.parent.position.y;
+    /*
+     * v1.2 · P22c：門閂沉多深要**跟甲板比**，不是跟世界原點比。
+     * \`barPivot.position.y = 甲板高度 − opened × 1.9\`（\`world.js\`）——
+     * 原本那條斷言寫死 \`< -0.85\`，等於偷偷假設門底下的地面在 y ≈ 0。
+     * 座標 ×1.30 之後那道門搬了家，腳下的地面是 y = 1.07，
+     * 於是**沉到底也只有 −0.835**，那條斷言變成永遠做不到。
+     * 這裡把甲板高度一起帶出去，斷言問的仍然是同一件事：整塊沉進甲板裡。
+     */
+    out.deckY = g.world.terrainHeight(sc.gate.x, sc.gate.z);
     out.veil = g.world.shortcutObjects[0].veil.visible;
     return out;
   `);
@@ -20813,7 +21047,11 @@ async function main() {
   eq(openSide.saved, true, 'P19：推開的那一刻寫進存檔');
   eq(openSide.xp1, openSide.xp0, 'P19：推開捷徑不給 XP（純風味那一層的護欄）');
   eq(openSide.grades, openSide.grades0, 'P19：也不寫任何一關的評價（推之前推之後一樣多）');
-  ok(openSide.barY < -0.85, 'P19：門閂真的沉進甲板裡了（整塊藏起來，不留一條看得見的線）', openSide.barY.toFixed(2));
+  ok(
+    openSide.barY < openSide.deckY - 0.85,
+    'P19：門閂真的沉進甲板裡了（整塊藏起來，不留一條看得見的線）',
+    `${openSide.barY.toFixed(2)} vs 甲板 ${openSide.deckY.toFixed(2)}（門檻：甲板 − 0.85）`
+  );
   eq(openSide.veil, false, 'P19：門口那一片幕收掉了');
 
   /* --- ⑤ 真的用走的走過去（不是傳送、不用跳） ----------------------- *
@@ -20889,6 +21127,8 @@ async function main() {
       open: g.progression.isShortcutOpen(sc.id),
       worldOpen: g.world.shortcutObjects[0].isOpen,
       barY: g.world.shortcutObjects[0].bar.parent.position.y,
+      // 甲板高度一起帶回來（同上面那一條：門閂沉多深要跟甲板比，不是跟世界原點比）
+      deckY: g.world.terrainHeight(sc.gate.x, sc.gate.z),
       remaining: g.world.shortcutObjects[0].remaining,
       guides: g.progression.state.settings.guides,
     };
@@ -20896,7 +21136,11 @@ async function main() {
   eq(scPersist.open, true, 'P19：重整之後那道門還是開的');
   eq(scPersist.worldOpen, true, 'P19：世界端也記得它開著（不用再推三下）');
   eq(scPersist.remaining, 0, 'P19：重整之後絞盤已經推滿了');
-  ok(scPersist.barY < -0.5, 'P19：重整之後門閂就已經在甲板底下（不會先擋一下再沉）', scPersist.barY.toFixed(2));
+  ok(
+    scPersist.barY < scPersist.deckY - 0.5,
+    'P19：重整之後門閂就已經在甲板底下（不會先擋一下再沉）',
+    `${scPersist.barY.toFixed(2)} vs 甲板 ${scPersist.deckY.toFixed(2)}`
+  );
   eq(scPersist.guides, true, 'P19：螢火指路預設開著');
 
   /* --- ⑦ 外交式導向：螢火群真的偏過去，而且關得掉 ------------------- */
@@ -20969,11 +21213,29 @@ async function main() {
           for (let i = 0; i < m.n; i += 1) { cx += arr[i * 3]; cz += arr[i * 3 + 2]; }
           return { x: cx / m.n, z: cz / m.n };
         };
-        const a = read();
-        await new Promise((r) => setTimeout(r, 400));
-        const b = read();
-        // 沒有導向時螢火只在自己的家附近浮動，很快就停下來
-        return Math.hypot(a.x - b.x, a.z - b.z) < 0.03 ? b : null;
+        /*
+         * v1.2 · P22c：**等的是「幾幀」，不是「幾毫秒」。**
+         *
+         * 原本是 read → sleep(400) → read → 兩次差 < 0.03 就算停了。
+         * 這台是軟體渲染，一幀 0.2–0.3 秒 —— 那 400 毫秒裡**可能一幀都沒跑**，
+         * 於是兩次讀到同一個值，「已經停下來了」是假的。
+         * 而這一刻螢火群正在從「偏出去 0.9 公尺」往家的方向飄回來（上一段剛把導向關掉），
+         * 基準線就被記在半路上；記歪多少，下面那條 lean 就少多少
+         * ——實測 0.43–0.46，而不是一個 MOTH_GUIDE_LEAN（0.9）。
+         *
+         * 現在用 requestAnimationFrame 推，連續三幀真的不動才算停。
+         * 導向關掉時螢火的家是定值（gx ＝ gz ＝ 0、scatter 早就衰減完），
+         * 所以「不動」是真的會發生的事，不是在等一個不存在的狀態。
+         */
+        let prev = read();
+        let still = 0;
+        for (let i = 0; i < 60 && still < 3; i += 1) {
+          await new Promise((r) => requestAnimationFrame(r));
+          const now = read();
+          still = Math.hypot(now.x - prev.x, now.z - prev.z) < 0.01 ? still + 1 : 0;
+          prev = now;
+        }
+        return still >= 3 ? prev : null;
       `),
     { timeout: 30000, every: 250, label: 'P19：導向關著時的基準線' }
   );

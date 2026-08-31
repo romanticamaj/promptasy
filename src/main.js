@@ -37,7 +37,7 @@ import './styles.css';
 
 import { createEngine } from './engine/engine.js';
 import { hourOf, hourFactor, composeMood, createMoodMemo } from './engine/hours.js';
-import { createWorld } from './world/world.js';
+import { createWorld, SPAWN_AT } from './world/world.js';
 import { LORE_TABLETS } from './world/props.js';
 // v1.2 · P21：中點揭示 ＋ 鏡碑第二層（純函式，不 import 任何東西）
 import { MIDPOINT, shouldRevealMidpoint, markMidpointSeen, midpointSeen, litTabletGates } from './world/turning.js';
@@ -247,7 +247,7 @@ function boot() {
   const player = createPlayer({
     engine,
     quality,
-    startPosition: [0, 6],
+    startPosition: SPAWN_AT,
     world,
     onStep: () => audio.step(performance.now() / 1000),
     /*

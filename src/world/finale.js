@@ -33,9 +33,9 @@ import { makeGlowTexture } from '../engine/engine.js';
 import { FINALE, SHRINE_RADIUS, STELE_RADIUS } from './turning.js';
 
 /** 小祠站在哪裡（量出來的，理由與數字寫在 WORLD.md §4.20）。 */
-export const SHRINE_AT = Object.freeze([22.25, -17.5]);
+export const SHRINE_AT = Object.freeze([28.93, -22.75]);
 /** 母碑站在哪裡 —— 斷環的正中央（`LANDMARKS` 的 `broken-ring`）。 */
-export const STELE_AT = Object.freeze([34, -30]);
+export const STELE_AT = Object.freeze([44.2, -39]);
 /**
  * 母碑腳下墊高多少（公尺）＝ 斷環那塊臺座的高度。
  *

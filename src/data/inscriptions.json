@@ -8,7 +8,7 @@
     {
       "id": "carve-yard-shard",
       "region": "foundations",
-      "at": [-16, -45],
+      "at": [-20.8, -58.5],
       "prop": "plaque",
       "title": "碑林邊的殘石",
       "lines": [
@@ -21,7 +21,7 @@
     {
       "id": "tea-circle-board",
       "region": "foundations",
-      "at": [15, 44],
+      "at": [19.5, 57.2],
       "prop": "board",
       "title": "茶爐邊的木牌",
       "lines": [
@@ -34,7 +34,7 @@
     {
       "id": "watch-camp-boundary",
       "region": "foundations",
-      "at": [44, 1],
+      "at": [57.2, 1.3],
       "prop": "poststone",
       "title": "守望者的界石",
       "lines": [
@@ -47,7 +47,7 @@
     {
       "id": "first-words-pool-stone",
       "region": "foundations",
-      "at": [-45, 7],
+      "at": [-58.5, 9.1],
       "prop": "poolstone",
       "title": "池邊的量石",
       "lines": [
@@ -61,7 +61,7 @@
     {
       "id": "example-pair-back",
       "region": "reasoning",
-      "at": [-119, -88],
+      "at": [-154.7, -114.4],
       "prop": "board",
       "title": "示範牌的背面",
       "lines": [
@@ -74,7 +74,7 @@
     {
       "id": "stair-foot-pillar",
       "region": "reasoning",
-      "at": [-84.4, -82.3],
+      "at": [-109.72, -106.99],
       "prop": "poststone",
       "title": "階梯下的刻柱",
       "lines": [
@@ -87,7 +87,7 @@
     {
       "id": "thinker-fragment",
       "region": "reasoning",
-      "at": [-113, -118],
+      "at": [-146.9, -153.4],
       "prop": "plaque",
       "title": "思考者腳邊的碎片",
       "lines": [
@@ -101,7 +101,7 @@
     {
       "id": "well-rim-stone",
       "region": "grounding",
-      "at": [77, -110],
+      "at": [100.1, -143],
       "prop": "poolstone",
       "title": "井邊的刻石",
       "lines": [
@@ -114,7 +114,7 @@
     {
       "id": "reading-nook-weight",
       "region": "grounding",
-      "at": [112, -110],
+      "at": [145.6, -143],
       "prop": "board",
       "title": "書桌旁的紙鎮",
       "lines": [
@@ -128,7 +128,7 @@
     {
       "id": "draft-yard-tag",
       "region": "orchestration",
-      "at": [-95, 121],
+      "at": [-123.5, 157.3],
       "prop": "plaque",
       "title": "草圖桌邊的刻牌",
       "lines": [
@@ -141,7 +141,7 @@
     {
       "id": "tool-yard-hang",
       "region": "orchestration",
-      "at": [-73, 105],
+      "at": [-94.9, 136.5],
       "prop": "toolplate",
       "title": "工具架上的吊牌",
       "lines": [
@@ -155,7 +155,7 @@
     {
       "id": "dressing-mirror-tag",
       "region": "config",
-      "at": [73, 106],
+      "at": [94.9, 137.8],
       "prop": "board",
       "title": "更衣鏡邊的刻牌",
       "lines": [
@@ -168,7 +168,7 @@
     {
       "id": "mirror-walk-dial",
       "region": "config",
-      "at": [117, 105],
+      "at": [152.1, 136.5],
       "prop": "poststone",
       "title": "鏡列末端的刻石",
       "lines": [

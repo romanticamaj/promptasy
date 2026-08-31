@@ -174,6 +174,11 @@ export function songStoneOffsets(opts = {}) {
  * 而減法之庭**再也找不到第二個落點**（0.25 公尺格點掃過 66,049 格，合法候選 0）——
  * 被擋掉的那一側玩家本來就還是從其餘 15 個方向走得進 1.75 的觸發圈，那一顆照響。
  *
+ * **上面那三個數字是 P16b 當時、v1.2 · P22c 把地圖 ×1.3 之前量的**（院子那時候半徑 32，
+ * 現在 41.6；格點數與「合法候選 0」都會跟著變）。留著它們是因為**結論不靠絕對值成立**：
+ * 音石列的保證是「整排走得完」，不是「每一顆四周整圈都走得到」——
+ * 那是問錯問題，地圖再大一倍也還是問錯。要重新開這個題目就得重量一次，不要引用這三個數字。
+ *
  * 所以這一層維持「整排一個目標、半徑 4.4」（＝反應層的預設值，涵蓋到路過的人一定踩得到），
  * 並且把量到的數字留在這裡：要動那座高台或這一排音石之前，先讀這一段。
  */
@@ -564,36 +569,36 @@ export const REACTION_KINDS = Object.freeze({
  */
 export const REACTIVE_SPOTS = Object.freeze([
   /* --- foundations：路旁的第一批「它注意到你了」 --- */
-  { id: 'hub-chime-pool', kind: 'chime', region: 'foundations', at: [-39, 16] },
-  { id: 'hub-caps-carve', kind: 'glowcap', region: 'foundations', at: [-15, -34] },
-  { id: 'hub-song-tea', kind: 'songstone', region: 'foundations', at: [27, 44], opts: { dir: 0.8 } },
-  { id: 'hub-spirit-camp', kind: 'spirit', region: 'foundations', at: [40, 11] },
-  { id: 'hub-moths-west', kind: 'moths', region: 'foundations', at: [-31, 5] },
-  { id: 'hub-ripple-south', kind: 'ripple', region: 'foundations', at: [-6, -44] },
+  { id: 'hub-chime-pool', kind: 'chime', region: 'foundations', at: [-50.7, 20.8] },
+  { id: 'hub-caps-carve', kind: 'glowcap', region: 'foundations', at: [-19.5, -44.2] },
+  { id: 'hub-song-tea', kind: 'songstone', region: 'foundations', at: [35.1, 57.2], opts: { dir: 0.8 } },
+  { id: 'hub-spirit-camp', kind: 'spirit', region: 'foundations', at: [52, 14.3] },
+  { id: 'hub-moths-west', kind: 'moths', region: 'foundations', at: [-40.3, 6.5] },
+  { id: 'hub-ripple-south', kind: 'ripple', region: 'foundations', at: [-7.8, -57.2] },
 
   /* --- reasoning：階梯迴廊 --- */
-  { id: 'rsn-song-stair', kind: 'songstone', region: 'reasoning', at: [-77, -92], opts: { dir: 1.2, stones: 6 } },
-  { id: 'rsn-caps-thinker', kind: 'glowcap', region: 'reasoning', at: [-105, -110] },
-  { id: 'rsn-chime-examples', kind: 'chime', region: 'reasoning', at: [-108, -82] },
-  { id: 'rsn-moths-north', kind: 'moths', region: 'reasoning', at: [-104, -123] },
+  { id: 'rsn-song-stair', kind: 'songstone', region: 'reasoning', at: [-101.1, -119.6], opts: { dir: 1.2, stones: 6 } },
+  { id: 'rsn-caps-thinker', kind: 'glowcap', region: 'reasoning', at: [-136.5, -143] },
+  { id: 'rsn-chime-examples', kind: 'chime', region: 'reasoning', at: [-140.4, -106.6] },
+  { id: 'rsn-moths-north', kind: 'moths', region: 'reasoning', at: [-135.2, -159.9] },
 
   /* --- grounding：沉書檔案庫 --- */
-  { id: 'gnd-ripple-desk', kind: 'ripple', region: 'grounding', at: [92, -74] },
-  { id: 'gnd-chime-nook', kind: 'chime', region: 'grounding', at: [104, -117] },
-  { id: 'gnd-caps-well', kind: 'glowcap', region: 'grounding', at: [87, -117] },
-  { id: 'gnd-spirit-east', kind: 'spirit', region: 'grounding', at: [107, -81] },
+  { id: 'gnd-ripple-desk', kind: 'ripple', region: 'grounding', at: [119.6, -96.2] },
+  { id: 'gnd-chime-nook', kind: 'chime', region: 'grounding', at: [135.2, -152.1] },
+  { id: 'gnd-caps-well', kind: 'glowcap', region: 'grounding', at: [113.1, -152.1] },
+  { id: 'gnd-spirit-east', kind: 'spirit', region: 'grounding', at: [139.1, -105.3] },
 
   /* --- orchestration：齒輪工坊 --- */
-  { id: 'orc-chime-draft', kind: 'chime', region: 'orchestration', at: [-93.5, 80.5] },
-  { id: 'orc-song-engine', kind: 'songstone', region: 'orchestration', at: [-108, 109], opts: { dir: -0.6 } },
-  { id: 'orc-caps-west', kind: 'glowcap', region: 'orchestration', at: [-113, 97] },
-  { id: 'orc-moths-yard', kind: 'moths', region: 'orchestration', at: [-76, 115] },
+  { id: 'orc-chime-draft', kind: 'chime', region: 'orchestration', at: [-121.55, 104.65] },
+  { id: 'orc-song-engine', kind: 'songstone', region: 'orchestration', at: [-140.4, 141.7], opts: { dir: -0.6 } },
+  { id: 'orc-caps-west', kind: 'glowcap', region: 'orchestration', at: [-146.9, 126.1] },
+  { id: 'orc-moths-yard', kind: 'moths', region: 'orchestration', at: [-98.8, 149.5] },
 
   /* --- config：面具劇場 --- */
-  { id: 'cfg-caps-stage', kind: 'glowcap', region: 'config', at: [95, 123] },
-  { id: 'cfg-ripple-mirror', kind: 'ripple', region: 'config', at: [103, 112] },
-  { id: 'cfg-spirit-dressing', kind: 'spirit', region: 'config', at: [76, 96] },
-  { id: 'cfg-song-east', kind: 'songstone', region: 'config', at: [123, 113], opts: { dir: 1.9 } },
+  { id: 'cfg-caps-stage', kind: 'glowcap', region: 'config', at: [123.5, 159.9] },
+  { id: 'cfg-ripple-mirror', kind: 'ripple', region: 'config', at: [133.9, 145.6] },
+  { id: 'cfg-spirit-dressing', kind: 'spirit', region: 'config', at: [98.8, 124.8] },
+  { id: 'cfg-song-east', kind: 'songstone', region: 'config', at: [160.5, 142.75], opts: { dir: 1.9 } },
 
   /*
    * v1.2 · P06c：課程 v2 之後才蓋起來的七片土地本來一件都沒有 ——
@@ -603,40 +608,40 @@ export const REACTIVE_SPOTS = Object.freeze([
    */
 
   /* --- forms：量器坊（熄了火、冷錫色、最安靜 —— 只有一列音石與一架風鈴） --- */
-  { id: 'frm-song-westterrace', kind: 'songstone', region: 'forms', at: [-19, 152.5], opts: { dir: 0.4 } },
-  { id: 'frm-chime-measurebench', kind: 'chime', region: 'forms', at: [26.5, 108] },
-  { id: 'frm-caps-northstep', kind: 'glowcap', region: 'forms', at: [-7, 91] },
-  { id: 'frm-spirit-halfmould', kind: 'spirit', region: 'forms', at: [-33, 115] },
+  { id: 'frm-song-westterrace', kind: 'songstone', region: 'forms', at: [-24.7, 198.25], opts: { dir: 0.4 } },
+  { id: 'frm-chime-measurebench', kind: 'chime', region: 'forms', at: [34.45, 140.4] },
+  { id: 'frm-caps-northstep', kind: 'glowcap', region: 'forms', at: [-9.1, 118.3] },
+  { id: 'frm-spirit-halfmould', kind: 'spirit', region: 'forms', at: [-42.9, 149.5] },
 
   /* --- toolcraft：契約鍛冶場（爐子還溫著、火星最多） --- */
-  { id: 'tlc-chime-westgroove', kind: 'chime', region: 'toolcraft', at: [-142.5, 10.5] },
-  { id: 'tlc-caps-southgroove', kind: 'glowcap', region: 'toolcraft', at: [-127.5, -21.5] },
-  { id: 'tlc-moths-toolditch', kind: 'moths', region: 'toolcraft', at: [-98, -22] },
-  { id: 'tlc-song-anvil', kind: 'songstone', region: 'toolcraft', at: [-106.5, -14.5], opts: { dir: 0.4 } },
+  { id: 'tlc-chime-westgroove', kind: 'chime', region: 'toolcraft', at: [-185.25, 13.65] },
+  { id: 'tlc-caps-southgroove', kind: 'glowcap', region: 'toolcraft', at: [-165.75, -27.95] },
+  { id: 'tlc-moths-toolditch', kind: 'moths', region: 'toolcraft', at: [-127.4, -28.6] },
+  { id: 'tlc-song-anvil', kind: 'songstone', region: 'toolcraft', at: [-138.45, -18.85], opts: { dir: 0.4 } },
 
   /* --- sight：觀象臺（不只讀字：看與聽 —— 水面、光、翅膀） --- */
-  { id: 'sgt-ripple-eastrim', kind: 'ripple', region: 'sight', at: [148, -13.5] },
-  { id: 'sgt-caps-northridge', kind: 'glowcap', region: 'sight', at: [139.5, 9.5] },
-  { id: 'sgt-moths-upperslope', kind: 'moths', region: 'sight', at: [129.5, -5.5] },
-  { id: 'sgt-chime-bridgehead', kind: 'chime', region: 'sight', at: [106, -22] },
+  { id: 'sgt-ripple-eastrim', kind: 'ripple', region: 'sight', at: [192.4, -17.55] },
+  { id: 'sgt-caps-northridge', kind: 'glowcap', region: 'sight', at: [181.35, 12.35] },
+  { id: 'sgt-moths-upperslope', kind: 'moths', region: 'sight', at: [168.35, -7.15] },
+  { id: 'sgt-chime-bridgehead', kind: 'chime', region: 'sight', at: [137.8, -28.6] },
 
   /* --- refinery：校驗場（光被折過一次 —— 水紋、回音、一朵一朵亮） --- */
-  { id: 'rfn-ripple-northyard', kind: 'ripple', region: 'refinery', at: [-144.5, 158.5] },
-  { id: 'rfn-song-valley', kind: 'songstone', region: 'refinery', at: [-113, 142], opts: { dir: -0.7 } },
-  { id: 'rfn-caps-southrim', kind: 'glowcap', region: 'refinery', at: [-148, 104.5] },
+  { id: 'rfn-ripple-northyard', kind: 'ripple', region: 'refinery', at: [-187.85, 206.05] },
+  { id: 'rfn-song-valley', kind: 'songstone', region: 'refinery', at: [-146.9, 184.6], opts: { dir: -0.7 } },
+  { id: 'rfn-caps-southrim', kind: 'glowcap', region: 'refinery', at: [-192.4, 135.85] },
 
   /* --- divergence：分歧之廳（兩面刻著相反神諭的柱） --- */
-  { id: 'dvg-song-eastpillar', kind: 'songstone', region: 'divergence', at: [96.5, 5.5], opts: { dir: 1.3 } },
-  { id: 'dvg-chime-westmouth', kind: 'chime', region: 'divergence', at: [67, 0.5] },
-  { id: 'dvg-caps-middle', kind: 'glowcap', region: 'divergence', at: [77, 7.5] },
+  { id: 'dvg-song-eastpillar', kind: 'songstone', region: 'divergence', at: [125.45, 7.15], opts: { dir: 1.3 } },
+  { id: 'dvg-chime-westmouth', kind: 'chime', region: 'divergence', at: [87.1, 0.65] },
+  { id: 'dvg-caps-middle', kind: 'glowcap', region: 'divergence', at: [100.1, 9.75] },
 
   /* --- wards：護欄崗（最冷、螢火最少 —— 只有一架風鈴與一隻小獸） --- */
-  { id: 'wrd-chime-post', kind: 'chime', region: 'wards', at: [119.5, -148] },
-  { id: 'wrd-spirit-outerrim', kind: 'spirit', region: 'wards', at: [117, -161.5] },
+  { id: 'wrd-chime-post', kind: 'chime', region: 'wards', at: [155.35, -192.4] },
+  { id: 'wrd-spirit-outerrim', kind: 'spirit', region: 'wards', at: [152.1, -209.95] },
 
   /* --- frugality：減法之庭（最空最平、螢火最少 —— 全場最稀，這是設計不是遺漏） --- */
-  { id: 'frg-caps-plinth', kind: 'glowcap', region: 'frugality', at: [6, -99] },
-  { id: 'frg-song-eastedge', kind: 'songstone', region: 'frugality', at: [15.5, -71.5], opts: { dir: 2.4 } },
+  { id: 'frg-caps-plinth', kind: 'glowcap', region: 'frugality', at: [7.8, -128.7] },
+  { id: 'frg-song-eastedge', kind: 'songstone', region: 'frugality', at: [20.15, -92.95], opts: { dir: 2.4 } },
 ]);
 
 /* ------------------------------------------------------------------ *
