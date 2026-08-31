@@ -1957,3 +1957,35 @@ Exit criteria：
 Exit criteria：
 - [ ] 地圖放大、密度實測下降；擠迫指標全部翻正。
 - [ ] 可達性與所有稽核不倒退；全測試綠、console error 0。
+
+### P22c 附：座標清單（先掃過一遍，實作時照這張表逐項過）
+
+**資料檔（本 phase 授權改 XZ，其餘欄位一個字都不准動）**
+
+| 檔 | 欄位 | 乘 k？ |
+|---|---|---|
+| `challenges.json` | `position[2]` | ✔（**只有 position**；題目／rubric／出處紅線） |
+| `murks.json`／`letters.json`／`echoes.json`／`inscriptions.json` | `at[2]` | ✔ |
+| `archive.json`／`guardian.json`／`watchmen.json`／`handles.json` | `at[2]` | ✔（`rot` 是角度，**不乘**） |
+| `secrets.json`／`prologue.json` | `at[2]` | ✔（`radius` 是互動半徑，**不乘**） |
+| `curriculum.json`／`flows.json`／`rumors.json`／`color-script.json`／`glossary.json`／`skill-codex-v2.json`／`solution-stats.json` | 沒有世界座標 | ✘ 不動 |
+
+**程式裡的表**
+
+| 檔 | 表 | 乘 k？ |
+|---|---|---|
+| `world.js` | `REGION_SITES`(x,z,radius,flat)、`SHORTCUT_DATA`、`CORRIDORS`、`BRIDGE_SPANS`、`BRIDGE_GAPS`、`WORLD_RADIUS` | ✔ |
+| `screens.js` | `SCREEN_BANDS`、`MOTIFS`、`PLATFORMS`、`PATH_BENDS` | ✔ 位置乘；**高度／厚度／跳躍餘裕不乘** |
+| `props.js` | `STORY_VIGNETTES.at`、`LANDMARKS.at`（`height`／`clear` **不乘**）、`LORE_TABLETS.at` | ✔ |
+| `reactive.js` | `REACTIVE_SPOTS.at` | ✔ |
+| `finale.js` | `SHRINE_AT`、`STELE_AT` | ✔ |
+| `archives.js` | `ARCHIVE_POST_OFFSETS` | ✘ **組內位移，不乘** |
+| `jump.js` | `JUMP_REGIONS`／`JUMP_BRIDGES` | ✘ 區名，不是座標 |
+
+**一律不乘**：組內位移（小景 `parts`、`ARCHIVE_POST_OFFSETS`）、道具尺寸、高度、
+互動半徑、淨空門檻、玩家半徑、跳躍常數、時間常數、角度。
+
+**註解債（別忽略）**：這些表的註解裡寫滿了實測公尺數
+（「離區界 8 公尺」「正前方 38 公尺」「124 + 44 = 168 壓在 ±170 網格內」……）。
+**動到的那一段註解，數字要重新量過改對**；比例式的推論（「99.3 > 44 + 46」）本來就對 k 不變，
+但等號兩邊的絕對值仍要更新。留著舊數字＝留下會騙下一個人的註解。
