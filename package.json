@@ -28,6 +28,7 @@
     "shots:regions": "node scripts/shots-regions.mjs",
     "audit:pacing": "node scripts/pacing-audit.mjs",
     "audit:sightline": "node scripts/sightline-audit.mjs",
+    "audit:perf": "node scripts/perf-audit.mjs",
     "screen-fit": "node scripts/screen-fit.mjs",
     "murk-fit": "node scripts/murk-fit.mjs",
     "guardian-fit": "node scripts/guardian-fit.mjs",
