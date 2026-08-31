@@ -7891,7 +7891,19 @@ async function main() {
     await new Promise((r) => setTimeout(r, 420));
     const farFound = g.progression.hasFoundSecret(spec.id);
     g.player.teleport(spec.at[0] + 1.5, spec.at[1] + 1.5);
-    await new Promise((r) => setTimeout(r, 800));
+    /*
+     * v1.2 · P22c：**輪詢到真的偵測到為止**，不要用固定 sleep 去對齊牆鐘時間。
+     * 原本是 setTimeout(800)：這台機器一幀 200 毫秒時那是四幀，但同時跑好幾個 session
+     * 的時候一幀要 372–481 毫秒 —— 800 毫秒連兩幀都不到，偵測還沒跑完就去斷言，
+     * 於是這一整串（找到／計數／XP／toast／存檔／隱藏標記）連鎖紅八條。
+     * 這個輪詢不會空泛通過：上一行剛驗過 farFound === false，所以它等的是**真的翻面**；
+     * 等不到就 6 秒後超時，斷言照樣紅。
+     */
+    for (let i = 0; i < 60 && !g.progression.hasFoundSecret(spec.id); i += 1) {
+      await new Promise((r) => setTimeout(r, 100));
+    }
+    // 翻面之後再給一拍，讓 toast 與存檔那幾件事跟上（它們跟偵測不在同一個 tick）
+    await new Promise((r) => setTimeout(r, 300));
     const toasts = [...document.querySelectorAll('.toast')].map((t) => t.textContent.trim());
     const out = {
       id: spec.id,
@@ -20244,8 +20256,9 @@ async function main() {
     `${(edgeWalk.dropFromFlat || 0).toFixed(2)}m`
   );
   ok(edgeWalk.footGap < 1e-6, 'P16d：停下來的時候人是貼著地形的', String(edgeWalk.footGap));
-  eq(edgeWalk.meshSeg, 200, 'P16e：撈到的是高畫質那張地形網格（200 段）', String(edgeWalk.meshSeg));
-  eq(edgeWalk.meshVerts, 201 * 201, 'P16e：那張網格的頂點數對得上', String(edgeWalk.meshVerts));
+  // v1.2 · P22c：地圖放大之後段數 200 → 260（格距刻意還原成放大前的 1.70 公尺；理由見 WORLD.md §6.3）
+  eq(edgeWalk.meshSeg, 260, 'P16e：撈到的是高畫質那張地形網格（260 段）', String(edgeWalk.meshSeg));
+  eq(edgeWalk.meshVerts, 261 * 261, 'P16e：那張網格的頂點數對得上', String(edgeWalk.meshVerts));
   ok(
     edgeWalk.meshGap < 0.6,
     'P16e：**停在崖唇上的人沒有浮在畫面的地面上**（腳下 vs 畫出來的網格 < 0.6 公尺）',
