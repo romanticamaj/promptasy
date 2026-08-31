@@ -43,6 +43,7 @@ import { SCREEN_BANDS, MOTIFS, PLATFORMS, buildScreens, landmarkSight, pointInBa
 import { groundBaseColor } from './ground.js';
 // v1.2 · P12：每一片土地專屬的空中粒子（一區一個 Points、共用材質、0 光源）。
 import { createDrifts } from './drifts.js';
+import { instanceStatics, protectReferenced, protectByName, pruneFineDetail, createDetailCull } from './batching.js';
 
 /** 每片土地：中心、半徑、內圈（完全平坦的核心）。 */
 export const REGION_SITES = Object.freeze([
@@ -3651,6 +3652,98 @@ function buildShrine(spec, quality) {
   };
 }
 
+/*
+ * v1.2 · P22b：石座的共用件。
+ *
+ * 142 座石座本來各自 `new` 五份幾何、五份材質 ＋ 一張字牌 —— 852 個 draw call、852 份材質，
+ * 佔全場的 20%，而且其中 426 片是**加色混合的透明片**（每一幀都要由遠到近排序）。
+ * 一整格里程碑漲的 draw call（+16%）有一半以上出在這裡。
+ *
+ * 幾何在這裡做成模組層的單例（142 → 1）；五件「每一座長得一樣、只有顏色與亮度不同」的
+ * 部件（底座／光核／腳下的圈／光柱／走近的光環）改由世界層各收成**一個 InstancedMesh**。
+ * 每一座石座仍然握著自己那一份 `THREE.Mesh`（沒有掛進場景圖）當**代理**：
+ * `marker.beacon.scale`、`marker.halo.material.opacity` 這些既有的介面一個字都不必改
+ * （`rubric-fx` 借光柱、測試讀 halo 顏色走的都是同一條路），
+ * 每一幀再把代理的矩陣與顏色寫進那一批的實例欄位。
+ *
+ * **顏色即不透明度**：這三片都是加色混合（`blending = AdditiveBlending`，`depthWrite = false`），
+ * 螢幕上的貢獻是 `rgb × alpha`。所以把 `color × opacity` 寫進實例色、材質的 opacity 固定 1，
+ * 出來的像素**逐位元組相同** —— 這是加色混合才成立的等式，不能照抄到一般透明片上。
+ */
+const MARKER_GEO = {
+  pedestal: new THREE.CylinderGeometry(1.15, 1.55, 1.1, 6),
+  shard: new THREE.OctahedronGeometry(0.78, 0),
+  ring: new THREE.RingGeometry(2.1, 2.55, 40),
+  beacon: new THREE.CylinderGeometry(0.34, 1.5, 34, 14, 1, true),
+  halo: new THREE.RingGeometry(2.9, 6.4, 44),
+};
+/** 底座：142 座一模一樣（同一個色、同一份幾何），一份材質就夠。 */
+const MARKER_PEDESTAL_MAT = new THREE.MeshStandardMaterial({
+  color: 0x2f3f4a,
+  flatShading: true,
+  roughness: 0.85,
+});
+/**
+ * 光核（shard）那一批的材質。
+ *
+ * 光核逐座只差兩件事：顏色與**自發光強度**（呼吸式脈動，相位吃 z）。
+ * `instanceColor` 在 three.js 裡只乘到漫射色、乘不到自發光，所以這裡補一行
+ * ——把同一份實例色也乘進 `totalEmissiveRadiance`。於是：
+ *
+ *   實例色 ＝ 這一座的 emissive × (emissiveIntensity / 1.6)
+ *   → 自發光 ＝ 白 × 1.6 × 實例色 ＝ emissive × emissiveIntensity（**逐位元組相同**）
+ *   → 漫射底色 ＝ 白 × 實例色 ＝ 原色 × (脈動 / 1.6)（0.69–1.22 倍）
+ *
+ * 漫射那一項的偏差看不出來：石座的燈就站在光核**正中央**（`glow.worldY` 與光核同高），
+ * 從裡面照出來的 N·L 是負的 —— 光核在畫面上的亮度幾乎全部來自自發光，
+ * 漫射只吃到環境光那一點點，而它跟著同一個脈動一起呼吸，方向也一致。
+ */
+const MARKER_SHARD_EI = 1.6;
+const MARKER_SHARD_MAT = new THREE.MeshStandardMaterial({
+  color: 0xffffff,
+  emissive: 0xffffff,
+  emissiveIntensity: MARKER_SHARD_EI,
+  roughness: 0.25,
+  metalness: 0.1,
+  flatShading: true,
+});
+MARKER_SHARD_MAT.onBeforeCompile = (shader) => {
+  shader.fragmentShader = shader.fragmentShader.replace(
+    '#include <emissivemap_fragment>',
+    '#include <emissivemap_fragment>\n  totalEmissiveRadiance *= vColor;'
+  );
+};
+
+/** 加色混合那三件的批次材質（opacity 固定 1，亮度走實例色）。 */
+const markerBatchMat = () =>
+  new THREE.MeshBasicMaterial({
+    color: 0xffffff,
+    transparent: true,
+    opacity: 1,
+    side: THREE.DoubleSide,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    fog: true,
+  });
+
+/**
+ * 標籤分帶：離這麼遠就把那一張字牌收起來（進 / 出用不同距離，邊界上不會閃）。
+ * 字牌的 sprite 高度在 34 公尺外就固定在 3.4（`fitLabel` 的 clamp），
+ * 之後在螢幕上是 1/d 縮下去的：130 公尺時整張牌只剩約 27 像素高，
+ * 標題那一行不到 12 像素 —— 已經是一團色塊，不是字。
+ * 低畫質收得更早（那一格本來就是拿畫面換 draw call）。
+ */
+const LABEL_BAND = { high: [130, 145], low: [70, 85] };
+/** 每幀零配置：寫實例欄位用的暫存（§6.2）。 */
+const _markerMtx = new THREE.Matrix4();
+const _markerCol = new THREE.Color();
+/** 石座的動畫分帶：這麼遠之外就不再逐幀寫實例欄位（畫面上是幾像素的一點）。 */
+const MARKER_ACTIVE_BAND = [150, 168];
+/** 低畫質：最寬的一軸小於這個數字的裝飾片整個不蓋（見 `pruneFineDetail()`）。 */
+const LOW_DETAIL_SPAN = 0.9;
+/** 細節分帶：小於這麼多螢幕像素就不畫（見 `createDetailCull()`）。 */
+const DETAIL_PX = { high: 2, low: 7 };
+
 function buildMarker(challenge, quality, accent) {
   const group = new THREE.Group();
   const [x, z] = challenge.position || [0, 0];
@@ -3659,20 +3752,14 @@ function buildMarker(challenge, quality, accent) {
   group.name = `marker:${challenge.id}`;
   const color = new THREE.Color(accent || PALETTE.accent);
 
-  const pedestal = new THREE.Mesh(
-    new THREE.CylinderGeometry(1.15, 1.55, 1.1, 6),
-    new THREE.MeshStandardMaterial({ color: 0x2f3f4a, flatShading: true, roughness: 0.85 })
-  );
-  pedestal.position.y = 0.55;
-  pedestal.castShadow = quality === 'high';
-  pedestal.receiveShadow = quality === 'high';
   // 石座本體擋得住人（Phase 20 之前 26 座石座全部走得過去）。
   // 半徑取腰部高度的實際外框 1.25 —— 加上玩家半徑 0.62 也只有 1.87 公尺，
   // 互動距離是 6.5 公尺，所以「走到石座前面按 E」一點都沒變難。
   // keepSolid：它站在自己的淨空區正中央，淨空區不准把它掃掉。
-  pedestal.userData.solidRadius = 1.25;
-  pedestal.userData.keepSolid = true;
-  group.add(pedestal);
+  // （碰撞登記與穿模稽核都走 InstancedMesh 的逐實例那一條路，所以合批之後一顆圓都沒少。）
+  const pedestal = new THREE.Mesh(MARKER_GEO.pedestal, MARKER_PEDESTAL_MAT);
+  pedestal.position.y = 0.55;
+  pedestal.updateMatrix();
 
   const shardMat = new THREE.MeshStandardMaterial({
     color,
@@ -3682,12 +3769,11 @@ function buildMarker(challenge, quality, accent) {
     metalness: 0.1,
     flatShading: true,
   });
-  const shard = new THREE.Mesh(new THREE.OctahedronGeometry(0.78, 0), shardMat);
+  const shard = new THREE.Mesh(MARKER_GEO.shard, shardMat);
   shard.position.y = 2.5;
-  group.add(shard);
 
   const ring = new THREE.Mesh(
-    new THREE.RingGeometry(2.1, 2.55, 40),
+    MARKER_GEO.ring,
     new THREE.MeshBasicMaterial({
       color,
       transparent: true,
@@ -3699,7 +3785,6 @@ function buildMarker(challenge, quality, accent) {
   );
   ring.rotation.x = -Math.PI / 2;
   ring.position.y = 0.06;
-  group.add(ring);
 
   /*
    * 石座的暖光不再是「每座一盞 PointLight」。
@@ -3724,7 +3809,7 @@ function buildMarker(challenge, quality, accent) {
 
   // 光柱：從很遠就看得到「那邊有事情可以做」，等於一個不需要小地圖的導航
   const beacon = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.34, 1.5, 34, 14, 1, true),
+    MARKER_GEO.beacon,
     new THREE.MeshBasicMaterial({
       color,
       transparent: true,
@@ -3737,11 +3822,10 @@ function buildMarker(challenge, quality, accent) {
   );
   beacon.position.y = 17;
   beacon.renderOrder = 1;
-  group.add(beacon);
 
   // 走近時腳下亮起的一圈（互動可及範圍的視覺回饋）
   const halo = new THREE.Mesh(
-    new THREE.RingGeometry(2.9, 6.4, 44),
+    MARKER_GEO.halo,
     new THREE.MeshBasicMaterial({
       color,
       transparent: true,
@@ -3753,7 +3837,6 @@ function buildMarker(challenge, quality, accent) {
   );
   halo.rotation.x = -Math.PI / 2;
   halo.position.y = 0.04;
-  group.add(halo);
 
   const label = makeLabel(challenge.title, { sub: challenge.npc, color: `#${color.getHexString()}` });
   label.position.y = 4.4;
@@ -3781,12 +3864,53 @@ function buildMarker(challenge, quality, accent) {
     sprite.scale.set(s * 3.2, s, 1);
   };
 
+  /*
+   * v1.2 · P22b：這一座在四批共用網格裡的位子。
+   * `groupMtx` 是石座的世界矩陣（只有位移、蓋好之後就不再動），
+   * 實例矩陣 ＝ 它乘上代理網格自己的區域矩陣。
+   */
+  const groupMtx = new THREE.Matrix4().makeTranslation(x, y, z);
+  let slots = null;
+  let slotIndex = -1;
+  /** 代理的顏色／矩陣改過了，但這一幀不在活動帶裡 —— 仍然要補寫一次。 */
+  let batchDirty = true;
+  const writeSlot = (mesh, inst) => {
+    mesh.updateMatrix();
+    _markerMtx.multiplyMatrices(groupMtx, mesh.matrix);
+    inst.setMatrixAt(slotIndex, _markerMtx);
+    inst.instanceMatrix.needsUpdate = true;
+    if (inst.instanceColor) {
+      _markerCol.copy(mesh.material.color).multiplyScalar(mesh.material.opacity);
+      inst.setColorAt(slotIndex, _markerCol);
+      inst.instanceColor.needsUpdate = true;
+    }
+  };
+  const syncBatch = () => {
+    if (!slots || slotIndex < 0) return;
+    writeSlot(ring, slots.ring);
+    writeSlot(beacon, slots.beacon);
+    writeSlot(halo, slots.halo);
+    // 光核的亮度不在 opacity 上，在自發光強度上（見 MARKER_SHARD_MAT）
+    shard.updateMatrix();
+    _markerMtx.multiplyMatrices(groupMtx, shard.matrix);
+    slots.shard.setMatrixAt(slotIndex, _markerMtx);
+    slots.shard.instanceMatrix.needsUpdate = true;
+    _markerCol.copy(shardMat.emissive).multiplyScalar(shardMat.emissiveIntensity / MARKER_SHARD_EI);
+    slots.shard.setColorAt(slotIndex, _markerCol);
+    slots.shard.instanceColor.needsUpdate = true;
+    batchDirty = false;
+  };
+  /** 標籤分帶的當下狀態（滯後：進 / 出用不同距離）。蓋出來是亮的，第一幀才依鏡頭收。 */
+  let labelOn = true;
+
   return {
     id: challenge.id,
     challenge,
     region: challenge.region,
     group,
     position: new THREE.Vector3(x, y, z),
+    /** v1.2 · P22b：底座的代理（幾何／材質／userData 由世界層那一批帶著）。 */
+    pedestal,
     shard,
     shardMat,
     ring,
@@ -3797,6 +3921,10 @@ function buildMarker(challenge, quality, accent) {
     cleared: false,
     grade: null,
     near: false,
+    /** v1.2 · P22b：這一座在活動帶內嗎（帶外只補寫、不做動畫）。 */
+    active: true,
+    /** v1.2 · P22b：標籤的進 / 出距離（低畫質收得更早）。 */
+    labelBand: LABEL_BAND[quality === 'low' ? 'low' : 'high'],
     /** 序章畢業時被「指路」的那一座：光柱會加亮、腳下的圈會慢慢呼吸。 */
     spotlight: false,
     /** v1.2 · P06：所在區的三態 'lit' | 'amber' | 'dark'（refreshMarkerStates 設）。 */
@@ -3810,12 +3938,32 @@ function buildMarker(challenge, quality, accent) {
     get visualSettled() {
       return visualSettled;
     },
+    /**
+     * v1.2 · P22b：把這一座接上世界層的四批共用網格。
+     * @param {{pedestal:object, ring:object, beacon:object, halo:object}} batch
+     * @param {number} index 這一座在批次裡的位子
+     */
+    bindBatch(batch, index) {
+      slots = batch;
+      slotIndex = index;
+      // 底座從頭到尾不動：矩陣寫一次就好（每幀連碰都不必碰）。
+      _markerMtx.multiplyMatrices(groupMtx, pedestal.matrix);
+      batch.pedestal.setMatrixAt(index, _markerMtx);
+      batch.pedestal.instanceMatrix.needsUpdate = true;
+      syncBatch();
+    },
     /** 玩家是否站在互動範圍內（走近 → 腳下的圈亮起、光柱變亮）。 */
     setNear(v) {
-      this.near = Boolean(v);
+      const next = Boolean(v);
+      // 只有**真的變了**才記一筆：這一支每幀對 142 座各叫一次，
+      // 無條件記就等於每幀把整批重寫一遍（分帶就白做了）。
+      if (next !== this.near) batchDirty = true;
+      this.near = next;
     },
     setSpotlight(v) {
-      this.spotlight = Boolean(v);
+      const next = Boolean(v);
+      if (next !== this.spotlight) batchDirty = true;
+      this.spotlight = next;
     },
     /**
      * v1.2 · P06：所在區的三態。dark → 光柱／腳下圈底亮度 ×0.4；amber → 腳下圈琥珀＋微亮；lit → 現狀。
@@ -3827,12 +3975,14 @@ function buildMarker(challenge, quality, accent) {
       this.dimTarget = next === 'dark' ? 0.4 : 1;
       if (!this.cleared && !this.mastered) haloTarget.copy(next === 'amber' ? invite : color);
       visualSettled = this.dimNow === this.dimTarget && halo.material.color.equals(haloTarget);
+      batchDirty = true;
     },
     /** 精通：腳下圈／光柱／光環染暖金（setRegionMastered 呼叫）。 */
     setMastered() {
       this.mastered = true;
       haloTarget.copy(warm);
       visualSettled = this.dimNow === this.dimTarget && halo.material.color.equals(haloTarget);
+      batchDirty = true;
     },
     setCleared(grade) {
       this.cleared = true;
@@ -3855,11 +4005,65 @@ function buildMarker(challenge, quality, accent) {
       const newLabel = makeLabel(`${challenge.title}  ✦${grade || ''}`, { sub: challenge.npc, color: '#f3ddba' });
       newLabel.position.y = 4.4;
       newLabel.scale.copy(this.label.scale);
+      newLabel.visible = labelOn;
       group.add(newLabel);
       this.label = newLabel;
+      batchDirty = true;
     },
     update(dt, t, camera) {
-      fitLabel(this.label, camera, this.position);
+      /*
+       * v1.2 · P22b：分帶。
+       *
+       * 一座 150 公尺外的石座在螢幕上只有幾個像素，可是它每一幀都在做四件事：
+       * 排一張字牌、算三份材質的不透明度、寫三個實例欄位。142 座就是 142 份。
+       * 這裡把它切成兩帶（進 / 出用不同距離，站在邊界上走不會閃）：
+       *   · 活動帶內  → 照舊，一個字都不省。
+       *   · 活動帶外  → 只在狀態真的變過（`batchDirty`）時補寫一次，其餘零工作。
+       * 標籤另有自己的一帶（見 `LABEL_BAND`）——那是唯一一件會因為分帶而
+       * 從畫面上收起來的東西，而收起來的距離遠到那一行字已經不是字。
+       */
+      let d2 = 0;
+      if (camera && camera.position) {
+        const dx = camera.position.x - x;
+        const dy = camera.position.y - y;
+        const dz = camera.position.z - z;
+        d2 = dx * dx + dy * dy + dz * dz;
+        const band = labelOn ? this.labelBand[1] : this.labelBand[0];
+        const on = d2 <= band * band;
+        if (on !== labelOn) {
+          labelOn = on;
+          this.label.visible = on;
+        }
+      }
+      const activeR = this.active ? MARKER_ACTIVE_BAND[1] : MARKER_ACTIVE_BAND[0];
+      this.active = !camera || !camera.position || d2 <= activeR * activeR;
+      if (!this.active) {
+        /*
+         * 帶外：不做動畫，**但狀態變了要一次到位**。
+         *
+         * 光柱是這個世界的導航（「從很遠就看得到那邊有事情可以做」），
+         * 三態的暗／亮也是站在高原上讀的 —— 只把遠處的石座「凍住」，
+         * 一片新解鎖的土地就會維持 ×0.4 的暗，直到玩家走到 150 公尺內才亮，
+         * 那是看得見的倒退。所以帶外不 lerp（150 公尺外沒人看得出 0.3 秒的漸變），
+         * 而是**直接貼上終值**，再把三件靜態亮度寫回代理、同步一次實例欄位。
+         */
+        if (!visualSettled) {
+          this.dimNow = this.dimTarget;
+          halo.material.color.copy(haloTarget);
+          visualSettled = true;
+          batchDirty = true;
+        }
+        if (batchDirty) {
+          const dimFar = this.dimNow;
+          ring.material.opacity = this.cleared ? 0.16 : 0.26;
+          shardMat.emissiveIntensity = this.cleared ? 1.1 : 1.6;
+          beacon.material.opacity = (this.cleared ? 0.03 : 0.055) * dimFar * (this.spotlight ? 2.6 : 1);
+          halo.material.opacity = (this.regionState === 'amber' && !this.cleared ? 0.06 : 0) * dimFar;
+          syncBatch();
+        }
+        return;
+      }
+      if (labelOn) fitLabel(this.label, camera, this.position);
       shard.rotation.y += dt * (this.near ? 1.5 : 0.7);
       shard.rotation.x = Math.sin(t * 0.6) * 0.18;
       const bob = Math.sin(t * 1.4 + x * 0.3) * 0.22;
@@ -3911,6 +4115,8 @@ function buildMarker(challenge, quality, accent) {
             : amberBase) * dim;
       halo.material.opacity += (haloWanted - halo.material.opacity) * Math.min(1, dt * 6);
       halo.rotation.z += dt * (this.near ? 0.5 : 0.12);
+
+      syncBatch();
     },
   };
 }
@@ -4701,6 +4907,53 @@ export function createWorld({
     return marker;
   });
 
+  /*
+   * v1.2 · P22b：石座的四批共用網格。
+   *
+   * 142 座 × 4 件（底座／腳下的圈／光柱／走近的光環）＝ 568 個 draw call、568 份材質，
+   * 其中 426 片是加色混合的透明片。四件的幾何逐座相同、材質逐座只差顏色與亮度，
+   * 所以收成四個 `InstancedMesh`：**568 → 4**。
+   *
+   * 底座的 `solidRadius` / `keepSolid` 掛在那一批上 —— `collectSolids()` 與
+   * `scripts/collision-audit.mjs` 對 InstancedMesh 都是逐實例走的，142 顆圓一顆都沒少。
+   * 這一批叫 `marker:shared`：穿模稽核的例外表認的是路徑上的 `marker:`，
+   * 名字換掉就會讓光柱與光環突然被要求擋人。
+   */
+  if (markers.length) {
+    const n = markers.length;
+    const shared = new THREE.Group();
+    shared.name = 'marker:shared';
+    const additiveBatch = (geo, order, name) => {
+      const inst = new THREE.InstancedMesh(geo, markerBatchMat(), n);
+      inst.name = name;
+      inst.renderOrder = order;
+      // 亮度走實例色（加色混合下 `rgb × alpha` 等價於改 opacity）
+      inst.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(n * 3), 3);
+      shared.add(inst);
+      return inst;
+    };
+    const pedestals = new THREE.InstancedMesh(MARKER_GEO.pedestal, MARKER_PEDESTAL_MAT, n);
+    pedestals.name = 'pedestals';
+    pedestals.castShadow = quality === 'high';
+    pedestals.receiveShadow = quality === 'high';
+    pedestals.userData.solidRadius = 1.25;
+    pedestals.userData.keepSolid = true;
+    shared.add(pedestals);
+    const shards = new THREE.InstancedMesh(MARKER_GEO.shard, MARKER_SHARD_MAT, n);
+    shards.name = 'shards';
+    shards.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(n * 3), 3);
+    shared.add(shards);
+    const markerBatch = {
+      pedestal: pedestals,
+      shard: shards,
+      ring: additiveBatch(MARKER_GEO.ring, 0, 'rings'),
+      beacon: additiveBatch(MARKER_GEO.beacon, 1, 'beacons'),
+      halo: additiveBatch(MARKER_GEO.halo, 0, 'halos'),
+    };
+    for (let i = 0; i < n; i += 1) markers[i].bindBatch(markerBatch, i);
+    root.add(shared);
+  }
+
   /* --- v1.2 · P09：石座演出（命中哪一條檢查 → 石座旁邊看得見的因果） ---
    * 一個世界只有一組道具，播的時候搬到那一座石座腳下（主控台一次只開一關）。
    * 0 光源、0 碰撞體（全部 noCollide）；低畫質整層不播 —— 畫質是**當下**問的，
@@ -4945,6 +5198,55 @@ export function createWorld({
     return true;
   }
 
+  /*
+   * v1.2 · P22b：靜態合批（見 `src/world/batching.js`）。
+   *
+   * 只收三層 —— 故事小景、地標、中觀（遮擋帶／母題／高台）。挑這三層的理由是
+   * **它們蓋完就不動了**：不進 `propAnimations`、不進每幀迴圈，
+   * 唯一會動的幾件（地標的載重／齒輪／葉子、小景的刻度盤指針）都是被
+   * `userData` 指著的，`protectReferenced()` 先把它們整棵子樹標成不可合批。
+   *
+   * 合批**一定要排在 `colliders` 與 `collectSolids()` 之前**：
+   * 鏡頭避障那一份名單是從場景圖掃 `blocksCamera` 掃出來的，
+   * 掃完才合批就會留下一份指著已經離開場景圖的網格的名單。
+   */
+  {
+    const BATCH_LAYERS = /^(vignettes:|screens:|landmark:)/;
+    for (const child of root.children) {
+      if (!child.name || !BATCH_LAYERS.test(child.name)) continue;
+      protectReferenced(child);
+      /*
+       * 形狀被斷言看著的兩種節點整棵留著（合了那幾條斷言會安靜地量到 0）：
+       *   · `platform:<id>` —— `test:rubric` 逐一走它的 children 量每一塊裝飾
+       *     「看得見／不會從站在上面的人身上穿過去」。
+       *   · `screen:<id>`（遮擋帶）—— e2e 的 P16b 逐道量「那道石脊有實體
+       *     （不是一團空的 Group）」，門檻是至少四塊網格。
+       * 母題（`motif:`）沒有這種斷言，而且它每一塊都帶著自己的 `motifBase`／`solid`，
+       * userData 不同本來就合不進同一批 —— 合掉的只有裝飾件。
+       */
+      protectByName(child, /^(platform|screen):/);
+      if (quality !== 'high') pruneFineDetail(child, LOW_DETAIL_SPAN);
+      instanceStatics(child);
+    }
+  }
+
+  /*
+   * v1.2 · P22b：細節分帶。
+   *
+   * 合批把「同一件事重複很多次」收掉了，剩下的是「很多件各不相同的小東西」——
+   * 鉚釘、刻痕、掛牌、小燈罩。它們在近處是質感，在 150 公尺外是**不到兩個像素**。
+   * 判準用螢幕像素而不是距離：同一條規則下，0.1 公尺的鉚釘 50 公尺就退場，
+   * 12 公尺高的石脊永遠不會。高畫質守 2 像素（看不出來），
+   * 低畫質守 4.5 像素（那一格本來就是拿一點細節換 draw call）。
+   *
+   * 跳過自己管可見性的那幾層（火苗、母碑的核心、石座演出的道具）——
+   * 那些網格什麼時候該亮由它們自己那一層每幀決定，這裡不插手。
+   */
+  const detailCull = createDetailCull(root, {
+    px: quality === 'high' ? DETAIL_PX.high : DETAIL_PX.low,
+    skip: /^(finale|rubric-fx|terrain|mist|motes|drifts|marker|shrine)/,
+  });
+
   /**
    * 鏡頭避障用的碰撞體：只收「會擋住視線的實體」（書架、齒輪、立石、閘門柱），
    * 不含地形（地形已用高度場處理）也不含粒子 / 光暈。
@@ -5073,6 +5375,7 @@ export function createWorld({
   engine.onUpdate((dt, t) => {
     for (const m of markers) m.update(dt, t, engine.camera);
     updateMarkerLights();
+    detailCull.update(engine.camera);
     for (const g of gates) g.update(dt, t);
     for (const tab of tablets) tab.update(dt, t);
     for (const ins of inscriptionObjs) ins.update(dt, t);
@@ -5143,6 +5446,8 @@ export function createWorld({
     motes,
     /** v1.2 · P12：每一片土地專屬的空中粒子（一區一個 Points）。 */
     drifts,
+    /** v1.2 · P22b：細節分帶（測試與稽核用）。 */
+    detailCull,
     tablets,
     /** Phase 22：刻文小語（走近按 E）。 */
     inscriptions: inscriptionObjs,

@@ -25445,6 +25445,268 @@ console.log('▸ 終局：回聲的小祠 ＋ 母碑重立（P22）');
   }
 }
 
+
+console.log('▸ 畫面成本：draw call／材質／透明片進預算（P22b）');
+{
+  const EX_PERF = EXPECT.perf;
+  const { buildWorld } = await import('./world-harness.mjs');
+  const { perfAudit } = await import('./perf-audit.mjs');
+  const { PX_K } = await import('../src/world/batching.js');
+  const audit = await perfAudit();
+
+  /*
+   * 為什麼要逐值：這一格之前，三角形／光源／碰撞體都守著上限（`< 上限`），
+   * 而 draw call 從 3,562 長到 4,144 的那一整段路上，沒有任何一條斷言會紅。
+   * 上限攔得住「爆掉」，攔不住「慢慢長」——所以這一段全部是 eq，不是 ok。
+   * 數字是確定性的（世界是同一顆種子蓋的、取樣點固定、跑固定四幀），跑兩次逐位元組相同。
+   */
+  const cmp = (quality, kind) => {
+    const got = audit[quality][kind].total;
+    const want = EX_PERF[quality][kind];
+    for (const key of ['draws', 'mats', 'geos', 'transparent', 'additive', 'tris', 'lights', 'instanced']) {
+      eq(got[key], want[key], `P22b：${quality} ${kind} ${key}`, `${got[key]}`);
+    }
+    if (want.at) eq(audit[quality][kind].id, want.at, `P22b：${quality} 最貴的取樣點`, String(audit[quality][kind].id));
+  };
+  cmp('high', 'build');
+  cmp('high', 'frame');
+  cmp('low', 'build');
+  cmp('low', 'frame');
+
+  // 逐層：總量對得上、層與層之間卻搬了家，代表有一層悄悄長胖而另一層剛好瘦了
+  for (const quality of ['high', 'low']) {
+    for (const [kind, field] of [
+      ['build', 'buildLayers'],
+      ['frame', 'frameLayers'],
+    ]) {
+      const rows = audit[quality][kind].layers;
+      for (const [id, n] of Object.entries(EX_PERF[quality][field])) {
+        const row = rows.find((r) => r.id === id);
+        eq(row ? row.draws : null, n, `P22b：${quality} ${kind} 層 ${id}`, String(row && row.draws));
+      }
+    }
+  }
+
+  /* --- 門檻（P22b 的驗收數字；基準是開工時量到的那一份） --- */
+  const g = EX_PERF.gates;
+  const hiBuild = audit.high.build.total;
+  const loFrame = audit.low.frame.total;
+  const hiFrame = audit.high.frame.total;
+  ok(hiBuild.draws <= g.highBuildDrawMax, `P22b：高畫質 draw call ≤ ${g.highBuildDrawMax}`, String(hiBuild.draws));
+  ok(hiBuild.additive <= g.highBuildAdditiveMax, `P22b：高畫質加色混合 ≤ ${g.highBuildAdditiveMax}`, String(hiBuild.additive));
+  ok(
+    loFrame.draws <= hiFrame.draws * g.lowFrameRatioMax,
+    `P22b：低畫質那一幀 ≤ 高畫質那一幀 × ${g.lowFrameRatioMax}`,
+    `${loFrame.draws} / ${hiFrame.draws} = ${(loFrame.draws / hiFrame.draws).toFixed(3)}`
+  );
+  // 基準（開工時量到的那一份）—— 省了多少要說得出口，而且不准倒退
+  eq(g.baseline.tris, hiBuild.tris, 'P22b：三角形一個都沒動（省的是 draw call，不是內容）', String(hiBuild.tris));
+  ok(hiBuild.draws <= g.baseline.draws * 0.75, 'P22b：draw call 至少省了四分之一', String(hiBuild.draws));
+  ok(hiBuild.additive <= g.baseline.additive * 0.70, 'P22b：加色混合至少省了三成', String(hiBuild.additive));
+  eq(
+    Number((audit.low.build.total.draws / hiBuild.draws).toFixed(3)),
+    g.lowBuildRatio,
+    'P22b：低畫質「蓋出來」的比例（誠實記著：低畫質省的是畫，不是裝）',
+    (audit.low.build.total.draws / hiBuild.draws).toFixed(3)
+  );
+
+  /* --- ① 石座合批：710 個 draw call 收成 5 個 --- */
+  {
+    const { world } = await buildWorld({ quality: 'high' });
+    const shared = world.root.children.find((c) => c.name === 'marker:shared');
+    ok(Boolean(shared), 'P22b：石座的共用批在場景圖上（marker:shared）');
+    const insts = shared.children.filter((c) => c.isInstancedMesh);
+    eq(insts.length, EX_PERF.markerBatch.draws, 'P22b：石座合批後只剩這麼多 draw call', String(insts.length));
+    eq(
+      new Set(insts.map((m) => m.material.uuid)).size,
+      EX_PERF.markerBatch.mats,
+      'P22b：石座合批後只剩這麼多份材質'
+    );
+    eq(
+      insts.filter((m) => m.material.blending === THREE.AdditiveBlending).length,
+      EX_PERF.markerBatch.additive,
+      'P22b：石座剩這麼多片加色混合'
+    );
+    for (const m of insts) eq(m.count, world.markers.length, `P22b：${m.name} 每一座都有位子`, String(m.count));
+    /*
+     * 名字不是裝飾：穿模稽核的例外表認的是路徑上的 `marker:`
+     * （石座的光柱與地面光環不擋人）。批次改名就會讓那幾片突然被要求擋人。
+     */
+    ok(/^marker:/.test(shared.name), 'P22b：批次的名字仍落在穿模稽核的例外表底下');
+    // 每一座仍握著自己那一份代理（既有介面一個字都沒改）
+    const m0 = world.markers[0];
+    for (const part of ['pedestal', 'shard', 'ring', 'beacon', 'halo']) {
+      ok(Boolean(m0[part] && m0[part].isMesh), `P22b：石座仍拿得到 ${part} 代理`);
+      eq(m0[part].parent, null, `P22b：${part} 代理沒有掛進場景圖（不佔 draw call）`);
+    }
+    ok(Boolean(m0.label && m0.label.parent === m0.group), 'P22b：字牌仍掛在石座自己的節點上（要分帶）');
+    /*
+     * 加色混合下螢幕上的貢獻就是「顏色 × 不透明度」，所以實例色一定要等於那一乘。
+     * 讀的是 update() 跑完之後**代理身上真的那兩個值**（不是測試自己塞進去的，
+     * 塞進去的下一幀就被動畫覆寫掉了 —— 那樣量到的是自己寫的常數，不是程式的行為）。
+     */
+    const camNear = new THREE.PerspectiveCamera(55, 16 / 9, 0.1, 900);
+    camNear.position.set(m0.position.x, m0.position.y + 7, m0.position.z + 9);
+    m0.update(1 / 60, 1, camNear);
+    const col = new THREE.Color();
+    const rings = insts.find((mm) => mm.name === 'rings');
+    rings.getColorAt(0, col);
+    const wantCol = m0.ring.material.color.clone().multiplyScalar(m0.ring.material.opacity);
+    ok(m0.ring.material.opacity > 0.05, '（前提）腳下的圈這一幀真的有亮度', String(m0.ring.material.opacity));
+    ok(
+      Math.abs(col.r - wantCol.r) < 1e-4 && Math.abs(col.g - wantCol.g) < 1e-4 && Math.abs(col.b - wantCol.b) < 1e-4,
+      'P22b：實例色 ＝ 顏色 × 不透明度（加色混合下逐像素等價）',
+      `${col.r.toFixed(4)},${col.g.toFixed(4)},${col.b.toFixed(4)} vs ${wantCol.r.toFixed(4)},${wantCol.g.toFixed(4)},${wantCol.b.toFixed(4)}`
+    );
+    // 光核走的是自發光那一條（instanceColor 在 three.js 乘不到 emissive，所以補了一行 shader）
+    const worldSrc22b = readFileSync(resolve(root, 'src/world/world.js'), 'utf8');
+    ok(
+      /totalEmissiveRadiance \*= vColor/.test(worldSrc22b),
+      'P22b：光核那一批把實例色乘進自發光（不然 142 座會一起發白光）'
+    );
+  }
+
+  /* --- ② 靜態合批：碰撞與稽核一顆圓都沒少 --- */
+  {
+    const Batching = await import('../src/world/batching.js');
+    ok(typeof Batching.instanceStatics === 'function', 'P22b：靜態合批是一支可以單獨測的函式');
+    // 合批只碰「同一份幾何 ＋ 同一份材質 ＋ 同一組 userData」的網格
+    const g0 = new THREE.BoxGeometry(1, 1, 1);
+    const m0 = new THREE.MeshBasicMaterial();
+    const holder = new THREE.Group();
+    holder.name = 'test-layer';
+    for (let i = 0; i < 3; i += 1) {
+      const mesh = new THREE.Mesh(g0, m0);
+      mesh.position.x = i * 2;
+      holder.add(mesh);
+    }
+    const odd = new THREE.Mesh(g0, m0);
+    odd.userData.standId = 'keep-me'; // userData 不同 → 不准跟別人合在一起
+    holder.add(odd);
+    const kid = new THREE.Mesh(g0, m0);
+    holder.children[0].add(kid); // 底下有網格的不合（頂面是走整棵子樹量的）
+    const before = Batching.instanceStatics(holder);
+    eq(before.batches, 1, 'P22b：三塊一模一樣的收成一批');
+    eq(before.merged, 2, 'P22b：收進去的是「頭上腳下都沒有網格」的那兩塊');
+    ok(
+      holder.children.some((c) => c.isMesh && !c.isInstancedMesh && c.userData.standId === 'keep-me'),
+      'P22b：userData 不同的那一塊留在原地'
+    );
+    ok(kid.parent !== null, 'P22b：底下還有網格的那一塊沒有被拆走');
+    // protectReferenced：被 userData 指著的（每幀在動的）不合批
+    const holder2 = new THREE.Group();
+    const live = new THREE.Mesh(g0, m0);
+    const still = new THREE.Mesh(g0, m0);
+    still.position.x = 3;
+    holder2.add(live, still);
+    holder2.userData.gear = live;
+    eq(Batching.protectReferenced(holder2), 1, 'P22b：被拿在手上的那一件被保護起來');
+    eq(Batching.instanceStatics(holder2).batches, 0, 'P22b：只剩一件就不必合批（保護生效）');
+  }
+
+  /* --- ③ 細節分帶：判準是螢幕像素，不是距離 --- */
+  {
+    const Batching = await import('../src/world/batching.js');
+    eq(Math.round(PX_K), 1037, 'P22b：像素換算的那把尺是固定的（1080p／55°）', String(Math.round(PX_K)));
+    const holder = new THREE.Group();
+    const small = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.2, 0.2), new THREE.MeshBasicMaterial());
+    const big = new THREE.Mesh(new THREE.BoxGeometry(12, 12, 12), new THREE.MeshBasicMaterial());
+    big.position.x = 40;
+    holder.add(small, big);
+    const cull = Batching.createDetailCull(holder, { px: 2 });
+    eq(cull.count, 1, 'P22b：只登記小到有機會退場的那一件（大石脊永遠不必問）', String(cull.count));
+    cull.updateAll({ position: new THREE.Vector3(0, 0, 5) });
+    eq(small.visible, true, 'P22b：5 公尺外的小件照畫（0.2 公尺 ≈ 41 像素）');
+    cull.updateAll({ position: new THREE.Vector3(0, 0, 400) });
+    eq(small.visible, false, 'P22b：400 公尺外退場（不到半個像素）');
+    cull.updateAll({ position: new THREE.Vector3(0, 0, 5) });
+    eq(small.visible, true, 'P22b：走回來又畫回去');
+    eq(big.visible, true, 'P22b：大件從頭到尾沒被碰過');
+    /*
+     * 滯後：亮的門檻是 2 像素、暗的門檻是 1.5 像素（0.75 倍）。
+     * 站在剛好 2 像素那個距離上前後走一步不會閃 —— 一格一格驗過去。
+     */
+    const edge = (0.2 * PX_K) / 2; // 剛好 2 像素的那個距離
+    cull.updateAll({ position: new THREE.Vector3(0, 0, edge * 1.1) });
+    eq(small.visible, true, 'P22b：剛出門檻一點點還在畫（滯後：還沒掉到 1.5 像素）');
+    cull.updateAll({ position: new THREE.Vector3(0, 0, edge * 1.5) });
+    eq(small.visible, false, 'P22b：掉到 1.5 像素以下才退場');
+    cull.updateAll({ position: new THREE.Vector3(0, 0, edge * 1.1) });
+    eq(small.visible, false, 'P22b：只回來一點點不會馬上又亮（滯後）');
+    cull.updateAll({ position: new THREE.Vector3(0, 0, edge * 0.9) });
+    eq(small.visible, true, 'P22b：真的進到 2 像素裡才亮');
+    // 世界端真的裝上了，而且真的登記到東西（不是空過）
+    const { world: wHi } = await buildWorld({ quality: 'high' });
+    const { world: wLo } = await buildWorld({ quality: 'low' });
+    ok(wHi.detailCull.count > 200, 'P22b：高畫質真的登記到一整批細節片（不是空過）', String(wHi.detailCull.count));
+    ok(wLo.detailCull.count > 200, 'P22b：低畫質也有', String(wLo.detailCull.count));
+  }
+
+  /* --- ④ 分帶不准把「看得見的東西」弄不見 --- */
+  {
+    const { world } = await buildWorld({ quality: 'high' });
+    const cam = new THREE.PerspectiveCamera(55, 16 / 9, 0.1, 900);
+    // 走到第一座石座腳邊：字牌、腳下的圈、光柱、光核一件都不准少
+    const m = world.markers[0];
+    cam.position.set(m.position.x, m.position.y + 7, m.position.z + 9);
+    for (let i = 0; i < 4; i += 1) m.update(1 / 60, 10 + i / 60, cam);
+    eq(m.label.visible, true, 'P22b：走近時字牌在');
+    eq(m.active, true, 'P22b：走近時石座是活的（照舊逐幀動）');
+    // 130 公尺外字牌才收（那時整張牌不到 27 像素高）
+    cam.position.set(m.position.x, m.position.y + 7, m.position.z + 200);
+    for (let i = 0; i < 4; i += 1) m.update(1 / 60, 11 + i / 60, cam);
+    eq(m.label.visible, false, 'P22b：200 公尺外字牌收起來');
+    eq(m.active, false, 'P22b：遠處的石座不再逐幀寫實例欄位');
+    cam.position.set(m.position.x, m.position.y + 7, m.position.z + 9);
+    for (let i = 0; i < 4; i += 1) m.update(1 / 60, 12 + i / 60, cam);
+    eq(m.label.visible, true, 'P22b：走回來字牌又亮回來');
+    // 分帶的距離逐值比對（改鬆一格就要紅）
+    eq(m.labelBand.join(','), EXPECT.perf.labelBand.high.join(','), 'P22b：高畫質字牌的進 / 出距離');
+    ok(m.labelBand[1] > m.labelBand[0], 'P22b：進 / 出是兩個距離（滯後）');
+
+    /*
+     * 帶外的石座**不是凍住的**：光柱是站在高原上讀的導航，三態的暗／亮也是。
+     * 只把遠處的石座停掉，一片新解鎖的土地就會維持 ×0.4 的暗直到玩家走近 ——
+     * 那是看得見的倒退。帶外不 lerp，但要**一次貼上終值**。
+     */
+    const far = world.markers.find((x) => x.region !== m.region) || world.markers[1];
+    const farCam = new THREE.PerspectiveCamera(55, 16 / 9, 0.1, 900);
+    farCam.position.set(far.position.x, far.position.y + 7, far.position.z + 400);
+    far.update(1 / 60, 20, farCam);
+    eq(far.active, false, '（前提）那一座真的在帶外');
+    far.setRegionState('dark');
+    far.update(1 / 60, 21, farCam);
+    eq(far.dimNow, 0.4, 'P22b：帶外的石座「暗」一次到位（不必等玩家走近）', String(far.dimNow));
+    ok(
+      Math.abs(far.beacon.material.opacity - 0.055 * 0.4) < 1e-6,
+      'P22b：帶外的光柱照三態調亮度',
+      String(far.beacon.material.opacity)
+    );
+    far.setRegionState('amber');
+    far.update(1 / 60, 22, farCam);
+    eq(far.dimNow, 1, 'P22b：轉回「先行前往」也一次到位');
+    ok(far.halo.material.opacity > 0.02, 'P22b：帶外的琥珀底光讀得出來（遠處就看得到這一區是問開的）', String(far.halo.material.opacity));
+    eq(far.halo.material.color.getHex(), new THREE.Color((await import('../src/engine/engine.js')).PALETTE.invite).getHex(), 'P22b：帶外的 halo 顏色也一次到位');
+  }
+
+  /* --- ⑤ 稽核不准因為合批而變鬆 --- */
+  {
+    const { world } = await buildWorld({ quality: 'high' });
+    let instanced = 0;
+    let instances = 0;
+    world.root.traverse((o) => {
+      if (!o.isInstancedMesh) return;
+      instanced += 1;
+      instances += o.count;
+    });
+    ok(instanced >= 250, 'P22b：場景圖上真的有一整批 InstancedMesh', String(instanced));
+    ok(instances > instanced * 2, 'P22b：每一批平均不只兩件（合批真的在合）', `${instances}/${instanced}`);
+    // 142 座石座的碰撞圓一顆都沒少（合批之前是 142 個獨立網格）
+    const ped = world.solids.filter((s) => Math.abs(s.r - 1.25) < 1e-6 && s.keep);
+    eq(ped.length, world.markers.length, 'P22b：石座底座的碰撞圓一顆都沒少（合批走的是逐實例那條路）', String(ped.length));
+  }
+}
+
 /* ------------------------------------------------------------------ */
 console.log('');
 if (failures.length) {

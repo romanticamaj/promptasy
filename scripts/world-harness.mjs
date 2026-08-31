@@ -51,6 +51,12 @@ export const stubProgression = Object.freeze({
   hasFoundSecret: () => false,
   hasUsedHandle: () => false,
   hasFoundLetter: () => false,
+  // v1.2 · P22b：跑得動每幀迴圈需要的那幾支（`updateReactions` 會問）
+  isCleared: () => false,
+  isCollected: () => false,
+  hasBadge: () => false,
+  masteredRegions: () => [],
+  skillsOf: () => [],
 });
 
 /**
@@ -107,13 +113,40 @@ export async function buildWorld({ quality = 'high', screens = null, base = null
     const World = await import('../src/world/world.js');
     const opts = base || (await worldOptions());
     const scene = new THREE.Scene();
+    /*
+     * v1.2 · P22b：把 `engine.onUpdate` 收下來，蓋完之後才跑得動每幀迴圈。
+     *
+     * 為什麼要這一段：畫面成本有一半是**分帶**決定的（遠處的字牌收起來、
+     * 45 公尺外整組不畫），而分帶只有在「有一個鏡頭、而且真的跑過一幀」之後才成立。
+     * 只量剛蓋好的場景圖，量到的是「這個世界裝了多少東西」；
+     * 跑過幀之後量到的才是「站在這裡的一幀真的要畫多少」。兩個都要，所以兩個都留。
+     */
+    const updates = [];
+    const engine = { scene, camera: null, quality, onUpdate: (cb) => updates.push(cb) };
     const world = World.createWorld({
-      engine: { scene, camera: {}, onUpdate() {} },
+      engine,
       quality,
       screens,
       ...opts,
     });
-    return { scene, world, THREE };
+    const camera = new THREE.PerspectiveCamera(55, 16 / 9, 0.1, 900);
+    /**
+     * 跑一幀：把鏡頭放到玩家後上方，走完世界自己的每幀迴圈與玩家座標那一組場。
+     * @param {number} dt
+     * @param {number} t
+     * @param {number} px 玩家的世界 x
+     * @param {number} pz 玩家的世界 z
+     */
+    const tick = (dt, t, px, pz) => {
+      const py = world.terrainHeight(px, pz);
+      camera.position.set(px, py + 7, pz + 9);
+      camera.lookAt(px, py + 1.6, pz);
+      camera.updateMatrixWorld(true);
+      engine.camera = camera;
+      for (const cb of updates) cb(dt, t);
+      world.updateReactions(dt, t, px, pz, py);
+    };
+    return { scene, world, THREE, camera, tick };
   } finally {
     restore();
   }

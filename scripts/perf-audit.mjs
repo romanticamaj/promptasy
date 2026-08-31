@@ -31,6 +31,11 @@
  * **它只量「畫之前就決定好」的成本**（場景圖的形狀），不量幀時 ——
  * 幀時在這台軟體渲染的機器上量不準（findings：從外面量會遊走的東西是很吵的代理量）。
  * 場景圖的形狀是確定性的，所以它適合當契約。
+ *
+ * v1.2 · P22b 起量**兩種**形狀（兩種都是確定性的，跑兩次逐位元組相同）：
+ *   · `build` 剛蓋好的場景圖 —— 「這個世界裝了多少東西」
+ *   · `frame` 站在取樣點、跑過四幀之後 —— 「站在這裡的一幀真的要畫多少」
+ * 兩種都留：只看 `frame` 會鼓勵「把東西全部藏起來」，只看 `build` 則看不見分帶做了什麼。
  */
 import { buildWorld } from './world-harness.mjs';
 
@@ -130,12 +135,43 @@ export function perfOf(root, THREE) {
   };
 }
 
-/** 高低畫質各量一次。 */
+/**
+ * 取樣點：出生點 ＋ 每一片土地的中心。
+ *
+ * 為什麼是「最貴的那一點」而不是平均：預算守的是**最壞的那一幀**。
+ * 出生點在世界正中央（0,0），四面八方都在 200 公尺內 —— 它幾乎一定是最貴的那一個，
+ * 但仍然逐點量、取最大，換一片土地變擠的時候才擋得下來。
+ */
+function samplePoints(world) {
+  const pts = [{ id: 'spawn', x: 0, z: 0 }];
+  for (const s of world.sites || []) pts.push({ id: s.id, x: s.x, z: s.z });
+  return pts;
+}
+
+/**
+ * 高低畫質各量兩種：
+ *   · `build` 剛蓋好的場景圖 —— 「這個世界裝了多少東西」（分帶還沒發生）
+ *   · `frame` 站在某一點、真的跑過幾幀之後 —— 「這一幀真的要畫多少」
+ *
+ * 兩個都留是刻意的：只看 `frame` 會鼓勵「把東西全部藏起來」（藏得掉的東西
+ * 一走近就得全部畫回來）；只看 `build` 則看不見分帶做了什麼。
+ * 契約兩個都逐值守。
+ */
 export async function perfAudit() {
   const out = {};
   for (const quality of ['high', 'low']) {
-    const { world, THREE } = await buildWorld({ quality });
-    out[quality] = perfOf(world.root, THREE);
+    const { world, THREE, tick } = await buildWorld({ quality });
+    const build = perfOf(world.root, THREE);
+    const views = [];
+    let worst = null;
+    for (const p of samplePoints(world)) {
+      // 四幀：分帶是布林的（一幀就到位），多跑幾幀讓滯後與淡入淡出也走完
+      for (let i = 0; i < 4; i += 1) tick(1 / 60, 10 + i / 60, p.x, p.z);
+      const snap = perfOf(world.root, THREE);
+      views.push({ id: p.id, ...snap });
+      if (!worst || snap.total.draws > worst.total.draws) worst = { id: p.id, ...snap };
+    }
+    out[quality] = { ...build, build, views, frame: worst };
   }
   return out;
 }
@@ -146,13 +182,17 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   if (process.argv.includes('--json')) {
     console.log(JSON.stringify(audit, null, 2));
   } else {
-    for (const quality of ['high', 'low']) {
-      const { total, layers } = audit[quality];
-      console.log(`\n▸ ${quality === 'high' ? '高畫質' : '低畫質'}`);
+    const line = (label, { total }) =>
       console.log(
-        `  draw call ${total.draws}　材質 ${total.mats}　幾何 ${total.geos}　` +
+        `  ${label} draw call ${total.draws}　材質 ${total.mats}　幾何 ${total.geos}　` +
           `透明片 ${total.transparent}（加色 ${total.additive}）　三角 ${total.tris.toLocaleString()}　光源 ${total.lights}`
       );
+    for (const quality of ['high', 'low']) {
+      const { layers } = audit[quality].frame;
+      console.log(`\n▸ ${quality === 'high' ? '高畫質' : '低畫質'}`);
+      line('蓋出來 ', audit[quality].build);
+      line(`一幀   `, audit[quality].frame);
+      console.log(`  （最貴的取樣點：${audit[quality].frame.id}）`);
       console.log('  ' + '層'.padEnd(16) + 'draw'.padStart(7) + '材質'.padStart(7) + '透明'.padStart(7) + '加色'.padStart(7) + '三角'.padStart(10));
       for (const l of layers.slice(0, 12)) {
         console.log(
@@ -166,7 +206,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
         );
       }
     }
-    console.log('\n（`--json` 給機器讀；這一支只量場景圖的形狀，不量幀時 —— 幀時在軟體渲染上量不準）');
+    console.log('\n（`--json` 給機器讀；這一支量的是場景圖的形狀 —— 蓋出來的與跑過四幀之後的，都不量幀時）');
   }
 }
 

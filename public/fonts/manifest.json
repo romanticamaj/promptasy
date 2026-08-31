@@ -92,6 +92,7 @@
     "src/ui/title.js",
     "src/ui/watchman.js",
     "src/world/archives.js",
+    "src/world/batching.js",
     "src/world/color-script.js",
     "src/world/drifts.js",
     "src/world/echoes.js",
@@ -110,7 +111,7 @@
     "src/world/watchmen.js",
     "src/world/world.js"
   ],
-  "corpusHash": "daca0b46c4a687d9",
+  "corpusHash": "c703540e9915eac5",
   "coverage": {
     "latin": [
       32,
@@ -317,12 +318,14 @@
       8601,
       8629,
       8658,
+      8660,
       8722,
       8730,
       8776,
       8800,
       8804,
       8805,
+      8823,
       8943,
       8961,
       8984,
@@ -1257,6 +1260,7 @@
       26417,
       26421,
       26438,
+      26446,
       26448,
       26449,
       26451,
@@ -1446,6 +1450,7 @@
       28431,
       28436,
       28450,
+      28459,
       28466,
       28472,
       28497,
@@ -1853,6 +1858,7 @@
       33457,
       33491,
       33492,
+      33495,
       33509,
       33510,
       33521,
@@ -2001,6 +2007,7 @@
       35987,
       36000,
       36001,
+      36002,
       36008,
       36010,
       36011,
@@ -2448,6 +2455,7 @@
       10022
     ],
     "inter": [
+      8823,
       8943,
       8961,
       9432,
@@ -2495,7 +2503,9 @@
       8601,
       8629,
       8658,
+      8660,
       8730,
+      8823,
       8943,
       8961,
       8984,
@@ -2555,6 +2565,8 @@
       8251,
       8629,
       8658,
+      8660,
+      8823,
       8943,
       8961,
       9312,
@@ -2628,7 +2640,7 @@
       "id": "inter",
       "family": "Inter UI",
       "file": "inter-ui.woff2",
-      "bytes": 86328,
+      "bytes": 86428,
       "role": "latin",
       "variable": true,
       "weight": null,
@@ -2644,8 +2656,8 @@
           "default": 14
         }
       },
-      "requested": 264,
-      "missing": 28,
+      "requested": 266,
+      "missing": 29,
       "source": "Inter.ttf",
       "author": "Rasmus Andersson",
       "license": "SIL Open Font License 1.1",
@@ -2672,8 +2684,8 @@
           "default": 16
         }
       },
-      "requested": 264,
-      "missing": 70,
+      "requested": 266,
+      "missing": 72,
       "source": "Newsreader.ttf",
       "author": "Production Type (Jean-Baptiste Morizot, Lucas Descroix)",
       "license": "SIL Open Font License 1.1",
@@ -2695,8 +2707,8 @@
           "default": 400
         }
       },
-      "requested": 264,
-      "missing": 39,
+      "requested": 266,
+      "missing": 41,
       "source": "JetBrainsMono.ttf",
       "author": "JetBrains (Philipp Nurullin, Konstantin Bulenkov)",
       "license": "SIL Open Font License 1.1",
@@ -2707,7 +2719,7 @@
       "id": "serif-tc",
       "family": "Arcade Serif TC",
       "file": "arcade-serif-tc.woff2",
-      "bytes": 707260,
+      "bytes": 708484,
       "role": "cjk",
       "variable": true,
       "weight": null,
@@ -2718,7 +2730,7 @@
           "default": 400
         }
       },
-      "requested": 1956,
+      "requested": 1960,
       "missing": 0,
       "source": "NotoSerifTC.ttf",
       "author": "Google (Noto Project)",
@@ -2730,7 +2742,7 @@
       "id": "sans-tc",
       "family": "Arcade Sans TC",
       "file": "arcade-sans-tc.woff2",
-      "bytes": 538828,
+      "bytes": 539528,
       "role": "cjk",
       "variable": true,
       "weight": null,
@@ -2741,7 +2753,7 @@
           "default": 400
         }
       },
-      "requested": 1956,
+      "requested": 1960,
       "missing": 0,
       "source": "NotoSansTC.ttf",
       "author": "Google (Noto Project)",
@@ -2750,5 +2762,5 @@
       "url": "https://github.com/google/fonts/tree/main/ofl/notosanstc"
     }
   ],
-  "totalBytes": 1570676
+  "totalBytes": 1572700
 }

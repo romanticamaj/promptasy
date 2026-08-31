@@ -1,7 +1,7 @@
 {
   "note": "測試用的「這是契約，不是快照」清單。凡是能從 runtime catalog 或資料檔算出來的數字（技巧數、區域數、技能數、flow 數…），測試一律現算，不寫在這裡；只有『這個數字本身就是當期的驗收目標』才登記在這裡，改動它＝有意識地改變契約。每一格都寫得出為什麼。",
-  "updatedAt": "2026-08-27",
-  "updatedBy": "v1.2 · P20b：檔案廊（每片土地一座小展館，走近浮出一則「為什麼」）",
+  "updatedAt": "2026-08-31",
+  "updatedBy": "v1.2 · P22b：畫面成本修復（draw call／材質／透明片／加色混合進預算，高低畫質各一份）",
   "contract": {
     "solutionStats": {
       "value": 142,
@@ -568,6 +568,124 @@
         "mirror-stele": 21.2
       },
       "why": "v1.2 · P21：轉折（中點揭示 ＋ 鏡碑第二層）。這一格加兩塊石碑，各多一層掛了門的字（src/world/turning.js 的 TABLET_GATES）。\n\nregion／flag／echo／midpointGate／scribeGate／rankStep／rankId 全部與 turning.js 逐值比對 —— 契約檔宣告了卻沒人比對的欄位就是一句沒人查證的話（P16c 記過、P17 又犯）。\n\nrankStep 3 ＝ 稱號鏈第三階（1 起算），ranks.json 的第三個是 scribe「抄寫人」—— 鏡碑第二層那句話講的正是它。程式裡拿到的是 rankFor() 的 index（0 起算），兩把尺不准混用，所以 scribeReached() 比的是 rankStep − 1。\n\nwinnable ＝ 站在碑的**互動圈**（4.6）上，24 個方向裡有幾個「站得住而且石碑搶得到 E」。量的是互動圈不是淨空半徑：石碑在仲裁上讓給石座（6.5）／濁靈（5.5–6.0）／守夜人（4.6）／守門者（3.2），所以「四周走得到」不等於「按得到」。一個方向只要在 2.2–4.4 公尺之間有一段站得住而且是碑贏，就算按得到。\n\nwinnableWorst 8 ＝ **14 塊碑裡最差的那一塊**（東橋碑 8／柱腳的碑 8 並列；其餘 15–24）。分歧之廳是十二片土地裡最擠的一片 —— 半徑 29 的建物裡塞了 10 座石座、一隻大濁靈、一位守夜人、三件器物、三個反應物、兩頁殘頁、一座檔案廊、一處回聲與兩道石脊；吃完其餘每一條擺位規則（離器物／反應物 ≥ 10.1、離大濁靈 ≥ 10.6、離殘頁 ≥ 8.4、離石座 ≥ 7、離中觀層碰撞圓 ≥ 4.6 ＋ 玩家半徑 ＋ 圓半徑、離閘門 ≥ 12.1、不進地標留白、四周 16 個方向走得到）之後，**整片土地 0.25 公尺一格掃過只剩 17 個合格點**，其中按得到的方向最多就是 8。門檻 winnableFloor 6 往下留兩格。\n\nlandmarkDistance ＝ 碑離自己那片土地的地標多遠（柱腳的碑 27.0 離「兩面的柱」、鏡碑 21.2 離「會回頭照自己的鏡」）。柱腳那塊擺不到柱子腳邊：柱子四周 14 公尺是留白，再往外一圈是大濁靈與四座石座 —— 離柱心 15–25 公尺之間一個合格點都沒有。"
+    },
+    "perf": {
+      "gates": {
+        "highBuildDrawMax": 3100,
+        "highBuildAdditiveMax": 815,
+        "lowFrameRatioMax": 0.8,
+        "lowBuildRatio": 0.919,
+        "baseline": {
+          "draws": 4144,
+          "mats": 2118,
+          "transparent": 1460,
+          "additive": 1164,
+          "tris": 229644
+        }
+      },
+      "samplePoints": 13,
+      "detailPx": {
+        "high": 2,
+        "low": 7
+      },
+      "pruneSpan": 0.9,
+      "labelBand": {
+        "high": [
+          130,
+          145
+        ],
+        "low": [
+          70,
+          85
+        ]
+      },
+      "markerBatch": {
+        "draws": 5,
+        "mats": 5,
+        "additive": 3,
+        "wasDraws": 710,
+        "wasMats": 710,
+        "wasAdditive": 426
+      },
+      "high": {
+        "build": {
+          "draws": 3024,
+          "mats": 1413,
+          "geos": 792,
+          "transparent": 1020,
+          "additive": 725,
+          "tris": 229644,
+          "lights": 37,
+          "instanced": 291
+        },
+        "frame": {
+          "at": "spawn",
+          "draws": 2659,
+          "mats": 1162,
+          "geos": 790,
+          "transparent": 796,
+          "additive": 541,
+          "tris": 226506,
+          "lights": 37,
+          "instanced": 291
+        },
+        "buildLayers": {
+          "vignettes": 455,
+          "reactive": 437,
+          "handles": 401,
+          "screens": 308,
+          "other": 262,
+          "archives": 262
+        },
+        "frameLayers": {
+          "vignettes": 449,
+          "handles": 399,
+          "reactive": 397,
+          "screens": 306,
+          "other": 262,
+          "murks": 180
+        }
+      },
+      "low": {
+        "build": {
+          "draws": 2778,
+          "mats": 1327,
+          "geos": 691,
+          "transparent": 936,
+          "additive": 641,
+          "tris": 164560,
+          "lights": 20,
+          "instanced": 228
+        },
+        "frame": {
+          "at": "spawn",
+          "draws": 2086,
+          "mats": 918,
+          "geos": 682,
+          "transparent": 612,
+          "additive": 434,
+          "tris": 154758,
+          "lights": 20,
+          "instanced": 228
+        },
+        "buildLayers": {
+          "reactive": 437,
+          "handles": 401,
+          "vignettes": 333,
+          "screens": 305,
+          "archives": 262,
+          "murks": 180
+        },
+        "frameLayers": {
+          "handles": 399,
+          "vignettes": 326,
+          "screens": 263,
+          "reactive": 233,
+          "murks": 180,
+          "other": 177
+        }
+      },
+      "why": "v1.2 · P22b：畫面成本的契約。\n\n為什麼會有這一格：這個世界從 v1 起守三角形／光源／碰撞體，三項一路都在框內，可是閘門 C → D 一格之內 draw call 長了 16%（3,562 → 4,144）、加色混合的透明片長了 28%（908 → 1,164）、材質長了 25%（1,690 → 2,118）—— 而**沒有一條斷言在數它們**，所以每一格都誠實地報「預算綠燈」。守錯預算比沒有預算更危險：它會讓人以為量過了。\n\n量兩種，兩種都逐值守：\n· build ＝ 剛蓋好的場景圖（分帶還沒發生）——「這個世界裝了多少東西」。\n· frame ＝ 站在取樣點、跑過四幀之後 ——「站在這裡的一幀真的要畫多少」。\n取樣點是出生點 ＋ 十二片土地的中心，取 draw call 最大的那一個（最壞的一幀，不是平均）。兩種都留是刻意的：只守 frame 會鼓勵「把東西全部藏起來」（藏得掉的東西一走近就得全部畫回來），只守 build 則看不見分帶做了什麼。\n\ngates ＝ 這一格的驗收門檻（draw ≤ 3,100、加色 ≤ 815 都是拿 build 量的，與 P22b 開工時那份基準同一把尺；lowFrameRatioMax 是低畫質那一幀相對高畫質那一幀的上限）。lowBuildRatio 誠實記著低畫質「蓋出來」只少 8.1% —— 低畫質省的是**畫**，不是**裝**：它少蓋的只有那些細到不可能有碰撞體的裝飾片（pruneSpan 0.9 < PLATE_MIN 0.9），其餘省下來的全部來自更早的分帶。要讓 build 也少兩成就得在低畫質整層不蓋某些內容（殘頁、刻文、檔案廊）—— 那是內容差異，不是畫質差異，所以不做。\n\n三件優化把 draw call 4,144 → **3,024**（−27%）、加色混合 1,164 → **725**（−38%）、材質 2,118 → **1,413**（−33%），而**三角形一個都沒動**（229,644）。逐項都能單獨拆掉讓這一格變紅：\n① 石座合批（markerBatch）：142 座 × 5 件（底座／光核／腳下的圈／光柱／走近的光環）＝ 710 個 draw call、710 份材質、426 片加色混合 → **5 個 draw、5 份材質、3 片加色**。每一座仍握著自己那一份沒掛進場景圖的 THREE.Mesh 當代理，`marker.beacon.scale`／`marker.halo.material.opacity` 這些既有介面一個字都沒改。加色混合下 `rgb × alpha` 就是螢幕上的貢獻，所以把 color × opacity 寫進實例色、材質 opacity 固定 1，出來的像素逐位元組相同；光核那一批另外補一行 shader（自發光乘上實例色），因為 instanceColor 在 three.js 只乘得到漫射色。\n② 靜態合批：故事小景／地標／中觀三層裡「同一份幾何 ＋ 同一份材質 ＋ 同一組 userData」的靜態網格收成 InstancedMesh。碰撞登記與穿模稽核本來就逐實例走 InstancedMesh，所以一顆圓都沒少；高台（platform:）與遮擋帶（screen:）整棵保留形狀 —— test:rubric 逐一走高台的 children 在量裝飾、e2e 的 P16b 逐道量「那道石脊至少四塊網格」，合掉那兩種節點會讓那幾條斷言安靜地量到 0。中觀那一層因此只合得到母題（motif:）的裝飾件。\n③ 細節分帶（detailPx）：判準是**它在螢幕上占幾個像素**（2r/d × PX_K，1080p／55°），不是距離。高畫質 2 像素（看不出來），低畫質 7 像素。進 / 出用 0.75 倍的滯後，站在邊界上走不會閃。自己管可見性的那幾層（火苗、母碑的核心、石座演出）跳過。\n\nlabelBand ＝ 石座字牌的分帶（進 / 出）。字牌的 sprite 在 34 公尺外就固定在 3.4，之後在螢幕上是 1/d 縮下去的：130 公尺時整張牌只剩約 27 像素高、標題那一行不到 12 像素，已經是一團色塊不是字。低畫質收到 70 公尺。\n\nlayers ＝ 前六大層逐值比對。總量對得上、逐層卻搬了家，代表有一層悄悄長胖而另一層剛好瘦了 —— 只守總量攔不住那件事。"
     }
   }
 }
