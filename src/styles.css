@@ -1026,26 +1026,61 @@ a.src:hover {
 }
 
 /* 互動提示：紙片，不是氣泡 */
+/*
+ * 互動提示卡 —— 走近可互動的東西時浮出來的那一塊石牌。
+ * 十二層共用（石座／濁靈／石碑／殘頁／守夜人／守門者／器物／絞盤／回聲／閘門／刻文／終局），
+ * 內容由 `main.js` 的仲裁鏈組字串餵進 `hud.setInteract()`。
+ *
+ * v1.2 · P22e：**從四行直排改成一橫排，並讓開視線中心。**
+ *
+ * 站長實玩回報「事件彈出會擋住畫面」，截圖裡那張卡在 766×567 的視窗下**佔掉畫面高度的 46%**，
+ * 而且正好蓋在他要看的那隻濁靈身上。
+ *
+ * 為什麼**不是**把字改小或改半透明：
+ *   · 字級是 Phase 14 依產品回饋整組放大 1.75 倍的結果（「說明文字太小」），
+ *     縮回去等於推翻站長自己提過的需求；而且那次就已經寫明「HUD 只放大 1.4 倍，
+ *     同樣倍率會蓋掉半個世界」——字級本身是被想過的。
+ *   · 半透明同時傷兩邊：字更難讀，**東西還是被蓋住**。它解決的是「擋掉多少光」，
+ *     但問題是「擋在哪裡」。
+ *
+ * 所以改的是**版面方向與位置**：四行直排（標題／副標／鍵帽／動詞）攤成一橫排，
+ * 高度從約 260px 掉到 **54px**（1280×720 下佔畫面高度 7.5%，原本 46%），**字級一個字都沒動**。
+ *
+ * `bottom: 76px` 是量出來的：底下那行操作說明（`.hud__controls`）實測 `top=670 高=26`，
+ * 76px 讓卡片下緣停在 644，留 26px 的縫；壓到 52px 只剩 2px，太貼。
+ * 1280×720 下卡片上緣在 y=590，離畫面中線（396）遠得很。
+ * （860px 以下那行操作說明整行 `display:none`，所以窄視窗根本不會撞到它。）
+ */
 .hud__interact {
   position: absolute;
   left: 50%;
-  bottom: 96px;
+  bottom: 76px;
   transform: translateX(-50%);
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
-  gap: 3px;
-  --cut: 11px;
-  padding: var(--s3) var(--s6);
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: var(--s2) var(--s4);
+  /* 關卡名 ＋「NPC · 最佳 S」是最長的一組；窄視窗時讓它換行而不是頂破畫面 */
+  max-width: min(92vw, 780px);
+  --cut: 9px;
+  padding: var(--s2) var(--s5);
   border: 0;
   border-radius: 0;
   clip-path: var(--seal-shape);
-  /* 邊 ＝ 一層由亮轉暗的漸層，跟介面上每一塊石牌同一套（Phase 15） */
+  /* 邊 ＝ ::before 蓋掉中間之後露出來的 1px 底色，跟介面上每一塊石牌同一套（Phase 15） */
   background-color: rgba(196, 220, 236, 0.26);
   backdrop-filter: blur(12px);
   text-align: center;
   animation: rise var(--d-slow) var(--e-out);
   filter: drop-shadow(0 18px 34px rgba(0, 0, 0, 0.7));
+  /*
+   * `.hud > * { pointer-events: auto }` 會讓這張卡吃滑鼠事件 —— 它蓋在畫面中央，
+   * 等於在正中間開一塊「拖曳轉不動鏡頭」的死區（`.nudge`／`.hud__aside` 都寫了這一條，
+   * 只有它漏掉）。它純粹是給人看的，不該攔任何輸入。
+   */
+  pointer-events: none;
 }
 .hud__interact::before {
   content: '';
@@ -1076,8 +1111,9 @@ a.src:hover {
   font-size: var(--t-micro);
   color: var(--paper-3);
 }
+/* 橫排之後鍵帽跟動詞在同一行，不再需要把它推下去 */
 .hud__interact kbd {
-  margin-top: var(--s2);
+  margin-top: 0;
 }
 
 /* v1.2 · P20b：檔案廊那一則小知識 —— 一張讀得到、按不到的紙片。
