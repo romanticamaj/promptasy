@@ -620,8 +620,28 @@ function buildBench(kit) {
     group: grp,
     slab,
     wear,
-    // 坐下時人要真的坐到凳面上（局部座標；面向是凳子長軸的法線）
-    seatLocal: { dx: 0.2, dz: 0.02, face: Math.PI / 2 },
+    /*
+     * 坐下時人要真的坐到凳面上。
+     *
+     * `dx: 0.2` 對齊凳面上那道磨痕（`wear` 也在 x=0.2）—— 坐在被坐出痕跡的那一格。
+     * `dz: 0.02` ≈ 凳面中線：人落在凳面上，大腿往前伸 0.4 公尺跨過前緣（凳面深 ±0.35）。
+     *
+     * `face: 0` ＝ 面向局部 +z，也就是凳子的**短邊**（跨出去那一面）。
+     * v1.2 · P22f 之前寫的是 `Math.PI / 2`，而那個角度正好就是凳子的**長軸** ——
+     * 人於是沿著凳子跨坐（每一張凳子的朝向·長軸內積都實測到 1.000）。
+     */
+    seatLocal: { dx: 0.2, dz: 0.02, face: 0 },
+    /**
+     * 凳面比「坐姿的髖」高多少（公尺）—— 坐下時要把角色抬起來的量。
+     *
+     * 角色的坐姿本來就調得很準：髖 0.88 − `SEAT_DROP` 0.42 ＝ **0.44**，
+     * 小腿 0.4 ＋ 腳 0.06 剛好落到地面。可是 `player.teleport(x, z, face)` **不吃 y**，
+     * 所以在 P22f 之前沒有任何人把「這張凳子的座面有多高」告訴角色 ——
+     * 人留在地面高度，凳面（地面上方 0.685）就從他腰的位置穿過去。
+     *
+     * 0.685 ＝ 凳面板的頂（`slab` 中心 0.59 ＋ 半厚 0.095）。
+     */
+    seatRise: 0.685 - 0.44,
     seated: false,
     activate() {
       this.seated = !this.seated;
@@ -742,6 +762,8 @@ export function buildHandle(spec, kit, terrainHeight) {
       x: x + built.seatLocal.dx * cos + built.seatLocal.dz * sin,
       z: z - built.seatLocal.dx * sin + built.seatLocal.dz * cos,
       face: rot + built.seatLocal.face,
+      /** 坐下時角色要抬多高（公尺）——「座面」與「坐姿的髖」的差。 */
+      rise: built.seatRise || 0,
     };
   }
   built.near = false;

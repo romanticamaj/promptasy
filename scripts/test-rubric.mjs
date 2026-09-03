@@ -25855,6 +25855,73 @@ console.log('▸ 畫面成本：draw call／材質／透明片進預算（P22b�
 
 /* ------------------------------------------------------------------ */
 console.log('');
+/* ------------------------------------------------------------------ *
+ * 長凳：人要真的坐在凳面上（v1.2 · P22f）
+ * ------------------------------------------------------------------ *
+ *
+ * 站長回報「板凳坐起來位置都怪怪的」。量出來是兩件互相獨立的事，七張凳子全中
+ * —— 也就是說是程式的錯，不是某一筆資料擺歪：
+ *
+ *   ① **人面向凳子的長邊**（朝向與長軸的內積實測 1.000）＝ 沿著凳子跨坐。
+ *      `seatLocal.face` 寫的是 `Math.PI / 2`，可是那個角度正好就是凳子的長軸方向。
+ *   ② **沒有任何程式把人抬到凳面上**：`player.teleport(x, z, face)` 不吃 y，
+ *      人留在地面高度，而凳面在地面上方 0.696 公尺 —— 凳面就從人身上腰的位置穿過去。
+ *      角色的坐姿其實調得很準（髖 0.88 − `SEAT_DROP` 0.42 ＝ 0.44，小腿 0.4 ＋ 腳 0.06
+ *      剛好踩到地），只是沒有人把「座面有多高」告訴它。
+ *
+ * 既有的測試驗了「有沒有擺出坐姿」（`restAmount`、膝蓋角度）與「鏡頭有沒有退」，
+ * **卻沒有一條在驗「人有沒有真的在凳子上」** —— 所以這個才會一路出貨。
+ * 這一節補的就是那件事：位置與朝向，兩條都逐張凳子驗。
+ */
+{
+  const { buildWorld: bw } = await import('./world-harness.mjs');
+  const { world, scene, THREE } = await bw({ quality: 'high' });
+  scene.updateMatrixWorld(true);
+  const benches = world.handles.objects.filter((o) => o.kind === 'bench');
+  ok(benches.length >= 5, '長凳：世界上真的有一批長凳可以驗', String(benches.length));
+
+  const dir = new THREE.Vector3();
+  let worstDot = 0;
+  let worstRise = 0;
+  for (const h of benches) {
+    // 凳面 ＝ 這張凳子裡水平投影面積最大的那一塊
+    let slab = null;
+    h.group.traverse((o) => {
+      if (!o.isMesh || !o.geometry) return;
+      o.geometry.computeBoundingBox();
+      const bb = o.geometry.boundingBox.clone().applyMatrix4(o.matrixWorld);
+      const area = (bb.max.x - bb.min.x) * (bb.max.z - bb.min.z);
+      if (!slab || area > slab.area) slab = { bb, area };
+    });
+    const ground = world.terrainHeight(h.seat.x, h.seat.z);
+    const seatH = slab.bb.max.y - ground;
+
+    /*
+     * ① 朝向：坐下時人要面向凳子的**短邊**（跨出去那一面），不是長邊。
+     * 長軸 ＝ 局部 +x 轉到世界 —— 用世界矩陣拿，因為旋轉掛在父節點上
+     * （直接讀 `group.rotation.y` 永遠是 0，第一次量就是這樣量錯的）。
+     */
+    h.group.updateWorldMatrix(true, false);
+    dir.set(1, 0, 0).transformDirection(h.group.matrixWorld).normalize();
+    const face = { x: Math.sin(h.seat.face), z: Math.cos(h.seat.face) };
+    const dot = Math.abs(dir.x * face.x + dir.z * face.z);
+    worstDot = Math.max(worstDot, dot);
+
+    /*
+     * ② 高度：坐姿的髖落在 `HIP_STAND − SEAT_DROP` ＝ 0.44 公尺。
+     * 要坐在凳面上，就得有一個把人抬起來的量，而且那個量要跟這張凳子的座面高對得上。
+     */
+    const rise = Number.isFinite(h.seatRise) ? h.seatRise : 0;
+    worstRise = Math.max(worstRise, Math.abs(seatH - 0.44 - rise));
+  }
+  ok(worstDot < 0.35, '長凳：坐下時人面向凳子的短邊（不是沿著長邊跨坐）', `最差的內積 ${worstDot.toFixed(3)}`);
+  ok(
+    worstRise < 0.06,
+    '長凳：每張凳子都把「座面比坐姿的髖高多少」告訴角色（人才會坐在凳面上，不是被凳面攔腰穿過）',
+    `最差差 ${worstRise.toFixed(3)} m`
+  );
+}
+
 if (failures.length) {
   console.error(`✗ ${failures.length} 個測試失敗（通過 ${passCount}）：\n`);
   for (const f of failures) console.error(`  • ${f}`);

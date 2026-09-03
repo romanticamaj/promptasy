@@ -325,6 +325,8 @@ export function createCharacter({ quality = 'high' } = {}) {
    */
   let restTarget = 0;
   let restAmt = 0;
+  /** 這一次坐的是多高的座面（`rest()` 傳進來；起身時留著讓它平順地降回去）。 */
+  let restRise = 0;
   const SEAT_HIP = 1.48; // 85°
   const SEAT_KNEE = 1.55; // 89°
   const SEAT_DROP = 0.42;
@@ -460,7 +462,9 @@ export function createCharacter({ quality = 'high' } = {}) {
         arms[i].shoulder.rotation.x = to(arms[i].shoulder.rotation.x, -0.32);
         arms[i].elbow.rotation.x = to(arms[i].elbow.rotation.x, -0.86);
       }
-      body.position.y = to(body.position.y, body.position.y - SEAT_DROP);
+      // 先坐下沉 `SEAT_DROP`，再整個人抬到座面上（`restRise`）——
+      // 兩件事都乘 k，起身時會一起平順地收回去。
+      body.position.y = to(body.position.y, body.position.y - SEAT_DROP + restRise);
       body.rotation.x = to(body.rotation.x, -0.09);
       hips.rotation.y = to(hips.rotation.y, 0);
       torso.rotation.y = to(torso.rotation.y, 0);
@@ -485,8 +489,15 @@ export function createCharacter({ quality = 'high' } = {}) {
       return celebrateT > 0;
     },
     /** 坐下 / 站起來（長凳用）。走起來的時候會自動歸零。 */
-    rest(v) {
+    /**
+     * 坐下 / 起身。
+     * @param {boolean} v
+     * @param {number} [rise] 座面比「坐姿的髖」高多少（公尺）——
+     *   坐在凳子上就要把整個人抬起來這麼多，不然凳面會從腰穿過去（v1.2 · P22f）。
+     */
+    rest(v, rise = 0) {
       restTarget = v ? 1 : 0;
+      if (v) restRise = Number.isFinite(rise) ? rise : 0;
       return restTarget === 1;
     },
     /** 目前的坐姿權重（0 = 站著、1 = 坐滿）。測試會看。 */

@@ -1651,7 +1651,8 @@ function boot() {
       h.seated = true;
       seatCamera = player.cameraDistance;
       if (h.seat) player.teleport(h.seat.x, h.seat.z, h.seat.face);
-      player.setResting(true);
+      // 抬到凳面上：`teleport()` 不吃 y，所以座面高度只能從這裡交給角色（P22f）
+      player.setResting(true, h.seat ? h.seat.rise : 0);
       player.setCameraDistance(player.zoomRange.max);
     } else if (res.pose === 'stand') {
       seatedOn = null;

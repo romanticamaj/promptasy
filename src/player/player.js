@@ -721,9 +721,13 @@ export function createPlayer({
         group.rotation.y = face;
       }
     },
-    /** 坐下 / 站起來（長凳）。走一步就會自己站起來。 */
-    setResting(v) {
-      return character.rest(v);
+    /**
+     * 坐下 / 站起來（長凳）。走一步就會自己站起來。
+     * @param {boolean} v
+     * @param {number} [rise] 座面比坐姿的髖高多少（公尺）——見 `character.rest()`。
+     */
+    setResting(v, rise = 0) {
+      return character.rest(v, rise);
     },
     /** 目前的坐姿權重（0 = 站著、1 = 坐滿）。 */
     get restAmount() {
